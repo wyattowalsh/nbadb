@@ -5,27 +5,3 @@
 </div>
 
 ---
-
-## Installation and Usage
-
-### Install Brew
-
-```zsh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-note: ensure to follow along within the console output as several commands that are printed will need to be executed.
-
-### Run Setup Script and Activate Virtual Environment
-
-```zsh
-brew install --cask miniconda
-```
-
-```zsh
-chmod u+x ./utils/setup.sh && chmod 744 ./utils/setup.sh && ./utils/setup.sh
-```
-
-```zsh
-conda activate basketball_db
-```
