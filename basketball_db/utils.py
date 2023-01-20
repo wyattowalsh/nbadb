@@ -32,8 +32,8 @@ def get_proxies() -> list[str]:
             return proxy
     # url = "https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv"
     df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None)
-    proxies = df.iloc[:, 0].tolist() #df[df[1] == "United States"].iloc[:, 0]
-    # proxies = df.swifter.allow_dask_on_strings(enable=True).apply(check_proxy).dropna().tolist()
+    df = df.iloc[:, 0] #df[df[1] == "United States"].iloc[:, 0]
+    proxies = df.swifter.allow_dask_on_strings(enable=True).apply(check_proxy).dropna().tolist()
     return proxies
 
 

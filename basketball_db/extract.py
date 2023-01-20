@@ -12,7 +12,7 @@ from nba_api.stats.endpoints.teamdetails import TeamDetails
 from nba_api.stats.static import players, teams
 from tqdm import tqdm
 
-from basketball_db.utils import get_proxies, combine_team_games
+from basketball_db.utils import combine_team_games, get_proxies
 
 
 # -- Functions -----------------------------------------------------------------------
@@ -58,7 +58,7 @@ def get_teams(save_to_db:bool=False, conn=None) -> pd.DataFrame:
     return df
 
 
-def get_league_game_log_from_date(datefrom, save_to_db=False, conn=None):
+def get_league_game_log_from_date(datefrom, proxies, save_to_db=False, conn=None):
     column_types = {
         'season_id': 'category',
         'team_id_home': 'category',
@@ -76,23 +76,23 @@ def get_league_game_log_from_date(datefrom, save_to_db=False, conn=None):
         'wl_away': 'category',
         'video_available_away': 'category'
     }
-    proxies = get_proxies()
+    i = 0
     while True:
-        if len(proxies) < 1:
-            proxies = get_proxies()
+        if i >= len(proxies):
+            i = 0
         try:
-            df = combine_team_games(LeagueGameLog(date_from_nullable=datefrom, proxy=proxies[0], timeout=3).get_data_frames()[0])
+            df = combine_team_games(LeagueGameLog(date_from_nullable=datefrom, proxy=proxies[i], timeout=3).get_data_frames()[0])
             df.columns = df.columns.to_series().apply(lambda x: x.lower())
             df = df.astype(column_types)
             if save_to_db:
                 df.to_sql("game", conn, if_exists="append", index=False)
         except:
-            proxies = proxies[1:]
+            i = i + 1
             continue
     return df
 
 
-def get_league_game_log_all(conn) -> pd.DataFrame:
+def get_league_game_log_all(proxies, conn) -> pd.DataFrame:
     """ret
 
     _extended_summary_
@@ -118,34 +118,35 @@ def get_league_game_log_all(conn) -> pd.DataFrame:
             'wl_away': 'category',
             'video_available_away': 'category'
         }
+        i = 0
         while True:
-            if len(proxies) < 1:
-                proxies = get_proxies()
+            if i >= len(proxies):
+                i = 0
             try:
-                df = combine_team_games(LeagueGameLog(season=season, proxy=proxies[0], timeout=3).get_data_frames()[0])
+                df = combine_team_games(LeagueGameLog(season=season, proxy=proxies[i], timeout=3).get_data_frames()[0])
                 df.columns = df.columns.to_series().apply(lambda x: x.lower())
                 df = df.astype(column_types)
                 return df
             except:
-                proxies = proxies[1:]
+                i = i + 1
                 continue
     this_year = datetime.now().year
-    proxies = get_proxies()
     for season in tqdm(range(1946, this_year), desc="Seasons"):
         df = helper(str(season), proxies=proxies)
         df.to_sql("game", conn, if_exists="append", index=False)
     return df
 
 
-def get_player_info(save_to_db:bool=False, conn=None) -> pd.DataFrame:
+def get_player_info(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame:
     def helper(player, proxies):
+        i = 0
         while True:
-            if len(proxies) < 1:
-                proxies = get_proxies()
+            if i >= len(proxies):
+                i = 0
             try:
-                return CommonPlayerInfo(player_id=player, proxy=proxies[0], timeout=3).get_data_frames()[0]
+                return CommonPlayerInfo(player_id=player, proxy=proxies[i], timeout=3).get_data_frames()[0]
             except:
-                proxies = proxies[1:]
+                i = i + 1
                 continue
 
     player_ids = pd.concat([pd.DataFrame(p, index=[0]) for p in players.get_players()], ignore_index=True)['id']
@@ -184,7 +185,6 @@ def get_player_info(save_to_db:bool=False, conn=None) -> pd.DataFrame:
         'draft_number': 'int',
         'greatest_75_flag': 'category'
     }
-    proxies = get_proxies()
     dfs = player_ids.swifter.allow_dask_on_strings(enable=True).apply(lambda x: helper(x, proxies))
     dfs = pd.concat(dfs, ignore_index=True)
     dfs.columns = dfs.columns.to_series().apply(lambda x: x.lower())
@@ -194,14 +194,15 @@ def get_player_info(save_to_db:bool=False, conn=None) -> pd.DataFrame:
     return dfs
 
 
-def get_teams_details(save_to_db:bool=False, conn=None) -> pd.DataFrame:
+def get_teams_details(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame:
     def helper(team, proxies):
         dfs = {"team_details": [], "team_history": []}
+        i = 0
         while True:
-            if len(proxies) < 1:
-                proxies = get_proxies()
+            if i >= len(proxies):
+                i = 0
             try:
-                df = TeamDetails(team_id=team, proxy=proxies[0], timeout=3).get_data_frames()
+                df = TeamDetails(team_id=team, proxy=proxies[i], timeout=3).get_data_frames()
                 df = pd.concat([df[0], df[2].set_index("ACCOUNTTYPE").T.reset_index(drop=True)], axis=1)
                 df.columns = df.columns.to_series().apply(lambda x: x.lower())
                 df = df.astype(column_types)
@@ -212,7 +213,7 @@ def get_teams_details(save_to_db:bool=False, conn=None) -> pd.DataFrame:
                 dfs['team_history'].append(history)
                 return dfs
             except:
-                proxies = proxies[1:]
+                i = i + 1
                 continue
     column_types = {
         'team_id': 'category', 
@@ -230,7 +231,6 @@ def get_teams_details(save_to_db:bool=False, conn=None) -> pd.DataFrame:
         'twitter': 'category'
     }
     teams = teams.get_teams()['id']
-    proxies = get_proxies()
     dfs = teams.swifter.allow_dask_on_strings(enable=True).apply(lambda x: helper(x, proxies))
     team_details = pd.concat([df['team_details'] for df in dfs], ignore_index=True)
     team_history = pd.concat([df['team_history'] for df in dfs], ignore_index=True)
@@ -241,13 +241,14 @@ def get_teams_details(save_to_db:bool=False, conn=None) -> pd.DataFrame:
 
 
 def get_box_score_summaries(game_ids, save_to_db=False, conn=None):
-    def helper():
+    def helper(game_id, proxies):
         dfs = {t: [] for t in ['box_score', 'officials', 'inactive_players']}
+        i = 0
         while True:
-            if len(proxies) < 1:
-                proxies = get_proxies()
+            if i >= len(proxies):
+                i = 0
             try:
-                res_dfs = BoxScoreSummary(game_id=game_id, proxy=proxies[0], timeout=3).get_data_frames()
+                res_dfs = BoxScoreSummary(game_id=game_id, proxy=proxies[i], timeout=3).get_data_frames()
                 for df in res_dfs:
                     df.columns = df.columns.to_series().apply(lambda x: x.lower())
                 df = pd.merge(res_dfs[1], res_dfs[1], suffixes=['_home', '_away'], on='league_id')
@@ -265,11 +266,10 @@ def get_box_score_summaries(game_ids, save_to_db=False, conn=None):
                 dfs['inactive_players'] = inactive_players
                 return dfs
             except:
-                proxies = proxies[1:]
+                i = i + 1
                 continue
-    proxies = get_proxies()
     # game_ids = pd.read_sql("SELECT game_id FROM game", conn).game_id.to_list()
-    dfs = pd.Series(game_ids).swifter.allow_dask_on_strings(enable=True).apply()
+    dfs = pd.Series(game_ids).swifter.allow_dask_on_strings(enable=True).apply(lambda x: helper(x, proxies))
     box_score = pd.concat([d['box_score'] for d in dfs]).reset_index(drop=True)
     officials = pd.concat([d['officials'] for d in dfs]).reset_index(drop=True)
     inactive_players = pd.concat([d['inactive_players'] for d in dfs]).reset_index(drop=True)
