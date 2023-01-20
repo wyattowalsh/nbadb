@@ -30,9 +30,13 @@ def get_proxies() -> list[str]:
             return None
         else:
             return proxy
-    # url = "https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv"
-    df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None)
-    df = df.iloc[:, 0] #df[df[1] == "United States"].iloc[:, 0]
+    proxies = pd.read_csv("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt", header=None)
+    df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None).iloc[:, 0]
+    proxies = pd.concat([proxies, df]).drop_duplicates()
+    df = pd.read_csv("https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv", header=None)
+    df = pd.read_csv("https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv", header=None)
+    df = df[df[1] == "http"].iloc[:, 0]
+    proxies = pd.concat([proxies, df]).drop_duplicates()
     proxies = df.swifter.allow_dask_on_strings(enable=True).apply(check_proxy).dropna().tolist()
     return proxies
 
@@ -61,15 +65,15 @@ def combine_team_games(df):
 
 
 def get_db_conn():
-    db_name = "basketball/basketball.db"
+    db_name = "basketball/basketball.sqlite"
     con = sqlite3.connect(db_name)
     return con
 
 
 def download_db():
-    subprocess.run("kaggle datasets download -d wyattowalsh/basketball", shell=True)
+    subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/basketball", shell=True)
     subprocess.run("unzip basketball.zip", shell=True)
     subprocess.run("rm basketball.zip", shell=True)
 
-def upload_new_db_version():
-    pass
+def upload_new_db_version(message):
+    subprocess.run(f"kaggle datasets version -m {message} -p basketball --dir-mode zip", shell=True)
