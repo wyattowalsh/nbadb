@@ -161,8 +161,7 @@ def get_player_info(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame:
                 continue
             except ValueError:
                 return None
-
-    player_ids = pd.concat([pd.DataFrame(p, index=[0]) for p in players.get_players()], ignore_index=True)['id']
+    player_ids  = pd.read_sql("SELECT id FROM player", conn)['id'].astype("category")
     col_types = {
         'person_id': 'category',
         'first_name': 'category',
@@ -198,7 +197,7 @@ def get_player_info(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame:
         'draft_number': 'int',
         'greatest_75_flag': 'category'
     }
-    dfs = player_ids.swifter.apply(lambda x: helper(x, proxies))
+    dfs = player_ids.swifter.apply(helper, kwds={"proxies": proxies})
     dfs = pd.concat(dfs, ignore_index=True)
     dfs.columns = dfs.columns.to_series().apply(lambda x: x.lower())
     dfs = dfs.astype(col_types)
@@ -242,8 +241,8 @@ def get_teams_details(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame
                 continue
             except ValueError:
                 return None
-    team_ids = pd.concat([pd.DataFrame(t, index=[0]) for t in teams.get_teams()]).reset_index(drop=True)['id']
-    dfs = team_ids.swifter.apply(lambda x: helper(x, proxies))
+    team_ids = pd.read_sql("SELECT id FROM team", conn)['id'].astype("category")
+    dfs = team_ids.swifter.apply(helper, kwds={"proxies": proxies})
     team_details = pd.concat([df['team_details'] for df in dfs], ignore_index=True)
     team_history = pd.concat([df['team_history'] for df in dfs], ignore_index=True)
     if save_to_db:
@@ -283,7 +282,7 @@ def get_box_score_summaries(game_ids, proxies, save_to_db=False, conn=None):
             except ValueError:
                 return None
     # game_ids = pd.read_sql("SELECT game_id FROM game", conn).game_id.to_list()
-    dfs = pd.Series(game_ids).swifter.apply(lambda x: helper(x, proxies))
+    dfs = pd.Series(game_ids).swifter.apply(helper, kwds={"proxies": proxies})
     box_score = pd.concat([d['box_score'] for d in dfs]).reset_index(drop=True)
     officials = pd.concat([d['officials'] for d in dfs]).reset_index(drop=True)
     inactive_players = pd.concat([d['inactive_players'] for d in dfs]).reset_index(drop=True)
@@ -326,7 +325,7 @@ def get_play_by_play(game_ids, proxies, save_to_db=False, conn=None):
                 continue
             except ValueError:
                 return None
-    dfs = pd.Series(game_ids).swifter.apply(lambda x: helper(x, proxies))
+    dfs = pd.Series(game_ids).swifter.apply(helper, kwds={"proxies": proxies})
     dfs = pd.concat(dfs).reset_index(drop=True)
     if save_to_db:
         dfs.to_sql("play_by_play", conn, if_exists="append", index=False)
@@ -356,7 +355,7 @@ def get_draft_combine_stats(proxies, season=None, save_to_db=False, conn=None):
         dfs = pd.Series([str(season) for season in range(1946, datetime.today().year + 1)])
     else:
         dfs = pd.Series([str(season)])
-    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = dfs.swifter.apply(helper, kwds={"proxies": proxies})
     dfs = pd.concat(dfs).reset_index(drop=True)
     if save_to_db:
         dfs.to_sql("draft_combine_stats", conn, if_exists="append", index=False)
@@ -388,7 +387,7 @@ def get_draft_history(proxies, season=None, save_to_db=False, conn=None):
         dfs = pd.Series([str(season) for season in range(1946, datetime.today().year + 1)])
     else:
         dfs = pd.Series([str(season)])
-    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = dfs.swifter.apply(helper, kwds={"proxies": proxies})
     dfs = pd.concat(dfs).reset_index(drop=True)
     if save_to_db:
         dfs.to_sql("draft_history", conn, if_exists="append", index=False)
@@ -416,7 +415,7 @@ def get_team_info_common(proxies, save_to_db=False, conn=None):
             except ValueError:
                 return None
     dfs = pd.read_sql("SELECT team_id FROM team", conn)['team_id']
-    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = dfs.swifter.apply(helper, kwds={"proxies": proxies})
     dfs = pd.concat(dfs).reset_index(drop=True)
     if save_to_db:
         dfs.to_sql("team_info_common", conn, if_exists="replace", index=False)
@@ -445,7 +444,7 @@ def get_player_game_logs(proxies, save_to_db=False, conn=None):
             except ValueError:
                 return None
     dfs = pd.read_sql("SELECT player_id FROM player", conn)['player_id']
-    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = dfs.swifter.apply(helper, kwds={"proxies": proxies})
     dfs = pd.concat(dfs).reset_index(drop=True)
     if save_to_db:
         dfs.to_sql("player_game_logs", conn, if_exists="replace", index=False)

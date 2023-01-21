@@ -9,6 +9,7 @@ from basketball_db.extract import (
     get_box_score_summaries,
     get_draft_combine_stats,
     get_draft_history,
+    get_league_game_log_all,
     get_league_game_log_from_date,
     get_play_by_play,
     get_player_game_logs,
@@ -28,6 +29,29 @@ from basketball_db.utils import (
 
 
 # -- Functions -----------------------------------------------------------------------
+def init():
+    download_db()
+    proxies = get_proxies()
+    conn = get_db_conn()
+    get_players(True, conn)
+    get_teams(True, conn)
+    get_league_game_log_all(proxies, conn)
+    get_teams_details(proxies, True, conn)
+    get_player_info(proxies, True, conn)
+    game_ids = pd.read_sql("SELECT GAME_ID FROM game", conn)['GAME_ID'].unique().tolist()
+    get_box_score_summaries(game_ids, proxies, True, conn)
+    get_play_by_play(game_ids, proxies, True, conn)
+    get_draft_combine_stats(proxies, None, True, conn)
+    get_draft_history(proxies, None, True, conn)
+    get_team_info_common(proxies, True, conn)
+    get_player_game_logs(proxies, True, conn)
+    dump_db(conn)
+    # upload new db version to Kaggle
+    version_message = f"Daily update: {pd.to_datetime('today').strftime('%Y-%m-%d')}"
+    upload_new_db_version(version_message)
+    # close db connection
+    conn.close()
+
 def daily():
     # download db from Kaggle
     download_db()

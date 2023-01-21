@@ -11,7 +11,7 @@ import swifter
 
 
 # -- Functions -----------------------------------------------------------------------
-def get_proxies() -> list[str]:
+def get_proxies():
     """retrieves list of proxy addresses using the proxyscrape library
 
     Returns:
@@ -31,13 +31,12 @@ def get_proxies() -> list[str]:
         else:
             return proxy
     proxies = pd.read_csv("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt", header=None)
-    df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None).iloc[:, 0]
-    proxies = pd.concat([proxies, df]).drop_duplicates()
+    df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None).iloc[:, 0].reset_index(drop=True)
+    proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True)
     df = pd.read_csv("https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv", header=None)
-    df = pd.read_csv("https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv", header=None)
-    df = df[df[1] == "http"].iloc[:, 0]
-    proxies = pd.concat([proxies, df]).drop_duplicates()
-    proxies = df.swifter.allow_dask_on_strings(enable=True).apply(check_proxy).dropna().tolist()
+    df = df[df[1] == "http"].iloc[:, 0].reset_index(drop=True)
+    proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True)[0]
+    proxies = proxies.swifter.apply(check_proxy).dropna().tolist()
     return proxies
 
 
