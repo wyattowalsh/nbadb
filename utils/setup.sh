@@ -24,7 +24,7 @@ conda config --set auto_activate_base false
 
 conda env create -f environment.yml
 
-conda activate nba_db
+conda activate basketball_db
 
 nbdime config-git --enable --global
 nbdime extensions --enable

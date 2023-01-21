@@ -1,13 +1,13 @@
 """**nba_db utilities**
 """
 # -- Imports --------------------------------------------------------------------------
+import os
 import sqlite3
 import subprocess
 
 import pandas as pd
 import requests
 import swifter
-from nba_api.stats.static import players, teams
 
 
 # -- Functions -----------------------------------------------------------------------
@@ -72,8 +72,19 @@ def get_db_conn():
 
 def download_db():
     subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/basketball", shell=True)
-    subprocess.run("unzip basketball.zip", shell=True)
-    subprocess.run("rm basketball.zip", shell=True)
+
 
 def upload_new_db_version(message):
-    subprocess.run(f"kaggle datasets version -m {message} -p basketball --dir-mode zip", shell=True)
+    files_to_rm = [".DS_Store", ".ipynb_checkpoints"]
+    os.chdir("basketball")
+    for file in files_to_rm:
+        subprocess.run(f"find . -name '{file}' -delete", shell=True)
+    os.chdir("..")
+    subprocess.run(f"kaggle datasets version -m '{message}' -p basketball --dir-mode zip", shell=True)
+
+
+def dump_db(conn):
+    tables = pd.read_sql("SELECT name FROM sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';", conn)['name']
+    for table in tables:
+        data = pd.read_sql(f"SELECT * FROM {table}", conn)
+        data.to_csv(f"basketball/csv/{table}.csv", index=False)

@@ -8,9 +8,13 @@ import pandas as pd
 import swifter
 from nba_api.stats.endpoints.boxscoresummaryv2 import BoxScoreSummaryV2
 from nba_api.stats.endpoints.commonplayerinfo import CommonPlayerInfo
+from nba_api.stats.endpoints.draftcombinestats import DraftCombineStats
+from nba_api.stats.endpoints.drafthistory import DraftHistory
 from nba_api.stats.endpoints.leaguegamelog import LeagueGameLog
 from nba_api.stats.endpoints.playbyplayv2 import PlayByPlayV2
+from nba_api.stats.endpoints.playergamelogs import PlayerGameLogs
 from nba_api.stats.endpoints.teamdetails import TeamDetails
+from nba_api.stats.endpoints.teaminfocommon import TeamInfoCommon
 from nba_api.stats.static import players, teams
 from requests.exceptions import RequestException
 from tqdm import tqdm
@@ -194,7 +198,7 @@ def get_player_info(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame:
         'draft_number': 'int',
         'greatest_75_flag': 'category'
     }
-    dfs = player_ids.swifter.allow_dask_on_strings(enable=True).apply(lambda x: helper(x, proxies))
+    dfs = player_ids.swifter.apply(lambda x: helper(x, proxies))
     dfs = pd.concat(dfs, ignore_index=True)
     dfs.columns = dfs.columns.to_series().apply(lambda x: x.lower())
     dfs = dfs.astype(col_types)
@@ -239,7 +243,7 @@ def get_teams_details(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame
             except ValueError:
                 return None
     team_ids = pd.concat([pd.DataFrame(t, index=[0]) for t in teams.get_teams()]).reset_index(drop=True)['id']
-    dfs = team_ids.swifter.allow_dask_on_strings(enable=True).apply(lambda x: helper(x, proxies))
+    dfs = team_ids.swifter.apply(lambda x: helper(x, proxies))
     team_details = pd.concat([df['team_details'] for df in dfs], ignore_index=True)
     team_history = pd.concat([df['team_history'] for df in dfs], ignore_index=True)
     if save_to_db:
@@ -248,7 +252,7 @@ def get_teams_details(proxies, save_to_db:bool=False, conn=None) -> pd.DataFrame
     return dfs
 
 
-def get_box_score_summaries(game_ids, save_to_db=False, conn=None):
+def get_box_score_summaries(game_ids, proxies, save_to_db=False, conn=None):
     def helper(game_id, proxies):
         dfs = {t: [] for t in ['box_score', 'officials', 'inactive_players']}
         i = 0
@@ -279,7 +283,7 @@ def get_box_score_summaries(game_ids, save_to_db=False, conn=None):
             except ValueError:
                 return None
     # game_ids = pd.read_sql("SELECT game_id FROM game", conn).game_id.to_list()
-    dfs = pd.Series(game_ids).swifter.allow_dask_on_strings(enable=True).apply(lambda x: helper(x, proxies))
+    dfs = pd.Series(game_ids).swifter.apply(lambda x: helper(x, proxies))
     box_score = pd.concat([d['box_score'] for d in dfs]).reset_index(drop=True)
     officials = pd.concat([d['officials'] for d in dfs]).reset_index(drop=True)
     inactive_players = pd.concat([d['inactive_players'] for d in dfs]).reset_index(drop=True)
@@ -290,7 +294,7 @@ def get_box_score_summaries(game_ids, save_to_db=False, conn=None):
     return dfs
 
 
-def get_play_by_play(game_ids, save_to_db=False, conn=None):
+def get_play_by_play(game_ids, proxies, save_to_db=False, conn=None):
     def helper(game_id, proxies):
         column_types = {
             'EVENTNUM': 'category',
@@ -314,16 +318,135 @@ def get_play_by_play(game_ids, save_to_db=False, conn=None):
                 i = 0
             try:
                 df = PlayByPlayV2(game_id=game_id, proxy=proxies[i], timeout=3).get_data_frames()[0]
-                df.columns = df.columns.to_series().apply(lambda x: x.lower())
                 df = df.astype(column_types)
+                df.columns = df.columns.to_series().apply(lambda x: x.lower())
                 return df
             except RequestException:
                 i = i + 1
                 continue
             except ValueError:
                 return None
-    dfs = pd.Series(game_ids).swifter.allow_dask_on_strings(enable=True).apply(lambda x: helper(x, proxies))
+    dfs = pd.Series(game_ids).swifter.apply(lambda x: helper(x, proxies))
     dfs = pd.concat(dfs).reset_index(drop=True)
     if save_to_db:
         dfs.to_sql("play_by_play", conn, if_exists="append", index=False)
+    return dfs
+
+
+def get_draft_combine_stats(proxies, season=None, save_to_db=False, conn=None):
+    def helper(season, proxies):
+        column_types = {
+            "PLAYER_ID": "category",
+        }
+        i = 0
+        while True:
+            if i >= len(proxies):
+                i = 0
+            try:
+                df = DraftCombineStats(season_all_time=season).get_data_frames()[0]
+                df = df.astype(column_types)
+                df.columns = df.columns.to_series().apply(lambda x: x.lower())
+                return df
+            except RequestException:
+                i = i + 1
+                continue
+            except ValueError:
+                return None
+    if season is None:
+        dfs = pd.Series([str(season) for season in range(1946, datetime.today().year + 1)])
+    else:
+        dfs = pd.Series([str(season)])
+    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = pd.concat(dfs).reset_index(drop=True)
+    if save_to_db:
+        dfs.to_sql("draft_combine_stats", conn, if_exists="append", index=False)
+    return dfs
+
+
+def get_draft_history(proxies, season=None, save_to_db=False, conn=None):
+    def helper(season, proxies):
+        column_types = {
+            "PERSON_ID": "category",
+            "TEAM_ID": "category",
+            "PLAYER_PROFILE_FLAG": "category"
+        }
+        i = 0
+        while True:
+            if i >= len(proxies):
+                i = 0
+            try:
+                df = DraftHistory(season_year_nullable=season).get_data_frames()[0]
+                df = df.astype(column_types)
+                df.columns = df.columns.to_series().apply(lambda x: x.lower())
+                return df
+            except RequestException:
+                i = i + 1
+                continue
+            except ValueError:
+                return None
+    if season is None:
+        dfs = pd.Series([str(season) for season in range(1946, datetime.today().year + 1)])
+    else:
+        dfs = pd.Series([str(season)])
+    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = pd.concat(dfs).reset_index(drop=True)
+    if save_to_db:
+        dfs.to_sql("draft_history", conn, if_exists="append", index=False)
+    return dfs
+
+
+def get_team_info_common(proxies, save_to_db=False, conn=None):
+    def helper(team, proxies):
+        column_types = {
+            "TEAM_ID": "category",
+        }
+        i = 0
+        while True:
+            if i >= len(proxies):
+                i = 0
+            try:
+                dfs = TeamInfoCommon(team_id=team).get_data_frames()
+                dfs = pd.merge(dfs[0], dfs[1], on=["TEAM_ID"])
+                dfs = dfs.astype(column_types)
+                dfs.columns = dfs.columns.to_series().apply(lambda x: x.lower())
+                return dfs
+            except RequestException:
+                i = i + 1
+                continue
+            except ValueError:
+                return None
+    dfs = pd.read_sql("SELECT team_id FROM team", conn)['team_id']
+    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = pd.concat(dfs).reset_index(drop=True)
+    if save_to_db:
+        dfs.to_sql("team_info_common", conn, if_exists="replace", index=False)
+    return dfs
+
+
+def get_player_game_logs(proxies, save_to_db=False, conn=None):
+    def helper(player, proxies):
+        column_types = {
+            "PLAYER_ID": "category",
+            "TEAM_ID": 'category',
+            "VIDEO_AVAILABLE_FLAG": 'category'
+        }
+        i = 0
+        while True:
+            if i >= len(proxies):
+                i = 0
+            try:
+                df = PlayerGameLogs(player_id=player).get_data_frames()[0]
+                df = df.astype(column_types)
+                df.columns = df.columns.to_series().apply(lambda x: x.lower())
+                return df
+            except RequestException:
+                i = i + 1
+                continue
+            except ValueError:
+                return None
+    dfs = pd.read_sql("SELECT player_id FROM player", conn)['player_id']
+    dfs = dfs.swifter.apply(lambda x: helper(x, proxies))
+    dfs = pd.concat(dfs).reset_index(drop=True)
+    if save_to_db:
+        dfs.to_sql("player_game_logs", conn, if_exists="replace", index=False)
     return dfs
