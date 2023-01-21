@@ -1,31 +1,18 @@
 <div align='center'>
     <h1><code>basketball_db</code></h1>
     <h3><a href="stats.nba.com">stats.nba.com</a> Data Extraction in <i><u>Python3</u></i></h3>
+    <h4><blockquote>This repository contains all the necessary code for the production and update of the <a href="https://www.kaggle.com/datasets/wyattowalsh/basketball">Kaggle NBA Database</a></blockquote></h4>
+<div>
+<div align='center'>
     <img src="./utils/img/logo-wide-bg.svg"/>
 </div>
 
 ---
 
-## Installation and Usage
+<div align='left'>
+    <h3>View the <a href="https://github.com/wyattowalsh/basketball-db/wiki">project Wiki</a> for information on included data, installation & usage, and additional resources.</h3>
+    <h3>Have a question? Ask in <a href="https://github.com/wyattowalsh/basketball-db/discussions">discussions</a>.</h3>
+    <br/>
+</div>
 
-### Install Brew
-
-```zsh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-note: ensure to follow along within the console output as several commands that are printed will need to be executed.
-
-### Run Setup Script and Activate Virtual Environment
-
-```zsh
-brew install --cask miniconda
-```
-
-```zsh
-chmod u+x ./utils/setup.sh && chmod 744 ./utils/setup.sh && ./utils/setup.sh
-```
-
-```zsh
-conda activate basketball_db
-```
+---
