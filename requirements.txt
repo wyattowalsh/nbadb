@@ -1,0 +1,10 @@
+pandas
+kaggle
+isort
+lxml
+html5lib
+python-dotenv
+ipython-sql
+jupyterlab-system-monitor
+nba_api
+swifter[groupby]
