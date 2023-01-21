@@ -4,6 +4,7 @@
 import os
 import sqlite3
 import subprocess
+from multiprocessing import Pool
 
 import pandas as pd
 import requests
@@ -11,13 +12,7 @@ import swifter
 
 
 # -- Functions -----------------------------------------------------------------------
-def get_proxies():
-    """retrieves list of proxy addresses using the proxyscrape library
-
-    Returns:
-        list[str]: list of proxies of the form port:host
-    """
-    def check_proxy(proxy):
+def check_proxy(proxy):
         try:
             res = requests.get(
                 "http://example.com",
@@ -30,13 +25,22 @@ def get_proxies():
             return None
         else:
             return proxy
+
+def get_proxies():
+    """retrieves list of proxy addresses using the proxyscrape library
+
+    Returns:
+        list[str]: list of proxies of the form port:host
+    """
     proxies = pd.read_csv("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt", header=None)
     df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None).iloc[:, 0].reset_index(drop=True)
     proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True)
     df = pd.read_csv("https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv", header=None)
     df = df[df[1] == "http"].iloc[:, 0].reset_index(drop=True)
     proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True)[0]
-    proxies = proxies.swifter.apply(check_proxy).dropna().tolist()
+    with Pool(250) as p:
+        proxies = p.map(check_proxy, proxies)
+    proxies = pd.Series(proxies).dropna().tolist()
     return proxies
 
 
