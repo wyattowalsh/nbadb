@@ -14,3 +14,5 @@
     <h3>Have a question? Ask in <a href="https://github.com/wyattowalsh/basketball-db/discussions">discussions</a>.</h3>
     <br/>
 </div>
+
+---
