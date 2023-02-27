@@ -1,6 +1,6 @@
 """data extraction functions
 """
-# -- Imports --------------------------------------------------------------------------
+# == Imports ========================================================================
 import logging
 import os
 from datetime import datetime
@@ -38,16 +38,20 @@ from pandera.errors import SchemaErrors
 from requests.exceptions import RequestException
 from tqdm import tqdm
 
-# -- Logging --------------------------------------------------------------------------
+# == Logging ========================================================================
 logger = logging.getLogger("backetball_db_logger")
 
 
-# -- Functions -----------------------------------------------------------------------
+# == Functions ========================================================================
 def get_players(save_to_db:bool=False, conn=None) -> pd.DataFrame:
     """retrieves all players from the static players endpoint
 
+    Args:
+        save_to_db (bool, optional): indicator for whether to save result to the database. Defaults to False.
+        conn (_type_, optional): SQLAlchemy connection. Defaults to None.
+
     Returns:
-        pd.DataFrame: all players
+        pd.DataFrame: all players dataframe. None if schema validation fails.
     """
     logger.info("Retrieving all players from the static players endpoint...")
     df = pd.concat([pd.DataFrame(player, index=[0]) for player in players.get_players()], ignore_index=True)
@@ -70,8 +74,12 @@ def get_players(save_to_db:bool=False, conn=None) -> pd.DataFrame:
 def get_teams(save_to_db:bool=False, conn=None) -> pd.DataFrame:
     """retrieves all teams from the static teams endpoint
 
+    Args:
+        save_to_db (bool, optional): indicator for whether to save result to the database. Defaults to False.
+        conn (_type_, optional): SQLAlchemy connection. Defaults to None.
+
     Returns:
-        pd.DataFrame: all teams
+        pd.DataFrame: all teams dataframe. None if schema validation fails.
     """
     logger.info("Retrieving all teams from the static teams endpoint...")
     df = pd.concat([pd.DataFrame(team, index=[0]) for team in teams.get_teams()], ignore_index=True)

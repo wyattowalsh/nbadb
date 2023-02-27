@@ -144,6 +144,8 @@ See the developer guide for information on contributing to the project.
     - [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) -- extends pytest with new test execution modes, the most used being distributing tests across multiple CPUs to speed up test execution.
 - [`tabulate`](https://github.com/astanin/python-tabulate) -- Pretty-print tabular data in Python, a library and a command-line utility.
 
+---
+
 ## Indices and tables
 
 - {ref}`genindex`

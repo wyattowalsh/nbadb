@@ -1,18 +1,19 @@
-# nba_db package
+# {ref}`nba_db` package
 
-```{automodule} nba_db
-:members:
-:undoc-members:
-:show-inheritance:
+```{eval-rst}
+.. automodule:: nba_db
+    :show-inheritance:
+    :members:
+    :undoc-members:
 ```
 
 ## Submodules
 
 ```{toctree}
-:maxdepth: 4
+:maxdepth: 2
 
-   nba_db.data
-   nba_db.extract
-   nba_db.update
-   nba_db.utils
+nba_db.data
+nba_db.extract
+nba_db.update
+nba_db.utils
 ```

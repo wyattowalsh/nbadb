@@ -3,5 +3,5 @@
 ```{toctree}
 :maxdepth: 4
 
-   nba_db
+nba_db
 ```

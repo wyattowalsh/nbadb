@@ -215,7 +215,7 @@ hr {
 	padding: 0;
 	border: none;
 	border-top: medium double #333;
-	color: #333;
+	color: inherit;
 	text-align: center;
 	text-justify: center;
 }
@@ -228,7 +228,7 @@ hr:before {
 	top: -1.35rem;
 	font-size: 1.5em;
 	padding: 0 0.25em;
-	background: white;
+	background: inherit;
 }
 
 blockquote {
@@ -238,4 +238,32 @@ blockquote {
 p > a {
 	color: #bb2649;
 	text-decoration: underline;
+}
+
+p > .std-ref {
+	color: #bb2649;
+	text-decoration: underline;
+}
+p > .std-ref:after {
+	color: inherit;
+	content: "";
+}
+
+li > a > span > .std-ref {
+	color: black;
+}
+
+li > a > .std-ref:after {
+	color: inherit;
+	content: "";
+}
+
+h1 > a > .std-ref:after {
+	color: inherit;
+	content: "";
+}
+
+h1 > .std-ref:after {
+	color: inherit;
+	content: "";
 }
