@@ -1,23 +1,25 @@
 <div align='center'>
-    <h1><code>basketball_db</code></h1>
-    <h3><a href="stats.nba.com">stats.nba.com</a> Data Extraction in <i><u>Python3</u></i></h3>
-    <h4><blockquote>This repository contains all the necessary code for the production and update of the <a href="https://www.kaggle.com/datasets/wyattowalsh/basketball">Kaggle NBA Database</a></blockquote></h4>
+    <img src="utils/img/gh-cover.gif"/>
 </div>
 
 ---
 
-- ##### See [the project wiki](https://github.com/wyattowalsh/basketball-db/wiki) for info on included data, installation & usage, and additional resources.
-- ##### Have a question? Ask in [the discussions](https://github.com/wyattowalsh/basketball-db/discussions)
-- ##### Want to help? See the [code of conduct](https://github.com/wyattowalsh/basketball-db/blob/main/CODE_OF_CONDUCT.md) and [contributing guidelines](https://github.com/wyattowalsh/basketball-db/blob/main/CONTRIBUTING.md)
-
----
-
-<div align='center'>
-    <img src="./utils/img/logo-wide-bg.svg"/>
+<div align="center">
+    <h3>Contents</h2>
+    <a href=#overview>Overview</a>  ·
+    <a href=#accessing-further-documentation> Accessing Further Documentation</a>  ·
+    <a href=#contributing> Contributing</a> 
+  <br><br>
 </div>
 
 ---
 
-```console
-poetry export --without-hashes -f requirements.txt --output utils/requirements.txt
-```
+## Overview
+
+---
+
+## Accessing Further Documentation
+
+---
+
+## Contributing
