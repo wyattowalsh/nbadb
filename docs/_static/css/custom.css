@@ -43,6 +43,26 @@ html[data-theme="dark"] {
 	--pst-color-secondary: #ffc71f;
 }
 
+.bd-footer {
+	width: 100%;
+	background-color: #92a8d1;
+	color: var(--pst-color-primary);
+	display: flex;
+	flex-direction: row;
+	justify-items: end;
+	align-items: center;
+}
+
+.footer-item {
+	display: inline-block;
+}
+
+.footer-item:not(:last-child) {
+	border-right: 1px solid var(--pst-color-text-base);
+	margin-right: 0.5em;
+	padding-right: 0.5em;
+}
+
 .welcome-image {
 	padding: 1rem;
 }
@@ -266,4 +286,9 @@ h1 > a > .std-ref:after {
 h1 > .std-ref:after {
 	color: inherit;
 	content: "";
+}
+
+.fa-github {
+	color: black;
+	font-size: 1.5rem;
 }

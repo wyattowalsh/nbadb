@@ -63,7 +63,7 @@ html_theme_options = {
     "navbar_persistent": ["search-button", "theme-switcher"],
     "primary_sidebar_end": ["navbar-logo"],
     "secondary_sidebar_items": ["page-toc", "edit-this-page", "sourcelink"],
-    "footer_items": ["copyright", "sphinx-version", "theme-version"],
+    "footer_items": ["copyright", "sphinx-version", "theme-version", "footer-item-github"],
     "show_toc_level": 2,
     "show_nav_level": 3,
     "navigation_depth": 4,
@@ -124,7 +124,10 @@ html_css_files = [
    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css",
    'https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,800&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap',
 ]
-html_js_files = ['https://kit.fontawesome.com/ebaeac9722.js']
+html_js_files = [
+    'https://kit.fontawesome.com/ebaeac9722.js',
+    'https://unpkg.com/@mui/material@latest/umd/material-ui.production.min.js'
+]
 
 # sphinx-panels shouldn't add bootstrap css since the pydata-sphinx-theme
 # already loads it
