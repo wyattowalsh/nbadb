@@ -17,3 +17,7 @@
 </div>
 
 ---
+
+```console
+poetry export --without-hashes -f requirements.txt --output utils/requirements.txt
+```

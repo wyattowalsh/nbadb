@@ -4,8 +4,7 @@
 from datetime import datetime
 
 import pandas as pd
-
-from basketball_db.extract import (
+from nba_db.extract import (
     get_box_score_summaries,
     get_draft_combine_stats,
     get_draft_history,
@@ -19,7 +18,7 @@ from basketball_db.extract import (
     get_teams,
     get_teams_details,
 )
-from basketball_db.utils import (
+from nba_db.utils import (
     download_db,
     dump_db,
     get_db_conn,
@@ -38,7 +37,7 @@ def init():
     get_league_game_log_all(proxies, conn)
     get_teams_details(proxies, True, conn)
     get_player_info(proxies, True, conn)
-    game_ids = pd.read_sql("SELECT GAME_ID FROM game", conn)['GAME_ID'].unique().tolist()
+    game_ids = pd.read_sql("SELECT game_id FROM game", conn).game_id.to_list()
     get_box_score_summaries(game_ids, proxies, True, conn)
     get_play_by_play(game_ids, proxies, True, conn)
     get_draft_combine_stats(proxies, None, True, conn)

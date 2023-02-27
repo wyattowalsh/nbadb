@@ -1,30 +1,38 @@
 """**nba_db utilities**
 """
 # -- Imports --------------------------------------------------------------------------
+import logging
 import os
 import sqlite3
 import subprocess
+from logging.config import fileConfig
 from multiprocessing import Pool
 
 import pandas as pd
 import requests
-import swifter
+
+# -- Logging --------------------------------------------------------------------------
+fileConfig("./utils/logging.conf")
+logger = logging.getLogger("backetball_db_logger")
 
 
 # -- Functions -----------------------------------------------------------------------
 def check_proxy(proxy):
-        try:
-            res = requests.get(
-                "http://example.com",
-                proxies={'http': proxy},
-                timeout=3
-            )
-            if res.ok:
-                return proxy
-        except IOError:
-            return None
-        else:
+    try:
+        res = requests.get(
+            "http://example.com",
+            proxies={
+                'http': proxy
+            },
+            timeout=3
+        )
+        if res.ok:
             return proxy
+    except IOError:
+        return None
+    else:
+        return None
+
 
 def get_proxies():
     """retrieves list of proxy addresses using the proxyscrape library
@@ -34,10 +42,8 @@ def get_proxies():
     """
     proxies = pd.read_csv("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt", header=None)
     df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None).iloc[:, 0].reset_index(drop=True)
-    proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True)
-    df = pd.read_csv("https://raw.githubusercontent.com/saschazesiger/Free-Proxies/master/proxies/working.csv", header=None)
-    df = df[df[1] == "http"].iloc[:, 0].reset_index(drop=True)
-    proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True)[0]
+    proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True).values.tolist()
+    proxies = [p for sublist in proxies for p in sublist]
     with Pool(250) as p:
         proxies = p.map(check_proxy, proxies)
     proxies = pd.Series(proxies).dropna().tolist()
