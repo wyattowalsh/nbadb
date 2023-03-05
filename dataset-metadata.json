@@ -1,0 +1,10 @@
+{
+	"title": "NBA Database",
+	"subtitle": "Daily Updated SQLite Database — 64,000+ Games, 4800+ Players, and 30 Teams 🏀",
+	"id": "wyattowalsh/basketball",
+	"licenses": [
+		{
+			"name": "CC-BY-SA-4.0"
+		}
+	]
+}

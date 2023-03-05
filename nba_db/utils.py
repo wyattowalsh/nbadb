@@ -4,6 +4,7 @@
 import logging
 import os
 import sqlite3
+import shutil
 import subprocess
 from logging.config import fileConfig
 from multiprocessing import Pool
@@ -64,6 +65,11 @@ def get_db_conn():
 def download_db():
     logger.info("Downloading database...")
     subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/basketball", shell=True)
+    os.mkdir('nba')
+    shutil.move('nba.sqlite', 'nba/nba.sqlite')
+    shutil.move('csv', 'nba/csv')
+    
+
 
 
 def upload_new_db_version(message):
