@@ -12,7 +12,7 @@ import pandas as pd
 import requests
 
 # -- Logging --------------------------------------------------------------------------
-fileConfig("./utils/logging.conf")
+fileConfig("./logging.conf")
 logger = logging.getLogger("nba_db_logger")
 
 
