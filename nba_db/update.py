@@ -1,6 +1,7 @@
 """database update functions
 """
 # -- Imports --------------------------------------------------------------------------
+import logging
 from datetime import datetime
 
 import pandas as pd
