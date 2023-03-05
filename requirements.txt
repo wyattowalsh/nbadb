@@ -1,7 +1,7 @@
-nba_api==1.1.13
-numpy==1.24.2
-pandas==1.5.3
-pandas_stubs==1.2.0.62
-pandera==0.13.4
-requests==2.28.2
-tqdm==4.64.1
+nba_api
+numpy
+pandas
+pandas_stubs
+pandera
+requests
+tqdm
