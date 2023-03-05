@@ -129,7 +129,7 @@ def get_league_game_log_from_date(datefrom, proxies, save_to_db=False, conn=None
             return None
 
 
-def get_league_game_log_all_helper(season:str, proxies:list[str]=[]):
+def get_league_game_log_all_helper(season, proxies):
     while True:
         try:
             df = LeagueGameLog(season=season, proxy=np.random.choice(proxies), timeout=3).get_data_frames()[0]
