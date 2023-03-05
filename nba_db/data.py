@@ -299,3 +299,125 @@ class LineScoreSchema(SchemaModel):
 
     class Config:
         coerce = True
+
+
+class PlayByPlaySchema(SchemaModel):
+    game_id: Series[String] = pa.Field()
+    eventnum: Series[Int] = pa.Field()
+    eventmsgtype: Series[Int] = pa.Field()
+    eventmsgactiontype: Series[Int] = pa.Field()
+    period: Series[Int] = pa.Field()
+    wctimestring: Series[String] = pa.Field()
+    pctimestring: Series[String] = pa.Field()
+    homedescription: Series[String] = pa.Field(nullable=True)
+    neutraldescription: Series[String] = pa.Field(nullable=True)
+    visitordescription: Series[String] = pa.Field(nullable=True)
+    score: Series[String] = pa.Field(nullable=True)
+    scoremargin: Series[String] = pa.Field(nullable=True)
+    person1type: Series[Float] = pa.Field(nullable=True)
+    player1_id: Series[String] = pa.Field(nullable=True)
+    player1_name: Series[String] = pa.Field(nullable=True)
+    player1_team_id: Series[String] = pa.Field(nullable=True)
+    player1_team_city: Series[String] = pa.Field(nullable=True)
+    player1_team_nickname: Series[String] = pa.Field(nullable=True)
+    player1_team_abbreviation: Series[String] = pa.Field(nullable=True)
+    person2type: Series[Float] = pa.Field(nullable=True)
+    player2_id: Series[String] = pa.Field(nullable=True)
+    player2_name: Series[String] = pa.Field(nullable=True)
+    player2_team_id: Series[String] = pa.Field(nullable=True)
+    player2_team_city: Series[String] = pa.Field(nullable=True)
+    player2_team_nickname: Series[String] = pa.Field(nullable=True)
+    player2_team_abbreviation: Series[String] = pa.Field(nullable=True)
+    person3type: Series[Float] = pa.Field(nullable=True)
+    player3_id: Series[String] = pa.Field(nullable=True)
+    player3_name: Series[String] = pa.Field(nullable=True)
+    player3_team_id: Series[String] = pa.Field(nullable=True)
+    player3_team_city: Series[String] = pa.Field(nullable=True)
+    player3_team_nickname: Series[String] = pa.Field(nullable=True)
+    player3_team_abbreviation: Series[String] = pa.Field(nullable=True)
+    video_available_flag: Series[String] = pa.Field()
+
+    class Config:
+        coerce = True
+
+
+class DraftCombineStatsSchema(SchemaModel):
+    season: Series[String] = pa.Field()
+    player_id: Series[String] = pa.Field()
+    first_name: Series[String] = pa.Field()
+    last_name: Series[String] = pa.Field()
+    player_name: Series[String] = pa.Field()
+    position: Series[String] = pa.Field()
+    height_wo_shoes: Series[Float] = pa.Field(nullable=True)
+    height_wo_shoes_ft_in: Series[String] = pa.Field(nullable=True)
+    height_w_shoes: Series[Float] = pa.Field(nullable=True)
+    height_w_shoes_ft_in: Series[String] = pa.Field(nullable=True)
+    weight: Series[String] = pa.Field(nullable=True)
+    wingspan: Series[Float] = pa.Field(nullable=True)
+    wingspan_ft_in: Series[String] = pa.Field(nullable=True)
+    standing_reach: Series[Float] = pa.Field(nullable=True)
+    standing_reach_ft_in: Series[String] = pa.Field(nullable=True)
+    body_fat_pct: Series[String] = pa.Field(nullable=True)
+    hand_length: Series[String] = pa.Field(nullable=True)
+    hand_width: Series[String] = pa.Field(nullable=True)
+    standing_vertical_leap: Series[Float] = pa.Field(nullable=True)
+    max_vertical_leap: Series[Float] = pa.Field(nullable=True)
+    lane_agility_time: Series[Float] = pa.Field(nullable=True)
+    modified_lane_agility_time: Series[Float] = pa.Field(nullable=True)
+    three_quarter_sprint: Series[Float] = pa.Field(nullable=True)
+    bench_press: Series[Float] = pa.Field(nullable=True)
+
+    class Config:
+        coerce = True
+
+
+class DraftHistorySchema(SchemaModel):
+    person_id: Series[String] = pa.Field()
+    player_name: Series[String] = pa.Field()
+    season: Series[String] = pa.Field()
+    round_number: Series[Int] = pa.Field()
+    round_pick: Series[Int] = pa.Field()
+    overall_pick: Series[Int] = pa.Field()
+    draft_type: Series[String] = pa.Field()
+    team_id: Series[String] = pa.Field()
+    team_city: Series[String] = pa.Field()
+    team_name: Series[String] = pa.Field()
+    team_abbreviation: Series[String] = pa.Field()
+    organization: Series[String] = pa.Field()
+    organization_type: Series[String] = pa.Field()
+    player_profile_flag: Series[String] = pa.Field()
+
+    class Config:
+        coerce = True
+
+
+class TeamInfoCommonSchema(SchemaModel):
+    team_id: Series[String] = pa.Field()
+    season_year: Series[String] = pa.Field()
+    team_city: Series[String] = pa.Field()
+    team_name: Series[String] = pa.Field()
+    team_abbreviation:  Series[String] = pa.Field()
+    team_conference: Series[String] = pa.Field()
+    team_division: Series[String] = pa.Field()
+    team_code: Series[String] = pa.Field()
+    team_slug: Series[String] = pa.Field()
+    w: Series[Int] = pa.Field()
+    l: Series[Int] = pa.Field()
+    pct: Series[Float] = pa.Field()
+    conf_rank: Series[Int] = pa.Field()
+    div_rank: Series[Int] = pa.Field()
+    min_year: Series[Int] = pa.Field()
+    max_year: Series[Int] = pa.Field()
+    league_id: Series[String] = pa.Field()
+    season_id: Series[String] = pa.Field()
+    pts_rank: Series[Int] = pa.Field()
+    pts_pg: Series[Float] = pa.Field()
+    reb_rank: Series[Int] = pa.Field()
+    reb_pg: Series[Float] = pa.Field()
+    ast_rank: Series[Int] = pa.Field()
+    ast_pg: Series[Float] = pa.Field()
+    opp_pts_rank: Series[Int] = pa.Field()
+    opp_pts_pg: Series[Float] = pa.Field()
+
+    class Config:
+        coerce = True

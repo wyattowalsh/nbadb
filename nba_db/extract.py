@@ -21,6 +21,8 @@ from nba_api.stats.endpoints.teaminfocommon import TeamInfoCommon
 from nba_api.stats.static import players, teams
 from nba_db.data import (
     CommonPlayerInfoSchema,
+    DraftCombineStatsSchema,
+    DraftHistorySchema,
     GameInfoSchema,
     GameSummarySchema,
     InactivePlayersSchema,
@@ -28,18 +30,20 @@ from nba_db.data import (
     LineScoreSchema,
     OfficialsSchema,
     OtherStatsSchema,
+    PlayByPlaySchema,
     PlayerSchema,
     TeamDetailsSchema,
     TeamHistorySchema,
+    TeamInfoCommonSchema,
     TeamSchema,
 )
-from nba_db.utils import combine_team_games, get_proxies
+from nba_db.utils import get_proxies
 from pandera.errors import SchemaErrors
 from requests.exceptions import RequestException
 from tqdm import tqdm
 
 # == Logging ========================================================================
-logger = logging.getLogger("backetball_db_logger")
+logger = logging.getLogger("nba_db_logger")
 
 
 # == Functions ========================================================================
@@ -118,7 +122,7 @@ def get_league_game_log_from_date(datefrom, proxies, save_to_db=False, conn=None
                 logger.info("Saving league game log to database...")
                 df.to_sql("game", conn, if_exists="append", index=False)
                 logger.info("Successfully saved league game log to database. Returning data...")
-                return df
+            return df
         except RequestException:
             continue
         except ValueError:
@@ -348,7 +352,6 @@ def get_play_by_play_helper(game_id, proxies):
     while True:
         try:
             df = PlayByPlayV2(game_id=game_id, proxy=np.random.choice(proxies), timeout=3).get_data_frames()[0]
-            df = df.astype(column_types)
             df.columns = df.columns.to_series().apply(lambda x: x.lower())
             return df
         except RequestException:
@@ -360,34 +363,35 @@ def get_play_by_play_helper(game_id, proxies):
 def get_play_by_play(game_ids, proxies, save_to_db=False, conn=None):
     if len(game_ids) < 250:
         num_workers = len(game_ids)
+    else:
+        num_workers = 250
     with Pool(num_workers) as p:
          dfs = p.map(partial(get_play_by_play_helper, proxies=proxies), game_ids)
     dfs = pd.concat(dfs).reset_index(drop=True)
+    try:
+        dfs = PlayByPlaySchema.validate(dfs, lazy=True)
+    except SchemaErrors as err:
+        logger.error("Schema validation failed for league game log")
+        logger.error(f"Schema errors: {err.failure_cases}")
+        logger.error(f"Invalid dataframe: {err.data}")
+        dfs = None
     if save_to_db:
         dfs.to_sql("play_by_play", conn, if_exists="append", index=False)
     return dfs
 
 
 def get_draft_combine_stats_helper(season, proxies):
-    column_types = {
-        "PLAYER_ID": "category",
-    }
-    i = 0
     while True:
-        if i >= len(proxies):
-            i = 0
         try:
-            df = DraftCombineStats(season_all_time=season).get_data_frames()[0]
-            df = df.astype(column_types)
+            df = DraftCombineStats(season_all_time=season, proxy=np.random.choice(proxies), timeout=3).get_data_frames()[0]
             df.columns = df.columns.to_series().apply(lambda x: x.lower())
             return df
         except RequestException:
-            i = i + 1
             continue
         except ValueError:
             return None
-            
-            
+
+
 def get_draft_combine_stats(proxies, season=None, save_to_db=False, conn=None):
     if season is None:
         seasons = [str(season) for season in range(1946, datetime.today().year + 1)]
@@ -395,107 +399,81 @@ def get_draft_combine_stats(proxies, season=None, save_to_db=False, conn=None):
             dfs = p.map(partial(get_draft_combine_stats_helper, proxies=proxies), seasons)
     else:
         seasons = pd.Series([str(season)])
-        dfs = seasons.apply(helper, proxies=proxies)
+        with Pool(len(seasons)) as p:
+            dfs = p.map(partial(get_draft_combine_stats_helper, proxies=proxies), seasons)
     dfs = pd.concat(dfs).reset_index(drop=True)
+    try:
+        dfs = DraftCombineStatsSchema.validate(dfs, lazy=True)
+    except SchemaErrors as err:
+        logger.error("Schema validation failed for draft combine stats")
+        logger.error(f"Schema errors: {err.failure_cases}")
+        logger.error(f"Invalid dataframe: {err.data}")
+        dfs = None
     if save_to_db:
         dfs.to_sql("draft_combine_stats", conn, if_exists="append", index=False)
     return dfs
 
+
 def get_draft_history_helper(season, proxies):
-    column_types = {
-        "PERSON_ID": "category",
-        "TEAM_ID": "category",
-        "PLAYER_PROFILE_FLAG": "category"
-    }
-    i = 0
     while True:
-        if i >= len(proxies):
-            i = 0
         try:
-            df = DraftHistory(season_year_nullable=season).get_data_frames()[0]
-            df = df.astype(column_types)
+            df = DraftHistory(season_year_nullable=season, proxy=np.random.choice(proxies), timeout=3).get_data_frames()[0]
             df.columns = df.columns.to_series().apply(lambda x: x.lower())
             return df
         except RequestException:
-            i = i + 1
             continue
         except ValueError:
             return None
-            
-            
+
+
 def get_draft_history(proxies, season=None, save_to_db=False, conn=None):
     if season is None:
         seasons = [str(season) for season in range(1946, datetime.today().year + 1)]
         with Pool(len(seasons)) as p:
             dfs = p.map(partial(get_draft_history_helper, proxies=proxies), seasons)
     else:
-        dfs = pd.Series([str(season)])
-        dfs = dfs.apply(helper, proxies=proxies)
+        seasons = pd.Series([str(season)])
+        with Pool(len(seasons)) as p:
+            dfs = p.map(partial(get_draft_history_helper, proxies=proxies), seasons)
     dfs = pd.concat(dfs).reset_index(drop=True)
+    try:
+        dfs = DraftHistorySchema.validate(dfs, lazy=True)
+    except SchemaErrors as err:
+        logger.error("Schema validation failed for draft history")
+        logger.error(f"Schema errors: {err.failure_cases}")
+        logger.error(f"Invalid dataframe: {err.data}")
+        dfs = None
     if save_to_db:
         dfs.to_sql("draft_history", conn, if_exists="append", index=False)
     return dfs
 
 
 def get_team_info_common_helper(team, proxies):
-    column_types = {
-        "TEAM_ID": "category",
-    }
-    i = 0
     while True:
-        if i >= len(proxies):
-            i = 0
         try:
-            dfs = TeamInfoCommon(team_id=team).get_data_frames()
+            dfs = TeamInfoCommon(team_id=team, proxy=np.random.choice(proxies), timeout=3).get_data_frames()
             dfs = pd.merge(dfs[0], dfs[1], on=["TEAM_ID"])
-            dfs = dfs.astype(column_types)
             dfs.columns = dfs.columns.to_series().apply(lambda x: x.lower())
             return dfs
         except RequestException:
-            i = i + 1
             continue
         except ValueError:
             return None
-            
-            
+
+
 def get_team_info_common(proxies, save_to_db=False, conn=None):
-    dfs = pd.read_sql("SELECT team_id FROM team", conn)['team_id']
+    dfs = pd.read_sql("SELECT id FROM team", conn)['id'].tolist()
     num_workers = len(dfs)
     with Pool(num_workers) as p:
         dfs = p.map(partial(get_team_info_common_helper, proxies=proxies), dfs)
     dfs = pd.concat(dfs).reset_index(drop=True)
+    try:
+        dfs = TeamInfoCommonSchema.validate(dfs, lazy=True)
+    except SchemaErrors as err:
+        logger.error("Schema validation failed for team info common")
+        logger.error(f"Schema errors: {err.failure_cases}")
+        logger.error(f"Invalid dataframe: {err.data}")
+        dfs = None
     if save_to_db:
         dfs.to_sql("team_info_common", conn, if_exists="replace", index=False)
-    return dfs
-
-def get_player_game_logs_helper(player, proxies):
-    column_types = {
-        "PLAYER_ID": "category",
-        "TEAM_ID": 'category',
-        "VIDEO_AVAILABLE_FLAG": 'category'
-    }
-    i = 0
-    while True:
-        if i >= len(proxies):
-            i = 0
-        try:
-            df = PlayerGameLogs(player_id=player).get_data_frames()[0]
-            df = df.astype(column_types)
-            df.columns = df.columns.to_series().apply(lambda x: x.lower())
-            return df
-        except RequestException:
-            i = i + 1
-            continue
-        except ValueError:
-            return None
-        
-        
-def get_player_game_logs(proxies, save_to_db=False, conn=None):
-    dfs = pd.read_sql("SELECT player_id FROM player", conn)['player_id']
-    num_workers = len(dfs)
-    with Pool(num_workers) as p:
-        dfs = p.map(partial(get_player_game_logs_helper, proxies=proxies), dfs)
-    dfs = pd.concat(dfs).reset_index(drop=True)
-    if save_to_db:
-        dfs.to_sql("player_game_logs", conn, if_exists="replace", index=False)
     return dfs

@@ -845,14 +845,14 @@ files = [
 
 [[package]]
 name = "frictionless"
-version = "5.6.3"
+version = "5.7.0"
 description = "Data management framework for Python that provides functionality to describe, extract, validate, and transform tabular data"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "frictionless-5.6.3-py2.py3-none-any.whl", hash = "sha256:7b43fa8ed0927af795afb98a63a0d4c880210d8f9b7aeb46873e0d388b27c557"},
-    {file = "frictionless-5.6.3.tar.gz", hash = "sha256:3f0c447f6050d73596fc3fbcbf335d361675de523d21e97b5c803eafcc990194"},
+    {file = "frictionless-5.7.0-py2.py3-none-any.whl", hash = "sha256:b3f2209c9cd56694e853c3de235a311bdf4a6bcfbe1733bbda81205e1b429b58"},
+    {file = "frictionless-5.7.0.tar.gz", hash = "sha256:c54f531f97acef4302da6b01725d72e8d47f0c9dab3bddf0a7ed9c6b306d3e40"},
 ]
 
 [package.dependencies]
@@ -2262,6 +2262,25 @@ code-style = ["pre-commit (>=2.12,<3.0)"]
 linkify = ["linkify-it-py (>=1.0,<2.0)"]
 rtd = ["ipython", "sphinx-book-theme", "sphinx-design", "sphinxcontrib.mermaid (>=0.7.1,<0.8.0)", "sphinxext-opengraph (>=0.6.3,<0.7.0)", "sphinxext-rediraffe (>=0.2.7,<0.3.0)"]
 testing = ["beautifulsoup4", "coverage[toml]", "pytest (>=6,<7)", "pytest-cov", "pytest-param-files (>=0.3.4,<0.4.0)", "pytest-regressions", "sphinx (<5.2)", "sphinx-pytest"]
+
+[[package]]
+name = "nba-api"
+version = "1.1.13"
+description = "An API Client package to access the APIs for NBA.com"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "nba_api-1.1.13-py3-none-any.whl", hash = "sha256:538c8bf9574bcb782732c0e13abc29d2b7fdea366188ece9336be1909249f998"},
+    {file = "nba_api-1.1.13.tar.gz", hash = "sha256:ad873f42b354b29d59b357627a1e5ae333f8c049169a66346eefa70a025ba089"},
+]
+
+[package.dependencies]
+numpy = "*"
+requests = "*"
+
+[package.extras]
+test = ["pytest"]
 
 [[package]]
 name = "nbclassic"
@@ -4868,4 +4887,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "4c612e9268efcae7c7887f347d4ef20088ed3c213acb990623ca79254c9e79a9"
+content-hash = "a94cb1af8bd1990a48900a245315534b3c52361f5dfbb414f66d19cc96f61c09"

@@ -26,6 +26,8 @@ from nba_db.utils import (
     upload_new_db_version,
 )
 
+# == Logging ========================================================================
+logger = logging.getLogger("nba_db_logger")
 
 # -- Functions -----------------------------------------------------------------------
 def init():
@@ -43,13 +45,13 @@ def init():
     get_draft_combine_stats(proxies, None, True, conn)
     get_draft_history(proxies, None, True, conn)
     get_team_info_common(proxies, True, conn)
-    get_player_game_logs(proxies, True, conn)
     dump_db(conn)
     # upload new db version to Kaggle
     version_message = f"Daily update: {pd.to_datetime('today').strftime('%Y-%m-%d')}"
     upload_new_db_version(version_message)
     # close db connection
     conn.close()
+
 
 def daily():
     # download db from Kaggle
@@ -59,6 +61,11 @@ def daily():
     conn = get_db_conn()
     # get latest date in db and add a day
     latest_db_date = pd.read_sql("SELECT MAX(GAME_DATE) FROM game", conn).iloc[0, 0]
+    # check if today is a game day
+    if pd.to_datetime(latest_db_date) >= pd.to_datetime(datetime.today().date()):
+        logger.info("No new games today. Exiting...")
+        return
+    # add a day to latest db date
     latest_db_date = pd.to_datetime(latest_db_date) + pd.Timedelta(days=1)
     # get new games and add to db
     df = get_league_game_log_from_date(latest_db_date, proxies, save_to_db=True, conn=conn)
@@ -86,12 +93,9 @@ def monthly():
     get_teams(save_to_db=True, conn=conn)
     get_player_info(proxies=proxies, save_to_db=True, conn=conn)
     get_teams_details(proxies=proxies, save_to_db=True, conn=conn)
-    most_recent_draft_season = pd.read_sql("SELECT MAX(SEASON) FROM draft_combine_stats", conn).iloc[0, 0]
-    if datetime.today().year > most_recent_draft_season:
-        get_draft_combine_stats(proxies=proxies, season=str(datetime.today().year), save_to_db=True, conn=conn)
-        get_draft_history(proxies=proxies, season=str(datetime.today().year), save_to_db=True, conn=conn)
+    get_draft_combine_stats(proxies=proxies, season=None, save_to_db=True, conn=conn)
+    get_draft_history(proxies=proxies, season=None, save_to_db=True, conn=conn)
     get_team_info_common(proxies=proxies, save_to_db=True, conn=conn)
-    get_player_game_logs(proxies=proxies, save_to_db=True, conn=conn)
     # upload new db version to Kaggle
     version_message = f"Monthly update: {pd.to_datetime('today').strftime('%Y-%m-%d')}"
     upload_new_db_version(version_message)

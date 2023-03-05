@@ -13,7 +13,7 @@ import requests
 
 # -- Logging --------------------------------------------------------------------------
 fileConfig("./utils/logging.conf")
-logger = logging.getLogger("backetball_db_logger")
+logger = logging.getLogger("nba_db_logger")
 
 
 # -- Functions -----------------------------------------------------------------------
@@ -40,60 +40,47 @@ def get_proxies():
     Returns:
         list[str]: list of proxies of the form port:host
     """
+    logger.info("Retrieving proxies...")
     proxies = pd.read_csv("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt", header=None)
     df = pd.read_csv("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt", sep="|", header=None).iloc[:, 0].reset_index(drop=True)
     proxies = pd.concat([proxies, df]).drop_duplicates().reset_index(drop=True).values.tolist()
     proxies = [p for sublist in proxies for p in sublist]
+    logger.info(f"Found {len(proxies)} proxies. Checking proxies...")
     with Pool(250) as p:
         proxies = p.map(check_proxy, proxies)
     proxies = pd.Series(proxies).dropna().tolist()
+    logger.info(f"Found {len(proxies)} valid proxies. Returning proxies...")
     return proxies
 
 
-def combine_team_games(df):
-    '''source: https://github.com/swar/nba_api/blob/master/docs/examples/Finding%20Games.ipynb
-        modified source
-
-        Combine a TEAM_ID-GAME_ID unique table into rows by game. Slow.
-
-        Parameters
-        ----------
-        df : Input DataFrame.
-        
-        Returns
-        -------
-        result : DataFrame
-    '''
-    # Join every row to all others with the same game ID.
-    joined = pd.merge(df, df, suffixes=['_HOME', '_AWAY'],
-                      on=['SEASON_ID', 'GAME_ID', 'GAME_DATE'])
-    # Filter out any row that is joined to itself.
-    result = joined[joined.TEAM_ID_HOME != joined.TEAM_ID_AWAY]
-    result = result[result.MATCHUP_HOME.str.contains(' vs. ')].reset_index(drop=True)
-    return result
-
-
 def get_db_conn():
-    db_name = "basketball/basketball.sqlite"
-    con = sqlite3.connect(db_name)
-    return con
+    logger.info("Connecting to database...")
+    db_name = "nba/nba.sqlite"
+    conn = sqlite3.connect(db_name)
+    logger.info("Connected to database. Returning connection object...")
+    return conn
 
 
 def download_db():
-    subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/basketball", shell=True)
+    logger.info("Downloading database...")
+    subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/nba", shell=True)
 
 
 def upload_new_db_version(message):
+    logger.info("Uploading new database version...")
     files_to_rm = [".DS_Store", ".ipynb_checkpoints"]
-    os.chdir("basketball")
+    os.chdir("nba")
     for file in files_to_rm:
         subprocess.run(f"find . -name '{file}' -delete", shell=True)
     os.chdir("..")
-    subprocess.run(f"kaggle datasets version -m '{message}' -p basketball --dir-mode zip", shell=True)
+    subprocess.run(f"kaggle datasets version -m '{message}' -p nba --dir-mode zip", shell=True)
+    logger.info("Uploaded new database version.")
 
 
 def dump_db(conn):
     tables = pd.read_sql("SELECT name FROM sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';", conn)['name']
+    logger.info(f"Dumping {len(tables)} database tables to csv files...")
     for table in tables:
         data = pd.read_sql(f"SELECT * FROM {table}", conn)
-        data.to_csv(f"basketball/csv/{table}.csv", index=False)
+        data.to_csv(f"nba/csv/{table}.csv", index=False)
+    logger.info("Dumped database tables to csv files.")
