@@ -5,3 +5,4 @@ pandas_stubs
 pandera
 requests
 tqdm
+kaggle
