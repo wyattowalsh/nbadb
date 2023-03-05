@@ -11,7 +11,6 @@ from nba_db.extract import (
     get_league_game_log_all,
     get_league_game_log_from_date,
     get_play_by_play,
-    get_player_game_logs,
     get_player_info,
     get_players,
     get_team_info_common,
