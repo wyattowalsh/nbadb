@@ -35,3 +35,8 @@ format: ## runs linter on the bot package
 	poetry run isort nba_db/ && poetry run isort tests/
 	poetry run autoflake --recursive nba_db/ && poetry run autoflake --recursive tests/
 	poetry run black nba_db/ tests/
+
+create requirements file: ## creates requirements.txt file
+	echo "Creating requirements.txt file..."
+	poetry shell && poetry install
+	poetry run pipreqs --savepath ./requirements.txt nba_db
