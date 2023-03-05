@@ -3,8 +3,8 @@
 # -- Imports --------------------------------------------------------------------------
 import logging
 import os
-import sqlite3
 import shutil
+import sqlite3
 import subprocess
 from logging.config import fileConfig
 from multiprocessing import Pool
@@ -68,7 +68,7 @@ def download_db():
     os.mkdir('nba')
     shutil.move('nba.sqlite', 'nba/nba.sqlite')
     shutil.move('csv', 'nba/csv')
-    
+    subprocess.run("wget https://raw.githubusercontent.com/wyattowalsh/nba-db/main/dataset-metadata.json -P nba", shell=True)
 
 
 
