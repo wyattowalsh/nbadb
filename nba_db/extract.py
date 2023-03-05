@@ -410,7 +410,7 @@ def get_draft_combine_stats(proxies, season=None, save_to_db=False, conn=None):
         logger.error(f"Invalid dataframe: {err.data}")
         dfs = None
     if save_to_db:
-        dfs.to_sql("draft_combine_stats", conn, if_exists="append", index=False)
+        dfs.to_sql("draft_combine_stats", conn, if_exists="replace", index=False)
     return dfs
 
 
@@ -444,7 +444,7 @@ def get_draft_history(proxies, season=None, save_to_db=False, conn=None):
         logger.error(f"Invalid dataframe: {err.data}")
         dfs = None
     if save_to_db:
-        dfs.to_sql("draft_history", conn, if_exists="append", index=False)
+        dfs.to_sql("draft_history", conn, if_exists="replace", index=False)
     return dfs
 
 
