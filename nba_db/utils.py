@@ -63,7 +63,7 @@ def get_db_conn():
 
 def download_db():
     logger.info("Downloading database...")
-    subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/nba", shell=True)
+    subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/basketball", shell=True)
 
 
 def upload_new_db_version(message):
