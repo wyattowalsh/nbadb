@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 
 import pandas as pd
+
 from nba_db.extract import (
     get_box_score_summaries,
     get_draft_combine_stats,
@@ -66,7 +67,7 @@ def daily():
         logger.info("No new games today. Exiting...")
         return
     # add a day to latest db date
-    latest_db_date = pd.to_datetime(latest_db_date) + pd.Timedelta(days=1)
+    latest_db_date = (pd.to_datetime(latest_db_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     # get new games and add to db
     df = get_league_game_log_from_date(latest_db_date, proxies, save_to_db=True, conn=conn)
     games = df['game_id'].unique().tolist()
