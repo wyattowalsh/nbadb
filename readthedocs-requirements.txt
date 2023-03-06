@@ -6,7 +6,7 @@ sphinxcontrib-mermaid
 sphinx-git
 sphinx-markdown-builder
 sphinx-design
-sphinx-autobuild 
+sphinx-autobuild
 sphinx-hoverxref
 sphinx-sitemap
 sphinx-togglebutton
