@@ -40,8 +40,6 @@ extensions = [
     'sphinx_sitemap',
     'sphinx_togglebutton',
     'sphinx-favicon',
-    'sphinx_fontawesome',
-    'sphinx_mdinclude',
 ]
 
 templates_path = ['_templates']
@@ -116,18 +114,16 @@ html_context = {
     "doc_path": "./docs/",
     "default_mode": "auto"
 }
-
-html_js_files = [
-    'https://kit.fontawesome.com/ebaeac9722.js',
-    'https://unpkg.com/@mui/material@latest/umd/material-ui.production.min.js'
-]
 html_css_files = [
    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css",
    'https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,800&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap',
    "http://netdna.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css",
-    'css/custom.css',
+    'css/custom.css'
 ]
-
+html_js_files = [
+    'https://kit.fontawesome.com/ebaeac9722.js',
+    'https://unpkg.com/@mui/material@latest/umd/material-ui.production.min.js'
+]
 # sphinx-panels shouldn't add bootstrap css since the pydata-sphinx-theme
 # already loads it
 panels_add_bootstrap_css = False
@@ -168,7 +164,6 @@ myst_enable_extensions = [
    'colon_fence',
    'deflist',
    'tasklist',
-   'attrs_inline',
    'html_image',
    'html_admonition'
 ]

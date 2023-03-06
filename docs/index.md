@@ -78,11 +78,7 @@ See the developer guide for information on contributing to the project.
 
 ---
 
-(features)=
-
-## Project Features
-
-```{mdinclude} ./getting_started/features.md
+```{include} ./getting_started/features.md
 
 ```
 
@@ -98,6 +94,7 @@ See the developer guide for information on contributing to the project.
 :maxdepth: 1
 :titlesonly:
 :hidden:
+
 getting_started/index
 user_guide/index
 reference/index

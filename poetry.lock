@@ -4015,20 +4015,6 @@ files = [
 sphinx = ">=3.4"
 
 [[package]]
-name = "sphinx-fontawesome"
-version = "0.0.6"
-description = "add directive for fontawesome in sphinx"
-category = "dev"
-optional = false
-python-versions = "*"
-files = [
-    {file = "sphinx_fontawesome-0.0.6.tar.gz", hash = "sha256:fa38d32f1654ad61f442096965f4069c074f37d7f2fadfa37f46b393938a5bdb"},
-]
-
-[package.dependencies]
-Sphinx = ">=1.5.0"
-
-[[package]]
 name = "sphinx-git"
 version = "11.0.0"
 description = "git Changelog for Sphinx"
@@ -4960,4 +4946,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "f0f34a51251aa19c2c4f956251f6a8c947fb437bfbb1f32c18d400ac92f0adf3"
+content-hash = "ddb88590b8953ce64affaa94ee1555a77aedceac19f3facea431fbf2465ae1ea"

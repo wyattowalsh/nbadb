@@ -59,7 +59,6 @@ pipreqs = "^0.4.11"
 
 
 [tool.poetry.group.docs.dependencies]
-sphinx-fontawesome = "^0.0.6"
 sphinx-mdinclude = "^0.5.3"
 
 [build-system]

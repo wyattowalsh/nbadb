@@ -6,6 +6,14 @@ notoc: true
 
 # Getting Started <i class="fa-solid fa-flag-checkered fa-xl"></i>
 
+---
+
+```{raw} html
+<h2 style="font-weight: 700;"><a href="./features.html">View here for Project Features List 📝</a></h2>
+```
+
+---
+
 ## Installation
 
 ```{warning}
@@ -15,12 +23,8 @@ Leave a note in [the project's discussions section](https://github.com/wyattowal
 ```
 
 ```{raw} html
-<blockquote><p style="font-size: 1.35rem; font-weight: 400;"><a href="./installation">View here for installation instructions 🔎</a></p></blockquote>
+<blockquote><p style="font-size: 1.35rem; font-weight: 400;"><a href="./installation.html">View here for installation instructions 🔎</a></p></blockquote>
 ```
-
----
-
-## View [here](./features) for Project Features List
 
 ---
 
@@ -40,8 +44,7 @@ Usage instructions include general development environment initializations, inte
 :hidden:
 :titlesonly:
 
-index
-installation
 features
+installation
 usage
 ```
