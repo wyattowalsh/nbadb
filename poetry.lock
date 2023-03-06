@@ -4070,23 +4070,6 @@ unify = "*"
 yapf = "*"
 
 [[package]]
-name = "sphinx-mdinclude"
-version = "0.5.3"
-description = "Markdown extension for Sphinx"
-category = "dev"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "sphinx_mdinclude-0.5.3-py3-none-any.whl", hash = "sha256:02afadf4597aecf8255a702956eff5b8c5cb9658ea995c3d361722d2ed78cca9"},
-    {file = "sphinx_mdinclude-0.5.3.tar.gz", hash = "sha256:2998e3d18b3022c9983d1b72191fe37e25ffccd54165cbe3acb22cceedd91af4"},
-]
-
-[package.dependencies]
-docutils = ">=0.16,<1.0"
-mistune = ">=2.0,<3.0"
-pygments = ">=2.8"
-
-[[package]]
 name = "sphinx-sitemap"
 version = "2.5.0"
 description = "Sitemap generator for Sphinx"
@@ -4946,4 +4929,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "230621d8230680024e9fea4b7308224c4ff319f8d86153bf80833321e2ac0fe3"
+content-hash = "63d32716fac9cebccd8b2902f5001b14cf41e2156290ce0eb9816ac95359bed7"

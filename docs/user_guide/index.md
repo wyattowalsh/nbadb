@@ -6,16 +6,15 @@ notoc: true
 
 # User Guide <i class="fa-solid fa-map-location-dot fa-xl"></i>
 
-```{code-block} console
-:caption: run the following snippet in the `terminal` app
-poetry export --without-hashes --with dev -f requirements.txt --output utils/requirements.txt
+```{raw} html
+<blockquote><h3 style="font-weight: 800;">View <a href="./endpoints">nba_api endpoints documentation here</a></h3></blockquote>
 ```
 
 ---
 
 ```{toctree}
 :hidden:
-:titlesonly:
+:maxdepth: 2
 
 endpoints
 ```
