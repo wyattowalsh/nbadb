@@ -60,6 +60,7 @@ pipreqs = "^0.4.11"
 
 [tool.poetry.group.docs.dependencies]
 sphinx-mdinclude = "^0.5.3"
+sphinx-git = "^11.0.0"
 
 [build-system]
 requires = ["poetry-core"]
