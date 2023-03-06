@@ -4015,6 +4015,20 @@ files = [
 sphinx = ">=3.4"
 
 [[package]]
+name = "sphinx-fontawesome"
+version = "0.0.6"
+description = "add directive for fontawesome in sphinx"
+category = "dev"
+optional = false
+python-versions = "*"
+files = [
+    {file = "sphinx_fontawesome-0.0.6.tar.gz", hash = "sha256:fa38d32f1654ad61f442096965f4069c074f37d7f2fadfa37f46b393938a5bdb"},
+]
+
+[package.dependencies]
+Sphinx = ">=1.5.0"
+
+[[package]]
 name = "sphinx-git"
 version = "11.0.0"
 description = "git Changelog for Sphinx"
@@ -4068,6 +4082,23 @@ pydash = "*"
 sphinx = "*"
 unify = "*"
 yapf = "*"
+
+[[package]]
+name = "sphinx-mdinclude"
+version = "0.5.3"
+description = "Markdown extension for Sphinx"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "sphinx_mdinclude-0.5.3-py3-none-any.whl", hash = "sha256:02afadf4597aecf8255a702956eff5b8c5cb9658ea995c3d361722d2ed78cca9"},
+    {file = "sphinx_mdinclude-0.5.3.tar.gz", hash = "sha256:2998e3d18b3022c9983d1b72191fe37e25ffccd54165cbe3acb22cceedd91af4"},
+]
+
+[package.dependencies]
+docutils = ">=0.16,<1.0"
+mistune = ">=2.0,<3.0"
+pygments = ">=2.8"
 
 [[package]]
 name = "sphinx-sitemap"
@@ -4929,4 +4960,4 @@ test = ["mypy", "pre-commit", "pytest", "pytest-asyncio", "websockets (>=10.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "63d32716fac9cebccd8b2902f5001b14cf41e2156290ce0eb9816ac95359bed7"
+content-hash = "f0f34a51251aa19c2c4f956251f6a8c947fb437bfbb1f32c18d400ac92f0adf3"

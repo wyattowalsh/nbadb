@@ -65,6 +65,7 @@ html[data-theme="dark"] {
 
 .welcome-image {
 	padding: 1rem;
+	width: 80%;
 }
 
 .wave {
@@ -290,5 +291,10 @@ h1 > .std-ref:after {
 
 .fa-github {
 	color: black;
+	font-size: 1.5rem;
+}
+
+.nav-link > .svg-inline--fa.fa-xl {
+	padding-left: 0.25rem;
 	font-size: 1.5rem;
 }

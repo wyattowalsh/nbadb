@@ -4,7 +4,7 @@ notoc: true
 
 (user-guide)=
 
-# 📖 User Guide
+# User Guide <i class="fa-solid fa-map-location-dot fa-xl"></i>
 
 ```{code-block} console
 :caption: run the following snippet in the `terminal` app

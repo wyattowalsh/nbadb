@@ -1,3 +1,3 @@
 (development)=
 
-# 🧑‍💻 Development
+# Development <i class="fa-solid fa-oil-well fa-xl"></i>

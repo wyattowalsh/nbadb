@@ -3,11 +3,12 @@
 # Project Features
 
 - Custom [**Python3**](https://docs.python.org/3/) package for the efficient extraction and compilation of [**_nba_api_**](https://github.com/swar/nba_api) data.
+  - [`pandera`](https://pandera.readthedocs.io/) for data schema definition and validation.
 - [**_Poetry_**](https://python-poetry.org/) for Python packaging and dependency management.
 - [**_Sphinx_**](https://www.sphinx-doc.org/en/master/) Python package documentation site.
 
   - [**_PyData Theme_**](https://pydata-sphinx-theme.readthedocs.io/en/stable/)
-  - [_Open Sans_ font](https://fonts.google.com/specimen/Open+Sans) via Google Fonts
+  - _Open Sans font_ [via Google Fonts](https://fonts.google.com/specimen/Open+Sans)
   - **Sphinx Extensions** include:
 
     - [`sphinx.ext.autodoc`](https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html) -- Include documentation from docstrings
@@ -44,3 +45,22 @@
         ```
 
     - [`sphinx_favicon`](https://sphinx-favicon.readthedocs.io/en/latest) -- A Sphinx extension to add custom favicons. With Sphinx Favicon, you can add custom favicons to your Sphinx HTML documentation.
+
+- [`isort`](https://pycqa.github.io/isort/) -- a Python utility / library to sort imports alphabetically, and automatically separated into sections and by type. It provides a command line utility, Python library and plugins for various editors to quickly sort all your imports.
+- [`Black`](https://black.readthedocs.io/en/stable/) -- uncompromising code formatter.
+- [`Pylint`](https://pylint.readthedocs.io/en/latest/) -- is a static code analyser for Python 2 or 3. The latest version supports Python 3.7.2 and above. Pylint analyses your code without actually running it. It checks for errors, enforces a coding standard, looks for code smells, and can make suggestions about how the code could be refactored.
+- [`autoflake`](https://github.com/PyCQA/autoflake) -- Removes unused imports and unused variables as reported by pyflakes.
+- [`pylama`](https://github.com/klen/pylama) -- Code audit tool for python.
+- [`hypothesis`](https://hypothesis.readthedocs.io/en/latest/) -- Python library for creating unit tests which are simpler to write and more powerful when run, finding edge cases in your code you wouldn’t have thought to look for. It is stable, powerful and easy to add to any existing test suite.
+- [`pytest`](https://docs.pytest.org/) -- The pytest framework makes it easy to write small, readable tests, and can scale to support complex functional testing for applications and libraries.
+  - Extensions include:
+    - [`pytest-sugar`](https://github.com/Teemu/pytest-sugar) -- This plugin extends pytest by showing failures and errors instantly, adding a progress bar, improving the test results, and making the output look better.
+    - [`pytest-emoji`](https://github.com/hackebrot/pytest-emoji) -- A pytest plugin that adds emojis to your test result report 😍
+    - [`pytest-html`](https://pytest-html.readthedocs.io/en/latest/) -- plugin for pytest that generates a HTML report for test results.
+    - [`pytest-icdiff`](https://github.com/hjwp/pytest-icdiff) -- better error messages for assert equals in pytest.
+    - [`pytest-instafail`](https://github.com/pytest-dev/pytest-instafail) -- py.test plugin to show failures instantly.
+    - [`pytest-timeout`](https://github.com/pytest-dev/pytest-timeout) -- This plugin will time each test and terminate it when it takes too long. Termination may or may not be graceful, please see below, but when aborting it will show a stack dump of all thread running at the time. This is useful when running tests under a continuous integration server or simply if you don't know why the test suite hangs.
+    - [`pytest-benchmark`](https://pytest-benchmark.readthedocs.io/) -- py.test fixture for benchmarking code.
+    - [`pytest-cov`](https://pytest-cov.readthedocs.io/) -- Coverage plugin for pytest.
+    - [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) -- extends pytest with new test execution modes, the most used being distributing tests across multiple CPUs to speed up test execution.
+- [`tabulate`](https://github.com/astanin/python-tabulate) -- Pretty-print tabular data in Python, a library and a command-line utility.

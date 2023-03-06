@@ -4,7 +4,7 @@ notoc: true
 
 (getting-started)=
 
-# 🎬 Getting Started
+# Getting Started <i class="fa-solid fa-flag-checkered fa-xl"></i>
 
 ## Installation
 
@@ -15,8 +15,12 @@ Leave a note in [the project's discussions section](https://github.com/wyattowal
 ```
 
 ```{raw} html
-<blockquote><p style="font-size: 1.35rem; font-weight: 400;"><a href="#installation">View here for installation instructions 🔎</a></p></blockquote>
+<blockquote><p style="font-size: 1.35rem; font-weight: 400;"><a href="./installation">View here for installation instructions 🔎</a></p></blockquote>
 ```
+
+---
+
+## View [here](./features) for Project Features List
 
 ---
 
@@ -36,6 +40,7 @@ Usage instructions include general development environment initializations, inte
 :hidden:
 :titlesonly:
 
+getting-started
 installation
 features
 usage

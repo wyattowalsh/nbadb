@@ -39,7 +39,9 @@ extensions = [
     'hoverxref.extension',
     'sphinx_sitemap',
     'sphinx_togglebutton',
-    'sphinx-favicon'
+    'sphinx-favicon',
+    'sphinx_fontawesome',
+    'sphinx_mdinclude',
 ]
 
 templates_path = ['_templates']
@@ -120,9 +122,10 @@ html_context = {
     "default_mode": "auto"
 }
 html_css_files = [
-   'css/custom.css',
    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css",
    'https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,800&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap',
+   "http://netdna.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css",
+      'css/custom.css',
 ]
 html_js_files = [
     'https://kit.fontawesome.com/ebaeac9722.js',
@@ -193,11 +196,3 @@ favicons = [
    "img/favicon/android-chrome-512x512.png",
    "img/favicon/site.webmanifest"
 ]
-#    {"rel": "apple-touch-icon", "sizes": "180x180", "href": "img/favicon/apple-touch-icon.png"},
-#    {"rel": "icon", "sizes": "32x32", "href": "img/favicon/favicon-32x32.png"},
-#    {"rel": "icon", "sizes": "16x16", "href": "img/favicon/favicon-16x16.png"},
-#    {"rel": "icon", "sizes": "any", "href": "img/favicon/favicon.ico"},
-#    {"rel": "icon", "sizes": "192x192", "href": "img/favicon/android-chrome-192x192.png"},
-#    {"rel": "icon", "sizes": "512x512", "href": "img/favicon/android-chrome-512x512.png"},
-#    {"rel": "manifest", "href": "img/favicon/site.webmanifest"}
-# ]
