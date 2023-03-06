@@ -63,7 +63,7 @@ class LeagueGameLogSchema(SchemaModel):
     blk_home: Series[Float] = pa.Field(nullable=True)
     tov_home: Series[Float] = pa.Field(nullable=True)
     pf_home: Series[Float] = pa.Field(nullable=True)
-    pts_home: Series[String] = pa.Field(nullable=True)
+    pts_home: Series[Float] = pa.Field(nullable=True)
     plus_minus_home: Series[Int] = pa.Field()
     video_available_home: Series[Bool] = pa.Field()
     team_id_away: Series[String] = pa.Field(nullable=False)
@@ -88,7 +88,7 @@ class LeagueGameLogSchema(SchemaModel):
     blk_away: Series[Float] = pa.Field(nullable=True)
     tov_away: Series[Float] = pa.Field(nullable=True)
     pf_away: Series[Float] = pa.Field(nullable=True)
-    pts_away: Series[String] = pa.Field(nullable=True)
+    pts_away: Series[Float] = pa.Field(nullable=True)
     plus_minus_away: Series[Int] = pa.Field()
     video_available_away: Series[Bool] = pa.Field()
  
