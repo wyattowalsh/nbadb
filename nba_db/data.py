@@ -275,7 +275,7 @@ class LineScoreSchema(SchemaModel):
     pts_ot8_home: Series[Object] = pa.Field(nullable=True)
     pts_ot9_home: Series[Object] = pa.Field(nullable=True)
     pts_ot10_home: Series[Object] = pa.Field(nullable=True)
-    pts_home: Series[Object] = pa.Field()
+    pts_home: Series[Float] = pa.Field(nullable=True)
     team_id_away: Series[String] = pa.Field()
     team_abbreviation_away: Series[String] = pa.Field()
     team_city_name_away: Series[String] = pa.Field()
@@ -295,7 +295,7 @@ class LineScoreSchema(SchemaModel):
     pts_ot8_away: Series[Object] = pa.Field(nullable=True)
     pts_ot9_away: Series[Object] = pa.Field(nullable=True)
     pts_ot10_away: Series[Object] = pa.Field(nullable=True)
-    pts_away: Series[Int] = pa.Field()
+    pts_away: Series[Float] = pa.Field(nullable=True)
 
     class Config:
         coerce = True

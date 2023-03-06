@@ -40,7 +40,7 @@ Usage instructions include general development environment initializations, inte
 :hidden:
 :titlesonly:
 
-getting-started
+index
 installation
 features
 usage
