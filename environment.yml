@@ -1,0 +1,16 @@
+name: nba_db
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - nba-api
+  - pandas
+  - lxml
+  - html5lib
+  - numpy
+  - pandera
+  - kaggle
+  - cython
+  - pydantic
+  - pandera[hypothesis,io,mypy,strategies]
+  - sqlalchemy

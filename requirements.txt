@@ -1,8 +1,9 @@
-nba_api
-numpy
 pandas
-pandas_stubs
-pandera
-requests
-tqdm
 kaggle
+lxml
+html5lib
+cython
+pydantic
+pandera["hypotheses", "io", "mypy", "strategies"]
+sqlalchemy
+nba-api
