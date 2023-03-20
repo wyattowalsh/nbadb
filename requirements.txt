@@ -4,6 +4,6 @@ lxml
 html5lib
 cython
 pydantic
-pandera[hypotheses,io,mypy,strategies]
+pandera
 sqlalchemy
 nba-api

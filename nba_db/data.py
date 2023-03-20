@@ -1,7 +1,6 @@
 """data table definitions
 """
 # -- Imports --------------------------------------------------------------------------
-import pandas as pd
 import pandera as pa
 from pandera import SchemaModel
 from pandera.typing import (
@@ -91,9 +90,10 @@ class LeagueGameLogSchema(SchemaModel):
     pts_away: Series[Float] = pa.Field(nullable=True)
     plus_minus_away: Series[Int] = pa.Field()
     video_available_away: Series[Bool] = pa.Field()
- 
+
     class Config:
         coerce = True
+
 
 class CommonPlayerInfoSchema(SchemaModel):
     person_id: Series[String] = pa.Field(nullable=False)
@@ -129,7 +129,7 @@ class CommonPlayerInfoSchema(SchemaModel):
     draft_round: Series[String] = pa.Field(nullable=True)
     draft_number: Series[String] = pa.Field(nullable=True)
     greatest_75_flag: Series[String] = pa.Field()
-
+    
     class Config:
         coerce = True
 
@@ -149,7 +149,7 @@ class TeamDetailsSchema(SchemaModel):
     facebook: Series[String] = pa.Field(nullable=True)
     instagram: Series[String] = pa.Field(nullable=True)
     twitter: Series[String] = pa.Field(nullable=True)
-
+    
     class Config:
         coerce = True
 
@@ -186,6 +186,7 @@ class GameSummarySchema(SchemaModel):
 
 
 class OtherStatsSchema(SchemaModel):
+    game_id: Series[String] = pa.Field()
     league_id: Series[String] = pa.Field()
     team_id_home: Series[String] = pa.Field()
     team_abbreviation_home: Series[String] = pa.Field()
@@ -205,7 +206,7 @@ class OtherStatsSchema(SchemaModel):
     team_city_away: Series[String] = pa.Field()
     pts_paint_away: Series[Int] = pa.Field()
     pts_2nd_chance_away: Series[Int] = pa.Field()
-    pts_fb_away: Series[Int] = pa.Field()	
+    pts_fb_away: Series[Int] = pa.Field()
     largest_lead_away: Series[Int] = pa.Field()
     team_turnovers_away: Series[Object] = pa.Field(nullable=True)
     total_turnovers_away: Series[Object] = pa.Field(nullable=True)

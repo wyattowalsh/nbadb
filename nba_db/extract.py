@@ -19,6 +19,10 @@ from nba_api.stats.endpoints.playergamelogs import PlayerGameLogs
 from nba_api.stats.endpoints.teamdetails import TeamDetails
 from nba_api.stats.endpoints.teaminfocommon import TeamInfoCommon
 from nba_api.stats.static import players, teams
+from pandera.errors import SchemaErrors
+from requests.exceptions import RequestException
+from tqdm import tqdm
+
 from nba_db.data import (
     CommonPlayerInfoSchema,
     DraftCombineStatsSchema,
@@ -38,9 +42,6 @@ from nba_db.data import (
     TeamSchema,
 )
 from nba_db.utils import get_proxies
-from pandera.errors import SchemaErrors
-from requests.exceptions import RequestException
-from tqdm import tqdm
 
 # == Logging ========================================================================
 logger = logging.getLogger("nba_db_logger")
@@ -261,7 +262,9 @@ def get_box_score_summaries_helper(game_id, proxies):
                 df = None
             dfs['game_summary'] = df
             if len(res_dfs[1]) > 0:
-                df = res_dfs[1].copy()
+                df = res_dfs[1].copy().assign(game_id=game_id)
+                cols = ['game_id'] + df.columns[:-1].tolist()
+                df = df[cols]
                 df = pd.merge(df, df, on=['league_id', 'lead_changes', 'times_tied'], suffixes=["_home", "_away"])
                 df = df[df['team_id_home'] != df['team_id_away']].reset_index(drop=True).head(1)
                 try:

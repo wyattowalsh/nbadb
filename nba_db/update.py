@@ -2,6 +2,9 @@
 """
 # -- Imports --------------------------------------------------------------------------
 import logging
+import os
+import shutil
+import subprocess
 from datetime import datetime
 
 import pandas as pd
@@ -30,9 +33,16 @@ from nba_db.utils import (
 # == Logging ========================================================================
 logger = logging.getLogger("nba_db_logger")
 
+
 # -- Functions -----------------------------------------------------------------------
 def init():
-    download_db()
+    try:
+        os.mkdir('nba')
+    except FileExistsError:
+        logger.warning("nba directory already exists. Removing...")
+        shutil.rmtree('nba')
+        os.mkdir('nba')
+    subprocess.run("wget https://raw.githubusercontent.com/wyattowalsh/nba-db/main/dataset-metadata.json -P nba", shell=True)
     proxies = get_proxies()
     conn = get_db_conn()
     get_players(True, conn)

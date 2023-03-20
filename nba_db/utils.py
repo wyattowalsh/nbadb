@@ -65,7 +65,12 @@ def get_db_conn():
 def download_db():
     logger.info("Downloading database...")
     subprocess.run("kaggle datasets download --unzip -o -q -d wyattowalsh/basketball", shell=True)
-    os.mkdir('nba')
+    try:
+        os.mkdir('nba')
+    except FileExistsError:
+        logger.warning("nba directory already exists. Removing...")
+        shutil.rmtree('nba')
+        os.mkdir('nba')
     shutil.move('nba.sqlite', 'nba/nba.sqlite')
     shutil.move('csv', 'nba/csv')
     subprocess.run("wget https://raw.githubusercontent.com/wyattowalsh/nba-db/main/dataset-metadata.json -P nba", shell=True)
