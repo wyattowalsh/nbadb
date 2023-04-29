@@ -9,6 +9,8 @@ from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
+import pandera as pa
+from pa.errors import SchemaErrors
 from nba_api.stats.endpoints.boxscoresummaryv2 import BoxScoreSummaryV2
 from nba_api.stats.endpoints.commonplayerinfo import CommonPlayerInfo
 from nba_api.stats.endpoints.draftcombinestats import DraftCombineStats
@@ -19,7 +21,6 @@ from nba_api.stats.endpoints.playergamelogs import PlayerGameLogs
 from nba_api.stats.endpoints.teamdetails import TeamDetails
 from nba_api.stats.endpoints.teaminfocommon import TeamInfoCommon
 from nba_api.stats.static import players, teams
-from pandera.errors import SchemaErrors
 from requests.exceptions import RequestException
 from tqdm import tqdm
 
