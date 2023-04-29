@@ -269,7 +269,9 @@ def get_box_score_summaries_helper(game_id, proxies):
                 df = pd.merge(df, df, on=['league_id', 'game_id', 'lead_changes', 'times_tied'], suffixes=["_home", "_away"])
                 df = df[df['team_id_home'] != df['team_id_away']].reset_index(drop=True).head(1)
                 try:
-                    df = OtherStatsSchema.validate(df, lazy=True)
+                    OtherStatsSchema.validate(df, lazy=True)
+                    print(df)
+                    dfs['other_stats'] = df
                 except SchemaErrors as err:
                     logger.error("Schema validation failed for league game log")
                     logger.error(f"Schema errors: {err.failure_cases}")
@@ -277,7 +279,6 @@ def get_box_score_summaries_helper(game_id, proxies):
                     df = None
             else:
                 df = None
-            dfs['other_stats'] = df
             df = res_dfs[2].copy().assign(game_id=game_id)
             cols = ['game_id'] + df.columns[:-1].tolist()
             df = df[cols]
