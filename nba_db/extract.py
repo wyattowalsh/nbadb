@@ -112,8 +112,6 @@ def get_league_game_log_from_date(datefrom, proxies, save_to_db=False, conn=None
             df = LeagueGameLog(date_from_nullable=datefrom, proxy=np.random.choice(proxies), timeout=3).get_data_frames()[0]
             df.columns = df.columns.to_series().apply(lambda x: x.lower())
             df = pd.merge(df, df, on=['season_id', 'game_id', 'game_date', 'min'], suffixes=['_home', '_away'])
-            df['game_id'] = df['game_id_home']
-            df = df.drop(columns=['game_id_home', 'game_id_away])
             df = df[(df['matchup_home'].str.contains("vs.")) & (df['team_name_home'] != df['team_name_away'])]
             try:
                 df = LeagueGameLogSchema.validate(df, lazy=True)
@@ -139,8 +137,6 @@ def get_league_game_log_all_helper(season, proxies):
             df = LeagueGameLog(season=season, proxy=np.random.choice(proxies), timeout=3).get_data_frames()[0]
             df.columns = df.columns.to_series().apply(lambda x: x.lower())
             df = pd.merge(df, df, on=['season_id', 'game_id', 'game_date', 'min'], suffixes=['_home', '_away'])
-            df['game_id'] = df['game_id_home']
-            df = df.drop(columns=['game_id_home', 'game_id_away])
             df = df[(df['matchup_home'].str.contains("vs.")) & (df['team_name_home'] != df['team_name_away'])].reset_index(drop=True)
             try:
                 df = LeagueGameLogSchema.validate(df, lazy=True)
@@ -270,7 +266,7 @@ def get_box_score_summaries_helper(game_id, proxies):
                 df = res_dfs[1].copy().assign(game_id=game_id)
                 cols = ['game_id'] + df.columns[:-1].tolist()
                 df = df[cols]
-                df = pd.merge(df, df, on=['league_id', 'lead_changes', 'times_tied'], suffixes=["_home", "_away"])
+                df = pd.merge(df, df, on=['league_id', 'game_id', 'lead_changes', 'times_tied'], suffixes=["_home", "_away"])
                 df = df[df['team_id_home'] != df['team_id_away']].reset_index(drop=True).head(1)
                 try:
                     df = OtherStatsSchema.validate(df, lazy=True)
