@@ -270,7 +270,6 @@ def get_box_score_summaries_helper(game_id, proxies):
                 df = df[df['team_id_home'] != df['team_id_away']].reset_index(drop=True).head(1)
                 try:
                     OtherStatsSchema.validate(df, lazy=True)
-                    print(df)
                     dfs['other_stats'] = df
                 except SchemaErrors as err:
                     logger.error("Schema validation failed for league game log")
@@ -340,6 +339,7 @@ def get_box_score_summaries(game_ids, proxies, save_to_db=False, conn=None):
     dfs = [d for d in dfs if d is not None]
     game_summary = pd.concat([d['game_summary'] for d in dfs if d['game_summary'] is not None]).reset_index(drop=True)
     other_stats = pd.concat([d['other_stats'] for d in dfs if d['other_stats'] is not None]).reset_index(drop=True)
+    print(other_stats)
     officials = pd.concat([d['officials'] for d in dfs if d['officials'] is not None]).reset_index(drop=True)
     inactive_players = pd.concat([d['inactive_players'] for d in dfs if d['inactive_players'] is not None]).reset_index(drop=True)
     game_info = pd.concat([d['game_info'] for d in dfs if d['game_info'] is not None]).reset_index(drop=True)
