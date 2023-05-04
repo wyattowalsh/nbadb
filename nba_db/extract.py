@@ -19,6 +19,7 @@ from nba_api.stats.endpoints.playergamelogs import PlayerGameLogs
 from nba_api.stats.endpoints.teamdetails import TeamDetails
 from nba_api.stats.endpoints.teaminfocommon import TeamInfoCommon
 from nba_api.stats.static import players, teams
+import pandera as pa
 from pandera.errors import SchemaErrors
 from requests.exceptions import RequestException
 from tqdm import tqdm
@@ -41,7 +42,6 @@ from nba_db.data import (
     TeamInfoCommonSchema,
     TeamSchema,
 )
-from nba_db.utils import get_proxies
 
 # == Logging ========================================================================
 logger = logging.getLogger("nba_db_logger")
