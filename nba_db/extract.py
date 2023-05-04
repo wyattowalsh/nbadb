@@ -9,6 +9,7 @@ from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
+import pandera as pa
 from nba_api.stats.endpoints.boxscoresummaryv2 import BoxScoreSummaryV2
 from nba_api.stats.endpoints.commonplayerinfo import CommonPlayerInfo
 from nba_api.stats.endpoints.draftcombinestats import DraftCombineStats
@@ -19,7 +20,6 @@ from nba_api.stats.endpoints.playergamelogs import PlayerGameLogs
 from nba_api.stats.endpoints.teamdetails import TeamDetails
 from nba_api.stats.endpoints.teaminfocommon import TeamInfoCommon
 from nba_api.stats.static import players, teams
-import pandera as pa
 from pandera.errors import SchemaErrors
 from requests.exceptions import RequestException
 from tqdm import tqdm
@@ -265,10 +265,11 @@ def get_box_score_summaries_helper(game_id, proxies):
                 df = res_dfs[1].copy().assign(game_id=game_id)
                 cols = ['game_id'] + df.columns[:-1].tolist()
                 df = df[cols]
-                df = pd.merge(df, df, on=['league_id', 'lead_changes', 'times_tied'], suffixes=["_home", "_away"])
+                df = pd.merge(df, df, on=['league_id', 'game_id', 'lead_changes', 'times_tied'], suffixes=["_home", "_away"])
                 df = df[df['team_id_home'] != df['team_id_away']].reset_index(drop=True).head(1)
                 try:
-                    df = OtherStatsSchema.validate(df, lazy=True)
+                    OtherStatsSchema.validate(df, lazy=True)
+                    dfs['other_stats'] = df
                 except SchemaErrors as err:
                     logger.error("Schema validation failed for league game log")
                     logger.error(f"Schema errors: {err.failure_cases}")
@@ -276,7 +277,6 @@ def get_box_score_summaries_helper(game_id, proxies):
                     df = None
             else:
                 df = None
-            dfs['other_stats'] = df
             df = res_dfs[2].copy().assign(game_id=game_id)
             cols = ['game_id'] + df.columns[:-1].tolist()
             df = df[cols]
@@ -338,6 +338,9 @@ def get_box_score_summaries(game_ids, proxies, save_to_db=False, conn=None):
     dfs = [d for d in dfs if d is not None]
     game_summary = pd.concat([d['game_summary'] for d in dfs if d['game_summary'] is not None]).reset_index(drop=True)
     other_stats = pd.concat([d['other_stats'] for d in dfs if d['other_stats'] is not None]).reset_index(drop=True)
+    print(other_stats.columns)
+    print(other_stats.columns[0])
+    print(other_stats.columns[0] == "game_id")
     officials = pd.concat([d['officials'] for d in dfs if d['officials'] is not None]).reset_index(drop=True)
     inactive_players = pd.concat([d['inactive_players'] for d in dfs if d['inactive_players'] is not None]).reset_index(drop=True)
     game_info = pd.concat([d['game_info'] for d in dfs if d['game_info'] is not None]).reset_index(drop=True)
