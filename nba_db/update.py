@@ -22,6 +22,7 @@ from nba_db.extract import (
     get_teams,
     get_teams_details,
 )
+from nba_db.logger import log
 from nba_db.utils import (
     download_db,
     dump_db,
@@ -30,19 +31,22 @@ from nba_db.utils import (
     upload_new_db_version,
 )
 
-# == Logging ========================================================================
 logger = logging.getLogger("nba_db_logger")
 
 
 # -- Functions -----------------------------------------------------------------------
+@log(logger)
 def init():
     try:
-        os.mkdir('nba')
+        os.mkdir("nba-db")
     except FileExistsError:
         logger.warning("nba directory already exists. Removing...")
-        shutil.rmtree('nba')
-        os.mkdir('nba')
-    subprocess.run("wget https://raw.githubusercontent.com/wyattowalsh/nba-db/main/dataset-metadata.json -P nba", shell=True)
+        shutil.rmtree("nba-db")
+        os.mkdir("nba-db")
+    subprocess.run(
+        "wget https://raw.githubusercontent.com/wyattowalsh/nba-db/main/dataset-metadata.json -P nba-db",
+        shell=True,
+    )
     proxies = get_proxies()
     conn = get_db_conn()
     get_players(True, conn)
@@ -64,6 +68,7 @@ def init():
     conn.close()
 
 
+@log(logger)
 def daily():
     # download db from Kaggle
     download_db()
@@ -77,10 +82,14 @@ def daily():
         logger.info("No new games today. Exiting...")
         return
     # add a day to latest db date
-    latest_db_date = (pd.to_datetime(latest_db_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    latest_db_date = (pd.to_datetime(latest_db_date) + pd.Timedelta(days=1)).strftime(
+        "%Y-%m-%d"
+    )
     # get new games and add to db
-    df = get_league_game_log_from_date(latest_db_date, proxies, save_to_db=True, conn=conn)
-    games = df['game_id'].unique().tolist()
+    df = get_league_game_log_from_date(
+        latest_db_date, proxies, save_to_db=True, conn=conn
+    )
+    games = df["game_id"].unique().tolist()
     # get box score summaries and play by play for new games
     get_box_score_summaries(games, proxies, save_to_db=True, conn=conn)
     get_play_by_play(games, proxies, save_to_db=True, conn=conn)
@@ -93,6 +102,7 @@ def daily():
     conn.close()
 
 
+@log(logger)
 def monthly():
     # download db from Kaggle
     download_db()

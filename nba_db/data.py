@@ -3,17 +3,7 @@
 # -- Imports --------------------------------------------------------------------------
 import pandera as pa
 from pandera import SchemaModel
-from pandera.typing import (
-    Bool,
-    DataFrame,
-    DateTime,
-    Float,
-    Index,
-    Int,
-    Object,
-    Series,
-    String,
-)
+from pandera.typing import Bool, DateTime, Float, Int, Object, Series, String
 
 
 # -- Data -----------------------------------------------------------------------------
@@ -90,6 +80,7 @@ class LeagueGameLogSchema(SchemaModel):
     pts_away: Series[Float] = pa.Field(nullable=True)
     plus_minus_away: Series[Int] = pa.Field()
     video_available_away: Series[Bool] = pa.Field()
+    season_type: Series[String] = pa.Field(nullable=False)
 
     class Config:
         coerce = True
@@ -129,7 +120,7 @@ class CommonPlayerInfoSchema(SchemaModel):
     draft_round: Series[String] = pa.Field(nullable=True)
     draft_number: Series[String] = pa.Field(nullable=True)
     greatest_75_flag: Series[String] = pa.Field()
-    
+
     class Config:
         coerce = True
 
@@ -149,7 +140,7 @@ class TeamDetailsSchema(SchemaModel):
     facebook: Series[String] = pa.Field(nullable=True)
     instagram: Series[String] = pa.Field(nullable=True)
     twitter: Series[String] = pa.Field(nullable=True)
-    
+
     class Config:
         coerce = True
 
@@ -222,7 +213,7 @@ class OfficialsSchema(SchemaModel):
     official_id: Series[String] = pa.Field()
     first_name: Series[String] = pa.Field()
     last_name: Series[String] = pa.Field()
-    jersey_num: Series[String] = pa.Field()
+    jersey_num: Series[String] = pa.Field(nullable=True)
 
     class Config:
         coerce = True
@@ -397,7 +388,7 @@ class TeamInfoCommonSchema(SchemaModel):
     season_year: Series[String] = pa.Field()
     team_city: Series[String] = pa.Field()
     team_name: Series[String] = pa.Field()
-    team_abbreviation:  Series[String] = pa.Field()
+    team_abbreviation: Series[String] = pa.Field()
     team_conference: Series[String] = pa.Field()
     team_division: Series[String] = pa.Field()
     team_code: Series[String] = pa.Field()
