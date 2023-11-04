@@ -89,6 +89,9 @@ def daily():
     df = get_league_game_log_from_date(
         latest_db_date, proxies, save_to_db=True, conn=conn
     )
+    if len(df) == 0:
+        conn.close()
+        return 0
     games = df["game_id"].unique().tolist()
     # get box score summaries and play by play for new games
     get_box_score_summaries(games, proxies, save_to_db=True, conn=conn)
