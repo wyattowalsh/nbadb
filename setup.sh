@@ -26,11 +26,6 @@ echo 'eval "$(pyenv init -)"' >> ~/.profile
 echo 'eval "$(pyenv init -)"' >> ~/.zprofile
 exec "$SHELL"
 
-# Install Sphinx Docs
-echo "Installing Sphinx Docs..."
-brew install sphinx-doc
-echo 'export PATH="/opt/homebrew/opt/sphinx-doc/bin:$PATH"' >> ~/.zshrc
-
 # Apps
 apps=(
     visual-studio-code

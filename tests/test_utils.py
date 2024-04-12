@@ -4,9 +4,6 @@
 import os
 from sqlite3 import Connection
 
-from hypothesis import example, given
-from hypothesis import strategies as st
-from hypothesis.extra.pandas import column, data_frames
 from nba_db.utils import download_db, dump_db, get_db_conn, get_proxies
 
 
@@ -35,7 +32,10 @@ def test_download_db():
 def test_dumb_db():
     conn = get_db_conn()
     dump_db(conn)
-    tables = pd.read_sql("SELECT name FROM sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';", conn)['name']
+    tables = pd.read_sql(
+        "SELECT name FROM sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';",
+        conn,
+    )["name"]
     num_tables = len(tables)
     assert os.path.isdir("basketball")
     assert os.path.isfile("basketball/basketball.sqlite")

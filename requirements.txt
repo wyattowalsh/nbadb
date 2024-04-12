@@ -1,9 +1,0 @@
-pandas
-kaggle
-lxml
-html5lib
-cython
-pydantic
-pandera
-sqlalchemy
-nba-api
