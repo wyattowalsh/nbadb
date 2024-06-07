@@ -49,7 +49,7 @@ def get_proxies():
     )
     df = (
         pd.read_csv(
-            "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies_geolocation/http.txt",
+            "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
             sep="|",
             header=None,
         )
