@@ -6,6 +6,13 @@ data/
 
 kaggle.json
 
+# Log files
+logs/
+*.log
+*.json.log
+log_structured.json
+nbadb_structured.json
+
 # Created by https://www.toptal.com/developers/gitignore/api/macos,windows,linux,visualstudiocode,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,windows,linux,visualstudiocode,python
 
