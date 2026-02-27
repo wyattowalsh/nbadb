@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass, field
@@ -173,7 +174,9 @@ class Orchestrator:
         game_ids, game_log_df = (
             await discovery.discover_game_ids(seasons)
         )
+        await asyncio.sleep(1.0)
         player_ids = await discovery.discover_player_ids()
+        await asyncio.sleep(1.0)
         team_ids = await discovery.discover_team_ids()
         game_dates = await discovery.discover_game_dates(
             game_log_df
@@ -451,7 +454,9 @@ class Orchestrator:
         game_ids, game_log_df = (
             await discovery.discover_game_ids(seasons)
         )
+        await asyncio.sleep(1.0)
         player_ids = await discovery.discover_player_ids()
+        await asyncio.sleep(1.0)
         team_ids = await discovery.discover_team_ids()
         game_dates = await discovery.discover_game_dates(
             game_log_df
