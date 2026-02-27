@@ -1,26 +1,22 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
-assignees: ''
-
+name: Feature Request
+about: Suggest an enhancement for nbadb
+title: "[FEATURE] "
+labels: enhancement
 ---
 
-# Feature Request
+## Description
 
-**Note:** This issue template is for non data API endpoint related feature requests. If you are attempting to suggest a new data API endpoint to include please use the correct associated issue template [here (`endpoint_request`)](https://github.com/wyattowalsh/basketball-db/issues/new?assignees=&labels=&template=endpoint_request.md&title=).
+A clear description of the feature.
 
----
+## Motivation
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+Why this feature would be useful.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+## Proposed Solution
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+How you think it could work.
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+## Alternatives Considered
+
+Other approaches you've thought about.

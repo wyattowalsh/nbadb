@@ -1,0 +1,88 @@
+---
+title: Daily Updates
+description: Configure and run incremental daily updates
+---
+
+# Daily Updates
+
+nbadb supports incremental updates to keep your database current throughout the NBA season.
+
+## How It Works
+
+The daily update pipeline:
+
+1. **Checks watermarks**: Reads the last update timestamp from the database
+2. **Lookback window**: Fetches data from `now - 7 days` to cover late-arriving data
+3. **Extracts changed data**: Only pulls endpoints that could have new data
+4. **Validates and transforms**: Runs the full validation pipeline on new data
+5. **Upserts**: Merges new records into existing tables (insert or update)
+
+## Running a Daily Update
+
+```bash
+nbadb daily
+```
+
+Typical duration: **5-15 minutes** depending on games played.
+
+## What Gets Updated
+
+| Category | Endpoints | Trigger |
+|----------|-----------|---------|
+| Box scores | All 10 box score endpoints | New games completed |
+| Play-by-play | V2 and V3 | New games completed |
+| Game logs | League, player, team | New games completed |
+| Standings | LeagueStandingsV3 | Daily |
+| Schedule | ScheduleLeagueV2 | Daily |
+| Win probability | WinProbabilityPBP | New games completed |
+| Shot charts | ShotChartDetail | New games completed |
+
+## What Does NOT Update Daily
+
+These are updated via `nbadb monthly` instead:
+
+- Player biographical info (CommonPlayerInfo)
+- Team details (TeamDetails)
+- Rosters (CommonTeamRoster)
+- Draft data
+- Franchise history
+- Synergy play types
+- Season matchups
+
+## Configuration
+
+```bash
+# Adjust lookback window (default: 7 days)
+export NBADB_DAILY_LOOKBACK_DAYS=14
+
+# Run with custom data directory
+export NBADB_DATA_DIR=/path/to/data
+nbadb daily
+```
+
+## Scheduling with Cron
+
+```bash
+# Run daily at 6 AM ET (after most West Coast games finish)
+0 6 * * * cd /path/to/nbadb && nbadb daily >> /var/log/nbadb-daily.log 2>&1
+```
+
+## Monthly Refresh
+
+For dimension tables and slowly changing data:
+
+```bash
+nbadb monthly
+```
+
+Duration: **30-60 minutes**. Run once per month or after roster moves.
+
+## Full Rebuild
+
+To fill any gaps without losing existing data:
+
+```bash
+nbadb full
+```
+
+Duration: **2-4 hours**. Preserves existing data and fills gaps.

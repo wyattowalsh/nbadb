@@ -1,0 +1,106 @@
+---
+title: Relationships
+description: Foreign key map and join patterns for the star schema
+---
+
+# Relationships
+
+## Foreign Key Map
+
+All fact tables reference dimension tables through foreign keys.
+
+### Core Dimension References
+
+| Fact Table | dim_player | dim_team | dim_game | dim_season |
+|-----------|:----------:|:--------:|:--------:|:----------:|
+| fact_box_score_player | player_id | team_id | game_id | -- |
+| fact_box_score_team | -- | team_id | game_id | -- |
+| fact_play_by_play | person_id | team_id | game_id | -- |
+| fact_shot_chart | player_id | team_id | game_id | -- |
+| fact_game_log | -- | team_id | -- | season_id |
+| fact_player_game_log | player_id | -- | game_id | season_id |
+| fact_standings | -- | team_id | -- | season_id |
+| fact_matchup | off/def_player_id | off/def_team_id | game_id | -- |
+| fact_rotation | person_id | team_id | game_id | -- |
+| fact_win_probability | -- | home/visitor_team_id | game_id | -- |
+| fact_draft | person_id | team_id | -- | -- |
+| fact_synergy | player_id | team_id | -- | season_id |
+
+### Bridge Table References
+
+| Bridge | FK 1 | FK 2 |
+|--------|------|------|
+| bridge_game_official | dim_game.game_id | dim_official.official_id |
+| bridge_play_player | dim_game.game_id | dim_player.player_id |
+
+### dim_game Internal References
+
+`dim_game` itself references `dim_team` twice:
+- `home_team_id` -> `dim_team.team_id`
+- `away_team_id` -> `dim_team.team_id`
+
+## Common Join Patterns
+
+### Player Game Stats (most common)
+
+```sql
+SELECT *
+FROM fact_box_score_player b
+JOIN dim_player p ON b.player_id = p.player_id
+JOIN dim_team t ON b.team_id = t.team_id
+JOIN dim_game g ON b.game_id = g.game_id;
+```
+
+### Game with Both Teams
+
+```sql
+SELECT
+    g.game_date,
+    home.abbreviation AS home_team,
+    away.abbreviation AS away_team,
+    g.home_score,
+    g.away_score
+FROM dim_game g
+JOIN dim_team home ON g.home_team_id = home.team_id
+JOIN dim_team away ON g.away_team_id = away.team_id;
+```
+
+### Player vs Player Matchup
+
+```sql
+SELECT *
+FROM fact_matchup m
+JOIN dim_player off_p ON m.off_player_id = off_p.player_id
+JOIN dim_player def_p ON m.def_player_id = def_p.player_id
+JOIN dim_team off_t ON m.off_team_id = off_t.team_id
+JOIN dim_team def_t ON m.def_team_id = def_t.team_id
+JOIN dim_game g ON m.game_id = g.game_id;
+```
+
+### Game Officials
+
+```sql
+SELECT
+    g.game_date,
+    o.first_name || ' ' || o.last_name AS official
+FROM bridge_game_official bgo
+JOIN dim_game g ON bgo.game_id = g.game_id
+JOIN dim_official o ON bgo.official_id = o.official_id;
+```
+
+### Shot Chart with Zones
+
+```sql
+SELECT *
+FROM fact_shot_chart sc
+JOIN dim_player p ON sc.player_id = p.player_id
+JOIN dim_shot_zone sz ON sc.zone_id = sz.zone_id
+JOIN dim_game g ON sc.game_id = g.game_id;
+```
+
+## Join Performance Tips
+
+1. **Use analytics views first** -- `view_player_game_complete` and others already have common joins pre-computed
+2. **Filter on dim_game** -- Always include season_year and season_type filters to reduce scan size
+3. **Use DuckDB** -- Its columnar engine handles star schema joins much faster than SQLite
+4. **Aggregate before joining** -- When possible, filter and aggregate fact tables before joining dimensions

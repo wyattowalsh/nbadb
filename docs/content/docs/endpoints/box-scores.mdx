@@ -1,0 +1,81 @@
+---
+title: Box Score Endpoints
+description: Traditional, advanced, and specialty box score endpoints
+---
+
+# Box Score Endpoints
+
+Ten endpoints provide comprehensive box score data for every NBA game.
+
+## BoxScoreTraditionalV3
+
+The primary box score endpoint with traditional stats (points, rebounds, assists, etc.) for both players and teams.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Parameters**: `game_id` (required)
+- **Target tables**: `fact_box_score_player`, `fact_box_score_team`
+
+## BoxScoreAdvancedV3
+
+Advanced metrics including offensive/defensive rating, usage rate, pace, and efficiency stats.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Parameters**: `game_id` (required)
+- **Key columns**: `off_rating`, `def_rating`, `net_rating`, `ast_pct`, `reb_pct`, `usg_pct`, `pace`, `pie`
+
+## BoxScoreDefensiveV2
+
+Individual defensive matchup statistics per game.
+
+- **Result sets**: `PlayerStats`
+- **Parameters**: `game_id` (required)
+- **Key columns**: `matchup_min`, `partial_poss`, `player_pts`, `def_player_id`
+
+## BoxScoreFourFactorsV3
+
+Dean Oliver's four factors of basketball success per game.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Key columns**: `efg_pct`, `fta_rate`, `tm_tov_pct`, `oreb_pct`
+
+## BoxScoreHustleV2
+
+Hustle statistics including contested shots, deflections, charges, and loose balls.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Key columns**: `contested_shots`, `deflections`, `charges_drawn`, `loose_balls_recovered`
+
+## BoxScoreMiscV3
+
+Miscellaneous game stats including points off turnovers, second chance points, and fast break points.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Key columns**: `pts_off_tov`, `pts_2nd_chance`, `pts_fb`, `pts_paint`
+
+## BoxScorePlayerTrackV3
+
+Player tracking data from Second Spectrum cameras.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Key columns**: `speed`, `distance`, `touches`, `passes`, `contested_shots_2pt`, `contested_shots_3pt`
+
+## BoxScoreScoringV3
+
+Scoring breakdown by shot type and assist status.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Key columns**: `pct_fga_2pt`, `pct_fga_3pt`, `pct_ast_2pm`, `pct_ast_3pm`, `pct_uast_2pm`, `pct_uast_3pm`
+
+## BoxScoreUsageV3
+
+Usage-based statistics showing each player's proportion of team possessions.
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Key columns**: `usg_pct`, `pct_fgm`, `pct_fga`, `pct_fg3m`, `pct_fg3a`, `pct_ftm`, `pct_fta`
+
+## BoxScoreMatchupsV3
+
+Individual player-vs-player matchup data per game.
+
+- **Result sets**: `PlayerStats`
+- **Key columns**: `off_player_id`, `def_player_id`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga`

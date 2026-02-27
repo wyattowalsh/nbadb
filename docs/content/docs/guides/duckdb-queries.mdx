@@ -1,0 +1,219 @@
+---
+title: DuckDB Query Examples
+description: Example SQL queries for analyzing NBA data with DuckDB
+---
+
+# DuckDB Query Examples
+
+DuckDB provides the fastest analytical query experience for nbadb data.
+
+## Setup
+
+```python
+import duckdb
+
+conn = duckdb.connect("nba.duckdb")
+```
+
+## Top Scorers by Season
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    t.abbreviation AS team,
+    g.season_year,
+    ROUND(AVG(b.pts), 1) AS ppg,
+    COUNT(*) AS games
+FROM fact_box_score_player b
+JOIN dim_player p ON b.player_id = p.player_id
+JOIN dim_team t ON b.team_id = t.team_id
+JOIN dim_game g ON b.game_id = g.game_id
+WHERE g.season_type = 'Regular Season'
+GROUP BY 1, 2, 3
+HAVING COUNT(*) >= 50
+ORDER BY ppg DESC
+LIMIT 20;
+```
+
+## Player Career Averages
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    COUNT(DISTINCT g.season_year) AS seasons,
+    COUNT(*) AS games,
+    ROUND(AVG(b.pts), 1) AS ppg,
+    ROUND(AVG(b.reb), 1) AS rpg,
+    ROUND(AVG(b.ast), 1) AS apg,
+    ROUND(AVG(b.stl), 1) AS spg,
+    ROUND(AVG(b.blk), 1) AS bpg
+FROM fact_box_score_player b
+JOIN dim_player p ON b.player_id = p.player_id
+JOIN dim_game g ON b.game_id = g.game_id
+WHERE g.season_type = 'Regular Season'
+GROUP BY 1
+HAVING COUNT(*) >= 200
+ORDER BY ppg DESC
+LIMIT 25;
+```
+
+## Team Records and Standings
+
+```sql
+SELECT
+    t.city || ' ' || t.nickname AS team,
+    s.conference,
+    s.division,
+    s.wins,
+    s.losses,
+    ROUND(s.win_pct, 3) AS win_pct,
+    s.playoff_rank,
+    s.current_streak
+FROM fact_standings s
+JOIN dim_team t ON s.team_id = t.team_id
+WHERE s.season_id = '2024-25'
+ORDER BY s.conference, s.playoff_rank;
+```
+
+## Head-to-Head Matchups
+
+```sql
+SELECT
+    home_t.abbreviation AS home_team,
+    away_t.abbreviation AS away_team,
+    COUNT(*) AS games,
+    SUM(CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END) AS home_wins,
+    SUM(CASE WHEN g.away_score > g.home_score THEN 1 ELSE 0 END) AS away_wins,
+    ROUND(AVG(g.home_score), 1) AS avg_home_pts,
+    ROUND(AVG(g.away_score), 1) AS avg_away_pts
+FROM dim_game g
+JOIN dim_team home_t ON g.home_team_id = home_t.team_id
+JOIN dim_team away_t ON g.away_team_id = away_t.team_id
+WHERE g.season_type = 'Regular Season'
+  AND g.season_year = 2024
+  AND home_t.abbreviation = 'BOS'
+GROUP BY 1, 2
+ORDER BY games DESC;
+```
+
+## Shot Chart Zone Analysis
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    sc.shot_zone_basic,
+    sc.shot_zone_area,
+    COUNT(*) AS attempts,
+    SUM(sc.shot_made_flag) AS makes,
+    ROUND(100.0 * SUM(sc.shot_made_flag) / COUNT(*), 1) AS fg_pct
+FROM fact_shot_chart sc
+JOIN dim_player p ON sc.player_id = p.player_id
+JOIN dim_game g ON sc.game_id = g.game_id
+WHERE p.last_name = 'Curry'
+  AND p.first_name = 'Stephen'
+  AND g.season_year = 2024
+GROUP BY 1, 2, 3
+ORDER BY attempts DESC;
+```
+
+## Triple-Doubles in a Season
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    g.season_year,
+    COUNT(*) AS triple_doubles
+FROM fact_box_score_player b
+JOIN dim_player p ON b.player_id = p.player_id
+JOIN dim_game g ON b.game_id = g.game_id
+WHERE b.pts >= 10 AND b.reb >= 10 AND b.ast >= 10
+  AND g.season_type = 'Regular Season'
+GROUP BY 1, 2
+ORDER BY triple_doubles DESC
+LIMIT 20;
+```
+
+## Most Efficient Scorers (TS%)
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    g.season_year,
+    COUNT(*) AS games,
+    ROUND(AVG(b.pts), 1) AS ppg,
+    ROUND(
+        SUM(b.pts) / NULLIF(2 * (SUM(b.fga) + 0.44 * SUM(b.fta)), 0),
+        3
+    ) AS ts_pct
+FROM fact_box_score_player b
+JOIN dim_player p ON b.player_id = p.player_id
+JOIN dim_game g ON b.game_id = g.game_id
+WHERE g.season_type = 'Regular Season'
+GROUP BY 1, 2
+HAVING COUNT(*) >= 50 AND AVG(b.pts) >= 20
+ORDER BY ts_pct DESC
+LIMIT 20;
+```
+
+## Team Pace Leaders
+
+```sql
+SELECT
+    t.city || ' ' || t.nickname AS team,
+    g.season_year,
+    ROUND(AVG(a.pace), 1) AS pace,
+    ROUND(AVG(a.off_rating), 1) AS off_rating,
+    ROUND(AVG(a.def_rating), 1) AS def_rating,
+    ROUND(AVG(a.net_rating), 1) AS net_rating
+FROM fact_box_score_advanced_team a
+JOIN dim_team t ON a.team_id = t.team_id
+JOIN dim_game g ON a.game_id = g.game_id
+WHERE g.season_type = 'Regular Season'
+  AND g.season_year = 2024
+GROUP BY 1, 2
+ORDER BY pace DESC;
+```
+
+## Win Probability Swings
+
+```sql
+SELECT
+    g.game_id,
+    home_t.abbreviation AS home,
+    away_t.abbreviation AS away,
+    wp.period,
+    wp.pctimestring,
+    wp.description,
+    ROUND(wp.home_pct * 100, 1) AS home_win_pct,
+    wp.home_pts,
+    wp.visitor_pts
+FROM fact_win_probability wp
+JOIN dim_game g ON wp.game_id = g.game_id
+JOIN dim_team home_t ON wp.home_team_id = home_t.team_id
+JOIN dim_team away_t ON wp.visitor_team_id = away_t.team_id
+WHERE g.game_id = '0022400001'
+  AND wp.is_score_change = 1
+ORDER BY wp.event_num;
+```
+
+## Clutch Performance (Last 5 Minutes, Score Within 5)
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    COUNT(*) AS clutch_plays,
+    SUM(CASE WHEN pbp.shot_result = 'Made' THEN 1 ELSE 0 END) AS makes,
+    SUM(CASE WHEN pbp.is_field_goal = 1 THEN 1 ELSE 0 END) AS fg_attempts,
+    SUM(pbp.points_total) AS clutch_points
+FROM fact_play_by_play pbp
+JOIN dim_player p ON pbp.person_id = p.player_id
+JOIN dim_game g ON pbp.game_id = g.game_id
+WHERE pbp.period = 4
+  AND pbp.is_field_goal = 1
+  AND g.season_year = 2024
+  AND g.season_type = 'Regular Season'
+GROUP BY 1
+HAVING COUNT(*) >= 30
+ORDER BY clutch_points DESC
+LIMIT 20;
+```

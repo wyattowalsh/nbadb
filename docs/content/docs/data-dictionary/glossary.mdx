@@ -1,0 +1,288 @@
+---
+title: Glossary
+description: Basketball analytics terms with definitions and formulas
+---
+
+# Basketball Analytics Glossary
+
+Definitions and formulas for all analytics metrics used in the nbadb warehouse.
+
+## Shooting Efficiency
+
+### TS% (True Shooting Percentage)
+
+The most comprehensive single measure of shooting efficiency, accounting for 2-pointers, 3-pointers, and free throws.
+
+**Formula**: `TS% = PTS / (2 * TSA)` where `TSA = FGA + 0.44 * FTA`
+
+**Column**: `ts_pct` in `fact_box_score_advanced_player`
+
+**Range**: 0.0 - 1.0 (typically 0.45 - 0.70 for qualified players)
+
+### eFG% (Effective Field Goal Percentage)
+
+Adjusts field goal percentage to account for the extra value of three-pointers.
+
+**Formula**: `eFG% = (FGM + 0.5 * FG3M) / FGA`
+
+**Column**: `efg_pct` in `fact_box_score_advanced_player`, `fact_box_score_four_factors`
+
+**Range**: 0.0 - 1.0
+
+### FG% (Field Goal Percentage)
+
+Basic shooting percentage. Does not account for shot value.
+
+**Formula**: `FG% = FGM / FGA`
+
+**Column**: `fg_pct` in `fact_box_score_player`
+
+### FG3% (Three-Point Percentage)
+
+Percentage of three-point shots made.
+
+**Formula**: `FG3% = FG3M / FG3A`
+
+**Column**: `fg3_pct` in `fact_box_score_player`
+
+### FT% (Free Throw Percentage)
+
+Percentage of free throws made.
+
+**Formula**: `FT% = FTM / FTA`
+
+**Column**: `ft_pct` in `fact_box_score_player`
+
+### FTA Rate (Free Throw Attempt Rate)
+
+Measures a player's ability to get to the free throw line relative to field goal attempts.
+
+**Formula**: `FTA Rate = FTA / FGA`
+
+**Column**: `fta_rate` in `fact_box_score_four_factors`
+
+## Player Impact Metrics
+
+### PIE (Player Impact Estimate)
+
+NBA.com's proprietary all-in-one metric estimating a player's contribution relative to the game.
+
+**Formula**:
+```
+PIE = (PTS + FGM + FTM - FGA - FTA + DREB + 0.5*OREB + AST + STL + 0.5*BLK - PF - TOV)
+    / (GmPTS + GmFGM + GmFTM - GmFGA - GmFTA + GmDREB + 0.5*GmOREB + GmAST + GmSTL + 0.5*GmBLK - GmPF - GmTOV)
+```
+
+where `Gm` prefix indicates game totals (both teams combined).
+
+**Column**: `pie` in `fact_box_score_advanced_player`
+
+**Range**: Typically -0.05 to 0.25. League average is ~0.10.
+
+### USG% (Usage Percentage)
+
+Estimates the percentage of team plays a player uses while on the floor.
+
+**Formula**:
+```
+USG% = 100 * ((FGA + 0.44 * FTA + TOV) * (Tm MP / 5))
+     / (MP * (Tm FGA + 0.44 * Tm FTA + Tm TOV))
+```
+
+**Column**: `usg_pct` in `fact_box_score_advanced_player`, `fact_box_score_usage`
+
+**Range**: 0.0 - 1.0 (typically 0.10 - 0.40)
+
+### AST% (Assist Percentage)
+
+Percentage of teammate field goals a player assisted on while on the floor.
+
+**Formula**: `AST% = 100 * AST / (((MP / (Tm MP / 5)) * Tm FGM) - FGM)`
+
+**Column**: `ast_pct` in `fact_box_score_advanced_player`
+
+### AST/TOV (Assist-to-Turnover Ratio)
+
+Simple ratio of assists to turnovers. Higher is better.
+
+**Formula**: `AST/TOV = AST / TOV`
+
+**Column**: `ast_tov` in `fact_box_score_advanced_player`
+
+### AST Ratio (Assist Ratio)
+
+Assists per 100 possessions.
+
+**Formula**: `AST Ratio = 100 * AST / (FGA + 0.44 * FTA + AST + TOV)`
+
+**Column**: `ast_ratio` in `fact_box_score_advanced_player`
+
+## Rebounding Metrics
+
+### OREB% (Offensive Rebound Percentage)
+
+Estimated percentage of available offensive rebounds a player grabbed while on the floor.
+
+**Formula**: `OREB% = 100 * (OREB * (Tm MP / 5)) / (MP * (Tm OREB + Opp DREB))`
+
+**Column**: `oreb_pct` in `fact_box_score_advanced_player`
+
+### DREB% (Defensive Rebound Percentage)
+
+Estimated percentage of available defensive rebounds a player grabbed while on the floor.
+
+**Formula**: `DREB% = 100 * (DREB * (Tm MP / 5)) / (MP * (Tm DREB + Opp OREB))`
+
+**Column**: `dreb_pct` in `fact_box_score_advanced_player`
+
+### REB% (Total Rebound Percentage)
+
+Estimated percentage of available rebounds a player grabbed.
+
+**Column**: `reb_pct` in `fact_box_score_advanced_player`
+
+## Turnover Metrics
+
+### TOV% (Turnover Percentage)
+
+Estimated turnovers per 100 plays.
+
+**Formula**: `TOV% = 100 * TOV / (FGA + 0.44 * FTA + TOV)`
+
+**Column**: `tov_pct` in `fact_box_score_advanced_player`
+
+## Pace & Efficiency Ratings
+
+### PACE
+
+Estimated number of possessions per 48 minutes for a team.
+
+**Formula**:
+```
+PACE = 48 * ((Tm Poss + Opp Poss) / (2 * (Tm MP / 5)))
+```
+
+where possessions are estimated from play-by-play or box score data.
+
+**Column**: `pace` in `fact_box_score_advanced_player`, `fact_box_score_advanced_team`
+
+**Range**: Typically 95 - 110 in modern NBA.
+
+### ORTG (Offensive Rating)
+
+Points scored per 100 possessions.
+
+**Column**: `off_rating` in `fact_box_score_advanced_player`, `derived_player_estimated`
+
+**Range**: Typically 95 - 130 per game. Season averages: 105 - 120.
+
+### DRTG (Defensive Rating)
+
+Points allowed per 100 possessions. Lower is better.
+
+**Column**: `def_rating` in `fact_box_score_advanced_player`, `derived_player_estimated`
+
+**Range**: Typically 95 - 130 per game.
+
+### Net Rating (NRTG)
+
+Difference between offensive and defensive rating. Positive means outscoring opponents.
+
+**Formula**: `NRTG = ORTG - DRTG`
+
+**Column**: `net_rating` in `fact_box_score_advanced_player`
+
+## Dean Oliver's Four Factors
+
+The four factors that most influence winning, as identified by Dean Oliver. Available in `fact_box_score_four_factors`.
+
+| Factor | Importance | Column | Measures |
+|--------|:----------:|--------|----------|
+| eFG% | 40% | `efg_pct` | Shooting efficiency |
+| TOV% | 25% | `tm_tov_pct` | Ball security |
+| OREB% | 20% | `oreb_pct` | Second chance opportunities |
+| FTA Rate | 15% | `fta_rate` | Getting to the line |
+
+## Synergy Play Types
+
+Synergy Sports Technology classifies every possession into play types. Available in `fact_synergy`.
+
+| Play Type | Description |
+|-----------|-------------|
+| Isolation | 1-on-1 play without a screen |
+| PnR Ball Handler | Pick-and-roll: ball handler's action |
+| PnR Roll Man | Pick-and-roll: screener's action |
+| Post Up | Back-to-basket play in the post |
+| Spot Up | Catch-and-shoot or drive from a spot-up position |
+| Transition | Fast break play |
+| Handoff | Dribble handoff action |
+| Cut | Basket cut without the ball |
+| Off Screen | Coming off a screen to receive a pass |
+| Putback | Offensive rebound and immediate attempt |
+| Misc | Other/unclassified |
+
+### PPP (Points Per Possession)
+
+Primary Synergy efficiency metric.
+
+**Column**: `ppp` in `fact_synergy`
+
+**Range**: 0.0 - 2.0+ (league average ~1.0)
+
+### Score% (Scoring Frequency)
+
+Percentage of possessions that result in a score.
+
+**Column**: `score_pct` in `fact_synergy`
+
+## Box Score Basics
+
+| Abbreviation | Full Name | Column |
+|-------------|-----------|--------|
+| PTS | Points | `pts` |
+| REB | Total Rebounds | `reb` |
+| AST | Assists | `ast` |
+| STL | Steals | `stl` |
+| BLK | Blocks | `blk` |
+| TOV | Turnovers | `tov` |
+| PF | Personal Fouls | `pf` |
+| MIN | Minutes Played | `min` |
+| FGM/FGA | Field Goals Made/Attempted | `fgm`, `fga` |
+| FG3M/FG3A | 3-Point Field Goals Made/Attempted | `fg3m`, `fg3a` |
+| FTM/FTA | Free Throws Made/Attempted | `ftm`, `fta` |
+| OREB/DREB | Offensive/Defensive Rebounds | `oreb`, `dreb` |
+| +/- | Plus/Minus | `plus_minus` |
+
+## Hustle Stats
+
+Available in `fact_box_score_hustle`:
+
+| Metric | Column | Description |
+|--------|--------|-------------|
+| Contested Shots | `contested_shots` | Shot attempts by opponents that the player contested |
+| Deflections | `deflections` | Passes deflected |
+| Charges Drawn | `charges_drawn` | Offensive fouls drawn |
+| Loose Balls Recovered | `loose_balls_recovered` | Loose balls picked up |
+| Screen Assists | `screen_assists` | Screens that led to teammate scores |
+
+## Tracking Stats
+
+Available in `fact_box_score_player_track`:
+
+| Metric | Column | Description |
+|--------|--------|-------------|
+| Speed | `speed` | Average speed in mph |
+| Distance | `distance` | Total distance covered in miles |
+| Touches | `touches` | Times player touched the ball |
+| Passes | `passes` | Total passes made |
+| Contested 2PT | `contested_shots_2pt` | 2-point shots contested |
+| Contested 3PT | `contested_shots_3pt` | 3-point shots contested |
+
+## Win Probability
+
+Available in `fact_win_probability`:
+
+| Metric | Column | Description |
+|--------|--------|-------------|
+| Home Win% | `home_pct` | Home team win probability at event (0.0 - 1.0) |
+| Visitor Win% | `visitor_pct` | Visiting team win probability at event (0.0 - 1.0) |

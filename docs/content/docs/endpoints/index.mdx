@@ -1,0 +1,33 @@
+---
+title: Endpoints
+description: Overview of all 131 NBA API endpoints used by nbadb
+---
+
+# Endpoints
+
+nbadb extracts data from **131 nba_api endpoints**, covering every major statistical category in the NBA.
+
+## Categories
+
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| [Box Scores](/docs/endpoints/box-scores) | 10 | Traditional, advanced, hustle, tracking, matchups |
+| [Play-by-Play](/docs/endpoints/play-by-play) | 3 | V2/V3 play-by-play and win probability |
+| [Player Stats](/docs/endpoints/player-stats) | 7 | Player info, career stats, awards, dashboards |
+| [Team Stats](/docs/endpoints/team-stats) | 6 | Team info, rosters, franchise history |
+| [League Stats](/docs/endpoints/league-stats) | 8 | League-wide dashboards, standings, synergy |
+| [Draft](/docs/endpoints/draft) | 7 | Draft history, board, combine measurements |
+| [Other](/docs/endpoints/other) | 6 | Shots, rotations, hustle, estimated metrics |
+
+## Extraction Strategy
+
+All endpoints use the `nba_api` Python package. Key patterns:
+
+- **Rate limiting**: Tiered semaphores per endpoint category
+- **Retry logic**: Exponential backoff with jitter
+- **Proxy rotation**: Optional proxy list for high-volume extraction
+- **Incremental updates**: Watermark-based with configurable lookback window
+
+## Skipped Endpoints (8)
+
+Eight endpoints are deliberately excluded due to deprecation, authentication requirements, or redundancy with other endpoints.

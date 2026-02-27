@@ -1,0 +1,321 @@
+---
+title: Table Lineage
+description: Complete table-level mapping from NBA API endpoints through staging to star schema
+---
+
+# Table Lineage
+
+This page traces every star schema table back to its source API endpoint(s) and intermediate staging table(s). Each entry shows the complete lineage chain with Mermaid diagrams for key paths.
+
+## Dimension Tables
+
+### dim_player
+```
+NBA API: CommonPlayerInfo, PlayerIndex
+  --> raw_player_info, raw_player_career
+    --> stg_player_info, stg_player_career
+      --> dim_player (SCD2: DimPlayerTransformer)
+```
+**Transform**: SCD2 with change detection on team_id, position, jersey_number. Generates surrogate key `player_sk`.
+
+### dim_team
+```
+NBA API: TeamInfoCommon, TeamDetails
+  --> raw_team_info
+    --> stg_team_info
+      --> dim_team (DimTeamTransformer)
+```
+**Transform**: Direct mapping with franchise metadata enrichment.
+
+### dim_game
+```
+NBA API: ScoreboardV2, LeagueGameLog, ScheduleLeagueV2
+  --> raw_schedule, raw_game_log
+    --> stg_schedule, stg_game_log
+      --> dim_game (DimGameTransformer)
+```
+**Transform**: Deduplicates games, resolves home/away teams, joins arena data.
+
+### dim_season
+```
+Generated from: season_year values across staging tables
+  --> dim_season (DimSeasonTransformer)
+```
+**Transform**: Builds season dimension from distinct season_year values. Adds year_start, year_end, season_type.
+
+### dim_date
+```
+Generated from: game_date range across dim_game
+  --> dim_date (DimDateTransformer)
+```
+**Transform**: Generates calendar rows for every date in the range. Adds day_of_week, month_name, is_weekend.
+
+### dim_official
+```
+NBA API: ScoreboardV2 (Officials)
+  --> raw_schedule (officials result set)
+    --> stg_schedule
+      --> dim_official (DimOfficialTransformer)
+```
+**Transform**: Extracts distinct officials from game data.
+
+### dim_coach
+```
+NBA API: CommonTeamRoster (Coaches)
+  --> raw_team_info (coaches result set)
+    --> stg_team_info
+      --> dim_coach (DimCoachTransformer)
+```
+**Transform**: Extracts coaching staff, classifies head vs assistant.
+
+### dim_arena
+```
+NBA API: TeamDetails, ScoreboardV2
+  --> raw_team_info, raw_schedule
+    --> stg_team_info
+      --> dim_arena (DimArenaTransformer)
+```
+**Transform**: Extracts distinct arenas, generates surrogate arena_id.
+
+### dim_shot_zone
+```
+NBA API: ShotChartDetail (zone fields)
+  --> raw_shot_chart
+    --> stg_shot_chart
+      --> dim_shot_zone (DimShotZoneTransformer)
+```
+**Transform**: Extracts distinct (zone_basic, zone_area, zone_range) combinations.
+
+### dim_play_event_type
+```
+NBA API: PlayByPlayV3 (action_type, sub_type)
+  --> raw_play_by_play
+    --> stg_play_by_play
+      --> dim_play_event_type (DimPlayEventTypeTransformer)
+```
+**Transform**: Extracts distinct action_type/sub_type combinations, classifies field goal attempts.
+
+### dim_college
+```
+NBA API: CommonPlayerInfo, DraftCombineStats
+  --> raw_player_info
+    --> stg_player_info
+      --> dim_college (DimCollegeTransformer)
+```
+**Transform**: Extracts distinct college names, generates surrogate college_id.
+
+### dim_lineup
+```
+NBA API: Derived from rotation data
+  --> fact_rotation
+    --> dim_lineup (via lineup detection logic)
+```
+**Transform**: Identifies 5-player combinations from rotation overlaps. Generates lineup_hash for deduplication.
+
+## Fact Tables
+
+### fact_box_score_player (Traditional)
+```
+NBA API: BoxScoreTraditionalV3
+  --> raw_box_score_traditional
+    --> stg_box_score_traditional
+      --> fact_player_game_traditional (FactPlayerGameTraditionalTransformer)
+```
+**Transform**: Filters to player_id IS NOT NULL, selects standard box score columns.
+
+### fact_box_score_advanced_player
+```
+NBA API: BoxScoreAdvancedV3
+  --> raw_box_score_advanced
+    --> stg_box_score_advanced
+      --> fact_player_game_advanced (FactPlayerGameAdvancedTransformer)
+```
+
+### fact_box_score_hustle
+```
+NBA API: BoxScoreHustleV2
+  --> raw_box_score_hustle
+    --> stg_box_score_hustle
+      --> fact_player_game_hustle (FactPlayerGameHustleTransformer)
+```
+
+### fact_box_score_tracking
+```
+NBA API: BoxScorePlayerTrackV3
+  --> raw_box_score_tracking
+    --> stg_box_score_tracking
+      --> fact_player_game_tracking (FactPlayerGameTrackingTransformer)
+```
+
+### fact_box_score_defensive
+```
+NBA API: BoxScoreMatchupsV3
+  --> raw_box_score_matchups
+    --> stg_box_score_matchups
+      --> fact_box_score_defensive (FactTrackingDefenseTransformer)
+```
+
+### fact_box_score_team
+```
+NBA API: BoxScoreTraditionalV3 (team result set)
+  --> raw_box_score_traditional
+    --> stg_box_score_traditional
+      --> fact_team_game (FactTeamGameTransformer)
+```
+
+### fact_game_result
+```
+NBA API: LeagueGameLog, ScoreboardV2
+  --> raw_game_log, raw_schedule
+    --> stg_game_log, stg_schedule
+      --> fact_game_result (FactGameResultTransformer)
+```
+
+### fact_play_by_play
+```
+NBA API: PlayByPlayV3
+  --> raw_play_by_play
+    --> stg_play_by_play
+      --> fact_play_by_play (FactPlayByPlayTransformer)
+```
+
+### fact_shot_chart
+```
+NBA API: ShotChartDetail
+  --> raw_shot_chart
+    --> stg_shot_chart
+      --> fact_shot_chart (FactShotChartTransformer)
+```
+
+### fact_win_probability
+```
+NBA API: WinProbabilityPBP
+  --> raw_win_probability
+    --> stg_win_probability
+      --> fact_win_probability (FactWinProbabilityTransformer)
+```
+
+### fact_rotation
+```
+NBA API: GameRotation
+  --> raw_rotation
+    --> stg_rotation
+      --> fact_rotation (FactRotationTransformer)
+```
+
+### fact_matchup
+```
+NBA API: BoxScoreMatchupsV3
+  --> raw_box_score_matchups
+    --> stg_box_score_matchups
+      --> fact_matchup (FactMatchupTransformer)
+```
+
+### fact_standings
+```
+NBA API: LeagueStandingsV3
+  --> raw_standings
+    --> stg_standings
+      --> fact_standings (FactStandingsTransformer)
+```
+
+### fact_draft
+```
+NBA API: DraftHistory, DraftCombineStats
+  --> raw_draft
+    --> stg_draft
+      --> fact_draft (FactDraftTransformer)
+```
+
+### fact_synergy
+```
+NBA API: SynergyPlayTypes
+  --> raw_synergy
+    --> stg_synergy
+      --> fact_synergy (FactSynergyTransformer)
+```
+
+## Bridge Tables
+
+### bridge_game_official
+```
+NBA API: ScoreboardV2 (Officials)
+  --> raw_schedule
+    --> stg_schedule
+      --> bridge_game_official (BridgeGameOfficialTransformer)
+```
+
+### bridge_play_player
+```
+NBA API: PlayByPlayV3 (player references)
+  --> raw_play_by_play
+    --> stg_play_by_play
+      --> bridge_play_player (BridgePlayPlayerTransformer)
+```
+
+## Derived Aggregations
+
+Derived tables consume star schema tables (not staging):
+
+### derived_player_season (agg_player_season)
+```
+fact_player_game_traditional + fact_player_game_advanced + dim_game
+  --> agg_player_season (AggPlayerSeasonTransformer)
+```
+**Transform**: GROUP BY player_id, season_year, season_type. Computes totals and averages.
+
+### derived_player_rolling (agg_player_rolling)
+```
+fact_player_game_traditional + dim_game
+  --> agg_player_rolling (AggPlayerRollingTransformer)
+```
+**Transform**: Window functions with 5/10/20 game rolling averages ordered by game_date.
+
+### derived_team_season
+```
+fact_team_game + dim_game
+  --> agg_team_season
+```
+**Transform**: GROUP BY team_id, season_year. Computes wins, losses, per-game stats.
+
+## Analytics Views
+
+Views join facts with dimensions for convenience:
+
+### view_player_game_complete
+```
+fact_player_game_traditional
+  + dim_player
+  + dim_team (player's team)
+  + dim_team (opponent)
+  + dim_game
+  + dim_season
+```
+
+### view_team_game_complete
+```
+fact_team_game
+  + dim_team
+  + dim_team (opponent)
+  + dim_game
+  + dim_season
+```
+
+### view_shot_chart_complete
+```
+fact_shot_chart
+  + dim_player
+  + dim_team
+  + dim_game
+  + dim_shot_zone
+```
+
+### view_matchup_complete
+```
+fact_matchup
+  + dim_player (offense)
+  + dim_player (defense)
+  + dim_team (offense)
+  + dim_team (defense)
+  + dim_game
+```

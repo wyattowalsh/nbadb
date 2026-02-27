@@ -1,0 +1,47 @@
+---
+title: Data Lineage
+description: End-to-end data flow from NBA API to final warehouse tables
+---
+
+# Data Lineage
+
+Data lineage tracks how data flows from its source (the NBA API) through extraction, staging, and transformation to its final form in the star schema warehouse.
+
+## Sections
+
+- **[Column Lineage](/docs/lineage/column-lineage)** -- column-level lineage examples showing how specific fields transform across pipeline stages
+- **[Table Lineage](/docs/lineage/table-lineage)** -- complete table-level mapping from API endpoints to final star schema tables with Mermaid diagrams
+
+## Why Lineage Matters
+
+1. **Debugging**: When a value looks wrong in a fact table, trace it back to the source API endpoint
+2. **Impact analysis**: Before changing a staging schema, see which downstream tables are affected
+3. **Coverage**: Identify which API endpoints feed which warehouse tables
+4. **Documentation**: Understand the complete data flow without reading transform code
+
+## Quick Reference
+
+```
+NBA API  -->  Raw (DuckDB)  -->  Staging (DuckDB)  -->  Star Schema  -->  Export
+  131          16 raw              9 staging             ~50 tables       SQLite/
+endpoints      tables              modules               (dim/fact/       Parquet/
+                                                          derived/view)   CSV
+```
+
+Each stage applies progressively stricter validation:
+
+| Stage | Schema Layer | Validation | Column Names |
+|-------|-------------|------------|--------------|
+| Extract | Raw | Structural only | UPPER_CASE (API native) |
+| Stage | Staging | Types + nullability + ranges | snake_case |
+| Transform | Star | Full constraints + FK refs | snake_case |
+
+## Generation
+
+Lineage documentation can be regenerated from transform code:
+
+```bash
+uv run python -m nbadb.docs_gen.lineage
+```
+
+This introspects `BaseTransformer.depends_on` and staging schema `metadata["source"]` to build lineage graphs automatically.

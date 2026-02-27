@@ -1,0 +1,28 @@
+name: Daily Update
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 10 AM UTC daily
+  workflow_dispatch:
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - name: Run daily update
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          uv run nbadb download
+          uv run nbadb daily
+          uv run nbadb export
+          uv run nbadb upload

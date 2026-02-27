@@ -1,0 +1,45 @@
+---
+title: Data Dictionary
+description: Complete column-level reference and basketball analytics glossary
+---
+
+# Data Dictionary
+
+The data dictionary provides a complete column-level reference for every table in the nbadb star schema warehouse, plus a glossary of basketball analytics terminology.
+
+## Sections
+
+- **[Glossary](/docs/data-dictionary/glossary)** -- basketball analytics terms with definitions and formulas (TS%, eFG%, PIE, PACE, etc.)
+- **[Field Reference](/docs/data-dictionary/field-reference)** -- every column in every table, organized by layer (dimensions, facts, bridges, derived, views)
+
+## Organization
+
+The warehouse follows a layered naming convention:
+
+| Prefix | Layer | Example |
+|--------|-------|---------|
+| `dim_` | Dimension | dim_player, dim_team, dim_game |
+| `fact_` | Fact | fact_box_score_player, fact_shot_chart |
+| `bridge_` | Bridge | bridge_game_official, bridge_play_player |
+| `derived_` | Derived aggregation | derived_player_season, derived_team_season |
+| `view_` | Analytics view | view_player_game_complete |
+
+## Column Naming Conventions
+
+- **Primary keys**: `<entity>_id` (e.g., `player_id`, `game_id`)
+- **Surrogate keys**: `<entity>_sk` for SCD2 dimensions (e.g., `player_sk`)
+- **Foreign keys**: Same name as the referenced primary key
+- **Percentages**: `_pct` suffix (e.g., `fg_pct`, `ts_pct`) -- stored as 0.0-1.0
+- **Per-game averages**: `_pg` suffix (e.g., `pts_pg`, `reb_pg`)
+- **Rolling windows**: `_Ng` suffix where N is the window size (e.g., `pts_5g`, `pts_10g`)
+- **Flags**: `is_` prefix for booleans (e.g., `is_active`, `is_current`)
+
+## Generation
+
+The field reference can be regenerated from Pandera schema definitions:
+
+```bash
+uv run python -m nbadb.docs_gen.data_dictionary
+```
+
+This introspects `pa.Field()` metadata (description, fk_ref, constraints) to produce the field reference automatically.

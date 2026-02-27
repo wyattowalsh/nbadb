@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from loguru import logger
+
+if TYPE_CHECKING:
+    import polars as pl
+from nba_api.stats.endpoints import (
+    LeagueGameLog,
+    PlayerGameLog,
+    ScoreboardV2,
+    TeamGameLog,
+)
+
+from nbadb.extract.base import BaseExtractor
+from nbadb.extract.registry import registry
+
+
+@registry.register
+class LeagueGameLogExtractor(BaseExtractor):
+    endpoint_name = "league_game_log"
+    category = "game_log"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        logger.debug(f"Extracting league game log for {season} ({season_type})")
+        return self._from_nba_api(
+            LeagueGameLog, season=season, season_type_all_star=season_type
+        )
+
+
+@registry.register
+class PlayerGameLogExtractor(BaseExtractor):
+    endpoint_name = "player_game_log"
+    category = "game_log"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerGameLog,
+            player_id=player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
+class TeamGameLogExtractor(BaseExtractor):
+    endpoint_name = "team_game_log"
+    category = "game_log"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            TeamGameLog,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
+class ScoreboardV2Extractor(BaseExtractor):
+    endpoint_name = "scoreboard_v2"
+    category = "game_log"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        game_date: str = params["game_date"]
+        return self._from_nba_api(ScoreboardV2, game_date=game_date)

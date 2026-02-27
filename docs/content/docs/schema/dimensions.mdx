@@ -1,0 +1,189 @@
+---
+title: Dimensions
+description: All 13 dimension tables in the nbadb star schema
+---
+
+# Dimension Tables
+
+Dimensions contain the descriptive "who, what, when, where" context for fact records.
+
+## dim_player
+
+Central player dimension with biographical and career data.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| player_id | int | Primary key (NBA person_id) |
+| first_name | string | Player first name |
+| last_name | string | Player last name |
+| display_name | string | Full display name |
+| position | string | Playing position |
+| height | string | Height (e.g., "6-6") |
+| weight | string | Weight in pounds |
+| birthdate | date | Date of birth |
+| country | string | Country of origin |
+| school | string | College/school attended |
+| draft_year | int | Year drafted |
+| draft_round | int | Round drafted |
+| draft_number | int | Overall pick number |
+| from_year | int | First NBA season |
+| to_year | int | Last NBA season |
+| is_active | bool | Currently on roster |
+
+## dim_team
+
+Team dimension with franchise information.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| team_id | int | Primary key (NBA team_id) |
+| abbreviation | string | Three-letter code (e.g., LAL) |
+| nickname | string | Team nickname (e.g., Lakers) |
+| city | string | Team city |
+| full_name | string | Full team name |
+| conference | string | East or West |
+| division | string | Division name |
+| arena | string | Home arena name |
+| arena_capacity | int | Arena seating capacity |
+| year_founded | int | Year franchise was established |
+| owner | string | Team owner |
+| general_manager | string | GM name |
+| head_coach | string | Head coach name |
+
+## dim_game
+
+Game dimension with scheduling and result data.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| game_id | string | Primary key (10-digit NBA game ID) |
+| game_date | date | Date of the game |
+| season_year | int | Season start year |
+| season_type | string | Regular Season, Playoffs, etc. |
+| home_team_id | int | FK to dim_team |
+| away_team_id | int | FK to dim_team |
+| home_score | int | Final home team score |
+| away_score | int | Final away team score |
+| arena_name | string | Arena where game was played |
+| arena_city | string | Arena city |
+| arena_state | string | Arena state |
+
+## dim_season
+
+Season dimension for temporal grouping.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| season_id | string | Primary key (e.g., "2024-25") |
+| year_start | int | Starting calendar year |
+| year_end | int | Ending calendar year |
+| season_type | string | Regular, Playoffs, Pre Season |
+
+## dim_date
+
+Calendar date dimension for time-based analysis.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| date_id | date | Primary key |
+| year | int | Calendar year |
+| month | int | Month number |
+| day | int | Day of month |
+| day_of_week | int | Day of week (0=Monday) |
+| month_name | string | Month name |
+| is_weekend | bool | Saturday or Sunday |
+
+## dim_official
+
+Game officials (referees).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| official_id | int | Primary key |
+| first_name | string | Official first name |
+| last_name | string | Official last name |
+| jersey_num | string | Jersey number |
+
+## dim_coach
+
+Coaching staff dimension.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| coach_id | int | Primary key |
+| first_name | string | Coach first name |
+| last_name | string | Coach last name |
+| coach_type | string | Head Coach, Assistant, etc. |
+| is_assistant | bool | Whether assistant coach |
+
+## dim_arena
+
+Arena/venue dimension.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| arena_id | int | Primary key (generated) |
+| arena_name | string | Arena name |
+| arena_city | string | City |
+| arena_state | string | State |
+| capacity | int | Seating capacity |
+
+## dim_draft
+
+Draft event dimension.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| draft_id | int | Primary key (generated) |
+| season | int | Draft year |
+| round_number | int | Draft round |
+| round_pick | int | Pick within round |
+| overall_pick | int | Overall pick number |
+| draft_type | string | Type of draft |
+
+## dim_action_type
+
+Play-by-play action type dimension.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| action_type_id | int | Primary key (generated) |
+| action_type | string | Action type name |
+| sub_type | string | Action sub-type |
+| is_field_goal | bool | Whether action is a FG attempt |
+
+## dim_shot_zone
+
+Shot chart zone dimension.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| zone_id | int | Primary key (generated) |
+| zone_basic | string | Basic zone (Restricted Area, Paint, etc.) |
+| zone_area | string | Court area (Left, Right, Center) |
+| zone_range | string | Distance range (0-8ft, 8-16ft, etc.) |
+
+## dim_play_type
+
+Synergy play type dimension.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| play_type_id | int | Primary key (generated) |
+| play_type | string | Play type (Isolation, PnR Ball Handler, etc.) |
+| type_grouping | string | Offensive or Defensive |
+
+## dim_lineup
+
+Lineup combination dimension.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| lineup_id | int | Primary key (generated) |
+| lineup_hash | string | Hash of sorted player IDs |
+| team_id | int | FK to dim_team |
+| player_1_id | int | FK to dim_player |
+| player_2_id | int | FK to dim_player |
+| player_3_id | int | FK to dim_player |
+| player_4_id | int | FK to dim_player |
+| player_5_id | int | FK to dim_player |

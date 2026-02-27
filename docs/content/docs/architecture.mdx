@@ -1,0 +1,21 @@
+---
+title: Architecture
+description: System architecture and design decisions
+---
+
+# Architecture
+
+nbadb follows an **ELT (Extract, Load, Transform)** pipeline pattern:
+
+1. **Extract**: 131 nba_api endpoints → Polars DataFrames
+2. **Load to staging**: DuckDB as single staging engine
+3. **Transform**: Polars LazyFrame + DuckDB SQL → star schema
+4. **Export**: SQLite (ADBC) + DuckDB + Parquet (zstd) + CSV
+
+## Key Design Decisions
+
+- **Polars over pandas**: Primary DataFrame engine for all transforms
+- **DuckDB for staging**: Zero-copy Arrow interchange, complex SQL joins
+- **Star schema**: 13 dimensions, 20 facts, 2 bridges, 15 derived
+- **Pandera validation**: 3-tier schema validation (raw → staging → star)
+- **Incremental updates**: Watermark-based with 7-day lookback window

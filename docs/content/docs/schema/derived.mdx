@@ -1,0 +1,98 @@
+---
+title: Derived Aggregations
+description: All 15 pre-aggregated tables for common analytical queries
+---
+
+# Derived Aggregation Tables
+
+Derived tables are pre-computed aggregations that speed up common analytical patterns. They are rebuilt during each pipeline run.
+
+## Player Aggregations
+
+### derived_player_career
+Career totals and averages for every player across regular season and playoffs.
+
+**Grain**: One row per player per season type.
+**Key columns**: player_id, season_type, gp, gs, min_total, pts_total, reb_total, ast_total, ppg, rpg, apg
+
+### derived_player_season
+Season-level player statistics with per-game and total modes.
+
+**Grain**: One row per player per season per season type.
+**Key columns**: player_id, season_year, gp, ppg, rpg, apg, spg, bpg, fg_pct, fg3_pct, ft_pct, ts_pct
+
+### derived_player_rolling
+Rolling averages (5-game, 10-game, 20-game windows) for trend analysis.
+
+**Grain**: One row per player per game.
+**Key columns**: player_id, game_id, pts_5g, pts_10g, pts_20g, reb_5g, ast_5g
+
+### derived_player_splits
+Player performance splits by home/away, back-to-back, opponent, month, and day of week.
+
+**Grain**: One row per player per split category per value.
+
+### derived_player_estimated
+Estimated advanced metrics derived from box score data.
+
+**Grain**: One row per player per season.
+**Key columns**: e_off_rating, e_def_rating, e_net_rating, e_usg_pct, e_pace
+
+## Team Aggregations
+
+### derived_team_season
+Season-level team statistics.
+
+**Grain**: One row per team per season per season type.
+**Key columns**: team_id, season_year, gp, w, l, w_pct, pts_pg, opp_pts_pg, diff_pts_pg
+
+### derived_team_year_by_year
+Historical year-by-year team statistics.
+
+**Grain**: One row per team per year.
+
+### derived_team_estimated
+Estimated advanced metrics for teams.
+
+**Grain**: One row per team per season.
+
+## League Aggregations
+
+### derived_league_leaders
+Season statistical category leaders.
+
+**Grain**: One row per player per stat category per season.
+**Key columns**: player_id, season_year, stat_category, stat_value, rank
+
+### derived_league_player_stats
+League-wide player dashboard statistics.
+
+**Grain**: One row per player per season per measure type.
+
+### derived_league_team_stats
+League-wide team dashboard statistics.
+
+**Grain**: One row per team per season per measure type.
+
+### derived_league_shot_zones
+League-wide shot zone efficiency averages.
+
+**Grain**: One row per zone combination per season.
+**Key columns**: shot_zone_basic, shot_zone_area, shot_zone_range, fga, fgm, fg_pct
+
+### derived_all_time_leaders
+All-time career and season records across statistical categories.
+
+**Grain**: One row per player per stat category.
+
+## Draft Aggregations
+
+### derived_draft_combine
+Combined draft combine results with measurements and drill results.
+
+**Grain**: One row per player per combine year.
+
+### derived_player_awards
+Aggregated awards and honors per player.
+
+**Grain**: One row per player per award type per season.

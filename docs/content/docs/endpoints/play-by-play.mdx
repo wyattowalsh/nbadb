@@ -1,0 +1,51 @@
+---
+title: Play-by-Play Endpoints
+description: Event-level game data and win probability
+---
+
+# Play-by-Play Endpoints
+
+Three endpoints provide event-level game data.
+
+## PlayByPlayV3
+
+The latest play-by-play format with structured action types and shot coordinates.
+
+- **Result sets**: `PlayByPlay`
+- **Parameters**: `game_id` (required)
+- **Key columns**: `action_number`, `clock`, `period`, `action_type`, `sub_type`, `description`, `shot_distance`, `shot_result`, `x_legacy`, `y_legacy`
+- **Notes**: Preferred over V2 for games from 2021-22 onward
+
+## PlayByPlayV2
+
+Legacy play-by-play format with three-player event structure.
+
+- **Result sets**: `PlayByPlay`, `AvailableVideo`
+- **Parameters**: `game_id` (required)
+- **Key columns**: `eventmsgtype`, `eventmsgactiontype`, `homedescription`, `visitordescription`, `player1_id`, `player2_id`, `player3_id`
+- **Notes**: Used for historical games before 2021-22
+
+## WinProbabilityPBP
+
+Real-time win probability at each event in a game.
+
+- **Result sets**: `WinProbPBP`, `GameInfo`
+- **Parameters**: `game_id` (required)
+- **Key columns**: `home_pct`, `visitor_pct`, `home_pts`, `visitor_pts`, `home_score_margin`, `period`, `seconds_remaining`
+
+## Event Message Types (V2)
+
+| Type | Description |
+|------|-------------|
+| 1 | Made shot |
+| 2 | Missed shot |
+| 3 | Free throw |
+| 4 | Rebound |
+| 5 | Turnover |
+| 6 | Foul |
+| 7 | Violation |
+| 8 | Substitution |
+| 9 | Timeout |
+| 10 | Jump ball |
+| 12 | Period start |
+| 13 | Period end |

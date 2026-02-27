@@ -1,0 +1,109 @@
+---
+title: Facts & Bridges
+description: All 20 fact tables and 2 bridge tables
+---
+
+# Fact Tables
+
+Fact tables contain the quantitative measurements -- the "how much" and "how many" of NBA events.
+
+## Core Box Score Facts
+
+### fact_box_score_player
+Per-player traditional box score stats for every game. Primary grain: one row per player per game.
+
+**Key measures**: min, pts, reb, ast, stl, blk, tov, pf, fgm, fga, fg_pct, fg3m, fg3a, fg3_pct, ftm, fta, ft_pct, oreb, dreb, plus_minus
+
+### fact_box_score_team
+Per-team aggregated box score stats. Primary grain: one row per team per game.
+
+### fact_box_score_advanced_player / fact_box_score_advanced_team
+Advanced analytics metrics per game.
+
+**Key measures**: off_rating, def_rating, net_rating, ast_pct, ast_tov, ast_ratio, oreb_pct, dreb_pct, reb_pct, tov_pct, efg_pct, ts_pct, usg_pct, pace, pie
+
+### fact_box_score_hustle
+Hustle stats: contested_shots, deflections, charges_drawn, loose_balls_recovered, screen_assists
+
+### fact_box_score_misc
+Miscellaneous: pts_off_tov, pts_2nd_chance, pts_fb, pts_paint, opp_pts_off_tov
+
+### fact_box_score_scoring
+Scoring breakdown: pct_fga_2pt, pct_fga_3pt, pct_ast_2pm, pct_uast_2pm, pct_ast_3pm
+
+### fact_box_score_usage
+Usage: usg_pct, pct_fgm, pct_fga, pct_fg3m, pct_fg3a, pct_ftm, pct_fta, pct_oreb, pct_dreb
+
+### fact_box_score_player_track
+Tracking data: speed, distance, touches, passes, contested_shots_2pt, contested_shots_3pt
+
+### fact_box_score_four_factors
+Dean Oliver's four factors: efg_pct, fta_rate, tm_tov_pct, oreb_pct
+
+### fact_box_score_defensive
+Defensive matchup stats per game: matchup_min, partial_poss, player_pts, def_player_id
+
+## Event-Level Facts
+
+### fact_play_by_play
+Play-by-play events (V3 format). Primary grain: one row per action per game.
+
+**Key columns**: game_id, action_number, clock, period, action_type, sub_type, description, shot_distance, shot_result, points_total
+
+### fact_shot_chart
+Shot-level data with court coordinates. Primary grain: one row per shot attempt.
+
+**Key columns**: game_id, player_id, loc_x, loc_y, shot_zone_basic, shot_zone_area, shot_zone_range, shot_distance, shot_made_flag, period, minutes_remaining
+
+### fact_win_probability
+Win probability at each event. Primary grain: one row per event per game.
+
+**Key columns**: game_id, event_num, home_pct, visitor_pct, home_pts, visitor_pts, period, seconds_remaining
+
+### fact_rotation
+Player rotation stints. Primary grain: one row per player stint per game.
+
+**Key columns**: game_id, person_id, team_id, in_time_real, out_time_real, player_pts, pt_diff
+
+## Aggregate Facts
+
+### fact_game_log
+League-wide game log. Primary grain: one row per team per game.
+
+### fact_player_game_log
+Player-level game log. Primary grain: one row per player per game.
+
+### fact_standings
+Season standings snapshots. Primary grain: one row per team per season.
+
+### fact_matchup
+Player-vs-player matchup data per game.
+
+### fact_season_matchups
+Aggregated season-long matchup data between player pairs.
+
+### fact_synergy
+Synergy play type statistics per player/team per season.
+
+### fact_draft
+Draft pick records. Primary grain: one row per draft pick.
+
+## Bridge Tables
+
+### bridge_game_official
+Many-to-many link between games and officials.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| game_id | string | FK to dim_game |
+| official_id | int | FK to dim_official |
+
+### bridge_play_player
+Many-to-many link between play-by-play events and involved players.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| game_id | string | FK to dim_game |
+| event_num | int | Event number in game |
+| player_id | int | FK to dim_player |
+| involvement_type | string | Primary, secondary, tertiary |

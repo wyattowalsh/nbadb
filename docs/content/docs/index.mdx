@@ -1,0 +1,34 @@
+---
+title: Getting Started
+description: Comprehensive NBA database documentation
+---
+
+# nbadb Documentation
+
+nbadb provides a comprehensive NBA database built from 131 nba_api endpoints, normalized into a star schema with ~58 tables.
+
+## Quick Start
+
+```bash
+pip install nbadb
+nbadb init
+```
+
+## Architecture
+
+The database uses a **star schema** design:
+
+- **13 Dimensions**: Players, teams, games, seasons, dates, officials, coaches, arenas, and more
+- **20 Fact Tables**: Box scores, play-by-play, shot charts, matchups, lineups, standings, draft
+- **2 Bridge Tables**: Game-official and play-player associations
+- **15 Derived Aggregations**: Season totals, rolling averages, career stats, league leaders
+- **4 Analytics Views**: Pre-joined denormalized views for common analyses
+
+## Output Formats
+
+| Format | Use Case |
+|--------|----------|
+| **SQLite** | Portable single-file database |
+| **DuckDB** | Columnar analytics engine |
+| **Parquet** | Compressed columnar files (zstd) |
+| **CSV** | Universal flat files |

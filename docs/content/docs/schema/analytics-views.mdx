@@ -1,0 +1,113 @@
+---
+title: Analytics Views
+description: 4 pre-joined denormalized views for common analyses
+---
+
+# Analytics Views
+
+Analytics views are pre-joined, denormalized tables designed for the most common analytical queries. They eliminate the need for multi-table joins in everyday analysis.
+
+## view_player_game_complete
+
+The most comprehensive single-table view: every player's complete game record with all dimensional context.
+
+**Joins**: fact_box_score_player + dim_player + dim_team + dim_game + dim_season
+
+| Column Group | Description |
+|-------------|-------------|
+| Player info | player_id, first_name, last_name, position, height, weight |
+| Team info | team_id, team_abbreviation, team_name, conference, division |
+| Game info | game_id, game_date, season_year, season_type, home_or_away |
+| Opponent | opp_team_id, opp_abbreviation, opp_name |
+| Traditional stats | min, pts, reb, ast, stl, blk, tov, pf, fgm, fga, fg_pct, etc. |
+| Result | wl, plus_minus |
+
+**Use case**: Quick player analysis without any joins.
+
+```sql
+SELECT player_name, game_date, pts, reb, ast
+FROM view_player_game_complete
+WHERE player_name = 'LeBron James'
+  AND season_year = 2024
+ORDER BY game_date;
+```
+
+## view_team_game_complete
+
+Team-level game records with full dimensional context.
+
+**Joins**: fact_box_score_team + dim_team + dim_game + dim_season
+
+| Column Group | Description |
+|-------------|-------------|
+| Team info | team_id, abbreviation, nickname, city, conference, division |
+| Game info | game_id, game_date, season_year, season_type |
+| Opponent | opp_team_id, opp_abbreviation |
+| Stats | pts, reb, ast, fgm, fga, fg_pct, fg3m, fg3a, fg3_pct, etc. |
+| Result | wl, plus_minus, home_or_away |
+
+**Use case**: Team performance analysis and game logs.
+
+```sql
+SELECT game_date, abbreviation, opp_abbreviation, pts, wl
+FROM view_team_game_complete
+WHERE abbreviation = 'BOS'
+  AND season_year = 2024
+ORDER BY game_date;
+```
+
+## view_shot_chart_complete
+
+Shot chart data enriched with player, team, game, and zone context.
+
+**Joins**: fact_shot_chart + dim_player + dim_team + dim_game + dim_shot_zone
+
+| Column Group | Description |
+|-------------|-------------|
+| Player info | player_id, player_name, position |
+| Game context | game_id, game_date, season_year, home_or_away |
+| Shot location | loc_x, loc_y, shot_distance |
+| Shot zone | zone_basic, zone_area, zone_range |
+| Result | shot_made_flag, event_type, action_type, shot_type |
+
+**Use case**: Shot chart visualization and zone analysis.
+
+```sql
+SELECT zone_basic, COUNT(*) AS attempts,
+       SUM(shot_made_flag) AS makes,
+       ROUND(100.0 * SUM(shot_made_flag) / COUNT(*), 1) AS fg_pct
+FROM view_shot_chart_complete
+WHERE player_name = 'Stephen Curry'
+  AND season_year = 2024
+GROUP BY zone_basic
+ORDER BY attempts DESC;
+```
+
+## view_matchup_complete
+
+Player-vs-player matchup data with full context.
+
+**Joins**: fact_matchup + dim_player (offense) + dim_player (defense) + dim_team + dim_game
+
+| Column Group | Description |
+|-------------|-------------|
+| Offensive player | off_player_id, off_player_name, off_team |
+| Defensive player | def_player_id, def_player_name, def_team |
+| Game context | game_id, game_date, season_year |
+| Matchup stats | matchup_min, partial_poss, player_pts, matchup_fgm, matchup_fga |
+
+**Use case**: Defensive analysis and matchup scouting.
+
+```sql
+SELECT off_player_name, def_player_name,
+       SUM(matchup_min) AS total_min,
+       SUM(matchup_fgm) AS fgm,
+       SUM(matchup_fga) AS fga,
+       ROUND(100.0 * SUM(matchup_fgm) / NULLIF(SUM(matchup_fga), 0), 1) AS fg_pct
+FROM view_matchup_complete
+WHERE season_year = 2024
+GROUP BY 1, 2
+HAVING SUM(matchup_min) >= 20
+ORDER BY fg_pct ASC
+LIMIT 20;
+```

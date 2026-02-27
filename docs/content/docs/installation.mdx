@@ -1,0 +1,35 @@
+---
+title: Installation
+description: Install and configure nbadb
+---
+
+# Installation
+
+## Requirements
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+
+## Install from PyPI
+
+```bash
+pip install nbadb
+```
+
+## Install from source
+
+```bash
+git clone https://github.com/wyattowalsh/nbadb.git
+cd nbadb
+uv sync
+```
+
+## Configuration
+
+nbadb uses environment variables with the `NBADB_` prefix. Copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+All settings have sensible defaults. See the [CLI Reference](/docs/cli-reference) for usage.

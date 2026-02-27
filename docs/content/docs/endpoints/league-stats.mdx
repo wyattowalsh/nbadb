@@ -1,0 +1,69 @@
+---
+title: League Stats Endpoints
+description: League-wide dashboards, standings, synergy, and matchups
+---
+
+# League Stats Endpoints
+
+Eight endpoints provide league-wide statistical views.
+
+## LeagueDashPlayerStats
+
+League-wide player statistics dashboard with extensive filtering.
+
+- **Result sets**: `LeagueDashPlayerStats`
+- **Parameters**: `season` (required), `season_type`, `per_mode`, `measure_type`
+- **Key columns**: Full traditional + advanced stat line per player
+
+## LeagueDashTeamStats
+
+League-wide team statistics dashboard.
+
+- **Result sets**: `LeagueDashTeamStats`
+- **Parameters**: `season` (required), `season_type`, `per_mode`, `measure_type`
+- **Key columns**: Full traditional + advanced stat line per team
+
+## LeagueStandingsV3
+
+Current and historical league standings.
+
+- **Result sets**: `Standings`
+- **Parameters**: `league_id`, `season`, `season_type`
+- **Key columns**: `team_id`, `conference`, `division`, `wins`, `losses`, `win_pct`, `playoff_rank`, `conference_record`, `division_record`, `home`, `road`, `l10`, `current_streak`, `pts_pg`, `opp_pts_pg`
+
+## SynergyPlayTypes
+
+Synergy-tracked play type statistics (isolation, pick and roll, post-up, etc.).
+
+- **Result sets**: `SynergyPlayType`
+- **Parameters**: `season` (required), `play_type`, `player_or_team`, `type_grouping`
+- **Key columns**: `play_type`, `gp`, `poss`, `poss_pct`, `ppp`, `fg_pct`, `efg_pct`, `score_pct`
+
+## LeagueSeasonMatchups
+
+Season-long player-vs-player defensive matchup data.
+
+- **Result sets**: `SeasonMatchups`
+- **Parameters**: `season` (required), various player/team filters
+- **Key columns**: `off_player_id`, `def_player_id`, `gp`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga`, `matchup_fg_pct`
+
+## LeagueDashLineups
+
+Lineup combination statistics.
+
+- **Result sets**: `Lineups`
+- **Parameters**: `season` (required), `group_quantity` (2-5 players)
+- **Key columns**: `group_set`, `gp`, `min`, `plus_minus`, various per-mode stats
+
+## LeagueLeaders
+
+Season leaders across all statistical categories.
+
+- **Result sets**: `LeagueLeaders`
+- **Parameters**: `season` (required), `stat_category`, `per_mode`
+
+## AllTimeLeadersGrids
+
+All-time career and season statistical leaders.
+
+- **Result sets**: Multiple leader grids (points, rebounds, assists, etc.)

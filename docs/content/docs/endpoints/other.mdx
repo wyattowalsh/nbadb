@@ -1,0 +1,54 @@
+---
+title: Other Endpoints
+description: Shot charts, rotations, hustle stats, and estimated metrics
+---
+
+# Other Endpoints
+
+Six additional endpoints provide specialized statistical data.
+
+## ShotChartDetail
+
+Individual shot chart data with court coordinates and zone classifications.
+
+- **Result sets**: `Shot_Chart_Detail`, `LeagueAverages`
+- **Parameters**: `player_id`, `team_id`, `game_id`, `season`, `context_measure`
+- **Key columns**: `game_id`, `player_id`, `period`, `minutes_remaining`, `seconds_remaining`, `event_type`, `action_type`, `shot_type`, `shot_zone_basic`, `shot_zone_area`, `shot_zone_range`, `shot_distance`, `loc_x`, `loc_y`, `shot_made_flag`
+
+## GameRotation
+
+Player rotation data showing entry/exit times and stint performance.
+
+- **Result sets**: `HomeTeam`, `AwayTeam`
+- **Parameters**: `game_id` (required)
+- **Key columns**: `game_id`, `team_id`, `person_id`, `in_time_real`, `out_time_real`, `player_pts`, `pt_diff`, `usg_pct`
+
+## HustleStatsBoxScore
+
+Hustle statistics (deflections, loose balls, charges, contested shots).
+
+- **Result sets**: `PlayerStats`, `TeamStats`
+- **Parameters**: `game_id` (required)
+
+## PlayerEstimatedMetrics
+
+Estimated advanced metrics for players based on box score data.
+
+- **Result sets**: `PlayerEstimatedMetrics`
+- **Parameters**: `season` (required)
+- **Key columns**: `e_off_rating`, `e_def_rating`, `e_net_rating`, `e_ast_ratio`, `e_oreb_pct`, `e_dreb_pct`, `e_reb_pct`, `e_tov_pct`, `e_usg_pct`, `e_pace`
+
+## TeamEstimatedMetrics
+
+Estimated advanced metrics for teams.
+
+- **Result sets**: `TeamEstimatedMetrics`
+- **Parameters**: `season` (required)
+
+## BoxScoreSummaryV2
+
+Game summary with officials, other stats, and series information.
+
+- **Result sets**: `GameSummary`, `OtherStats`, `Officials`, `InactivePlayers`, `GameInfo`, `LineScore`, `LastMeeting`, `SeasonSeries`, `AvailableVideo`
+- **Parameters**: `game_id` (required)
+- **Notes**: Officials data feeds the `bridge_game_official` table

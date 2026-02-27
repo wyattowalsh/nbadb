@@ -1,0 +1,81 @@
+{
+  "resultSets": [{
+    "name": "PlayByPlay",
+    "headers": [
+      "GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "EVENTMSGACTIONTYPE",
+      "PERIOD", "WCTIMESTRING", "PCTIMESTRING",
+      "HOMEDESCRIPTION", "NEUTRALDESCRIPTION", "VISITORDESCRIPTION",
+      "SCORE", "SCOREMARGIN",
+      "PERSON1TYPE", "PLAYER1_ID", "PLAYER1_NAME", "PLAYER1_TEAM_ID",
+      "PERSON2TYPE", "PLAYER2_ID", "PLAYER2_NAME", "PLAYER2_TEAM_ID",
+      "PERSON3TYPE", "PLAYER3_ID", "PLAYER3_NAME", "PLAYER3_TEAM_ID"
+    ],
+    "rowSet": [
+      [
+        "0022400001", 1, 12, 0, 1, "8:00 PM", "12:00",
+        null, "Period Start", null, null, null,
+        0, 0, null, null, 0, 0, null, null, 0, 0, null, null
+      ],
+      [
+        "0022400001", 2, 4, 0, 1, "8:00 PM", "12:00",
+        "Jump Ball: Davis vs. Gobert", null, null, null, null,
+        4, 203076, "Anthony Davis", 1610612747,
+        4, 203497, "Rudy Gobert", 1610612750,
+        0, 0, null, null
+      ],
+      [
+        "0022400001", 3, 2, 1, 1, "8:01 PM", "11:42",
+        null, null, "MISS Edwards 3PT",
+        null, null,
+        4, 1630162, "Anthony Edwards", 1610612750,
+        0, 0, null, null, 0, 0, null, null
+      ],
+      [
+        "0022400001", 4, 4, 0, 1, "8:01 PM", "11:40",
+        "James REBOUND", null, null, null, null,
+        4, 2544, "LeBron James", 1610612747,
+        0, 0, null, null, 0, 0, null, null
+      ],
+      [
+        "0022400001", 5, 1, 1, 1, "8:01 PM", "11:20",
+        "James Driving Layup", null, null, "2 - 0", "2",
+        4, 2544, "LeBron James", 1610612747,
+        0, 0, null, null, 0, 0, null, null
+      ],
+      [
+        "0022400001", 6, 1, 79, 1, "8:02 PM", "11:02",
+        null, null, "Edwards Pullup Jump Shot",
+        "2 - 2", "TIE",
+        4, 1630162, "Anthony Edwards", 1610612750,
+        0, 0, null, null, 0, 0, null, null
+      ],
+      [
+        "0022400001", 7, 6, 4, 1, "8:02 PM", "10:48",
+        "Foul: Davis", null, null, null, null,
+        4, 203076, "Anthony Davis", 1610612747,
+        4, 203497, "Rudy Gobert", 1610612750,
+        0, 0, null, null
+      ],
+      [
+        "0022400001", 8, 3, 15, 1, "8:03 PM", "10:48",
+        null, null, "Gobert Free Throw 1 of 2",
+        "2 - 3", "-1",
+        4, 203497, "Rudy Gobert", 1610612750,
+        0, 0, null, null, 0, 0, null, null
+      ],
+      [
+        "0022400001", 9, 3, 15, 1, "8:03 PM", "10:48",
+        null, null, "MISS Gobert Free Throw 2 of 2",
+        null, null,
+        4, 203497, "Rudy Gobert", 1610612750,
+        0, 0, null, null, 0, 0, null, null
+      ],
+      [
+        "0022400001", 10, 4, 0, 1, "8:03 PM", "10:46",
+        "Davis REBOUND", null, null, null, null,
+        4, 203076, "Anthony Davis", 1610612747,
+        0, 0, null, null, 0, 0, null, null
+      ]
+    ]
+  }]
+}

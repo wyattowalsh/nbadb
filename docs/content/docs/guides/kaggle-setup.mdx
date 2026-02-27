@@ -1,0 +1,78 @@
+---
+title: Kaggle Setup
+description: How to access nbadb data on Kaggle
+---
+
+# Kaggle Setup
+
+The nbadb dataset is available on Kaggle at [wyattowalsh/basketball](https://www.kaggle.com/datasets/wyattowalsh/basketball).
+
+## Download via CLI
+
+```bash
+nbadb download
+```
+
+This uses `kagglehub` to download the latest version of the dataset.
+
+## Download via kagglehub
+
+```python
+import kagglehub
+
+path = kagglehub.dataset_download("wyattowalsh/basketball")
+print(f"Dataset downloaded to: {path}")
+```
+
+## Available Files
+
+| File | Format | Description |
+|------|--------|-------------|
+| `nba.sqlite` | SQLite | Full database, single file |
+| `nba.duckdb` | DuckDB | Columnar analytics database |
+| `*.parquet` | Parquet | One file per table (zstd compressed) |
+| `*.csv` | CSV | One file per table |
+
+## Loading in Python
+
+### SQLite
+
+```python
+import sqlite3
+
+conn = sqlite3.connect("nba.sqlite")
+cursor = conn.execute("SELECT * FROM dim_player LIMIT 5")
+```
+
+### DuckDB
+
+```python
+import duckdb
+
+conn = duckdb.connect("nba.duckdb")
+df = conn.sql("SELECT * FROM dim_player LIMIT 5").pl()
+```
+
+### Parquet with Polars
+
+```python
+import polars as pl
+
+df = pl.read_parquet("dim_player.parquet")
+```
+
+### Parquet with Pandas
+
+```python
+import pandas as pd
+
+df = pd.read_parquet("dim_player.parquet")
+```
+
+## Upload Your Own Build
+
+```bash
+nbadb upload
+```
+
+This packages all export formats and pushes to Kaggle using the configured dataset slug.

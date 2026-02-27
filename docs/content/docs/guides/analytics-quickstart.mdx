@@ -1,0 +1,110 @@
+---
+title: Analytics Quickstart
+description: Get started analyzing NBA data in minutes
+---
+
+# Analytics Quickstart
+
+Get up and running with NBA data analysis in under 5 minutes.
+
+## Step 1: Install Dependencies
+
+```bash
+pip install polars duckdb kagglehub
+```
+
+## Step 2: Download the Data
+
+```python
+import kagglehub
+
+path = kagglehub.dataset_download("wyattowalsh/basketball")
+print(f"Data at: {path}")
+```
+
+## Step 3: Connect and Query
+
+```python
+import duckdb
+
+conn = duckdb.connect(f"{path}/nba.duckdb")
+
+# See all tables
+tables = conn.sql("SHOW TABLES").fetchall()
+for t in tables:
+    print(t[0])
+```
+
+## Step 4: Run Your First Analysis
+
+### Who are the all-time scoring leaders?
+
+```python
+df = conn.sql("""
+    SELECT
+        p.first_name || ' ' || p.last_name AS player,
+        COUNT(*) AS games,
+        SUM(b.pts) AS total_points,
+        ROUND(AVG(b.pts), 1) AS ppg
+    FROM fact_box_score_player b
+    JOIN dim_player p ON b.player_id = p.player_id
+    JOIN dim_game g ON b.game_id = g.game_id
+    WHERE g.season_type = 'Regular Season'
+    GROUP BY 1
+    ORDER BY total_points DESC
+    LIMIT 10
+""").pl()
+
+print(df)
+```
+
+### What does a player's shot chart look like?
+
+```python
+import polars as pl
+
+shots = conn.sql("""
+    SELECT
+        sc.loc_x, sc.loc_y,
+        sc.shot_made_flag,
+        sc.shot_zone_basic
+    FROM fact_shot_chart sc
+    JOIN dim_player p ON sc.player_id = p.player_id
+    JOIN dim_game g ON sc.game_id = g.game_id
+    WHERE p.last_name = 'James'
+      AND p.first_name = 'LeBron'
+      AND g.season_year = 2024
+""").pl()
+
+print(f"Total shots: {len(shots)}")
+print(shots.group_by("shot_zone_basic").agg([
+    pl.count().alias("attempts"),
+    pl.col("shot_made_flag").sum().alias("makes"),
+]))
+```
+
+### How do teams compare this season?
+
+```python
+standings = conn.sql("""
+    SELECT
+        t.city || ' ' || t.nickname AS team,
+        s.conference,
+        s.wins, s.losses,
+        ROUND(s.win_pct, 3) AS pct,
+        s.playoff_rank
+    FROM fact_standings s
+    JOIN dim_team t ON s.team_id = t.team_id
+    WHERE s.season_id = '2024-25'
+    ORDER BY s.conference, s.playoff_rank
+""").pl()
+
+print(standings)
+```
+
+## Next Steps
+
+- [DuckDB Query Examples](/docs/guides/duckdb-queries) for 10+ advanced queries
+- [Shot Chart Analysis](/docs/guides/shot-chart-analysis) for visualization
+- [Player Comparison](/docs/guides/player-comparison) for head-to-head analysis
+- [Schema Reference](/docs/schema) for table documentation

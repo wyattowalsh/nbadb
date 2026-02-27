@@ -1,0 +1,60 @@
+---
+title: Player Stats Endpoints
+description: Player information, career statistics, and awards
+---
+
+# Player Stats Endpoints
+
+Seven endpoints provide comprehensive player data.
+
+## CommonAllPlayers
+
+Master list of all NBA players (historical and current).
+
+- **Result sets**: `CommonAllPlayers`
+- **Key columns**: `person_id`, `display_first_last`, `roster_status`, `from_year`, `to_year`, `team_id`
+
+## PlayerIndex
+
+Detailed player index with biographical and current season stats.
+
+- **Result sets**: `PlayerIndex`
+- **Key columns**: `person_id`, `player_first_name`, `player_last_name`, `position`, `height`, `weight`, `college`, `country`, `draft_year`, `draft_round`, `draft_number`, `pts`, `reb`, `ast`
+
+## CommonPlayerInfo
+
+Detailed biographical and career information for a specific player.
+
+- **Result sets**: `CommonPlayerInfo`, `PlayerHeadlineStats`, `AvailableSeasons`
+- **Parameters**: `player_id` (required)
+- **Key columns**: `birthdate`, `school`, `country`, `height`, `weight`, `season_exp`, `jersey`, `position`, `draft_year`, `draft_round`, `draft_number`
+
+## PlayerCareerStats
+
+Season-by-season career statistics across regular season, playoffs, and All-Star games.
+
+- **Result sets**: `SeasonTotalsRegularSeason`, `SeasonTotalsPostSeason`, `SeasonTotalsAllStarSeason`, `CareerTotalsRegularSeason`, `CareerTotalsPostSeason`
+- **Parameters**: `player_id` (required)
+- **Key columns**: Full traditional stat line (gp, gs, min, fgm, fga, fg_pct, fg3m, fg3a, fg3_pct, ftm, fta, ft_pct, oreb, dreb, reb, ast, stl, blk, tov, pf, pts)
+
+## PlayerAwards
+
+All awards and honors received by a player.
+
+- **Result sets**: `PlayerAwards`
+- **Parameters**: `player_id` (required)
+- **Key columns**: `description`, `all_nba_team_number`, `season`, `conference`, `type`
+
+## PlayerDashboardByYearOverYear
+
+Year-over-year statistical comparisons for a player.
+
+- **Result sets**: `OverallPlayerDashboard`, `ByYearPlayerDashboard`
+- **Parameters**: `player_id` (required), `season` (required)
+
+## PlayerGameStreakFinder
+
+Find player game streaks matching specific criteria.
+
+- **Result sets**: `PlayerGameStreakFinderResults`
+- **Parameters**: Various filter criteria

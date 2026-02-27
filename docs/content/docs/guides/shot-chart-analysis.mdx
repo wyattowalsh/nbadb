@@ -1,0 +1,139 @@
+---
+title: Shot Chart Analysis
+description: Visualize and analyze NBA shot chart data
+---
+
+# Shot Chart Analysis
+
+The `fact_shot_chart` table contains every field goal attempt with court coordinates and zone classifications.
+
+## Data Structure
+
+Each shot record contains:
+- **Location**: `loc_x`, `loc_y` (court coordinates, basket at 0,0)
+- **Zones**: `shot_zone_basic`, `shot_zone_area`, `shot_zone_range`
+- **Result**: `shot_made_flag`, `event_type`
+- **Context**: `period`, `minutes_remaining`, `seconds_remaining`, `shot_distance`
+
+## Court Coordinates
+
+The NBA court coordinate system:
+- Origin (0, 0) is at the basket
+- X ranges from -250 to 250 (left to right, in tenths of feet)
+- Y ranges from -50 to ~900 (baseline to backcourt)
+- Half court line is at Y = 470
+
+## Zone Efficiency Analysis
+
+```python
+import duckdb
+
+conn = duckdb.connect("nba.duckdb")
+
+zones = conn.sql("""
+    SELECT
+        p.first_name || ' ' || p.last_name AS player,
+        sc.shot_zone_basic,
+        COUNT(*) AS attempts,
+        SUM(sc.shot_made_flag) AS makes,
+        ROUND(100.0 * SUM(sc.shot_made_flag) / COUNT(*), 1) AS fg_pct,
+        ROUND(
+            CASE
+                WHEN sc.shot_type = '3PT Field Goal'
+                THEN 3.0 * SUM(sc.shot_made_flag) / COUNT(*)
+                ELSE 2.0 * SUM(sc.shot_made_flag) / COUNT(*)
+            END, 3
+        ) AS pts_per_attempt
+    FROM fact_shot_chart sc
+    JOIN dim_player p ON sc.player_id = p.player_id
+    JOIN dim_game g ON sc.game_id = g.game_id
+    WHERE p.last_name = 'Curry' AND p.first_name = 'Stephen'
+      AND g.season_year = 2024
+    GROUP BY 1, 2, sc.shot_type
+    ORDER BY attempts DESC
+""").pl()
+
+print(zones)
+```
+
+## Plotting with Matplotlib
+
+```python
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import polars as pl
+
+shots = conn.sql("""
+    SELECT loc_x, loc_y, shot_made_flag
+    FROM fact_shot_chart sc
+    JOIN dim_player p ON sc.player_id = p.player_id
+    JOIN dim_game g ON sc.game_id = g.game_id
+    WHERE p.last_name = 'Curry' AND p.first_name = 'Stephen'
+      AND g.season_year = 2024
+""").pl()
+
+fig, ax = plt.subplots(figsize=(12, 11))
+
+made = shots.filter(pl.col("shot_made_flag") == 1)
+missed = shots.filter(pl.col("shot_made_flag") == 0)
+
+ax.scatter(
+    missed["loc_x"], missed["loc_y"],
+    c="red", alpha=0.3, s=10, label="Missed"
+)
+ax.scatter(
+    made["loc_x"], made["loc_y"],
+    c="green", alpha=0.3, s=10, label="Made"
+)
+
+# Draw court
+court = patches.Rectangle((-250, -50), 500, 520, fill=False)
+hoop = patches.Circle((0, 0), 7.5, fill=False)
+ax.add_patch(court)
+ax.add_patch(hoop)
+
+ax.set_xlim(-260, 260)
+ax.set_ylim(-60, 480)
+ax.set_aspect("equal")
+ax.legend()
+ax.set_title("Stephen Curry Shot Chart 2024-25")
+plt.show()
+```
+
+## Hexbin Heatmap
+
+```python
+fig, ax = plt.subplots(figsize=(12, 11))
+
+hb = ax.hexbin(
+    shots["loc_x"], shots["loc_y"],
+    C=shots["shot_made_flag"],
+    reduce_C_function=lambda x: sum(x) / len(x),
+    gridsize=25, cmap="RdYlGn", mincnt=3
+)
+
+plt.colorbar(hb, label="FG%")
+ax.set_xlim(-260, 260)
+ax.set_ylim(-60, 480)
+ax.set_aspect("equal")
+ax.set_title("Shot Efficiency Heatmap")
+plt.show()
+```
+
+## Distance Analysis
+
+```python
+distance = conn.sql("""
+    SELECT
+        shot_distance,
+        COUNT(*) AS attempts,
+        SUM(shot_made_flag) AS makes,
+        ROUND(100.0 * SUM(shot_made_flag) / COUNT(*), 1) AS fg_pct
+    FROM fact_shot_chart sc
+    JOIN dim_game g ON sc.game_id = g.game_id
+    WHERE g.season_year = 2024
+      AND g.season_type = 'Regular Season'
+    GROUP BY 1
+    ORDER BY 1
+""").pl()
+```

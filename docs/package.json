@@ -1,0 +1,32 @@
+{
+  "name": "nbadb-docs",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "fumadocs-mdx"
+  },
+  "dependencies": {
+    "fumadocs-core": "16.6.6",
+    "fumadocs-ui": "16.6.6",
+    "fumadocs-mdx": "14.2.8",
+    "fumadocs-openapi": "10.3.12",
+    "fumadocs-typescript": "5.1.4",
+    "next": "16.1.6",
+    "@orama/orama": "3.1.18",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp"]
+  },
+  "devDependencies": {
+    "tailwindcss": "4.2.1",
+    "@tailwindcss/postcss": "4.2.1",
+    "typescript": "5.9.3",
+    "@fumadocs/cli": "1.2.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

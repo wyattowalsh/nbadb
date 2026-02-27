@@ -1,0 +1,60 @@
+---
+title: Draft Endpoints
+description: Draft history, board, and combine measurement data
+---
+
+# Draft Endpoints
+
+Seven endpoints provide comprehensive NBA Draft data.
+
+## DraftHistory
+
+Complete historical draft data from 1947 to present.
+
+- **Result sets**: `DraftHistory`
+- **Key columns**: `person_id`, `player_name`, `season`, `round_number`, `round_pick`, `overall_pick`, `team_id`, `team_name`, `organization`, `organization_type`
+
+## DraftBoard
+
+Draft board with pick-by-pick details for a specific year.
+
+- **Result sets**: `DraftBoard`
+- **Parameters**: `season` (required)
+
+## DraftCombineStats
+
+Overall draft combine statistics including measurements and athletic testing.
+
+- **Result sets**: `DraftCombineStats`
+- **Parameters**: `season` (required)
+- **Key columns**: `player_id`, `first_name`, `last_name`, `position`, `height_wo_shoes`, `height_w_shoes`, `weight`, `wingspan`, `standing_reach`, `body_fat_pct`, `hand_length`, `hand_width`
+
+## DraftCombineDrillResults
+
+Athletic drill results from the combine (agility, sprint, bench press).
+
+- **Result sets**: `Results`
+- **Parameters**: `season` (required)
+- **Key columns**: `standing_vertical_leap`, `max_vertical_leap`, `lane_agility_time`, `three_quarter_sprint`, `bench_press`
+
+## DraftCombineSpotShooting
+
+Spot-up shooting results from the combine.
+
+- **Result sets**: `Results`
+- **Parameters**: `season` (required)
+
+## DraftCombineNonStationaryShooting
+
+Off-the-dribble shooting results from the combine.
+
+- **Result sets**: `Results`
+- **Parameters**: `season` (required)
+
+## DraftCombinePlayerAnthro
+
+Detailed anthropometric measurements from the combine.
+
+- **Result sets**: `Results`
+- **Parameters**: `season` (required)
+- **Key columns**: `height_wo_shoes`, `height_w_shoes`, `weight`, `wingspan`, `standing_reach`, `body_fat_pct`, `hand_length`, `hand_width`

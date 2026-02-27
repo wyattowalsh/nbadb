@@ -1,0 +1,101 @@
+---
+title: Parquet Usage
+description: Working with nbadb Parquet files for analytics
+---
+
+# Parquet Usage
+
+nbadb exports all tables as individual Parquet files with zstd compression for efficient columnar analytics.
+
+## Benefits of Parquet
+
+- **Columnar storage**: Only reads columns you need
+- **Compression**: zstd compression reduces file sizes by 5-10x
+- **Type preservation**: Schema metadata embedded in files
+- **Zero-copy reads**: Direct memory mapping for Polars/Arrow
+
+## Reading with Polars
+
+```python
+import polars as pl
+
+# Read a single table
+players = pl.read_parquet("dim_player.parquet")
+
+# Read with column selection (only loads requested columns)
+players = pl.read_parquet(
+    "dim_player.parquet",
+    columns=["player_id", "first_name", "last_name", "position"]
+)
+
+# Lazy scan for large tables
+box_scores = (
+    pl.scan_parquet("fact_box_score_player.parquet")
+    .filter(pl.col("pts") >= 40)
+    .select(["game_id", "player_id", "pts", "reb", "ast"])
+    .collect()
+)
+```
+
+## Reading with DuckDB
+
+```sql
+-- DuckDB can query Parquet files directly
+SELECT * FROM read_parquet('dim_player.parquet') LIMIT 10;
+
+-- Join across multiple Parquet files
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    AVG(b.pts) AS ppg
+FROM read_parquet('fact_box_score_player.parquet') b
+JOIN read_parquet('dim_player.parquet') p
+    ON b.player_id = p.player_id
+GROUP BY 1
+ORDER BY ppg DESC
+LIMIT 10;
+
+-- Glob pattern for multiple files
+SELECT * FROM read_parquet('fact_box_score_*.parquet');
+```
+
+## Reading with Pandas
+
+```python
+import pandas as pd
+
+df = pd.read_parquet("dim_player.parquet")
+
+# With column selection
+df = pd.read_parquet(
+    "dim_player.parquet",
+    columns=["player_id", "first_name", "last_name"]
+)
+```
+
+## Reading with PyArrow
+
+```python
+import pyarrow.parquet as pq
+
+# Read metadata only
+metadata = pq.read_metadata("dim_player.parquet")
+print(f"Rows: {metadata.num_rows}")
+print(f"Columns: {metadata.num_columns}")
+
+# Read schema
+schema = pq.read_schema("dim_player.parquet")
+print(schema)
+
+# Read table
+table = pq.read_table("dim_player.parquet")
+```
+
+## File Sizes (Approximate)
+
+| Table | Rows (approx) | Parquet Size |
+|-------|---------------|--------------|
+| fact_box_score_player | ~3M | ~150 MB |
+| fact_play_by_play | ~15M | ~800 MB |
+| fact_shot_chart | ~5M | ~200 MB |
+| dim_player | ~5K | ~500 KB |
+| dim_game | ~70K | ~5 MB |

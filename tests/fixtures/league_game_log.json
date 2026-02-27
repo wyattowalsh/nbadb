@@ -1,0 +1,39 @@
+{
+  "resultSets": [{
+    "name": "LeagueGameLog",
+    "headers": [
+      "SEASON_ID", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME",
+      "GAME_ID", "GAME_DATE", "MATCHUP", "WL",
+      "MIN", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT",
+      "FTM", "FTA", "FT_PCT", "OREB", "DREB", "REB",
+      "AST", "STL", "BLK", "TOV", "PF", "PTS",
+      "PLUS_MINUS", "VIDEO_AVAILABLE"
+    ],
+    "rowSet": [
+      [
+        "22024", 1610612747, "LAL", "Lakers",
+        "0022400001", "2024-10-22", "LAL vs. MIN", "W",
+        240, 42, 88, 0.477, 12, 35, 0.343,
+        15, 20, 0.75, 10, 35, 45,
+        25, 8, 5, 12, 18, 111,
+        5, 1
+      ],
+      [
+        "22024", 1610612738, "BOS", "Celtics",
+        "0022400002", "2024-10-22", "BOS vs. NYK", "W",
+        240, 45, 85, 0.529, 15, 38, 0.395,
+        12, 15, 0.8, 8, 38, 46,
+        28, 10, 6, 10, 16, 117,
+        12, 1
+      ],
+      [
+        "22024", 1610612744, "GSW", "Warriors",
+        "0022400003", "2024-10-23", "GSW vs. POR", "W",
+        240, 40, 82, 0.488, 18, 42, 0.429,
+        14, 18, 0.778, 6, 36, 42,
+        30, 7, 4, 14, 20, 112,
+        8, 1
+      ]
+    ]
+  }]
+}

@@ -1,0 +1,23 @@
+from __future__ import annotations
+
+import typer
+
+app = typer.Typer(
+    name="nbadb",
+    help="Comprehensive NBA database: 131 endpoints -> star schema",
+    no_args_is_help=True,
+)
+
+# Register command modules (each imports `app` and decorates with @app.command)
+from nbadb.cli.commands import (  # noqa: E402, F401
+    ask,
+    daily,
+    download,
+    export,
+    full,
+    init,
+    monthly,
+    schema,
+    status,
+    upload,
+)

@@ -1,0 +1,53 @@
+---
+title: Team Stats Endpoints
+description: Team information, rosters, and franchise history
+---
+
+# Team Stats Endpoints
+
+Six endpoints provide team-level data.
+
+## CommonTeamYears
+
+List of all teams with their years of activity.
+
+- **Result sets**: `TeamYears`
+- **Key columns**: `league_id`, `team_id`, `min_year`, `max_year`, `abbreviation`
+
+## TeamInfoCommon
+
+Current team information including record and rankings.
+
+- **Result sets**: `TeamInfoCommon`, `TeamSeasonRanks`
+- **Parameters**: `team_id` (required)
+- **Key columns**: `team_city`, `team_name`, `team_abbreviation`, `team_conference`, `team_division`, `w`, `l`, `pct`, `conf_rank`, `div_rank`
+
+## TeamDetails
+
+Detailed team background including ownership and arena.
+
+- **Result sets**: `TeamBackground`, `TeamHistory`, `TeamSocialSites`, `TeamAwardsChampionships`, `TeamAwardsConf`, `TeamAwardsDiv`, `TeamHof`, `TeamRetired`
+- **Parameters**: `team_id` (required)
+- **Key columns**: `abbreviation`, `nickname`, `yearfounded`, `city`, `arena`, `arenacapacity`, `owner`, `generalmanager`, `headcoach`
+
+## CommonTeamRoster
+
+Current and historical team rosters and coaching staff.
+
+- **Result sets**: `CommonTeamRoster`, `Coaches`
+- **Parameters**: `team_id` (required), `season` (required)
+- **Key columns**: Player roster data (player_id, position, height, weight, birth_date, age, exp, school) and coaching staff data
+
+## FranchiseHistory
+
+Complete franchise history including relocations and name changes.
+
+- **Result sets**: `FranchiseHistory`, `DefunctTeams`
+- **Key columns**: `team_id`, `team_city`, `team_name`, `start_year`, `end_year`, `years`, `games`, `wins`, `losses`, `win_pct`, `po_appearances`, `div_titles`, `conf_titles`, `league_titles`
+
+## TeamYearByYearStats
+
+Year-by-year team statistics across all seasons.
+
+- **Result sets**: `TeamStats`
+- **Parameters**: `team_id` (required)

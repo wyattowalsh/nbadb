@@ -1,0 +1,80 @@
+---
+title: Pipeline Flow
+description: ELT pipeline architecture from extraction to export
+---
+
+# Pipeline Flow
+
+nbadb follows an **ELT (Extract, Load, Transform)** pipeline pattern.
+
+```mermaid
+flowchart TD
+    subgraph Extract["1. Extract"]
+        API["nba_api\n131 endpoints"] --> Raw["Raw Polars\nDataFrames"]
+        Static["Static Data\nPlayers & Teams"] --> Raw
+    end
+
+    subgraph Validate1["2. Raw Validation"]
+        Raw --> RawSchema["Pandera Raw\nSchema Check"]
+    end
+
+    subgraph Stage["3. Stage to DuckDB"]
+        RawSchema --> DuckStage["DuckDB\nStaging Tables"]
+    end
+
+    subgraph Validate2["4. Staging Validation"]
+        DuckStage --> StagingSchema["Pandera Staging\nSchema Check"]
+    end
+
+    subgraph Transform["5. Transform"]
+        StagingSchema --> Dims["Build 13\nDimensions"]
+        StagingSchema --> Facts["Build 20\nFact Tables"]
+        StagingSchema --> Bridges["Build 2\nBridge Tables"]
+        Dims --> Derived["Build 15\nDerived Aggs"]
+        Facts --> Derived
+        Derived --> Views["Build 4\nAnalytics Views"]
+    end
+
+    subgraph Validate3["6. Star Validation"]
+        Dims --> StarSchema["Pandera Star\nSchema Check"]
+        Facts --> StarSchema
+        Bridges --> StarSchema
+    end
+
+    subgraph Export["7. Export"]
+        StarSchema --> SQLite["SQLite\n(ADBC)"]
+        StarSchema --> DuckFinal["DuckDB\n(Final)"]
+        StarSchema --> Parquet["Parquet\n(zstd)"]
+        StarSchema --> CSV["CSV"]
+    end
+
+    subgraph Upload["8. Distribute"]
+        SQLite --> Kaggle["Kaggle\nDataset"]
+        DuckFinal --> Kaggle
+        Parquet --> Kaggle
+        CSV --> Kaggle
+    end
+
+    style Extract fill:#e1f5fe
+    style Transform fill:#f3e5f5
+    style Export fill:#e8f5e9
+    style Upload fill:#fff3e0
+```
+
+## Pipeline Commands
+
+| Command | Stages | Duration |
+|---------|--------|----------|
+| `nbadb init` | 1-8 (full rebuild) | ~2-4h |
+| `nbadb daily` | 1-7 (incremental, 7-day lookback) | ~5-15m |
+| `nbadb monthly` | 1-7 (dimension refresh) | ~30-60m |
+| `nbadb full` | 1-7 (fill gaps, preserve existing) | ~2-4h |
+| `nbadb export` | 7-8 (re-export only) | ~5-10m |
+
+## Key Technologies
+
+- **Polars**: Primary DataFrame engine for all transforms
+- **DuckDB**: Staging engine with zero-copy Arrow interchange
+- **Pandera**: 3-tier schema validation (raw, staging, star)
+- **ADBC**: Arrow Database Connectivity for SQLite export
+- **zstd**: Compression for Parquet output files

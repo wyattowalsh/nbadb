@@ -1,0 +1,36 @@
+---
+title: Schema Reference
+description: Complete documentation of the nbadb star schema
+---
+
+# Schema Reference
+
+The nbadb star schema consists of **~58 tables** organized into five categories.
+
+## Schema Categories
+
+| Category | Count | Description |
+|----------|-------|-------------|
+| [Dimensions](/docs/schema/dimensions) | 13 | Slowly changing reference entities |
+| [Facts](/docs/schema/facts) | 20 + 2 bridges | Event-level transactional data |
+| [Derived](/docs/schema/derived) | 15 | Pre-aggregated statistical rollups |
+| [Analytics Views](/docs/schema/analytics-views) | 4 | Denormalized views for common queries |
+| [Relationships](/docs/schema/relationships) | -- | Foreign key map and join patterns |
+
+## Design Principles
+
+- **Star schema**: Dimensions surround fact tables for simple, fast joins
+- **Surrogate keys**: Natural keys from NBA API are preserved as business keys
+- **SCD Type 1**: Dimensions overwrite with latest values (no history tracking)
+- **Additive facts**: Measures in fact tables can be aggregated across any dimension
+- **Conformed dimensions**: `dim_player`, `dim_team`, `dim_game` are shared across all facts
+
+## Naming Conventions
+
+| Prefix | Meaning | Example |
+|--------|---------|---------|
+| `dim_` | Dimension table | `dim_player` |
+| `fact_` | Fact table | `fact_box_score_player` |
+| `bridge_` | Bridge table | `bridge_game_official` |
+| `derived_` | Derived aggregation | `derived_player_career` |
+| `view_` | Analytics view | `view_player_game_complete` |

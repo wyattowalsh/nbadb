@@ -1,0 +1,479 @@
+---
+title: Field Reference
+description: Every column in every table with types, nullability, and descriptions
+---
+
+# Field Reference
+
+Complete column-level documentation for all tables in the nbadb warehouse. Columns are extracted from Pandera schema definitions.
+
+## Dimension Tables
+
+### dim_player
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| player_sk | int | No | Surrogate key for SCD2 player |
+| player_id | int | No | Natural key -- NBA player identifier |
+| full_name | str | No | Player full name |
+| position | str | Yes | Player position |
+| team_id | int | Yes | Team identifier (FK: dim_team.team_id) |
+| jersey_number | str | Yes | Jersey number |
+| height | str | Yes | Player height |
+| weight | float | Yes | Player weight in lbs |
+| birth_date | str | Yes | Date of birth |
+| country | str | Yes | Country of origin |
+| draft_year | int | Yes | Draft year |
+| draft_round | int | Yes | Draft round |
+| draft_number | int | Yes | Draft pick number |
+| college_id | int | Yes | College identifier (FK: dim_college.college_id) |
+| valid_from | str | Yes | SCD2 valid-from season |
+| valid_to | str | Yes | SCD2 valid-to season |
+| is_current | bool | No | Whether this is the current record |
+
+### dim_team
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| team_id | int | No | Primary key (NBA team_id) |
+| abbreviation | str | No | Three-letter code (e.g., LAL) |
+| nickname | str | No | Team nickname (e.g., Lakers) |
+| city | str | No | Team city |
+| full_name | str | No | Full team name |
+| conference | str | No | East or West |
+| division | str | No | Division name |
+| arena | str | Yes | Home arena name |
+| arena_capacity | int | Yes | Arena seating capacity |
+| year_founded | int | Yes | Year franchise was established |
+| owner | str | Yes | Team owner |
+| general_manager | str | Yes | GM name |
+| head_coach | str | Yes | Head coach name |
+
+### dim_game
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | Primary key (10-digit NBA game ID) |
+| game_date | date | No | Date of the game |
+| season_year | int | No | Season start year |
+| season_type | str | No | Regular Season, Playoffs, etc. |
+| home_team_id | int | No | FK to dim_team |
+| away_team_id | int | No | FK to dim_team |
+| home_score | int | Yes | Final home team score |
+| away_score | int | Yes | Final away team score |
+| arena_name | str | Yes | Arena where game was played |
+| arena_city | str | Yes | Arena city |
+| arena_state | str | Yes | Arena state |
+
+### dim_season
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| season_id | str | No | Primary key (e.g., "2024-25") |
+| year_start | int | No | Starting calendar year |
+| year_end | int | No | Ending calendar year |
+| season_type | str | No | Regular, Playoffs, Pre Season |
+
+### dim_date
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| date_id | date | No | Primary key |
+| year | int | No | Calendar year |
+| month | int | No | Month number |
+| day | int | No | Day of month |
+| day_of_week | int | No | Day of week (0=Monday) |
+| month_name | str | No | Month name |
+| is_weekend | bool | No | Saturday or Sunday |
+
+### dim_official
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| official_id | int | No | Primary key |
+| first_name | str | No | Official first name |
+| last_name | str | No | Official last name |
+| jersey_num | str | Yes | Jersey number |
+
+### dim_coach
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| coach_id | int | No | Primary key |
+| first_name | str | No | Coach first name |
+| last_name | str | No | Coach last name |
+| coach_type | str | No | Head Coach, Assistant, etc. |
+| is_assistant | bool | No | Whether assistant coach |
+
+### dim_arena
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| arena_id | int | No | Primary key (generated) |
+| arena_name | str | No | Arena name |
+| arena_city | str | Yes | City |
+| arena_state | str | Yes | State |
+| capacity | int | Yes | Seating capacity |
+
+### dim_shot_zone
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| zone_id | int | No | Primary key (generated) |
+| zone_basic | str | No | Basic zone (Restricted Area, Paint, etc.) |
+| zone_area | str | No | Court area (Left, Right, Center) |
+| zone_range | str | No | Distance range (0-8ft, 8-16ft, etc.) |
+
+### dim_play_type
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| play_type_id | int | No | Primary key (generated) |
+| play_type | str | No | Play type (Isolation, PnR Ball Handler, etc.) |
+| type_grouping | str | No | Offensive or Defensive |
+
+### dim_action_type
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| action_type_id | int | No | Primary key (generated) |
+| action_type | str | No | Action type name |
+| sub_type | str | Yes | Action sub-type |
+| is_field_goal | bool | No | Whether action is a FG attempt |
+
+### dim_lineup
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| lineup_id | int | No | Primary key (generated) |
+| lineup_hash | str | No | Hash of sorted player IDs |
+| team_id | int | No | FK to dim_team |
+| player_1_id | int | No | FK to dim_player |
+| player_2_id | int | No | FK to dim_player |
+| player_3_id | int | No | FK to dim_player |
+| player_4_id | int | No | FK to dim_player |
+| player_5_id | int | No | FK to dim_player |
+
+### dim_draft
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| draft_id | int | No | Primary key (generated) |
+| season | int | No | Draft year |
+| round_number | int | No | Draft round |
+| round_pick | int | No | Pick within round |
+| overall_pick | int | No | Overall pick number |
+| draft_type | str | No | Type of draft |
+
+### dim_college
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| college_id | int | No | Primary key (generated) |
+| college_name | str | No | College or university name |
+
+## Fact Tables
+
+### fact_box_score_player (Traditional)
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| player_id | int | No | FK to dim_player |
+| team_id | int | No | FK to dim_team |
+| start_position | str | Yes | Starting lineup position |
+| comment | str | Yes | Player status comment |
+| min | float | Yes | Minutes played |
+| fgm | int | Yes | Field goals made |
+| fga | int | Yes | Field goals attempted |
+| fg_pct | float | Yes | Field goal percentage (0.0-1.0) |
+| fg3m | int | Yes | Three-pointers made |
+| fg3a | int | Yes | Three-pointers attempted |
+| fg3_pct | float | Yes | Three-point percentage (0.0-1.0) |
+| ftm | int | Yes | Free throws made |
+| fta | int | Yes | Free throws attempted |
+| ft_pct | float | Yes | Free throw percentage (0.0-1.0) |
+| oreb | int | Yes | Offensive rebounds |
+| dreb | int | Yes | Defensive rebounds |
+| reb | int | Yes | Total rebounds |
+| ast | int | Yes | Assists |
+| stl | int | Yes | Steals |
+| blk | int | Yes | Blocks |
+| tov | int | Yes | Turnovers |
+| pf | int | Yes | Personal fouls |
+| pts | int | Yes | Points scored |
+| plus_minus | float | Yes | Plus/minus rating |
+
+### fact_box_score_advanced_player
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| player_id | int | No | FK to dim_player |
+| team_id | int | No | FK to dim_team |
+| off_rating | float | Yes | Offensive rating |
+| def_rating | float | Yes | Defensive rating |
+| net_rating | float | Yes | Net rating |
+| ast_pct | float | Yes | Assist percentage (0.0-1.0) |
+| ast_tov | float | Yes | Assist-to-turnover ratio |
+| ast_ratio | float | Yes | Assist ratio |
+| oreb_pct | float | Yes | Offensive rebound percentage |
+| dreb_pct | float | Yes | Defensive rebound percentage |
+| reb_pct | float | Yes | Total rebound percentage |
+| tov_pct | float | Yes | Turnover percentage |
+| efg_pct | float | Yes | Effective FG percentage |
+| ts_pct | float | Yes | True shooting percentage |
+| usg_pct | float | Yes | Usage percentage |
+| pace | float | Yes | Pace factor |
+| pie | float | Yes | Player impact estimate |
+
+### fact_box_score_hustle
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| player_id | int | No | FK to dim_player |
+| team_id | int | No | FK to dim_team |
+| contested_shots | int | Yes | Contested shot attempts by opponent |
+| deflections | int | Yes | Ball deflections |
+| charges_drawn | int | Yes | Charges drawn |
+| loose_balls_recovered | int | Yes | Loose balls recovered |
+| screen_assists | int | Yes | Screen assists |
+
+### fact_play_by_play
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| action_number | int | No | Sequential action number |
+| clock | str | Yes | Game clock time |
+| period | int | No | Game period |
+| action_type | str | Yes | Action type description |
+| sub_type | str | Yes | Action sub-type |
+| description | str | Yes | Play description text |
+| person_id | int | Yes | FK to dim_player |
+| team_id | int | Yes | FK to dim_team |
+| shot_distance | float | Yes | Distance of shot attempt |
+| shot_result | str | Yes | Made or Missed |
+| points_total | int | Yes | Running point total |
+| is_field_goal | int | Yes | Whether play is a FG attempt (0/1) |
+
+### fact_shot_chart
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| player_id | int | No | FK to dim_player |
+| team_id | int | No | FK to dim_team |
+| zone_id | int | Yes | FK to dim_shot_zone |
+| loc_x | float | No | Court x-coordinate |
+| loc_y | float | No | Court y-coordinate |
+| shot_distance | int | No | Shot distance in feet |
+| shot_made_flag | int | No | 1 = made, 0 = missed |
+| action_type | str | Yes | Shot action type |
+| shot_type | str | Yes | 2PT or 3PT |
+| period | int | No | Game period |
+| minutes_remaining | int | Yes | Minutes left in period |
+| seconds_remaining | int | Yes | Seconds left in period |
+
+### fact_win_probability
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| event_num | int | No | Event number |
+| home_pct | float | No | Home team win probability (0.0-1.0) |
+| visitor_pct | float | No | Visitor team win probability (0.0-1.0) |
+| home_pts | int | No | Home team points at event |
+| visitor_pts | int | No | Visitor team points at event |
+| period | int | No | Game period |
+| seconds_remaining | float | No | Seconds remaining in period |
+
+### fact_rotation
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| person_id | int | No | FK to dim_player |
+| team_id | int | No | FK to dim_team |
+| in_time_real | float | No | Check-in time (seconds from game start) |
+| out_time_real | float | No | Check-out time (seconds from game start) |
+| player_pts | int | Yes | Points scored during stint |
+| pt_diff | int | Yes | Point differential during stint |
+
+### fact_matchup
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| off_player_id | int | No | Offensive player FK to dim_player |
+| def_player_id | int | No | Defensive player FK to dim_player |
+| off_team_id | int | No | Offensive team FK to dim_team |
+| def_team_id | int | No | Defensive team FK to dim_team |
+| matchup_min | float | Yes | Matchup minutes |
+| partial_poss | float | Yes | Partial possessions |
+| player_pts | int | Yes | Points scored by offensive player |
+| matchup_fgm | int | Yes | FG made during matchup |
+| matchup_fga | int | Yes | FG attempted during matchup |
+
+### fact_standings
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| team_id | int | No | FK to dim_team |
+| season_id | str | No | FK to dim_season |
+| conference | str | No | East or West |
+| w | int | No | Wins |
+| l | int | No | Losses |
+| w_pct | float | No | Win percentage (0.0-1.0) |
+| home_record | str | Yes | Home win-loss record |
+| road_record | str | Yes | Road win-loss record |
+
+### fact_draft
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| person_id | int | No | FK to dim_player |
+| team_id | int | No | FK to dim_team |
+| season | int | No | Draft year |
+| round_number | int | No | Round number |
+| round_pick | int | No | Pick within round |
+| overall_pick | int | No | Overall pick number |
+| organization | str | Yes | Drafting organization |
+
+### fact_synergy
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| player_id | int | No | FK to dim_player |
+| team_id | int | No | FK to dim_team |
+| season_id | str | No | FK to dim_season |
+| play_type | str | No | Play type category |
+| gp | int | Yes | Games played |
+| poss | float | Yes | Possessions |
+| ppp | float | Yes | Points per possession |
+| fg_pct | float | Yes | Field goal percentage |
+| efg_pct | float | Yes | Effective FG percentage |
+| score_pct | float | Yes | Scoring frequency |
+| percentile | float | Yes | Percentile ranking |
+
+## Bridge Tables
+
+### bridge_game_official
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| official_id | int | No | FK to dim_official |
+
+### bridge_play_player
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| game_id | str | No | FK to dim_game |
+| event_num | int | No | Event number in game |
+| player_id | int | No | FK to dim_player |
+| involvement_type | str | No | Primary, secondary, tertiary |
+
+## Derived Aggregations
+
+### derived_player_season
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| player_id | int | No | FK to dim_player |
+| season_year | int | No | Season start year |
+| season_type | str | No | Regular Season or Playoffs |
+| gp | int | No | Games played |
+| total_min | float | No | Total minutes |
+| avg_min | float | No | Average minutes per game |
+| total_pts | int | No | Total points |
+| avg_pts | float | No | Points per game |
+| total_reb | int | No | Total rebounds |
+| avg_reb | float | No | Rebounds per game |
+| total_ast | int | No | Total assists |
+| avg_ast | float | No | Assists per game |
+| fg_pct | float | Yes | Season field goal percentage |
+| fg3_pct | float | Yes | Season three-point percentage |
+| ft_pct | float | Yes | Season free throw percentage |
+| avg_off_rating | float | Yes | Average offensive rating |
+| avg_def_rating | float | Yes | Average defensive rating |
+| avg_ts_pct | float | Yes | Average true shooting percentage |
+| avg_usg_pct | float | Yes | Average usage percentage |
+
+### derived_player_rolling
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| player_id | int | No | FK to dim_player |
+| game_id | str | No | FK to dim_game |
+| pts_5g | float | Yes | 5-game rolling average points |
+| pts_10g | float | Yes | 10-game rolling average points |
+| pts_20g | float | Yes | 20-game rolling average points |
+| reb_5g | float | Yes | 5-game rolling average rebounds |
+| ast_5g | float | Yes | 5-game rolling average assists |
+
+### derived_team_season
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| team_id | int | No | FK to dim_team |
+| season_year | int | No | Season start year |
+| season_type | str | No | Regular Season or Playoffs |
+| gp | int | No | Games played |
+| w | int | No | Wins |
+| l | int | No | Losses |
+| w_pct | float | No | Win percentage |
+| pts_pg | float | No | Points per game |
+| opp_pts_pg | float | No | Opponent points per game |
+| diff_pts_pg | float | No | Point differential per game |
+
+## Analytics Views
+
+### view_player_game_complete
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| player_id | int | No | FK to dim_player |
+| player_name | str | No | Player display name |
+| position | str | Yes | Playing position |
+| team_id | int | No | FK to dim_team |
+| team_abbreviation | str | No | Team three-letter code |
+| game_id | str | No | FK to dim_game |
+| game_date | date | No | Date of game |
+| season_year | int | No | Season start year |
+| season_type | str | No | Regular Season or Playoffs |
+| home_or_away | str | No | Home or Away |
+| opp_team_id | int | No | Opponent team FK |
+| opp_abbreviation | str | No | Opponent abbreviation |
+| min | float | Yes | Minutes played |
+| pts | int | Yes | Points scored |
+| reb | int | Yes | Total rebounds |
+| ast | int | Yes | Assists |
+| stl | int | Yes | Steals |
+| blk | int | Yes | Blocks |
+| tov | int | Yes | Turnovers |
+| fg_pct | float | Yes | Field goal percentage |
+| fg3_pct | float | Yes | Three-point percentage |
+| ft_pct | float | Yes | Free throw percentage |
+| plus_minus | float | Yes | Plus/minus |
+| wl | str | Yes | Win or Loss |
+
+### view_shot_chart_complete
+
+| Column | Type | Nullable | Description |
+|--------|------|:--------:|-------------|
+| player_id | int | No | FK to dim_player |
+| player_name | str | No | Player display name |
+| game_id | str | No | FK to dim_game |
+| game_date | date | No | Date of game |
+| season_year | int | No | Season start year |
+| loc_x | float | No | Court x-coordinate |
+| loc_y | float | No | Court y-coordinate |
+| shot_distance | int | No | Shot distance in feet |
+| zone_basic | str | Yes | Basic zone category |
+| zone_area | str | Yes | Court area |
+| zone_range | str | Yes | Distance range |
+| shot_made_flag | int | No | 1 = made, 0 = missed |
+| shot_type | str | Yes | 2PT or 3PT |
+| action_type | str | Yes | Shot action type |

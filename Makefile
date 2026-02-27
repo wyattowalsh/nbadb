@@ -1,26 +1,34 @@
-# nba_db project Makefile
+.PHONY: install dev test lint typecheck docs build clean
 
-.ONESHELL:
+install:
+	uv sync
 
-# https://www.gnu.org/prep/standards/html_node/Makefile-Basics.html#Makefile-Basics
-SHELL = /bin/bash
+dev:
+	uv sync --extra dev
 
-help:           ## Show this help.
-	fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
+test:
+	uv run pytest tests/unit
 
-jupyter lab:  ## launch jupyter lab from project root
-	echo "Starting Jupyter Lab..."
-	poetry shell && poetry install
-	poetry run jupyter lab
+test-all:
+	uv run pytest
 
-tests: ## runs tests on the bot package
-	echo "Running tests..."
-	poetry shell && poetry install
-	poetry run pytest tests/
+lint:
+	uv run ruff check src/ tests/
+	uv run ruff format --check src/ tests/
 
-format: ## runs linter on the bot package
-	echo "Running formatters..."
-	poetry shell && poetry install
-	poetry run isort nbadb/ && poetry run isort tests/
-	poetry run autoflake --recursive nbadb/ && poetry run autoflake --recursive tests/
-	poetry run yapf nbadb/ tests/
+format:
+	uv run ruff format src/ tests/
+	uv run ruff check --fix src/ tests/
+
+typecheck:
+	uv run ty check src/
+
+docs:
+	cd docs && pnpm build
+
+build:
+	uv build
+
+clean:
+	rm -rf dist/ build/ .pytest_cache/ .coverage htmlcov/
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

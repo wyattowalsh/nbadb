@@ -1,0 +1,22 @@
+---
+title: CLI Reference
+description: Command-line interface documentation
+---
+
+# CLI Reference
+
+## Commands
+
+| Command | Description | Duration |
+|---------|-------------|----------|
+| `nbadb init` | Full rebuild from scratch | ~2-4h |
+| `nbadb daily` | Incremental update | ~5-15m |
+| `nbadb monthly` | Dimension refresh | ~30-60m |
+| `nbadb full` | Fill gaps, preserve existing | ~2-4h |
+| `nbadb export` | Re-export to all formats | ~5-10m |
+| `nbadb upload` | Push to Kaggle | ~5m |
+| `nbadb download` | Pull from Kaggle | ~5m |
+| `nbadb schema list` | List all table schemas | instant |
+| `nbadb schema show TABLE` | Show schema details | instant |
+| `nbadb status` | DB stats and freshness | instant |
+| `nbadb ask QUESTION` | Ask questions about the data | instant |

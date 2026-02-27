@@ -1,0 +1,35 @@
+{
+  "resource": "hustlestatsboxscore",
+  "resultSets": [
+    {
+      "name": "HustleStatsAvailable",
+      "headers": [
+        "GAME_ID", "HUSTLE_STATUS"
+      ],
+      "rowSet": [
+        ["0022400001", "Available"]
+      ]
+    },
+    {
+      "name": "PlayerStats",
+      "headers": [
+        "GAME_ID", "TEAM_ID", "TEAM_ABBREVIATION",
+        "PLAYER_ID", "PLAYER_NAME",
+        "CONTESTED_SHOTS", "CONTESTED_SHOTS_2PT", "CONTESTED_SHOTS_3PT",
+        "DEFLECTIONS", "CHARGES_DRAWN", "SCREEN_ASSISTS",
+        "SCREEN_AST_PTS", "LOOSE_BALLS_RECOVERED",
+        "BOX_OUTS", "BOX_OUT_PLAYER_TEAM_REBS", "BOX_OUT_PLAYER_REBS"
+      ],
+      "rowSet": [
+        [
+          "0022400001", 1610612747, "LAL",
+          2544, "LeBron James",
+          8, 5, 3,
+          3, 0, 4,
+          8, 2,
+          5, 3, 2
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "resource": "synergyplaytypes",
+  "resultSets": [
+    {
+      "name": "SynergyPlayType",
+      "headers": [
+        "SEASON_ID", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME",
+        "PLAY_TYPE", "TYPE_GROUPING",
+        "PERCENTILE", "GP", "POSS_PCT", "PPP",
+        "FG_PCT", "FT_POSS_PCT", "TOV_POSS_PCT",
+        "SF_POSS_PCT", "PLUSONE_POSS_PCT",
+        "SCORE_POSS_PCT", "EFG_PCT", "POSS", "PTS",
+        "FGM", "FGA", "FGMX"
+      ],
+      "rowSet": [
+        [
+          "22024", 1610612747, "LAL", "Lakers",
+          "Transition", "Offensive",
+          0.85, 70, 0.18, 1.15,
+          0.55, 0.12, 0.08,
+          0.15, 0.05,
+          0.62, 0.58, 500, 575,
+          210, 380, 170
+        ]
+      ]
+    }
+  ]
+}

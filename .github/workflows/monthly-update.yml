@@ -1,0 +1,29 @@
+name: Monthly Update
+
+on:
+  schedule:
+    - cron: "0 8 1 * *"  # 8 AM UTC on 1st of month
+  workflow_dispatch:
+
+jobs:
+  monthly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - name: Run monthly update
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          uv run nbadb download
+          uv run nbadb monthly
+          uv run nbadb export
+          uv run nbadb upload

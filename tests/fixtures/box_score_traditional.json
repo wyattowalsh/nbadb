@@ -1,0 +1,10 @@
+{
+  "resultSets": [{
+    "name": "PlayerStats",
+    "headers": ["GAME_ID", "TEAM_ID", "PLAYER_ID", "PLAYER_NAME", "MIN", "PTS", "REB", "AST"],
+    "rowSet": [
+      ["0022400001", 1610612737, 201566, "Russell Westbrook", "32:15", 24, 8, 10],
+      ["0022400001", 1610612738, 203507, "Giannis Antetokounmpo", "36:42", 31, 12, 5]
+    ]
+  }]
+}
