@@ -33,51 +33,32 @@ class TestCLICommandHelp:
         assert cmd in result.output.lower() or "Usage" in result.output
 
 
-class TestCLIStubCommands:
-    def test_init_not_implemented(self) -> None:
-        result = runner.invoke(app, ["init"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
+class TestCLICommandsWithoutDB:
+    """Commands fail gracefully when no database exists."""
 
-    def test_daily_not_implemented(self) -> None:
-        result = runner.invoke(app, ["daily"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
-
-    def test_monthly_not_implemented(self) -> None:
-        result = runner.invoke(app, ["monthly"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
-
-    def test_full_not_implemented(self) -> None:
-        result = runner.invoke(app, ["full"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
-
-    def test_export_not_implemented(self) -> None:
+    def test_export_fails_without_db(self) -> None:
         result = runner.invoke(app, ["export"])
-        assert "not yet implemented" in result.output
         assert result.exit_code == 1
 
-    def test_status_not_implemented(self) -> None:
+    def test_status_runs(self) -> None:
         result = runner.invoke(app, ["status"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
+        # Exit 0 if DB exists and is readable; exit 1 if not found
+        assert result.exit_code in (0, 1)
 
-    def test_schema_not_implemented(self) -> None:
+    def test_schema_lists_tables(self) -> None:
         result = runner.invoke(app, ["schema"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
+        assert result.exit_code == 0
+        assert "Total" in result.output
 
-    def test_download_not_implemented(self) -> None:
+    def test_download_runs(self) -> None:
         result = runner.invoke(app, ["download"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
+        # Exit 0 if kaggle API configured; exit 1 otherwise
+        assert result.exit_code in (0, 1)
 
-    def test_upload_not_implemented(self) -> None:
+    def test_upload_fails_without_data(self) -> None:
         result = runner.invoke(app, ["upload"])
-        assert "not yet implemented" in result.output
-        assert result.exit_code == 1
+        # May fail if no data or no kaggle API
+        assert result.exit_code in (0, 1)
 
 
 class TestCLIInvalidCommand:

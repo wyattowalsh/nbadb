@@ -3,12 +3,19 @@ from __future__ import annotations
 import typer
 
 from nbadb.cli.app import app
+from nbadb.cli.options import DataDirOption  # noqa: TC001
 
 
 @app.command()
 def download(
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
+    data_dir: DataDirOption = None,
 ) -> None:
-    """Pull from Kaggle."""
-    typer.echo("nbadb download: not yet implemented")
-    raise typer.Exit(1)
+    """Pull latest dataset from Kaggle."""
+    from nbadb.kaggle.client import KaggleClient
+
+    try:
+        path = KaggleClient().download(data_dir)
+    except Exception as exc:
+        typer.echo(f"Download failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Downloaded to {path}")
