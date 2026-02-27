@@ -8,6 +8,7 @@ from nba_api.stats.endpoints import (
     LeagueDashPlayerStats,
     LeagueDashTeamClutch,
     LeagueDashTeamStats,
+    LeagueLineupViz,
 )
 
 from nbadb.extract.base import BaseExtractor
@@ -89,4 +90,21 @@ class LeagueDashPlayerBioStatsExtractor(BaseExtractor):
             LeagueDashPlayerBioStats,
             season=season,
             season_type_all_star=season_type,
+        )
+
+
+@registry.register
+class LeagueLineupVizExtractor(BaseExtractor):
+    endpoint_name = "league_lineup_viz"
+    category = "league"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        minutes_min: int = params.get("minutes_min", 10)
+        return self._from_nba_api(
+            LeagueLineupViz,
+            season=season,
+            season_type_all_star=season_type,
+            minutes_min=minutes_min,
         )

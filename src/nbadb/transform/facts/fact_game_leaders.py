@@ -1,0 +1,32 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
+
+import duckdb
+
+from nbadb.transform.base import BaseTransformer
+
+if TYPE_CHECKING:
+    import polars as pl
+
+
+class FactGameLeadersTransformer(BaseTransformer):
+    output_table: ClassVar[str] = "fact_game_leaders"
+    depends_on: ClassVar[list[str]] = ["stg_game_leaders"]
+
+    _SQL: ClassVar[str] = """
+        SELECT
+            game_id, team_id, leader_type,
+            person_id, name, player_slug,
+            jersey_num, position, team_tricode,
+            points, rebounds, assists
+        FROM stg_game_leaders
+        ORDER BY game_id, team_id
+    """
+
+    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+        conn = duckdb.connect()
+        conn.register("stg_game_leaders", staging["stg_game_leaders"].collect())
+        result = conn.execute(self._SQL).pl()
+        conn.close()
+        return result

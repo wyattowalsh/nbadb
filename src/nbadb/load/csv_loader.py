@@ -22,6 +22,8 @@ class CSVLoader(BaseLoader):
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
+        if "/" in table or "\\" in table or ".." in table:
+            raise ValueError(f"Invalid table name: {table!r}")
         self.csv_dir.mkdir(parents=True, exist_ok=True)
         output_path = self.csv_dir / f"{table}.csv"
         df.write_csv(output_path)

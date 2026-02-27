@@ -25,14 +25,14 @@ class AnalyticsPlayerSeasonCompleteTransformer(BaseTransformer):
             s.player_id,
             s.season_year,
             s.team_id,
-            p.player_name,
-            tm.team_abbreviation,
+            p.full_name AS player_name,
+            tm.abbreviation AS team_abbreviation,
             -- totals
             s.gp, s.total_min,
             s.total_pts, s.total_reb, s.total_ast,
             s.total_stl, s.total_blk, s.total_tov,
             s.avg_pts, s.avg_reb, s.avg_ast,
-            s.avg_fg_pct, s.avg_fg3_pct, s.avg_ft_pct,
+            s.fg_pct, s.fg3_pct, s.ft_pct,
             s.avg_off_rating, s.avg_def_rating, s.avg_net_rating,
             s.avg_pie,
             -- per-36
@@ -46,7 +46,7 @@ class AnalyticsPlayerSeasonCompleteTransformer(BaseTransformer):
             ON s.player_id = p36.player_id AND s.season_year = p36.season_year
         LEFT JOIN agg_player_season_per100 p100
             ON s.player_id = p100.player_id AND s.season_year = p100.season_year
-        LEFT JOIN dim_player p ON s.player_id = p.player_id
+        LEFT JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_team tm ON s.team_id = tm.team_id
         ORDER BY s.season_year, s.avg_pts DESC
     """

@@ -53,6 +53,8 @@ class ParquetLoader(BaseLoader):
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
+        if "/" in table or "\\" in table or ".." in table:
+            raise ValueError(f"Invalid table name: {table!r}")
         if table in PARTITIONED_TABLES and "season_year" in df.columns:
             for (season,), part in df.group_by("season_year"):
                 out_dir = self.parquet_dir / table / f"season_year={season}"

@@ -22,22 +22,21 @@ class AnalyticsTeamSeasonSummaryTransformer(BaseTransformer):
         SELECT
             ts.team_id,
             ts.season_year,
-            tm.team_name,
-            tm.team_abbreviation,
+            tm.full_name AS team_name,
+            tm.abbreviation AS team_abbreviation,
             -- season aggregates
-            ts.gp, ts.wins, ts.losses, ts.win_pct,
+            ts.gp,
             ts.avg_pts, ts.avg_reb, ts.avg_ast,
-            ts.avg_pts_allowed,
-            ts.avg_fg_pct, ts.avg_fg3_pct, ts.avg_ft_pct,
+            ts.fg_pct, ts.fg3_pct, ts.ft_pct,
             -- standings
+            st.wins, st.losses, st.win_pct,
             st.conference, st.conference_rank,
-            st.division, st.division_rank,
-            st.playoff_seed
+            st.division, st.division_rank
         FROM agg_team_season ts
         LEFT JOIN fact_standings st
             ON ts.team_id = st.team_id AND ts.season_year = st.season_year
         LEFT JOIN dim_team tm ON ts.team_id = tm.team_id
-        ORDER BY ts.season_year, ts.win_pct DESC
+        ORDER BY ts.season_year, st.win_pct DESC NULLS LAST
     """
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:

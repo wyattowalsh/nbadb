@@ -30,8 +30,8 @@ class AnalyticsPlayerGameCompleteTransformer(BaseTransformer):
             t.team_id,
             g.season_year,
             g.game_date,
-            p.player_name,
-            tm.team_abbreviation,
+            p.full_name AS player_name,
+            tm.abbreviation AS team_abbreviation,
             -- traditional
             t.min, t.pts, t.reb, t.ast, t.stl, t.blk, t.tov,
             t.fgm, t.fga, t.fg_pct,
@@ -61,7 +61,7 @@ class AnalyticsPlayerGameCompleteTransformer(BaseTransformer):
             ON t.player_id = h.player_id AND t.game_id = h.game_id
         LEFT JOIN fact_player_game_tracking k
             ON t.player_id = k.player_id AND t.game_id = k.game_id
-        LEFT JOIN dim_player p ON t.player_id = p.player_id
+        LEFT JOIN dim_player p ON t.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_game g ON t.game_id = g.game_id
         LEFT JOIN dim_team tm ON t.team_id = tm.team_id
         ORDER BY g.game_date, t.player_id

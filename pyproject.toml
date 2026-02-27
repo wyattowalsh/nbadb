@@ -21,7 +21,6 @@ classifiers = [
 ]
 dependencies = [
     "nba-api>=1.11.4",
-    "proxywhirl>=0.3.2",
     "polars[database,pyarrow]>=1.38.1",
     "pandera[polars]>=0.29",
     "sqlmodel>=0.0.37,<0.1.0",

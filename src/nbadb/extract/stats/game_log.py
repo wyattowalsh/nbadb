@@ -10,6 +10,7 @@ from nba_api.stats.endpoints import (
     LeagueGameLog,
     PlayerGameLog,
     ScoreboardV2,
+    ScoreboardV3,
     TeamGameLog,
 )
 
@@ -73,3 +74,17 @@ class ScoreboardV2Extractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_date: str = params["game_date"]
         return self._from_nba_api(ScoreboardV2, game_date=game_date)
+
+
+@registry.register
+class ScoreboardV3Extractor(BaseExtractor):
+    endpoint_name = "scoreboard_v3"
+    category = "game_log"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        game_date: str = params["game_date"]
+        return self._from_nba_api(ScoreboardV3, game_date=game_date)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_date: str = params["game_date"]
+        return self._from_nba_api_multi(ScoreboardV3, game_date=game_date)

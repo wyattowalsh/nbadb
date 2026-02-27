@@ -34,8 +34,10 @@ class DBManager:
         self._duckdb_conn: duckdb.DuckDBPyConnection | None = None
 
     def init(self) -> None:
-        assert self._sqlite_path is not None, "sqlite_path required"
-        assert self._duckdb_path is not None, "duckdb_path required"
+        if self._sqlite_path is None:
+            raise ValueError("sqlite_path required")
+        if self._duckdb_path is None:
+            raise ValueError("duckdb_path required")
         self._sqlite_path.parent.mkdir(parents=True, exist_ok=True)
         self._duckdb_path.parent.mkdir(parents=True, exist_ok=True)
         self._engine = create_engine(
@@ -51,13 +53,14 @@ class DBManager:
         )
 
     def _apply_sqlite_pragmas(self) -> None:
-        assert self._engine is not None
+        if self._engine is None:
+            raise RuntimeError("DB not initialized")
         with self._engine.connect() as conn:
             for pragma in [
                 "PRAGMA journal_mode = WAL",
                 "PRAGMA synchronous = NORMAL",
                 "PRAGMA cache_size = -262144",
-                "PRAGMA page_size = 16384",
+                "PRAGMA page_size = 16384",  # only effective on newly created databases
                 "PRAGMA mmap_size = 1073741824",
                 "PRAGMA temp_store = MEMORY",
             ]:
@@ -65,7 +68,8 @@ class DBManager:
             conn.commit()
 
     def _create_pipeline_tables(self) -> None:
-        assert self._duckdb_conn is not None
+        if self._duckdb_conn is None:
+            raise RuntimeError("DB not initialized")
         self._duckdb_conn.execute("""
             CREATE TABLE IF NOT EXISTS _pipeline_watermarks (
                 table_name VARCHAR NOT NULL,

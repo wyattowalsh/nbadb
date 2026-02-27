@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Literal
 
 from loguru import logger
 
+from nbadb.core.types import validate_sql_identifier
 from nbadb.load.base import BaseLoader
 
 if TYPE_CHECKING:
@@ -21,6 +22,7 @@ class DuckDBLoader(BaseLoader):
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
+        validate_sql_identifier(table)
         self._conn.register("_load_df", df)
         if mode == "replace":
             self._conn.execute(

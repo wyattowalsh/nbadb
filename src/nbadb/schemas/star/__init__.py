@@ -15,13 +15,16 @@ from nbadb.schemas.star.dim_season_phase import DimSeasonPhaseSchema
 from nbadb.schemas.star.dim_shot_zone import DimShotZoneSchema
 from nbadb.schemas.star.dim_team import DimTeamSchema
 from nbadb.schemas.star.dim_team_history import DimTeamHistorySchema
+from nbadb.schemas.star.fact_box_score_four_factors import FactBoxScoreFourFactorsSchema
 from nbadb.schemas.star.fact_draft import FactDraftSchema
 from nbadb.schemas.star.fact_estimated_metrics import (
     FactPlayerEstimatedMetricsSchema,
     FactTeamEstimatedMetricsSchema,
 )
+from nbadb.schemas.star.fact_game_leaders import FactGameLeadersSchema
 from nbadb.schemas.star.fact_game_result import FactGameResultSchema
 from nbadb.schemas.star.fact_game_scoring import FactGameScoringSchema
+from nbadb.schemas.star.fact_league_lineup_viz import FactLeagueLineupVizSchema
 from nbadb.schemas.star.fact_lineup_stats import FactLineupStatsSchema
 from nbadb.schemas.star.fact_matchup import FactMatchupSchema
 from nbadb.schemas.star.fact_play_by_play import FactPlayByPlaySchema
@@ -55,11 +58,14 @@ __all__ = [
     "DimShotZoneSchema",
     "DimTeamSchema",
     "DimTeamHistorySchema",
+    "FactBoxScoreFourFactorsSchema",
     "FactDraftSchema",
     "FactPlayerEstimatedMetricsSchema",
     "FactTeamEstimatedMetricsSchema",
+    "FactGameLeadersSchema",
     "FactGameResultSchema",
     "FactGameScoringSchema",
+    "FactLeagueLineupVizSchema",
     "FactLineupStatsSchema",
     "FactMatchupSchema",
     "FactPlayByPlaySchema",

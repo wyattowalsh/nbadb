@@ -168,7 +168,7 @@ class TestStandingsExtract:
         result = ext._from_nba_api(mock_ep, season="2024-25")
         assert isinstance(result, pl.DataFrame)
         assert result.shape[0] == 1
-        assert "teamid" in result.columns
+        assert "team_id" in result.columns
         assert "wins" in result.columns
 
 

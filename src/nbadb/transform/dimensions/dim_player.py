@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class DimPlayerTransformer(BaseTransformer):
     output_table: ClassVar[str] = "dim_player"
-    depends_on: ClassVar[list[str]] = ["stg_player_info", "stg_player_career"]
+    depends_on: ClassVar[list[str]] = ["stg_player_info"]
 
     _SCD2_SQL: ClassVar[str] = """
         WITH versioned AS (

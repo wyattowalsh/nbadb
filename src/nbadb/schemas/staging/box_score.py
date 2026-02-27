@@ -1544,3 +1544,216 @@ class StagingBoxScoreDefensivePlayerSchema(
             ),
         },
     )
+
+
+class StagingBoxScoreFourFactorsPlayerSchema(BaseSchema):
+    game_id: str = pa.Field(
+        nullable=False,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.GAME_ID",
+            "description": "Unique game identifier",
+        },
+    )
+    team_id: int = pa.Field(
+        nullable=False,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.TEAM_ID",
+            "description": "Team identifier",
+            "fk_ref": "staging_team.team_id",
+        },
+    )
+    player_id: int = pa.Field(
+        gt=0,
+        nullable=False,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.PLAYER_ID",
+            "description": "Unique player identifier",
+            "fk_ref": "staging_player.person_id",
+        },
+    )
+    player_name: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.PLAYER_NAME",
+            "description": "Player full name",
+        },
+    )
+    min: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.MIN",
+            "description": "Minutes played as string",
+        },
+    )
+    effective_field_goal_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.EFG_PCT",
+            "description": "Effective field goal percentage",
+        },
+    )
+    free_throw_attempt_rate: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.FTA_RATE",
+            "description": "Free throw attempt rate",
+        },
+    )
+    team_turnover_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.TM_TOV_PCT",
+            "description": "Team turnover percentage",
+        },
+    )
+    offensive_rebound_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.OREB_PCT",
+            "description": "Offensive rebound percentage",
+        },
+    )
+    opp_effective_field_goal_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.OPP_EFG_PCT",
+            "description": "Opponent effective field goal percentage",
+        },
+    )
+    opp_free_throw_attempt_rate: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.OPP_FTA_RATE",
+            "description": "Opponent free throw attempt rate",
+        },
+    )
+    opp_team_turnover_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.OPP_TOV_PCT",
+            "description": "Opponent team turnover percentage",
+        },
+    )
+    opp_offensive_rebound_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.PlayerStats.OPP_OREB_PCT",
+            "description": "Opponent offensive rebound percentage",
+        },
+    )
+
+
+class StagingBoxScoreFourFactorsTeamSchema(BaseSchema):
+    game_id: str = pa.Field(
+        nullable=False,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.GAME_ID",
+            "description": "Unique game identifier",
+        },
+    )
+    team_id: int = pa.Field(
+        nullable=False,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.TEAM_ID",
+            "description": "Team identifier",
+            "fk_ref": "staging_team.team_id",
+        },
+    )
+    team_name: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.TEAM_NAME",
+            "description": "Team name",
+        },
+    )
+    team_abbreviation: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.TEAM_ABBREVIATION",
+            "description": "Team abbreviation code",
+        },
+    )
+    effective_field_goal_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.EFG_PCT",
+            "description": "Effective field goal percentage",
+        },
+    )
+    free_throw_attempt_rate: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.FTA_RATE",
+            "description": "Free throw attempt rate",
+        },
+    )
+    team_turnover_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.TM_TOV_PCT",
+            "description": "Team turnover percentage",
+        },
+    )
+    offensive_rebound_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.OREB_PCT",
+            "description": "Offensive rebound percentage",
+        },
+    )
+    opp_effective_field_goal_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.OPP_EFG_PCT",
+            "description": "Opponent effective field goal percentage",
+        },
+    )
+    opp_free_throw_attempt_rate: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.OPP_FTA_RATE",
+            "description": "Opponent free throw attempt rate",
+        },
+    )
+    opp_team_turnover_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.OPP_TOV_PCT",
+            "description": "Opponent team turnover percentage",
+        },
+    )
+    opp_offensive_rebound_percentage: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "BoxScoreFourFactorsV3.TeamStats.OPP_OREB_PCT",
+            "description": "Opponent offensive rebound percentage",
+        },
+    )

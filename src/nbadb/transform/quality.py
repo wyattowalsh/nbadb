@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from nbadb.core.types import validate_sql_identifier
+
 if TYPE_CHECKING:
     import duckdb
 
@@ -92,6 +94,8 @@ class DataQualityMonitor:
         column: str,
         max_null_fraction: float = 0.0,
     ) -> QualityResult:
+        validate_sql_identifier(table)
+        validate_sql_identifier(column)
         query = f"""
             SELECT
                 COUNT(*) AS total,
@@ -129,6 +133,9 @@ class DataQualityMonitor:
         table: str,
         columns: list[str],
     ) -> QualityResult:
+        validate_sql_identifier(table)
+        for col in columns:
+            validate_sql_identifier(col)
         cols = ", ".join(columns)
         query = f"""
             SELECT COUNT(*) - COUNT(DISTINCT ({cols}))
@@ -160,6 +167,10 @@ class DataQualityMonitor:
         dim_table: str,
         pk_column: str,
     ) -> QualityResult:
+        validate_sql_identifier(fact_table)
+        validate_sql_identifier(fk_column)
+        validate_sql_identifier(dim_table)
+        validate_sql_identifier(pk_column)
         query = f"""
             SELECT COUNT(*) AS orphan_count
             FROM {fact_table} f
@@ -194,6 +205,8 @@ class DataQualityMonitor:
         min_distinct: int = 1,
         max_distinct: int | None = None,
     ) -> QualityResult:
+        validate_sql_identifier(table)
+        validate_sql_identifier(column)
         query = f"SELECT COUNT(DISTINCT {column}) FROM {table}"
         row = self.conn.execute(query).fetchone()
         assert row is not None
@@ -231,6 +244,10 @@ class DataQualityMonitor:
         columns: list[str],
         tolerance: float = 0.001,
     ) -> QualityResult:
+        validate_sql_identifier(our_table)
+        validate_sql_identifier(nba_table)
+        for col in columns:
+            validate_sql_identifier(col)
         mismatches: list[str] = []
         for col in columns:
             query = f"""
@@ -268,6 +285,8 @@ class DataQualityMonitor:
         min_val: float | None = None,
         max_val: float | None = None,
     ) -> QualityResult:
+        validate_sql_identifier(table)
+        validate_sql_identifier(column)
         query = f"SELECT MIN({column}), MAX({column}) FROM {table}"
         row = self.conn.execute(query).fetchone()
         assert row is not None

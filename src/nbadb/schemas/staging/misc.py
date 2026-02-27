@@ -1741,3 +1741,76 @@ class StagingBoxScoreMatchupsSchema(BaseSchema):
             ),
         },
     )
+
+
+class StagingArenaInfoSchema(BaseSchema):
+    game_id: str = pa.Field(
+        nullable=False,
+        metadata={
+            "source": (
+                "BoxScoreSummaryV3.ArenaInfo"
+                ".gameId"
+            ),
+            "description": "Unique game identifier",
+        },
+    )
+    arena_id: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": (
+                "BoxScoreSummaryV3.ArenaInfo"
+                ".arenaId"
+            ),
+            "description": "Arena identifier",
+        },
+    )
+    arena_name: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": (
+                "BoxScoreSummaryV3.ArenaInfo"
+                ".arenaName"
+            ),
+            "description": "Arena name",
+        },
+    )
+    arena_city: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": (
+                "BoxScoreSummaryV3.ArenaInfo"
+                ".arenaCity"
+            ),
+            "description": "Arena city",
+        },
+    )
+    arena_state: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": (
+                "BoxScoreSummaryV3.ArenaInfo"
+                ".arenaState"
+            ),
+            "description": "Arena state or province",
+        },
+    )
+    arena_country: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": (
+                "BoxScoreSummaryV3.ArenaInfo"
+                ".arenaCountry"
+            ),
+            "description": "Arena country",
+        },
+    )
+    arena_timezone: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": (
+                "BoxScoreSummaryV3.ArenaInfo"
+                ".arenaTimezone"
+            ),
+            "description": "Arena timezone",
+        },
+    )

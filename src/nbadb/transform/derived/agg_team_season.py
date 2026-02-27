@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class AggTeamSeasonTransformer(BaseTransformer):
     output_table: ClassVar[str] = "agg_team_season"
-    depends_on: ClassVar[list[str]] = ["fact_team_game"]
+    depends_on: ClassVar[list[str]] = ["fact_team_game", "dim_game"]
 
     _SQL: ClassVar[str] = """
         SELECT

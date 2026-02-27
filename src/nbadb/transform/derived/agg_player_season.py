@@ -16,11 +16,13 @@ class AggPlayerSeasonTransformer(BaseTransformer):
         "fact_player_game_traditional",
         "fact_player_game_advanced",
         "fact_player_game_misc",
+        "dim_game",
     ]
 
     _SQL: ClassVar[str] = """
         SELECT
             t.player_id,
+            t.team_id,
             g.season_year,
             g.season_type,
             COUNT(*) AS gp,
@@ -51,8 +53,8 @@ class AggPlayerSeasonTransformer(BaseTransformer):
         JOIN dim_game g ON t.game_id = g.game_id
         LEFT JOIN fact_player_game_advanced a
             ON t.game_id = a.game_id AND t.player_id = a.player_id
-        GROUP BY t.player_id, g.season_year, g.season_type
-        ORDER BY g.season_year, t.player_id
+        GROUP BY t.player_id, t.team_id, g.season_year, g.season_type
+        ORDER BY g.season_year, t.player_id, t.team_id
     """
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:

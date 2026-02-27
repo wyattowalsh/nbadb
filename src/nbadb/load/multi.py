@@ -22,12 +22,19 @@ class MultiLoader:
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
+        errors: list[tuple[str, Exception]] = []
         for loader in self._loaders:
-            loader.load(table, df, mode)
-        logger.info(
-            f"MultiLoader: {table} → "
-            f"{len(self._loaders)} formats"
-        )
+            try:
+                loader.load(table, df, mode)
+            except Exception as e:
+                errors.append((type(loader).__name__, e))
+                logger.error(f"MultiLoader: {type(loader).__name__} failed for {table}: {e}")
+        if errors:
+            failed = ", ".join(name for name, _ in errors)
+            raise RuntimeError(
+                f"MultiLoader: {len(errors)} loader(s) failed for {table}: {failed}"
+            )
+        logger.info(f"MultiLoader: {table} → {len(self._loaders)} formats")
 
 
 def create_multi_loader(

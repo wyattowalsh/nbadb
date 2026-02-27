@@ -25,35 +25,59 @@ class TransformPipeline:
 
     def _topological_sort(self) -> list[BaseTransformer]:
         graph: dict[str, BaseTransformer] = {t.output_table: t for t in self._transformers}
-        visited: set[str] = set()
+        white, gray, black = 0, 1, 2
+        color: dict[str, int] = {name: white for name in graph}
         order: list[BaseTransformer] = []
 
         def visit(name: str) -> None:
-            if name in visited:
+            if name not in color or color[name] == black:
                 return
-            visited.add(name)
+            if color[name] == gray:
+                raise ValueError(f"Cyclic dependency detected involving '{name}'")
+            color[name] = gray
             transformer = graph.get(name)
-            if transformer is None:
-                return
-            for dep in transformer.depends_on:
-                visit(dep)
-            order.append(transformer)
+            if transformer:
+                for dep in transformer.depends_on:
+                    visit(dep)
+                order.append(transformer)
+            color[name] = black
 
         for name in graph:
             visit(name)
         return order
 
-    def run(self, staging: dict[str, pl.LazyFrame]) -> dict[str, pl.DataFrame]:
+    def run(
+        self,
+        staging: dict[str, pl.LazyFrame],
+        *,
+        resume: bool = False,
+    ) -> dict[str, pl.DataFrame]:
         ordered = self._topological_sort()
         logger.info(f"Pipeline: {len(ordered)} transformers in dependency order")
+        completed: set[str] = set()
         for transformer in ordered:
+            table = transformer.output_table
+            if resume and table in self._outputs:
+                logger.info(f"Skipping {table} (already completed)")
+                completed.add(table)
+                continue
             combined = {**staging}
             for name, df in self._outputs.items():
                 combined[name] = df.lazy()
-            df = transformer.run(combined)
-            self._outputs[transformer.output_table] = df
-            self._conn.register(transformer.output_table, df)
-            logger.debug(f"Registered {transformer.output_table} in DuckDB ({df.shape[0]} rows)")
+            try:
+                df = transformer.run(combined)
+            except Exception:
+                logger.error(
+                    f"Pipeline failed at {table} "
+                    f"(completed: {len(completed)}/{len(ordered)})"
+                )
+                raise
+            self._outputs[table] = df
+            self._conn.register(table, df)
+            completed.add(table)
+            logger.debug(
+                f"Registered {table} in DuckDB ({df.shape[0]} rows)"
+            )
         return self._outputs
 
     def get_output(self, table: str) -> pl.DataFrame | None:

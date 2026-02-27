@@ -33,6 +33,12 @@ _WRITE_PATTERN: re.Pattern[str] = re.compile(
     re.IGNORECASE,
 )
 
+_DANGEROUS_FUNCTIONS: re.Pattern[str] = re.compile(
+    r'\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|'
+    r'glob|read_csv_auto|read_ndjson|http_get)\s*\(',
+    re.IGNORECASE,
+)
+
 MAX_RESULT_ROWS: int = 10_000
 QUERY_TIMEOUT_SECONDS: float = 30.0
 
@@ -45,6 +51,9 @@ class ReadOnlyGuard:
         match = _WRITE_PATTERN.search(stripped)
         if match:
             return f"Write operation not allowed: {match.group(0)}"
+        func_match = _DANGEROUS_FUNCTIONS.search(stripped)
+        if func_match:
+            return f"File access function not allowed: {func_match.group(1)}"
         if not stripped.upper().startswith(("SELECT", "WITH", "EXPLAIN", "SHOW", "DESCRIBE")):
             return f"Only SELECT queries are allowed, got: {stripped.split()[0]}"
         return None

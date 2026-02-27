@@ -19,7 +19,6 @@ class NbaDbSettings(BaseSettings):
 
     formats: list[str] = ["sqlite", "duckdb", "csv", "parquet"]
 
-    proxy_list_url: str = "https://proxywhirl.com/proxy-lists/http.txt"
     nba_base_url: str = "https://stats.nba.com/stats"
 
     semaphore_tiers: dict[str, int] = {

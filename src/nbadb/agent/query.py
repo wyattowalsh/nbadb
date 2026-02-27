@@ -15,28 +15,38 @@ if TYPE_CHECKING:
 _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(r"who\s+led\s+(?:in\s+)?scoring", re.IGNORECASE),
-        "SELECT player_name, pts FROM player_stats "
-        "ORDER BY pts DESC LIMIT 10",
+        "SELECT s.player_id, p.full_name, s.total_pts "
+        "FROM agg_player_season s "
+        "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
+        "ORDER BY s.total_pts DESC LIMIT 10",
     ),
     (
         re.compile(r"most\s+points", re.IGNORECASE),
-        "SELECT player_name, pts FROM player_stats "
-        "ORDER BY pts DESC LIMIT 10",
+        "SELECT s.player_id, p.full_name, s.total_pts "
+        "FROM agg_player_season s "
+        "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
+        "ORDER BY s.total_pts DESC LIMIT 10",
     ),
     (
         re.compile(r"most\s+assists", re.IGNORECASE),
-        "SELECT player_name, ast FROM player_stats "
-        "ORDER BY ast DESC LIMIT 10",
+        "SELECT s.player_id, p.full_name, s.total_ast "
+        "FROM agg_player_season s "
+        "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
+        "ORDER BY s.total_ast DESC LIMIT 10",
     ),
     (
         re.compile(r"most\s+rebounds", re.IGNORECASE),
-        "SELECT player_name, reb FROM player_stats "
-        "ORDER BY reb DESC LIMIT 10",
+        "SELECT s.player_id, p.full_name, s.total_reb "
+        "FROM agg_player_season s "
+        "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
+        "ORDER BY s.total_reb DESC LIMIT 10",
     ),
     (
         re.compile(r"team\s+standings|standings", re.IGNORECASE),
-        "SELECT team_name, wins, losses FROM team_standings "
-        "ORDER BY wins DESC",
+        "SELECT t.full_name, s.wins, s.losses, s.win_pct "
+        "FROM fact_standings s "
+        "JOIN dim_team t ON s.team_id = t.team_id "
+        "ORDER BY s.wins DESC",
     ),
     (
         re.compile(r"how\s+many\s+(?:games|records)", re.IGNORECASE),
