@@ -10,6 +10,7 @@ from loguru import logger
 
 from nbadb.core.config import NbaDbSettings, get_settings
 from nbadb.core.db import DBManager
+from nbadb.core.proxy import build_proxy_pool
 from nbadb.extract.registry import registry as _global_registry
 from nbadb.load.multi import create_multi_loader
 from nbadb.orchestrate.discovery import EntityDiscovery
@@ -59,6 +60,7 @@ class Orchestrator:
         self, settings: NbaDbSettings | None = None
     ) -> None:
         self._settings = settings or get_settings()
+        self._proxy_pool = build_proxy_pool(self._settings)
         self._db: DBManager | None = None
         self._journal: PipelineJournal | None = None
 
@@ -88,6 +90,7 @@ class Orchestrator:
             registry=_global_registry,
             settings=self._settings,
             journal=journal,
+            proxy_pool=self._proxy_pool,
         )
 
     def _transform_and_load(
@@ -164,7 +167,9 @@ class Orchestrator:
 
         # -- 1. Entity discovery --------------------------------
         seasons = season_range(start_season)
-        discovery = EntityDiscovery(_global_registry)
+        discovery = EntityDiscovery(
+            _global_registry, proxy_pool=self._proxy_pool
+        )
 
         logger.info(
             "init: discovering entities for {} seasons",
@@ -329,7 +334,9 @@ class Orchestrator:
 
         db, journal = self._init_db()
         runner = self._build_runner(journal)
-        discovery = EntityDiscovery(_global_registry)
+        discovery = EntityDiscovery(
+            _global_registry, proxy_pool=self._proxy_pool
+        )
 
         season = current_season()
         logger.info("daily: season={}", season)
@@ -445,7 +452,9 @@ class Orchestrator:
 
         db, journal = self._init_db()
         runner = self._build_runner(journal)
-        discovery = EntityDiscovery(_global_registry)
+        discovery = EntityDiscovery(
+            _global_registry, proxy_pool=self._proxy_pool
+        )
 
         seasons = recent_seasons(3)
         logger.info("monthly: seasons={}", seasons)
@@ -564,7 +573,9 @@ class Orchestrator:
 
         db, journal = self._init_db()
         runner = self._build_runner(journal)
-        discovery = EntityDiscovery(_global_registry)
+        discovery = EntityDiscovery(
+            _global_registry, proxy_pool=self._proxy_pool
+        )
 
         # -- 1. Retry failed extractions ------------------------
         failed = journal.get_failed()

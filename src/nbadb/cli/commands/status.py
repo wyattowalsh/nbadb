@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import duckdb
 import typer
 
 from nbadb.cli.app import app
@@ -12,8 +13,6 @@ def status(
     data_dir: DataDirOption = None,
 ) -> None:
     """Show pipeline status, watermarks, and failed extractions."""
-    import duckdb
-
     settings = _build_settings(data_dir)
     db_path = settings.duckdb_path
 
@@ -43,7 +42,7 @@ def _show_watermarks(conn: object) -> None:
             "last_updated, row_count_at_watermark "
             "FROM _pipeline_watermarks ORDER BY last_updated DESC"
         ).fetchall()
-    except Exception:
+    except duckdb.Error:
         typer.echo("  (no watermark data)")
         return
 
@@ -65,7 +64,7 @@ def _show_journal_summary(conn: object) -> None:
             "SELECT status, COUNT(*) AS cnt "
             "FROM _extraction_journal GROUP BY status ORDER BY status"
         ).fetchall()
-    except Exception:
+    except duckdb.Error:
         typer.echo("  (no extraction journal)")
         return
 
@@ -84,7 +83,7 @@ def _show_table_metadata(conn: object) -> None:
             "SELECT table_name, row_count, last_updated "
             "FROM _pipeline_metadata ORDER BY table_name"
         ).fetchall()
-    except Exception:
+    except duckdb.Error:
         typer.echo("  (no table metadata)")
         return
 

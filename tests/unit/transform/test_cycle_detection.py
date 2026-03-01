@@ -11,7 +11,6 @@ import pytest
 from nbadb.transform.base import BaseTransformer
 from nbadb.transform.pipeline import TransformPipeline
 
-
 # ---------------------------------------------------------------------------
 # Stub transformers
 # ---------------------------------------------------------------------------
@@ -77,7 +76,7 @@ def test_topological_sort_cycle_detection() -> None:
     pipeline = TransformPipeline(conn)
     pipeline.register_all([CyclicA(), CyclicB()])
     with pytest.raises(ValueError, match="Cyclic dependency"):
-        pipeline.execution_order
+        _ = pipeline.execution_order
     conn.close()
 
 

@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import duckdb
 import polars as pl
 import pytest
 
 from nbadb.core.config import NbaDbSettings
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.fixture
@@ -101,6 +98,6 @@ def mock_duckdb_conn() -> duckdb.DuckDBPyConnection:
 @pytest.fixture
 def fixture_loader() -> callable:
     def _load(name: str) -> dict:
-        with open(f"tests/fixtures/{name}") as f:
+        with open(Path(__file__).parent / "fixtures" / name) as f:
             return json.load(f)
     return _load

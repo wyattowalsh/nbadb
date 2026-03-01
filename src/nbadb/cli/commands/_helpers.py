@@ -49,3 +49,60 @@ def _print_result(mode: str, result: PipelineResult) -> None:
         )
     for e in result.errors:
         typer.echo(f"  ERROR: {e}", err=True)
+
+
+def _run_quality_checks(settings: object) -> None:
+    """Open DuckDB and run row-count checks on all user tables.
+
+    Warns on empty tables but never raises — quality issues are
+    informational only.
+    """
+    import duckdb
+
+    from nbadb.transform.quality import (
+        CheckLayer,
+        DataQualityMonitor,
+        QualityResult,
+    )
+
+    duckdb_path = getattr(settings, "duckdb_path", None)
+    if duckdb_path is None or not duckdb_path.exists():
+        typer.echo("  Quality check skipped: database not found", err=True)
+        return
+
+    conn = duckdb.connect(str(duckdb_path), read_only=True)
+    try:
+        monitor = DataQualityMonitor(conn)
+        tables = [
+            row[0]
+            for row in conn.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'main' "
+                "AND table_name NOT LIKE '\\_%' ESCAPE '\\'"
+            ).fetchall()
+        ]
+        for table in sorted(tables):
+            try:
+                row = conn.execute(
+                    f"SELECT COUNT(*) FROM {table}"  # noqa: S608
+                ).fetchone()
+                count = row[0] if row else 0
+                monitor.results.append(QualityResult(
+                    table=table,
+                    check_type="row_count",
+                    layer=CheckLayer.STRUCTURAL,
+                    passed=count > 0,
+                    message=f"{table}: {count:,} rows",
+                ))
+            except Exception:
+                pass
+        monitor.log_summary()
+        s = monitor.summary()
+        typer.echo(f"\nQuality: {s['passed']}/{s['total']} checks passed")
+        if monitor.failed():
+            typer.echo(
+                f"  {len(monitor.failed())} empty tables detected",
+                err=True,
+            )
+    finally:
+        conn.close()

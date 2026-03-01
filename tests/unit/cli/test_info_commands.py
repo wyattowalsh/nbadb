@@ -1,0 +1,172 @@
+"""Unit tests for nbadb status and schema CLI commands."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import duckdb
+from typer.testing import CliRunner
+
+from nbadb.cli.app import app
+
+runner = CliRunner()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_db_with_tables(path: object) -> None:
+    """Create a DuckDB file with the three pipeline tables (empty)."""
+    conn = duckdb.connect(str(path))
+    conn.execute(
+        "CREATE TABLE _pipeline_watermarks ("
+        "  table_name VARCHAR,"
+        "  watermark_type VARCHAR,"
+        "  watermark_value VARCHAR,"
+        "  last_updated TIMESTAMP,"
+        "  row_count_at_watermark BIGINT,"
+        "  PRIMARY KEY (table_name, watermark_type)"
+        ")"
+    )
+    conn.execute(
+        "CREATE TABLE _extraction_journal ("
+        "  endpoint VARCHAR,"
+        "  params VARCHAR,"
+        "  status VARCHAR,"
+        "  started_at TIMESTAMP,"
+        "  completed_at TIMESTAMP,"
+        "  rows_extracted BIGINT,"
+        "  error_message VARCHAR,"
+        "  PRIMARY KEY (endpoint, params)"
+        ")"
+    )
+    conn.execute(
+        "CREATE TABLE _pipeline_metadata ("
+        "  table_name VARCHAR PRIMARY KEY,"
+        "  last_updated TIMESTAMP,"
+        "  row_count BIGINT,"
+        "  schema_hash VARCHAR"
+        ")"
+    )
+    conn.close()
+
+
+def _mock_transformer(output_table: str, depends_on: list[str] | None = None) -> MagicMock:
+    t = MagicMock()
+    t.output_table = output_table
+    t.depends_on = depends_on or []
+    return t
+
+
+# ---------------------------------------------------------------------------
+# status command tests
+# ---------------------------------------------------------------------------
+
+
+class TestStatusCommand:
+    def test_status_no_db_file(self, tmp_path: object) -> None:
+        """--data-dir pointing to nonexistent subdir exits 1 with 'Database not found'."""
+        missing = tmp_path / "nonexistent_xyz"
+        result = runner.invoke(app, ["status", "--data-dir", str(missing)])
+        assert result.exit_code == 1
+        assert "Database not found" in result.output
+
+    def test_status_empty_watermarks(self, tmp_path: object) -> None:
+        """Empty _pipeline_watermarks table shows '(empty)'."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        result = runner.invoke(app, ["status", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "(empty)" in result.output
+
+    def test_status_empty_journal(self, tmp_path: object) -> None:
+        """Empty _extraction_journal table shows '(empty)'."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        result = runner.invoke(app, ["status", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 0
+        # Journal section empty sentinel
+        assert "Extraction Journal" in result.output
+        assert "(empty)" in result.output
+
+    def test_status_populated_watermarks(self, tmp_path: object) -> None:
+        """A watermark row is displayed in the status output."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        conn = duckdb.connect(str(db_path))
+        conn.execute(
+            "INSERT INTO _pipeline_watermarks VALUES "
+            "('stg_game_log', 'season', '2024-25', '2024-01-01 00:00:00', 5000)"
+        )
+        conn.close()
+        result = runner.invoke(app, ["status", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "stg_game_log" in result.output
+
+    def test_status_missing_tables(self, tmp_path: object) -> None:
+        """DuckDB file without pipeline tables shows fallback '(no watermark data)'."""
+        db_path = tmp_path / "nba.duckdb"
+        # Create an empty DuckDB file (no pipeline tables)
+        conn = duckdb.connect(str(db_path))
+        conn.close()
+        result = runner.invoke(app, ["status", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "(no watermark data)" in result.output
+
+
+# ---------------------------------------------------------------------------
+# schema command tests
+# ---------------------------------------------------------------------------
+
+DISCOVER_PATH = "nbadb.cli.commands.schema._discover_all_transformers"
+
+
+class TestSchemaCommand:
+    def test_schema_lists_all_tables(self) -> None:
+        """All mocked output_tables appear in the listing output."""
+        mock_transformers = [
+            _mock_transformer("dim_player"),
+            _mock_transformer("fact_game_log"),
+        ]
+        with patch(DISCOVER_PATH, return_value=mock_transformers):
+            result = runner.invoke(app, ["schema"])
+        assert result.exit_code == 0
+        assert "dim_player" in result.output
+        assert "fact_game_log" in result.output
+
+    def test_schema_no_argument_groups_by_prefix(self) -> None:
+        """Without a table argument the output contains a 'Dimensions (dim_)' heading."""
+        mock_transformers = [
+            _mock_transformer("dim_player"),
+            _mock_transformer("fact_game_log"),
+        ]
+        with patch(DISCOVER_PATH, return_value=mock_transformers):
+            result = runner.invoke(app, ["schema"])
+        assert result.exit_code == 0
+        assert "Dimensions (dim_)" in result.output
+
+    def test_schema_detail_found(self) -> None:
+        """Invoking schema with a table name shows table and depends_on."""
+        mock_transformers = [
+            _mock_transformer("dim_player", depends_on=["stg_x"]),
+        ]
+        with patch(DISCOVER_PATH, return_value=mock_transformers):
+            result = runner.invoke(app, ["schema", "dim_player"])
+        assert result.exit_code == 0
+        assert "dim_player" in result.output
+        assert "depends_on" in result.output.lower() or "Depends on" in result.output
+
+    def test_schema_detail_not_found(self) -> None:
+        """Invoking schema with an unknown table name exits 1."""
+        with patch(DISCOVER_PATH, return_value=[]):
+            result = runner.invoke(app, ["schema", "nonexistent"])
+        assert result.exit_code == 1
+
+    def test_schema_empty_no_tables(self) -> None:
+        """When discovery returns no transformers, output shows 'Total: 0 tables'."""
+        with patch(DISCOVER_PATH, return_value=[]):
+            result = runner.invoke(app, ["schema"])
+        assert result.exit_code == 0
+        assert "Total: 0 tables" in result.output

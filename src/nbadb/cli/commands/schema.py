@@ -36,7 +36,7 @@ def _discover_all_transformers() -> list[BaseTransformer]:
     ):
         try:
             mod = importlib.import_module(modname)
-        except Exception:
+        except (ImportError, ModuleNotFoundError):
             continue
         for _name, obj in inspect.getmembers(mod, inspect.isclass):
             if (
@@ -46,7 +46,7 @@ def _discover_all_transformers() -> list[BaseTransformer]:
             ):
                 try:
                     instances.append(obj())
-                except Exception:
+                except (TypeError, ValueError, RuntimeError):
                     continue
     return instances
 

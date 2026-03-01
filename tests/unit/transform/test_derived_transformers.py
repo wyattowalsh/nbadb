@@ -6,8 +6,6 @@ Verify column fixes (team_id inclusion) and dependency declarations.
 from __future__ import annotations
 
 import polars as pl
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # Dependency declaration tests

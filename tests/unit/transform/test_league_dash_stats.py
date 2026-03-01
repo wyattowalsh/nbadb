@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import polars as pl
-import pytest
 
 from nbadb.transform.facts.fact_league_dash_player_stats import FactLeagueDashPlayerStatsTransformer
 from nbadb.transform.facts.fact_league_dash_team_stats import FactLeagueDashTeamStatsTransformer

@@ -8,6 +8,7 @@ from loguru import logger
 if TYPE_CHECKING:
     import polars as pl
 
+    from nbadb.core.proxy import ProxyPool
     from nbadb.extract.registry import EndpointRegistry
 
 _RETRY_ATTEMPTS = 3
@@ -54,8 +55,13 @@ async def _extract_with_retry(
 class EntityDiscovery:
     """Discovers entity IDs needed for extraction loops."""
 
-    def __init__(self, registry: EndpointRegistry) -> None:
+    def __init__(
+        self,
+        registry: EndpointRegistry,
+        proxy_pool: ProxyPool | None = None,
+    ) -> None:
         self._registry = registry
+        self._proxy_pool = proxy_pool
 
     async def discover_game_ids(
         self, seasons: list[str]
@@ -74,6 +80,10 @@ class EntityDiscovery:
         for season in seasons:
             logger.info("discovering game IDs for season {}", season)
             try:
+                if self._proxy_pool is not None:
+                    extractor._proxy_url = (
+                        self._proxy_pool.get_proxy_url()
+                    )
                 df = await _extract_with_retry(
                     extractor,
                     f"league_game_log({season})",
@@ -115,8 +125,12 @@ class EntityDiscovery:
 
         kwargs = {"season": season} if season else {}
         try:
+            if self._proxy_pool is not None:
+                extractor._proxy_url = self._proxy_pool.get_proxy_url()
             df = await _extract_with_retry(
-                extractor, "common_all_players", **kwargs
+                extractor,
+                "common_all_players",
+                **kwargs,
             )
         except Exception as exc:
             logger.error(
@@ -144,8 +158,11 @@ class EntityDiscovery:
         extractor = extractor_cls()
 
         try:
+            if self._proxy_pool is not None:
+                extractor._proxy_url = self._proxy_pool.get_proxy_url()
             df = await _extract_with_retry(
-                extractor, "common_team_years"
+                extractor,
+                "common_team_years",
             )
         except Exception as exc:
             logger.error(

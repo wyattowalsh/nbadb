@@ -8,6 +8,7 @@ from nbadb.cli.app import app
 from nbadb.cli.commands._helpers import (
     _build_settings,
     _print_result,
+    _run_quality_checks,
     _setup_logging,
 )
 from nbadb.cli.options import DataDirOption, VerboseOption  # noqa: TC001
@@ -18,6 +19,9 @@ from nbadb.orchestrate import Orchestrator
 def monthly(
     data_dir: DataDirOption = None,
     verbose: VerboseOption = False,
+    quality_check: bool = typer.Option(
+        False, "--quality-check", help="Run quality checks after pipeline"
+    ),
 ) -> None:
     """Monthly refresh of recent seasons."""
     _setup_logging(verbose)
@@ -28,3 +32,5 @@ def monthly(
         typer.echo(f"monthly failed: {exc}", err=True)
         raise typer.Exit(1) from exc
     _print_result("monthly", result)
+    if quality_check:
+        _run_quality_checks(settings)

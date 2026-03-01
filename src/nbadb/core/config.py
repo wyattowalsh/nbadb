@@ -37,6 +37,16 @@ class NbaDbSettings(BaseSettings):
 
     kaggle_dataset: str = "wyattowalsh/basketball"
 
+    # ── proxy support (requires proxywhirl) ─────────────────
+    proxy_enabled: bool = False
+    proxy_urls: list[str] = []
+    proxy_bootstrap: bool = True
+    proxy_bootstrap_sample_size: int = 5
+    proxy_strategy: str = "round_robin"
+    proxy_timeout: int = 30
+    proxy_max_retries: int = 3
+    proxy_semaphore_multiplier: float = 1.0
+
     @model_validator(mode="after")
     def _default_db_paths(self) -> NbaDbSettings:
         if self.sqlite_path is None:

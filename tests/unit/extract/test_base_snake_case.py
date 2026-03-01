@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from nbadb.extract.base import _to_snake_case
 
 

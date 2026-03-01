@@ -47,3 +47,9 @@ docs/out/
 
 # Misc
 *.bak
+
+# AI agent / tool state
+.claude/
+.gemini/
+.specify/
+..bfg-report/

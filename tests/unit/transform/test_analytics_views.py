@@ -6,11 +6,11 @@ analytics views: player_game, player_season, team_season, head_to_head.
 
 from __future__ import annotations
 
-from datetime import date
-
 import polars as pl
-import pytest
 
+from nbadb.transform.views.analytics_head_to_head import (
+    AnalyticsHeadToHeadTransformer,
+)
 from nbadb.transform.views.analytics_player_game_complete import (
     AnalyticsPlayerGameCompleteTransformer,
 )
@@ -20,10 +20,6 @@ from nbadb.transform.views.analytics_player_season_complete import (
 from nbadb.transform.views.analytics_team_season_summary import (
     AnalyticsTeamSeasonSummaryTransformer,
 )
-from nbadb.transform.views.analytics_head_to_head import (
-    AnalyticsHeadToHeadTransformer,
-)
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -88,7 +84,11 @@ def _dim_player_df(
     return pl.DataFrame(rows)
 
 
-def _dim_team_df(team_id: int = 1, abbreviation: str = "TST", full_name: str = "Test Team") -> pl.DataFrame:
+def _dim_team_df(
+    team_id: int = 1,
+    abbreviation: str = "TST",
+    full_name: str = "Test Team",
+) -> pl.DataFrame:
     return pl.DataFrame(
         {
             "team_id": [team_id],
