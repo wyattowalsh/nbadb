@@ -30,6 +30,8 @@ dependencies = [
     "rich>=13.7",
     "loguru>=0.7",
     "pydantic-settings>=2.13",
+    # pinned: proxy.py uses private _select_proxy_with_circuit_breaker; validate before upgrading
+    "proxywhirl>=0.3.2",
 ]
 
 [project.optional-dependencies]

@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,7 +39,7 @@ class NbaDbSettings(BaseSettings):
 
     # ── proxy support (requires proxywhirl) ─────────────────
     proxy_enabled: bool = False
-    proxy_urls: list[str] = []
+    proxy_urls: list[str] = Field(default=[], repr=False)
     proxy_bootstrap: bool = True
     proxy_bootstrap_sample_size: int = 5
     proxy_strategy: str = "round_robin"

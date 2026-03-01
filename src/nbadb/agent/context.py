@@ -13,14 +13,10 @@ class SchemaContext:
         self._path = duckdb_path
 
     def get_tables(self) -> list[str]:
+        from nbadb.core.db import get_user_tables
+
         with duckdb.connect(str(self._path), read_only=True) as conn:
-            result = conn.execute(
-                "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema = 'main' "
-                "AND table_name NOT LIKE '\\_%' ESCAPE '\\' "
-                "ORDER BY table_name"
-            ).fetchall()
-            return [row[0] for row in result]
+            return get_user_tables(conn)
 
     def get_columns(self, table_name: str) -> list[tuple[str, str]]:
         with duckdb.connect(str(self._path), read_only=True) as conn:

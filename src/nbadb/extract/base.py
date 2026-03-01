@@ -23,9 +23,18 @@ class BaseExtractor(ABC):
     endpoint_name: ClassVar[str]
     category: ClassVar[str] = "default"
 
+    # Set by ExtractorRunner / EntityDiscovery before calling extract()
+    _proxy_url: str | None = None
+
     @abstractmethod
     async def extract(self, **params: Any) -> pl.DataFrame:
         ...
+
+    def _inject_proxy(self, kwargs: dict[str, Any]) -> None:
+        """Add proxy/timeout to kwargs if a proxy URL is configured."""
+        if self._proxy_url is not None:
+            kwargs.setdefault("proxy", self._proxy_url)
+            kwargs.setdefault("timeout", 60)
 
     def _from_nba_api(self, endpoint_cls: type, **kwargs: Any) -> pl.DataFrame:
         """Call nba_api endpoint and convert to Polars DataFrame.
@@ -33,6 +42,7 @@ class BaseExtractor(ABC):
         nba_api returns pandas DataFrames with UPPERCASE columns.
         We lowercase all column names at this boundary.
         """
+        self._inject_proxy(kwargs)
         result = endpoint_cls(**kwargs)
         dfs = result.get_data_frames()
         if not dfs:
@@ -45,6 +55,7 @@ class BaseExtractor(ABC):
         self, endpoint_cls: type, **kwargs: Any
     ) -> list[pl.DataFrame]:
         """Call nba_api endpoint returning multiple result sets."""
+        self._inject_proxy(kwargs)
         result = endpoint_cls(**kwargs)
         dfs = result.get_data_frames()
         converted = []

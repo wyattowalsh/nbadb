@@ -61,6 +61,8 @@ class Orchestrator:
     ) -> None:
         self._settings = settings or get_settings()
         self._proxy_pool = build_proxy_pool(self._settings)
+        if self._proxy_pool is None:
+            logger.debug("proxy pool: disabled")
         self._db: DBManager | None = None
         self._journal: PipelineJournal | None = None
 

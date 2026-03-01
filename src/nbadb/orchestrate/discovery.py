@@ -15,6 +15,14 @@ _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
 
 
+def _assign_proxy(extractor: object, proxy_pool: object) -> None:
+    """Assign a proxy URL to an extractor if a pool is available."""
+    if proxy_pool is not None:
+        url = proxy_pool.get_proxy_url()  # type: ignore[union-attr]
+        extractor._proxy_url = url  # type: ignore[attr-defined]
+        logger.debug("proxy assigned: {}", url)
+
+
 async def _extract_with_retry(
     extractor: object,
     label: str,
@@ -46,7 +54,7 @@ async def _extract_with_retry(
                     "{}: all {} attempts failed: {}",
                     label,
                     _RETRY_ATTEMPTS,
-                    exc,
+                    type(exc).__name__,
                 )
                 raise
     return pl.DataFrame()  # unreachable, satisfies type checker
@@ -80,10 +88,7 @@ class EntityDiscovery:
         for season in seasons:
             logger.info("discovering game IDs for season {}", season)
             try:
-                if self._proxy_pool is not None:
-                    extractor._proxy_url = (
-                        self._proxy_pool.get_proxy_url()
-                    )
+                _assign_proxy(extractor, self._proxy_pool)
                 df = await _extract_with_retry(
                     extractor,
                     f"league_game_log({season})",
@@ -125,8 +130,7 @@ class EntityDiscovery:
 
         kwargs = {"season": season} if season else {}
         try:
-            if self._proxy_pool is not None:
-                extractor._proxy_url = self._proxy_pool.get_proxy_url()
+            _assign_proxy(extractor, self._proxy_pool)
             df = await _extract_with_retry(
                 extractor,
                 "common_all_players",
@@ -158,8 +162,7 @@ class EntityDiscovery:
         extractor = extractor_cls()
 
         try:
-            if self._proxy_pool is not None:
-                extractor._proxy_url = self._proxy_pool.get_proxy_url()
+            _assign_proxy(extractor, self._proxy_pool)
             df = await _extract_with_retry(
                 extractor,
                 "common_team_years",

@@ -141,3 +141,16 @@ class DBManager:
 
     def __exit__(self, *exc: object) -> None:
         self.close()
+
+
+def get_user_tables(conn: object) -> list[str]:
+    """Return sorted list of user-created table names in the main schema.
+
+    Excludes internal pipeline tables (prefixed with underscore).
+    """
+    rows = conn.execute(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'main' "
+        "AND table_name NOT LIKE '\\_%' ESCAPE '\\'"
+    ).fetchall()
+    return sorted(row[0] for row in rows)

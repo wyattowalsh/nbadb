@@ -28,6 +28,13 @@ class TestGetProxyUrl:
         pool = ProxyPool(mock_whirl)
         assert pool.get_proxy_url() is None
 
+    def test_unexpected_exception_returns_none(self) -> None:
+        """Broad except Exception handler returns None, not crash."""
+        mock_whirl = MagicMock()
+        mock_whirl._select_proxy_with_circuit_breaker.side_effect = RuntimeError("internal error")
+        pool = ProxyPool(mock_whirl)
+        assert pool.get_proxy_url() is None
+
     def test_rotates_on_successive_calls(self) -> None:
         mock_whirl = MagicMock()
         proxy_a = MagicMock()

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     import polars as pl
 
     from nbadb.core.config import NbaDbSettings
+    from nbadb.core.proxy import ProxyPool
     from nbadb.extract.registry import EndpointRegistry
     from nbadb.orchestrate.journal import PipelineJournal
 
@@ -47,10 +48,12 @@ class ExtractorRunner:
         registry: EndpointRegistry,
         settings: NbaDbSettings,
         journal: PipelineJournal,
+        proxy_pool: ProxyPool | None = None,
     ) -> None:
         self._registry = registry
         self._settings = settings
         self._journal = journal
+        self._proxy_pool = proxy_pool
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         # Cache for multi-endpoint results: (endpoint, params_json) -> DFs
         self._multi_cache: dict[
@@ -139,7 +142,8 @@ class ExtractorRunner:
             for result in results:
                 if isinstance(result, Exception):
                     logger.error(
-                        "extraction task failed: {}", result
+                        "extraction task failed: {}",
+                        type(result).__name__,
                     )
                     continue
                 if result is None:
@@ -169,12 +173,27 @@ class ExtractorRunner:
     def _get_semaphore(self, category: str) -> asyncio.Semaphore:
         """Lazily create a semaphore for the given category."""
         if category not in self._semaphores:
-            limit = self._settings.semaphore_tiers.get(
+            base_limit = self._settings.semaphore_tiers.get(
                 category,
                 self._settings.semaphore_tiers.get("default", 10),
             )
+            if self._proxy_pool is not None:
+                limit = max(
+                    1,
+                    int(
+                        base_limit
+                        * self._settings.proxy_semaphore_multiplier
+                    ),
+                )
+            else:
+                limit = base_limit
             self._semaphores[category] = asyncio.Semaphore(limit)
         return self._semaphores[category]
+
+    def _prepare_extractor(self, extractor: object) -> None:
+        """Set proxy URL on an extractor instance before extraction."""
+        if self._proxy_pool is not None:
+            extractor._proxy_url = self._proxy_pool.get_proxy_url()
 
     async def _extract_single(
         self,
@@ -205,6 +224,7 @@ class ExtractorRunner:
             return None
 
         extractor = extractor_cls()
+        self._prepare_extractor(extractor)
         sem = self._get_semaphore(extractor.category)
 
         self._journal.record_start(entry.endpoint_name, params_json)
@@ -229,7 +249,7 @@ class ExtractorRunner:
                 "extract failed: {} [{}] -> {}",
                 entry.endpoint_name,
                 params_json,
-                exc,
+                type(exc).__name__,
             )
             return None
 
@@ -287,6 +307,7 @@ class ExtractorRunner:
                 return None
 
             extractor = extractor_cls()
+            self._prepare_extractor(extractor)
             sem = self._get_semaphore(extractor.category)
 
             self._journal.record_start(endpoint_name, params_json)
@@ -311,7 +332,7 @@ class ExtractorRunner:
                     "multi-extract failed: {} [{}] -> {}",
                     endpoint_name,
                     params_json,
-                    exc,
+                    type(exc).__name__,
                 )
                 return None
 

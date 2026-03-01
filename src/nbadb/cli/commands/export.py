@@ -31,21 +31,15 @@ def export(
         raise typer.Exit(1) from exc
 
     try:
-        tables = [
-            row[0]
-            for row in conn.execute(
-                "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema = 'main' "
-                "AND table_name NOT LIKE '\\_%' ESCAPE '\\'"
-            ).fetchall()
-        ]
+        from nbadb.core.db import get_user_tables
+        tables = get_user_tables(conn)
         if not tables:
             typer.echo("No tables found to export.")
             raise typer.Exit(1)
 
         loader = create_multi_loader(settings, duckdb_conn=conn)
         exported = 0
-        for table in sorted(tables):
+        for table in tables:
             try:
                 df = conn.execute(
                     f"SELECT * FROM {table}"  # noqa: S608
