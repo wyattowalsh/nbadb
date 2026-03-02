@@ -214,3 +214,41 @@ class TestSchemaCommand:
             result = runner.invoke(app, ["schema"])
         assert result.exit_code == 0
         assert "Total: 0 tables" in result.output
+
+
+# ---------------------------------------------------------------------------
+# migrate command tests
+# ---------------------------------------------------------------------------
+
+_DB_MANAGER_PATH = "nbadb.core.db.DBManager"
+
+
+class TestMigrateCommand:
+    def test_migrate_runs_successfully(self, tmp_path: object) -> None:
+        """migrate calls DBManager.init() and exits 0."""
+        mock_db = MagicMock()
+        with patch(_DB_MANAGER_PATH, return_value=mock_db):
+            result = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        mock_db.init.assert_called_once()
+        mock_db.close.assert_called_once()
+        assert "Migration complete" in result.output
+
+    def test_migrate_failure_exits_nonzero(self, tmp_path: object) -> None:
+        """When DBManager.init() raises, exit 1 with error output."""
+        mock_db = MagicMock()
+        mock_db.init.side_effect = RuntimeError("disk full")
+        with patch(_DB_MANAGER_PATH, return_value=mock_db):
+            result = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 1
+        assert "Migration failed" in result.output or "RuntimeError" in result.output
+
+    def test_migrate_idempotent(self, tmp_path: object) -> None:
+        """Calling migrate twice on the same db does not raise (init is idempotent)."""
+        mock_db = MagicMock()
+        with patch(_DB_MANAGER_PATH, return_value=mock_db):
+            result1 = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
+            result2 = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
+        assert result1.exit_code == 0, result1.output
+        assert result2.exit_code == 0, result2.output
+        assert mock_db.init.call_count == 2

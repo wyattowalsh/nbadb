@@ -62,7 +62,7 @@ class QueryAgent:
         self._guard = ReadOnlyGuard()
         self._context = SchemaContext(duckdb_path)
 
-    def ask(self, question: str) -> str:
+    def ask(self, question: str, limit: int = 10) -> str:
         sql = self._match_pattern(question)
         if sql is None:
             schema_info = self._context.build_prompt_context()
@@ -74,7 +74,7 @@ class QueryAgent:
         error = self._guard.validate(sql)
         if error:
             return f"Query blocked: {error}"
-        sql = self._guard.wrap_with_limit(sql)
+        sql = self._guard.wrap_with_limit(sql, max_rows=limit)
         return self._execute(sql)
 
     def _match_pattern(self, question: str) -> str | None:

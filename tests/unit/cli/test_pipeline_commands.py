@@ -1,10 +1,15 @@
-"""Unit tests for NBA pipeline CLI commands (init, daily, monthly, full)."""
+"""Unit tests for NBA pipeline CLI commands (init, daily, monthly, full, run-quality)."""
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import duckdb
 from typer.testing import CliRunner
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from nbadb.cli.app import app
 from nbadb.orchestrate.orchestrator import PipelineResult
@@ -163,3 +168,49 @@ def test_full_data_dir_option() -> None:
         mock_cls.return_value.run_full = AsyncMock(return_value=_make_result())
         result = runner.invoke(app, ["full", "--data-dir", "/tmp/testdata"])
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# run-quality
+# ---------------------------------------------------------------------------
+
+_MONITOR_PATH = "nbadb.transform.quality.DataQualityMonitor"
+_DUCKDB_CONNECT_PATH = "nbadb.cli.commands.run_quality.duckdb"
+
+
+class TestRunQualityCommand:
+    def test_run_quality_invokes_monitor(self, tmp_path: Path) -> None:
+        """DataQualityMonitor is instantiated with the DuckDB connection, exit 0."""
+        db_file = tmp_path / "nba.duckdb"
+        real_conn = duckdb.connect(str(db_file))
+        real_conn.close()
+
+        mock_monitor = MagicMock()
+        mock_monitor.summary.return_value = {"passed": 0, "total": 0, "failed": 0}
+        mock_monitor.failed.return_value = []
+
+        with patch(_MONITOR_PATH, return_value=mock_monitor) as mock_cls:
+            result = runner.invoke(app, ["run-quality", "--data-dir", str(tmp_path)])
+
+        assert result.exit_code == 0, result.output
+        mock_cls.assert_called_once()
+        mock_monitor.log_summary.assert_called_once()
+
+    def test_run_quality_no_database(self, tmp_path: Path) -> None:
+        """When the DuckDB file does not exist, exit 1 with error message."""
+        missing_dir = tmp_path / "nonexistent_xyz"
+        result = runner.invoke(app, ["run-quality", "--data-dir", str(missing_dir)])
+        assert result.exit_code == 1
+        assert "Error" in result.output or "not found" in result.output
+
+    def test_run_quality_handles_monitor_failure(self, tmp_path: Path) -> None:
+        """When DataQualityMonitor raises, error appears in output, exit 1."""
+        db_file = tmp_path / "nba.duckdb"
+        real_conn = duckdb.connect(str(db_file))
+        real_conn.close()
+
+        with patch(_MONITOR_PATH, side_effect=RuntimeError("monitor exploded")):
+            result = runner.invoke(app, ["run-quality", "--data-dir", str(tmp_path)])
+
+        assert result.exit_code == 1
+        assert "Quality check failed" in result.output or "RuntimeError" in result.output

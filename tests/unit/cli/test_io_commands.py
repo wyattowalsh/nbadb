@@ -149,3 +149,51 @@ def test_ask_no_duckdb_path() -> None:
         result = runner.invoke(app, ["ask", "What is the answer?"])
 
     assert result.exit_code == 1
+
+
+def test_ask_handles_empty_result() -> None:
+    """When QueryAgent.ask returns empty string, output contains '(no results)'."""
+    mock_settings = MagicMock()
+    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        mock_agent_cls.return_value.ask.return_value = ""
+        result = runner.invoke(app, ["ask", "Who scored the most?"])
+
+    assert result.exit_code == 0, result.output
+    assert "(no results)" in result.output
+
+
+def test_ask_passes_limit_flag() -> None:
+    """--limit 20 is forwarded to QueryAgent.ask as the limit argument."""
+    mock_settings = MagicMock()
+    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        mock_agent_cls.return_value.ask.return_value = "some result"
+        result = runner.invoke(app, ["ask", "--limit", "20", "Who scored the most?"])
+
+    assert result.exit_code == 0, result.output
+    mock_agent_cls.return_value.ask.assert_called_once_with("Who scored the most?", limit=20)
+
+
+def test_ask_with_results_prints_output() -> None:
+    """Non-empty QueryAgent response produces non-empty stdout."""
+    mock_settings = MagicMock()
+    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        mock_agent_cls.return_value.ask.return_value = "player_id | full_name\n1 | LeBron"
+        result = runner.invoke(app, ["ask", "Most points?"])
+
+    assert result.exit_code == 0, result.output
+    assert "LeBron" in result.output

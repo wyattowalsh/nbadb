@@ -8,6 +8,7 @@ from nbadb.cli.app import app
 @app.command()
 def ask(
     question: str = typer.Argument(..., help="Natural language question"),
+    limit: int = typer.Option(10, "--limit", "-l", help="Maximum rows to return"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Ask a question about the NBA data."""
@@ -20,5 +21,8 @@ def ask(
         typer.echo("Error: duckdb_path not configured")
         raise typer.Exit(1)
     agent = QueryAgent(duckdb_path=duckdb_path)
-    result = agent.ask(question)
-    typer.echo(result)
+    result = agent.ask(question, limit=limit)
+    if not result:
+        typer.echo("(no results)")
+    else:
+        typer.echo(result)
