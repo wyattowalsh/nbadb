@@ -3,14 +3,11 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING
 
+import duckdb
 from loguru import logger
 
 from nbadb.core.types import validate_sql_identifier
-
-if TYPE_CHECKING:
-    import duckdb
 
 
 class CheckLayer(StrEnum):
@@ -262,8 +259,8 @@ class DataQualityMonitor:
                 diff = diff_row[0]
                 if diff and diff > tolerance:
                     mismatches.append(f"{col}: diff={diff:.4f}")
-            except Exception as e:
-                mismatches.append(f"{col}: error={e}")
+            except (duckdb.Error, AssertionError) as e:
+                mismatches.append(f"{col}: error={type(e).__name__}")
         passed = len(mismatches) == 0
         result = QualityResult(
             table=our_table,

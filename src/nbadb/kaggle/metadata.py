@@ -18,10 +18,7 @@ def generate_metadata(output_path: Path) -> None:
         "id": settings.kaggle_dataset,
         "id_no": None,
         "title": "Basketball",
-        "subtitle": (
-            "Comprehensive NBA database: 131 endpoints, "
-            "star schema, 58 tables"
-        ),
+        "subtitle": ("Comprehensive NBA database: 131 endpoints, star schema, 58 tables"),
         "description": (
             "Complete NBA statistical database covering all "
             "available stats.nba.com endpoints. Normalized "
@@ -42,9 +39,7 @@ def generate_metadata(output_path: Path) -> None:
         "data": [],
         "resources": _build_resources(),
     }
-    output_path.write_text(
-        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
-    )
+    output_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     logger.info(f"Generated metadata at {output_path}")
 
 
@@ -53,11 +48,19 @@ def _build_resources() -> list[dict]:
     resources: list[dict] = []
     table_categories = {
         "dimensions": [
-            "dim_player", "dim_team", "dim_team_history",
-            "dim_game", "dim_season", "dim_date",
-            "dim_official", "dim_coach", "dim_arena",
-            "dim_season_phase", "dim_shot_zone",
-            "dim_play_event_type", "dim_college",
+            "dim_player",
+            "dim_team",
+            "dim_team_history",
+            "dim_game",
+            "dim_season",
+            "dim_date",
+            "dim_official",
+            "dim_coach",
+            "dim_arena",
+            "dim_season_phase",
+            "dim_shot_zone",
+            "dim_play_event_type",
+            "dim_college",
         ],
         "facts": [
             "fact_player_game_traditional",
@@ -79,14 +82,15 @@ def _build_resources() -> list[dict]:
             "fact_synergy_play_type",
             "fact_tracking_defense",
             "fact_player_awards",
-            "fact_estimated_metrics",
+            "fact_player_estimated_metrics",
+            "fact_team_estimated_metrics",
             "bridge_game_official",
             "bridge_play_player",
         ],
         "derived": [
             "agg_player_season",
             "agg_player_season_per36",
-            "agg_player_season_per100",
+            "agg_player_season_per48",
             "agg_player_rolling",
             "agg_team_season",
             "agg_team_pace_and_efficiency",
@@ -109,8 +113,10 @@ def _build_resources() -> list[dict]:
     }
     for category, tables in table_categories.items():
         for table in tables:
-            resources.append({
-                "path": f"csv/{table}.csv",
-                "description": f"{table} ({category})",
-            })
+            resources.append(
+                {
+                    "path": f"csv/{table}.csv",
+                    "description": f"{table} ({category})",
+                }
+            )
     return resources

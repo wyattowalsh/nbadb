@@ -6,4 +6,4 @@ import pandera.polars as pa
 class BaseSchema(pa.DataFrameModel):
     class Config:
         coerce = True
-        strict = False
+        strict = True

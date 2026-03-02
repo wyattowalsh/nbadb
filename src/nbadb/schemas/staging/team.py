@@ -9,9 +9,7 @@ class StagingCommonTeamYearsSchema(BaseSchema):
     league_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "CommonTeamYears.TeamYears.LEAGUE_ID"
-            ),
+            "source": ("CommonTeamYears.TeamYears.LEAGUE_ID"),
             "description": "League identifier",
         },
     )
@@ -19,41 +17,28 @@ class StagingCommonTeamYearsSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "CommonTeamYears.TeamYears.TEAM_ID"
-            ),
+            "source": ("CommonTeamYears.TeamYears.TEAM_ID"),
             "description": "Unique team identifier",
         },
     )
     min_year: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "CommonTeamYears.TeamYears.MIN_YEAR"
-            ),
-            "description": (
-                "First year of team activity"
-            ),
+            "source": ("CommonTeamYears.TeamYears.MIN_YEAR"),
+            "description": ("First year of team activity"),
         },
     )
     max_year: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "CommonTeamYears.TeamYears.MAX_YEAR"
-            ),
-            "description": (
-                "Last year of team activity"
-            ),
+            "source": ("CommonTeamYears.TeamYears.MAX_YEAR"),
+            "description": ("Last year of team activity"),
         },
     )
     abbreviation: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "CommonTeamYears.TeamYears"
-                ".ABBREVIATION"
-            ),
+            "source": ("CommonTeamYears.TeamYears.ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
@@ -64,90 +49,63 @@ class StagingTeamInfoCommonSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_ID"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_ID"),
             "description": "Unique team identifier",
         },
     )
     season_year: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".SEASON_YEAR"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.SEASON_YEAR"),
             "description": "Season year string",
         },
     )
     team_city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_CITY"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_CITY"),
             "description": "Team city name",
         },
     )
     team_name: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_NAME"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_NAME"),
             "description": "Team name",
         },
     )
     team_abbreviation: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_ABBREVIATION"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
     team_conference: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_CONFERENCE"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_CONFERENCE"),
             "description": "Conference name",
         },
     )
     team_division: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_DIVISION"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_DIVISION"),
             "description": "Division name",
         },
     )
     team_code: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_CODE"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_CODE"),
             "description": "Team code slug",
         },
     )
     team_slug: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".TEAM_SLUG"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.TEAM_SLUG"),
             "description": "URL-friendly team slug",
         },
     )
@@ -155,9 +113,7 @@ class StagingTeamInfoCommonSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon.W"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.W"),
             "description": "Wins",
         },
     )
@@ -165,9 +121,7 @@ class StagingTeamInfoCommonSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon.L"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.L"),
             "description": "Losses",
         },
     )
@@ -176,9 +130,7 @@ class StagingTeamInfoCommonSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon.PCT"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.PCT"),
             "description": "Win percentage",
         },
     )
@@ -186,10 +138,7 @@ class StagingTeamInfoCommonSchema(BaseSchema):
         nullable=True,
         gt=0,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".CONF_RANK"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.CONF_RANK"),
             "description": "Conference ranking",
         },
     )
@@ -197,35 +146,22 @@ class StagingTeamInfoCommonSchema(BaseSchema):
         nullable=True,
         gt=0,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".DIV_RANK"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.DIV_RANK"),
             "description": "Division ranking",
         },
     )
     min_year: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".MIN_YEAR"
-            ),
-            "description": (
-                "First year of team activity"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.MIN_YEAR"),
+            "description": ("First year of team activity"),
         },
     )
     max_year: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamInfoCommon.TeamInfoCommon"
-                ".MAX_YEAR"
-            ),
-            "description": (
-                "Last year of team activity"
-            ),
+            "source": ("TeamInfoCommon.TeamInfoCommon.MAX_YEAR"),
+            "description": ("Last year of team activity"),
         },
     )
 
@@ -235,28 +171,21 @@ class StagingTeamDetailsSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground.TEAM_ID"
-            ),
+            "source": ("TeamDetails.TeamBackground.TEAM_ID"),
             "description": "Unique team identifier",
         },
     )
     abbreviation: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground"
-                ".ABBREVIATION"
-            ),
+            "source": ("TeamDetails.TeamBackground.ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
     nickname: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground.NICKNAME"
-            ),
+            "source": ("TeamDetails.TeamBackground.NICKNAME"),
             "description": "Team nickname",
         },
     )
@@ -264,30 +193,21 @@ class StagingTeamDetailsSchema(BaseSchema):
         nullable=True,
         gt=1900,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground"
-                ".YEARFOUNDED"
-            ),
-            "description": (
-                "Year the team was founded"
-            ),
+            "source": ("TeamDetails.TeamBackground.YEARFOUNDED"),
+            "description": ("Year the team was founded"),
         },
     )
     city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground.CITY"
-            ),
+            "source": ("TeamDetails.TeamBackground.CITY"),
             "description": "Team city name",
         },
     )
     arena: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground.ARENA"
-            ),
+            "source": ("TeamDetails.TeamBackground.ARENA"),
             "description": "Home arena name",
         },
     )
@@ -295,51 +215,35 @@ class StagingTeamDetailsSchema(BaseSchema):
         nullable=True,
         gt=0,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground"
-                ".ARENACAPACITY"
-            ),
+            "source": ("TeamDetails.TeamBackground.ARENACAPACITY"),
             "description": "Arena seating capacity",
         },
     )
     owner: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground.OWNER"
-            ),
+            "source": ("TeamDetails.TeamBackground.OWNER"),
             "description": "Team owner name",
         },
     )
     generalmanager: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground"
-                ".GENERALMANAGER"
-            ),
+            "source": ("TeamDetails.TeamBackground.GENERALMANAGER"),
             "description": "General manager name",
         },
     )
     headcoach: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground"
-                ".HEADCOACH"
-            ),
+            "source": ("TeamDetails.TeamBackground.HEADCOACH"),
             "description": "Head coach name",
         },
     )
     dleagueaffiliation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamDetails.TeamBackground"
-                ".DLEAGUEAFFILIATION"
-            ),
-            "description": (
-                "G-League affiliate team name"
-            ),
+            "source": ("TeamDetails.TeamBackground.DLEAGUEAFFILIATION"),
+            "description": ("G-League affiliate team name"),
         },
     )

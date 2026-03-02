@@ -40,8 +40,5 @@ def validate_row_counts(
         if exp > 0:
             diff_pct = abs(act - exp) / exp
             if diff_pct > tolerance:
-                warnings.append(
-                    f"{table}: expected ~{exp:,}, "
-                    f"got {act:,} ({diff_pct:.1%} diff)"
-                )
+                warnings.append(f"{table}: expected ~{exp:,}, got {act:,} ({diff_pct:.1%} diff)")
     return warnings

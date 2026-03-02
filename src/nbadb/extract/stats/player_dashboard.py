@@ -136,3 +136,108 @@ class PlayerDashboardGeneralSplitsExtractor(BaseExtractor):
             season=season,
             season_type_all_star=season_type,
         )
+
+
+# ── Aliased extractors with canonical short endpoint_names ───────────────────
+
+
+@registry.register
+class PlayerDashGameSplitsExtractor(BaseExtractor):
+    endpoint_name = "player_dash_game_splits"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "2024-25")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerDashboardByGameSplits,
+            player_id=player_id,
+            season=season,
+            season_type_playoffs=season_type,
+        )
+
+
+@registry.register
+class PlayerDashGeneralSplitsExtractor(BaseExtractor):
+    endpoint_name = "player_dash_general_splits"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "2024-25")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerDashboardByGeneralSplits,
+            player_id=player_id,
+            season=season,
+            season_type_playoffs=season_type,
+        )
+
+
+@registry.register
+class PlayerDashLastNGamesExtractor(BaseExtractor):
+    endpoint_name = "player_dash_last_n_games"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "2024-25")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerDashboardByLastNGames,
+            player_id=player_id,
+            season=season,
+            season_type_playoffs=season_type,
+        )
+
+
+@registry.register
+class PlayerDashShootingSplitsExtractor(BaseExtractor):
+    endpoint_name = "player_dash_shooting_splits"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "2024-25")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerDashboardByShootingSplits,
+            player_id=player_id,
+            season=season,
+            season_type_playoffs=season_type,
+        )
+
+
+@registry.register
+class PlayerDashTeamPerfExtractor(BaseExtractor):
+    endpoint_name = "player_dash_team_perf"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "2024-25")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerDashboardByTeamPerformance,
+            player_id=player_id,
+            season=season,
+            season_type_playoffs=season_type,
+        )
+
+
+@registry.register
+class PlayerDashYoyExtractor(BaseExtractor):
+    endpoint_name = "player_dash_yoy"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "2024-25")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerDashboardByYearOverYear,
+            player_id=player_id,
+            season=season,
+            season_type_playoffs=season_type,
+        )

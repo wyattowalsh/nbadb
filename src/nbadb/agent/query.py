@@ -4,6 +4,7 @@ import re
 from typing import TYPE_CHECKING
 
 import duckdb
+from loguru import logger
 
 from nbadb.agent.context import SchemaContext
 from nbadb.agent.safety import QUERY_TIMEOUT_SECONDS, ReadOnlyGuard
@@ -50,8 +51,7 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(r"how\s+many\s+(?:games|records)", re.IGNORECASE),
-        "SELECT table_name, row_count FROM _pipeline_metadata "
-        "ORDER BY row_count DESC",
+        "SELECT table_name, row_count FROM _pipeline_metadata ORDER BY row_count DESC",
     ),
 ]
 
@@ -86,9 +86,7 @@ class QueryAgent:
     def _execute(self, sql: str) -> str:
         try:
             with duckdb.connect(str(self._path), read_only=True) as conn:
-                conn.execute(
-                    f"SET statement_timeout='{int(QUERY_TIMEOUT_SECONDS)}s'"
-                )
+                conn.execute(f"SET statement_timeout='{int(QUERY_TIMEOUT_SECONDS)}s'")
                 result = conn.execute(sql)
                 columns = [desc[0] for desc in result.description]
                 rows = result.fetchall()
@@ -101,4 +99,5 @@ class QueryAgent:
                     lines.append(" | ".join(str(v) for v in row))
                 return "\n".join(lines)
         except duckdb.Error as exc:
-            return f"Query error: {exc}"
+            logger.error("query execution failed: {}", type(exc).__name__)
+            return "Query execution failed. Please try a different question."

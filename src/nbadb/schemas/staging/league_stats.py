@@ -9,10 +9,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
     player_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PLAYER_ID"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PLAYER_ID"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -20,20 +17,14 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
     player_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PLAYER_NAME"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.TEAM_ID"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -41,11 +32,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
     team_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats"
-                ".TEAM_ABBREVIATION"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.TEAM_ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
@@ -53,10 +40,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.AGE"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.AGE"),
             "description": "Player age",
         },
     )
@@ -64,10 +48,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.GP"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.GP"),
             "description": "Games played",
         },
     )
@@ -75,10 +56,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.W"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.W"),
             "description": "Wins",
         },
     )
@@ -86,10 +64,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.L"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.L"),
             "description": "Losses",
         },
     )
@@ -98,10 +73,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.W_PCT"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.W_PCT"),
             "description": "Win percentage",
         },
     )
@@ -109,10 +81,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.MIN"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.MIN"),
             "description": "Minutes played",
         },
     )
@@ -120,10 +89,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FGM"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FGM"),
             "description": "Field goals made",
         },
     )
@@ -131,10 +97,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FGA"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FGA"),
             "description": "Field goals attempted",
         },
     )
@@ -143,10 +106,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FG_PCT"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG_PCT"),
             "description": "Field goal percentage",
         },
     )
@@ -154,10 +114,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FG3M"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG3M"),
             "description": "Three-point field goals made",
         },
     )
@@ -165,13 +122,8 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FG3A"
-            ),
-            "description": (
-                "Three-point field goals attempted"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG3A"),
+            "description": ("Three-point field goals attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
@@ -179,23 +131,15 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FG3_PCT"
-            ),
-            "description": (
-                "Three-point field goal percentage"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG3_PCT"),
+            "description": ("Three-point field goal percentage"),
         },
     )
     ftm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FTM"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FTM"),
             "description": "Free throws made",
         },
     )
@@ -203,10 +147,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FTA"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FTA"),
             "description": "Free throws attempted",
         },
     )
@@ -215,10 +156,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FT_PCT"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FT_PCT"),
             "description": "Free throw percentage",
         },
     )
@@ -226,10 +164,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.OREB"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.OREB"),
             "description": "Offensive rebounds",
         },
     )
@@ -237,10 +172,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.DREB"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.DREB"),
             "description": "Defensive rebounds",
         },
     )
@@ -248,10 +180,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.REB"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.REB"),
             "description": "Total rebounds",
         },
     )
@@ -259,10 +188,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.AST"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.AST"),
             "description": "Assists",
         },
     )
@@ -270,10 +196,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.TOV"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.TOV"),
             "description": "Turnovers",
         },
     )
@@ -281,10 +204,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.STL"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.STL"),
             "description": "Steals",
         },
     )
@@ -292,10 +212,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.BLK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.BLK"),
             "description": "Blocks",
         },
     )
@@ -303,10 +220,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.BLKA"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.BLKA"),
             "description": "Blocked attempts",
         },
     )
@@ -314,10 +228,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PF"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PF"),
             "description": "Personal fouls",
         },
     )
@@ -325,10 +236,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PFD"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PFD"),
             "description": "Personal fouls drawn",
         },
     )
@@ -336,31 +244,21 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PTS"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PLUS_MINUS"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PLUS_MINUS"),
             "description": "Plus-minus differential",
         },
     )
     nba_fantasy_pts: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats"
-                ".NBA_FANTASY_PTS"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.NBA_FANTASY_PTS"),
             "description": "NBA fantasy points",
         },
     )
@@ -368,10 +266,7 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.DD2"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.DD2"),
             "description": "Double-doubles",
         },
     )
@@ -379,331 +274,224 @@ class StagingLeagueDashPlayerStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.TD3"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.TD3"),
             "description": "Triple-doubles",
         },
     )
     gp_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.GP_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.GP_RANK"),
             "description": "Games played rank",
         },
     )
     w_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.W_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.W_RANK"),
             "description": "Wins rank",
         },
     )
     l_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.L_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.L_RANK"),
             "description": "Losses rank",
         },
     )
     w_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.W_PCT_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.W_PCT_RANK"),
             "description": "Win percentage rank",
         },
     )
     min_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.MIN_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.MIN_RANK"),
             "description": "Minutes played rank",
         },
     )
     fgm_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FGM_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FGM_RANK"),
             "description": "Field goals made rank",
         },
     )
     fga_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FGA_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FGA_RANK"),
             "description": "Field goals attempted rank",
         },
     )
     fg_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats"
-                ".FG_PCT_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG_PCT_RANK"),
             "description": "Field goal percentage rank",
         },
     )
     fg3m_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FG3M_RANK"
-            ),
-            "description": (
-                "Three-point field goals made rank"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG3M_RANK"),
+            "description": ("Three-point field goals made rank"),
         },
     )
     fg3a_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FG3A_RANK"
-            ),
-            "description": (
-                "Three-point field goals attempted rank"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG3A_RANK"),
+            "description": ("Three-point field goals attempted rank"),
         },
     )
     fg3_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats"
-                ".FG3_PCT_RANK"
-            ),
-            "description": (
-                "Three-point percentage rank"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FG3_PCT_RANK"),
+            "description": ("Three-point percentage rank"),
         },
     )
     ftm_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FTM_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FTM_RANK"),
             "description": "Free throws made rank",
         },
     )
     fta_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.FTA_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FTA_RANK"),
             "description": "Free throws attempted rank",
         },
     )
     ft_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats"
-                ".FT_PCT_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.FT_PCT_RANK"),
             "description": "Free throw percentage rank",
         },
     )
     oreb_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.OREB_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.OREB_RANK"),
             "description": "Offensive rebounds rank",
         },
     )
     dreb_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.DREB_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.DREB_RANK"),
             "description": "Defensive rebounds rank",
         },
     )
     reb_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.REB_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.REB_RANK"),
             "description": "Total rebounds rank",
         },
     )
     ast_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.AST_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.AST_RANK"),
             "description": "Assists rank",
         },
     )
     tov_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.TOV_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.TOV_RANK"),
             "description": "Turnovers rank",
         },
     )
     stl_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.STL_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.STL_RANK"),
             "description": "Steals rank",
         },
     )
     blk_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.BLK_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.BLK_RANK"),
             "description": "Blocks rank",
         },
     )
     blka_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.BLKA_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.BLKA_RANK"),
             "description": "Blocked attempts rank",
         },
     )
     pf_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PF_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PF_RANK"),
             "description": "Personal fouls rank",
         },
     )
     pfd_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PFD_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PFD_RANK"),
             "description": "Personal fouls drawn rank",
         },
     )
     pts_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.PTS_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PTS_RANK"),
             "description": "Points scored rank",
         },
     )
     plus_minus_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats"
-                ".PLUS_MINUS_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.PLUS_MINUS_RANK"),
             "description": "Plus-minus rank",
         },
     )
     nba_fantasy_pts_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats"
-                ".NBA_FANTASY_PTS_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.NBA_FANTASY_PTS_RANK"),
             "description": "NBA fantasy points rank",
         },
     )
     dd2_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.DD2_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.DD2_RANK"),
             "description": "Double-doubles rank",
         },
     )
     td3_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.TD3_RANK"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.TD3_RANK"),
             "description": "Triple-doubles rank",
         },
     )
     cfid: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.CFID"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.CFID"),
             "description": "Custom filter identifier",
         },
     )
     cfparams: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashPlayerStats"
-                ".LeagueDashPlayerStats.CFPARAMS"
-            ),
+            "source": ("LeagueDashPlayerStats.LeagueDashPlayerStats.CFPARAMS"),
             "description": "Custom filter parameters",
         },
     )
@@ -713,10 +501,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.TEAM_ID"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.TEAM_ID"),
             "description": "Unique team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -724,10 +509,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
     team_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.TEAM_NAME"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.TEAM_NAME"),
             "description": "Team name",
         },
     )
@@ -735,10 +517,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.GP"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.GP"),
             "description": "Games played",
         },
     )
@@ -746,10 +525,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.W"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.W"),
             "description": "Wins",
         },
     )
@@ -757,10 +533,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.L"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.L"),
             "description": "Losses",
         },
     )
@@ -769,10 +542,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.W_PCT"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.W_PCT"),
             "description": "Win percentage",
         },
     )
@@ -780,10 +550,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.MIN"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.MIN"),
             "description": "Minutes played",
         },
     )
@@ -791,10 +558,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FGM"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FGM"),
             "description": "Field goals made",
         },
     )
@@ -802,10 +566,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FGA"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FGA"),
             "description": "Field goals attempted",
         },
     )
@@ -814,10 +575,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FG_PCT"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG_PCT"),
             "description": "Field goal percentage",
         },
     )
@@ -825,26 +583,16 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FG3M"
-            ),
-            "description": (
-                "Three-point field goals made"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG3M"),
+            "description": ("Three-point field goals made"),
         },
     )
     fg3a: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FG3A"
-            ),
-            "description": (
-                "Three-point field goals attempted"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG3A"),
+            "description": ("Three-point field goals attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
@@ -852,23 +600,15 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FG3_PCT"
-            ),
-            "description": (
-                "Three-point field goal percentage"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG3_PCT"),
+            "description": ("Three-point field goal percentage"),
         },
     )
     ftm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FTM"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FTM"),
             "description": "Free throws made",
         },
     )
@@ -876,10 +616,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FTA"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FTA"),
             "description": "Free throws attempted",
         },
     )
@@ -888,10 +625,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FT_PCT"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FT_PCT"),
             "description": "Free throw percentage",
         },
     )
@@ -899,10 +633,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.OREB"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.OREB"),
             "description": "Offensive rebounds",
         },
     )
@@ -910,10 +641,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.DREB"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.DREB"),
             "description": "Defensive rebounds",
         },
     )
@@ -921,10 +649,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.REB"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.REB"),
             "description": "Total rebounds",
         },
     )
@@ -932,10 +657,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.AST"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.AST"),
             "description": "Assists",
         },
     )
@@ -943,10 +665,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.TOV"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.TOV"),
             "description": "Turnovers",
         },
     )
@@ -954,10 +673,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.STL"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.STL"),
             "description": "Steals",
         },
     )
@@ -965,10 +681,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.BLK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.BLK"),
             "description": "Blocks",
         },
     )
@@ -976,10 +689,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.BLKA"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.BLKA"),
             "description": "Blocked attempts",
         },
     )
@@ -987,10 +697,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.PF"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PF"),
             "description": "Personal fouls",
         },
     )
@@ -998,10 +705,7 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.PFD"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PFD"),
             "description": "Personal fouls drawn",
         },
     )
@@ -1009,318 +713,210 @@ class StagingLeagueDashTeamStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.PTS"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.PLUS_MINUS"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PLUS_MINUS"),
             "description": "Plus-minus differential",
         },
     )
     gp_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.GP_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.GP_RANK"),
             "description": "Games played rank",
         },
     )
     w_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.W_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.W_RANK"),
             "description": "Wins rank",
         },
     )
     l_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.L_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.L_RANK"),
             "description": "Losses rank",
         },
     )
     w_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.W_PCT_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.W_PCT_RANK"),
             "description": "Win percentage rank",
         },
     )
     min_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.MIN_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.MIN_RANK"),
             "description": "Minutes played rank",
         },
     )
     fgm_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FGM_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FGM_RANK"),
             "description": "Field goals made rank",
         },
     )
     fga_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FGA_RANK"
-            ),
-            "description": (
-                "Field goals attempted rank"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FGA_RANK"),
+            "description": ("Field goals attempted rank"),
         },
     )
     fg_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats"
-                ".FG_PCT_RANK"
-            ),
-            "description": (
-                "Field goal percentage rank"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG_PCT_RANK"),
+            "description": ("Field goal percentage rank"),
         },
     )
     fg3m_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FG3M_RANK"
-            ),
-            "description": (
-                "Three-point field goals made rank"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG3M_RANK"),
+            "description": ("Three-point field goals made rank"),
         },
     )
     fg3a_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FG3A_RANK"
-            ),
-            "description": (
-                "Three-point field goals attempted rank"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG3A_RANK"),
+            "description": ("Three-point field goals attempted rank"),
         },
     )
     fg3_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats"
-                ".FG3_PCT_RANK"
-            ),
-            "description": (
-                "Three-point percentage rank"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FG3_PCT_RANK"),
+            "description": ("Three-point percentage rank"),
         },
     )
     ftm_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FTM_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FTM_RANK"),
             "description": "Free throws made rank",
         },
     )
     fta_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.FTA_RANK"
-            ),
-            "description": (
-                "Free throws attempted rank"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FTA_RANK"),
+            "description": ("Free throws attempted rank"),
         },
     )
     ft_pct_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats"
-                ".FT_PCT_RANK"
-            ),
-            "description": (
-                "Free throw percentage rank"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.FT_PCT_RANK"),
+            "description": ("Free throw percentage rank"),
         },
     )
     oreb_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.OREB_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.OREB_RANK"),
             "description": "Offensive rebounds rank",
         },
     )
     dreb_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.DREB_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.DREB_RANK"),
             "description": "Defensive rebounds rank",
         },
     )
     reb_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.REB_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.REB_RANK"),
             "description": "Total rebounds rank",
         },
     )
     ast_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.AST_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.AST_RANK"),
             "description": "Assists rank",
         },
     )
     tov_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.TOV_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.TOV_RANK"),
             "description": "Turnovers rank",
         },
     )
     stl_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.STL_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.STL_RANK"),
             "description": "Steals rank",
         },
     )
     blk_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.BLK_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.BLK_RANK"),
             "description": "Blocks rank",
         },
     )
     blka_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.BLKA_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.BLKA_RANK"),
             "description": "Blocked attempts rank",
         },
     )
     pf_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.PF_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PF_RANK"),
             "description": "Personal fouls rank",
         },
     )
     pfd_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.PFD_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PFD_RANK"),
             "description": "Personal fouls drawn rank",
         },
     )
     pts_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.PTS_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PTS_RANK"),
             "description": "Points scored rank",
         },
     )
     plus_minus_rank: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats"
-                ".PLUS_MINUS_RANK"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.PLUS_MINUS_RANK"),
             "description": "Plus-minus rank",
         },
     )
     cfid: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.CFID"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.CFID"),
             "description": "Custom filter identifier",
         },
     )
     cfparams: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashTeamStats"
-                ".LeagueDashTeamStats.CFPARAMS"
-            ),
+            "source": ("LeagueDashTeamStats.LeagueDashTeamStats.CFPARAMS"),
             "description": "Custom filter parameters",
         },
     )
@@ -1330,30 +926,21 @@ class StagingLeagueLineupVizSchema(BaseSchema):
     group_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.GROUP_ID"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.GROUP_ID"),
             "description": "Lineup group identifier",
         },
     )
     group_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.GROUP_NAME"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.GROUP_NAME"),
             "description": "Lineup player names",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.TEAM_ID"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -1361,10 +948,7 @@ class StagingLeagueLineupVizSchema(BaseSchema):
     team_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.TEAM_ABBREVIATION"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.TEAM_ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
@@ -1372,40 +956,28 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.MIN"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.MIN"),
             "description": "Minutes played",
         },
     )
     off_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.OFF_RATING"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.OFF_RATING"),
             "description": "Offensive rating",
         },
     )
     def_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.DEF_RATING"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.DEF_RATING"),
             "description": "Defensive rating",
         },
     )
     net_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.NET_RATING"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.NET_RATING"),
             "description": "Net rating",
         },
     )
@@ -1413,10 +985,7 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PACE"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PACE"),
             "description": "Pace factor",
         },
     )
@@ -1425,10 +994,7 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.TS_PCT"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.TS_PCT"),
             "description": "True shooting percentage",
         },
     )
@@ -1436,10 +1002,7 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.FTA_RATE"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.FTA_RATE"),
             "description": "Free throw attempt rate",
         },
     )
@@ -1448,10 +1011,7 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.TM_AST_PCT"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.TM_AST_PCT"),
             "description": "Team assist percentage",
         },
     )
@@ -1460,14 +1020,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_FGA_2PT"
-            ),
-            "description": (
-                "Percentage of field goal attempts "
-                "from two-point range"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_FGA_2PT"),
+            "description": ("Percentage of field goal attempts from two-point range"),
         },
     )
     pct_fga_3pt: float | None = pa.Field(
@@ -1475,14 +1029,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_FGA_3PT"
-            ),
-            "description": (
-                "Percentage of field goal attempts "
-                "from three-point range"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_FGA_3PT"),
+            "description": ("Percentage of field goal attempts from three-point range"),
         },
     )
     pct_pts_2pt_mr: float | None = pa.Field(
@@ -1490,14 +1038,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_PTS_2PT_MR"
-            ),
-            "description": (
-                "Percentage of points from "
-                "mid-range two-pointers"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_PTS_2PT_MR"),
+            "description": ("Percentage of points from mid-range two-pointers"),
         },
     )
     pct_pts_fb: float | None = pa.Field(
@@ -1505,13 +1047,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_PTS_FB"
-            ),
-            "description": (
-                "Percentage of points from fast breaks"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_PTS_FB"),
+            "description": ("Percentage of points from fast breaks"),
         },
     )
     pct_pts_ft: float | None = pa.Field(
@@ -1519,13 +1056,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_PTS_FT"
-            ),
-            "description": (
-                "Percentage of points from free throws"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_PTS_FT"),
+            "description": ("Percentage of points from free throws"),
         },
     )
     pct_pts_paint: float | None = pa.Field(
@@ -1533,13 +1065,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_PTS_PAINT"
-            ),
-            "description": (
-                "Percentage of points in the paint"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_PTS_PAINT"),
+            "description": ("Percentage of points in the paint"),
         },
     )
     pct_ast_fgm: float | None = pa.Field(
@@ -1547,13 +1074,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_AST_FGM"
-            ),
-            "description": (
-                "Percentage of assisted field goals"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_AST_FGM"),
+            "description": ("Percentage of assisted field goals"),
         },
     )
     pct_uast_fgm: float | None = pa.Field(
@@ -1561,13 +1083,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.PCT_UAST_FGM"
-            ),
-            "description": (
-                "Percentage of unassisted field goals"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.PCT_UAST_FGM"),
+            "description": ("Percentage of unassisted field goals"),
         },
     )
     opp_fg3_pct: float | None = pa.Field(
@@ -1575,13 +1092,8 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.OPP_FG3_PCT"
-            ),
-            "description": (
-                "Opponent three-point percentage"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.OPP_FG3_PCT"),
+            "description": ("Opponent three-point percentage"),
         },
     )
     opp_efg_pct: float | None = pa.Field(
@@ -1589,26 +1101,16 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.OPP_EFG_PCT"
-            ),
-            "description": (
-                "Opponent effective field goal percentage"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.OPP_EFG_PCT"),
+            "description": ("Opponent effective field goal percentage"),
         },
     )
     opp_fta_rate: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.OPP_FTA_RATE"
-            ),
-            "description": (
-                "Opponent free throw attempt rate"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.OPP_FTA_RATE"),
+            "description": ("Opponent free throw attempt rate"),
         },
     )
     opp_tov_pct: float | None = pa.Field(
@@ -1616,12 +1118,7 @@ class StagingLeagueLineupVizSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueLineupViz"
-                ".LeagueLineupViz.OPP_TOV_PCT"
-            ),
-            "description": (
-                "Opponent turnover percentage"
-            ),
+            "source": ("LeagueLineupViz.LeagueLineupViz.OPP_TOV_PCT"),
+            "description": ("Opponent turnover percentage"),
         },
     )

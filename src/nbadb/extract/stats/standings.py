@@ -26,9 +26,7 @@ class LeagueStandingsExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         logger.debug(f"Extracting standings for {season} ({season_type})")
-        return self._from_nba_api(
-            LeagueStandingsV3, season=season, season_type=season_type
-        )
+        return self._from_nba_api(LeagueStandingsV3, season=season, season_type=season_type)
 
 
 @registry.register

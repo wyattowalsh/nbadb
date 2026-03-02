@@ -106,7 +106,6 @@ from nbadb.extract.stats.misc import (
     CumeStatsTeamExtractor,
     CumeStatsTeamGamesExtractor,
     DunkScoreLeadersExtractor,
-    FantasyWidgetExtractor,
     GLAlumBoxScoreSimilarityScoreExtractor,
     GravityLeadersExtractor,
     LeagueGameFinderExtractor,
@@ -365,13 +364,12 @@ _ALL_EXTRACTORS = [
     (DefenseHubExtractor, "defense_hub", "leaders"),
     (TeamHistoricalLeadersExtractor, "team_historical_leaders", "leaders"),
     (TeamYearByYearStatsExtractor, "team_year_by_year_stats", "leaders"),
-    # misc (10)
+    # misc (9)
     (CumeStatsPlayerExtractor, "cume_stats_player", "misc"),
     (CumeStatsPlayerGamesExtractor, "cume_stats_player_games", "misc"),
     (CumeStatsTeamExtractor, "cume_stats_team", "misc"),
     (CumeStatsTeamGamesExtractor, "cume_stats_team_games", "misc"),
     (LeagueGameFinderExtractor, "league_game_finder", "misc"),
-    (FantasyWidgetExtractor, "fantasy_widget", "misc"),
     (TeamGameStreakFinderExtractor, "team_game_streak_finder", "misc"),
     (GLAlumBoxScoreSimilarityScoreExtractor, "gl_alum_box_score_similarity_score", "misc"),
     (DunkScoreLeadersExtractor, "dunk_score_leaders", "misc"),
@@ -392,13 +390,20 @@ class TestExtractorAttributes:
         assert cls.category == expected_category
 
     def test_is_subclass_of_base(
-        self, cls: type, expected_name: str, expected_category: str,
+        self,
+        cls: type,
+        expected_name: str,
+        expected_category: str,
     ) -> None:
         from nbadb.extract.base import BaseExtractor
+
         assert issubclass(cls, BaseExtractor)
 
     def test_has_extract_method(
-        self, cls: type, expected_name: str, expected_category: str,
+        self,
+        cls: type,
+        expected_name: str,
+        expected_category: str,
     ) -> None:
         assert hasattr(cls, "extract")
         assert callable(cls.extract)
@@ -411,14 +416,12 @@ class TestRegistryContainsAll:
         from nbadb.extract.registry import registry
 
         for cls, name, _ in _ALL_EXTRACTORS:
-            assert registry.get(name) is cls, (
-                f"Registry missing or mismatched: {name}"
-            )
+            assert registry.get(name) is cls, f"Registry missing or mismatched: {name}"
 
-    def test_total_count_at_least_119(self) -> None:
+    def test_total_count_at_least_118(self) -> None:
         from nbadb.extract.registry import registry
 
-        assert registry.count >= 119
+        assert registry.count >= 118
 
 
 class TestCategoryGroupings:
@@ -458,7 +461,7 @@ class TestCategoryGroupings:
         from nbadb.extract.registry import registry
 
         misc = registry.get_by_category("misc")
-        assert len(misc) >= 10
+        assert len(misc) >= 9
 
     def test_game_log_category(self) -> None:
         from nbadb.extract.registry import registry

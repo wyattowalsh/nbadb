@@ -42,10 +42,23 @@ class TestDiscover:
 
     def test_all_categories_present_in_global_registry(self) -> None:
         expected_categories = {
-            "box_score", "play_by_play", "game_log", "player_info",
-            "team_info", "draft", "standings", "shots", "league",
-            "schedule", "rotation", "synergy",
-            "hustle", "tracking", "franchise", "leaders", "misc",
+            "box_score",
+            "play_by_play",
+            "game_log",
+            "player_info",
+            "team_info",
+            "draft",
+            "standings",
+            "shots",
+            "league",
+            "schedule",
+            "rotation",
+            "synergy",
+            "hustle",
+            "tracking",
+            "franchise",
+            "leaders",
+            "misc",
         }
         actual_categories = {cls.category for cls in registry.get_all()}
         assert expected_categories.issubset(actual_categories), (

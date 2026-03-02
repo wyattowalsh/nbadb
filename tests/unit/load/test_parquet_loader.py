@@ -13,10 +13,12 @@ if TYPE_CHECKING:
 class TestParquetLoader:
     def test_writes_single_file(self, tmp_path: Path) -> None:
         loader = ParquetLoader(tmp_path)
-        df = pl.DataFrame({
-            "player_id": [1, 2],
-            "name": ["A", "B"],
-        })
+        df = pl.DataFrame(
+            {
+                "player_id": [1, 2],
+                "name": ["A", "B"],
+            }
+        )
         loader.load("dim_player", df)
         parquet_file = tmp_path / "dim_player" / "dim_player.parquet"
         assert parquet_file.exists()
@@ -26,11 +28,13 @@ class TestParquetLoader:
     def test_partitioned_by_season(self, tmp_path: Path) -> None:
         table = next(iter(PARTITIONED_TABLES))
         loader = ParquetLoader(tmp_path)
-        df = pl.DataFrame({
-            "game_id": ["001", "002", "003"],
-            "season_year": ["2023-24", "2023-24", "2024-25"],
-            "pts": [100, 110, 105],
-        })
+        df = pl.DataFrame(
+            {
+                "game_id": ["001", "002", "003"],
+                "season_year": ["2023-24", "2023-24", "2024-25"],
+                "pts": [100, 110, 105],
+            }
+        )
         loader.load(table, df)
         assert (tmp_path / table / "season_year=2023-24" / "part0.parquet").exists()
         assert (tmp_path / table / "season_year=2024-25" / "part0.parquet").exists()
@@ -38,11 +42,13 @@ class TestParquetLoader:
     def test_partitioned_drops_season_column(self, tmp_path: Path) -> None:
         table = next(iter(PARTITIONED_TABLES))
         loader = ParquetLoader(tmp_path)
-        df = pl.DataFrame({
-            "game_id": ["001"],
-            "season_year": ["2024-25"],
-            "pts": [100],
-        })
+        df = pl.DataFrame(
+            {
+                "game_id": ["001"],
+                "season_year": ["2024-25"],
+                "pts": [100],
+            }
+        )
         loader.load(table, df)
         part_file = tmp_path / table / "season_year=2024-25" / "part0.parquet"
         loaded = pl.read_parquet(part_file)
@@ -51,10 +57,12 @@ class TestParquetLoader:
 
     def test_non_partitioned_table_not_hive_split(self, tmp_path: Path) -> None:
         loader = ParquetLoader(tmp_path)
-        df = pl.DataFrame({
-            "id": [1],
-            "season_year": ["2024-25"],
-        })
+        df = pl.DataFrame(
+            {
+                "id": [1],
+                "season_year": ["2024-25"],
+            }
+        )
         loader.load("small_table", df)
         assert (tmp_path / "small_table" / "small_table.parquet").exists()
         assert not (tmp_path / "small_table" / "season_year=2024-25").exists()

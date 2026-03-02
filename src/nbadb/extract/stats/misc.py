@@ -8,7 +8,6 @@ from nba_api.stats.endpoints import (
     CumeStatsTeam,
     CumeStatsTeamGames,
     DunkScoreLeaders,
-    FantasyWidget,
     GLAlumBoxScoreSimilarityScore,
     GravityLeaders,
     LeagueGameFinder,
@@ -97,21 +96,6 @@ class LeagueGameFinderExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         return self._from_nba_api(LeagueGameFinder, **params)
-
-
-@registry.register
-class FantasyWidgetExtractor(BaseExtractor):
-    endpoint_name = "fantasy_widget"
-    category = "misc"
-
-    async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params["season"]
-        season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            FantasyWidget,
-            season=season,
-            season_type_all_star=season_type,
-        )
 
 
 @registry.register

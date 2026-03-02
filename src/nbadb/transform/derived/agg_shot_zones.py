@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-import duckdb
-
 from nbadb.transform.base import BaseTransformer
 
 if TYPE_CHECKING:
@@ -12,7 +10,7 @@ if TYPE_CHECKING:
 
 class AggShotZonesTransformer(BaseTransformer):
     output_table: ClassVar[str] = "agg_shot_zones"
-    depends_on: ClassVar[list[str]] = ["fact_shot_chart"]
+    depends_on: ClassVar[list[str]] = ["fact_shot_chart", "dim_game"]
 
     _SQL: ClassVar[str] = """
         SELECT
@@ -33,9 +31,4 @@ class AggShotZonesTransformer(BaseTransformer):
     """
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        conn = duckdb.connect()
-        conn.register("fact_shot_chart", staging["fact_shot_chart"].collect())
-        conn.register("dim_game", staging["dim_game"].collect())
-        result = conn.execute(self._SQL).pl()
-        conn.close()
-        return result
+        return self._conn.execute(self._SQL).pl()

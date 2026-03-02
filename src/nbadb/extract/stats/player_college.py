@@ -38,3 +38,19 @@ class PlayerCareerByCollegeRollupExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         return self._from_nba_api(PlayerCareerByCollegeRollup, **params)
+
+
+@registry.register
+class PlayerCollegeRollupExtractor(BaseExtractor):
+    """Alias with canonical short endpoint_name for staging map."""
+
+    endpoint_name = "player_college_rollup"
+    category = "player_info"
+    param_pattern = "static"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerCareerByCollegeRollup,
+            season_type_all_star=season_type,
+        )

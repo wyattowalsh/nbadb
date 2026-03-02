@@ -61,9 +61,9 @@ class DraftCombineDrillResultsExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params["season"]
         return self._from_nba_api(
-            DraftCombineDrillResults, season_all_time=season
+            DraftCombineDrillResults,
+            season_year=int(str(params["season"])[:4]),
         )
 
 
@@ -73,9 +73,9 @@ class DraftCombineNonStationaryShootingExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params["season"]
         return self._from_nba_api(
-            DraftCombineNonStationaryShooting, season_all_time=season
+            DraftCombineNonStationaryShooting,
+            season_year=int(str(params["season"])[:4]),
         )
 
 
@@ -85,9 +85,9 @@ class DraftCombinePlayerAnthroExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params["season"]
         return self._from_nba_api(
-            DraftCombinePlayerAnthro, season_all_time=season
+            DraftCombinePlayerAnthro,
+            season_year=int(str(params["season"])[:4]),
         )
 
 
@@ -97,7 +97,7 @@ class DraftCombineSpotShootingExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params["season"]
         return self._from_nba_api(
-            DraftCombineSpotShooting, season_all_time=season
+            DraftCombineSpotShooting,
+            season_year=int(str(params["season"])[:4]),
         )

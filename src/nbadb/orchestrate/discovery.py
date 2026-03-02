@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from nbadb.orchestrate.extractor_runner import _assign_proxy, _sync_extract
+
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import polars as pl
 
     from nbadb.core.proxy import ProxyPool
@@ -13,14 +18,6 @@ if TYPE_CHECKING:
 
 _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
-
-
-def _assign_proxy(extractor: object, proxy_pool: object) -> None:
-    """Assign a proxy URL to an extractor if a pool is available."""
-    if proxy_pool is not None:
-        url = proxy_pool.get_proxy_url()  # type: ignore[union-attr]
-        extractor._proxy_url = url  # type: ignore[attr-defined]
-        logger.debug("proxy assigned: {}", url)
 
 
 async def _extract_with_retry(
@@ -33,19 +30,17 @@ async def _extract_with_retry(
 
     for attempt in range(1, _RETRY_ATTEMPTS + 1):
         try:
-            df: pl.DataFrame = await asyncio.to_thread(
-                _sync_extract, extractor, **kwargs
-            )
+            df: pl.DataFrame = await asyncio.to_thread(_sync_extract, extractor, **kwargs)
             return df
         except Exception as exc:
             if attempt < _RETRY_ATTEMPTS:
-                delay = _RETRY_DELAY * attempt
+                delay = _RETRY_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
                 logger.warning(
                     "{}: attempt {}/{} failed ({}), retrying in {:.0f}s",
                     label,
                     attempt,
                     _RETRY_ATTEMPTS,
-                    exc,
+                    type(exc).__name__,
                     delay,
                 )
                 await asyncio.sleep(delay)
@@ -71,9 +66,7 @@ class EntityDiscovery:
         self._registry = registry
         self._proxy_pool = proxy_pool
 
-    async def discover_game_ids(
-        self, seasons: list[str]
-    ) -> tuple[list[str], pl.DataFrame]:
+    async def discover_game_ids(self, seasons: list[str]) -> tuple[list[str], pl.DataFrame]:
         """Extract league_game_log for given seasons.
 
         Returns (game_ids, raw_df). The raw_df is also usable as
@@ -100,7 +93,7 @@ class EntityDiscovery:
                 logger.error(
                     "failed to extract game log for {}: {}",
                     season,
-                    exc,
+                    type(exc).__name__,
                 )
 
         if not frames:
@@ -108,12 +101,7 @@ class EntityDiscovery:
             return [], pl.DataFrame()
 
         combined = pl.concat(frames)
-        game_ids = (
-            combined.get_column("game_id")
-            .unique()
-            .sort()
-            .to_list()
-        )
+        game_ids = combined.get_column("game_id").unique().sort().to_list()
         logger.info(
             "discovered {} unique game IDs across {} seasons",
             len(game_ids),
@@ -121,71 +109,77 @@ class EntityDiscovery:
         )
         return game_ids, combined
 
-    async def discover_player_ids(
-        self, season: str | None = None
+    async def _discover_entity_ids(
+        self,
+        endpoint: str,
+        staging_key: str,
+        id_column: str,
+        params: dict,
+        *,
+        filter_fn: Callable[[pl.DataFrame], pl.DataFrame] | None = None,
     ) -> list[int]:
-        """Get active player IDs from common_all_players."""
-        extractor_cls = self._registry.get("common_all_players")
+        """Shared logic for discovering entity IDs from a registry endpoint.
+
+        Args:
+            endpoint: Registry key for the extractor class.
+            staging_key: Label used in logging and retry messages.
+            id_column: Column containing the entity IDs.
+            params: Keyword arguments forwarded to the extractor.
+            filter_fn: Optional post-extraction filter applied before
+                extracting the ID column (e.g. active-player filtering).
+        """
+        extractor_cls = self._registry.get(endpoint)
         extractor = extractor_cls()
 
-        kwargs = {"season": season} if season else {}
         try:
             _assign_proxy(extractor, self._proxy_pool)
-            df = await _extract_with_retry(
-                extractor,
-                "common_all_players",
-                **kwargs,
-            )
+            df = await _extract_with_retry(extractor, staging_key, **params)
         except Exception as exc:
             logger.error(
-                "failed to discover player IDs: {}", exc
+                "failed to discover {} IDs: {}",
+                staging_key,
+                type(exc).__name__,
             )
             return []
 
         if df.is_empty():
-            logger.warning("no player data returned")
+            logger.warning("no {} data returned", staging_key)
             return []
 
-        # Filter to active players when the column exists
-        if "is_active" in df.columns:
-            df = df.filter(df["is_active"] == 1)
+        if filter_fn is not None:
+            df = filter_fn(df)
 
-        player_ids: list[int] = (
-            df.get_column("person_id").unique().sort().to_list()
+        entity_ids: list[int] = df.get_column(id_column).unique().sort().to_list()
+        logger.info("discovered {} {} IDs", len(entity_ids), staging_key)
+        return entity_ids
+
+    async def discover_player_ids(self, season: str | None = None) -> list[int]:
+        """Get active player IDs from common_all_players."""
+
+        def _active_only(df: pl.DataFrame) -> pl.DataFrame:
+            if "is_active" in df.columns:
+                return df.filter(df["is_active"] == 1)
+            return df
+
+        params = {"season": season} if season else {}
+        return await self._discover_entity_ids(
+            endpoint="common_all_players",
+            staging_key="common_all_players",
+            id_column="person_id",
+            params=params,
+            filter_fn=_active_only,
         )
-        logger.info("discovered {} player IDs", len(player_ids))
-        return player_ids
 
     async def discover_team_ids(self) -> list[int]:
         """Get all team IDs from common_team_years."""
-        extractor_cls = self._registry.get("common_team_years")
-        extractor = extractor_cls()
-
-        try:
-            _assign_proxy(extractor, self._proxy_pool)
-            df = await _extract_with_retry(
-                extractor,
-                "common_team_years",
-            )
-        except Exception as exc:
-            logger.error(
-                "failed to discover team IDs: {}", exc
-            )
-            return []
-
-        if df.is_empty():
-            logger.warning("no team data returned")
-            return []
-
-        team_ids: list[int] = (
-            df.get_column("team_id").unique().sort().to_list()
+        return await self._discover_entity_ids(
+            endpoint="common_team_years",
+            staging_key="common_team_years",
+            id_column="team_id",
+            params={},
         )
-        logger.info("discovered {} team IDs", len(team_ids))
-        return team_ids
 
-    async def discover_game_dates(
-        self, game_log_df: pl.DataFrame
-    ) -> list[str]:
+    async def discover_game_dates(self, game_log_df: pl.DataFrame) -> list[str]:
         """Extract unique game dates from an already-fetched game log."""
         import polars as pl
 
@@ -193,20 +187,7 @@ class EntityDiscovery:
             return []
 
         dates: list[str] = (
-            game_log_df.get_column("game_date")
-            .cast(pl.Utf8)
-            .unique()
-            .sort()
-            .to_list()
+            game_log_df.get_column("game_date").cast(pl.Utf8).unique().sort().to_list()
         )
         logger.info("discovered {} unique game dates", len(dates))
         return dates
-
-
-def _sync_extract(
-    extractor: object, **kwargs: object
-) -> pl.DataFrame:
-    """Call extractor.extract() synchronously (for asyncio.to_thread)."""
-    import asyncio
-
-    return asyncio.run(extractor.extract(**kwargs))  # type: ignore[union-attr]

@@ -9,30 +9,21 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
     game_date: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_DATE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_DATE"),
             "description": "Date of the game",
         },
     )
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_ID"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     game_code: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_CODE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_CODE"),
             "description": "Game code string",
         },
     )
@@ -40,106 +31,70 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
         nullable=True,
         isin=[1, 2, 3],
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_STATUS"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_STATUS"),
             "description": "Game status code",
         },
     )
     game_status_text: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_STATUS_TEXT"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_STATUS_TEXT"),
             "description": "Game status display text",
         },
     )
     game_sequence: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_SEQUENCE"
-            ),
-            "description": (
-                "Game sequence number for the day"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_SEQUENCE"),
+            "description": ("Game sequence number for the day"),
         },
     )
     game_date_est: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_DATE_EST"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_DATE_EST"),
             "description": "Game date in Eastern time",
         },
     )
     game_time_est: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_TIME_EST"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_TIME_EST"),
             "description": "Game time in Eastern time",
         },
     )
     game_date_time_est: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".GAME_DATE_TIME_EST"
-            ),
-            "description": (
-                "Game date and time in Eastern time"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_DATE_TIME_EST"),
+            "description": ("Game date and time in Eastern time"),
         },
     )
     game_date_utc: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_DATE_UTC"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_DATE_UTC"),
             "description": "Game date in UTC",
         },
     )
     game_time_utc: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_TIME_UTC"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_TIME_UTC"),
             "description": "Game time in UTC",
         },
     )
     game_date_time_utc: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".GAME_DATE_TIME_UTC"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_DATE_TIME_UTC"),
             "description": "Game date and time in UTC",
         },
     )
     away_team_id: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.AWAY_TEAM_ID"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_ID"),
             "description": "Away team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -147,41 +102,28 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
     away_team_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.AWAY_TEAM_NAME"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_NAME"),
             "description": "Away team name",
         },
     )
     away_team_city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.AWAY_TEAM_CITY"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_CITY"),
             "description": "Away team city",
         },
     )
     away_team_tricode: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".AWAY_TEAM_TRICODE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_TRICODE"),
             "description": "Away team three-letter code",
         },
     )
     away_team_slug: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.AWAY_TEAM_SLUG"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_SLUG"),
             "description": "Away team URL slug",
         },
     )
@@ -189,10 +131,7 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.AWAY_TEAM_WINS"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_WINS"),
             "description": "Away team win count",
         },
     )
@@ -200,11 +139,7 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".AWAY_TEAM_LOSSES"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_LOSSES"),
             "description": "Away team loss count",
         },
     )
@@ -212,20 +147,14 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.AWAY_TEAM_SCORE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.AWAY_TEAM_SCORE"),
             "description": "Away team score",
         },
     )
     home_team_id: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.HOME_TEAM_ID"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_ID"),
             "description": "Home team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -233,41 +162,28 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
     home_team_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.HOME_TEAM_NAME"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_NAME"),
             "description": "Home team name",
         },
     )
     home_team_city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.HOME_TEAM_CITY"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_CITY"),
             "description": "Home team city",
         },
     )
     home_team_tricode: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".HOME_TEAM_TRICODE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_TRICODE"),
             "description": "Home team three-letter code",
         },
     )
     home_team_slug: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.HOME_TEAM_SLUG"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_SLUG"),
             "description": "Home team URL slug",
         },
     )
@@ -275,10 +191,7 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.HOME_TEAM_WINS"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_WINS"),
             "description": "Home team win count",
         },
     )
@@ -286,11 +199,7 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".HOME_TEAM_LOSSES"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_LOSSES"),
             "description": "Home team loss count",
         },
     )
@@ -298,115 +207,78 @@ class StagingScheduleLeagueV2Schema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.HOME_TEAM_SCORE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.HOME_TEAM_SCORE"),
             "description": "Home team score",
         },
     )
     arena_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.ARENA_NAME"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.ARENA_NAME"),
             "description": "Arena name",
         },
     )
     arena_city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.ARENA_CITY"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.ARENA_CITY"),
             "description": "Arena city",
         },
     )
     arena_state: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.ARENA_STATE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.ARENA_STATE"),
             "description": "Arena state",
         },
     )
     postponed_status: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.POSTPONED_STATUS"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.POSTPONED_STATUS"),
             "description": "Postponement status",
         },
     )
     branch_link: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.BRANCH_LINK"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.BRANCH_LINK"),
             "description": "Branch deep link URL",
         },
     )
     game_subtype: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.GAME_SUBTYPE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.GAME_SUBTYPE"),
             "description": "Game subtype classification",
         },
     )
     series_conference: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".SERIES_CONFERENCE"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.SERIES_CONFERENCE"),
             "description": "Playoff series conference",
         },
     )
     series_text: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.SERIES_TEXT"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.SERIES_TEXT"),
             "description": "Playoff series status text",
         },
     )
     if_necessary: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2.IF_NECESSARY"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.IF_NECESSARY"),
             "description": "If-necessary game indicator",
         },
     )
     series_game_number: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScheduleLeagueV2"
-                ".ScheduleLeagueV2"
-                ".SERIES_GAME_NUMBER"
-            ),
-            "description": (
-                "Game number in playoff series"
-            ),
+            "source": ("ScheduleLeagueV2.ScheduleLeagueV2.SERIES_GAME_NUMBER"),
+            "description": ("Game number in playoff series"),
         },
     )
 
@@ -415,31 +287,21 @@ class StagingScoreboardV2Schema(BaseSchema):
     game_date_est: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".GAME_DATE_EST"
-            ),
+            "source": ("ScoreboardV2.GameHeader.GAME_DATE_EST"),
             "description": "Game date in Eastern time",
         },
     )
     game_sequence: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".GAME_SEQUENCE"
-            ),
-            "description": (
-                "Game sequence number for the day"
-            ),
+            "source": ("ScoreboardV2.GameHeader.GAME_SEQUENCE"),
+            "description": ("Game sequence number for the day"),
         },
     )
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader.GAME_ID"
-            ),
+            "source": ("ScoreboardV2.GameHeader.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
@@ -447,39 +309,28 @@ class StagingScoreboardV2Schema(BaseSchema):
         nullable=True,
         isin=[1, 2, 3],
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".GAME_STATUS_ID"
-            ),
+            "source": ("ScoreboardV2.GameHeader.GAME_STATUS_ID"),
             "description": "Game status identifier",
         },
     )
     game_status_text: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".GAME_STATUS_TEXT"
-            ),
+            "source": ("ScoreboardV2.GameHeader.GAME_STATUS_TEXT"),
             "description": "Game status display text",
         },
     )
     gamecode: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader.GAMECODE"
-            ),
+            "source": ("ScoreboardV2.GameHeader.GAMECODE"),
             "description": "Game code string",
         },
     )
     home_team_id: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".HOME_TEAM_ID"
-            ),
+            "source": ("ScoreboardV2.GameHeader.HOME_TEAM_ID"),
             "description": "Home team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -487,10 +338,7 @@ class StagingScoreboardV2Schema(BaseSchema):
     visitor_team_id: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".VISITOR_TEAM_ID"
-            ),
+            "source": ("ScoreboardV2.GameHeader.VISITOR_TEAM_ID"),
             "description": "Visitor team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -498,101 +346,63 @@ class StagingScoreboardV2Schema(BaseSchema):
     season: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader.SEASON"
-            ),
+            "source": ("ScoreboardV2.GameHeader.SEASON"),
             "description": "Season year string",
         },
     )
     live_period: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".LIVE_PERIOD"
-            ),
+            "source": ("ScoreboardV2.GameHeader.LIVE_PERIOD"),
             "description": "Current live period",
         },
     )
     live_pc_time: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".LIVE_PC_TIME"
-            ),
+            "source": ("ScoreboardV2.GameHeader.LIVE_PC_TIME"),
             "description": "Live game clock time",
         },
     )
-    natl_tv_broadcaster_abbreviation: (
-        str | None
-    ) = pa.Field(
+    natl_tv_broadcaster_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".NATL_TV_BROADCASTER_ABBREVIATION"
-            ),
-            "description": (
-                "National TV broadcaster abbreviation"
-            ),
+            "source": ("ScoreboardV2.GameHeader.NATL_TV_BROADCASTER_ABBREVIATION"),
+            "description": ("National TV broadcaster abbreviation"),
         },
     )
-    home_tv_broadcaster_abbreviation: (
-        str | None
-    ) = pa.Field(
+    home_tv_broadcaster_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".HOME_TV_BROADCASTER_ABBREVIATION"
-            ),
-            "description": (
-                "Home TV broadcaster abbreviation"
-            ),
+            "source": ("ScoreboardV2.GameHeader.HOME_TV_BROADCASTER_ABBREVIATION"),
+            "description": ("Home TV broadcaster abbreviation"),
         },
     )
-    away_tv_broadcaster_abbreviation: (
-        str | None
-    ) = pa.Field(
+    away_tv_broadcaster_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".AWAY_TV_BROADCASTER_ABBREVIATION"
-            ),
-            "description": (
-                "Away TV broadcaster abbreviation"
-            ),
+            "source": ("ScoreboardV2.GameHeader.AWAY_TV_BROADCASTER_ABBREVIATION"),
+            "description": ("Away TV broadcaster abbreviation"),
         },
     )
     live_period_time_bcast: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader"
-                ".LIVE_PERIOD_TIME_BCAST"
-            ),
-            "description": (
-                "Live period time broadcast string"
-            ),
+            "source": ("ScoreboardV2.GameHeader.LIVE_PERIOD_TIME_BCAST"),
+            "description": ("Live period time broadcast string"),
         },
     )
     arena_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader.ARENA_NAME"
-            ),
+            "source": ("ScoreboardV2.GameHeader.ARENA_NAME"),
             "description": "Arena name",
         },
     )
     wh_status: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV2.GameHeader.WH_STATUS"
-            ),
+            "source": ("ScoreboardV2.GameHeader.WH_STATUS"),
             "description": "Wagering hub status flag",
         },
     )

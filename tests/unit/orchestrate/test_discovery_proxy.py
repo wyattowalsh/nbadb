@@ -38,16 +38,11 @@ class TestAssignProxy:
 
     def test_get_proxy_url_not_called_when_pool_is_none(self) -> None:
         """Ensure pool.get_proxy_url() is never invoked with a None pool."""
-        mock_extractor = MagicMock()
-        # Passing None should short-circuit; nothing on mock_extractor touched
+        mock_extractor = MagicMock(spec=[])
         _assign_proxy(mock_extractor, None)
 
-        # If _proxy_url were set, accessing it on the unrestricted MagicMock
-        # would succeed — so assert it was NOT explicitly assigned.
-        # The simplest check: _proxy_url attr should not exist on a spec=[]
-        # mock; we already covered that in test_no_op_when_pool_is_none.
-        # Here we just ensure no exception is raised and test the None branch.
-        assert True  # no exception = pass
+        # _proxy_url must not have been set on the extractor
+        assert not hasattr(mock_extractor, "_proxy_url")
 
 
 class TestEntityDiscoveryProxy:

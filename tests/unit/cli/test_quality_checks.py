@@ -95,7 +95,7 @@ class TestQualityCheckFlag:
         """--quality-check flag triggers _run_quality_checks after pipeline."""
         with (
             patch(_INIT_PATH) as mock_cls,
-            patch("nbadb.cli.commands.init._run_quality_checks") as mock_qc,
+            patch("nbadb.cli.commands._helpers._run_quality_checks") as mock_qc,
         ):
             mock_cls.return_value.run_init = AsyncMock(return_value=_make_result())
             result = runner.invoke(app, ["init", "--quality-check", "--data-dir", str(tmp_path)])
@@ -107,7 +107,7 @@ class TestQualityCheckFlag:
         """Without --quality-check, helper is NOT called."""
         with (
             patch(_INIT_PATH) as mock_cls,
-            patch("nbadb.cli.commands.init._run_quality_checks") as mock_qc,
+            patch("nbadb.cli.commands._helpers._run_quality_checks") as mock_qc,
         ):
             mock_cls.return_value.run_init = AsyncMock(return_value=_make_result())
             result = runner.invoke(app, ["init", "--data-dir", str(tmp_path)])

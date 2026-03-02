@@ -1,16 +1,9 @@
 from __future__ import annotations
 
-import asyncio
-
 import typer
 
 from nbadb.cli.app import app
-from nbadb.cli.commands._helpers import (
-    _build_settings,
-    _print_result,
-    _run_quality_checks,
-    _setup_logging,
-)
+from nbadb.cli.commands._helpers import _build_settings, _run_pipeline
 from nbadb.cli.options import DataDirOption, VerboseOption  # noqa: TC001
 from nbadb.orchestrate import Orchestrator
 
@@ -24,13 +17,12 @@ def monthly(
     ),
 ) -> None:
     """Monthly refresh of recent seasons."""
-    _setup_logging(verbose)
     settings = _build_settings(data_dir)
-    try:
-        result = asyncio.run(Orchestrator(settings).run_monthly())
-    except Exception as exc:
-        typer.echo(f"monthly failed: {exc}", err=True)
-        raise typer.Exit(1) from exc
-    _print_result("monthly", result)
-    if quality_check:
-        _run_quality_checks(settings)
+    _run_pipeline(
+        "monthly",
+        lambda orch: orch.run_monthly(),
+        settings,
+        verbose,
+        quality_check,
+        orchestrator_cls=Orchestrator,
+    )

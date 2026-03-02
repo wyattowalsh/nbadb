@@ -15,6 +15,7 @@ class KaggleClient:
     def download(self, target_dir: Path | None = None) -> Path:
         """Download latest dataset from Kaggle."""
         import kagglehub
+
         path = kagglehub.dataset_download(self._dataset)
         download_path = Path(path)
         logger.info(f"Downloaded dataset to {download_path}")
@@ -27,6 +28,7 @@ class KaggleClient:
     ) -> None:
         """Upload dataset to Kaggle."""
         import kagglehub
+
         upload_dir = data_dir or self._settings.data_dir
         if not upload_dir.exists():
             msg = f"Data directory does not exist: {upload_dir}"
@@ -41,6 +43,7 @@ class KaggleClient:
     def ensure_metadata(self, data_dir: Path | None = None) -> Path:
         """Ensure dataset-metadata.json exists in data dir."""
         from nbadb.kaggle.metadata import generate_metadata
+
         target = (data_dir or self._settings.data_dir) / "dataset-metadata.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         generate_metadata(target)

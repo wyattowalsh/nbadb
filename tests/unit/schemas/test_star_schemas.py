@@ -52,13 +52,17 @@ class TestDimPlayerSchema:
     def test_scd2_multiple_records(self) -> None:
         rows = [
             _dim_player_row(
-                player_sk=1, valid_from="2018-19",
-                valid_to="2019-20", is_current=False,
+                player_sk=1,
+                valid_from="2018-19",
+                valid_to="2019-20",
+                is_current=False,
                 team_id=1610612739,
             ),
             _dim_player_row(
-                player_sk=2, valid_from="2019-20",
-                valid_to=None, is_current=True,
+                player_sk=2,
+                valid_from="2019-20",
+                valid_to=None,
+                is_current=True,
                 team_id=1610612747,
             ),
         ]
@@ -102,9 +106,12 @@ class TestDimPlayerSchema:
         assert result.shape[0] == 1
 
     def test_nullable_scd2_fields(self) -> None:
-        df = pl.DataFrame(_dim_player_row(
-            valid_to=None, college_id=None,
-        ))
+        df = pl.DataFrame(
+            _dim_player_row(
+                valid_to=None,
+                college_id=None,
+            )
+        )
         result = DimPlayerSchema.validate(df)
         assert result.shape[0] == 1
 
@@ -169,18 +176,25 @@ class TestDimTeamSchema:
             DimTeamSchema.validate(df)
 
     def test_nullable_fields(self) -> None:
-        df = pl.DataFrame(_dim_team_row(
-            city=None, state=None, arena=None,
-            conference=None, division=None, year_founded=None,
-        ))
+        df = pl.DataFrame(
+            _dim_team_row(
+                city=None,
+                state=None,
+                arena=None,
+                conference=None,
+                division=None,
+                year_founded=None,
+            )
+        )
         result = DimTeamSchema.validate(df)
         assert result.shape[0] == 1
 
     def test_multiple_teams(self) -> None:
         rows = [
             _dim_team_row(team_id=1610612747, abbreviation="LAL"),
-            _dim_team_row(team_id=1610612738, abbreviation="BOS",
-                          full_name="Boston Celtics", city="Boston"),
+            _dim_team_row(
+                team_id=1610612738, abbreviation="BOS", full_name="Boston Celtics", city="Boston"
+            ),
         ]
         df = pl.DataFrame(rows)
         result = DimTeamSchema.validate(df)
@@ -238,10 +252,16 @@ class TestDimGameSchema:
             DimGameSchema.validate(df)
 
     def test_nullable_fields(self) -> None:
-        df = pl.DataFrame(_dim_game_row(
-            season_type=None, home_team_id=None, visitor_team_id=None,
-            matchup=None, arena_name=None, arena_city=None,
-        ))
+        df = pl.DataFrame(
+            _dim_game_row(
+                season_type=None,
+                home_team_id=None,
+                visitor_team_id=None,
+                matchup=None,
+                arena_name=None,
+                arena_city=None,
+            )
+        )
         result = DimGameSchema.validate(df)
         assert result.shape[0] == 1
 
@@ -313,10 +333,17 @@ class TestFactPlayerGameTraditionalSchema:
             FactPlayerGameTraditionalSchema.validate(df)
 
     def test_nullable_stat_fields(self) -> None:
-        df = pl.DataFrame(_fact_player_game_trad_row(
-            pts=None, reb=None, ast=None, min=None,
-            fg_pct=None, fg3_pct=None, ft_pct=None,
-        ))
+        df = pl.DataFrame(
+            _fact_player_game_trad_row(
+                pts=None,
+                reb=None,
+                ast=None,
+                min=None,
+                fg_pct=None,
+                fg3_pct=None,
+                ft_pct=None,
+            )
+        )
         result = FactPlayerGameTraditionalSchema.validate(df)
         assert result.shape[0] == 1
 

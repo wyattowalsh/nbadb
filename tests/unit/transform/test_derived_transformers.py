@@ -5,6 +5,7 @@ Verify column fixes (team_id inclusion) and dependency declarations.
 
 from __future__ import annotations
 
+import duckdb
 import polars as pl
 
 # ---------------------------------------------------------------------------
@@ -39,6 +40,35 @@ def test_dim_player_no_phantom_dependency():
 # ---------------------------------------------------------------------------
 # Functional test: agg_player_season includes team_id
 # ---------------------------------------------------------------------------
+
+
+def test_agg_player_season_no_unused_misc_dependency():
+    """fact_player_game_misc should not be in depends_on (unused in SQL)."""
+    from nbadb.transform.derived.agg_player_season import AggPlayerSeasonTransformer
+
+    assert "fact_player_game_misc" not in AggPlayerSeasonTransformer.depends_on
+
+
+def test_agg_team_pace_has_dim_game_dependency():
+    from nbadb.transform.derived.agg_team_pace_and_efficiency import (
+        AggTeamPaceAndEfficiencyTransformer,
+    )
+
+    assert "dim_game" in AggTeamPaceAndEfficiencyTransformer.depends_on
+
+
+def test_agg_shot_zones_has_dim_game_dependency():
+    from nbadb.transform.derived.agg_shot_zones import AggShotZonesTransformer
+
+    assert "dim_game" in AggShotZonesTransformer.depends_on
+
+
+def test_agg_player_season_per48_output_table():
+    from nbadb.transform.derived.agg_player_season_per100 import (
+        AggPlayerSeasonPer48Transformer,
+    )
+
+    assert AggPlayerSeasonPer48Transformer.output_table == "agg_player_season_per48"
 
 
 def test_agg_player_season_includes_team_id():
@@ -110,22 +140,17 @@ def test_agg_player_season_includes_team_id():
     staging = {
         "fact_player_game_traditional": fact_trad.lazy(),
         "fact_player_game_advanced": fact_adv.lazy(),
-        "fact_player_game_misc": pl.DataFrame(
-            {
-                "player_id": [101, 101],
-                "game_id": [1001, 1002],
-                "pts_off_tov": [5, 3],
-                "pts_2nd_chance": [4, 2],
-                "pts_fb": [6, 4],
-                "pts_paint": [10, 8],
-                "usg_pct": [0.28, 0.25],
-            }
-        ).lazy(),
         "dim_game": dim_game.lazy(),
     }
+
+    conn = duckdb.connect()
+    for key, val in staging.items():
+        conn.register(key, val.collect())
+    transformer._conn = conn
 
     result = transformer.transform(staging)
 
     assert "team_id" in result.columns, f"team_id missing from output: {result.columns}"
     assert result.shape[0] == 1  # grouped by player, team, season, type
     assert result["team_id"][0] == 1
+    conn.close()

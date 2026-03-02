@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-import duckdb
-
 from nbadb.transform.base import BaseTransformer
 
 if TYPE_CHECKING:
@@ -36,15 +34,4 @@ class AggClutchStatsTransformer(BaseTransformer):
     """
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        conn = duckdb.connect()
-        conn.register(
-            "stg_player_dashboard_clutch",
-            staging["stg_player_dashboard_clutch"].collect(),
-        )
-        conn.register(
-            "stg_league_player_clutch",
-            staging["stg_league_player_clutch"].collect(),
-        )
-        result = conn.execute(self._SQL).pl()
-        conn.close()
-        return result
+        return self._conn.execute(self._SQL).pl()

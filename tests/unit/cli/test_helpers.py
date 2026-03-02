@@ -40,11 +40,25 @@ def test_build_settings_formats_override() -> None:
 
 
 def test_setup_logging_verbose() -> None:
+    from loguru import logger
+
     _setup_logging(verbose=True)
+    # After verbose setup, a DEBUG-level handler should be active
+    handlers = logger._core.handlers
+    assert len(handlers) >= 1
+    # At least one handler should accept DEBUG level (levelno 10)
+    assert any(h.levelno <= 10 for h in handlers.values())
 
 
 def test_setup_logging_non_verbose() -> None:
+    from loguru import logger
+
     _setup_logging(verbose=False)
+    # After non-verbose setup, only WARNING-level handler should be active
+    handlers = logger._core.handlers
+    assert len(handlers) >= 1
+    # All handlers should be WARNING (30) or above
+    assert all(h.levelno >= 30 for h in handlers.values())
 
 
 # ---------------------------------------------------------------------------

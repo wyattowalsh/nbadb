@@ -34,8 +34,8 @@ _WRITE_PATTERN: re.Pattern[str] = re.compile(
 )
 
 _DANGEROUS_FUNCTIONS: re.Pattern[str] = re.compile(
-    r'\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|'
-    r'glob|read_csv_auto|read_ndjson|http_get)\s*\(',
+    r"\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|"
+    r"glob|read_csv_auto|read_ndjson|http_get)\s*\(",
     re.IGNORECASE,
 )
 

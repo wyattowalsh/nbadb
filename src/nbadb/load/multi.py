@@ -28,12 +28,15 @@ class MultiLoader:
                 loader.load(table, df, mode)
             except Exception as e:
                 errors.append((type(loader).__name__, e))
-                logger.error(f"MultiLoader: {type(loader).__name__} failed for {table}: {e}")
+                logger.error(
+                    "MultiLoader: {} failed for {}: {}",
+                    type(loader).__name__,
+                    table,
+                    type(e).__name__,
+                )
         if errors:
             failed = ", ".join(name for name, _ in errors)
-            raise RuntimeError(
-                f"MultiLoader: {len(errors)} loader(s) failed for {table}: {failed}"
-            )
+            raise RuntimeError(f"MultiLoader: {len(errors)} loader(s) failed for {table}: {failed}")
         logger.info(f"MultiLoader: {table} → {len(self._loaders)} formats")
 
 
@@ -49,10 +52,17 @@ def create_multi_loader(
     loaders: list[BaseLoader] = []
 
     if "sqlite" in settings.formats:
-        assert settings.sqlite_path is not None, "sqlite_path required for sqlite format"
+        if settings.sqlite_path is None:
+            raise ValueError("sqlite_path must be set in settings to use SQLite loader")
         loaders.append(SQLiteLoader(settings.sqlite_path))
-    if "duckdb" in settings.formats and duckdb_conn:
-        loaders.append(DuckDBLoader(duckdb_conn))
+    if "duckdb" in settings.formats:
+        if duckdb_conn is not None:
+            loaders.append(DuckDBLoader(duckdb_conn))
+        else:
+            import duckdb
+
+            conn = duckdb.connect(str(settings.duckdb_path))
+            loaders.append(DuckDBLoader(conn))
     if "parquet" in settings.formats:
         loaders.append(ParquetLoader(settings.data_dir / "parquet"))
     if "csv" in settings.formats:

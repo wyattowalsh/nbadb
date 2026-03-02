@@ -33,3 +33,39 @@ class PlayerGameStreakFinderExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         return self._from_nba_api(PlayerGameStreakFinder, **params)
+
+
+@registry.register
+class PlayerGameLogsV2Extractor(BaseExtractor):
+    """PlayerGameLogs filtered by player_id (v2 alias for staging map)."""
+
+    endpoint_name = "player_game_logs_v2"
+    category = "game_log"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params.get("player_id", 0)
+        season: str = params.get("season", "")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerGameLogs,
+            player_id_nullable=player_id,
+            season_nullable=season,
+            season_type_nullable=season_type,
+        )
+
+
+@registry.register
+class PlayerStreakFinderExtractor(BaseExtractor):
+    """PlayerGameStreakFinder alias with canonical endpoint_name for staging map."""
+
+    endpoint_name = "player_streak_finder"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params.get("player_id", 0)
+        season: str = params.get("season", "")
+        return self._from_nba_api(
+            PlayerGameStreakFinder,
+            player_id_nullable=player_id,
+            season_nullable=season,
+        )

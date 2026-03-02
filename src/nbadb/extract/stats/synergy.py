@@ -23,9 +23,7 @@ class SynergyPlayTypesExtractor(BaseExtractor):
         player_or_team: str = params.get("player_or_team", "P")
         season_type: str = params.get("season_type", "Regular Season")
         type_grouping: str = params.get("type_grouping", "offensive")
-        logger.debug(
-            f"Extracting synergy {play_type} for {season}"
-        )
+        logger.debug(f"Extracting synergy {play_type} for {season}")
         return self._from_nba_api(
             SynergyPlayTypes,
             season=season,

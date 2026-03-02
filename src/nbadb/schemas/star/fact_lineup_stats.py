@@ -8,45 +8,27 @@ from nbadb.schemas.base import BaseSchema
 class FactLineupStatsSchema(BaseSchema):
     group_set: str = pa.Field(
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.GROUP_SET"
-            ),
-            "description": (
-                "Lineup group set label"
-            ),
+            "source": ("LeagueDashLineups.Lineups.GROUP_SET"),
+            "description": ("Lineup group set label"),
         },
     )
     group_id: str = pa.Field(
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.GROUP_ID"
-            ),
-            "description": (
-                "Lineup group identifier"
-            ),
+            "source": ("LeagueDashLineups.Lineups.GROUP_ID"),
+            "description": ("Lineup group identifier"),
         },
     )
     group_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.GROUP_NAME"
-            ),
-            "description": (
-                "Lineup player names"
-            ),
+            "source": ("LeagueDashLineups.Lineups.GROUP_NAME"),
+            "description": ("Lineup player names"),
         },
     )
     team_id: int = pa.Field(
         gt=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.TEAM_ID"
-            ),
+            "source": ("LeagueDashLineups.Lineups.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "dim_team.team_id",
         },
@@ -55,10 +37,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.GP"
-            ),
+            "source": ("LeagueDashLineups.Lineups.GP"),
             "description": "Games played",
         },
     )
@@ -66,10 +45,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.W"
-            ),
+            "source": ("LeagueDashLineups.Lineups.W"),
             "description": "Wins",
         },
     )
@@ -77,10 +53,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.L"
-            ),
+            "source": ("LeagueDashLineups.Lineups.L"),
             "description": "Losses",
         },
     )
@@ -88,10 +61,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0.0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.MIN"
-            ),
+            "source": ("LeagueDashLineups.Lineups.MIN"),
             "description": "Minutes played",
         },
     )
@@ -99,10 +69,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FGM"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FGM"),
             "description": "Field goals made",
         },
     )
@@ -110,73 +77,45 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FGA"
-            ),
-            "description": (
-                "Field goals attempted"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FGA"),
+            "description": ("Field goals attempted"),
         },
     )
     fg_pct: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FG_PCT"
-            ),
-            "description": (
-                "Field goal percentage"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FG_PCT"),
+            "description": ("Field goal percentage"),
         },
     )
     fg3m: int | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FG3M"
-            ),
-            "description": (
-                "Three-pointers made"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FG3M"),
+            "description": ("Three-pointers made"),
         },
     )
     fg3a: int | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FG3A"
-            ),
-            "description": (
-                "Three-pointers attempted"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FG3A"),
+            "description": ("Three-pointers attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FG3_PCT"
-            ),
-            "description": (
-                "Three-point percentage"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FG3_PCT"),
+            "description": ("Three-point percentage"),
         },
     )
     ftm: int | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FTM"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FTM"),
             "description": "Free throws made",
         },
     )
@@ -184,61 +123,38 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FTA"
-            ),
-            "description": (
-                "Free throws attempted"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FTA"),
+            "description": ("Free throws attempted"),
         },
     )
     ft_pct: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.FT_PCT"
-            ),
-            "description": (
-                "Free throw percentage"
-            ),
+            "source": ("LeagueDashLineups.Lineups.FT_PCT"),
+            "description": ("Free throw percentage"),
         },
     )
     oreb: int | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.OREB"
-            ),
-            "description": (
-                "Offensive rebounds"
-            ),
+            "source": ("LeagueDashLineups.Lineups.OREB"),
+            "description": ("Offensive rebounds"),
         },
     )
     dreb: int | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.DREB"
-            ),
-            "description": (
-                "Defensive rebounds"
-            ),
+            "source": ("LeagueDashLineups.Lineups.DREB"),
+            "description": ("Defensive rebounds"),
         },
     )
     reb: int | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.REB"
-            ),
+            "source": ("LeagueDashLineups.Lineups.REB"),
             "description": "Total rebounds",
         },
     )
@@ -246,10 +162,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.AST"
-            ),
+            "source": ("LeagueDashLineups.Lineups.AST"),
             "description": "Assists",
         },
     )
@@ -257,10 +170,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.TOV"
-            ),
+            "source": ("LeagueDashLineups.Lineups.TOV"),
             "description": "Turnovers",
         },
     )
@@ -268,10 +178,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.STL"
-            ),
+            "source": ("LeagueDashLineups.Lineups.STL"),
             "description": "Steals",
         },
     )
@@ -279,10 +186,7 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.BLK"
-            ),
+            "source": ("LeagueDashLineups.Lineups.BLK"),
             "description": "Blocks",
         },
     )
@@ -290,38 +194,27 @@ class FactLineupStatsSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.PTS"
-            ),
+            "source": ("LeagueDashLineups.Lineups.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.PLUS_MINUS"
-            ),
+            "source": ("LeagueDashLineups.Lineups.PLUS_MINUS"),
             "description": "Plus-minus",
         },
     )
     net_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueDashLineups"
-                ".Lineups.NET_RATING"
-            ),
+            "source": ("LeagueDashLineups.Lineups.NET_RATING"),
             "description": "Net rating",
         },
     )
     season_year: str = pa.Field(
         metadata={
             "source": "derived.season_year",
-            "description": (
-                "Season year (e.g. 2024-25)"
-            ),
+            "description": ("Season year (e.g. 2024-25)"),
         },
     )

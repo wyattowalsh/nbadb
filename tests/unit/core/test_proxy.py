@@ -10,9 +10,7 @@ class TestGetProxyUrl:
         mock_whirl = MagicMock()
         mock_proxy = MagicMock()
         mock_proxy.url = "http://1.2.3.4:8080"
-        mock_whirl._select_proxy_with_circuit_breaker.return_value = (
-            mock_proxy
-        )
+        mock_whirl._select_proxy_with_circuit_breaker.return_value = mock_proxy
 
         pool = ProxyPool(mock_whirl)
         assert pool.get_proxy_url() == "http://1.2.3.4:8080"
@@ -21,8 +19,8 @@ class TestGetProxyUrl:
         from proxywhirl import ProxyPoolEmptyError
 
         mock_whirl = MagicMock()
-        mock_whirl._select_proxy_with_circuit_breaker.side_effect = (
-            ProxyPoolEmptyError("no proxies")
+        mock_whirl._select_proxy_with_circuit_breaker.side_effect = ProxyPoolEmptyError(
+            "no proxies"
         )
 
         pool = ProxyPool(mock_whirl)
@@ -55,9 +53,7 @@ class TestGetProxyUrl:
 class TestSize:
     def test_returns_total_proxies(self) -> None:
         mock_whirl = MagicMock()
-        mock_whirl.get_pool_stats.return_value = {
-            "total_proxies": 42
-        }
+        mock_whirl.get_pool_stats.return_value = {"total_proxies": 42}
         pool = ProxyPool(mock_whirl)
         assert pool.size == 42
 
@@ -81,12 +77,8 @@ class TestFromSettings:
             ],
         )
 
-        with patch(
-            "proxywhirl.ProxyWhirl"
-        ) as mock_pw_cls:
-            mock_pw_cls.return_value.get_pool_stats.return_value = {
-                "total_proxies": 2
-            }
+        with patch("proxywhirl.ProxyWhirl") as mock_pw_cls:
+            mock_pw_cls.return_value.get_pool_stats.return_value = {"total_proxies": 2}
             pool = ProxyPool.from_settings(settings)
 
             assert pool.size == 2
@@ -103,12 +95,8 @@ class TestFromSettings:
             proxy_bootstrap=True,
         )
 
-        with patch(
-            "proxywhirl.ProxyWhirl"
-        ) as mock_pw_cls:
-            mock_pw_cls.return_value.get_pool_stats.return_value = {
-                "total_proxies": 5
-            }
+        with patch("proxywhirl.ProxyWhirl") as mock_pw_cls:
+            mock_pw_cls.return_value.get_pool_stats.return_value = {"total_proxies": 5}
             ProxyPool.from_settings(settings)
 
             call_kwargs = mock_pw_cls.call_args
@@ -126,12 +114,8 @@ class TestFromSettings:
             proxy_urls=[],
         )
 
-        with patch(
-            "proxywhirl.ProxyWhirl"
-        ) as mock_pw_cls:
-            mock_pw_cls.return_value.get_pool_stats.return_value = {
-                "total_proxies": 0
-            }
+        with patch("proxywhirl.ProxyWhirl") as mock_pw_cls:
+            mock_pw_cls.return_value.get_pool_stats.return_value = {"total_proxies": 0}
             ProxyPool.from_settings(settings)
 
             call_kwargs = mock_pw_cls.call_args

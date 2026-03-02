@@ -27,9 +27,7 @@ class LeagueGameLogExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         logger.debug(f"Extracting league game log for {season} ({season_type})")
-        return self._from_nba_api(
-            LeagueGameLog, season=season, season_type_all_star=season_type
-        )
+        return self._from_nba_api(LeagueGameLog, season=season, season_type_all_star=season_type)
 
 
 @registry.register
@@ -74,6 +72,11 @@ class ScoreboardV2Extractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_date: str = params["game_date"]
         return self._from_nba_api(ScoreboardV2, game_date=game_date)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        """Return all result sets for ScoreboardV2."""
+        game_date: str = params["game_date"]
+        return self._from_nba_api_multi(ScoreboardV2, game_date=game_date)
 
 
 @registry.register

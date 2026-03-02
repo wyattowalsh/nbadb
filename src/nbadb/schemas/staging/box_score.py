@@ -9,20 +9,14 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.GAME_ID"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.TEAM_ID"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -30,20 +24,14 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
     team_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.TEAM_ABBREVIATION"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.TEAM_ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
     team_city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.TEAM_CITY"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.TEAM_CITY"),
             "description": "Team city name",
         },
     )
@@ -51,10 +39,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.PLAYER_ID"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.PLAYER_ID"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -62,65 +47,43 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
     player_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.PLAYER_NAME"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
     )
     nickname: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.NICKNAME"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.NICKNAME"),
             "description": "Player nickname",
         },
     )
     start_position: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.START_POSITION"
-            ),
-            "description": (
-                "Starting position (F/C/G)"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.START_POSITION"),
+            "description": ("Starting position (F/C/G)"),
         },
     )
     comment: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.COMMENT"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.COMMENT"),
             "description": "Player status comment",
         },
     )
     min: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.MIN"
-            ),
-            "description": (
-                "Minutes played as string"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.MIN"),
+            "description": ("Minutes played as string"),
         },
     )
     fgm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FGM"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FGM"),
             "description": "Field goals made",
         },
     )
@@ -128,10 +91,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FGA"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FGA"),
             "description": "Field goals attempted",
         },
     )
@@ -140,10 +100,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FG_PCT"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FG_PCT"),
             "description": "Field goal percentage",
         },
     )
@@ -151,26 +108,16 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FG3M"
-            ),
-            "description": (
-                "Three-point field goals made"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FG3M"),
+            "description": ("Three-point field goals made"),
         },
     )
     fg3a: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FG3A"
-            ),
-            "description": (
-                "Three-point field goals attempted"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FG3A"),
+            "description": ("Three-point field goals attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
@@ -178,23 +125,15 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FG3_PCT"
-            ),
-            "description": (
-                "Three-point field goal percentage"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FG3_PCT"),
+            "description": ("Three-point field goal percentage"),
         },
     )
     ftm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FTM"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FTM"),
             "description": "Free throws made",
         },
     )
@@ -202,10 +141,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FTA"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FTA"),
             "description": "Free throws attempted",
         },
     )
@@ -214,10 +150,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.FT_PCT"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.FT_PCT"),
             "description": "Free throw percentage",
         },
     )
@@ -225,10 +158,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.OREB"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.OREB"),
             "description": "Offensive rebounds",
         },
     )
@@ -236,10 +166,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.DREB"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.DREB"),
             "description": "Defensive rebounds",
         },
     )
@@ -247,10 +174,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.REB"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.REB"),
             "description": "Total rebounds",
         },
     )
@@ -258,10 +182,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.AST"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.AST"),
             "description": "Assists",
         },
     )
@@ -269,10 +190,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.STL"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.STL"),
             "description": "Steals",
         },
     )
@@ -280,10 +198,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.BLK"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.BLK"),
             "description": "Blocks",
         },
     )
@@ -291,10 +206,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.TOV"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.TOV"),
             "description": "Turnovers",
         },
     )
@@ -302,10 +214,7 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.PF"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.PF"),
             "description": "Personal fouls",
         },
     )
@@ -313,23 +222,15 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.PTS"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".PlayerStats.PLUS_MINUS"
-            ),
-            "description": (
-                "Plus-minus differential"
-            ),
+            "source": ("BoxScoreTraditionalV3.PlayerStats.PLUS_MINUS"),
+            "description": ("Plus-minus differential"),
         },
     )
 
@@ -338,20 +239,14 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.GAME_ID"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.TEAM_ID"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -359,30 +254,21 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
     team_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.TEAM_NAME"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.TEAM_NAME"),
             "description": "Team name",
         },
     )
     team_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.TEAM_ABBREVIATION"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.TEAM_ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
     team_city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.TEAM_CITY"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.TEAM_CITY"),
             "description": "Team city name",
         },
     )
@@ -390,23 +276,15 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.MIN"
-            ),
-            "description": (
-                "Total team minutes played"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.MIN"),
+            "description": ("Total team minutes played"),
         },
     )
     fgm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FGM"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FGM"),
             "description": "Field goals made",
         },
     )
@@ -414,10 +292,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FGA"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FGA"),
             "description": "Field goals attempted",
         },
     )
@@ -426,10 +301,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FG_PCT"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FG_PCT"),
             "description": "Field goal percentage",
         },
     )
@@ -437,26 +309,16 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FG3M"
-            ),
-            "description": (
-                "Three-point field goals made"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FG3M"),
+            "description": ("Three-point field goals made"),
         },
     )
     fg3a: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FG3A"
-            ),
-            "description": (
-                "Three-point field goals attempted"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FG3A"),
+            "description": ("Three-point field goals attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
@@ -464,23 +326,15 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FG3_PCT"
-            ),
-            "description": (
-                "Three-point field goal percentage"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FG3_PCT"),
+            "description": ("Three-point field goal percentage"),
         },
     )
     ftm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FTM"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FTM"),
             "description": "Free throws made",
         },
     )
@@ -488,10 +342,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FTA"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FTA"),
             "description": "Free throws attempted",
         },
     )
@@ -500,10 +351,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.FT_PCT"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.FT_PCT"),
             "description": "Free throw percentage",
         },
     )
@@ -511,10 +359,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.OREB"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.OREB"),
             "description": "Offensive rebounds",
         },
     )
@@ -522,10 +367,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.DREB"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.DREB"),
             "description": "Defensive rebounds",
         },
     )
@@ -533,10 +375,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.REB"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.REB"),
             "description": "Total rebounds",
         },
     )
@@ -544,10 +383,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.AST"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.AST"),
             "description": "Assists",
         },
     )
@@ -555,10 +391,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.STL"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.STL"),
             "description": "Steals",
         },
     )
@@ -566,10 +399,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.BLK"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.BLK"),
             "description": "Blocks",
         },
     )
@@ -577,10 +407,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.TOV"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.TOV"),
             "description": "Turnovers",
         },
     )
@@ -588,10 +415,7 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.PF"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.PF"),
             "description": "Personal fouls",
         },
     )
@@ -599,23 +423,15 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.PTS"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreTraditionalV3"
-                ".TeamStats.PLUS_MINUS"
-            ),
-            "description": (
-                "Plus-minus differential"
-            ),
+            "source": ("BoxScoreTraditionalV3.TeamStats.PLUS_MINUS"),
+            "description": ("Plus-minus differential"),
         },
     )
 
@@ -624,20 +440,14 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.GAME_ID"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.TEAM_ID"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -646,10 +456,7 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.PLAYER_ID"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.PLAYER_ID"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -657,88 +464,56 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
     player_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.PLAYER_NAME"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
     )
     min: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.MIN"
-            ),
-            "description": (
-                "Minutes played as string"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.MIN"),
+            "description": ("Minutes played as string"),
         },
     )
     e_off_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.E_OFF_RATING"
-            ),
-            "description": (
-                "Estimated offensive rating"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.E_OFF_RATING"),
+            "description": ("Estimated offensive rating"),
         },
     )
     off_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.OFF_RATING"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.OFF_RATING"),
             "description": "Offensive rating",
         },
     )
     e_def_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.E_DEF_RATING"
-            ),
-            "description": (
-                "Estimated defensive rating"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.E_DEF_RATING"),
+            "description": ("Estimated defensive rating"),
         },
     )
     def_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.DEF_RATING"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.DEF_RATING"),
             "description": "Defensive rating",
         },
     )
     e_net_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.E_NET_RATING"
-            ),
-            "description": (
-                "Estimated net rating"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.E_NET_RATING"),
+            "description": ("Estimated net rating"),
         },
     )
     net_rating: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.NET_RATING"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.NET_RATING"),
             "description": "Net rating",
         },
     )
@@ -747,10 +522,7 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.AST_PCT"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.AST_PCT"),
             "description": "Assist percentage",
         },
     )
@@ -758,23 +530,15 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.AST_TOV"
-            ),
-            "description": (
-                "Assist to turnover ratio"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.AST_TOV"),
+            "description": ("Assist to turnover ratio"),
         },
     )
     ast_ratio: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.AST_RATIO"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.AST_RATIO"),
             "description": "Assist ratio",
         },
     )
@@ -783,13 +547,8 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.OREB_PCT"
-            ),
-            "description": (
-                "Offensive rebound percentage"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.OREB_PCT"),
+            "description": ("Offensive rebound percentage"),
         },
     )
     dreb_pct: float | None = pa.Field(
@@ -797,13 +556,8 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.DREB_PCT"
-            ),
-            "description": (
-                "Defensive rebound percentage"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.DREB_PCT"),
+            "description": ("Defensive rebound percentage"),
         },
     )
     reb_pct: float | None = pa.Field(
@@ -811,13 +565,8 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.REB_PCT"
-            ),
-            "description": (
-                "Total rebound percentage"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.REB_PCT"),
+            "description": ("Total rebound percentage"),
         },
     )
     tov_pct: float | None = pa.Field(
@@ -825,10 +574,7 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.TOV_PCT"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.TOV_PCT"),
             "description": "Turnover percentage",
         },
     )
@@ -837,13 +583,8 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.EFG_PCT"
-            ),
-            "description": (
-                "Effective field goal percentage"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.EFG_PCT"),
+            "description": ("Effective field goal percentage"),
         },
     )
     ts_pct: float | None = pa.Field(
@@ -851,10 +592,7 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.TS_PCT"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.TS_PCT"),
             "description": "True shooting percentage",
         },
     )
@@ -863,10 +601,7 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.USG_PCT"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.USG_PCT"),
             "description": "Usage percentage",
         },
     )
@@ -875,23 +610,15 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.E_USG_PCT"
-            ),
-            "description": (
-                "Estimated usage percentage"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.E_USG_PCT"),
+            "description": ("Estimated usage percentage"),
         },
     )
     e_pace: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.E_PACE"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.E_PACE"),
             "description": "Estimated pace",
         },
     )
@@ -899,10 +626,7 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.PACE"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.PACE"),
             "description": "Pace factor",
         },
     )
@@ -910,10 +634,7 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.PACE_PER40"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.PACE_PER40"),
             "description": "Pace per 40 minutes",
         },
     )
@@ -921,23 +642,15 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.POSS"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.POSS"),
             "description": "Possessions",
         },
     )
     pie: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreAdvancedV3"
-                ".PlayerStats.PIE"
-            ),
-            "description": (
-                "Player impact estimate"
-            ),
+            "source": ("BoxScoreAdvancedV3.PlayerStats.PIE"),
+            "description": ("Player impact estimate"),
         },
     )
 
@@ -946,20 +659,14 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.GAME_ID"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.TEAM_ID"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -968,10 +675,7 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.PLAYER_ID"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.PLAYER_ID"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -979,33 +683,22 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
     player_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.PLAYER_NAME"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
     )
     min: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.MIN"
-            ),
-            "description": (
-                "Minutes played as string"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.MIN"),
+            "description": ("Minutes played as string"),
         },
     )
     contested_shots: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.CONTESTED_SHOTS"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.CONTESTED_SHOTS"),
             "description": "Contested shots",
         },
     )
@@ -1013,36 +706,23 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.CONTESTED_SHOTS_2PT"
-            ),
-            "description": (
-                "Contested two-point shots"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.CONTESTED_SHOTS_2PT"),
+            "description": ("Contested two-point shots"),
         },
     )
     contested_shots_3pt: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.CONTESTED_SHOTS_3PT"
-            ),
-            "description": (
-                "Contested three-point shots"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.CONTESTED_SHOTS_3PT"),
+            "description": ("Contested three-point shots"),
         },
     )
     deflections: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.DEFLECTIONS"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.DEFLECTIONS"),
             "description": "Deflections",
         },
     )
@@ -1050,10 +730,7 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.CHARGES_DRAWN"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.CHARGES_DRAWN"),
             "description": "Charges drawn",
         },
     )
@@ -1061,10 +738,7 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.SCREEN_ASSISTS"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.SCREEN_ASSISTS"),
             "description": "Screen assists",
         },
     )
@@ -1072,24 +746,15 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.SCREEN_AST_PTS"
-            ),
-            "description": (
-                "Points from screen assists"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.SCREEN_AST_PTS"),
+            "description": ("Points from screen assists"),
         },
     )
     loose_balls_recovered: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats"
-                ".LOOSE_BALLS_RECOVERED"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.LOOSE_BALLS_RECOVERED"),
             "description": "Loose balls recovered",
         },
     )
@@ -1097,10 +762,7 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreHustleV2"
-                ".PlayerStats.BOX_OUTS"
-            ),
+            "source": ("BoxScoreHustleV2.PlayerStats.BOX_OUTS"),
             "description": "Box outs",
         },
     )
@@ -1110,20 +772,14 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.GAME_ID"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.TEAM_ID"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -1132,10 +788,7 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.PLAYER_ID"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.PLAYER_ID"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -1143,33 +796,22 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
     player_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.PLAYER_NAME"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
     )
     min: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.MIN"
-            ),
-            "description": (
-                "Minutes played as string"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.MIN"),
+            "description": ("Minutes played as string"),
         },
     )
     spd: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.SPD"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.SPD"),
             "description": "Average speed in mph",
         },
     )
@@ -1177,62 +819,39 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.DIST"
-            ),
-            "description": (
-                "Distance covered in miles"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.DIST"),
+            "description": ("Distance covered in miles"),
         },
     )
     orbc: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.ORBC"
-            ),
-            "description": (
-                "Offensive rebound chances"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.ORBC"),
+            "description": ("Offensive rebound chances"),
         },
     )
     drbc: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.DRBC"
-            ),
-            "description": (
-                "Defensive rebound chances"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.DRBC"),
+            "description": ("Defensive rebound chances"),
         },
     )
     rbc: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.RBC"
-            ),
-            "description": (
-                "Total rebound chances"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.RBC"),
+            "description": ("Total rebound chances"),
         },
     )
     tchs: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.TCHS"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.TCHS"),
             "description": "Touches",
         },
     )
@@ -1240,10 +859,7 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.SAST"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.SAST"),
             "description": "Secondary assists",
         },
     )
@@ -1251,13 +867,8 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.FTAST"
-            ),
-            "description": (
-                "Free throw assists"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.FTAST"),
+            "description": ("Free throw assists"),
         },
     )
     pass_: float | None = pa.Field(
@@ -1265,10 +876,7 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         ge=0,
         alias="pass",
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.PASS"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.PASS"),
             "description": "Passes made",
         },
     )
@@ -1276,26 +884,16 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.CFGM"
-            ),
-            "description": (
-                "Contested field goals made"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.CFGM"),
+            "description": ("Contested field goals made"),
         },
     )
     cfga: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.CFGA"
-            ),
-            "description": (
-                "Contested field goals attempted"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.CFGA"),
+            "description": ("Contested field goals attempted"),
         },
     )
     cfg_pct: float | None = pa.Field(
@@ -1303,39 +901,24 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.CFG_PCT"
-            ),
-            "description": (
-                "Contested field goal percentage"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.CFG_PCT"),
+            "description": ("Contested field goal percentage"),
         },
     )
     ufgm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.UFGM"
-            ),
-            "description": (
-                "Uncontested field goals made"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.UFGM"),
+            "description": ("Uncontested field goals made"),
         },
     )
     ufga: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.UFGA"
-            ),
-            "description": (
-                "Uncontested field goals attempted"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.UFGA"),
+            "description": ("Uncontested field goals attempted"),
         },
     )
     ufg_pct: float | None = pa.Field(
@@ -1343,39 +926,24 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.UFG_PCT"
-            ),
-            "description": (
-                "Uncontested field goal percentage"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.UFG_PCT"),
+            "description": ("Uncontested field goal percentage"),
         },
     )
     dfgm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.DFGM"
-            ),
-            "description": (
-                "Defended field goals made"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.DFGM"),
+            "description": ("Defended field goals made"),
         },
     )
     dfga: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.DFGA"
-            ),
-            "description": (
-                "Defended field goals attempted"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.DFGA"),
+            "description": ("Defended field goals attempted"),
         },
     )
     dfg_pct: float | None = pa.Field(
@@ -1383,13 +951,8 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScorePlayerTrackV3"
-                ".PlayerStats.DFG_PCT"
-            ),
-            "description": (
-                "Defended field goal percentage"
-            ),
+            "source": ("BoxScorePlayerTrackV3.PlayerStats.DFG_PCT"),
+            "description": ("Defended field goal percentage"),
         },
     )
 
@@ -1400,20 +963,14 @@ class StagingBoxScoreDefensivePlayerSchema(
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.GAME_ID"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     team_id: int = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.TEAM_ID"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.TEAM_ID"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -1422,10 +979,7 @@ class StagingBoxScoreDefensivePlayerSchema(
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.PLAYER_ID"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.PLAYER_ID"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -1433,101 +987,63 @@ class StagingBoxScoreDefensivePlayerSchema(
     player_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.PLAYER_NAME"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
     )
     min: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.MIN"
-            ),
-            "description": (
-                "Minutes played as string"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.MIN"),
+            "description": ("Minutes played as string"),
         },
     )
     matchup_min: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.MATCHUP_MIN"
-            ),
-            "description": (
-                "Minutes in matchup defense"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.MATCHUP_MIN"),
+            "description": ("Minutes in matchup defense"),
         },
     )
     partial_poss: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.PARTIAL_POSS"
-            ),
-            "description": (
-                "Partial possessions defended"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.PARTIAL_POSS"),
+            "description": ("Partial possessions defended"),
         },
     )
     switches_on: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.SWITCHES_ON"
-            ),
-            "description": (
-                "Number of defensive switches"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.SWITCHES_ON"),
+            "description": ("Number of defensive switches"),
         },
     )
     player_pts: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.PLAYER_PTS"
-            ),
-            "description": (
-                "Points allowed on defense"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.PLAYER_PTS"),
+            "description": ("Points allowed on defense"),
         },
     )
     def_fgm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.DEF_FGM"
-            ),
-            "description": (
-                "Defended field goals made"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.DEF_FGM"),
+            "description": ("Defended field goals made"),
         },
     )
     def_fga: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.DEF_FGA"
-            ),
-            "description": (
-                "Defended field goals attempted"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.DEF_FGA"),
+            "description": ("Defended field goals attempted"),
         },
     )
     def_fg_pct: float | None = pa.Field(
@@ -1535,13 +1051,8 @@ class StagingBoxScoreDefensivePlayerSchema(
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "BoxScoreDefensiveV2"
-                ".PlayerStats.DEF_FG_PCT"
-            ),
-            "description": (
-                "Defended field goal percentage"
-            ),
+            "source": ("BoxScoreDefensiveV2.PlayerStats.DEF_FG_PCT"),
+            "description": ("Defended field goal percentage"),
         },
     )
 

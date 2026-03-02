@@ -20,6 +20,9 @@ _PHASES: list[tuple[int, str]] = [
 
 
 class DimSeasonPhaseTransformer(BaseTransformer):
+    # NOTE: standalone lookup table — no FK refs in current star schema.
+    # Kept as a reference dimension for downstream consumers that may
+    # join on phase_id (e.g. ad-hoc queries, Kaggle exports).
     output_table: ClassVar[str] = "dim_season_phase"
     depends_on: ClassVar[list[str]] = []
 

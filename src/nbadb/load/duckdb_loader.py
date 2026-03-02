@@ -25,16 +25,8 @@ class DuckDBLoader(BaseLoader):
         validate_sql_identifier(table)
         self._conn.register("_load_df", df)
         if mode == "replace":
-            self._conn.execute(
-                f"CREATE OR REPLACE TABLE {table} "
-                f"AS SELECT * FROM _load_df"
-            )
+            self._conn.execute(f"CREATE OR REPLACE TABLE {table} AS SELECT * FROM _load_df")
         else:
-            self._conn.execute(
-                f"INSERT INTO {table} SELECT * FROM _load_df"
-            )
+            self._conn.execute(f"INSERT INTO {table} SELECT * FROM _load_df")
         self._conn.unregister("_load_df")
-        logger.debug(
-            f"DuckDB: wrote {df.shape[0]} rows to {table} "
-            f"(mode={mode})"
-        )
+        logger.debug(f"DuckDB: wrote {df.shape[0]} rows to {table} (mode={mode})")

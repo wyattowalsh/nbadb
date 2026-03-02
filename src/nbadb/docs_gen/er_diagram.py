@@ -83,17 +83,17 @@ class ERDiagramGenerator:
             fk_ref = metadata.get("fk_ref", "")
             if fk_ref and "." in fk_ref:
                 ref_table, ref_col = fk_ref.split(".", 1)
-                rels.append({
-                    "from_table": table_name,
-                    "from_col": field_name,
-                    "to_table": ref_table,
-                    "to_col": ref_col,
-                })
+                rels.append(
+                    {
+                        "from_table": table_name,
+                        "from_col": field_name,
+                        "to_table": ref_table,
+                        "to_col": ref_col,
+                    }
+                )
         return rels
 
-    def _extract_columns(
-        self, schema_cls: type[pa.DataFrameModel]
-    ) -> list[dict[str, str]]:
+    def _extract_columns(self, schema_cls: type[pa.DataFrameModel]) -> list[dict[str, str]]:
         """Extract column info for ER entity block."""
         cols: list[dict[str, str]] = []
         annotations = {}
@@ -106,9 +106,7 @@ class ERDiagramGenerator:
             type_str = str(field_type)
             if " | None" in type_str:
                 type_str = type_str.replace(" | None", "")
-            metadata = getattr(
-                getattr(schema_cls, field_name, None), "metadata", {}
-            ) or {}
+            metadata = getattr(getattr(schema_cls, field_name, None), "metadata", {}) or {}
             pk = "PK" if metadata.get("fk_ref", "") == "" and field_name.endswith("_id") else ""
             fk = "FK" if metadata.get("fk_ref") else ""
             key = pk or fk
@@ -138,9 +136,7 @@ class ERDiagramGenerator:
             lines.append(f"    {table_name} {{")
             for col in cols:
                 key_marker = f" {col['key']}" if col["key"] else ""
-                lines.append(
-                    f"        {col['type']} {col['name']}{key_marker}"
-                )
+                lines.append(f"        {col['type']} {col['name']}{key_marker}")
             lines.append("    }")
 
         seen_rels: set[tuple[str, str]] = set()
@@ -151,8 +147,7 @@ class ERDiagramGenerator:
             seen_rels.add(pair)
             if rel["from_table"] in table_cols and rel["to_table"] in table_cols:
                 lines.append(
-                    f"    {rel['to_table']} ||--o{{ {rel['from_table']} "
-                    f': "{rel["from_col"]}"'
+                    f'    {rel["to_table"]} ||--o{{ {rel["from_table"]} : "{rel["from_col"]}"'
                 )
 
         return "\n".join(lines)

@@ -37,10 +37,7 @@ def _fixture_to_pandas(fixture: dict[str, Any], result_set_idx: int = 0) -> pd.D
 def _mock_endpoint(fixture: dict[str, Any]) -> MagicMock:
     """Create a MagicMock endpoint that returns fixture data as pandas DFs."""
     mock = MagicMock()
-    dfs = [
-        _fixture_to_pandas(fixture, i)
-        for i in range(len(fixture["resultSets"]))
-    ]
+    dfs = [_fixture_to_pandas(fixture, i) for i in range(len(fixture["resultSets"]))]
     mock.return_value.get_data_frames.return_value = dfs
     return mock
 

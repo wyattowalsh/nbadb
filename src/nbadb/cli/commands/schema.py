@@ -1,54 +1,27 @@
 from __future__ import annotations
 
-import importlib
-import inspect
-import pkgutil
+from typing import TYPE_CHECKING
 
 import typer
 
 from nbadb.cli.app import app
-from nbadb.transform.base import BaseTransformer
+from nbadb.orchestrate.transformers import discover_all_transformers
+
+if TYPE_CHECKING:
+    from nbadb.transform.base import BaseTransformer
 
 
 @app.command()
 def schema(
-    table: str = typer.Argument(
-        None, help="Table name (omit to list all)"
-    ),
+    table: str = typer.Argument(None, help="Table name (omit to list all)"),
 ) -> None:
     """Display star schema info and table lineage."""
-    transformers = _discover_all_transformers()
+    transformers = discover_all_transformers()
 
     if table:
         _show_table_detail(table, transformers)
     else:
         _show_all_tables(transformers)
-
-
-def _discover_all_transformers() -> list[BaseTransformer]:
-    """Walk nbadb.transform subpackages and instantiate transformers."""
-    import nbadb.transform as root_pkg
-
-    instances: list[BaseTransformer] = []
-    for _, modname, _ispkg in pkgutil.walk_packages(
-        root_pkg.__path__,
-        prefix=root_pkg.__name__ + ".",
-    ):
-        try:
-            mod = importlib.import_module(modname)
-        except (ImportError, ModuleNotFoundError):
-            continue
-        for _name, obj in inspect.getmembers(mod, inspect.isclass):
-            if (
-                issubclass(obj, BaseTransformer)
-                and obj is not BaseTransformer
-                and hasattr(obj, "output_table")
-            ):
-                try:
-                    instances.append(obj())
-                except (TypeError, ValueError, RuntimeError):
-                    continue
-    return instances
 
 
 def _show_table_detail(
@@ -64,9 +37,7 @@ def _show_table_detail(
     t = match[0]
     typer.echo(f"Table:      {t.output_table}")
     typer.echo(f"Class:      {type(t).__name__}")
-    typer.echo(
-        f"Depends on: {', '.join(t.depends_on) or '(none)'}"
-    )
+    typer.echo(f"Depends on: {', '.join(t.depends_on) or '(none)'}")
 
 
 def _show_all_tables(

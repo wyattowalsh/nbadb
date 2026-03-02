@@ -67,14 +67,20 @@ class TestCreateMultiLoader:
         assert (tmp_path / "data" / "csv" / "tbl.csv").exists()
         assert (tmp_path / "data" / "parquet" / "tbl" / "tbl.parquet").exists()
 
-    def test_duckdb_requires_conn(self, tmp_path: Path) -> None:
+    def test_duckdb_opens_own_conn_when_none_passed(self, tmp_path: Path) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir(parents=True)
+        # Create an empty DuckDB file so the loader can open it
+        db_path = data_dir / "nba.duckdb"
+        conn = duckdb.connect(str(db_path))
+        conn.close()
         settings = NbaDbSettings(
-            data_dir=tmp_path / "data",
+            data_dir=data_dir,
             log_dir=tmp_path / "logs",
             formats=["duckdb"],
         )
         ml = create_multi_loader(settings)
-        assert len(ml._loaders) == 0
+        assert len(ml._loaders) == 1
 
     def test_duckdb_with_conn(self, tmp_path: Path) -> None:
         settings = NbaDbSettings(

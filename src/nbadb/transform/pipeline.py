@@ -55,29 +55,49 @@ class TransformPipeline:
         ordered = self._topological_sort()
         logger.info(f"Pipeline: {len(ordered)} transformers in dependency order")
         completed: set[str] = set()
-        for transformer in ordered:
-            table = transformer.output_table
-            if resume and table in self._outputs:
-                logger.info(f"Skipping {table} (already completed)")
+        failed_tables: list[str] = []
+        try:
+            for transformer in ordered:
+                table = transformer.output_table
+                if resume and table in self._outputs:
+                    logger.info(f"Skipping {table} (already completed)")
+                    completed.add(table)
+                    continue
+                combined = {**staging}
+                for name, df in self._outputs.items():
+                    combined[name] = df.lazy()
+                try:
+                    transformer._conn = self._conn
+                    # Register all combined tables into shared conn for this transformer
+                    for key, val in combined.items():
+                        try:
+                            data = val.collect() if hasattr(val, "collect") else val
+                            self._conn.register(key, data)
+                        except Exception:
+                            pass
+                    df = transformer.run(combined)
+                except Exception:
+                    logger.error(
+                        f"Pipeline failed at {table} "
+                        f"(transformer: {type(transformer).__name__}, "
+                        f"depends_on: {transformer.depends_on}, "
+                        f"completed: {len(completed)}/{len(ordered)})"
+                    )
+                    failed_tables.append(table)
+                    continue
+                self._outputs[table] = df
+                self._conn.register(table, df)
                 completed.add(table)
-                continue
-            combined = {**staging}
-            for name, df in self._outputs.items():
-                combined[name] = df.lazy()
-            try:
-                df = transformer.run(combined)
-            except Exception:
-                logger.error(
-                    f"Pipeline failed at {table} "
-                    f"(completed: {len(completed)}/{len(ordered)})"
+                logger.debug(f"Registered {table} in DuckDB ({df.shape[0]} rows)")
+
+            if failed_tables:
+                logger.warning(
+                    f"Pipeline completed with {len(failed_tables)} failed "
+                    f"transformers: {failed_tables}"
                 )
-                raise
-            self._outputs[table] = df
-            self._conn.register(table, df)
-            completed.add(table)
-            logger.debug(
-                f"Registered {table} in DuckDB ({df.shape[0]} rows)"
-            )
+        finally:
+            for t in self._transformers:
+                t._conn = None
         return self._outputs
 
     def get_output(self, table: str) -> pl.DataFrame | None:

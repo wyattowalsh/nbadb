@@ -62,9 +62,7 @@ class TestProxyInjection:
         mock_endpoint = MagicMock()
         import pandas as pd
 
-        mock_endpoint.return_value.get_data_frames.return_value = [
-            pd.DataFrame({"COL": [1]})
-        ]
+        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
         ext._from_nba_api(mock_endpoint)
         call_kwargs = mock_endpoint.call_args[1]
         assert call_kwargs["proxy"] == "http://proxy:8080"
@@ -77,9 +75,7 @@ class TestProxyInjection:
         mock_endpoint = MagicMock()
         import pandas as pd
 
-        mock_endpoint.return_value.get_data_frames.return_value = [
-            pd.DataFrame({"COL": [1]})
-        ]
+        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
         ext._from_nba_api(mock_endpoint)
         call_kwargs = mock_endpoint.call_args[1]
         assert "proxy" not in call_kwargs
@@ -91,9 +87,7 @@ class TestProxyInjection:
         mock_endpoint = MagicMock()
         import pandas as pd
 
-        mock_endpoint.return_value.get_data_frames.return_value = [
-            pd.DataFrame({"COL": [1]})
-        ]
+        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
         ext._from_nba_api(mock_endpoint, proxy="http://other:9090")
         call_kwargs = mock_endpoint.call_args[1]
         assert call_kwargs["proxy"] == "http://other:9090"
@@ -105,9 +99,7 @@ class TestProxyInjection:
         mock_endpoint = MagicMock()
         import pandas as pd
 
-        mock_endpoint.return_value.get_data_frames.return_value = [
-            pd.DataFrame({"COL": [1]})
-        ]
+        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
         ext._from_nba_api_multi(mock_endpoint)
         call_kwargs = mock_endpoint.call_args[1]
         assert call_kwargs["proxy"] == "http://proxy:8080"

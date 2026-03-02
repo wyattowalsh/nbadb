@@ -139,6 +139,33 @@ class PipelineJournal:
         ).fetchone()
         return row is not None
 
+    def was_extracted_batch(self, items: list[tuple[str, str]]) -> set[tuple[str, str]]:
+        """Return the subset of (endpoint, params) pairs already done.
+
+        Fetches all already-completed items in a single query instead
+        of one query per item (avoids the N+1 pattern).
+        """
+        if not items:
+            return set()
+
+        # Build parameterized placeholders: ($1, $2), ($3, $4), ...
+        placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(len(items)))
+        flat_params: list[str] = []
+        for endpoint, params in items:
+            flat_params.append(endpoint)
+            flat_params.append(params)
+
+        rows = self._conn.execute(
+            f"""
+            SELECT endpoint, params
+            FROM _extraction_journal
+            WHERE status = 'done'
+              AND (endpoint, params) IN ({placeholders})
+            """,
+            flat_params,
+        ).fetchall()
+        return {(r[0], r[1]) for r in rows}
+
     def get_failed(self) -> list[tuple[str, str, str]]:
         """Return all failed extractions as (endpoint, params, error)."""
         rows = self._conn.execute(
@@ -150,6 +177,22 @@ class PipelineJournal:
             """
         ).fetchall()
         return [(r[0], r[1], r[2] or "") for r in rows]
+
+    def reset_stale_running(self, cutoff_minutes: int = 60) -> int:
+        """Mark running entries older than cutoff as failed (stale from crash)."""
+        result = self._conn.execute(
+            """
+            UPDATE _extraction_journal
+            SET status = 'failed', error_message = 'stale_running'
+            WHERE status = 'running'
+            AND started_at < CURRENT_TIMESTAMP - INTERVAL (CAST(? AS VARCHAR) || ' minutes')
+            """,
+            [cutoff_minutes],
+        )
+        count = result.rowcount or 0
+        if count:
+            logger.info("reset {} stale running entries to failed", count)
+        return count
 
     def clear_journal(self) -> None:
         """Delete all journal entries (for fresh runs)."""

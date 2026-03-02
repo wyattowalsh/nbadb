@@ -52,7 +52,8 @@ class TestJournalWatermarks:
         assert journal.get_watermark("foo", "season") is None
 
     def test_set_and_get_watermark(
-        self, journal: PipelineJournal,
+        self,
+        journal: PipelineJournal,
     ) -> None:
         journal.set_watermark("stg_game_log", "season", "2024-25", 1000)
         assert journal.get_watermark("stg_game_log", "season") == "2024-25"
@@ -65,14 +66,18 @@ class TestJournalWatermarks:
 
 class TestJournalExtraction:
     def test_record_start_and_success(
-        self, journal: PipelineJournal,
+        self,
+        journal: PipelineJournal,
     ) -> None:
         journal.record_start("box_score", '{"game_id": "001"}')
         assert not journal.was_extracted(
-            "box_score", '{"game_id": "001"}',
+            "box_score",
+            '{"game_id": "001"}',
         )
         journal.record_success(
-            "box_score", '{"game_id": "001"}', rows=50,
+            "box_score",
+            '{"game_id": "001"}',
+            rows=50,
         )
         assert journal.was_extracted("box_score", '{"game_id": "001"}')
 
@@ -101,4 +106,12 @@ class TestJournalExtraction:
 class TestJournalMetrics:
     def test_record_metric(self, journal: PipelineJournal) -> None:
         journal.record_metric("ep", duration=1.5, rows=100, errors=0)
-        # Just verify it doesn't throw
+        row = journal._conn.execute(
+            "SELECT endpoint, duration_seconds, rows_extracted, error_count "
+            "FROM _pipeline_metrics WHERE endpoint = 'ep'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "ep"
+        assert row[1] == pytest.approx(1.5)
+        assert row[2] == 100
+        assert row[3] == 0

@@ -113,3 +113,38 @@ class TestTransformPipeline:
         result = conn.execute("SELECT val_a FROM table_a").fetchone()
         assert result[0] == 42
         conn.close()
+
+    def test_pipeline_exception_continues_and_logs(self) -> None:
+        """When a transformer raises, the pipeline continues and logs the failure."""
+        from loguru import logger
+
+        class _BrokenTransformer(BaseTransformer):
+            output_table: ClassVar[str] = "broken_table"
+            depends_on: ClassVar[list[str]] = []
+
+            def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+                raise ValueError("intentional transform failure")
+
+        log_messages: list[str] = []
+
+        sink_id = logger.add(log_messages.append, format="{message}", level="ERROR")
+        try:
+            conn = duckdb.connect()
+            pipeline = TransformPipeline(conn)
+            pipeline.register(_BrokenTransformer())
+            pipeline.register(_TransA())
+
+            staging: dict[str, pl.LazyFrame] = {"raw_input": pl.DataFrame({"val": [1]}).lazy()}
+
+            outputs = pipeline.run(staging)
+
+            # Pipeline should continue: broken_table skipped, table_a succeeded
+            assert "broken_table" not in outputs
+            assert "table_a" in outputs
+            conn.close()
+        finally:
+            logger.remove(sink_id)
+
+        # The error log should contain the transformer class name
+        all_messages = "\n".join(log_messages)
+        assert "_BrokenTransformer" in all_messages or "broken_table" in all_messages

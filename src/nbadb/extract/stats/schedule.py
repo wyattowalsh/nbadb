@@ -21,6 +21,4 @@ class ScheduleExtractor(BaseExtractor):
         season: str = params["season"]
         league_id: str = params.get("league_id", "00")
         logger.debug(f"Extracting schedule for {season}")
-        return self._from_nba_api(
-            ScheduleLeagueV2, season=season, league_id=league_id
-        )
+        return self._from_nba_api(ScheduleLeagueV2, season=season, league_id=league_id)

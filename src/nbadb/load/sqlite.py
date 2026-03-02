@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Literal
 
 from loguru import logger
 
+from nbadb.core.types import validate_sql_identifier
 from nbadb.load.base import BaseLoader
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ class SQLiteLoader(BaseLoader):
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
+        validate_sql_identifier(table)
         if_exists = "replace" if mode == "replace" else "append"
         df.write_database(
             table,
@@ -30,7 +32,4 @@ class SQLiteLoader(BaseLoader):
             engine="adbc",
             if_table_exists=if_exists,
         )
-        logger.debug(
-            f"SQLite: wrote {df.shape[0]} rows to {table} "
-            f"(mode={mode})"
-        )
+        logger.debug(f"SQLite: wrote {df.shape[0]} rows to {table} (mode={mode})")

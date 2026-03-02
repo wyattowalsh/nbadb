@@ -183,41 +183,70 @@ class TestRawLeagueGameLogSchema:
 
 class TestRawPlayerGameLogSchema:
     def test_valid_data(self) -> None:
-        df = pl.DataFrame({
-            "season_id": ["22024"],
-            "player_id": [2544],
-            "game_id": ["0022400001"],
-            "game_date": ["2024-10-22"],
-            "matchup": ["LAL vs. BOS"],
-            "wl": ["W"],
-            "min": [36.0],
-            "fgm": [10.0], "fga": [20.0], "fg_pct": [0.5],
-            "fg3m": [3.0], "fg3a": [8.0], "fg3_pct": [0.375],
-            "ftm": [5.0], "fta": [6.0], "ft_pct": [0.833],
-            "oreb": [1.0], "dreb": [6.0], "reb": [7.0],
-            "ast": [8.0], "stl": [2.0], "blk": [1.0],
-            "tov": [3.0], "pf": [2.0], "pts": [28.0],
-            "plus_minus": [12.0],
-        })
+        df = pl.DataFrame(
+            {
+                "season_id": ["22024"],
+                "player_id": [2544],
+                "game_id": ["0022400001"],
+                "game_date": ["2024-10-22"],
+                "matchup": ["LAL vs. BOS"],
+                "wl": ["W"],
+                "min": [36.0],
+                "fgm": [10.0],
+                "fga": [20.0],
+                "fg_pct": [0.5],
+                "fg3m": [3.0],
+                "fg3a": [8.0],
+                "fg3_pct": [0.375],
+                "ftm": [5.0],
+                "fta": [6.0],
+                "ft_pct": [0.833],
+                "oreb": [1.0],
+                "dreb": [6.0],
+                "reb": [7.0],
+                "ast": [8.0],
+                "stl": [2.0],
+                "blk": [1.0],
+                "tov": [3.0],
+                "pf": [2.0],
+                "pts": [28.0],
+                "plus_minus": [12.0],
+            }
+        )
         result = RawPlayerGameLogSchema.validate(df)
         assert result.shape[0] == 1
 
     def test_player_id_must_be_positive(self) -> None:
-        df = pl.DataFrame({
-            "season_id": ["22024"],
-            "player_id": [-1],
-            "game_id": ["001"],
-            "game_date": ["2024-10-22"],
-            "matchup": ["LAL vs. BOS"],
-            "wl": [None], "min": [None],
-            "fgm": [None], "fga": [None], "fg_pct": [None],
-            "fg3m": [None], "fg3a": [None], "fg3_pct": [None],
-            "ftm": [None], "fta": [None], "ft_pct": [None],
-            "oreb": [None], "dreb": [None], "reb": [None],
-            "ast": [None], "stl": [None], "blk": [None],
-            "tov": [None], "pf": [None], "pts": [None],
-            "plus_minus": [None],
-        })
+        df = pl.DataFrame(
+            {
+                "season_id": ["22024"],
+                "player_id": [-1],
+                "game_id": ["001"],
+                "game_date": ["2024-10-22"],
+                "matchup": ["LAL vs. BOS"],
+                "wl": [None],
+                "min": [None],
+                "fgm": [None],
+                "fga": [None],
+                "fg_pct": [None],
+                "fg3m": [None],
+                "fg3a": [None],
+                "fg3_pct": [None],
+                "ftm": [None],
+                "fta": [None],
+                "ft_pct": [None],
+                "oreb": [None],
+                "dreb": [None],
+                "reb": [None],
+                "ast": [None],
+                "stl": [None],
+                "blk": [None],
+                "tov": [None],
+                "pf": [None],
+                "pts": [None],
+                "plus_minus": [None],
+            }
+        )
         with pytest.raises(pa_errors.SchemaError):
             RawPlayerGameLogSchema.validate(df)
 
@@ -234,35 +263,45 @@ class TestRawTeamGameLogSchema:
 
 class TestRawDraftHistorySchema:
     def test_valid_data(self) -> None:
-        df = pl.DataFrame({
-            "person_id": [2544],
-            "player_name": ["LeBron James"],
-            "season": ["2003"],
-            "round_number": [1],
-            "round_pick": [1],
-            "overall_pick": [1],
-            "draft_type": ["Draft"],
-            "team_id": [1610612739],
-            "team_city": ["Cleveland"],
-            "team_name": ["Cavaliers"],
-            "team_abbreviation": ["CLE"],
-            "organization": [None],
-            "organization_type": [None],
-            "player_profile_flag": [1],
-        })
+        df = pl.DataFrame(
+            {
+                "person_id": [2544],
+                "player_name": ["LeBron James"],
+                "season": ["2003"],
+                "round_number": [1],
+                "round_pick": [1],
+                "overall_pick": [1],
+                "draft_type": ["Draft"],
+                "team_id": [1610612739],
+                "team_city": ["Cleveland"],
+                "team_name": ["Cavaliers"],
+                "team_abbreviation": ["CLE"],
+                "organization": [None],
+                "organization_type": [None],
+                "player_profile_flag": [1],
+            }
+        )
         result = RawDraftHistorySchema.validate(df)
         assert result.shape[0] == 1
 
     def test_person_id_must_be_positive(self) -> None:
-        df = pl.DataFrame({
-            "person_id": [-1],
-            "player_name": [None], "season": [None],
-            "round_number": [None], "round_pick": [None],
-            "overall_pick": [None], "draft_type": [None],
-            "team_id": [None], "team_city": [None],
-            "team_name": [None], "team_abbreviation": [None],
-            "organization": [None], "organization_type": [None],
-            "player_profile_flag": [None],
-        })
+        df = pl.DataFrame(
+            {
+                "person_id": [-1],
+                "player_name": [None],
+                "season": [None],
+                "round_number": [None],
+                "round_pick": [None],
+                "overall_pick": [None],
+                "draft_type": [None],
+                "team_id": [None],
+                "team_city": [None],
+                "team_name": [None],
+                "team_abbreviation": [None],
+                "organization": [None],
+                "organization_type": [None],
+                "player_profile_flag": [None],
+            }
+        )
         with pytest.raises(pa_errors.SchemaError):
             RawDraftHistorySchema.validate(df)

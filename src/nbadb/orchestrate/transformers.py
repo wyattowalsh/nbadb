@@ -40,15 +40,11 @@ def discover_all_transformers() -> list[BaseTransformer]:
             )
             continue
 
-        for _, module_name, _ in pkgutil.walk_packages(
-            package.__path__, prefix=f"{package_name}."
-        ):
+        for _, module_name, _ in pkgutil.walk_packages(package.__path__, prefix=f"{package_name}."):
             try:
                 module = importlib.import_module(module_name)
             except ImportError as exc:
-                logger.warning(
-                    "cannot import {}: {}", module_name, exc
-                )
+                logger.warning("cannot import {}: {}", module_name, exc)
                 continue
 
             for attr in dir(module):

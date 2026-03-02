@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-import duckdb
-
 from nbadb.transform.base import BaseTransformer
 
 if TYPE_CHECKING:
@@ -21,8 +19,4 @@ class FactTrackingDefenseTransformer(BaseTransformer):
     """
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        conn = duckdb.connect()
-        conn.register("stg_tracking_defense", staging["stg_tracking_defense"].collect())
-        result = conn.execute(self._SQL).pl()
-        conn.close()
-        return result
+        return self._conn.execute(self._SQL).pl()

@@ -16,6 +16,6 @@ def download(
     try:
         path = KaggleClient().download(data_dir)
     except Exception as exc:
-        typer.echo(f"Download failed: {exc}", err=True)
+        typer.echo(f"Download failed: {type(exc).__name__}", err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Downloaded to {path}")

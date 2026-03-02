@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
-from datetime import date as _date
 from enum import StrEnum
+
+from nbadb.orchestrate.seasons import current_season
 
 
 class SeasonType(StrEnum):
@@ -46,13 +47,6 @@ type GameDate = str
 NBA_FIRST_SEASON: SeasonYear = "1946-47"
 
 
-def current_season() -> SeasonYear:
-    """Compute the current NBA season string (e.g. '2025-26')."""
-    today = _date.today()
-    year = today.year if today.month >= 10 else today.year - 1
-    return f"{year}-{str(year + 1)[-2:]}"
-
-
 CURRENT_SEASON: SeasonYear = current_season()
 NBA_HEADERS: dict[str, str] = {
     "User-Agent": (
@@ -66,7 +60,7 @@ NBA_HEADERS: dict[str, str] = {
     "x-nba-stats-token": "true",
 }
 
-_IDENTIFIER_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+_IDENTIFIER_RE: re.Pattern[str] = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 def validate_sql_identifier(name: str) -> str:

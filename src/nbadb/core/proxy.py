@@ -37,9 +37,7 @@ class ProxyPool:
 
         if settings.proxy_urls:
             proxies = [Proxy(url=u) for u in settings.proxy_urls]
-            logger.info(
-                "proxy pool: {} explicit proxies", len(proxies)
-            )
+            logger.info("proxy pool: {} explicit proxies", len(proxies))
         elif settings.proxy_bootstrap:
             bootstrap = BootstrapConfig(
                 enabled=True,
@@ -63,13 +61,9 @@ class ProxyPool:
 
         pool = cls(whirl)
         if settings.proxy_urls:
-            logger.info(
-                "proxy pool ready: {} explicit proxies", pool.size
-            )
+            logger.info("proxy pool ready: {} explicit proxies", pool.size)
         else:
-            logger.info(
-                "proxy pool: bootstrap enabled, fetching on first use"
-            )
+            logger.info("proxy pool: bootstrap enabled, fetching on first use")
         return pool
 
     def get_proxy_url(self) -> str | None:
@@ -83,7 +77,7 @@ class ProxyPool:
             logger.debug("proxy pool empty, falling back to direct")
             return None
         except Exception as exc:
-            logger.warning("proxy selection failed: {}", exc)
+            logger.warning("proxy selection failed: {}", type(exc).__name__)
             return None
 
     @property

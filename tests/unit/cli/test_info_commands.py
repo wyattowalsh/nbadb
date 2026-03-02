@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import duckdb
@@ -87,7 +88,6 @@ class TestStatusCommand:
         _make_db_with_tables(db_path)
         result = runner.invoke(app, ["status", "--data-dir", str(tmp_path)])
         assert result.exit_code == 0
-        # Journal section empty sentinel
         assert "Extraction Journal" in result.output
         assert "(empty)" in result.output
 
@@ -115,12 +115,56 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "(no watermark data)" in result.output
 
+    def test_status_json_output_structure(self, tmp_path: object) -> None:
+        """--output-format json produces valid JSON with expected keys."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        result = runner.invoke(
+            app, ["status", "--data-dir", str(tmp_path), "--output-format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "watermarks" in data
+        assert "journal" in data
+        assert "metadata" in data
+
+    def test_status_json_output_watermarks_is_list(self, tmp_path: object) -> None:
+        """JSON output 'watermarks' is a list."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        result = runner.invoke(
+            app, ["status", "--data-dir", str(tmp_path), "--output-format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data["watermarks"], list)
+
+    def test_status_json_populated_watermark_entry(self, tmp_path: object) -> None:
+        """JSON output 'watermarks' contains row data with expected keys."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        conn = duckdb.connect(str(db_path))
+        conn.execute(
+            "INSERT INTO _pipeline_watermarks VALUES "
+            "('dim_date', 'last_load', '2025-26', '2025-01-01 00:00:00', 1000)"
+        )
+        conn.close()
+        result = runner.invoke(
+            app, ["status", "--data-dir", str(tmp_path), "--output-format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data["watermarks"]) == 1
+        entry = data["watermarks"][0]
+        assert entry["table"] == "dim_date"
+        assert entry["value"] == "2025-26"
+
 
 # ---------------------------------------------------------------------------
 # schema command tests
 # ---------------------------------------------------------------------------
 
-DISCOVER_PATH = "nbadb.cli.commands.schema._discover_all_transformers"
+DISCOVER_PATH = "nbadb.cli.commands.schema.discover_all_transformers"
 
 
 class TestSchemaCommand:

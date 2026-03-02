@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 import polars as pl
 from loguru import logger
 
-_CAMEL_RE = re.compile(r'([a-z0-9])([A-Z])')
+_CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
 
 
 def _to_snake_case(name: str) -> str:
@@ -16,7 +16,7 @@ def _to_snake_case(name: str) -> str:
     Handles UPPER_SNAKE_CASE (e.g., GAME_ID -> game_id),
     camelCase (e.g., gameId -> game_id), and mixed cases.
     """
-    return _CAMEL_RE.sub(r'\1_\2', name).lower()
+    return _CAMEL_RE.sub(r"\1_\2", name).lower()
 
 
 class BaseExtractor(ABC):
@@ -27,8 +27,7 @@ class BaseExtractor(ABC):
     _proxy_url: str | None = None
 
     @abstractmethod
-    async def extract(self, **params: Any) -> pl.DataFrame:
-        ...
+    async def extract(self, **params: Any) -> pl.DataFrame: ...
 
     def _inject_proxy(self, kwargs: dict[str, Any]) -> None:
         """Add proxy/timeout to kwargs if a proxy URL is configured."""
@@ -51,9 +50,7 @@ class BaseExtractor(ABC):
         df = pl.from_pandas(dfs[0], include_index=False)
         return df.rename({c: _to_snake_case(c) for c in df.columns})
 
-    def _from_nba_api_multi(
-        self, endpoint_cls: type, **kwargs: Any
-    ) -> list[pl.DataFrame]:
+    def _from_nba_api_multi(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
         """Call nba_api endpoint returning multiple result sets."""
         self._inject_proxy(kwargs)
         result = endpoint_cls(**kwargs)

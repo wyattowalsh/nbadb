@@ -11,18 +11,13 @@ class DimCollegeSchema(BaseSchema):
         unique=True,
         metadata={
             "source": "derived.college_id",
-            "description": (
-                "Surrogate college identifier"
-            ),
+            "description": ("Surrogate college identifier"),
         },
     )
     college_name: str = pa.Field(
         unique=True,
         metadata={
-            "source": (
-                "CommonPlayerInfo"
-                ".CommonPlayerInfo.SCHOOL"
-            ),
+            "source": ("CommonPlayerInfo.CommonPlayerInfo.SCHOOL"),
             "description": "College name",
         },
     )

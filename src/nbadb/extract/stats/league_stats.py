@@ -94,6 +94,21 @@ class LeagueDashPlayerBioStatsExtractor(BaseExtractor):
 
 
 @registry.register
+class LeagueDashPlayerBioExtractor(BaseExtractor):
+    endpoint_name = "league_dash_player_bio"
+    category = "league"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            LeagueDashPlayerBioStats,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
 class LeagueLineupVizExtractor(BaseExtractor):
     endpoint_name = "league_lineup_viz"
     category = "league"

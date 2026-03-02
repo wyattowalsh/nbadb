@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Literal
 
 from loguru import logger
 
+from nbadb.core.types import validate_sql_identifier
 from nbadb.load.base import BaseLoader
 
 if TYPE_CHECKING:
@@ -29,7 +30,8 @@ PARTITIONED_TABLES = {
     "fact_lineup_stats",
     "fact_synergy_play_type",
     "fact_tracking_defense",
-    "fact_estimated_metrics",
+    "fact_player_estimated_metrics",
+    "fact_team_estimated_metrics",
     "analytics_player_game_complete",
     "analytics_player_season_complete",
     "analytics_team_season_summary",
@@ -41,9 +43,7 @@ PARTITIONED_TABLES = {
 
 
 class ParquetLoader(BaseLoader):
-    def __init__(
-        self, parquet_dir: Path, compression_level: int = 3
-    ) -> None:
+    def __init__(self, parquet_dir: Path, compression_level: int = 3) -> None:
         self.parquet_dir = parquet_dir
         self.compression_level = compression_level
 
@@ -53,8 +53,11 @@ class ParquetLoader(BaseLoader):
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
+        validate_sql_identifier(table)
         if "/" in table or "\\" in table or ".." in table:
             raise ValueError(f"Invalid table name: {table!r}")
+        if mode == "append":
+            raise NotImplementedError("append mode not supported for Parquet — overwrite only")
         if table in PARTITIONED_TABLES and "season_year" in df.columns:
             for (season,), part in df.group_by("season_year"):
                 out_dir = self.parquet_dir / table / f"season_year={season}"
@@ -74,6 +77,4 @@ class ParquetLoader(BaseLoader):
                 compression_level=self.compression_level,
                 statistics=True,
             )
-        logger.debug(
-            f"Parquet: wrote {df.shape[0]} rows to {table}/"
-        )
+        logger.debug(f"Parquet: wrote {df.shape[0]} rows to {table}/")

@@ -26,3 +26,8 @@ class GameRotationExtractor(BaseExtractor):
         """Return HomeTeam and AwayTeam rotation result sets."""
         game_id: str = params["game_id"]
         return self._from_nba_api_multi(GameRotation, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        """Return all result sets: AwayTeam (0), HomeTeam (1)."""
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(GameRotation, game_id=game_id)

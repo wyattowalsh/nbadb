@@ -11,17 +11,12 @@ class DimArenaSchema(BaseSchema):
         unique=True,
         metadata={
             "source": "derived.arena_id",
-            "description": (
-                "Surrogate arena identifier"
-            ),
+            "description": ("Surrogate arena identifier"),
         },
     )
     arena_name: str = pa.Field(
         metadata={
-            "source": (
-                "TeamDetails"
-                ".TeamBackground.ARENA"
-            ),
+            "source": ("TeamDetails.TeamBackground.ARENA"),
             "description": "Arena name",
         },
     )

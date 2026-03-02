@@ -114,6 +114,36 @@ class LeagueLeadersExtractor(BaseExtractor):
 
 
 @registry.register
+class HomePageLeadersAltExtractor(BaseExtractor):
+    endpoint_name = "homepage_leaders"
+    category = "leaders"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            HomePageLeaders,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
+class HomePageV2AltExtractor(BaseExtractor):
+    endpoint_name = "homepage_v2"
+    category = "leaders"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            HomePageV2,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
 class DefenseHubExtractor(BaseExtractor):
     endpoint_name = "defense_hub"
     category = "leaders"

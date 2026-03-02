@@ -18,6 +18,4 @@ class AllTimeLeadersGridsExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            AllTimeLeadersGrids, season_type=season_type
-        )
+        return self._from_nba_api(AllTimeLeadersGrids, season_type=season_type)

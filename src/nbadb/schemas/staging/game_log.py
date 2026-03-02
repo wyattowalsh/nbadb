@@ -9,10 +9,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
     season_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".SEASON_ID"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.SEASON_ID"),
             "description": "Season identifier",
         },
     )
@@ -20,10 +17,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".TEAM_ID"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.TEAM_ID"),
             "description": "Unique team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -31,62 +25,43 @@ class StagingLeagueGameLogSchema(BaseSchema):
     team_abbreviation: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".TEAM_ABBREVIATION"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.TEAM_ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
     team_name: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".TEAM_NAME"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.TEAM_NAME"),
             "description": "Team name",
         },
     )
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".GAME_ID"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     game_date: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".GAME_DATE"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.GAME_DATE"),
             "description": "Date of the game",
         },
     )
     matchup: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".MATCHUP"
-            ),
-            "description": (
-                "Matchup string (e.g. LAL vs. BOS)"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.MATCHUP"),
+            "description": ("Matchup string (e.g. LAL vs. BOS)"),
         },
     )
     wl: str | None = pa.Field(
         nullable=True,
         isin=["W", "L"],
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.WL"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.WL"),
             "description": "Win or loss indicator",
         },
     )
@@ -94,9 +69,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.W"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.W"),
             "description": "Wins",
         },
     )
@@ -104,9 +77,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.L"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.L"),
             "description": "Losses",
         },
     )
@@ -115,9 +86,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.W_PCT"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.W_PCT"),
             "description": "Win percentage",
         },
     )
@@ -125,9 +94,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.MIN"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.MIN"),
             "description": "Minutes played",
         },
     )
@@ -135,9 +102,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FGM"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FGM"),
             "description": "Field goals made",
         },
     )
@@ -145,9 +110,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FGA"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FGA"),
             "description": "Field goals attempted",
         },
     )
@@ -156,9 +119,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FG_PCT"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FG_PCT"),
             "description": "Field goal percentage",
         },
     )
@@ -166,24 +127,16 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FG3M"
-            ),
-            "description": (
-                "Three-point field goals made"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FG3M"),
+            "description": ("Three-point field goals made"),
         },
     )
     fg3a: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FG3A"
-            ),
-            "description": (
-                "Three-point field goals attempted"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FG3A"),
+            "description": ("Three-point field goals attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
@@ -191,22 +144,15 @@ class StagingLeagueGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".FG3_PCT"
-            ),
-            "description": (
-                "Three-point field goal percentage"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FG3_PCT"),
+            "description": ("Three-point field goal percentage"),
         },
     )
     ftm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FTM"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FTM"),
             "description": "Free throws made",
         },
     )
@@ -214,9 +160,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FTA"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FTA"),
             "description": "Free throws attempted",
         },
     )
@@ -225,9 +169,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.FT_PCT"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.FT_PCT"),
             "description": "Free throw percentage",
         },
     )
@@ -235,9 +177,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.OREB"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.OREB"),
             "description": "Offensive rebounds",
         },
     )
@@ -245,9 +185,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.DREB"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.DREB"),
             "description": "Defensive rebounds",
         },
     )
@@ -255,9 +193,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.REB"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.REB"),
             "description": "Total rebounds",
         },
     )
@@ -265,9 +201,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.AST"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.AST"),
             "description": "Assists",
         },
     )
@@ -275,9 +209,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.STL"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.STL"),
             "description": "Steals",
         },
     )
@@ -285,9 +217,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.BLK"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.BLK"),
             "description": "Blocks",
         },
     )
@@ -295,9 +225,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.TOV"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.TOV"),
             "description": "Turnovers",
         },
     )
@@ -305,9 +233,7 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.PF"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.PF"),
             "description": "Personal fouls",
         },
     )
@@ -315,31 +241,21 @@ class StagingLeagueGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog.PTS"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".PLUS_MINUS"
-            ),
-            "description": (
-                "Plus-minus differential"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.PLUS_MINUS"),
+            "description": ("Plus-minus differential"),
         },
     )
     video_available: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "LeagueGameLog.LeagueGameLog"
-                ".VIDEO_AVAILABLE"
-            ),
+            "source": ("LeagueGameLog.LeagueGameLog.VIDEO_AVAILABLE"),
             "description": "Video availability flag",
         },
     )
@@ -349,10 +265,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
     season_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".SEASON_ID"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.SEASON_ID"),
             "description": "Season identifier",
         },
     )
@@ -360,10 +273,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".PLAYER_ID"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.PLAYER_ID"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -371,42 +281,29 @@ class StagingPlayerGameLogSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".GAME_ID"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     game_date: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".GAME_DATE"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.GAME_DATE"),
             "description": "Date of the game",
         },
     )
     matchup: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".MATCHUP"
-            ),
-            "description": (
-                "Matchup string (e.g. LAL vs. BOS)"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.MATCHUP"),
+            "description": ("Matchup string (e.g. LAL vs. BOS)"),
         },
     )
     wl: str | None = pa.Field(
         nullable=True,
         isin=["W", "L"],
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.WL"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.WL"),
             "description": "Win or loss indicator",
         },
     )
@@ -414,9 +311,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.MIN"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.MIN"),
             "description": "Minutes played",
         },
     )
@@ -424,9 +319,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.FGM"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FGM"),
             "description": "Field goals made",
         },
     )
@@ -434,9 +327,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.FGA"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FGA"),
             "description": "Field goals attempted",
         },
     )
@@ -445,10 +336,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".FG_PCT"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FG_PCT"),
             "description": "Field goal percentage",
         },
     )
@@ -456,24 +344,16 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.FG3M"
-            ),
-            "description": (
-                "Three-point field goals made"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FG3M"),
+            "description": ("Three-point field goals made"),
         },
     )
     fg3a: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.FG3A"
-            ),
-            "description": (
-                "Three-point field goals attempted"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FG3A"),
+            "description": ("Three-point field goals attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
@@ -481,22 +361,15 @@ class StagingPlayerGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".FG3_PCT"
-            ),
-            "description": (
-                "Three-point field goal percentage"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FG3_PCT"),
+            "description": ("Three-point field goal percentage"),
         },
     )
     ftm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.FTM"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FTM"),
             "description": "Free throws made",
         },
     )
@@ -504,9 +377,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.FTA"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FTA"),
             "description": "Free throws attempted",
         },
     )
@@ -515,10 +386,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".FT_PCT"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.FT_PCT"),
             "description": "Free throw percentage",
         },
     )
@@ -526,9 +394,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.OREB"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.OREB"),
             "description": "Offensive rebounds",
         },
     )
@@ -536,9 +402,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.DREB"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.DREB"),
             "description": "Defensive rebounds",
         },
     )
@@ -546,9 +410,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.REB"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.REB"),
             "description": "Total rebounds",
         },
     )
@@ -556,9 +418,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.AST"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.AST"),
             "description": "Assists",
         },
     )
@@ -566,9 +426,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.STL"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.STL"),
             "description": "Steals",
         },
     )
@@ -576,9 +434,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.BLK"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.BLK"),
             "description": "Blocks",
         },
     )
@@ -586,9 +442,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.TOV"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.TOV"),
             "description": "Turnovers",
         },
     )
@@ -596,9 +450,7 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.PF"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.PF"),
             "description": "Personal fouls",
         },
     )
@@ -606,22 +458,15 @@ class StagingPlayerGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog.PTS"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "PlayerGameLog.PlayerGameLog"
-                ".PLUS_MINUS"
-            ),
-            "description": (
-                "Plus-minus differential"
-            ),
+            "source": ("PlayerGameLog.PlayerGameLog.PLUS_MINUS"),
+            "description": ("Plus-minus differential"),
         },
     )
 
@@ -630,9 +475,7 @@ class StagingTeamGameLogSchema(BaseSchema):
     season_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.SEASON_ID"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.SEASON_ID"),
             "description": "Season identifier",
         },
     )
@@ -640,9 +483,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.TEAM_ID"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.TEAM_ID"),
             "description": "Unique team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -650,58 +491,43 @@ class StagingTeamGameLogSchema(BaseSchema):
     team_abbreviation: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog"
-                ".TEAM_ABBREVIATION"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.TEAM_ABBREVIATION"),
             "description": "Team abbreviation code",
         },
     )
     team_name: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.TEAM_NAME"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.TEAM_NAME"),
             "description": "Team name",
         },
     )
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.GAME_ID"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.GAME_ID"),
             "description": "Unique game identifier",
         },
     )
     game_date: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.GAME_DATE"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.GAME_DATE"),
             "description": "Date of the game",
         },
     )
     matchup: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.MATCHUP"
-            ),
-            "description": (
-                "Matchup string (e.g. LAL vs. BOS)"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.MATCHUP"),
+            "description": ("Matchup string (e.g. LAL vs. BOS)"),
         },
     )
     wl: str | None = pa.Field(
         nullable=True,
         isin=["W", "L"],
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.WL"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.WL"),
             "description": "Win or loss indicator",
         },
     )
@@ -726,9 +552,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.W_PCT"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.W_PCT"),
             "description": "Win percentage",
         },
     )
@@ -736,9 +560,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.MIN"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.MIN"),
             "description": "Minutes played",
         },
     )
@@ -746,9 +568,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FGM"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FGM"),
             "description": "Field goals made",
         },
     )
@@ -756,9 +576,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FGA"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FGA"),
             "description": "Field goals attempted",
         },
     )
@@ -767,9 +585,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FG_PCT"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FG_PCT"),
             "description": "Field goal percentage",
         },
     )
@@ -777,24 +593,16 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FG3M"
-            ),
-            "description": (
-                "Three-point field goals made"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FG3M"),
+            "description": ("Three-point field goals made"),
         },
     )
     fg3a: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FG3A"
-            ),
-            "description": (
-                "Three-point field goals attempted"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FG3A"),
+            "description": ("Three-point field goals attempted"),
         },
     )
     fg3_pct: float | None = pa.Field(
@@ -802,21 +610,15 @@ class StagingTeamGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FG3_PCT"
-            ),
-            "description": (
-                "Three-point field goal percentage"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FG3_PCT"),
+            "description": ("Three-point field goal percentage"),
         },
     )
     ftm: float | None = pa.Field(
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FTM"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FTM"),
             "description": "Free throws made",
         },
     )
@@ -824,9 +626,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FTA"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FTA"),
             "description": "Free throws attempted",
         },
     )
@@ -835,9 +635,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.FT_PCT"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.FT_PCT"),
             "description": "Free throw percentage",
         },
     )
@@ -845,9 +643,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.OREB"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.OREB"),
             "description": "Offensive rebounds",
         },
     )
@@ -855,9 +651,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.DREB"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.DREB"),
             "description": "Defensive rebounds",
         },
     )
@@ -865,9 +659,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.REB"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.REB"),
             "description": "Total rebounds",
         },
     )
@@ -875,9 +667,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.AST"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.AST"),
             "description": "Assists",
         },
     )
@@ -885,9 +675,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.STL"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.STL"),
             "description": "Steals",
         },
     )
@@ -895,9 +683,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.BLK"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.BLK"),
             "description": "Blocks",
         },
     )
@@ -905,9 +691,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.TOV"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.TOV"),
             "description": "Turnovers",
         },
     )
@@ -915,9 +699,7 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.PF"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.PF"),
             "description": "Personal fouls",
         },
     )
@@ -925,30 +707,21 @@ class StagingTeamGameLogSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.PTS"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.PTS"),
             "description": "Points scored",
         },
     )
     plus_minus: float | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog.PLUS_MINUS"
-            ),
-            "description": (
-                "Plus-minus differential"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.PLUS_MINUS"),
+            "description": ("Plus-minus differential"),
         },
     )
     video_available: int | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "TeamGameLog.TeamGameLog"
-                ".VIDEO_AVAILABLE"
-            ),
+            "source": ("TeamGameLog.TeamGameLog.VIDEO_AVAILABLE"),
             "description": "Video availability flag",
         },
     )
@@ -958,10 +731,7 @@ class StagingGameLeadersSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".gameId"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.gameId"),
             "description": "Unique game identifier",
         },
     )
@@ -969,10 +739,7 @@ class StagingGameLeadersSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".teamId"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.teamId"),
             "description": "Team identifier",
             "fk_ref": "staging_team.team_id",
         },
@@ -980,23 +747,15 @@ class StagingGameLeadersSchema(BaseSchema):
     leader_type: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".leaderType"
-            ),
-            "description": (
-                "Leader category (home or away)"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.leaderType"),
+            "description": ("Leader category (home or away)"),
         },
     )
     person_id: int = pa.Field(
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".personId"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.personId"),
             "description": "Unique player identifier",
             "fk_ref": "staging_player.person_id",
         },
@@ -1004,50 +763,35 @@ class StagingGameLeadersSchema(BaseSchema):
     name: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".name"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.name"),
             "description": "Player display name",
         },
     )
     player_slug: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".playerSlug"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.playerSlug"),
             "description": "Player URL slug",
         },
     )
     jersey_num: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".jerseyNum"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.jerseyNum"),
             "description": "Player jersey number",
         },
     )
     position: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".position"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.position"),
             "description": "Player position",
         },
     )
     team_tricode: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".teamTricode"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.teamTricode"),
             "description": "Three-letter team code",
         },
     )
@@ -1055,10 +799,7 @@ class StagingGameLeadersSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".points"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.points"),
             "description": "Points scored",
         },
     )
@@ -1066,10 +807,7 @@ class StagingGameLeadersSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".rebounds"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.rebounds"),
             "description": "Total rebounds",
         },
     )
@@ -1077,10 +815,7 @@ class StagingGameLeadersSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".assists"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.assists"),
             "description": "Total assists",
         },
     )

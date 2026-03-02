@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-import duckdb
-
 from nbadb.transform.base import BaseTransformer
 
 if TYPE_CHECKING:
@@ -15,14 +13,16 @@ class AggTeamFranchiseTransformer(BaseTransformer):
     depends_on: ClassVar[list[str]] = ["stg_franchise"]
 
     _SQL: ClassVar[str] = """
-        SELECT *
+        SELECT
+            *,
+            end_year - start_year + 1 AS franchise_age_years,
+            CASE WHEN games > 0
+                 THEN ROUND(wins * 1.0 / games, 3)
+                 ELSE NULL
+            END AS computed_win_pct
         FROM stg_franchise
-        ORDER BY team_id
+        ORDER BY franchise_age_years DESC NULLS LAST, team_id
     """
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        conn = duckdb.connect()
-        conn.register("stg_franchise", staging["stg_franchise"].collect())
-        result = conn.execute(self._SQL).pl()
-        conn.close()
-        return result
+        return self.conn.execute(self._SQL).pl()

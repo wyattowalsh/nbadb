@@ -26,9 +26,7 @@ class DataDictionaryGenerator:
     def __init__(self, output_dir: Path | None = None) -> None:
         self.output_dir = output_dir or Path("docs/content/docs/data-dictionary")
 
-    def _discover_schemas(
-        self, package_name: str
-    ) -> list[tuple[str, type[pa.DataFrameModel]]]:
+    def _discover_schemas(self, package_name: str) -> list[tuple[str, type[pa.DataFrameModel]]]:
         """Discover all DataFrameModel subclasses in a package."""
         schemas: list[tuple[str, type[pa.DataFrameModel]]] = []
         try:
@@ -60,9 +58,7 @@ class DataDictionaryGenerator:
                     schemas.append((name, obj))
         return schemas
 
-    def _extract_fields(
-        self, schema_cls: type[pa.DataFrameModel]
-    ) -> list[dict[str, Any]]:
+    def _extract_fields(self, schema_cls: type[pa.DataFrameModel]) -> list[dict[str, Any]]:
         """Extract field metadata from a schema class."""
         fields: list[dict[str, Any]] = []
         annotations = {}
@@ -78,20 +74,20 @@ class DataDictionaryGenerator:
             metadata = getattr(field_obj, "metadata", {}) or {}
             nullable = getattr(field_obj, "nullable", False)
 
-            type_str = str(field_type).replace(
-                "typing.Optional[", ""
-            ).rstrip("]")
+            type_str = str(field_type).replace("typing.Optional[", "").rstrip("]")
             if " | None" in type_str:
                 type_str = type_str.replace(" | None", "")
 
-            fields.append({
-                "name": field_name,
-                "type": type_str,
-                "nullable": nullable,
-                "description": metadata.get("description", ""),
-                "source": metadata.get("source", ""),
-                "fk_ref": metadata.get("fk_ref", ""),
-            })
+            fields.append(
+                {
+                    "name": field_name,
+                    "type": type_str,
+                    "nullable": nullable,
+                    "description": metadata.get("description", ""),
+                    "source": metadata.get("source", ""),
+                    "fk_ref": metadata.get("fk_ref", ""),
+                }
+            )
         return fields
 
     def _table_name_from_class(self, class_name: str) -> str:

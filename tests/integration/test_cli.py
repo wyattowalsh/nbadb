@@ -8,9 +8,16 @@ from nbadb.cli.app import app
 runner = CliRunner()
 
 ALL_COMMANDS = [
-    "init", "daily", "monthly", "full",
-    "export", "upload", "download",
-    "schema", "status", "ask",
+    "init",
+    "daily",
+    "monthly",
+    "full",
+    "export",
+    "upload",
+    "download",
+    "schema",
+    "status",
+    "ask",
 ]
 
 

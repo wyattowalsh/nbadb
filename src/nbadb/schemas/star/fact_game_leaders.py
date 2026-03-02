@@ -9,10 +9,7 @@ class FactGameLeadersSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".gameId"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.gameId"),
             "description": "Unique game identifier",
             "fk_ref": "dim_game.game_id",
         },
@@ -21,10 +18,7 @@ class FactGameLeadersSchema(BaseSchema):
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".teamId"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.teamId"),
             "description": "Team identifier",
             "fk_ref": "dim_team.team_id",
         },
@@ -32,23 +26,15 @@ class FactGameLeadersSchema(BaseSchema):
     leader_type: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".leaderType"
-            ),
-            "description": (
-                "Leader category (home or away)"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.leaderType"),
+            "description": ("Leader category (home or away)"),
         },
     )
     person_id: int = pa.Field(
         gt=0,
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".personId"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.personId"),
             "description": "Unique player identifier",
             "fk_ref": "dim_player.player_id",
         },
@@ -56,50 +42,35 @@ class FactGameLeadersSchema(BaseSchema):
     name: str = pa.Field(
         nullable=False,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".name"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.name"),
             "description": "Player display name",
         },
     )
     player_slug: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".playerSlug"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.playerSlug"),
             "description": "Player URL slug",
         },
     )
     jersey_num: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".jerseyNum"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.jerseyNum"),
             "description": "Player jersey number",
         },
     )
     position: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".position"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.position"),
             "description": "Player position",
         },
     )
     team_tricode: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".teamTricode"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.teamTricode"),
             "description": "Three-letter team code",
         },
     )
@@ -107,10 +78,7 @@ class FactGameLeadersSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".points"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.points"),
             "description": "Points scored",
         },
     )
@@ -118,10 +86,7 @@ class FactGameLeadersSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".rebounds"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.rebounds"),
             "description": "Total rebounds",
         },
     )
@@ -129,10 +94,7 @@ class FactGameLeadersSchema(BaseSchema):
         nullable=True,
         ge=0,
         metadata={
-            "source": (
-                "ScoreboardV3.GameLeaders"
-                ".assists"
-            ),
+            "source": ("ScoreboardV3.GameLeaders.assists"),
             "description": "Total assists",
         },
     )

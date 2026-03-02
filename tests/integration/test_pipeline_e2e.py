@@ -31,16 +31,21 @@ class _DimTeamStubTransformer(BaseTransformer):
 
 
 def _make_staging() -> dict[str, pl.LazyFrame]:
-    game_log = pl.DataFrame({
-        "game_id": ["0022300001", "0022300002", "0022300003", "0022400001", "0022400002"],
-        "season_year": ["2023-24", "2023-24", "2023-24", "2024-25", "2024-25"],
-        "game_date": [
-            "2023-10-24", "2023-12-25", "2024-04-14",
-            "2024-10-22", "2025-01-15",
-        ],
-        "home_team_id": [1610612747, 1610612738, 1610612744, 1610612747, 1610612738],
-        "visitor_team_id": [1610612750, 1610612752, 1610612746, 1610612750, 1610612752],
-    })
+    game_log = pl.DataFrame(
+        {
+            "game_id": ["0022300001", "0022300002", "0022300003", "0022400001", "0022400002"],
+            "season_year": ["2023-24", "2023-24", "2023-24", "2024-25", "2024-25"],
+            "game_date": [
+                "2023-10-24",
+                "2023-12-25",
+                "2024-04-14",
+                "2024-10-22",
+                "2025-01-15",
+            ],
+            "home_team_id": [1610612747, 1610612738, 1610612744, 1610612747, 1610612738],
+            "visitor_team_id": [1610612750, 1610612752, 1610612746, 1610612750, 1610612752],
+        }
+    )
     return {
         "stg_league_game_log": game_log.lazy(),
     }
@@ -121,14 +126,10 @@ class TestPipelineE2E:
         )
         assert sqlite_df["cnt"][0] == expected_rows
 
-        duck_count = conn.execute(
-            "SELECT COUNT(*) FROM dim_season_loaded"
-        ).fetchone()[0]
+        duck_count = conn.execute("SELECT COUNT(*) FROM dim_season_loaded").fetchone()[0]
         assert duck_count == expected_rows
 
-        pq_df = pl.read_parquet(
-            tmp_path / "parquet" / "dim_season" / "dim_season.parquet"
-        )
+        pq_df = pl.read_parquet(tmp_path / "parquet" / "dim_season" / "dim_season.parquet")
         assert pq_df.shape[0] == expected_rows
 
         csv_df = pl.read_csv(tmp_path / "csv" / "dim_season.csv")
@@ -143,18 +144,18 @@ class TestPipelineE2E:
         outputs = pipeline.run(_make_staging())
         df = outputs["dim_season"]
 
-        loader = MultiLoader([
-            CSVLoader(tmp_path / "csv"),
-            ParquetLoader(tmp_path / "parquet"),
-            DuckDBLoader(conn),
-        ])
+        loader = MultiLoader(
+            [
+                CSVLoader(tmp_path / "csv"),
+                ParquetLoader(tmp_path / "parquet"),
+                DuckDBLoader(conn),
+            ]
+        )
         loader.load("dim_season", df)
 
         assert (tmp_path / "csv" / "dim_season.csv").exists()
         assert (tmp_path / "parquet" / "dim_season" / "dim_season.parquet").exists()
-        duck_count = conn.execute(
-            "SELECT COUNT(*) FROM dim_season"
-        ).fetchone()[0]
+        duck_count = conn.execute("SELECT COUNT(*) FROM dim_season").fetchone()[0]
         assert duck_count == df.shape[0]
         conn.close()
 
@@ -186,9 +187,7 @@ class TestPipelineE2E:
         loader = create_multi_loader(settings)
         loader.load("dim_season", outputs["dim_season"])
         assert (tmp_path / "data" / "csv" / "dim_season.csv").exists()
-        assert (
-            tmp_path / "data" / "parquet" / "dim_season" / "dim_season.parquet"
-        ).exists()
+        assert (tmp_path / "data" / "parquet" / "dim_season" / "dim_season.parquet").exists()
         conn.close()
 
     def test_get_output_returns_correct_df(self) -> None:

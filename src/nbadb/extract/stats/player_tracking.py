@@ -86,6 +86,25 @@ class PlayerDashPtDefendExtractor(BaseExtractor):
 
 
 @registry.register
+class PlayerDashPtShotDefendExtractor(BaseExtractor):
+    """Aliased extractor with canonical endpoint_name for staging map."""
+
+    endpoint_name = "player_dash_pt_shot_defend"
+    category = "player_info"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            PlayerDashPtShotDefend,
+            player_id=player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
 class PlayerEstimatedMetricsExtractor(BaseExtractor):
     endpoint_name = "player_estimated_metrics"
     category = "player_info"

@@ -6,6 +6,7 @@ analytics views: player_game, player_season, team_season, head_to_head.
 
 from __future__ import annotations
 
+import duckdb
 import polars as pl
 
 from nbadb.transform.views.analytics_head_to_head import (
@@ -24,6 +25,7 @@ from nbadb.transform.views.analytics_team_season_summary import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _dim_player_df(
     player_id: int = 101,
@@ -129,6 +131,7 @@ def _dim_game_df(
 # Test 1: analytics_player_game_complete
 # ---------------------------------------------------------------------------
 
+
 def test_analytics_player_game_complete():
     """View runs without column errors and is_current filter deduplicates SCD2 rows."""
     transformer = AnalyticsPlayerGameCompleteTransformer()
@@ -229,6 +232,11 @@ def test_analytics_player_game_complete():
         "dim_team": dim_team.lazy(),
     }
 
+    conn = duckdb.connect()
+    for key, val in staging.items():
+        conn.register(key, val.collect())
+    transformer._conn = conn
+
     result = transformer.transform(staging)
 
     # is_current filter should prevent SCD2 row multiplication
@@ -237,11 +245,13 @@ def test_analytics_player_game_complete():
     assert "team_abbreviation" in result.columns
     assert result["player_name"][0] == "Test Player"
     assert result["team_abbreviation"][0] == "TST"
+    conn.close()
 
 
 # ---------------------------------------------------------------------------
 # Test 2: analytics_player_season_complete
 # ---------------------------------------------------------------------------
+
 
 def test_analytics_player_season_complete():
     """View runs with correct column names and no SCD2 row multiplication."""
@@ -303,29 +313,34 @@ def test_analytics_player_season_complete():
             "tov_per36": [3.2],
         }
     )
-    per100 = pl.DataFrame(
+    per48 = pl.DataFrame(
         {
             "player_id": [101],
             "season_year": [2024],
             "season_type": ["Regular Season"],
             "gp": [82],
             "avg_min": [34.1],
-            "pts_per100": [35.1],
-            "reb_per100": [7.0],
-            "ast_per100": [9.8],
-            "stl_per100": [2.8],
-            "blk_per100": [1.4],
-            "tov_per100": [4.2],
+            "pts_per48": [35.1],
+            "reb_per48": [7.0],
+            "ast_per48": [9.8],
+            "stl_per48": [2.8],
+            "blk_per48": [1.4],
+            "tov_per48": [4.2],
         }
     )
 
     staging = {
         "agg_player_season": agg_season.lazy(),
         "agg_player_season_per36": per36.lazy(),
-        "agg_player_season_per100": per100.lazy(),
+        "agg_player_season_per48": per48.lazy(),
         "dim_player": dim_player.lazy(),
         "dim_team": dim_team.lazy(),
     }
+
+    conn = duckdb.connect()
+    for key, val in staging.items():
+        conn.register(key, val.collect())
+    transformer._conn = conn
 
     result = transformer.transform(staging)
 
@@ -334,11 +349,13 @@ def test_analytics_player_season_complete():
     assert "team_abbreviation" in result.columns
     assert "fg_pct" in result.columns
     assert result["player_name"][0] == "Test Player"
+    conn.close()
 
 
 # ---------------------------------------------------------------------------
 # Test 3: analytics_team_season_summary
 # ---------------------------------------------------------------------------
+
 
 def test_analytics_team_season_summary():
     """View uses standings for wins/losses and correct dim_team columns."""
@@ -388,6 +405,11 @@ def test_analytics_team_season_summary():
         "dim_team": dim_team.lazy(),
     }
 
+    conn = duckdb.connect()
+    for key, val in staging.items():
+        conn.register(key, val.collect())
+    transformer._conn = conn
+
     result = transformer.transform(staging)
 
     assert result.shape[0] == 1
@@ -401,11 +423,13 @@ def test_analytics_team_season_summary():
     # These columns should NOT exist in the fixed view
     assert "playoff_seed" not in result.columns
     assert "avg_pts_allowed" not in result.columns
+    conn.close()
 
 
 # ---------------------------------------------------------------------------
 # Test 4: analytics_head_to_head
 # ---------------------------------------------------------------------------
+
 
 def test_analytics_head_to_head():
     """Head-to-head derives opponent and W/L from dim_game correctly."""
@@ -454,6 +478,11 @@ def test_analytics_head_to_head():
         "dim_game": dim_game.lazy(),
     }
 
+    conn = duckdb.connect()
+    for key, val in staging.items():
+        conn.register(key, val.collect())
+    transformer._conn = conn
+
     result = transformer.transform(staging)
 
     # 2 rows: one per team perspective for this single game
@@ -468,3 +497,4 @@ def test_analytics_head_to_head():
     team2_row = result.filter(pl.col("team_id") == 2)
     assert team2_row["wins"][0] == 0
     assert team2_row["losses"][0] == 1
+    conn.close()

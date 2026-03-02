@@ -40,17 +40,12 @@ class DBManager:
             raise ValueError("duckdb_path required")
         self._sqlite_path.parent.mkdir(parents=True, exist_ok=True)
         self._duckdb_path.parent.mkdir(parents=True, exist_ok=True)
-        self._engine = create_engine(
-            f"sqlite:///{self._sqlite_path}", echo=False
-        )
+        self._engine = create_engine(f"sqlite:///{self._sqlite_path}", echo=False)
         self._apply_sqlite_pragmas()
         SQLModel.metadata.create_all(self._engine)
         self._duckdb_conn = duckdb.connect(str(self._duckdb_path))
         self._create_pipeline_tables()
-        logger.info(
-            f"DB initialized: SQLite={self._sqlite_path},"
-            f" DuckDB={self._duckdb_path}"
-        )
+        logger.info(f"DB initialized: SQLite={self._sqlite_path}, DuckDB={self._duckdb_path}")
 
     def _apply_sqlite_pragmas(self) -> None:
         if self._engine is None:

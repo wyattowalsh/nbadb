@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-import duckdb
-
 from nbadb.transform.base import BaseTransformer
 
 if TYPE_CHECKING:
@@ -15,7 +13,7 @@ class AnalyticsPlayerSeasonCompleteTransformer(BaseTransformer):
     depends_on: ClassVar[list[str]] = [
         "agg_player_season",
         "agg_player_season_per36",
-        "agg_player_season_per100",
+        "agg_player_season_per48",
         "dim_player",
         "dim_team",
     ]
@@ -39,12 +37,12 @@ class AnalyticsPlayerSeasonCompleteTransformer(BaseTransformer):
             p36.pts_per36, p36.reb_per36, p36.ast_per36,
             p36.stl_per36, p36.blk_per36, p36.tov_per36,
             -- per-100
-            p100.pts_per100, p100.reb_per100, p100.ast_per100,
-            p100.stl_per100, p100.blk_per100, p100.tov_per100
+            p100.pts_per48, p100.reb_per48, p100.ast_per48,
+            p100.stl_per48, p100.blk_per48, p100.tov_per48
         FROM agg_player_season s
         LEFT JOIN agg_player_season_per36 p36
             ON s.player_id = p36.player_id AND s.season_year = p36.season_year
-        LEFT JOIN agg_player_season_per100 p100
+        LEFT JOIN agg_player_season_per48 p100
             ON s.player_id = p100.player_id AND s.season_year = p100.season_year
         LEFT JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_team tm ON s.team_id = tm.team_id
@@ -52,9 +50,4 @@ class AnalyticsPlayerSeasonCompleteTransformer(BaseTransformer):
     """
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        conn = duckdb.connect()
-        for dep in self.depends_on:
-            conn.register(dep, staging[dep].collect())
-        result = conn.execute(self._SQL).pl()
-        conn.close()
-        return result
+        return self._conn.execute(self._SQL).pl()

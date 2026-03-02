@@ -20,9 +20,7 @@ def _clear_settings_cache() -> None:
 
 class TestKaggleClientDownload:
     @patch("nbadb.kaggle.client.get_settings")
-    def test_download_returns_path(
-        self, mock_settings: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_download_returns_path(self, mock_settings: MagicMock, tmp_path: Path) -> None:
         mock_settings.return_value = NbaDbSettings(
             data_dir=tmp_path / "data", log_dir=tmp_path / "logs"
         )
@@ -38,9 +36,7 @@ class TestKaggleClientDownload:
             assert result == download_dir
 
     @patch("nbadb.kaggle.client.get_settings")
-    def test_download_passes_dataset_handle(
-        self, mock_settings: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_download_passes_dataset_handle(self, mock_settings: MagicMock, tmp_path: Path) -> None:
         mock_settings.return_value = NbaDbSettings(
             data_dir=tmp_path / "data",
             log_dir=tmp_path / "logs",
@@ -61,9 +57,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        mock_settings.return_value = NbaDbSettings(
-            data_dir=data_dir, log_dir=tmp_path / "logs"
-        )
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
         client = KaggleClient()
@@ -81,9 +75,7 @@ class TestKaggleClientUpload:
     ) -> None:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        mock_settings.return_value = NbaDbSettings(
-            data_dir=data_dir, log_dir=tmp_path / "logs"
-        )
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
         client = KaggleClient()
@@ -93,13 +85,9 @@ class TestKaggleClientUpload:
             assert mock_up.call_args.kwargs["local_dataset_dir"] == str(data_dir)
 
     @patch("nbadb.kaggle.client.get_settings")
-    def test_upload_raises_on_missing_dir(
-        self, mock_settings: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_upload_raises_on_missing_dir(self, mock_settings: MagicMock, tmp_path: Path) -> None:
         missing = tmp_path / "nonexistent"
-        mock_settings.return_value = NbaDbSettings(
-            data_dir=missing, log_dir=tmp_path / "logs"
-        )
+        mock_settings.return_value = NbaDbSettings(data_dir=missing, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
         client = KaggleClient()
@@ -109,14 +97,10 @@ class TestKaggleClientUpload:
 
 class TestKaggleClientEnsureMetadata:
     @patch("nbadb.kaggle.client.get_settings")
-    def test_ensure_metadata_creates_file(
-        self, mock_settings: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_ensure_metadata_creates_file(self, mock_settings: MagicMock, tmp_path: Path) -> None:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        mock_settings.return_value = NbaDbSettings(
-            data_dir=data_dir, log_dir=tmp_path / "logs"
-        )
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
         client = KaggleClient()
@@ -130,25 +114,21 @@ class TestKaggleClientEnsureMetadata:
     ) -> None:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        mock_settings.return_value = NbaDbSettings(
-            data_dir=data_dir, log_dir=tmp_path / "logs"
-        )
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
         client = KaggleClient()
         result = client.ensure_metadata(data_dir=data_dir)
         data = json.loads(result.read_text(encoding="utf-8"))
         assert data["id"] == "wyattowalsh/basketball"
-        assert len(data["resources"]) == 54
+        assert len(data["resources"]) == 55
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_ensure_metadata_creates_parent_dirs(
         self, mock_settings: MagicMock, tmp_path: Path
     ) -> None:
         data_dir = tmp_path / "deep" / "nested" / "data"
-        mock_settings.return_value = NbaDbSettings(
-            data_dir=data_dir, log_dir=tmp_path / "logs"
-        )
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
         client = KaggleClient()

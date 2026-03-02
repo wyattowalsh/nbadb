@@ -21,17 +21,19 @@ class DimArenaTransformer(BaseTransformer):
 
         sched = staging["stg_schedule"].select("arena_name", "arena_city")
         gl = staging["stg_league_game_log"].select("arena_name", "arena_city")
-        arenas = pl.concat([sched, gl]).unique(
-            subset=["arena_name", "arena_city"], keep="first"
-        )
+        arenas = pl.concat([sched, gl]).unique(subset=["arena_name", "arena_city"], keep="first")
 
-        arena_info = staging["stg_arena_info"].select(
-            "arena_name",
-            "arena_city",
-            "arena_state",
-            "arena_country",
-            "arena_timezone",
-        ).unique(subset=["arena_name", "arena_city"], keep="first")
+        arena_info = (
+            staging["stg_arena_info"]
+            .select(
+                "arena_name",
+                "arena_city",
+                "arena_state",
+                "arena_country",
+                "arena_timezone",
+            )
+            .unique(subset=["arena_name", "arena_city"], keep="first")
+        )
 
         arenas = arenas.join(
             arena_info,

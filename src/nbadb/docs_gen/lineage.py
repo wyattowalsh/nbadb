@@ -93,9 +93,7 @@ class LineageGenerator:
                     parts = source.split(".")
                     if len(parts) >= 2:
                         entry["endpoint"] = parts[0]
-                        entry["result_set"] = (
-                            parts[1] if len(parts) > 2 else ""
-                        )
+                        entry["result_set"] = parts[1] if len(parts) > 2 else ""
                         entry["field"] = parts[-1]
                     else:
                         entry["raw_source"] = source

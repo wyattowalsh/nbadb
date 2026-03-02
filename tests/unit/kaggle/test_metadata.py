@@ -23,18 +23,14 @@ class TestGenerateMetadata:
         for key in ("id", "title", "resources", "licenses"):
             assert key in data, f"Missing required field: {key}"
 
-    def test_id_matches_kaggle_dataset(
-        self, tmp_path: Path, settings: NbaDbSettings
-    ) -> None:
+    def test_id_matches_kaggle_dataset(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         output = tmp_path / "dataset-metadata.json"
         with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
             generate_metadata(output)
         data = json.loads(output.read_text(encoding="utf-8"))
         assert data["id"] == settings.kaggle_dataset
 
-    def test_license_is_cc_by_sa(
-        self, tmp_path: Path, settings: NbaDbSettings
-    ) -> None:
+    def test_license_is_cc_by_sa(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         output = tmp_path / "dataset-metadata.json"
         with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
             generate_metadata(output)
@@ -42,14 +38,12 @@ class TestGenerateMetadata:
         assert len(data["licenses"]) == 1
         assert data["licenses"][0]["name"] == "CC-BY-SA-4.0"
 
-    def test_resources_count_is_54(
-        self, tmp_path: Path, settings: NbaDbSettings
-    ) -> None:
+    def test_resources_count_is_55(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         output = tmp_path / "dataset-metadata.json"
         with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
             generate_metadata(output)
         data = json.loads(output.read_text(encoding="utf-8"))
-        assert len(data["resources"]) == 54
+        assert len(data["resources"]) == 55
 
     def test_no_pipeline_internal_tables_in_resources(
         self, tmp_path: Path, settings: NbaDbSettings
@@ -61,9 +55,7 @@ class TestGenerateMetadata:
         for resource in data["resources"]:
             assert not resource["path"].startswith("csv/_pipeline")
 
-    def test_overwrites_existing_file(
-        self, tmp_path: Path, settings: NbaDbSettings
-    ) -> None:
+    def test_overwrites_existing_file(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         output = tmp_path / "dataset-metadata.json"
         output.write_text("{}", encoding="utf-8")
         with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
@@ -73,9 +65,9 @@ class TestGenerateMetadata:
 
 
 class TestBuildResources:
-    def test_returns_54_entries(self) -> None:
+    def test_returns_55_entries(self) -> None:
         resources = _build_resources()
-        assert len(resources) == 54
+        assert len(resources) == 55
 
     def test_each_resource_has_path_and_description(self) -> None:
         for r in _build_resources():
@@ -88,10 +80,7 @@ class TestBuildResources:
             assert r["path"].endswith(".csv")
 
     def test_covers_all_four_categories(self) -> None:
-        categories = {
-            r["description"].split("(")[-1].rstrip(")")
-            for r in _build_resources()
-        }
+        categories = {r["description"].split("(")[-1].rstrip(")") for r in _build_resources()}
         assert categories == {"dimensions", "facts", "derived", "analytics"}
 
     def test_dim_tables_present(self) -> None:

@@ -9,20 +9,6 @@ if TYPE_CHECKING:
     import polars as pl
 
 _NBA_FIRST_DATE = date(1946, 1, 1)
-_DAY_NAMES = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-]
-
-
-def _nba_season(d: date) -> str:
-    year = d.year if d.month >= 10 else d.year - 1
-    return f"{year}-{(year + 1) % 100:02d}"
 
 
 class DimDateTransformer(BaseTransformer):
@@ -43,14 +29,25 @@ class DimDateTransformer(BaseTransformer):
             )
             .cast(pl.Int32)
             .alias("date_key"),
+            pl.col("date").dt.strftime("%Y-%m-%d").alias("full_date"),
             pl.col("date").dt.year().alias("year"),
             pl.col("date").dt.month().alias("month"),
             pl.col("date").dt.day().alias("day"),
             pl.col("date").dt.weekday().alias("day_of_week"),
-            pl.col("date")
-            .dt.weekday()
-            .map_elements(lambda d: _DAY_NAMES[d - 1], return_dtype=pl.Utf8)
-            .alias("day_name"),
+            pl.col("date").dt.strftime("%A").alias("day_name"),
+            pl.col("date").dt.strftime("%B").alias("month_name"),
             pl.col("date").dt.weekday().ge(6).alias("is_weekend"),
-            pl.col("date").map_elements(_nba_season, return_dtype=pl.Utf8).alias("nba_season"),
+            pl.when(pl.col("date").dt.month() >= 10)
+            .then(
+                pl.col("date").dt.year().cast(pl.Utf8)
+                + "-"
+                + ((pl.col("date").dt.year() + 1) % 100).cast(pl.Utf8).str.zfill(2)
+            )
+            .otherwise(
+                (pl.col("date").dt.year() - 1).cast(pl.Utf8)
+                + "-"
+                + (pl.col("date").dt.year() % 100).cast(pl.Utf8).str.zfill(2)
+            )
+            .alias("nba_season"),
+            pl.lit(None).cast(pl.Utf8).alias("nba_phase"),
         )

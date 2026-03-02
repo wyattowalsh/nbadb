@@ -14,5 +14,4 @@ class BaseLoader(ABC):
         table: str,
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
-    ) -> None:
-        ...
+    ) -> None: ...

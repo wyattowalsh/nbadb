@@ -23,9 +23,7 @@ class SchemaDocsGenerator:
     def __init__(self, output_dir: Path | None = None) -> None:
         self.output_dir = output_dir or Path("docs/content/docs/schema")
 
-    def _discover_schemas(
-        self, package_name: str
-    ) -> list[tuple[str, type[pa.DataFrameModel]]]:
+    def _discover_schemas(self, package_name: str) -> list[tuple[str, type[pa.DataFrameModel]]]:
         """Discover schema classes in a package."""
         schemas: list[tuple[str, type[pa.DataFrameModel]]] = []
         try:

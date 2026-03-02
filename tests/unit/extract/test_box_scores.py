@@ -33,9 +33,7 @@ class TestBoxScoreTraditionalExtractor:
         assert BoxScoreTraditionalExtractor.category == "box_score"
 
     @pytest.mark.asyncio
-    async def test_extract_returns_lowercased_columns(
-        self, box_score_fixture: dict
-    ) -> None:
+    async def test_extract_returns_lowercased_columns(self, box_score_fixture: dict) -> None:
         mock_cls = _mock_nba_api_response(box_score_fixture)
         ext = BoxScoreTraditionalExtractor()
         with patch.object(
@@ -61,9 +59,7 @@ class TestBoxScoreTraditionalExtractor:
             assert "pts" in result.columns
 
     @pytest.mark.asyncio
-    async def test_extract_with_mock_nba_api(
-        self, box_score_fixture: dict
-    ) -> None:
+    async def test_extract_with_mock_nba_api(self, box_score_fixture: dict) -> None:
         mock_cls = _mock_nba_api_response(box_score_fixture)
         ext = BoxScoreTraditionalExtractor()
         with patch(

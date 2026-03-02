@@ -47,9 +47,7 @@ class TestStagingCommonAllPlayersSchema:
             StagingCommonAllPlayersSchema.validate(df)
 
     def test_display_first_last_not_nullable(self) -> None:
-        df = pl.DataFrame(
-            _staging_common_all_players_row(display_first_last=None)
-        )
+        df = pl.DataFrame(_staging_common_all_players_row(display_first_last=None))
         with pytest.raises(pa_errors.SchemaError):
             StagingCommonAllPlayersSchema.validate(df)
 
@@ -102,9 +100,7 @@ class TestStagingPlayerIndexSchema:
             StagingPlayerIndexSchema.validate(df)
 
     def test_nullable_stats(self) -> None:
-        df = pl.DataFrame(
-            _staging_player_index_row(pts=None, reb=None, ast=None)
-        )
+        df = pl.DataFrame(_staging_player_index_row(pts=None, reb=None, ast=None))
         result = StagingPlayerIndexSchema.validate(df)
         assert result.shape[0] == 1
 
@@ -126,12 +122,24 @@ def _staging_league_game_log_row(**overrides: object) -> dict:
         "l": 0,
         "w_pct": 1.0,
         "min": 240.0,
-        "fgm": 40.0, "fga": 85.0, "fg_pct": 0.471,
-        "fg3m": 12.0, "fg3a": 35.0, "fg3_pct": 0.343,
-        "ftm": 20.0, "fta": 25.0, "ft_pct": 0.800,
-        "oreb": 10.0, "dreb": 35.0, "reb": 45.0,
-        "ast": 25.0, "stl": 8.0, "blk": 5.0,
-        "tov": 12.0, "pf": 18.0, "pts": 112.0,
+        "fgm": 40.0,
+        "fga": 85.0,
+        "fg_pct": 0.471,
+        "fg3m": 12.0,
+        "fg3a": 35.0,
+        "fg3_pct": 0.343,
+        "ftm": 20.0,
+        "fta": 25.0,
+        "ft_pct": 0.800,
+        "oreb": 10.0,
+        "dreb": 35.0,
+        "reb": 45.0,
+        "ast": 25.0,
+        "stl": 8.0,
+        "blk": 5.0,
+        "tov": 12.0,
+        "pf": 18.0,
+        "pts": 112.0,
         "plus_minus": 8.0,
         "video_available": 1,
     }
@@ -156,9 +164,7 @@ class TestStagingLeagueGameLogSchema:
             StagingLeagueGameLogSchema.validate(df)
 
     def test_nullable_stat_fields(self) -> None:
-        df = pl.DataFrame(
-            _staging_league_game_log_row(pts=None, reb=None, plus_minus=None)
-        )
+        df = pl.DataFrame(_staging_league_game_log_row(pts=None, reb=None, plus_minus=None))
         result = StagingLeagueGameLogSchema.validate(df)
         assert result.shape[0] == 1
 
@@ -168,52 +174,68 @@ class TestStagingLeagueGameLogSchema:
 
 class TestStagingDraftHistorySchema:
     def test_valid_data(self) -> None:
-        df = pl.DataFrame({
-            "person_id": [2544],
-            "player_name": ["LeBron James"],
-            "season": ["2003"],
-            "round_number": [1],
-            "round_pick": [1],
-            "overall_pick": [1],
-            "draft_type": ["Draft"],
-            "team_id": [1610612739],
-            "team_city": ["Cleveland"],
-            "team_name": ["Cavaliers"],
-            "team_abbreviation": ["CLE"],
-            "organization": [None],
-            "organization_type": [None],
-            "player_profile_flag": [1],
-        })
+        df = pl.DataFrame(
+            {
+                "person_id": [2544],
+                "player_name": ["LeBron James"],
+                "season": ["2003"],
+                "round_number": [1],
+                "round_pick": [1],
+                "overall_pick": [1],
+                "draft_type": ["Draft"],
+                "team_id": [1610612739],
+                "team_city": ["Cleveland"],
+                "team_name": ["Cavaliers"],
+                "team_abbreviation": ["CLE"],
+                "organization": [None],
+                "organization_type": [None],
+                "player_profile_flag": [1],
+            }
+        )
         result = StagingDraftHistorySchema.validate(df)
         assert result.shape[0] == 1
 
     def test_person_id_not_nullable(self) -> None:
-        df = pl.DataFrame({
-            "person_id": [None],
-            "player_name": ["Test"],
-            "season": ["2003"],
-            "round_number": [1], "round_pick": [1],
-            "overall_pick": [1], "draft_type": [None],
-            "team_id": [None], "team_city": [None],
-            "team_name": [None], "team_abbreviation": [None],
-            "organization": [None], "organization_type": [None],
-            "player_profile_flag": [None],
-        })
+        df = pl.DataFrame(
+            {
+                "person_id": [None],
+                "player_name": ["Test"],
+                "season": ["2003"],
+                "round_number": [1],
+                "round_pick": [1],
+                "overall_pick": [1],
+                "draft_type": [None],
+                "team_id": [None],
+                "team_city": [None],
+                "team_name": [None],
+                "team_abbreviation": [None],
+                "organization": [None],
+                "organization_type": [None],
+                "player_profile_flag": [None],
+            }
+        )
         with pytest.raises(pa_errors.SchemaError):
             StagingDraftHistorySchema.validate(df)
 
     def test_round_number_must_be_1_or_2(self) -> None:
-        df = pl.DataFrame({
-            "person_id": [100],
-            "player_name": ["Test"],
-            "season": ["2003"],
-            "round_number": [5],
-            "round_pick": [1], "overall_pick": [1],
-            "draft_type": [None], "team_id": [None],
-            "team_city": [None], "team_name": [None],
-            "team_abbreviation": [None], "organization": [None],
-            "organization_type": [None], "player_profile_flag": [None],
-        })
+        df = pl.DataFrame(
+            {
+                "person_id": [100],
+                "player_name": ["Test"],
+                "season": ["2003"],
+                "round_number": [5],
+                "round_pick": [1],
+                "overall_pick": [1],
+                "draft_type": [None],
+                "team_id": [None],
+                "team_city": [None],
+                "team_name": [None],
+                "team_abbreviation": [None],
+                "organization": [None],
+                "organization_type": [None],
+                "player_profile_flag": [None],
+            }
+        )
         with pytest.raises(pa_errors.SchemaError):
             StagingDraftHistorySchema.validate(df)
 
@@ -233,12 +255,24 @@ def _staging_box_score_trad_player_row(**overrides: object) -> dict:
         "start_position": "F",
         "comment": None,
         "min": "36:00",
-        "fgm": 10, "fga": 20, "fg_pct": 0.5,
-        "fg3m": 3, "fg3a": 8, "fg3_pct": 0.375,
-        "ftm": 5, "fta": 6, "ft_pct": 0.833,
-        "oreb": 1, "dreb": 6, "reb": 7,
-        "ast": 8, "stl": 2, "blk": 1,
-        "tov": 3, "pf": 2, "pts": 28,
+        "fgm": 10,
+        "fga": 20,
+        "fg_pct": 0.5,
+        "fg3m": 3,
+        "fg3a": 8,
+        "fg3_pct": 0.375,
+        "ftm": 5,
+        "fta": 6,
+        "ft_pct": 0.833,
+        "oreb": 1,
+        "dreb": 6,
+        "reb": 7,
+        "ast": 8,
+        "stl": 2,
+        "blk": 1,
+        "tov": 3,
+        "pf": 2,
+        "pts": 28,
         "plus_minus": 12.0,
     }
     base.update(overrides)
@@ -263,9 +297,7 @@ class TestStagingBoxScoreTraditionalPlayerSchema:
 
     def test_nullable_stat_fields(self) -> None:
         df = pl.DataFrame(
-            _staging_box_score_trad_player_row(
-                pts=None, reb=None, ast=None, min=None
-            )
+            _staging_box_score_trad_player_row(pts=None, reb=None, ast=None, min=None)
         )
         result = StagingBoxScoreTraditionalPlayerSchema.validate(df)
         assert result.shape[0] == 1

@@ -24,10 +24,7 @@ class EndpointRegistry:
         return self._extractors[name]
 
     def get_by_category(self, category: str) -> list[type[BaseExtractor]]:
-        return [
-            cls for cls in self._extractors.values()
-            if cls.category == category
-        ]
+        return [cls for cls in self._extractors.values() if cls.category == category]
 
     def get_all(self) -> list[type[BaseExtractor]]:
         return list(self._extractors.values())
@@ -38,9 +35,7 @@ class EndpointRegistry:
         except ImportError:
             logger.warning(f"Cannot import {package_name}")
             return
-        for _, module_name, _ in pkgutil.walk_packages(
-            package.__path__, prefix=f"{package_name}."
-        ):
+        for _, module_name, _ in pkgutil.walk_packages(package.__path__, prefix=f"{package_name}."):
             try:
                 importlib.import_module(module_name)
             except ImportError as e:
