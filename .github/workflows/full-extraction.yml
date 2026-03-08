@@ -40,6 +40,10 @@ env:
   # Shared cache key — persists across all iterations
   CACHE_KEY: full-extraction-state
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   extract:
     runs-on: ubuntu-latest
@@ -79,7 +83,7 @@ jobs:
 
       # ── Start NordVPN proxy fleet ──
       - name: Start proxy fleet
-        if: inputs.use_proxy == 'true'
+        if: inputs.use_proxy
         env:
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
         run: |
@@ -208,9 +212,9 @@ jobs:
 
       # ── Cleanup ──
       - name: Proxy fleet logs
-        if: failure() && inputs.use_proxy == 'true'
+        if: failure() && inputs.use_proxy
         run: docker compose -f docker-compose.proxy.yml logs --tail 50
 
       - name: Stop proxy fleet
-        if: always() && inputs.use_proxy == 'true'
+        if: always() && inputs.use_proxy
         run: docker compose -f docker-compose.proxy.yml down
