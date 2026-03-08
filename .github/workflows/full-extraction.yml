@@ -89,21 +89,28 @@ jobs:
         run: |
           docker compose -f docker-compose.proxy.yml up -d
           echo "Waiting for VPN tunnels to establish..."
-          sleep 30
 
-          ok=0
-          for port in 18881 18882 18883 18884 18885 18886; do
-            if curl -sf -x http://localhost:$port --connect-timeout 10 https://httpbin.org/ip >/dev/null 2>&1; then
-              ip=$(curl -sf -x http://localhost:$port https://httpbin.org/ip | jq -r .origin)
-              echo "  ✓ Port $port: $ip"
-              ok=$((ok + 1))
-            else
-              echo "  ✗ Port $port: not ready"
+          # Retry health checks — tunnels can take 60-90s on shared runners
+          for attempt in 1 2 3 4; do
+            sleep 30
+            ok=0
+            for port in 18881 18882 18883 18884 18885 18886; do
+              if curl -sf -x http://localhost:$port --connect-timeout 10 https://httpbin.org/ip >/dev/null 2>&1; then
+                ip=$(curl -sf -x http://localhost:$port https://httpbin.org/ip | jq -r .origin)
+                echo "  ✓ Port $port: $ip"
+                ok=$((ok + 1))
+              else
+                echo "  ✗ Port $port: not ready"
+              fi
+            done
+            echo "Attempt $attempt: $ok/6 proxies active"
+            if [ "$ok" -gt 0 ]; then
+              break
             fi
           done
 
           if [ "$ok" -eq 0 ]; then
-            echo "::error::No proxy containers responding. Check NORDVPN_TOKEN secret."
+            echo "::error::No proxy containers responding after 120s. Check NORDVPN_TOKEN secret."
             docker compose -f docker-compose.proxy.yml logs --tail 20
             exit 1
           fi
