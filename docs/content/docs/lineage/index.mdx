@@ -41,7 +41,8 @@ Each stage applies progressively stricter validation:
 Lineage documentation can be regenerated from transform code:
 
 ```bash
-uv run python -m nbadb.docs_gen.lineage
+uv run nbadb docs-autogen
+# or: uv run python -m nbadb.docs_gen
 ```
 
 This introspects `BaseTransformer.depends_on` and staging schema `metadata["source"]` to build lineage graphs automatically.

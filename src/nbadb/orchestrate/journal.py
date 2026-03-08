@@ -139,6 +139,18 @@ class PipelineJournal:
         ).fetchone()
         return row is not None
 
+    def has_done_entries(self) -> bool:
+        """Return True when any extraction has completed successfully."""
+        row = self._conn.execute(
+            """
+            SELECT 1
+            FROM _extraction_journal
+            WHERE status = 'done'
+            LIMIT 1
+            """
+        ).fetchone()
+        return row is not None
+
     def was_extracted_batch(self, items: list[tuple[str, str]]) -> set[tuple[str, str]]:
         """Return the subset of (endpoint, params) pairs already done.
 

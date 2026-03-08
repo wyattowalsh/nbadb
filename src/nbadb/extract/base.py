@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
@@ -30,7 +31,20 @@ class BaseExtractor(ABC):
     async def extract(self, **params: Any) -> pl.DataFrame: ...
 
     def _inject_proxy(self, kwargs: dict[str, Any]) -> None:
-        """Add proxy/timeout to kwargs if a proxy URL is configured."""
+        """Add timeout/proxy kwargs for nba_api endpoint calls.
+
+        - If NBADB_REQUEST_TIMEOUT is set, apply it to all calls unless a
+          timeout was explicitly provided.
+        - If a proxy URL is configured, inject proxy and preserve the prior
+          default timeout behavior (60s) when no timeout is present.
+        """
+        timeout_override = os.getenv("NBADB_REQUEST_TIMEOUT")
+        if timeout_override and "timeout" not in kwargs:
+            try:
+                kwargs["timeout"] = int(timeout_override)
+            except ValueError:
+                logger.warning("invalid NBADB_REQUEST_TIMEOUT={!r}; ignoring", timeout_override)
+
         if self._proxy_url is not None:
             kwargs.setdefault("proxy", self._proxy_url)
             kwargs.setdefault("timeout", 60)

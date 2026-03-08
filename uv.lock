@@ -971,6 +971,18 @@ wheels = [
 ]
 
 [[package]]
+name = "linkify-it-py"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "uc-micro-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2e/c9/06ea13676ef354f0af6169587ae292d3e2406e212876a413bf9eece4eb23/linkify_it_py-2.1.0.tar.gz", hash = "sha256:43360231720999c10e9328dc3691160e27a718e280673d444c38d7d3aaa3b98b", size = 29158, upload-time = "2026-03-01T07:48:47.683Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b4/de/88b3be5c31b22333b3ca2f6ff1de4e863d8fe45aaea7485f591970ec1d3e/linkify_it_py-2.1.0-py3-none-any.whl", hash = "sha256:0d252c1594ecba2ecedc444053db5d3a9b7ec1b0dd929c8f1d74dce89f86c05e", size = 19878, upload-time = "2026-03-01T07:48:46.098Z" },
+]
+
+[[package]]
 name = "loguru"
 version = "0.7.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1005,6 +1017,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3", size = 73070, upload-time = "2025-08-11T12:57:52.854Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/94/54/e7d793b573f298e1c9013b8c4dade17d481164aa517d1d7148619c2cedbf/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147", size = 87321, upload-time = "2025-08-11T12:57:51.923Z" },
+]
+
+[package.optional-dependencies]
+linkify = [
+    { name = "linkify-it-py" },
 ]
 
 [[package]]
@@ -1124,6 +1141,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/5b/f651820407704edf63ea53153339338631707b3df43e1b5688f323437d68/maxminddb-3.1.0-cp314-cp314t-win32.whl", hash = "sha256:95b16925be9e53cf9bf57a2db63e3966264b9238730dfe248affcb5f6af48169", size = 37497, upload-time = "2026-02-24T23:31:42.604Z" },
     { url = "https://files.pythonhosted.org/packages/3b/5f/109354656e0144ab354b53793baee3d684081105ae8348bb55a499a3084d/maxminddb-3.1.0-cp314-cp314t-win_amd64.whl", hash = "sha256:337a6d14fac7c2730b7c78d688fa2cedc55817c080b076f6db483d399cb1e838", size = 39555, upload-time = "2026-02-24T23:31:43.737Z" },
     { url = "https://files.pythonhosted.org/packages/20/d9/7f14583c6cdf95491c10c3ecdfa8cb9849c16f49781a624cb07b59aec39b/maxminddb-3.1.0-cp314-cp314t-win_arm64.whl", hash = "sha256:4da2d47ab70ad1f8cbbc14e66581fec75e206d13997e5c77bd01644cfcfed41a", size = 35397, upload-time = "2026-02-24T23:31:44.787Z" },
+]
+
+[[package]]
+name = "mdit-py-plugins"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b2/fd/a756d36c0bfba5f6e39a1cdbdbfdd448dc02692467d83816dff4592a1ebc/mdit_py_plugins-0.5.0.tar.gz", hash = "sha256:f4918cb50119f50446560513a8e311d574ff6aaed72606ddae6d35716fe809c6", size = 44655, upload-time = "2025-08-11T07:25:49.083Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fb/86/dd6e5db36df29e76c7a7699123569a4a18c1623ce68d826ed96c62643cae/mdit_py_plugins-0.5.0-py3-none-any.whl", hash = "sha256:07a08422fc1936a5d26d146759e9155ea466e842f5ab2f7d2266dd084c8dab1f", size = 57205, upload-time = "2025-08-11T07:25:47.597Z" },
 ]
 
 [[package]]
@@ -1270,8 +1299,10 @@ dependencies = [
     { name = "polars", extra = ["database", "pyarrow"] },
     { name = "proxywhirl" },
     { name = "pydantic-settings" },
+    { name = "pysocks" },
     { name = "rich" },
     { name = "sqlmodel" },
+    { name = "textual" },
     { name = "typer" },
 ]
 
@@ -1295,8 +1326,9 @@ requires-dist = [
     { name = "nba-api", specifier = ">=1.11.4" },
     { name = "pandera", extras = ["polars"], specifier = ">=0.29" },
     { name = "polars", extras = ["database", "pyarrow"], specifier = ">=1.38.1" },
-    { name = "proxywhirl", specifier = "==0.3.2" },
+    { name = "proxywhirl", specifier = "==0.3.3" },
     { name = "pydantic-settings", specifier = ">=2.13" },
+    { name = "pysocks", specifier = ">=1.7.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
@@ -1304,6 +1336,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.7" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
     { name = "sqlmodel", specifier = ">=0.0.37,<0.1.0" },
+    { name = "textual", specifier = ">=8.0.2" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.19" },
     { name = "typer", specifier = ">=0.15" },
 ]
@@ -1652,7 +1685,7 @@ wheels = [
 
 [[package]]
 name = "proxywhirl"
-version = "0.3.2"
+version = "0.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
@@ -1690,9 +1723,9 @@ dependencies = [
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/1a/4b7e9bdabb9e16caa261377faf3fcbc0657725cd363f40b6928d7254f019/proxywhirl-0.3.2.tar.gz", hash = "sha256:e0fb62876889b10a8be297fcd5c569b34dc63cfdb8361f9df34cbb5532625b26", size = 233069, upload-time = "2026-02-23T06:36:02.685Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/1e/8e67942eee57eceee5824373770304e5139177b8a804abdaf8d320be8ccc/proxywhirl-0.3.3.tar.gz", hash = "sha256:dfa9fd48d42c9ca8fad0ad55648d34c2148047cf9e86c7eb2deaa00b7d57456a", size = 235750, upload-time = "2026-03-03T07:42:26.29Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/1f/896de303ce06b5d01b8eed8c968b94066b1248d5adec816a3704fb3d38ea/proxywhirl-0.3.2-py3-none-any.whl", hash = "sha256:fbdd981b4e11cad9fee2417180d34e3118db9d8dc045237da9448a4df5a3cceb", size = 251705, upload-time = "2026-02-23T06:36:01.227Z" },
+    { url = "https://files.pythonhosted.org/packages/72/1a/7bf8deea1258d16f3fe6a4f5c52711280111efef0523193d1ede145ddaec/proxywhirl-0.3.3-py3-none-any.whl", hash = "sha256:9eb3524bae82840ebbea74269c0fb4782231685ae10d29c12e0c7cc336272b35", size = 254170, upload-time = "2026-03-03T07:42:24.688Z" },
 ]
 
 [[package]]
@@ -1875,6 +1908,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/03/98/2b3dc1ba6bdf2efaeaa3e102124cbd2636a4ccec241ffeb8a1de207f5cd4/pyrate_limiter-4.0.2.tar.gz", hash = "sha256:b678841e2215f114ef6f98c7093755ca3b466de83cb5a881231fd6e321fa14b5", size = 301304, upload-time = "2026-01-23T09:37:33.612Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/13/b9/80ffe3f2c34d3247186d74b1d08c1fed1e3ad4127ff6a8a5501b7bf16a97/pyrate_limiter-4.0.2-py3-none-any.whl", hash = "sha256:35ec42b9bb9cfabcafab14d0c5c6523f48378c3da2949e534ce3cbdfea71eadd", size = 36439, upload-time = "2026-01-23T09:37:32.097Z" },
+]
+
+[[package]]
+name = "pysocks"
+version = "1.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/11/293dd436aea955d45fc4e8a35b6ae7270f5b8e00b53cf6c024c83b657a11/PySocks-1.7.1.tar.gz", hash = "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0", size = 284429, upload-time = "2019-09-20T02:07:35.714Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/59/b4572118e098ac8e46e399a1dd0f2d85403ce8bbaad9ec79373ed6badaf9/PySocks-1.7.1-py3-none-any.whl", hash = "sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5", size = 16725, upload-time = "2019-09-20T02:06:22.938Z" },
 ]
 
 [[package]]
@@ -2246,6 +2288,23 @@ wheels = [
 ]
 
 [[package]]
+name = "textual"
+version = "8.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py", extra = ["linkify"] },
+    { name = "mdit-py-plugins" },
+    { name = "platformdirs" },
+    { name = "pygments" },
+    { name = "rich" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/08/c6bcb1e3c4c9528ec9049f4ac685afdafc72866664270f0deb416ccbba2a/textual-8.0.2.tar.gz", hash = "sha256:7b342f3ee9a5f2f1bd42d7b598cae00ff1275da68536769510db4b7fe8cabf5d", size = 6099270, upload-time = "2026-03-03T20:23:46.858Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/bc/0cd17f96f00b6e8bfbca64c574088c85f3c614912b3030f313752e30a099/textual-8.0.2-py3-none-any.whl", hash = "sha256:4ceadbe0e8a30eb80f9995000f4d031f711420a31b02da38f3482957b7c50ce4", size = 719174, upload-time = "2026-03-03T20:23:50.46Z" },
+]
+
+[[package]]
 name = "tomli"
 version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2403,6 +2462,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5e/a7/c202b344c5ca7daf398f3b8a477eeb205cf3b6f32e7ec3a6bac0629ca975/tzdata-2025.3.tar.gz", hash = "sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7", size = 196772, upload-time = "2025-12-13T17:45:35.667Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/b0/003792df09decd6849a5e39c28b513c06e84436a54440380862b5aeff25d/tzdata-2025.3-py2.py3-none-any.whl", hash = "sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1", size = 348521, upload-time = "2025-12-13T17:45:33.889Z" },
+]
+
+[[package]]
+name = "uc-micro-py"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/78/67/9a363818028526e2d4579334460df777115bdec1bb77c08f9db88f6389f2/uc_micro_py-2.0.0.tar.gz", hash = "sha256:c53691e495c8db60e16ffc4861a35469b0ba0821fe409a8a7a0a71864d33a811", size = 6611, upload-time = "2026-03-01T06:31:27.526Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/73/d21edf5b204d1467e06500080a50f79d49ef2b997c79123a536d4a17d97c/uc_micro_py-2.0.0-py3-none-any.whl", hash = "sha256:3603a3859af53e5a39bc7677713c78ea6589ff188d70f4fee165db88e22b242c", size = 6383, upload-time = "2026-03-01T06:31:26.257Z" },
 ]
 
 [[package]]

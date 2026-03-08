@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import signal
 import sys
 from typing import TYPE_CHECKING
 
@@ -31,12 +32,18 @@ def _build_settings(
     return NbaDbSettings(**kwargs)
 
 
-def _setup_logging(verbose: bool) -> None:
-    """Configure loguru level based on verbose flag."""
+def _setup_logging(verbose: bool, *, tui: bool = False) -> None:
+    """Configure loguru level based on verbose flag.
+
+    When ``tui=True`` (Rich Live dashboard active), logs go to a file
+    instead of stderr to prevent corrupting the terminal display.
+    """
     from loguru import logger
 
     logger.remove()
-    if verbose:
+    if tui:
+        logger.add("extraction.log", level="DEBUG", rotation="10 MB")
+    elif verbose:
         logger.add(sys.stderr, level="DEBUG")
     else:
         logger.add(sys.stderr, level="WARNING")
@@ -176,13 +183,62 @@ def _run_pipeline(
 
         orchestrator_cls = Orchestrator
 
-    _setup_logging(verbose)
-    orch = orchestrator_cls(settings=settings)
-    try:
-        result = asyncio.run(run_fn(orch))  # type: ignore[arg-type]
-    except Exception as exc:
-        typer.echo(f"{mode} failed: {type(exc).__name__}", err=True)
-        raise typer.Exit(1) from exc
+    # Use interactive Textual TUI when stdout is a terminal and not verbose
+    use_tui = sys.stdout.isatty() and not verbose
+
+    if use_tui:
+        from nbadb.cli.tui import run_with_tui
+
+        result, error = run_with_tui(mode, run_fn, settings, orchestrator_cls)
+        if error is not None:
+            typer.echo(f"{mode} failed: {type(error).__name__}", err=True)
+            raise typer.Exit(1)
+        if result is None:
+            typer.echo(f"{mode}: stopped — progress saved in journal (resume-safe)", err=True)
+            raise typer.Exit(0)
+    else:
+        from nbadb.cli.progress import NoopProgress
+
+        _setup_logging(verbose)
+
+        # Graceful shutdown: SIGINT/SIGTERM cancel the asyncio loop
+        shutdown_requested = False
+
+        def _handle_signal(signum: int, _frame: object) -> None:
+            nonlocal shutdown_requested
+            if shutdown_requested:
+                typer.echo(f"\n{mode}: forced shutdown", err=True)
+                raise SystemExit(1)
+            shutdown_requested = True
+            typer.echo(f"\n{mode}: shutting down gracefully (press Ctrl+C again to force)...", err=True)
+            try:
+                loop = asyncio.get_running_loop()
+                for task in asyncio.all_tasks(loop):
+                    task.cancel()
+            except RuntimeError:
+                pass
+
+        prev_sigint = signal.signal(signal.SIGINT, _handle_signal)
+        prev_sigterm = signal.signal(signal.SIGTERM, _handle_signal)
+
+        progress = NoopProgress()
+        try:
+            with progress:
+                orch = orchestrator_cls(settings=settings, progress=progress)
+                try:
+                    result = asyncio.run(run_fn(orch))  # type: ignore[arg-type]
+                except (asyncio.CancelledError, KeyboardInterrupt):
+                    typer.echo(f"\n{mode}: stopped — progress saved in journal (resume-safe)", err=True)
+                    raise typer.Exit(0) from None
+                except Exception as exc:
+                    typer.echo(f"{mode} failed: {type(exc).__name__}", err=True)
+                    raise typer.Exit(1) from exc
+        finally:
+            signal.signal(signal.SIGINT, prev_sigint)
+            signal.signal(signal.SIGTERM, prev_sigterm)
+
     _print_result(mode, result)  # type: ignore[arg-type]
+    if result.failed_extractions:  # type: ignore[union-attr]
+        raise typer.Exit(1)
     if quality_check:
         _run_quality_checks(settings)

@@ -346,6 +346,23 @@ class DataQualityMonitor:
             }
         return out
 
+    def to_report(self) -> dict[str, object]:
+        return {
+            "summary": self.summary(),
+            "summary_by_layer": self.summary_by_layer(),
+            "results": [
+                {
+                    "table": r.table,
+                    "check_type": r.check_type,
+                    "layer": r.layer.value,
+                    "passed": r.passed,
+                    "message": r.message,
+                    "details": r.details,
+                }
+                for r in self.results
+            ],
+        }
+
     def log_summary(self) -> None:
         s = self.summary()
         logger.info(f"Quality: {s['passed']}/{s['total']} passed, {s['failed']} failed")

@@ -36,15 +36,20 @@ class PlayerGameLogExtractor(BaseExtractor):
     category = "game_log"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        player_id: int = params["player_id"]
-        season: str = params["season"]
+        player_id = params.get("player_id")
+        if player_id is None:
+            import polars as pl
+
+            return pl.DataFrame()
+        season = params.get("season")
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            PlayerGameLog,
-            player_id=player_id,
-            season=season,
-            season_type_all_star=season_type,
-        )
+        request_kwargs: dict[str, Any] = {
+            "player_id": int(player_id),
+            "season_type_all_star": season_type,
+        }
+        if season:
+            request_kwargs["season"] = season
+        return self._from_nba_api(PlayerGameLog, **request_kwargs)
 
 
 @registry.register
@@ -53,15 +58,20 @@ class TeamGameLogExtractor(BaseExtractor):
     category = "game_log"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        team_id: int = params["team_id"]
-        season: str = params["season"]
+        team_id = params.get("team_id")
+        if team_id is None:
+            import polars as pl
+
+            return pl.DataFrame()
+        season = params.get("season")
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            TeamGameLog,
-            team_id=team_id,
-            season=season,
-            season_type_all_star=season_type,
-        )
+        request_kwargs: dict[str, Any] = {
+            "team_id": int(team_id),
+            "season_type_all_star": season_type,
+        }
+        if season:
+            request_kwargs["season"] = season
+        return self._from_nba_api(TeamGameLog, **request_kwargs)
 
 
 @registry.register

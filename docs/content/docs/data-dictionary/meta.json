@@ -1,4 +1,4 @@
 {
   "title": "Data Dictionary",
-  "pages": ["---", "glossary", "field-reference"]
+  "pages": ["---", "glossary", "field-reference", "raw", "staging", "star"]
 }

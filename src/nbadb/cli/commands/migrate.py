@@ -24,14 +24,15 @@ def migrate(
         typer.echo("Error: duckdb_path not configured.", err=True)
         raise typer.Exit(1)
 
+    db = DBManager(
+        sqlite_path=settings.sqlite_path,
+        duckdb_path=settings.duckdb_path,
+    )
     try:
-        db = DBManager(
-            sqlite_path=settings.sqlite_path,
-            duckdb_path=settings.duckdb_path,
-        )
         db.init()
-        db.close()
         typer.echo("Migration complete.")
     except Exception as exc:
         typer.echo(f"Migration failed: {type(exc).__name__}", err=True)
         raise typer.Exit(1) from exc
+    finally:
+        db.close()

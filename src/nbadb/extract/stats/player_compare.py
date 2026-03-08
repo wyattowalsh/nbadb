@@ -22,17 +22,38 @@ class PlayerCompareExtractor(BaseExtractor):
     category = "player_info"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        player_id_list: str = params["player_id_list"]
-        vs_player_id_list: str = params["vs_player_id_list"]
-        season: str = params["season"]
+        def _normalize_id_list(value: Any) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, (list, tuple, set)):
+                return ",".join(str(v) for v in value)
+            return str(value)
+
+        player_id_list = _normalize_id_list(params.get("player_id_list"))
+        if not player_id_list:
+            player_id_list = _normalize_id_list(params.get("player_id"))
+
+        vs_player_id_list = _normalize_id_list(params.get("vs_player_id_list"))
+        if not vs_player_id_list:
+            vs_player_id_list = _normalize_id_list(params.get("vs_player_id"))
+        if not vs_player_id_list:
+            vs_player_id_list = player_id_list
+
+        if not player_id_list or not vs_player_id_list:
+            import polars as pl
+
+            return pl.DataFrame()
+
+        season = params.get("season")
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            PlayerCompare,
-            player_id_list=player_id_list,
-            vs_player_id_list=vs_player_id_list,
-            season=season,
-            season_type_all_star=season_type,
-        )
+        request_kwargs: dict[str, Any] = {
+            "player_id_list": player_id_list,
+            "vs_player_id_list": vs_player_id_list,
+            "season_type_all_star": season_type,
+        }
+        if season:
+            request_kwargs["season"] = season
+        return self._from_nba_api(PlayerCompare, **request_kwargs)
 
 
 @registry.register

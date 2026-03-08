@@ -37,6 +37,7 @@ _RUNNER = "nbadb.orchestrate.orchestrator.ExtractorRunner"
 _TRANSFORMERS = "nbadb.orchestrate.orchestrator.discover_all_transformers"
 _PIPELINE = "nbadb.orchestrate.orchestrator.TransformPipeline"
 _LOADER = "nbadb.orchestrate.orchestrator.create_multi_loader"
+_GET_BY_PATTERN = "nbadb.orchestrate.orchestrator.get_by_pattern"
 _SEASON_RANGE = "nbadb.orchestrate.orchestrator.season_range"
 _CURRENT_SEASON = "nbadb.orchestrate.orchestrator.current_season"
 _RECENT_SEASONS = "nbadb.orchestrate.orchestrator.recent_seasons"
@@ -55,6 +56,8 @@ def _build_orchestrator_with_mocks():
     journal = MagicMock()
     journal.get_failed.return_value = []
     journal.set_watermark = MagicMock()
+    journal.has_done_entries.return_value = False
+    journal.clear_journal = MagicMock()
 
     orch._db = db
     orch._journal = journal
@@ -205,6 +208,68 @@ class TestTransformAndLoad:
 
 
 # ---------------------------------------------------------------------------
+# _extract_all_patterns tests
+# ---------------------------------------------------------------------------
+
+
+class TestExtractAllPatterns:
+    def test_extracts_player_team_season_cross_product_patterns(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+        runner = MagicMock()
+        runner.run_pattern = AsyncMock(return_value={})
+
+        player_season_entries = [MagicMock(endpoint_name="player_game_log")]
+        team_season_entries = [MagicMock(endpoint_name="team_game_log")]
+
+        def _entries(pattern: str):
+            mapping = {
+                "static": [],
+                "season": [],
+                "game": [],
+                "player": [],
+                "team": [],
+                "date": [],
+                "player_season": player_season_entries,
+                "team_season": team_season_entries,
+            }
+            return mapping.get(pattern, [])
+
+        with patch(_GET_BY_PATTERN, side_effect=_entries):
+            asyncio.run(
+                orch._extract_all_patterns(
+                    runner,
+                    seasons=["2024-25", "2025-26"],
+                    game_ids=[],
+                    player_ids=[201939, 2544],
+                    team_ids=[1610612744],
+                    game_dates=[],
+                    game_log_df=pl.DataFrame(),
+                )
+            )
+
+        runner.run_pattern.assert_any_await(
+            "player_season",
+            [
+                {"player_id": 201939, "season": "2024-25"},
+                {"player_id": 201939, "season": "2025-26"},
+                {"player_id": 2544, "season": "2024-25"},
+                {"player_id": 2544, "season": "2025-26"},
+            ],
+            player_season_entries,
+            on_progress=None,
+        )
+        runner.run_pattern.assert_any_await(
+            "team_season",
+            [
+                {"team_id": 1610612744, "season": "2024-25"},
+                {"team_id": 1610612744, "season": "2025-26"},
+            ],
+            team_season_entries,
+            on_progress=None,
+        )
+
+
+# ---------------------------------------------------------------------------
 # run_init tests
 # ---------------------------------------------------------------------------
 
@@ -239,6 +304,33 @@ class TestRunInit:
         assert result.rows_total == 100
         assert result.duration_seconds > 0
 
+    def test_run_init_restarts_extraction_when_journal_has_done_entries(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = (
+            ["0022400001"],
+            pl.DataFrame({"game_id": ["0022400001"], "game_date": ["2024-10-22"]}),
+        )
+        mock_discovery.discover_player_ids.return_value = [201566]
+        mock_discovery.discover_team_ids.return_value = [1610612737]
+        mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
+
+        mock_runner = MagicMock()
+        mock_runner.run_pattern = AsyncMock(return_value={})
+
+        with (
+            patch(_SEASON_RANGE, return_value=["2024-25"]),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_transform_and_load", return_value=(2, 100, 0)),
+        ):
+            asyncio.run(orch.run_init())
+
+        journal.clear_journal.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # run_daily tests
@@ -272,6 +364,34 @@ class TestRunDaily:
 
         assert isinstance(result, PipelineResult)
         assert result.tables_updated == 1
+
+    def test_run_daily_disables_static_in_shared_helper(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
+
+        mock_runner = MagicMock()
+        mock_runner.skipped = 0
+        mock_extract = AsyncMock(return_value={})
+
+        with (
+            patch(_CURRENT_SEASON, return_value="2025-26"),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)),
+        ):
+            asyncio.run(orch.run_daily())
+
+        assert mock_extract.await_args.kwargs["include_static"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +469,39 @@ class TestRunMonthly:
 
 
 class TestRunFull:
+    def test_skips_malformed_failed_params_json(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+        journal.get_failed.side_effect = [
+            [
+                ("league_game_log", '{"season": "2024-25"}', "TimeoutError"),
+                ("league_game_log", '{"season":', "JSONDecodeError"),
+            ],
+            [],
+        ]
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+
+        mock_runner = MagicMock()
+        mock_runner.run_pattern = AsyncMock(return_value={})
+        mock_runner.skipped = 0
+
+        with (
+            patch(_SEASON_RANGE, return_value=[]),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_GET_BY_PATTERN, return_value=[]),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_transform_and_load", return_value=(0, 0, 0)),
+        ):
+            result = asyncio.run(orch.run_full())
+
+        assert isinstance(result, PipelineResult)
+        assert result.failed_extractions == 0
+        mock_runner.run_pattern.assert_awaited_once()
+        assert mock_runner.run_pattern.await_args.args[0] == "season"
+        assert mock_runner.run_pattern.await_args.args[1] == [{"season": "2024-25"}]
+
     def test_retries_failed_extractions(self):
         orch, db, journal = _build_orchestrator_with_mocks()
         # First call returns failures, second call (after retry) returns empty

@@ -40,12 +40,23 @@ class NbaDbSettings(BaseSettings):
     # ── proxy support (requires proxywhirl) ─────────────────
     proxy_enabled: bool = False
     proxy_urls: list[str] = Field(default=[], repr=False)
+    proxy_user: str = Field(default="", repr=False)
+    proxy_pass: str = Field(default="", repr=False)
     proxy_bootstrap: bool = True
     proxy_bootstrap_sample_size: int = 5
     proxy_strategy: str = "round_robin"
     proxy_timeout: int = 30
     proxy_max_retries: int = 3
+    proxy_use_all_sources: bool = True
     proxy_semaphore_multiplier: float = 1.0
+
+    # ── strategic migration scaffolding (placeholders only) ─────────
+    strategic_track_ingestion_v2_enabled: bool = False
+    strategic_track_storage_v2_enabled: bool = False
+    strategic_track_schema_v2_enabled: bool = False
+    strategic_track_serving_v2_enabled: bool = False
+    strategic_phase_1_shadow_mode_enabled: bool = False
+    strategic_phase_2_dual_write_enabled: bool = False
 
     @model_validator(mode="after")
     def _default_db_paths(self) -> NbaDbSettings:

@@ -1,0 +1,90 @@
+# NordVPN multi-proxy fleet for nbadb extraction
+# 6 containers × different US cities = 6 rotating exit IPs
+#
+# Usage:
+#   1. Set NORDVPN_TOKEN in .env (get from Nord Account → Advanced → Access token)
+#   2. docker compose -f docker-compose.proxy.yml up -d
+#   3. Wait ~15s for tunnels to establish
+#   4. uv run nbadb init  (proxies auto-detected from NBADB_PROXY_URLS)
+#
+# Check status:  docker compose -f docker-compose.proxy.yml logs -f
+# Stop:          docker compose -f docker-compose.proxy.yml down
+
+x-vpn-base: &vpn-base
+  image: edgd1er/nordlynx-proxy:latest
+  restart: unless-stopped
+  cap_add:
+    - NET_ADMIN
+  sysctls:
+    - net.ipv6.conf.all.disable_ipv6=1
+  environment: &vpn-env
+    TZ: America/Chicago
+    NORDVPN_LOGIN: ${NORDVPN_TOKEN}
+    TECHNOLOGY: NordLynx
+    GROUP: Standard_VPN_Servers
+    KILLERSWITCH: "on"
+    TINYLOGLEVEL: Error
+    TINYLOGOUTPUT: file
+    DANTE_LOGOUTPUT: file
+    ANALYTICS: "off"
+
+services:
+  vpn-us-east:
+    <<: *vpn-base
+    container_name: nbadb-vpn-us-east
+    ports:
+      - "18081:1080"
+      - "18881:8888"
+    environment:
+      <<: *vpn-env
+      CONNECT: new_york
+
+  vpn-us-south:
+    <<: *vpn-base
+    container_name: nbadb-vpn-us-south
+    ports:
+      - "18082:1080"
+      - "18882:8888"
+    environment:
+      <<: *vpn-env
+      CONNECT: atlanta
+
+  vpn-us-central:
+    <<: *vpn-base
+    container_name: nbadb-vpn-us-central
+    ports:
+      - "18083:1080"
+      - "18883:8888"
+    environment:
+      <<: *vpn-env
+      CONNECT: chicago
+
+  vpn-us-south2:
+    <<: *vpn-base
+    container_name: nbadb-vpn-us-south2
+    ports:
+      - "18084:1080"
+      - "18884:8888"
+    environment:
+      <<: *vpn-env
+      CONNECT: dallas
+
+  vpn-us-west:
+    <<: *vpn-base
+    container_name: nbadb-vpn-us-west
+    ports:
+      - "18085:1080"
+      - "18885:8888"
+    environment:
+      <<: *vpn-env
+      CONNECT: los_angeles
+
+  vpn-us-west2:
+    <<: *vpn-base
+    container_name: nbadb-vpn-us-west2
+    ports:
+      - "18086:1080"
+      - "18886:8888"
+    environment:
+      <<: *vpn-env
+      CONNECT: san_francisco

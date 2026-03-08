@@ -207,3 +207,14 @@ class TestSummary:
         assert "structural" in s
         assert s["structural"]["total"] == 1
         conn.close()
+
+    def test_to_report_serializes_results(self) -> None:
+        conn, monitor = _make_monitor()
+        monitor.check_row_count_anomaly(
+            "t", current_count=4, historical_avg=4.0, historical_std=1.0
+        )
+        report = monitor.to_report()
+        assert report["summary"]["total"] == 1
+        assert report["summary_by_layer"]["structural"]["total"] == 1
+        assert report["results"][0]["layer"] == "structural"
+        conn.close()

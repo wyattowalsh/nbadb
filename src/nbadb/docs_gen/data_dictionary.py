@@ -61,26 +61,16 @@ class DataDictionaryGenerator:
     def _extract_fields(self, schema_cls: type[pa.DataFrameModel]) -> list[dict[str, Any]]:
         """Extract field metadata from a schema class."""
         fields: list[dict[str, Any]] = []
-        annotations = {}
-        for cls in reversed(schema_cls.__mro__):
-            annotations.update(getattr(cls, "__annotations__", {}))
-
-        for field_name, field_type in annotations.items():
-            if field_name.startswith("_"):
-                continue
-            field_obj = getattr(schema_cls, field_name, None)
-            if field_obj is None:
-                continue
-            metadata = getattr(field_obj, "metadata", {}) or {}
-            nullable = getattr(field_obj, "nullable", False)
-
-            type_str = str(field_type).replace("typing.Optional[", "").rstrip("]")
-            if " | None" in type_str:
-                type_str = type_str.replace(" | None", "")
+        schema = schema_cls.to_schema()
+        for col_name, col in schema.columns.items():
+            metadata = getattr(col, "metadata", {}) or {}
+            nullable = getattr(col, "nullable", False)
+            dtype = getattr(col, "dtype", None)
+            type_str = str(dtype) if dtype else "unknown"
 
             fields.append(
                 {
-                    "name": field_name,
+                    "name": col_name,
                     "type": type_str,
                     "nullable": nullable,
                     "description": metadata.get("description", ""),

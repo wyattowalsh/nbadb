@@ -6,6 +6,7 @@ Verifies endpoint_name, category, and registry presence for every
 
 from __future__ import annotations
 
+import polars as pl
 import pytest
 
 # ── all_time ────────────────────────────────────────────────────────────────
@@ -477,3 +478,69 @@ class TestCategoryGroupings:
             f"Found {len(defaults)} extractors still using 'default' category: "
             f"{[c.endpoint_name for c in defaults]}"
         )
+
+
+class TestCrossProductParameterHandling:
+    @pytest.mark.asyncio
+    async def test_player_compare_accepts_single_player_id(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerCompareExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(player_id=201939, season="2024-25")
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["player_id_list"] == "201939"
+        assert kwargs["vs_player_id_list"] == "201939"
+        assert kwargs["season"] == "2024-25"
+
+    @pytest.mark.asyncio
+    async def test_player_compare_returns_empty_when_ids_missing(self) -> None:
+        ext = PlayerCompareExtractor()
+        result = await ext.extract(season="2024-25")
+        assert result.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_player_game_log_season_is_optional(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerGameLogExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(player_id=2544)
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["player_id"] == 2544
+        assert "season" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_team_game_log_season_is_optional(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = TeamGameLogExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(team_id=1610612744)
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["team_id"] == 1610612744
+        assert "season" not in kwargs

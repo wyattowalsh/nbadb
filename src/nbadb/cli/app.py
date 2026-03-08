@@ -12,8 +12,10 @@ app = typer.Typer(
 from nbadb.cli.commands import (  # noqa: E402, F401
     ask,
     daily,
+    docs_autogen,
     download,
     export,
+    extract_completeness,
     full,
     init,
     migrate,

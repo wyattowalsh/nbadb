@@ -12,6 +12,7 @@ ALL_COMMANDS = [
     "daily",
     "monthly",
     "full",
+    "docs-autogen",
     "export",
     "upload",
     "download",

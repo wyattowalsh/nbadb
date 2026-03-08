@@ -2,7 +2,35 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from nbadb.core.proxy import ProxyPool
+from nbadb.core.proxy import ProxyPool, SimpleProxyRotator
+
+
+class TestSimpleProxyRotator:
+    def test_round_robin_single_url(self) -> None:
+        rotator = SimpleProxyRotator(["socks5h://user:pass@host:1080"])
+        assert rotator.get_proxy_url() == "socks5h://user:pass@host:1080"
+        assert rotator.get_proxy_url() == "socks5h://user:pass@host:1080"
+
+    def test_round_robin_multiple_urls(self) -> None:
+        urls = ["socks5h://a:1080", "socks5h://b:1080", "socks5h://c:1080"]
+        rotator = SimpleProxyRotator(urls)
+        assert rotator.get_proxy_url() == "socks5h://a:1080"
+        assert rotator.get_proxy_url() == "socks5h://b:1080"
+        assert rotator.get_proxy_url() == "socks5h://c:1080"
+        assert rotator.get_proxy_url() == "socks5h://a:1080"  # wraps
+
+    def test_empty_list_returns_none(self) -> None:
+        rotator = SimpleProxyRotator([])
+        assert rotator.get_proxy_url() is None
+
+    def test_size(self) -> None:
+        assert SimpleProxyRotator(["a", "b"]).size == 2
+        assert SimpleProxyRotator([]).size == 0
+
+    def test_preserves_socks5h_scheme(self) -> None:
+        url = "socks5h://user:pass@us.socks.nordhold.net:1080"
+        rotator = SimpleProxyRotator([url])
+        assert rotator.get_proxy_url() == url
 
 
 class TestGetProxyUrl:
@@ -93,6 +121,7 @@ class TestFromSettings:
         settings = NbaDbSettings(
             proxy_enabled=True,
             proxy_bootstrap=True,
+            proxy_urls=[],
         )
 
         with patch("proxywhirl.ProxyWhirl") as mock_pw_cls:
@@ -103,6 +132,48 @@ class TestFromSettings:
             assert call_kwargs.kwargs["proxies"] is None
             bootstrap = call_kwargs.kwargs["bootstrap"]
             assert bootstrap.enabled is True
+
+    def test_bootstrap_uses_all_sources_by_default(self) -> None:
+        """Default proxy_use_all_sources=True selects ALL_SOURCES (114)."""
+        from proxywhirl import ALL_SOURCES
+
+        from nbadb.core.config import NbaDbSettings
+
+        settings = NbaDbSettings(
+            proxy_enabled=True,
+            proxy_bootstrap=True,
+            proxy_use_all_sources=True,
+            proxy_urls=[],
+        )
+
+        with patch("proxywhirl.ProxyWhirl") as mock_pw_cls:
+            mock_pw_cls.return_value.get_pool_stats.return_value = {"total_proxies": 10}
+            ProxyPool.from_settings(settings)
+
+            call_kwargs = mock_pw_cls.call_args
+            bootstrap = call_kwargs.kwargs["bootstrap"]
+            assert bootstrap.sources == ALL_SOURCES
+
+    def test_bootstrap_recommended_sources_when_flag_false(self) -> None:
+        """proxy_use_all_sources=False selects RECOMMENDED_SOURCES."""
+        from proxywhirl import RECOMMENDED_SOURCES
+
+        from nbadb.core.config import NbaDbSettings
+
+        settings = NbaDbSettings(
+            proxy_enabled=True,
+            proxy_bootstrap=True,
+            proxy_use_all_sources=False,
+            proxy_urls=[],
+        )
+
+        with patch("proxywhirl.ProxyWhirl") as mock_pw_cls:
+            mock_pw_cls.return_value.get_pool_stats.return_value = {"total_proxies": 3}
+            ProxyPool.from_settings(settings)
+
+            call_kwargs = mock_pw_cls.call_args
+            bootstrap = call_kwargs.kwargs["bootstrap"]
+            assert bootstrap.sources == RECOMMENDED_SOURCES
 
     def test_disabled_bootstrap(self) -> None:
         """When bootstrap is off and no URLs, pool bootstraps disabled."""
@@ -121,3 +192,64 @@ class TestFromSettings:
             call_kwargs = mock_pw_cls.call_args
             bootstrap = call_kwargs.kwargs["bootstrap"]
             assert bootstrap.enabled is False
+
+
+class TestBuildProxyPool:
+    def test_disabled_returns_none(self) -> None:
+        from nbadb.core.config import NbaDbSettings
+        from nbadb.core.proxy import build_proxy_pool
+
+        settings = NbaDbSettings(proxy_enabled=False)
+        assert build_proxy_pool(settings) is None
+
+    def test_explicit_urls_no_bootstrap_returns_simple_rotator(self) -> None:
+        from nbadb.core.config import NbaDbSettings
+        from nbadb.core.proxy import build_proxy_pool
+
+        settings = NbaDbSettings(
+            proxy_enabled=True,
+            proxy_bootstrap=False,
+            proxy_urls=["socks5h://user:pass@host:1080", "http://1.2.3.4:8080"],
+        )
+        pool = build_proxy_pool(settings)
+        assert isinstance(pool, SimpleProxyRotator)
+        assert pool.size == 2
+
+    def test_explicit_urls_with_bootstrap_still_returns_simple_rotator(self) -> None:
+        """Explicit URLs always use SimpleProxyRotator, even with bootstrap=True."""
+        from nbadb.core.config import NbaDbSettings
+        from nbadb.core.proxy import build_proxy_pool
+
+        settings = NbaDbSettings(
+            proxy_enabled=True,
+            proxy_bootstrap=True,
+            proxy_urls=["http://1.2.3.4:8080"],
+        )
+        pool = build_proxy_pool(settings)
+        assert isinstance(pool, SimpleProxyRotator)
+        assert pool.size == 1
+
+    def test_no_urls_bootstrap_returns_proxypool(self) -> None:
+        from nbadb.core.config import NbaDbSettings
+        from nbadb.core.proxy import build_proxy_pool
+
+        settings = NbaDbSettings(
+            proxy_enabled=True,
+            proxy_bootstrap=True,
+            proxy_urls=[],
+        )
+        with patch("proxywhirl.ProxyWhirl") as mock_pw_cls:
+            mock_pw_cls.return_value.get_pool_stats.return_value = {"total_proxies": 5}
+            pool = build_proxy_pool(settings)
+            assert isinstance(pool, ProxyPool)
+
+    def test_no_urls_no_bootstrap_returns_none(self) -> None:
+        from nbadb.core.config import NbaDbSettings
+        from nbadb.core.proxy import build_proxy_pool
+
+        settings = NbaDbSettings(
+            proxy_enabled=True,
+            proxy_bootstrap=False,
+            proxy_urls=[],
+        )
+        assert build_proxy_pool(settings) is None

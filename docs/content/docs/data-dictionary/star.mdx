@@ -1,0 +1,763 @@
+---
+title: Data Dictionary — Star
+description: Field-level documentation for all star schema tables
+---
+
+# Data Dictionary — Star
+
+## bridge_game_official
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScoreSummaryV2.Officials.GAME_ID` |
+| `official_id` | `Int64` | No | Official identifier (FK → dim_official.official_id) | `BoxScoreSummaryV2.Officials.OFFICIAL_ID` |
+| `jersey_num` | `String` | Yes | Official jersey number | `BoxScoreSummaryV2.Officials.JERSEY_NUM` |
+
+## bridge_game_team
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `LeagueGameLog.LeagueGameLog.GAME_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `LeagueGameLog.LeagueGameLog.TEAM_ID` |
+| `side` | `String` | No | Home or away designation | `derived.side` |
+| `wl` | `String` | Yes | Win or loss result | `LeagueGameLog.LeagueGameLog.WL` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## bridge_lineup_player
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `group_id` | `String` | No | Lineup group identifier (FK → fact_lineup_stats.group_id) | `LeagueDashLineups.Lineups.GROUP_ID` |
+| `player_id` | `Int64` | No | Player in lineup (FK → dim_player.player_id) | `derived.player_id` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `LeagueDashLineups.Lineups.TEAM_ID` |
+| `position_in_lineup` | `Int64` | Yes | Position index in lineup (1-5) | `derived.position_in_lineup` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## bridge_play_player
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `PlayByPlayV3.PlayByPlay.GAME_ID` |
+| `event_num` | `Int64` | No | Event sequence number | `PlayByPlayV3.PlayByPlay.EVENTNUM` |
+| `player_id` | `Int64` | No | Player involved in play (FK → dim_player.player_id) | `derived.player_id` |
+| `team_id` | `Int64` | Yes | Player team identifier (FK → dim_team.team_id) | `derived.team_id` |
+| `player_role` | `String` | No | Role in play event | `derived.player_role` |
+
+## bridge_player_team_season
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `CommonPlayerInfo.CommonPlayerInfo.PERSON_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `CommonPlayerInfo.CommonPlayerInfo.TEAM_ID` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+| `jersey_number` | `String` | Yes | Jersey number for season | `CommonPlayerInfo.CommonPlayerInfo.JERSEY` |
+| `position` | `String` | Yes | Position played for season | `CommonPlayerInfo.CommonPlayerInfo.POSITION` |
+
+## dim_arena
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `arena_id` | `Int64` | No | Surrogate arena identifier | `derived.arena_id` |
+| `arena_name` | `String` | No | Arena name | `TeamDetails.TeamBackground.ARENA` |
+| `city` | `String` | Yes | Arena city | `derived.city` |
+| `state` | `String` | Yes | Arena state | `derived.state` |
+| `country` | `String` | Yes | Arena country | `derived.country` |
+
+## dim_coach
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `coach_id` | `Int64` | No | Unique coach identifier | `CommonTeamRoster.Coaches.COACH_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `CommonTeamRoster.Coaches.TEAM_ID` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) (FK → dim_season.season_year) | `CommonTeamRoster.Coaches.SEASON` |
+| `first_name` | `String` | Yes | Coach first name | `CommonTeamRoster.Coaches.FIRST_NAME` |
+| `last_name` | `String` | Yes | Coach last name | `CommonTeamRoster.Coaches.LAST_NAME` |
+| `coach_type` | `String` | Yes | Coach type (Head Coach, etc.) | `CommonTeamRoster.Coaches.COACH_TYPE` |
+| `is_assistant` | `Boolean` | Yes | Whether coach is assistant | `derived.is_assistant` |
+
+## dim_college
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `college_id` | `Int64` | No | Surrogate college identifier | `derived.college_id` |
+| `college_name` | `String` | No | College name | `CommonPlayerInfo.CommonPlayerInfo.SCHOOL` |
+
+## dim_date
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `date_key` | `Int64` | No | Integer date key YYYYMMDD | `derived.YYYYMMDD` |
+| `full_date` | `String` | No | Calendar date string | `derived.full_date` |
+| `year` | `Int64` | No | Calendar year | `derived.year` |
+| `month` | `Int64` | No | Calendar month (1-12) | `derived.month` |
+| `day` | `Int64` | No | Day of month (1-31) | `derived.day` |
+| `day_of_week` | `Int64` | No | Day of week (1=Monday, 7=Sunday) | `derived.day_of_week` |
+| `day_name` | `String` | No | Day name (Monday-Sunday) | `derived.day_name` |
+| `month_name` | `String` | No | Month name (January-December) | `derived.month_name` |
+| `is_weekend` | `Boolean` | No | Whether date is Saturday/Sunday | `derived.is_weekend` |
+| `nba_season` | `String` | Yes | NBA season (e.g. 2024-25) | `derived.nba_season` |
+| `nba_phase` | `String` | Yes | NBA season phase name | `derived.nba_phase` |
+
+## dim_game
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Primary key — NBA game identifier | `LeagueGameLog.GAME_ID` |
+| `game_date` | `String` | No | Date the game was played | `LeagueGameLog.GAME_DATE` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+| `season_type` | `String` | Yes | Season type (Regular Season, Playoffs, etc.) | `derived.season_type` |
+| `home_team_id` | `Int64` | Yes | Home team identifier (FK → dim_team.team_id) | `derived.home_team_id` |
+| `visitor_team_id` | `Int64` | Yes | Visitor team identifier (FK → dim_team.team_id) | `derived.visitor_team_id` |
+| `matchup` | `String` | Yes | Matchup string (e.g. LAL vs. BOS) | `LeagueGameLog.MATCHUP` |
+| `arena_name` | `String` | Yes | Arena name | `derived.arena_name` |
+| `arena_city` | `String` | Yes | Arena city | `derived.arena_city` |
+
+## dim_official
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `official_id` | `Int64` | No | Unique official identifier | `ScoreboardV2.GameInfo.OFFICIAL_ID` |
+| `first_name` | `String` | Yes | Official first name | `ScoreboardV2.GameInfo.FIRST_NAME` |
+| `last_name` | `String` | Yes | Official last name | `ScoreboardV2.GameInfo.LAST_NAME` |
+| `jersey_num` | `String` | Yes | Official jersey number | `ScoreboardV2.GameInfo.JERSEY_NUM` |
+
+## dim_play_event_type
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `event_type_id` | `Int64` | No | Play event type identifier | `derived.event_type_id` |
+| `event_type_name` | `String` | No | Event type name (e.g. made_shot) | `derived.event_type_name` |
+| `event_category` | `String` | Yes | Event category grouping | `derived.event_category` |
+
+## dim_player
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `player_sk` | `Int64` | No | Surrogate key for SCD2 player | `derived.ROW_NUMBER` |
+| `player_id` | `Int64` | No | Natural key — NBA player identifier | `CommonPlayerInfo.CommonPlayerInfo.PERSON_ID` |
+| `full_name` | `String` | No | Player full name | `CommonPlayerInfo.CommonPlayerInfo.DISPLAY_FIRST_LAST` |
+| `first_name` | `String` | Yes | Player first name | `CommonPlayerInfo.CommonPlayerInfo.FIRST_NAME` |
+| `last_name` | `String` | Yes | Player last name | `CommonPlayerInfo.CommonPlayerInfo.LAST_NAME` |
+| `is_active` | `Boolean` | Yes | Whether player is active | `CommonPlayerInfo.CommonPlayerInfo.ROSTER_STATUS` |
+| `team_id` | `Int64` | Yes | Current team identifier (FK → dim_team.team_id) | `CommonPlayerInfo.CommonPlayerInfo.TEAM_ID` |
+| `position` | `String` | Yes | Player position | `CommonPlayerInfo.CommonPlayerInfo.POSITION` |
+| `jersey_number` | `String` | Yes | Jersey number | `CommonPlayerInfo.CommonPlayerInfo.JERSEY` |
+| `height` | `String` | Yes | Player height | `CommonPlayerInfo.CommonPlayerInfo.HEIGHT` |
+| `weight` | `Int64` | Yes | Player weight in lbs | `CommonPlayerInfo.CommonPlayerInfo.WEIGHT` |
+| `birth_date` | `String` | Yes | Date of birth | `CommonPlayerInfo.CommonPlayerInfo.BIRTHDATE` |
+| `country` | `String` | Yes | Country of origin | `CommonPlayerInfo.CommonPlayerInfo.COUNTRY` |
+| `college_id` | `Int64` | Yes | College identifier (FK → dim_college.college_id) | `derived.college_id` |
+| `draft_year` | `Int64` | Yes | Draft year | `CommonPlayerInfo.CommonPlayerInfo.DRAFT_YEAR` |
+| `draft_round` | `Int64` | Yes | Draft round | `CommonPlayerInfo.CommonPlayerInfo.DRAFT_ROUND` |
+| `draft_number` | `Int64` | Yes | Draft pick number | `CommonPlayerInfo.CommonPlayerInfo.DRAFT_NUMBER` |
+| `from_year` | `Int64` | Yes | First year in the league | `CommonPlayerInfo.CommonPlayerInfo.FROM_YEAR` |
+| `to_year` | `Int64` | Yes | Last year in the league | `CommonPlayerInfo.CommonPlayerInfo.TO_YEAR` |
+| `valid_from` | `String` | No | SCD2 valid-from season | `derived.valid_from` |
+| `valid_to` | `String` | Yes | SCD2 valid-to season | `derived.valid_to` |
+| `is_current` | `Boolean` | No | Whether this is the current record | `derived.is_current` |
+
+## dim_season_phase
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `phase_id` | `Int64` | No | Season phase identifier | `derived.phase_id` |
+| `phase_name` | `String` | No | Phase name (e.g. Regular, Playoffs) | `derived.phase_name` |
+| `phase_order` | `Int64` | No | Sort order of phase in season | `derived.phase_order` |
+
+## dim_season
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `LeagueGameLog.LeagueGameLog.SEASON_ID` |
+| `start_date` | `String` | Yes | First game date of season | `derived.start_date` |
+| `end_date` | `String` | Yes | Last game date of season | `derived.end_date` |
+| `all_star_date` | `String` | Yes | All-Star game date | `derived.all_star_date` |
+| `playoff_start_date` | `String` | Yes | Playoff start date | `derived.playoff_start_date` |
+
+## dim_shot_zone
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `zone_id` | `Int64` | No | Surrogate shot zone identifier | `derived.zone_id` |
+| `zone_basic` | `String` | No | Basic zone name | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_BASIC` |
+| `zone_area` | `String` | No | Zone area (e.g. Left Side) | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_AREA` |
+| `zone_range` | `String` | No | Zone range (e.g. 16-24 ft.) | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_RANGE` |
+
+## dim_team_history
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `FranchiseHistory.FranchiseHistory.TEAM_ID` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) (FK → dim_season.season_year) | `derived.season_year` |
+| `city` | `String` | Yes | Team city for season | `FranchiseHistory.FranchiseHistory.TEAM_CITY` |
+| `nickname` | `String` | Yes | Team nickname for season | `FranchiseHistory.FranchiseHistory.TEAM_NAME` |
+| `abbreviation` | `String` | Yes | Team abbreviation for season | `TeamInfoCommon.TeamInfoCommon.TEAM_ABBREVIATION` |
+| `league_id` | `String` | Yes | League identifier | `FranchiseHistory.FranchiseHistory.LEAGUE_ID` |
+
+## dim_team
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `team_id` | `Int64` | No | NBA team identifier | `CommonTeamYears.CommonTeamYears.TEAM_ID` |
+| `abbreviation` | `String` | No | Team abbreviation (e.g. LAL) | `CommonTeamYears.CommonTeamYears.ABBREVIATION` |
+| `full_name` | `String` | No | Full team name | `derived.full_name` |
+| `city` | `String` | Yes | Team city | `TeamDetails.TeamBackground.CITY` |
+| `state` | `String` | Yes | Team state | `TeamDetails.TeamBackground.STATE` |
+| `arena` | `String` | Yes | Home arena name | `TeamDetails.TeamBackground.ARENA` |
+| `year_founded` | `Int64` | Yes | Year team was founded | `CommonTeamYears.CommonTeamYears.MIN_YEAR` |
+| `conference` | `String` | Yes | Conference (East/West) | `TeamDetails.TeamBackground.CONFERENCE` |
+| `division` | `String` | Yes | Division name | `TeamDetails.TeamBackground.DIVISION` |
+
+## fact_box_score_four_factors
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `` |
+| `player_id` | `Int64` | No | Unique player identifier (FK → dim_player.player_id) | `` |
+| `effective_field_goal_percentage` | `Float64` | Yes | Effective field goal percentage | `` |
+| `free_throw_attempt_rate` | `Float64` | Yes | Free throw attempt rate | `` |
+| `team_turnover_percentage` | `Float64` | Yes | Team turnover percentage | `` |
+| `offensive_rebound_percentage` | `Float64` | Yes | Offensive rebound percentage | `` |
+| `opp_effective_field_goal_percentage` | `Float64` | Yes | Opponent effective field goal percentage | `` |
+| `opp_free_throw_attempt_rate` | `Float64` | Yes | Opponent free throw attempt rate | `` |
+| `opp_team_turnover_percentage` | `Float64` | Yes | Opponent team turnover percentage | `` |
+| `opp_offensive_rebound_percentage` | `Float64` | Yes | Opponent offensive rebound percentage | `` |
+
+## fact_draft
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `person_id` | `Int64` | No | Drafted player identifier (FK → dim_player.player_id) | `DraftHistory.DraftHistory.PERSON_ID` |
+| `team_id` | `Int64` | No | Drafting team identifier (FK → dim_team.team_id) | `DraftHistory.DraftHistory.TEAM_ID` |
+| `season` | `String` | No | Draft season year | `DraftHistory.DraftHistory.SEASON` |
+| `round_number` | `Int64` | Yes | Draft round (1 or 2) | `DraftHistory.DraftHistory.ROUND_NUMBER` |
+| `round_pick` | `Int64` | Yes | Pick number within round | `DraftHistory.DraftHistory.ROUND_PICK` |
+| `overall_pick` | `Int64` | Yes | Overall pick number | `DraftHistory.DraftHistory.OVERALL_PICK` |
+| `player_name` | `String` | Yes | Player full name | `DraftHistory.DraftHistory.PLAYER_NAME` |
+| `organization` | `String` | Yes | College or organization | `DraftHistory.DraftHistory.ORGANIZATION` |
+| `organization_type` | `String` | Yes | Type (College, HS, Intl, etc.) | `DraftHistory.DraftHistory.ORGANIZATION_TYPE` |
+| `player_profile_flag` | `Int64` | Yes | Has player profile (1=yes) | `DraftHistory.DraftHistory.PLAYER_PROFILE_FLAG` |
+
+## fact_estimated_metrics
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.TEAM_ID` |
+| `gp` | `Int64` | Yes | Games played | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.GP` |
+| `w` | `Int64` | Yes | Wins | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.W` |
+| `l` | `Int64` | Yes | Losses | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.L` |
+| `min` | `Float64` | Yes | Minutes played | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.MIN` |
+| `e_off_rating` | `Float64` | Yes | Estimated offensive rating | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_OFF_RATING` |
+| `e_def_rating` | `Float64` | Yes | Estimated defensive rating | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_DEF_RATING` |
+| `e_net_rating` | `Float64` | Yes | Estimated net rating | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_NET_RATING` |
+| `e_pace` | `Float64` | Yes | Estimated pace | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_PACE` |
+| `e_ast_ratio` | `Float64` | Yes | Estimated assist ratio | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_AST_RATIO` |
+| `e_oreb_pct` | `Float64` | Yes | Estimated offensive rebound pct | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_OREB_PCT` |
+| `e_dreb_pct` | `Float64` | Yes | Estimated defensive rebound pct | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_DREB_PCT` |
+| `e_reb_pct` | `Float64` | Yes | Estimated total rebound pct | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_REB_PCT` |
+| `e_tov_pct` | `Float64` | Yes | Estimated turnover percentage | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_TOV_PCT` |
+| `e_usg_pct` | `Float64` | Yes | Estimated usage percentage | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_USG_PCT` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_game_leaders
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `ScoreboardV3.GameLeaders.gameId` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `ScoreboardV3.GameLeaders.teamId` |
+| `leader_type` | `String` | No | Leader category (home or away) | `ScoreboardV3.GameLeaders.leaderType` |
+| `person_id` | `Int64` | No | Unique player identifier (FK → dim_player.player_id) | `ScoreboardV3.GameLeaders.personId` |
+| `name` | `String` | No | Player display name | `ScoreboardV3.GameLeaders.name` |
+| `player_slug` | `String` | Yes | Player URL slug | `ScoreboardV3.GameLeaders.playerSlug` |
+| `jersey_num` | `String` | Yes | Player jersey number | `ScoreboardV3.GameLeaders.jerseyNum` |
+| `position` | `String` | Yes | Player position | `ScoreboardV3.GameLeaders.position` |
+| `team_tricode` | `String` | Yes | Three-letter team code | `ScoreboardV3.GameLeaders.teamTricode` |
+| `points` | `Float64` | Yes | Points scored | `ScoreboardV3.GameLeaders.points` |
+| `rebounds` | `Float64` | Yes | Total rebounds | `ScoreboardV3.GameLeaders.rebounds` |
+| `assists` | `Float64` | Yes | Total assists | `ScoreboardV3.GameLeaders.assists` |
+
+## fact_game_result
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `LeagueGameLog.LeagueGameLog.GAME_ID` |
+| `game_date` | `String` | No | Game date | `LeagueGameLog.LeagueGameLog.GAME_DATE` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+| `season_type` | `String` | Yes | Season type (Regular, Playoff) | `LeagueGameLog.LeagueGameLog.SEASON_ID` |
+| `home_team_id` | `Int64` | Yes | Home team identifier (FK → dim_team.team_id) | `derived.home_team_id` |
+| `visitor_team_id` | `Int64` | Yes | Visiting team identifier (FK → dim_team.team_id) | `derived.visitor_team_id` |
+| `wl_home` | `String` | Yes | Home team win/loss (W or L) | `derived.wl_home` |
+| `pts_home` | `Int64` | Yes | Home team points | `derived.pts_home` |
+| `pts_away` | `Int64` | Yes | Away team points | `derived.pts_away` |
+| `plus_minus_home` | `Float64` | Yes | Home team plus-minus | `derived.plus_minus_home` |
+| `plus_minus_away` | `Float64` | Yes | Away team plus-minus | `derived.plus_minus_away` |
+| `pts_qtr1_home` | `Int64` | Yes | Home team Q1 points | `Scoreboard.LineScore.PTS_QTR1_HOME` |
+| `pts_qtr2_home` | `Int64` | Yes | Home team Q2 points | `Scoreboard.LineScore.PTS_QTR2_HOME` |
+| `pts_qtr3_home` | `Int64` | Yes | Home team Q3 points | `Scoreboard.LineScore.PTS_QTR3_HOME` |
+| `pts_qtr4_home` | `Int64` | Yes | Home team Q4 points | `Scoreboard.LineScore.PTS_QTR4_HOME` |
+| `pts_ot1_home` | `Int64` | Yes | Home team OT1 points | `Scoreboard.LineScore.PTS_OT1_HOME` |
+| `pts_ot2_home` | `Int64` | Yes | Home team OT2 points | `Scoreboard.LineScore.PTS_OT2_HOME` |
+| `pts_qtr1_away` | `Int64` | Yes | Away team Q1 points | `Scoreboard.LineScore.PTS_QTR1_AWAY` |
+| `pts_qtr2_away` | `Int64` | Yes | Away team Q2 points | `Scoreboard.LineScore.PTS_QTR2_AWAY` |
+| `pts_qtr3_away` | `Int64` | Yes | Away team Q3 points | `Scoreboard.LineScore.PTS_QTR3_AWAY` |
+| `pts_qtr4_away` | `Int64` | Yes | Away team Q4 points | `Scoreboard.LineScore.PTS_QTR4_AWAY` |
+| `pts_ot1_away` | `Int64` | Yes | Away team OT1 points | `Scoreboard.LineScore.PTS_OT1_AWAY` |
+| `pts_ot2_away` | `Int64` | Yes | Away team OT2 points | `Scoreboard.LineScore.PTS_OT2_AWAY` |
+
+## fact_game_scoring
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `Scoreboard.LineScore.GAME_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `Scoreboard.LineScore.TEAM_ID` |
+| `side` | `String` | No | Home or away designation | `derived.side` |
+| `period` | `Int64` | No | Period number (1-4 qtrs, 5+ OT) | `derived.period` |
+| `pts` | `Int64` | Yes | Points scored in period | `Scoreboard.LineScore.PTS` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_league_lineup_viz
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `group_id` | `String` | No | Lineup group identifier | `LeagueLineupViz.LeagueLineupViz.GROUP_ID` |
+| `group_name` | `String` | Yes | Lineup player names | `LeagueLineupViz.LeagueLineupViz.GROUP_NAME` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `LeagueLineupViz.LeagueLineupViz.TEAM_ID` |
+| `team_abbreviation` | `String` | Yes | Team abbreviation code | `LeagueLineupViz.LeagueLineupViz.TEAM_ABBREVIATION` |
+| `min` | `Float64` | Yes | Minutes played | `LeagueLineupViz.LeagueLineupViz.MIN` |
+| `off_rating` | `Float64` | Yes | Offensive rating | `LeagueLineupViz.LeagueLineupViz.OFF_RATING` |
+| `def_rating` | `Float64` | Yes | Defensive rating | `LeagueLineupViz.LeagueLineupViz.DEF_RATING` |
+| `net_rating` | `Float64` | Yes | Net rating | `LeagueLineupViz.LeagueLineupViz.NET_RATING` |
+| `pace` | `Float64` | Yes | Pace factor | `LeagueLineupViz.LeagueLineupViz.PACE` |
+| `ts_pct` | `Float64` | Yes | True shooting percentage | `LeagueLineupViz.LeagueLineupViz.TS_PCT` |
+| `fta_rate` | `Float64` | Yes | Free throw attempt rate | `LeagueLineupViz.LeagueLineupViz.FTA_RATE` |
+| `tm_ast_pct` | `Float64` | Yes | Team assist percentage | `LeagueLineupViz.LeagueLineupViz.TM_AST_PCT` |
+| `pct_fga_2pt` | `Float64` | Yes | Percentage of field goal attempts from two-point range | `LeagueLineupViz.LeagueLineupViz.PCT_FGA_2PT` |
+| `pct_fga_3pt` | `Float64` | Yes | Percentage of field goal attempts from three-point range | `LeagueLineupViz.LeagueLineupViz.PCT_FGA_3PT` |
+| `pct_pts_2pt_mr` | `Float64` | Yes | Percentage of points from mid-range two-pointers | `LeagueLineupViz.LeagueLineupViz.PCT_PTS_2PT_MR` |
+| `pct_pts_fb` | `Float64` | Yes | Percentage of points from fast breaks | `LeagueLineupViz.LeagueLineupViz.PCT_PTS_FB` |
+| `pct_pts_ft` | `Float64` | Yes | Percentage of points from free throws | `LeagueLineupViz.LeagueLineupViz.PCT_PTS_FT` |
+| `pct_pts_paint` | `Float64` | Yes | Percentage of points in the paint | `LeagueLineupViz.LeagueLineupViz.PCT_PTS_PAINT` |
+| `pct_ast_fgm` | `Float64` | Yes | Percentage of assisted field goals | `LeagueLineupViz.LeagueLineupViz.PCT_AST_FGM` |
+| `pct_uast_fgm` | `Float64` | Yes | Percentage of unassisted field goals | `LeagueLineupViz.LeagueLineupViz.PCT_UAST_FGM` |
+| `opp_fg3_pct` | `Float64` | Yes | Opponent three-point percentage | `LeagueLineupViz.LeagueLineupViz.OPP_FG3_PCT` |
+| `opp_efg_pct` | `Float64` | Yes | Opponent effective field goal percentage | `LeagueLineupViz.LeagueLineupViz.OPP_EFG_PCT` |
+| `opp_fta_rate` | `Float64` | Yes | Opponent free throw attempt rate | `LeagueLineupViz.LeagueLineupViz.OPP_FTA_RATE` |
+| `opp_tov_pct` | `Float64` | Yes | Opponent turnover percentage | `LeagueLineupViz.LeagueLineupViz.OPP_TOV_PCT` |
+
+## fact_lineup_stats
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `group_set` | `String` | No | Lineup group set label | `LeagueDashLineups.Lineups.GROUP_SET` |
+| `group_id` | `String` | No | Lineup group identifier | `LeagueDashLineups.Lineups.GROUP_ID` |
+| `group_name` | `String` | Yes | Lineup player names | `LeagueDashLineups.Lineups.GROUP_NAME` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `LeagueDashLineups.Lineups.TEAM_ID` |
+| `gp` | `Int64` | Yes | Games played | `LeagueDashLineups.Lineups.GP` |
+| `w` | `Int64` | Yes | Wins | `LeagueDashLineups.Lineups.W` |
+| `l` | `Int64` | Yes | Losses | `LeagueDashLineups.Lineups.L` |
+| `min` | `Float64` | Yes | Minutes played | `LeagueDashLineups.Lineups.MIN` |
+| `fgm` | `Int64` | Yes | Field goals made | `LeagueDashLineups.Lineups.FGM` |
+| `fga` | `Int64` | Yes | Field goals attempted | `LeagueDashLineups.Lineups.FGA` |
+| `fg_pct` | `Float64` | Yes | Field goal percentage | `LeagueDashLineups.Lineups.FG_PCT` |
+| `fg3m` | `Int64` | Yes | Three-pointers made | `LeagueDashLineups.Lineups.FG3M` |
+| `fg3a` | `Int64` | Yes | Three-pointers attempted | `LeagueDashLineups.Lineups.FG3A` |
+| `fg3_pct` | `Float64` | Yes | Three-point percentage | `LeagueDashLineups.Lineups.FG3_PCT` |
+| `ftm` | `Int64` | Yes | Free throws made | `LeagueDashLineups.Lineups.FTM` |
+| `fta` | `Int64` | Yes | Free throws attempted | `LeagueDashLineups.Lineups.FTA` |
+| `ft_pct` | `Float64` | Yes | Free throw percentage | `LeagueDashLineups.Lineups.FT_PCT` |
+| `oreb` | `Int64` | Yes | Offensive rebounds | `LeagueDashLineups.Lineups.OREB` |
+| `dreb` | `Int64` | Yes | Defensive rebounds | `LeagueDashLineups.Lineups.DREB` |
+| `reb` | `Int64` | Yes | Total rebounds | `LeagueDashLineups.Lineups.REB` |
+| `ast` | `Int64` | Yes | Assists | `LeagueDashLineups.Lineups.AST` |
+| `tov` | `Int64` | Yes | Turnovers | `LeagueDashLineups.Lineups.TOV` |
+| `stl` | `Int64` | Yes | Steals | `LeagueDashLineups.Lineups.STL` |
+| `blk` | `Int64` | Yes | Blocks | `LeagueDashLineups.Lineups.BLK` |
+| `pts` | `Int64` | Yes | Points scored | `LeagueDashLineups.Lineups.PTS` |
+| `plus_minus` | `Float64` | Yes | Plus-minus | `LeagueDashLineups.Lineups.PLUS_MINUS` |
+| `net_rating` | `Float64` | Yes | Net rating | `LeagueDashLineups.Lineups.NET_RATING` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_matchup
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScoreMatchupsV3.PlayerMatchups.GAME_ID` |
+| `player_id` | `Int64` | No | Offensive player identifier (FK → dim_player.player_id) | `BoxScoreMatchupsV3.PlayerMatchups.OFF_PLAYER_ID` |
+| `team_id` | `Int64` | No | Offensive team identifier (FK → dim_team.team_id) | `BoxScoreMatchupsV3.PlayerMatchups.OFF_TEAM_ID` |
+| `def_player_id` | `Int64` | No | Defensive player identifier (FK → dim_player.player_id) | `BoxScoreMatchupsV3.PlayerMatchups.DEF_PLAYER_ID` |
+| `def_team_id` | `Int64` | No | Defensive team identifier (FK → dim_team.team_id) | `BoxScoreMatchupsV3.PlayerMatchups.DEF_TEAM_ID` |
+| `matchup_min` | `Float64` | Yes | Matchup minutes | `BoxScoreMatchupsV3.PlayerMatchups.PARTIAL_POSS` |
+| `poss` | `Int64` | Yes | Possessions | `BoxScoreMatchupsV3.PlayerMatchups.POSS` |
+| `player_pts` | `Int64` | Yes | Points scored by offensive player | `BoxScoreMatchupsV3.PlayerMatchups.PLAYER_PTS` |
+| `team_pts` | `Int64` | Yes | Team points during matchup | `BoxScoreMatchupsV3.PlayerMatchups.TEAM_PTS` |
+| `matchup_ast` | `Int64` | Yes | Assists during matchup | `BoxScoreMatchupsV3.PlayerMatchups.MATCHUP_AST` |
+| `matchup_tov` | `Int64` | Yes | Turnovers during matchup | `BoxScoreMatchupsV3.PlayerMatchups.MATCHUP_TOV` |
+| `matchup_blk` | `Int64` | Yes | Blocks during matchup | `BoxScoreMatchupsV3.PlayerMatchups.MATCHUP_BLK` |
+| `matchup_fgm` | `Int64` | Yes | Field goals made during matchup | `BoxScoreMatchupsV3.PlayerMatchups.MATCHUP_FGM` |
+| `matchup_fga` | `Int64` | Yes | Field goals attempted in matchup | `BoxScoreMatchupsV3.PlayerMatchups.MATCHUP_FGA` |
+| `matchup_fg_pct` | `Float64` | Yes | FG percentage during matchup | `BoxScoreMatchupsV3.PlayerMatchups.MATCHUP_FG_PCT` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_play_by_play
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `PlayByPlayV3.PlayByPlay.GAME_ID` |
+| `event_num` | `Int64` | No | Event sequence number | `PlayByPlayV3.PlayByPlay.EVENTNUM` |
+| `event_msg_type` | `Int64` | No | Event message type code | `PlayByPlayV3.PlayByPlay.EVENTMSGTYPE` |
+| `event_msg_action_type` | `Int64` | Yes | Event action type code | `PlayByPlayV3.PlayByPlay.EVENTMSGACTIONTYPE` |
+| `period` | `Int64` | No | Game period (1-4 qtrs, 5+ OT) | `PlayByPlayV3.PlayByPlay.PERIOD` |
+| `wc_time_string` | `String` | Yes | Wall clock time | `PlayByPlayV3.PlayByPlay.WCTIMESTRING` |
+| `pc_time_string` | `String` | Yes | Period clock time string | `PlayByPlayV3.PlayByPlay.PCTIMESTRING` |
+| `home_description` | `String` | Yes | Home team event description | `PlayByPlayV3.PlayByPlay.HOMEDESCRIPTION` |
+| `neutral_description` | `String` | Yes | Neutral event description | `PlayByPlayV3.PlayByPlay.NEUTRALDESCRIPTION` |
+| `visitor_description` | `String` | Yes | Visitor team event description | `PlayByPlayV3.PlayByPlay.VISITORDESCRIPTION` |
+| `score` | `String` | Yes | Score at event (e.g. 102 - 98) | `PlayByPlayV3.PlayByPlay.SCORE` |
+| `score_margin` | `String` | Yes | Score margin at event | `PlayByPlayV3.PlayByPlay.SCOREMARGIN` |
+| `player1_id` | `Int64` | Yes | Primary player identifier (FK → dim_player.player_id) | `PlayByPlayV3.PlayByPlay.PLAYER1_ID` |
+| `player1_team_id` | `Int64` | Yes | Primary player team ID (FK → dim_team.team_id) | `PlayByPlayV3.PlayByPlay.PLAYER1_TEAM_ID` |
+| `player2_id` | `Int64` | Yes | Secondary player identifier (FK → dim_player.player_id) | `PlayByPlayV3.PlayByPlay.PLAYER2_ID` |
+| `player2_team_id` | `Int64` | Yes | Secondary player team ID (FK → dim_team.team_id) | `PlayByPlayV3.PlayByPlay.PLAYER2_TEAM_ID` |
+| `player3_id` | `Int64` | Yes | Tertiary player identifier (FK → dim_player.player_id) | `PlayByPlayV3.PlayByPlay.PLAYER3_ID` |
+| `player3_team_id` | `Int64` | Yes | Tertiary player team ID (FK → dim_team.team_id) | `PlayByPlayV3.PlayByPlay.PLAYER3_TEAM_ID` |
+| `event_type_name` | `String` | Yes | Derived event type label | `derived.event_type_name` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_player_awards
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `PlayerAwards.PlayerAwards.PERSON_ID` |
+| `description` | `String` | No | Award description | `PlayerAwards.PlayerAwards.DESCRIPTION` |
+| `all_nba_team_number` | `Int64` | Yes | All-NBA team number | `PlayerAwards.PlayerAwards.ALL_NBA_TEAM_NUMBER` |
+| `season` | `String` | Yes | Award season | `PlayerAwards.PlayerAwards.SEASON` |
+| `month` | `String` | Yes | Award month (if applicable) | `PlayerAwards.PlayerAwards.MONTH` |
+| `week` | `String` | Yes | Award week (if applicable) | `PlayerAwards.PlayerAwards.WEEK` |
+| `conference` | `String` | Yes | Conference for award | `PlayerAwards.PlayerAwards.CONFERENCE` |
+| `award_type` | `String` | Yes | Award type classification | `PlayerAwards.PlayerAwards.TYPE` |
+| `subtype1` | `String` | Yes | Award subtype 1 | `PlayerAwards.PlayerAwards.SUBTYPE1` |
+| `subtype2` | `String` | Yes | Award subtype 2 | `PlayerAwards.PlayerAwards.SUBTYPE2` |
+| `subtype3` | `String` | Yes | Award subtype 3 | `PlayerAwards.PlayerAwards.SUBTYPE3` |
+
+## fact_player_estimated_metrics
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.TEAM_ID` |
+| `gp` | `Int64` | Yes | Games played | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.GP` |
+| `w` | `Int64` | Yes | Wins | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.W` |
+| `l` | `Int64` | Yes | Losses | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.L` |
+| `min` | `Float64` | Yes | Minutes played | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.MIN` |
+| `e_off_rating` | `Float64` | Yes | Estimated offensive rating | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_OFF_RATING` |
+| `e_def_rating` | `Float64` | Yes | Estimated defensive rating | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_DEF_RATING` |
+| `e_net_rating` | `Float64` | Yes | Estimated net rating | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_NET_RATING` |
+| `e_pace` | `Float64` | Yes | Estimated pace | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_PACE` |
+| `e_ast_ratio` | `Float64` | Yes | Estimated assist ratio | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_AST_RATIO` |
+| `e_oreb_pct` | `Float64` | Yes | Estimated offensive rebound pct | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_OREB_PCT` |
+| `e_dreb_pct` | `Float64` | Yes | Estimated defensive rebound pct | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_DREB_PCT` |
+| `e_reb_pct` | `Float64` | Yes | Estimated total rebound pct | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_REB_PCT` |
+| `e_tov_pct` | `Float64` | Yes | Estimated turnover percentage | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_TOV_PCT` |
+| `e_usg_pct` | `Float64` | Yes | Estimated usage percentage | `PlayerEstimatedMetrics.PlayerEstimatedMetrics.E_USG_PCT` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_player_game_advanced
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScoreAdvancedV3.PlayerStats.GAME_ID` |
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `BoxScoreAdvancedV3.PlayerStats.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `BoxScoreAdvancedV3.PlayerStats.TEAM_ID` |
+| `off_rating` | `Float64` | Yes | Offensive rating | `BoxScoreAdvancedV3.PlayerStats.OFF_RATING` |
+| `def_rating` | `Float64` | Yes | Defensive rating | `BoxScoreAdvancedV3.PlayerStats.DEF_RATING` |
+| `net_rating` | `Float64` | Yes | Net rating | `BoxScoreAdvancedV3.PlayerStats.NET_RATING` |
+| `ast_pct` | `Float64` | Yes | Assist percentage | `BoxScoreAdvancedV3.PlayerStats.AST_PCT` |
+| `ast_to` | `Float64` | Yes | Assist-to-turnover ratio | `BoxScoreAdvancedV3.PlayerStats.AST_TOV` |
+| `ast_ratio` | `Float64` | Yes | Assist ratio | `BoxScoreAdvancedV3.PlayerStats.AST_RATIO` |
+| `oreb_pct` | `Float64` | Yes | Offensive rebound percentage | `BoxScoreAdvancedV3.PlayerStats.OREB_PCT` |
+| `dreb_pct` | `Float64` | Yes | Defensive rebound percentage | `BoxScoreAdvancedV3.PlayerStats.DREB_PCT` |
+| `reb_pct` | `Float64` | Yes | Total rebound percentage | `BoxScoreAdvancedV3.PlayerStats.REB_PCT` |
+| `efg_pct` | `Float64` | Yes | Effective field goal percentage | `BoxScoreAdvancedV3.PlayerStats.EFG_PCT` |
+| `ts_pct` | `Float64` | Yes | True shooting percentage | `BoxScoreAdvancedV3.PlayerStats.TS_PCT` |
+| `usg_pct` | `Float64` | Yes | Usage percentage | `BoxScoreAdvancedV3.PlayerStats.USG_PCT` |
+| `pace` | `Float64` | Yes | Pace factor | `BoxScoreAdvancedV3.PlayerStats.PACE` |
+| `pie` | `Float64` | Yes | Player impact estimate | `BoxScoreAdvancedV3.PlayerStats.PIE` |
+| `poss` | `Int64` | Yes | Possessions | `BoxScoreAdvancedV3.PlayerStats.POSS` |
+| `fta_rate` | `Float64` | Yes | Free throw attempt rate | `BoxScoreAdvancedV3.PlayerStats.FTA_RATE` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_player_game_hustle
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScoreHustleV2.PlayerStats.GAME_ID` |
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `BoxScoreHustleV2.PlayerStats.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `BoxScoreHustleV2.PlayerStats.TEAM_ID` |
+| `contested_shots` | `Int64` | Yes | Total contested shots | `BoxScoreHustleV2.PlayerStats.CONTESTED_SHOTS` |
+| `contested_shots_2pt` | `Int64` | Yes | Contested two-point shots | `BoxScoreHustleV2.PlayerStats.CONTESTED_SHOTS_2PT` |
+| `contested_shots_3pt` | `Int64` | Yes | Contested three-point shots | `BoxScoreHustleV2.PlayerStats.CONTESTED_SHOTS_3PT` |
+| `deflections` | `Int64` | Yes | Deflections | `BoxScoreHustleV2.PlayerStats.DEFLECTIONS` |
+| `charges_drawn` | `Int64` | Yes | Charges drawn | `BoxScoreHustleV2.PlayerStats.CHARGES_DRAWN` |
+| `screen_assists` | `Int64` | Yes | Screen assists | `BoxScoreHustleV2.PlayerStats.SCREEN_ASSISTS` |
+| `screen_ast_pts` | `Int64` | Yes | Points from screen assists | `BoxScoreHustleV2.PlayerStats.SCREEN_AST_PTS` |
+| `loose_balls_recovered` | `Int64` | Yes | Loose balls recovered | `BoxScoreHustleV2.PlayerStats.LOOSE_BALLS_RECOVERED` |
+| `box_outs` | `Int64` | Yes | Box outs | `BoxScoreHustleV2.PlayerStats.BOX_OUTS` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_player_game_misc
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScoreMiscV3.PlayerStats.GAME_ID` |
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `BoxScoreMiscV3.PlayerStats.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `BoxScoreMiscV3.PlayerStats.TEAM_ID` |
+| `pts_off_tov` | `Int64` | Yes | Points off turnovers | `BoxScoreMiscV3.PlayerStats.PTS_OFF_TOV` |
+| `second_chance_pts` | `Int64` | Yes | Second chance points | `BoxScoreMiscV3.PlayerStats.SECOND_CHANCE_PTS` |
+| `fbps` | `Int64` | Yes | Fast break points | `BoxScoreMiscV3.PlayerStats.FBPS` |
+| `pitp` | `Int64` | Yes | Points in the paint | `BoxScoreMiscV3.PlayerStats.PITP` |
+| `opp_pts_off_tov` | `Int64` | Yes | Opponent points off turnovers | `BoxScoreMiscV3.PlayerStats.OPP_PTS_OFF_TOV` |
+| `opp_second_chance_pts` | `Int64` | Yes | Opponent second chance points | `BoxScoreMiscV3.PlayerStats.OPP_SECOND_CHANCE_PTS` |
+| `opp_fbps` | `Int64` | Yes | Opponent fast break points | `BoxScoreMiscV3.PlayerStats.OPP_FBPS` |
+| `opp_pitp` | `Int64` | Yes | Opponent points in the paint | `BoxScoreMiscV3.PlayerStats.OPP_PITP` |
+| `pct_fga_2pt` | `Float64` | Yes | Percentage of FGA that are 2pt | `BoxScoreScoringV3.PlayerStats.PCT_FGA_2PT` |
+| `pct_fga_3pt` | `Float64` | Yes | Percentage of FGA that are 3pt | `BoxScoreScoringV3.PlayerStats.PCT_FGA_3PT` |
+| `pct_pts_2pt` | `Float64` | Yes | Percentage of points from 2pt | `BoxScoreScoringV3.PlayerStats.PCT_PTS_2PT` |
+| `pct_pts_2pt_mr` | `Float64` | Yes | Pct of pts from 2pt mid-range | `BoxScoreScoringV3.PlayerStats.PCT_PTS_2PT_MR` |
+| `pct_pts_3pt` | `Float64` | Yes | Percentage of points from 3pt | `BoxScoreScoringV3.PlayerStats.PCT_PTS_3PT` |
+| `pct_pts_fb` | `Float64` | Yes | Pct of points from fast breaks | `BoxScoreScoringV3.PlayerStats.PCT_PTS_FB` |
+| `pct_pts_ft` | `Float64` | Yes | Pct of points from free throws | `BoxScoreScoringV3.PlayerStats.PCT_PTS_FT` |
+| `pct_pts_off_tov` | `Float64` | Yes | Pct of pts off turnovers | `BoxScoreScoringV3.PlayerStats.PCT_PTS_OFF_TOV` |
+| `pct_pts_pitp` | `Float64` | Yes | Pct of pts in the paint | `BoxScoreScoringV3.PlayerStats.PCT_PTS_PITP` |
+| `pct_ast_2pm` | `Float64` | Yes | Pct of 2pt made that are assisted | `BoxScoreScoringV3.PlayerStats.PCT_AST_2PM` |
+| `pct_uast_2pm` | `Float64` | Yes | Pct of 2pt made unassisted | `BoxScoreScoringV3.PlayerStats.PCT_UAST_2PM` |
+| `pct_ast_3pm` | `Float64` | Yes | Pct of 3pt made that are assisted | `BoxScoreScoringV3.PlayerStats.PCT_AST_3PM` |
+| `pct_uast_3pm` | `Float64` | Yes | Pct of 3pt made unassisted | `BoxScoreScoringV3.PlayerStats.PCT_UAST_3PM` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_player_game_tracking
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScorePlayerTrackV3.PlayerStats.GAME_ID` |
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `BoxScorePlayerTrackV3.PlayerStats.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `BoxScorePlayerTrackV3.PlayerStats.TEAM_ID` |
+| `spd` | `Float64` | Yes | Average speed (mph) | `BoxScorePlayerTrackV3.PlayerStats.SPD` |
+| `dist` | `Float64` | Yes | Distance traveled (miles) | `BoxScorePlayerTrackV3.PlayerStats.DIST` |
+| `orbc` | `Int64` | Yes | Offensive rebound chances | `BoxScorePlayerTrackV3.PlayerStats.ORBC` |
+| `drbc` | `Int64` | Yes | Defensive rebound chances | `BoxScorePlayerTrackV3.PlayerStats.DRBC` |
+| `rbc` | `Int64` | Yes | Total rebound chances | `BoxScorePlayerTrackV3.PlayerStats.RBC` |
+| `tchs` | `Int64` | Yes | Touches | `BoxScorePlayerTrackV3.PlayerStats.TCHS` |
+| `front_ct_tchs` | `Int64` | Yes | Front court touches | `BoxScorePlayerTrackV3.PlayerStats.FRONT_CT_TOUCHES` |
+| `time_of_poss` | `Float64` | Yes | Time of possession (min) | `BoxScorePlayerTrackV3.PlayerStats.TIME_OF_POSS` |
+| `passes` | `Int64` | Yes | Passes made | `BoxScorePlayerTrackV3.PlayerStats.PASSES` |
+| `ast` | `Int64` | Yes | Assists | `BoxScorePlayerTrackV3.PlayerStats.AST` |
+| `ft_ast` | `Int64` | Yes | Free throw assists | `BoxScorePlayerTrackV3.PlayerStats.FTAST` |
+| `cfgm` | `Int64` | Yes | Contested field goals made | `BoxScorePlayerTrackV3.PlayerStats.CFGM` |
+| `cfga` | `Int64` | Yes | Contested field goals attempted | `BoxScorePlayerTrackV3.PlayerStats.CFGA` |
+| `cfg_pct` | `Float64` | Yes | Contested FG percentage | `BoxScorePlayerTrackV3.PlayerStats.CFG_PCT` |
+| `ufgm` | `Int64` | Yes | Uncontested FG made | `BoxScorePlayerTrackV3.PlayerStats.UFGM` |
+| `ufga` | `Int64` | Yes | Uncontested FG attempted | `BoxScorePlayerTrackV3.PlayerStats.UFGA` |
+| `ufg_pct` | `Float64` | Yes | Uncontested FG percentage | `BoxScorePlayerTrackV3.PlayerStats.UFG_PCT` |
+| `dfgm` | `Int64` | Yes | Defended field goals made | `BoxScorePlayerTrackV3.PlayerStats.DFGM` |
+| `dfga` | `Int64` | Yes | Defended field goals attempted | `BoxScorePlayerTrackV3.PlayerStats.DFGA` |
+| `dfg_pct` | `Float64` | Yes | Defended FG percentage | `BoxScorePlayerTrackV3.PlayerStats.DFG_PCT` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_player_game_traditional
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScoreTraditionalV3.PlayerStats.GAME_ID` |
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `BoxScoreTraditionalV3.PlayerStats.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `BoxScoreTraditionalV3.PlayerStats.TEAM_ID` |
+| `min` | `Float64` | Yes | Minutes played | `BoxScoreTraditionalV3.PlayerStats.MIN` |
+| `pts` | `Int64` | Yes | Points scored | `BoxScoreTraditionalV3.PlayerStats.PTS` |
+| `reb` | `Int64` | Yes | Total rebounds | `BoxScoreTraditionalV3.PlayerStats.REB` |
+| `ast` | `Int64` | Yes | Assists | `BoxScoreTraditionalV3.PlayerStats.AST` |
+| `stl` | `Int64` | Yes | Steals | `BoxScoreTraditionalV3.PlayerStats.STL` |
+| `blk` | `Int64` | Yes | Blocks | `BoxScoreTraditionalV3.PlayerStats.BLK` |
+| `tov` | `Int64` | Yes | Turnovers | `BoxScoreTraditionalV3.PlayerStats.TOV` |
+| `pf` | `Int64` | Yes | Personal fouls | `BoxScoreTraditionalV3.PlayerStats.PF` |
+| `fgm` | `Int64` | Yes | Field goals made | `BoxScoreTraditionalV3.PlayerStats.FGM` |
+| `fga` | `Int64` | Yes | Field goals attempted | `BoxScoreTraditionalV3.PlayerStats.FGA` |
+| `fg_pct` | `Float64` | Yes | Field goal percentage | `BoxScoreTraditionalV3.PlayerStats.FG_PCT` |
+| `fg3m` | `Int64` | Yes | Three-point field goals made | `BoxScoreTraditionalV3.PlayerStats.FG3M` |
+| `fg3a` | `Int64` | Yes | Three-pointers attempted | `BoxScoreTraditionalV3.PlayerStats.FG3A` |
+| `fg3_pct` | `Float64` | Yes | Three-point percentage | `BoxScoreTraditionalV3.PlayerStats.FG3_PCT` |
+| `ftm` | `Int64` | Yes | Free throws made | `BoxScoreTraditionalV3.PlayerStats.FTM` |
+| `fta` | `Int64` | Yes | Free throws attempted | `BoxScoreTraditionalV3.PlayerStats.FTA` |
+| `ft_pct` | `Float64` | Yes | Free throw percentage | `BoxScoreTraditionalV3.PlayerStats.FT_PCT` |
+| `oreb` | `Int64` | Yes | Offensive rebounds | `BoxScoreTraditionalV3.PlayerStats.OREB` |
+| `dreb` | `Int64` | Yes | Defensive rebounds | `BoxScoreTraditionalV3.PlayerStats.DREB` |
+| `plus_minus` | `Float64` | Yes | Plus-minus | `BoxScoreTraditionalV3.PlayerStats.PLUS_MINUS` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+| `start_position` | `String` | Yes | Starting position (F, C, G) | `BoxScoreTraditionalV3.PlayerStats.START_POSITION` |
+
+## fact_rotation
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `GameRotation.HomeTeam.GAME_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `GameRotation.HomeTeam.TEAM_ID` |
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `GameRotation.HomeTeam.PERSON_ID` |
+| `in_time_real` | `Float64` | Yes | Check-in time (tenths of sec) | `GameRotation.HomeTeam.IN_TIME_REAL` |
+| `out_time_real` | `Float64` | Yes | Check-out time (tenths of sec) | `GameRotation.HomeTeam.OUT_TIME_REAL` |
+| `in_period` | `Int64` | Yes | Period when player checked in | `GameRotation.HomeTeam.IN_PERIOD` |
+| `out_period` | `Int64` | Yes | Period when player checked out | `GameRotation.HomeTeam.OUT_PERIOD` |
+| `pts` | `Int64` | Yes | Points during stint | `GameRotation.HomeTeam.PTS` |
+| `pts_diff` | `Int64` | Yes | Point differential during stint | `GameRotation.HomeTeam.PT_DIFF` |
+| `usg_pct` | `Float64` | Yes | Usage percentage during stint | `GameRotation.HomeTeam.USG_PCT` |
+| `side` | `String` | No | Home or away designation | `derived.side` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_shot_chart
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `ShotChartDetail.ShotChartDetail.GAME_ID` |
+| `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `ShotChartDetail.ShotChartDetail.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `ShotChartDetail.ShotChartDetail.TEAM_ID` |
+| `period` | `Int64` | No | Game period (1-4 qtrs, 5+ OT) | `ShotChartDetail.ShotChartDetail.PERIOD` |
+| `minutes_remaining` | `Int64` | Yes | Minutes remaining in period | `ShotChartDetail.ShotChartDetail.MINUTES_REMAINING` |
+| `seconds_remaining` | `Int64` | Yes | Seconds remaining in period | `ShotChartDetail.ShotChartDetail.SECONDS_REMAINING` |
+| `action_type` | `String` | Yes | Shot action type description | `ShotChartDetail.ShotChartDetail.ACTION_TYPE` |
+| `shot_type` | `String` | Yes | Shot type (2PT or 3PT) | `ShotChartDetail.ShotChartDetail.SHOT_TYPE` |
+| `zone_basic` | `String` | Yes | Shot zone basic area | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_BASIC` |
+| `zone_area` | `String` | Yes | Shot zone directional area | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_AREA` |
+| `zone_range` | `String` | Yes | Shot zone distance range | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_RANGE` |
+| `shot_distance` | `Int64` | Yes | Shot distance in feet | `ShotChartDetail.ShotChartDetail.SHOT_DISTANCE` |
+| `loc_x` | `Int64` | Yes | Shot X-coordinate on court | `ShotChartDetail.ShotChartDetail.LOC_X` |
+| `loc_y` | `Int64` | Yes | Shot Y-coordinate on court | `ShotChartDetail.ShotChartDetail.LOC_Y` |
+| `shot_made_flag` | `Int64` | Yes | Shot made (1) or missed (0) | `ShotChartDetail.ShotChartDetail.SHOT_MADE_FLAG` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_standings
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `LeagueStandingsV3.Standings.TeamID` |
+| `conference` | `String` | Yes | Conference (East or West) | `LeagueStandingsV3.Standings.Conference` |
+| `division` | `String` | Yes | Division name | `LeagueStandingsV3.Standings.Division` |
+| `conf_rank` | `Int64` | Yes | Conference rank | `LeagueStandingsV3.Standings.ConferenceRank` |
+| `div_rank` | `Int64` | Yes | Division rank | `LeagueStandingsV3.Standings.DivisionRank` |
+| `wins` | `Int64` | Yes | Total wins | `LeagueStandingsV3.Standings.WINS` |
+| `losses` | `Int64` | Yes | Total losses | `LeagueStandingsV3.Standings.LOSSES` |
+| `win_pct` | `Float64` | Yes | Win percentage | `LeagueStandingsV3.Standings.WinPCT` |
+| `home_record` | `String` | Yes | Home record (e.g. 30-11) | `LeagueStandingsV3.Standings.HOME` |
+| `road_record` | `String` | Yes | Road record (e.g. 25-16) | `LeagueStandingsV3.Standings.ROAD` |
+| `last_ten` | `String` | Yes | Last 10 games record | `LeagueStandingsV3.Standings.L10` |
+| `current_streak` | `String` | Yes | Current streak (e.g. W3, L2) | `LeagueStandingsV3.Standings.CurrentStreak` |
+| `games_back` | `Float64` | Yes | Games behind conference leader | `LeagueStandingsV3.Standings.ConferenceGamesBack` |
+| `clinch_indicator` | `String` | Yes | Clinch indicator (e.g. p, x, z) | `LeagueStandingsV3.Standings.ClinchedPostSeason` |
+| `pts_pg` | `Float64` | Yes | Average points per game | `LeagueStandingsV3.Standings.PointsPG` |
+| `opp_pts_pg` | `Float64` | Yes | Opponent points per game | `LeagueStandingsV3.Standings.OppPointsPG` |
+| `diff_pts_pg` | `Float64` | Yes | Point differential per game | `LeagueStandingsV3.Standings.DiffPointsPG` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+| `season_type` | `String` | Yes | Season type (Regular, Playoff) | `derived.season_type` |
+
+## fact_synergy
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `player_id` | `Int64` | Yes | Player identifier (FK → dim_player.player_id) | `SynergyPlayTypes.SynergyPlayType.PLAYER_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `SynergyPlayTypes.SynergyPlayType.TEAM_ID` |
+| `play_type` | `String` | No | Play type (Isolation, PnR, etc.) | `SynergyPlayTypes.SynergyPlayType.PLAY_TYPE` |
+| `type_grouping` | `String` | No | Offensive or defensive grouping | `SynergyPlayTypes.SynergyPlayType.TYPE_GROUPING` |
+| `gp` | `Int64` | Yes | Games played | `SynergyPlayTypes.SynergyPlayType.GP` |
+| `poss_pct` | `Float64` | Yes | Possession percentage | `SynergyPlayTypes.SynergyPlayType.POSS_PCT` |
+| `poss` | `Int64` | Yes | Possessions | `SynergyPlayTypes.SynergyPlayType.POSS` |
+| `pts` | `Int64` | Yes | Points scored | `SynergyPlayTypes.SynergyPlayType.PTS` |
+| `fgm` | `Int64` | Yes | Field goals made | `SynergyPlayTypes.SynergyPlayType.FGM` |
+| `fga` | `Int64` | Yes | Field goals attempted | `SynergyPlayTypes.SynergyPlayType.FGA` |
+| `fg_pct` | `Float64` | Yes | Field goal percentage | `SynergyPlayTypes.SynergyPlayType.FG_PCT` |
+| `efg_pct` | `Float64` | Yes | Effective FG percentage | `SynergyPlayTypes.SynergyPlayType.EFG_PCT` |
+| `ppp` | `Float64` | Yes | Points per possession | `SynergyPlayTypes.SynergyPlayType.PPP` |
+| `score_pct` | `Float64` | Yes | Scoring frequency percentage | `SynergyPlayTypes.SynergyPlayType.SCORE_PCT` |
+| `tov_pct` | `Float64` | Yes | Turnover percentage | `SynergyPlayTypes.SynergyPlayType.TOV_PCT` |
+| `ft_poss_pct` | `Float64` | Yes | Free throw possession pct | `SynergyPlayTypes.SynergyPlayType.FT_POSS_PCT` |
+| `percentile` | `Float64` | Yes | League percentile ranking | `SynergyPlayTypes.SynergyPlayType.PERCENTILE` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_team_estimated_metrics
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `TeamEstimatedMetrics.TeamEstimatedMetrics.TEAM_ID` |
+| `gp` | `Int64` | Yes | Games played | `TeamEstimatedMetrics.TeamEstimatedMetrics.GP` |
+| `w` | `Int64` | Yes | Wins | `TeamEstimatedMetrics.TeamEstimatedMetrics.W` |
+| `l` | `Int64` | Yes | Losses | `TeamEstimatedMetrics.TeamEstimatedMetrics.L` |
+| `min` | `Float64` | Yes | Minutes played | `TeamEstimatedMetrics.TeamEstimatedMetrics.MIN` |
+| `e_off_rating` | `Float64` | Yes | Estimated offensive rating | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_OFF_RATING` |
+| `e_def_rating` | `Float64` | Yes | Estimated defensive rating | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_DEF_RATING` |
+| `e_net_rating` | `Float64` | Yes | Estimated net rating | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_NET_RATING` |
+| `e_pace` | `Float64` | Yes | Estimated pace | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_PACE` |
+| `e_ast_ratio` | `Float64` | Yes | Estimated assist ratio | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_AST_RATIO` |
+| `e_oreb_pct` | `Float64` | Yes | Estimated offensive rebound pct | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_OREB_PCT` |
+| `e_dreb_pct` | `Float64` | Yes | Estimated defensive rebound pct | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_DREB_PCT` |
+| `e_reb_pct` | `Float64` | Yes | Estimated total rebound pct | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_REB_PCT` |
+| `e_tov_pct` | `Float64` | Yes | Estimated turnover percentage | `TeamEstimatedMetrics.TeamEstimatedMetrics.E_TOV_PCT` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_team_game
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `BoxScoreTraditionalV3.TeamStats.GAME_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `BoxScoreTraditionalV3.TeamStats.TEAM_ID` |
+| `fgm` | `Int64` | Yes | Team field goals made | `derived.team_agg.fgm` |
+| `fga` | `Int64` | Yes | Team field goals attempted | `derived.team_agg.fga` |
+| `fg_pct` | `Float64` | Yes | Team field goal percentage | `derived.team_agg.fg_pct` |
+| `fg3m` | `Int64` | Yes | Team three-pointers made | `derived.team_agg.fg3m` |
+| `fg3a` | `Int64` | Yes | Team three-pointers attempted | `derived.team_agg.fg3a` |
+| `fg3_pct` | `Float64` | Yes | Team three-point percentage | `derived.team_agg.fg3_pct` |
+| `ftm` | `Int64` | Yes | Team free throws made | `derived.team_agg.ftm` |
+| `fta` | `Int64` | Yes | Team free throws attempted | `derived.team_agg.fta` |
+| `ft_pct` | `Float64` | Yes | Team free throw percentage | `derived.team_agg.ft_pct` |
+| `oreb` | `Int64` | Yes | Team offensive rebounds | `derived.team_agg.oreb` |
+| `dreb` | `Int64` | Yes | Team defensive rebounds | `derived.team_agg.dreb` |
+| `reb` | `Int64` | Yes | Team total rebounds | `derived.team_agg.reb` |
+| `ast` | `Int64` | Yes | Team assists | `derived.team_agg.ast` |
+| `stl` | `Int64` | Yes | Team steals | `derived.team_agg.stl` |
+| `blk` | `Int64` | Yes | Team blocks | `derived.team_agg.blk` |
+| `tov` | `Int64` | Yes | Team turnovers | `derived.team_agg.tov` |
+| `pf` | `Int64` | Yes | Team personal fouls | `derived.team_agg.pf` |
+| `pts` | `Int64` | Yes | Team total points | `derived.team_agg.pts` |
+| `pts_qtr1` | `Int64` | Yes | Team first quarter points | `Scoreboard.LineScore.PTS_QTR1` |
+| `pts_qtr2` | `Int64` | Yes | Team second quarter points | `Scoreboard.LineScore.PTS_QTR2` |
+| `pts_qtr3` | `Int64` | Yes | Team third quarter points | `Scoreboard.LineScore.PTS_QTR3` |
+| `pts_qtr4` | `Int64` | Yes | Team fourth quarter points | `Scoreboard.LineScore.PTS_QTR4` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_tracking_defense
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `player_id` | `Int64` | No | Defender player identifier (FK → dim_player.player_id) | `LeagueDashPtDefend.LeagueDashPtDefend.CLOSE_DEF_PERSON_ID` |
+| `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `LeagueDashPtDefend.LeagueDashPtDefend.TEAM_ID` |
+| `defense_category` | `String` | No | Defense category (Overall, 3pt, etc.) | `LeagueDashPtDefend.LeagueDashPtDefend.DEFENSE_CATEGORY` |
+| `gp` | `Int64` | Yes | Games played | `LeagueDashPtDefend.LeagueDashPtDefend.GP` |
+| `g` | `Int64` | Yes | Games | `LeagueDashPtDefend.LeagueDashPtDefend.G` |
+| `freq` | `Float64` | Yes | Frequency of defense | `LeagueDashPtDefend.LeagueDashPtDefend.FREQ` |
+| `d_fgm` | `Int64` | Yes | Defended field goals made | `LeagueDashPtDefend.LeagueDashPtDefend.D_FGM` |
+| `d_fga` | `Int64` | Yes | Defended field goals attempted | `LeagueDashPtDefend.LeagueDashPtDefend.D_FGA` |
+| `d_fg_pct` | `Float64` | Yes | Defended FG percentage | `LeagueDashPtDefend.LeagueDashPtDefend.D_FG_PCT` |
+| `normal_fg_pct` | `Float64` | Yes | Normal (undefended) FG pct | `LeagueDashPtDefend.LeagueDashPtDefend.NORMAL_FG_PCT` |
+| `pct_plusminus` | `Float64` | Yes | FG pct differential (defended vs normal) | `LeagueDashPtDefend.LeagueDashPtDefend.PCT_PLUSMINUS` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+
+## fact_win_probability
+
+| Column | Type | Nullable | Description | Source |
+|--------|------|----------|-------------|--------|
+| `game_id` | `String` | No | Unique game identifier (FK → dim_game.game_id) | `WinProbabilityPBP.WinProbPBP.GAME_ID` |
+| `event_num` | `Int64` | No | Event sequence number | `WinProbabilityPBP.WinProbPBP.EVENT_NUM` |
+| `period` | `Int64` | No | Game period (1-4 qtrs, 5+ OT) | `WinProbabilityPBP.WinProbPBP.PERIOD` |
+| `pc_time_string` | `String` | Yes | Period clock time string | `WinProbabilityPBP.WinProbPBP.PCTIMESTRING` |
+| `home_pct` | `Float64` | Yes | Home team win probability | `WinProbabilityPBP.WinProbPBP.HOME_PCT` |
+| `visitor_pct` | `Float64` | Yes | Visitor team win probability | `WinProbabilityPBP.WinProbPBP.VISITOR_PCT` |
+| `home_pts` | `Int64` | Yes | Home team points at event | `WinProbabilityPBP.WinProbPBP.HOME_PTS` |
+| `visitor_pts` | `Int64` | Yes | Visitor team points at event | `WinProbabilityPBP.WinProbPBP.VISITOR_PTS` |
+| `home_score_margin` | `Int64` | Yes | Home team score margin | `WinProbabilityPBP.WinProbPBP.HOME_SCORE_MARGIN` |
+| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |

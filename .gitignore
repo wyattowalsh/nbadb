@@ -16,6 +16,7 @@ venv/
 
 # Logs
 logs/
+*.log
 
 # Environment
 .env
@@ -47,6 +48,14 @@ docs/out/
 
 # Misc
 *.bak
+
+# Extraction data directories (local runs)
+.nbadb-data-*/
+artifacts/
+
+# Coverage artifacts
+coverage.json
+COVERAGE_METRICS.json
 
 # AI agent / tool state
 .claude/

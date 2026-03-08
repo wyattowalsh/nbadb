@@ -117,10 +117,12 @@ class LeaguePlayerOnDetailsExtractor(BaseExtractor):
     category = "league"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
+        team_id: int = params["team_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             LeaguePlayerOnDetails,
+            team_id=team_id,
             season=season,
             season_type_all_star=season_type,
         )

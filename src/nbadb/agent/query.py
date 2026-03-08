@@ -7,7 +7,7 @@ import duckdb
 from loguru import logger
 
 from nbadb.agent.context import SchemaContext
-from nbadb.agent.safety import QUERY_TIMEOUT_SECONDS, ReadOnlyGuard
+from nbadb.agent.safety import MAX_RESULT_ROWS, QUERY_TIMEOUT_SECONDS, ReadOnlyGuard
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -19,28 +19,28 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "SELECT s.player_id, p.full_name, s.total_pts "
         "FROM agg_player_season s "
         "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
-        "ORDER BY s.total_pts DESC LIMIT 10",
+        "ORDER BY s.total_pts DESC",
     ),
     (
         re.compile(r"most\s+points", re.IGNORECASE),
         "SELECT s.player_id, p.full_name, s.total_pts "
         "FROM agg_player_season s "
         "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
-        "ORDER BY s.total_pts DESC LIMIT 10",
+        "ORDER BY s.total_pts DESC",
     ),
     (
         re.compile(r"most\s+assists", re.IGNORECASE),
         "SELECT s.player_id, p.full_name, s.total_ast "
         "FROM agg_player_season s "
         "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
-        "ORDER BY s.total_ast DESC LIMIT 10",
+        "ORDER BY s.total_ast DESC",
     ),
     (
         re.compile(r"most\s+rebounds", re.IGNORECASE),
         "SELECT s.player_id, p.full_name, s.total_reb "
         "FROM agg_player_season s "
         "JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE "
-        "ORDER BY s.total_reb DESC LIMIT 10",
+        "ORDER BY s.total_reb DESC",
     ),
     (
         re.compile(r"team\s+standings|standings", re.IGNORECASE),
@@ -54,6 +54,12 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "SELECT table_name, row_count FROM _pipeline_metadata ORDER BY row_count DESC",
     ),
 ]
+
+_MIN_ASK_LIMIT = 1
+
+
+def _clamp_ask_limit(limit: int) -> int:
+    return max(_MIN_ASK_LIMIT, min(limit, MAX_RESULT_ROWS))
 
 
 class QueryAgent:
@@ -74,7 +80,7 @@ class QueryAgent:
         error = self._guard.validate(sql)
         if error:
             return f"Query blocked: {error}"
-        sql = self._guard.wrap_with_limit(sql, max_rows=limit)
+        sql = self._guard.wrap_with_limit(sql, max_rows=_clamp_ask_limit(limit))
         return self._execute(sql)
 
     def _match_pattern(self, question: str) -> str | None:

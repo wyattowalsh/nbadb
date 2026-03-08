@@ -66,7 +66,11 @@ class EntityDiscovery:
         self._registry = registry
         self._proxy_pool = proxy_pool
 
-    async def discover_game_ids(self, seasons: list[str]) -> tuple[list[str], pl.DataFrame]:
+    async def discover_game_ids(
+        self,
+        seasons: list[str],
+        on_progress: object | None = None,
+    ) -> tuple[list[str], pl.DataFrame]:
         """Extract league_game_log for given seasons.
 
         Returns (game_ids, raw_df). The raw_df is also usable as
@@ -76,6 +80,9 @@ class EntityDiscovery:
 
         extractor_cls = self._registry.get("league_game_log")
         extractor = extractor_cls()
+
+        if on_progress is not None:
+            on_progress.start_pattern(f"game discovery ({len(seasons)} seasons)", len(seasons))
 
         frames: list[pl.DataFrame] = []
         for season in seasons:
@@ -89,18 +96,22 @@ class EntityDiscovery:
                 )
                 if not df.is_empty():
                     frames.append(df)
+                if on_progress is not None:
+                    on_progress.advance_pattern(success=True)
             except Exception as exc:
                 logger.error(
                     "failed to extract game log for {}: {}",
                     season,
                     type(exc).__name__,
                 )
+                if on_progress is not None:
+                    on_progress.advance_pattern(success=False)
 
         if not frames:
             logger.warning("no game log data returned")
             return [], pl.DataFrame()
 
-        combined = pl.concat(frames)
+        combined = pl.concat(frames, how="diagonal_relaxed")
         game_ids = combined.get_column("game_id").unique().sort().to_list()
         logger.info(
             "discovered {} unique game IDs across {} seasons",

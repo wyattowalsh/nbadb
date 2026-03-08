@@ -104,6 +104,31 @@ class TestProxyInjection:
         call_kwargs = mock_endpoint.call_args[1]
         assert call_kwargs["proxy"] == "http://proxy:8080"
 
+    def test_timeout_override_injected_without_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("NBADB_REQUEST_TIMEOUT", "15")
+        ext = _StubExtractor()
+
+        mock_endpoint = MagicMock()
+        import pandas as pd
+
+        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
+        ext._from_nba_api(mock_endpoint)
+        call_kwargs = mock_endpoint.call_args[1]
+        assert call_kwargs["timeout"] == 15
+        assert "proxy" not in call_kwargs
+
+    def test_invalid_timeout_override_is_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("NBADB_REQUEST_TIMEOUT", "abc")
+        ext = _StubExtractor()
+
+        mock_endpoint = MagicMock()
+        import pandas as pd
+
+        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
+        ext._from_nba_api(mock_endpoint)
+        call_kwargs = mock_endpoint.call_args[1]
+        assert "timeout" not in call_kwargs
+
 
 class TestExtractIsAbstract:
     def test_cannot_instantiate_base(self) -> None:

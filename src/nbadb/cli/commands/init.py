@@ -18,6 +18,12 @@ def init(
         "-s",
         help="Start season year",
     ),
+    season_end: int | None = typer.Option(
+        None,
+        "--season-end",
+        "-e",
+        help="End season year (default: current)",
+    ),
     verbose: VerboseOption = False,
     quality_check: bool = typer.Option(
         False, "--quality-check", help="Run quality checks after pipeline"
@@ -27,7 +33,7 @@ def init(
     settings = _build_settings(data_dir, format)
     _run_pipeline(
         "init",
-        lambda orch: orch.run_init(start_season=season_start),
+        lambda orch: orch.run_init(start_season=season_start, end_season=season_end),
         settings,
         verbose,
         quality_check,

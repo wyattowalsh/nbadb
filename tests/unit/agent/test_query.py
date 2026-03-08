@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from nbadb.agent.query import _PATTERNS, QueryAgent
+from nbadb.agent.safety import MAX_RESULT_ROWS
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -229,9 +230,63 @@ class TestQueryAgentSafety:
 
     def test_guard_wraps_with_limit(self, agent: QueryAgent) -> None:
         """Queries without LIMIT should have one added by the guard."""
-        # All patterns already have LIMIT, so we test the guard directly
         wrapped = agent._guard.wrap_with_limit("SELECT 1 FROM t")
         assert "LIMIT" in wrapped
+
+    def test_ask_applies_custom_limit(self, tmp_db: Path) -> None:
+        """Custom limit should be applied to built-in matched queries."""
+        agent = QueryAgent(tmp_db)
+        with patch("nbadb.agent.query.duckdb.connect") as mock_connect:
+            mock_conn = MagicMock()
+            mock_result = MagicMock()
+            mock_result.description = [("c",)]
+            mock_result.fetchall.return_value = [("v",)]
+            mock_conn.execute.side_effect = [None, mock_result]
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_connect.return_value = mock_conn
+
+            agent.ask("who led scoring?", limit=3)
+
+            sql = mock_conn.execute.call_args_list[1].args[0]
+            assert "LIMIT 3" in sql.upper()
+
+    @pytest.mark.parametrize("limit", [0, -5])
+    def test_ask_clamps_non_positive_limit(self, tmp_db: Path, limit: int) -> None:
+        """Non-positive limits should be clamped to 1."""
+        agent = QueryAgent(tmp_db)
+        with patch("nbadb.agent.query.duckdb.connect") as mock_connect:
+            mock_conn = MagicMock()
+            mock_result = MagicMock()
+            mock_result.description = [("c",)]
+            mock_result.fetchall.return_value = [("v",)]
+            mock_conn.execute.side_effect = [None, mock_result]
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_connect.return_value = mock_conn
+
+            agent.ask("who led scoring?", limit=limit)
+
+            sql = mock_conn.execute.call_args_list[1].args[0]
+            assert "LIMIT 1" in sql.upper()
+
+    def test_ask_clamps_very_large_limit(self, tmp_db: Path) -> None:
+        """Very large limits should be capped at MAX_RESULT_ROWS."""
+        agent = QueryAgent(tmp_db)
+        with patch("nbadb.agent.query.duckdb.connect") as mock_connect:
+            mock_conn = MagicMock()
+            mock_result = MagicMock()
+            mock_result.description = [("c",)]
+            mock_result.fetchall.return_value = [("v",)]
+            mock_conn.execute.side_effect = [None, mock_result]
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_connect.return_value = mock_conn
+
+            agent.ask("who led scoring?", limit=MAX_RESULT_ROWS + 1)
+
+            sql = mock_conn.execute.call_args_list[1].args[0]
+            assert f"LIMIT {MAX_RESULT_ROWS}" in sql.upper()
 
     def test_timeout_is_set(self, tmp_db: Path) -> None:
         """Verify statement_timeout is configured during execution."""

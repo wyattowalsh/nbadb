@@ -1,0 +1,43 @@
+---
+title: Strategic Shift Rollout Scaffolding
+description: Strategic migration tracks and phased rollout plan scaffold for future implementation work.
+---
+
+# Strategic Shift Rollout Scaffolding
+
+This document defines the **strategic migration tracks** and **phased rollout sequence** without changing runtime behavior today.
+
+## Strategic Tracks
+
+The strategic shift is split into parallel tracks so future migrations can land incrementally:
+
+1. **Ingestion track**: source extraction and upstream fetch orchestration updates.
+2. **Storage track**: data persistence and file/database layout migration.
+3. **Schema track**: validation and model evolution for new data contracts.
+4. **Serving track**: downstream access patterns and consumer compatibility.
+
+## Phased Rollout Plan
+
+The phased rollout is intentionally low-risk and backward-compatible:
+
+1. **Phase 0 — Scaffolding only (current)**  
+   Add config placeholders and documentation artifacts; no behavior changes.
+2. **Phase 1 — Shadow mode**  
+   Enable parallel reads/comparisons behind flags with no production writes.
+3. **Phase 2 — Dual-write / controlled cutover**  
+   Write to both legacy and strategic paths, validate parity, then route traffic gradually.
+4. **Phase 3 — Legacy retirement**  
+   Remove fallback paths after sustained parity and operational sign-off.
+
+## Flag-to-Track Mapping
+
+Future migrations can be enabled per track/phase using these placeholders:
+
+- `NBADB_STRATEGIC_TRACK_INGESTION_V2_ENABLED`
+- `NBADB_STRATEGIC_TRACK_STORAGE_V2_ENABLED`
+- `NBADB_STRATEGIC_TRACK_SCHEMA_V2_ENABLED`
+- `NBADB_STRATEGIC_TRACK_SERVING_V2_ENABLED`
+- `NBADB_STRATEGIC_PHASE_1_SHADOW_MODE_ENABLED`
+- `NBADB_STRATEGIC_PHASE_2_DUAL_WRITE_ENABLED`
+
+All flags default to `false`, preserving current behavior until explicitly enabled.

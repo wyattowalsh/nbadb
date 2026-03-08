@@ -1,0 +1,681 @@
+---
+title: ER Diagram
+description: Star schema entity-relationship diagram
+---
+
+# Star Schema ER Diagram
+
+```mermaid
+erDiagram
+    bridge_game_official {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int official_id PK
+        str jersey_num
+    }
+    bridge_game_team {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int team_id PK
+        str side
+        str wl
+        str season_year
+    }
+    bridge_lineup_player {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str group_id PK
+        int player_id PK
+        int team_id PK
+        int position_in_lineup
+        str season_year
+    }
+    bridge_play_player {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int event_num
+        int player_id PK
+        int team_id PK
+        str player_role
+    }
+    bridge_player_team_season {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int player_id PK
+        int team_id PK
+        str season_year
+        str jersey_number
+        str position
+    }
+    dim_arena {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int arena_id PK
+        str arena_name
+        str city
+        str state
+        str country
+    }
+    dim_coach {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int coach_id PK
+        int team_id PK
+        str season_year
+        str first_name
+        str last_name
+        str coach_type
+        bool is_assistant
+    }
+    dim_college {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int college_id PK
+        str college_name
+    }
+    dim_date {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int date_key
+        str full_date
+        int year
+        int month
+        int day
+        int day_of_week
+        str day_name
+        str month_name
+        bool is_weekend
+        str nba_season
+        str nba_phase
+    }
+    dim_game {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        str game_date
+        str season_year
+        str season_type
+        int home_team_id PK
+        int visitor_team_id PK
+        str matchup
+        str arena_name
+        str arena_city
+    }
+    dim_official {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int official_id PK
+        str first_name
+        str last_name
+        str jersey_num
+    }
+    dim_play_event_type {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int event_type_id PK
+        str event_type_name
+        str event_category
+    }
+    dim_player {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int player_sk
+        int player_id PK
+        str full_name
+        str first_name
+        str last_name
+        bool is_active
+        int team_id PK
+        str position
+        str jersey_number
+        str height
+        int weight
+        str birth_date
+        str country
+        int college_id PK
+        int draft_year
+        int draft_round
+        int draft_number
+        int from_year
+        int to_year
+        str valid_from
+        str valid_to
+        bool is_current
+    }
+    dim_season {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str season_year
+        str start_date
+        str end_date
+        str all_star_date
+        str playoff_start_date
+    }
+    dim_season_phase {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int phase_id PK
+        str phase_name
+        int phase_order
+    }
+    dim_shot_zone {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int zone_id PK
+        str zone_basic
+        str zone_area
+        str zone_range
+    }
+    dim_team {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int team_id PK
+        str abbreviation
+        str full_name
+        str city
+        str state
+        str arena
+        int year_founded
+        str conference
+        str division
+    }
+    dim_team_history {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int team_id PK
+        str season_year
+        str city
+        str nickname
+        str abbreviation
+        str league_id PK
+    }
+    fact_box_score_four_factors {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int team_id PK
+        int player_id PK
+        float effective_field_goal_percentage
+        float free_throw_attempt_rate
+        float team_turnover_percentage
+        float offensive_rebound_percentage
+        float opp_effective_field_goal_percentage
+        float opp_free_throw_attempt_rate
+        float opp_team_turnover_percentage
+        float opp_offensive_rebound_percentage
+    }
+    fact_draft {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int person_id PK
+        int team_id PK
+        str season
+        int round_number
+        int round_pick
+        int overall_pick
+        str player_name
+        str organization
+        str organization_type
+        int player_profile_flag
+    }
+    fact_estimated_metrics {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int player_id PK
+        int team_id PK
+        int gp
+        int w
+        int l
+        float min
+        float e_off_rating
+        float e_def_rating
+        float e_net_rating
+        float e_pace
+        float e_ast_ratio
+        float e_oreb_pct
+        float e_dreb_pct
+        float e_reb_pct
+        float e_tov_pct
+        float e_usg_pct
+        str season_year
+    }
+    fact_game_leaders {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int team_id PK
+        str leader_type
+        int person_id PK
+        str name
+        str player_slug
+        str jersey_num
+        str position
+        str team_tricode
+        float points
+        float rebounds
+        float assists
+    }
+    fact_game_result {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        str game_date
+        str season_year
+        str season_type
+        int home_team_id PK
+        int visitor_team_id PK
+        str wl_home
+        int pts_home
+        int pts_away
+        float plus_minus_home
+        float plus_minus_away
+        int pts_qtr1_home
+        int pts_qtr2_home
+        int pts_qtr3_home
+        int pts_qtr4_home
+        int pts_ot1_home
+        int pts_ot2_home
+        int pts_qtr1_away
+        int pts_qtr2_away
+        int pts_qtr3_away
+        int pts_qtr4_away
+        int pts_ot1_away
+        int pts_ot2_away
+    }
+    fact_game_scoring {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int team_id PK
+        str side
+        int period
+        int pts
+        str season_year
+    }
+    fact_league_lineup_viz {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str group_id PK
+        str group_name
+        int team_id PK
+        str team_abbreviation
+        float min
+        float off_rating
+        float def_rating
+        float net_rating
+        float pace
+        float ts_pct
+        float fta_rate
+        float tm_ast_pct
+        float pct_fga_2pt
+        float pct_fga_3pt
+        float pct_pts_2pt_mr
+        float pct_pts_fb
+        float pct_pts_ft
+        float pct_pts_paint
+        float pct_ast_fgm
+        float pct_uast_fgm
+        float opp_fg3_pct
+        float opp_efg_pct
+        float opp_fta_rate
+        float opp_tov_pct
+    }
+    fact_lineup_stats {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str group_set
+        str group_id PK
+        str group_name
+        int team_id PK
+        int gp
+        int w
+        int l
+        float min
+        int fgm
+        int fga
+        float fg_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int ftm
+        int fta
+        float ft_pct
+        int oreb
+        int dreb
+        int reb
+        int ast
+        int tov
+        int stl
+        int blk
+        int pts
+        float plus_minus
+        float net_rating
+        str season_year
+    }
+    fact_matchup {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int player_id PK
+        int team_id PK
+        int def_player_id PK
+        int def_team_id PK
+        float matchup_min
+        int poss
+        int player_pts
+        int team_pts
+        int matchup_ast
+        int matchup_tov
+        int matchup_blk
+        int matchup_fgm
+        int matchup_fga
+        float matchup_fg_pct
+        str season_year
+    }
+    fact_play_by_play {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int event_num
+        int event_msg_type
+        int event_msg_action_type
+        int period
+        str wc_time_string
+        str pc_time_string
+        str home_description
+        str neutral_description
+        str visitor_description
+        str score
+        str score_margin
+        int player1_id PK
+        int player1_team_id PK
+        int player2_id PK
+        int player2_team_id PK
+        int player3_id PK
+        int player3_team_id PK
+        str event_type_name
+        str season_year
+    }
+    fact_player_awards {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int player_id PK
+        str description
+        int all_nba_team_number
+        str season
+        str month
+        str week
+        str conference
+        str award_type
+        str subtype1
+        str subtype2
+        str subtype3
+    }
+    fact_player_estimated_metrics {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int player_id PK
+        int team_id PK
+        int gp
+        int w
+        int l
+        float min
+        float e_off_rating
+        float e_def_rating
+        float e_net_rating
+        float e_pace
+        float e_ast_ratio
+        float e_oreb_pct
+        float e_dreb_pct
+        float e_reb_pct
+        float e_tov_pct
+        float e_usg_pct
+        str season_year
+    }
+    fact_player_game_advanced {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int player_id PK
+        int team_id PK
+        float off_rating
+        float def_rating
+        float net_rating
+        float ast_pct
+        float ast_to
+        float ast_ratio
+        float oreb_pct
+        float dreb_pct
+        float reb_pct
+        float efg_pct
+        float ts_pct
+        float usg_pct
+        float pace
+        float pie
+        int poss
+        float fta_rate
+        str season_year
+    }
+    fact_player_game_hustle {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int player_id PK
+        int team_id PK
+        int contested_shots
+        int contested_shots_2pt
+        int contested_shots_3pt
+        int deflections
+        int charges_drawn
+        int screen_assists
+        int screen_ast_pts
+        int loose_balls_recovered
+        int box_outs
+        str season_year
+    }
+    fact_player_game_misc {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int player_id PK
+        int team_id PK
+        int pts_off_tov
+        int second_chance_pts
+        int fbps
+        int pitp
+        int opp_pts_off_tov
+        int opp_second_chance_pts
+        int opp_fbps
+        int opp_pitp
+        float pct_fga_2pt
+        float pct_fga_3pt
+        float pct_pts_2pt
+        float pct_pts_2pt_mr
+        float pct_pts_3pt
+        float pct_pts_fb
+        float pct_pts_ft
+        float pct_pts_off_tov
+        float pct_pts_pitp
+        float pct_ast_2pm
+        float pct_uast_2pm
+        float pct_ast_3pm
+        float pct_uast_3pm
+        str season_year
+    }
+    fact_player_game_tracking {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int player_id PK
+        int team_id PK
+        float spd
+        float dist
+        int orbc
+        int drbc
+        int rbc
+        int tchs
+        int front_ct_tchs
+        float time_of_poss
+        int passes
+        int ast
+        int ft_ast
+        int cfgm
+        int cfga
+        float cfg_pct
+        int ufgm
+        int ufga
+        float ufg_pct
+        int dfgm
+        int dfga
+        float dfg_pct
+        str season_year
+    }
+    fact_player_game_traditional {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int player_id PK
+        int team_id PK
+        float min
+        int pts
+        int reb
+        int ast
+        int stl
+        int blk
+        int tov
+        int pf
+        int fgm
+        int fga
+        float fg_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int ftm
+        int fta
+        float ft_pct
+        int oreb
+        int dreb
+        float plus_minus
+        str season_year
+        str start_position
+    }
+    fact_rotation {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int team_id PK
+        int player_id PK
+        float in_time_real
+        float out_time_real
+        int in_period
+        int out_period
+        int pts
+        int pts_diff
+        float usg_pct
+        str side
+        str season_year
+    }
+    fact_shot_chart {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int player_id PK
+        int team_id PK
+        int period
+        int minutes_remaining
+        int seconds_remaining
+        str action_type
+        str shot_type
+        str zone_basic
+        str zone_area
+        str zone_range
+        int shot_distance
+        int loc_x
+        int loc_y
+        int shot_made_flag
+        str season_year
+    }
+    fact_standings {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int team_id PK
+        str conference
+        str division
+        int conf_rank
+        int div_rank
+        int wins
+        int losses
+        float win_pct
+        str home_record
+        str road_record
+        str last_ten
+        str current_streak
+        float games_back
+        str clinch_indicator
+        float pts_pg
+        float opp_pts_pg
+        float diff_pts_pg
+        str season_year
+        str season_type
+    }
+    fact_synergy {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int player_id PK
+        int team_id PK
+        str play_type
+        str type_grouping
+        int gp
+        float poss_pct
+        int poss
+        int pts
+        int fgm
+        int fga
+        float fg_pct
+        float efg_pct
+        float ppp
+        float score_pct
+        float tov_pct
+        float ft_poss_pct
+        float percentile
+        str season_year
+    }
+    fact_team_estimated_metrics {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int team_id PK
+        int gp
+        int w
+        int l
+        float min
+        float e_off_rating
+        float e_def_rating
+        float e_net_rating
+        float e_pace
+        float e_ast_ratio
+        float e_oreb_pct
+        float e_dreb_pct
+        float e_reb_pct
+        float e_tov_pct
+        str season_year
+    }
+    fact_team_game {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int team_id PK
+        int fgm
+        int fga
+        float fg_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int ftm
+        int fta
+        float ft_pct
+        int oreb
+        int dreb
+        int reb
+        int ast
+        int stl
+        int blk
+        int tov
+        int pf
+        int pts
+        int pts_qtr1
+        int pts_qtr2
+        int pts_qtr3
+        int pts_qtr4
+        str season_year
+    }
+    fact_tracking_defense {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        int player_id PK
+        int team_id PK
+        str defense_category
+        int gp
+        int g
+        float freq
+        int d_fgm
+        int d_fga
+        float d_fg_pct
+        float normal_fg_pct
+        float pct_plusminus
+        str season_year
+    }
+    fact_win_probability {
+        type[pandera.api.polars.model_config.BaseConfig] Config
+        str game_id PK
+        int event_num
+        int period
+        str pc_time_string
+        float home_pct
+        float visitor_pct
+        int home_pts
+        int visitor_pts
+        int home_score_margin
+        str season_year
+    }
+```

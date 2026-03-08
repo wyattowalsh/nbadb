@@ -102,6 +102,13 @@ class TestJournalExtraction:
         journal.record_success("ep", "p", 5)
         assert journal.was_extracted("ep", "p")  # done
 
+    def test_has_done_entries(self, journal: PipelineJournal) -> None:
+        assert not journal.has_done_entries()
+        journal.record_start("ep", "p")
+        assert not journal.has_done_entries()
+        journal.record_success("ep", "p", 5)
+        assert journal.has_done_entries()
+
 
 class TestJournalMetrics:
     def test_record_metric(self, journal: PipelineJournal) -> None:

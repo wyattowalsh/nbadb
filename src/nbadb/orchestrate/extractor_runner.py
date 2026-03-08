@@ -74,6 +74,7 @@ class ExtractorRunner:
         pattern: str,
         param_sets: list[dict],
         entries: list[StagingEntry],
+        on_progress: object | None = None,
     ) -> dict[str, pl.DataFrame]:
         """Extract all *entries* across every *param_set*.
 
@@ -126,14 +127,18 @@ class ExtractorRunner:
                 self._journal.was_extracted_batch(batch_items) if batch_items else set()
             )
 
-            tasks: list[asyncio.Task] = []
+            tasks: list[asyncio.Task[dict[str, pl.DataFrame] | None]] = []
 
             # -- single-endpoint entries --------------------------
             for entry in single_entries:
                 for params in chunk:
                     tasks.append(
                         asyncio.create_task(
-                            self._extract_single(entry, params, already_done=already_done)
+                            self._extract_single(
+                                entry, params,
+                                already_done=already_done,
+                                on_progress=on_progress,
+                            )
                         )
                     )
 
@@ -147,6 +152,7 @@ class ExtractorRunner:
                                 ep_entries,
                                 params,
                                 already_done=already_done,
+                                on_progress=on_progress,
                             )
                         )
                     )
@@ -156,15 +162,27 @@ class ExtractorRunner:
 
             # Collect results
             for result in results:
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     logger.error(
                         "extraction task failed: {}",
                         type(result).__name__,
                     )
+                    if on_progress is not None:
+                        on_progress.advance_pattern(success=False)
                     continue
                 if result is None:
+                    # None = skipped (journal) or no data — already counted
                     continue
-                # result is dict[str, pl.DataFrame]
+                if not isinstance(result, dict):
+                    logger.error(
+                        "unexpected extraction task result type: {}",
+                        type(result).__name__,
+                    )
+                    if on_progress is not None:
+                        on_progress.advance_pattern(success=False)
+                    continue
+                if on_progress is not None:
+                    on_progress.advance_pattern(success=True)
                 for key, df in result.items():
                     if not df.is_empty():
                         accum[key].append(df)
@@ -177,7 +195,7 @@ class ExtractorRunner:
         output: dict[str, pl.DataFrame] = {}
         for key, frames in accum.items():
             if frames:
-                output[key] = pl.concat(frames)
+                output[key] = pl.concat(frames, how="diagonal_relaxed")
                 logger.info(
                     "{}: {} rows total",
                     key,
@@ -267,6 +285,7 @@ class ExtractorRunner:
         params: dict,
         *,
         already_done: set[tuple[str, str]] | None = None,
+        on_progress: object | None = None,
     ) -> dict[str, pl.DataFrame] | None:
         """Extract a single (non-multi) entry for one param set."""
         params_json = json.dumps(params, sort_keys=True)
@@ -279,6 +298,8 @@ class ExtractorRunner:
         )
         if is_done:
             self.skipped += 1
+            if on_progress is not None:
+                on_progress.record_skip()
             logger.debug(
                 "skip (already done): {} [{}]",
                 entry.endpoint_name,
@@ -292,6 +313,9 @@ class ExtractorRunner:
         df = await self._run_with_journal(entry.endpoint_name, params_json, fn=_do)
         if df is None:
             return None
+        if isinstance(df, list):
+            logger.error("unexpected list result for single extraction: {}", entry.endpoint_name)
+            return None
         return {entry.staging_key: df}
 
     async def _extract_multi(
@@ -301,6 +325,7 @@ class ExtractorRunner:
         params: dict,
         *,
         already_done: set[tuple[str, str]] | None = None,
+        on_progress: object | None = None,
     ) -> dict[str, pl.DataFrame] | None:
         """Extract a multi-result endpoint once and fan out by
         ``result_set_index``.
@@ -322,6 +347,8 @@ class ExtractorRunner:
         )
         if is_done:
             self.skipped += 1
+            if on_progress is not None:
+                on_progress.record_skip()
             logger.debug(
                 "skip (already done): {} [{}]",
                 endpoint_name,
@@ -338,7 +365,20 @@ class ExtractorRunner:
             all_dfs = await self._run_with_journal(endpoint_name, params_json, fn=_do)
             if all_dfs is None:
                 return None
-            self._multi_cache[cache_key] = all_dfs
+            if not isinstance(all_dfs, list):
+                logger.error("unexpected non-list result for multi extraction: {}", endpoint_name)
+                return None
+            validated_dfs: list[pl.DataFrame] = []
+            for df in all_dfs:
+                if not isinstance(df, pl.DataFrame):
+                    logger.error(
+                        "unexpected element type for multi extraction {}: {}",
+                        endpoint_name,
+                        type(df).__name__,
+                    )
+                    return None
+                validated_dfs.append(df)
+            self._multi_cache[cache_key] = validated_dfs
 
         # Fan out results by result_set_index
         all_dfs = self._multi_cache[cache_key]

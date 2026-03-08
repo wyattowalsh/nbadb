@@ -39,7 +39,8 @@ The warehouse follows a layered naming convention:
 The field reference can be regenerated from Pandera schema definitions:
 
 ```bash
-uv run python -m nbadb.docs_gen.data_dictionary
+uv run nbadb docs-autogen
+# or: uv run python -m nbadb.docs_gen
 ```
 
 This introspects `pa.Field()` metadata (description, fk_ref, constraints) to produce the field reference automatically.

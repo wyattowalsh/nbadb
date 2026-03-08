@@ -32,7 +32,7 @@ class AssistLeadersExtractor(BaseExtractor):
         return self._from_nba_api(
             AssistLeaders,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -46,8 +46,8 @@ class AssistTrackerExtractor(BaseExtractor):
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             AssistTracker,
-            season=season,
-            season_type_all_star=season_type,
+            season_nullable=season,
+            season_type_all_star_nullable=season_type,
         )
 
 
@@ -62,7 +62,7 @@ class HomePageLeadersExtractor(BaseExtractor):
         return self._from_nba_api(
             HomePageLeaders,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -77,7 +77,7 @@ class HomePageV2Extractor(BaseExtractor):
         return self._from_nba_api(
             HomePageV2,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -92,7 +92,7 @@ class LeadersTilesExtractor(BaseExtractor):
         return self._from_nba_api(
             LeadersTiles,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -124,7 +124,7 @@ class HomePageLeadersAltExtractor(BaseExtractor):
         return self._from_nba_api(
             HomePageLeaders,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -139,7 +139,7 @@ class HomePageV2AltExtractor(BaseExtractor):
         return self._from_nba_api(
             HomePageV2,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -154,7 +154,7 @@ class DefenseHubExtractor(BaseExtractor):
         return self._from_nba_api(
             DefenseHub,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 

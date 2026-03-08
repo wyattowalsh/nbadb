@@ -7,16 +7,31 @@ description: Command-line interface documentation
 
 ## Commands
 
-| Command | Description | Duration |
-|---------|-------------|----------|
-| `nbadb init` | Full rebuild from scratch | ~2-4h |
-| `nbadb daily` | Incremental update | ~5-15m |
-| `nbadb monthly` | Dimension refresh | ~30-60m |
-| `nbadb full` | Fill gaps, preserve existing | ~2-4h |
-| `nbadb export` | Re-export to all formats | ~5-10m |
-| `nbadb upload` | Push to Kaggle | ~5m |
-| `nbadb download` | Pull from Kaggle | ~5m |
-| `nbadb schema list` | List all table schemas | instant |
-| `nbadb schema show TABLE` | Show schema details | instant |
-| `nbadb status` | DB stats and freshness | instant |
-| `nbadb ask QUESTION` | Ask questions about the data | instant |
+The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/commands`.
+
+| Command | Positional args | Options |
+|---------|------------------|---------|
+| `nbadb init` | — | `--data-dir/-d`, `--format/-f` (repeatable), `--season-start/-s` (default: `1946`), `--verbose/-v`, `--quality-check` |
+| `nbadb daily` | — | `--data-dir/-d`, `--verbose/-v`, `--quality-check` |
+| `nbadb monthly` | — | `--data-dir/-d`, `--verbose/-v`, `--quality-check` |
+| `nbadb full` | — | `--data-dir/-d`, `--verbose/-v`, `--quality-check` |
+| `nbadb migrate` | — | `--data-dir/-d` |
+| `nbadb run-quality` | — | `--data-dir/-d`, `--report-path` |
+| `nbadb export` | — | `--data-dir/-d`, `--format/-f` (repeatable) |
+| `nbadb upload` | — | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`) |
+| `nbadb download` | — | `--data-dir/-d` |
+| `nbadb extract-completeness` | — | `--output-dir/-o`, `--require-full` (exit non-zero when non-covered endpoints remain) |
+| `nbadb docs-autogen` | — | `--docs-root` (default: `docs/content/docs`) |
+| `nbadb schema [TABLE]` | optional `TABLE` | — |
+| `nbadb status` | — | `--data-dir/-d`, `--output-format/-f` (default: `text`; `json` supported) |
+| `nbadb ask QUESTION` | required `QUESTION` | `--limit/-l` (default: `10`), `--verbose/-v` |
+
+`nbadb extract-completeness` writes endpoint coverage artifacts to
+`artifacts/endpoint-coverage/` by default; pass `--output-dir` to change location.
+Use `--require-full` in CI to fail when `runtime_gap`, `staging_only`, or `extractor_only` is non-zero.
+
+Use `nbadb docs-autogen` (or `python -m nbadb.docs_gen`) to regenerate schema reference,
+data dictionary, ER, and lineage artifacts.
+
+For artifact diagnostics and common CI failures, see the
+[Troubleshooting Playbook](/docs/guides/troubleshooting-playbook).

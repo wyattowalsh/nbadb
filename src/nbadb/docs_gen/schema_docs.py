@@ -97,39 +97,44 @@ class SchemaDocsGenerator:
             lines.append(f"**Coerce**: {coerce} | **Strict**: {strict}")
             lines.append("")
 
-            annotations = {}
-            for cls in reversed(schema_cls.__mro__):
-                annotations.update(getattr(cls, "__annotations__", {}))
-
+            schema = schema_cls.to_schema()
             lines.append("| Column | Type | Nullable | Constraints | Description |")
             lines.append("|--------|------|----------|-------------|-------------|")
 
-            for field_name, field_type in annotations.items():
-                if field_name.startswith("_"):
-                    continue
-                field_obj = getattr(schema_cls, field_name, None)
-                if field_obj is None:
-                    continue
-                metadata = getattr(field_obj, "metadata", {}) or {}
-                nullable = getattr(field_obj, "nullable", False)
+            for col_name, col in schema.columns.items():
+                metadata = getattr(col, "metadata", {}) or {}
+                nullable = getattr(col, "nullable", False)
                 desc = metadata.get("description", "")
                 fk = metadata.get("fk_ref", "")
+                dtype = getattr(col, "dtype", None)
+                type_str = str(dtype) if dtype else "unknown"
 
                 constraints = []
-                for attr in ("gt", "ge", "lt", "le"):
-                    val = getattr(field_obj, attr, None)
-                    if val is not None:
-                        constraints.append(f"{attr}={val}")
+                for check in getattr(col, "checks", []):
+                    name = getattr(check, "name", "")
+                    stats = getattr(check, "statistics", {})
+                    if name == "greater_than":
+                        constraints.append(f"gt={stats.get('min_value')}")
+                    elif name == "greater_or_equal":
+                        constraints.append(f"ge={stats.get('min_value')}")
+                    elif name == "less_than":
+                        constraints.append(f"lt={stats.get('max_value')}")
+                    elif name == "less_or_equal":
+                        constraints.append(f"le={stats.get('max_value')}")
+                    elif name == "in_range":
+                        lo = stats.get("min_value")
+                        hi = stats.get("max_value")
+                        constraints.append(f"range=[{lo}, {hi}]")
+                    elif name == "isin":
+                        constraints.append(f"in={stats.get('allowed_values')}")
+                    elif name == "unique_values":
+                        constraints.append("unique")
                 if fk:
                     constraints.append(f"FK→{fk}")
                 constraint_str = ", ".join(constraints) if constraints else "—"
 
-                type_str = str(field_type)
-                if " | None" in type_str:
-                    type_str = type_str.replace(" | None", "")
-
                 lines.append(
-                    f"| `{field_name}` | `{type_str}` | "
+                    f"| `{col_name}` | `{type_str}` | "
                     f"{'Yes' if nullable else 'No'} | "
                     f"{constraint_str} | {desc} |"
                 )

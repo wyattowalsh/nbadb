@@ -1,0 +1,42 @@
+---
+title: Role-Based Onboarding Hub
+description: Fast onboarding paths for contributors, end users, data engineers, and stakeholders.
+---
+
+# Role-Based Onboarding Hub
+
+Use the path below that matches your role. Each path is optimized for getting value quickly while using the new health, quality, coverage, and docs artifacts.
+
+## Onboarding Paths
+
+| Role | Start here | Next steps |
+|---|---|---|
+| Contributor / Maintainer | [Installation](/docs/installation) + [CLI Reference](/docs/cli-reference) | Enable pre-commit, run lint/type/tests, use `nbadb docs-autogen`, review [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
+| End User / Analyst | [Getting Started](/docs) + [DuckDB Queries](/docs/guides/duckdb-queries) | Use `nbadb download`, query DuckDB/Parquet, then use [Player Comparison](/docs/guides/player-comparison) and [Shot Chart Analysis](/docs/guides/shot-chart-analysis) |
+| Data Engineer / Operator | [Daily Updates](/docs/guides/daily-updates) + [CLI Reference](/docs/cli-reference) | Automate daily/monthly workflows, monitor dependency and quality artifacts, run endpoint coverage and docs autogen jobs |
+| Stakeholder / Program Owner | [Architecture](/docs/architecture) + [Schema Index](/docs/schema) | Track health/quality/coverage artifacts, review strategic rollout scaffold, monitor release and update cadence |
+
+## Contributor / Maintainer Checklist
+
+1. Install dev environment (`uv sync --extra dev`).
+2. Run local guardrails:
+   - `uv run ruff check src/ tests/`
+   - `uv run ty check src/`
+   - `uv run pytest tests/unit`
+3. Regenerate docs artifacts when schemas change:
+   - `uv run nbadb docs-autogen --docs-root docs/content/docs`
+4. Use [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) when CI artifact jobs fail.
+
+## Data Engineer / Operator Checklist
+
+1. Run recurring pipeline tasks (`daily`, `monthly`, `export`, `upload`).
+2. Monitor generated artifacts:
+   - `artifacts/health/daily/dependency-inventory.json`
+   - `artifacts/health/daily/data-quality-report.json`
+   - `artifacts/endpoint-coverage/*`
+3. Investigate drift/failures via [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook).
+4. Keep docs/schema artifacts in sync with `docs-autogen`.
+
+## Strategic Rollout Context
+
+For planned deeper migrations (without changing current runtime behavior), see [Strategic Shift Rollout Scaffolding](/docs/guides/strategic-shift-rollout).

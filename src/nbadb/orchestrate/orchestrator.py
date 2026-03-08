@@ -58,13 +58,18 @@ class Orchestrator:
     before invoking an endpoint.
     """
 
-    def __init__(self, settings: NbaDbSettings | None = None) -> None:
+    def __init__(
+        self,
+        settings: NbaDbSettings | None = None,
+        progress: object | None = None,
+    ) -> None:
         self._settings = settings or get_settings()
         self._proxy_pool = build_proxy_pool(self._settings)
         if self._proxy_pool is None:
             logger.debug("proxy pool: disabled")
         self._db: DBManager | None = None
         self._journal: PipelineJournal | None = None
+        self._progress = progress
 
     # ── lifecycle helpers ──────────────────────────────────────
 
@@ -189,70 +194,99 @@ class Orchestrator:
         team_ids: list[int],
         game_dates: list[str],
         game_log_df: pl.DataFrame,
+        include_static: bool = True,
     ) -> dict[str, pl.DataFrame]:
         """Run all extraction patterns and return combined raw staging data."""
+        pp = self._progress
 
         raw: dict[str, pl.DataFrame] = {}
         if not game_log_df.is_empty():
             raw["stg_league_game_log"] = game_log_df
 
-        step = 0
-        total_steps = 6
+        # Build the work plan — list of (label, pattern, entries, params)
+        plan: list[tuple[str, str, list, list[dict]]] = []
 
-        # Static
         static_entries = get_by_pattern("static")
-        if static_entries:
-            step += 1
-            logger.info("Step {}/{}: extracting static endpoints", step, total_steps)
-            static_raw = await runner.run_pattern("static", [{}], static_entries)
-            raw.update(static_raw)
+        if include_static and static_entries:
+            plan.append(("static", "static", static_entries, [{}]))
 
-        # Season (skip league_game_log -- already extracted)
         season_entries = [
             e for e in get_by_pattern("season") if e.endpoint_name != "league_game_log"
         ]
         if season_entries and seasons:
-            step += 1
-            logger.info("Step {}/{}: extracting season endpoints", step, total_steps)
-            season_params = [{"season": s} for s in seasons]
-            season_raw = await runner.run_pattern("season", season_params, season_entries)
-            raw.update(season_raw)
+            plan.append(("season", "season", season_entries, [{"season": s} for s in seasons]))
 
-        # Game (chunked internally by runner)
         game_entries = get_by_pattern("game")
         if game_entries and game_ids:
-            step += 1
-            logger.info("Step {}/{}: extracting game endpoints", step, total_steps)
-            game_params = [{"game_id": gid} for gid in game_ids]
-            game_raw = await runner.run_pattern("game", game_params, game_entries)
-            raw.update(game_raw)
+            plan.append(("game", "game", game_entries, [{"game_id": gid} for gid in game_ids]))
 
-        # Player
         player_entries = get_by_pattern("player")
         if player_entries and player_ids:
-            step += 1
-            logger.info("Step {}/{}: extracting player endpoints", step, total_steps)
-            player_params = [{"player_id": pid} for pid in player_ids]
-            player_raw = await runner.run_pattern("player", player_params, player_entries)
-            raw.update(player_raw)
+            plan.append((
+                "player",
+                "player",
+                player_entries,
+                [{"player_id": pid} for pid in player_ids],
+            ))
 
-        # Team
         team_entries = get_by_pattern("team")
         if team_entries and team_ids:
-            step += 1
-            logger.info("Step {}/{}: extracting team endpoints", step, total_steps)
-            team_params = [{"team_id": tid} for tid in team_ids]
-            team_raw = await runner.run_pattern("team", team_params, team_entries)
-            raw.update(team_raw)
+            plan.append((
+                "team",
+                "team",
+                team_entries,
+                [{"team_id": tid} for tid in team_ids],
+            ))
 
-        # Date
+        player_season_entries = get_by_pattern("player_season")
+        if player_season_entries and player_ids and seasons:
+            plan.append((
+                "player x season",
+                "player_season",
+                player_season_entries,
+                [
+                    {"player_id": pid, "season": season}
+                    for pid in player_ids
+                    for season in seasons
+                ],
+            ))
+
+        team_season_entries = get_by_pattern("team_season")
+        if team_season_entries and team_ids and seasons:
+            plan.append((
+                "team x season",
+                "team_season",
+                team_season_entries,
+                [
+                    {"team_id": tid, "season": season}
+                    for tid in team_ids
+                    for season in seasons
+                ],
+            ))
+
         date_entries = get_by_pattern("date")
         if date_entries and game_dates:
-            step += 1
-            logger.info("Step {}/{}: extracting date endpoints", step, total_steps)
-            date_params = [{"game_date": d} for d in game_dates]
-            date_raw = await runner.run_pattern("date", date_params, date_entries)
-            raw.update(date_raw)
+            plan.append(("date", "date", date_entries, [{"game_date": d} for d in game_dates]))
+
+        # Compute total extraction tasks for the progress bar
+        total_tasks = sum(len(entries) * len(params) for _, _, entries, params in plan)
+        if pp:
+            pp.start_phase("Extraction", total=total_tasks)
+
+        # Execute each pattern
+        for i, (label, pattern, entries, params) in enumerate(plan, 1):
+            n_tasks = len(entries) * len(params)
+            logger.info("Step {}/{}: {} ({} tasks)", i, len(plan), label, n_tasks)
+            if pp:
+                pp.start_pattern(f"{label} ({n_tasks:,})", total=n_tasks)
+
+            pattern_raw = await runner.run_pattern(
+                pattern, params, entries, on_progress=pp,
+            )
+            raw.update(pattern_raw)
+
+        if pp:
+            pp.complete_phase()
 
         return raw
 
@@ -261,13 +295,13 @@ class Orchestrator:
     async def run_init(
         self,
         start_season: int = 1946,
+        end_season: int | None = None,
     ) -> PipelineResult:
-        """Full history build from scratch with resume support.
+        """Full history build from scratch with interruption-safe restart.
 
-        Resume logic works automatically:
-        - Each extraction checks ``journal.was_extracted()``
-        - If interrupted, re-running skips all successful work
-        - Failed extractions are retried
+        To avoid partial rebuilds after interruptions, init clears prior
+        completed extraction journal rows and restarts extraction from
+        scratch when such rows are detected.
         """
         bound_log = logger.bind(run_mode="init")
         t0 = time.perf_counter()
@@ -277,17 +311,28 @@ class Orchestrator:
         db, journal = self._init_db()
         runner = self._build_runner(journal)
 
+        if journal.has_done_entries():
+            bound_log.warning(
+                "init resume detected completed extraction journal entries; "
+                "restarting extraction for safe completeness"
+            )
+            journal.clear_journal()
+
         # -- 1. Entity discovery (parallel) --------------------
-        seasons = season_range(start_season)
+        pp = self._progress
+        seasons = season_range(start_season, end_season)
         discovery = self._build_discovery()
 
         bound_log.info(
             "init: discovering entities for {} seasons",
             len(seasons),
         )
+        if pp:
+            pp.start_phase("Discovery")
+            pp.update_phase_info(f"scanning {len(seasons)} seasons...")
 
         results = await asyncio.gather(
-            discovery.discover_game_ids(seasons),
+            discovery.discover_game_ids(seasons, on_progress=pp),
             discovery.discover_player_ids(),
             discovery.discover_team_ids(),
             return_exceptions=True,
@@ -302,20 +347,29 @@ class Orchestrator:
             game_log_df = pl.DataFrame()
         else:
             game_ids, game_log_df = _game_result
+            if pp:
+                pp.log_discovery("games", len(game_ids))
 
         if isinstance(_player_result, Exception):
             bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)
             player_ids: list[int] = []
         else:
             player_ids = _player_result
+            if pp:
+                pp.log_discovery("players", len(player_ids))
 
         if isinstance(_team_result, Exception):
             bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)
             team_ids: list[int] = []
         else:
             team_ids = _team_result
+            if pp:
+                pp.log_discovery("teams", len(team_ids))
 
         game_dates = await discovery.discover_game_dates(game_log_df)
+        if pp:
+            pp.log_discovery("dates", len(game_dates))
+            pp.complete_phase()
 
         bound_log.info(
             "discovered: {} games, {} players, {} teams, {} dates",
@@ -337,10 +391,18 @@ class Orchestrator:
         )
 
         # -- 3. Transform + Load --------------------------------
+        if pp:
+            pp.start_phase("Transform & Load")
+            pp.update_phase_info(f"{len(raw)} staging tables")
         bound_log.info("transform + load: {} staging tables", len(raw))
         tables_updated, rows_total, failed_loads = self._transform_and_load(
             db, raw, journal, mode="replace"
         )
+        if pp:
+            pp.update_phase_info(
+                f"{tables_updated} tables, {rows_total:,} rows loaded"
+            )
+            pp.complete_phase()
 
         # -- 4. Summarize result --------------------------------
         result = self._build_result(
@@ -420,6 +482,7 @@ class Orchestrator:
                 team_ids=[],
                 game_dates=game_dates,
                 game_log_df=pl.DataFrame(),  # already seeded above
+                include_static=False,
             )
         )
         # Keep the seeded game_log_df (update may have cleared it)
@@ -560,7 +623,28 @@ class Orchestrator:
         # Group failed by pattern for batched re-extraction
         failed_by_entry: dict[str, list[dict]] = {}  # endpoint -> params
         for endpoint, params_json, _error in failed:
-            params = json.loads(params_json)
+            try:
+                params = json.loads(params_json)
+            except (TypeError, json.JSONDecodeError) as exc:
+                quarantine_error = f"invalid_params_json:{type(exc).__name__}"
+                journal.record_failure(endpoint, params_json, quarantine_error)
+                bound_log.warning(
+                    "full: skipping malformed failed params_json for {}: {} ({})",
+                    endpoint,
+                    params_json,
+                    quarantine_error,
+                )
+                continue
+            if not isinstance(params, dict):
+                quarantine_error = f"invalid_params_json:{type(params).__name__}"
+                journal.record_failure(endpoint, params_json, quarantine_error)
+                bound_log.warning(
+                    "full: skipping non-object failed params_json for {}: {} ({})",
+                    endpoint,
+                    params_json,
+                    quarantine_error,
+                )
+                continue
             failed_by_entry.setdefault(endpoint, []).append(params)
 
         # Build a lookup from endpoint_name -> StagingEntry(s)

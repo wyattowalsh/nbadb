@@ -17,6 +17,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync
+      - name: Generate daily health inventory
+        run: |
+          output_path="${GITHUB_WORKSPACE}/artifacts/health/daily/dependency-inventory.json"
+          uv run python -m nbadb.core.dependency_inventory --project-root "${GITHUB_WORKSPACE}" --output "$output_path"
+      - name: Upload daily health inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-health-inventory
+          path: artifacts/health/daily/dependency-inventory.json
       - name: Run daily update
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
@@ -24,5 +33,11 @@ jobs:
         run: |
           uv run nbadb download
           uv run nbadb daily
+          uv run nbadb run-quality --report-path artifacts/health/daily/data-quality-report.json
           uv run nbadb export
           uv run nbadb upload
+      - name: Upload daily data quality artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-data-quality-report
+          path: artifacts/health/daily/data-quality-report.json

@@ -8,7 +8,16 @@ from typing import Literal
 class StagingEntry:
     endpoint_name: str
     staging_key: str
-    param_pattern: Literal["season", "game", "player", "team", "static", "date"]
+    param_pattern: Literal[
+        "season",
+        "game",
+        "player",
+        "team",
+        "player_season",
+        "team_season",
+        "static",
+        "date",
+    ]
     result_set_index: int = 0
     use_multi: bool = False
 
@@ -404,7 +413,7 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("leaders_tiles", "stg_leaders_tiles", "season"),
     StagingEntry("homepage_leaders", "stg_homepage_leaders", "season"),
     StagingEntry("homepage_v2", "stg_homepage_v2", "season"),
-    StagingEntry("league_player_on_details", "stg_player_on_details", "season"),
+    StagingEntry("league_player_on_details", "stg_player_on_details", "team_season"),
     StagingEntry("league_season_matchups", "stg_season_matchups", "season"),
     StagingEntry("matchups_rollup", "stg_matchups_rollup", "season"),
     StagingEntry("defense_hub", "stg_defense_hub", "season"),
@@ -430,13 +439,28 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_draft_combine_spot_shooting",
         "season",
     ),
+    # Extractor-only aliases (season)
+    StagingEntry("common_all_players", "stg_common_all_players", "season"),
+    StagingEntry("home_page_leaders", "stg_home_page_leaders", "season"),
+    StagingEntry("home_page_v2", "stg_home_page_v2", "season"),
+    StagingEntry(
+        "league_dash_player_bio_stats",
+        "stg_league_dash_player_bio_stats",
+        "season",
+    ),
+    StagingEntry(
+        "league_hustle_stats_player",
+        "stg_league_hustle_stats_player",
+        "season",
+    ),
+    StagingEntry("league_hustle_stats_team", "stg_league_hustle_stats_team", "season"),
+    StagingEntry("player_game_logs", "stg_player_game_logs", "season"),
+    StagingEntry("player_index", "stg_player_index", "season"),
+    StagingEntry("shot_chart_lineup_detail", "stg_shot_chart_lineup_detail", "season"),
     # Game-level additions
     StagingEntry("hustle_stats_box_score", "stg_box_score_hustle_box", "game"),
-    StagingEntry(
-        "gl_alum_box_score_similarity_score",
-        "stg_glalum_similarity",
-        "game",
-    ),
+    # gl_alum_box_score_similarity_score excluded: needs person IDs
+    StagingEntry("play_by_play_v2", "stg_play_by_play_v2", "game"),
     # Player-level additions — PlayerCareerStats multi-result
     StagingEntry(
         "player_career_stats",
@@ -651,6 +675,41 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("player_streak_finder", "stg_player_streak_finder", "player"),
     StagingEntry("player_next_games", "stg_player_next_games", "player"),
     StagingEntry("player_vs_player", "stg_player_vs_player", "player"),
+    # Extractor-only aliases (player)
+    StagingEntry("player_compare", "stg_player_compare", "player"),
+    StagingEntry("player_dash_pt_defend", "stg_player_dash_pt_defend", "player"),
+    StagingEntry(
+        "player_dashboard_game_splits",
+        "stg_player_dashboard_game_splits",
+        "player",
+    ),
+    StagingEntry(
+        "player_dashboard_general_splits",
+        "stg_player_dashboard_general_splits",
+        "player",
+    ),
+    StagingEntry(
+        "player_dashboard_last_n_games",
+        "stg_player_dashboard_last_n_games",
+        "player",
+    ),
+    StagingEntry(
+        "player_dashboard_shooting_splits",
+        "stg_player_dashboard_shooting_splits",
+        "player",
+    ),
+    StagingEntry(
+        "player_dashboard_team_performance",
+        "stg_player_dashboard_team_performance",
+        "player",
+    ),
+    StagingEntry(
+        "player_dashboard_year_over_year",
+        "stg_player_dashboard_year_over_year",
+        "player",
+    ),
+    StagingEntry("player_game_log", "stg_player_game_log", "player_season"),
+    StagingEntry("player_game_streak_finder", "stg_player_game_streak_finder", "player"),
     # Team-level additions
     StagingEntry(
         "team_dashboard_general_splits",
@@ -680,9 +739,22 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("team_game_streak_finder", "stg_team_streak_finder", "team"),
     StagingEntry("team_vs_player", "stg_team_vs_player", "team"),
     StagingEntry("team_and_players_vs", "stg_team_and_players_vs", "team"),
+    # Extractor-only aliases (team)
+    StagingEntry(
+        "team_and_players_vs_players",
+        "stg_team_and_players_vs_players",
+        "team",
+    ),
+    StagingEntry("team_game_log", "stg_team_game_log", "team_season"),
+    StagingEntry("team_year_by_year_stats", "stg_team_year_by_year_stats", "team"),
     # Static additions
     StagingEntry("league_game_finder", "stg_league_game_finder", "static"),
     StagingEntry("player_college_rollup", "stg_player_college_rollup", "static"),
+    StagingEntry(
+        "player_career_by_college_rollup",
+        "stg_player_career_by_college_rollup",
+        "static",
+    ),
     StagingEntry("draft_board", "stg_draft_board", "season"),
 ]
 

@@ -35,13 +35,15 @@ class PlayoffPictureExtractor(BaseExtractor):
     category = "standings"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season_id: str = params["season_id"]
+        season: str = params["season"]
+        season_id = f"2{season[:4]}"
         logger.debug(f"Extracting playoff picture for {season_id}")
         return self._from_nba_api(PlayoffPicture, season_id=season_id)
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
         """Return all result sets: East/West conf playoff pictures."""
-        season_id: str = params["season_id"]
+        season: str = params["season"]
+        season_id = f"2{season[:4]}"
         return self._from_nba_api_multi(PlayoffPicture, season_id=season_id)
 
 

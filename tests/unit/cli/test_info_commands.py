@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import duckdb
@@ -165,6 +166,7 @@ class TestStatusCommand:
 # ---------------------------------------------------------------------------
 
 DISCOVER_PATH = "nbadb.cli.commands.schema.discover_all_transformers"
+_DOCS_AUTOGEN_PATH = "nbadb.cli.commands.docs_autogen.generate_docs_artifacts"
 
 
 class TestSchemaCommand:
@@ -217,6 +219,27 @@ class TestSchemaCommand:
 
 
 # ---------------------------------------------------------------------------
+# docs-autogen command tests
+# ---------------------------------------------------------------------------
+
+
+class TestDocsAutogenCommand:
+    def test_docs_autogen_invokes_generator(self, tmp_path: object) -> None:
+        docs_root = Path(str(tmp_path))
+        updated = [docs_root / "schema" / "star-reference.mdx"]
+        unchanged = [docs_root / "lineage" / "lineage.json"]
+
+        with patch(_DOCS_AUTOGEN_PATH, return_value=(updated, unchanged)) as mock_generate:
+            result = runner.invoke(app, ["docs-autogen", "--docs-root", str(docs_root)])
+
+        assert result.exit_code == 0, result.output
+        mock_generate.assert_called_once_with(docs_root)
+        assert "updated: " in result.output
+        assert "unchanged: " in result.output
+        assert "Docs autogen complete (1 updated, 1 unchanged)." in result.output
+
+
+# ---------------------------------------------------------------------------
 # migrate command tests
 # ---------------------------------------------------------------------------
 
@@ -241,6 +264,7 @@ class TestMigrateCommand:
         with patch(_DB_MANAGER_PATH, return_value=mock_db):
             result = runner.invoke(app, ["migrate", "--data-dir", str(tmp_path)])
         assert result.exit_code == 1
+        mock_db.close.assert_called_once()
         assert "Migration failed" in result.output or "RuntimeError" in result.output
 
     def test_migrate_idempotent(self, tmp_path: object) -> None:

@@ -52,7 +52,8 @@ class DraftBoardExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         season: str = params["season"]
-        return self._from_nba_api(DraftBoard, season=season)
+        season_year = int(season[:4])
+        return self._from_nba_api(DraftBoard, season_year=season_year)
 
 
 @registry.register

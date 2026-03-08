@@ -1,0 +1,216 @@
+name: Full Extraction
+
+on:
+  workflow_dispatch:
+    inputs:
+      use_proxy:
+        description: "Use NordVPN Docker proxy fleet"
+        type: boolean
+        default: true
+      concurrency:
+        description: "Max concurrent requests per category"
+        type: choice
+        default: "moderate"
+        options:
+          - conservative
+          - moderate
+          - aggressive
+      season_start:
+        description: "Start season year (e.g. 1946)"
+        type: string
+        default: "1946"
+      season_end:
+        description: "End season year (e.g. 2025)"
+        type: string
+        default: "2025"
+      iteration:
+        description: "Iteration number (auto-incremented on self-chain)"
+        type: string
+        default: "1"
+      max_iterations:
+        description: "Max self-chain iterations (safety limit)"
+        type: string
+        default: "8"
+
+env:
+  NBADB_DATA_DIR: nbadb
+  NBADB_FORMATS: '["duckdb","parquet"]'
+  NBADB_PBP_CHUNK_SIZE: "1000"
+  NBADB_PROXY_TIMEOUT: "30"
+  # Shared cache key — persists across all iterations
+  CACHE_KEY: full-extraction-state
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350  # ~5h50m, leaves margin before 6hr hard limit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      # ── Restore state from previous iteration ──
+      - name: Restore extraction state
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: nbadb/
+          key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}
+          restore-keys: |
+            ${{ env.CACHE_KEY }}-
+
+      - name: Show iteration info
+        run: |
+          echo "::notice::Iteration ${{ inputs.iteration }} of max ${{ inputs.max_iterations }}"
+          if [ -f nbadb/nba.sqlite ]; then
+            echo "::notice::Resuming from cached state"
+            ls -lh nbadb/ 2>/dev/null || true
+          else
+            echo "::notice::Fresh start — no cached state found"
+          fi
+
+      # ── Start NordVPN proxy fleet ──
+      - name: Start proxy fleet
+        if: inputs.use_proxy == 'true'
+        env:
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+        run: |
+          docker compose -f docker-compose.proxy.yml up -d
+          echo "Waiting for VPN tunnels to establish..."
+          sleep 30
+
+          ok=0
+          for port in 18881 18882 18883 18884 18885 18886; do
+            if curl -sf -x http://localhost:$port --connect-timeout 10 https://httpbin.org/ip >/dev/null 2>&1; then
+              ip=$(curl -sf -x http://localhost:$port https://httpbin.org/ip | jq -r .origin)
+              echo "  ✓ Port $port: $ip"
+              ok=$((ok + 1))
+            else
+              echo "  ✗ Port $port: not ready"
+            fi
+          done
+
+          if [ "$ok" -eq 0 ]; then
+            echo "::error::No proxy containers responding. Check NORDVPN_TOKEN secret."
+            docker compose -f docker-compose.proxy.yml logs --tail 20
+            exit 1
+          fi
+          echo "::notice::$ok/6 proxies active"
+
+      # ── Configure environment ──
+      - name: Configure extraction environment
+        run: |
+          if [ "${{ inputs.use_proxy }}" = "true" ]; then
+            echo 'NBADB_PROXY_ENABLED=true' >> $GITHUB_ENV
+            echo 'NBADB_PROXY_BOOTSTRAP=false' >> $GITHUB_ENV
+            echo 'NBADB_PROXY_URLS=["http://localhost:18881","http://localhost:18882","http://localhost:18883","http://localhost:18884","http://localhost:18885","http://localhost:18886"]' >> $GITHUB_ENV
+          else
+            echo 'NBADB_PROXY_ENABLED=false' >> $GITHUB_ENV
+          fi
+
+          case "${{ inputs.concurrency }}" in
+            conservative)
+              echo 'NBADB_SEMAPHORE_TIERS={"box_score": 10, "play_by_play": 5, "game_log": 15, "player_info": 10, "default": 10}' >> $GITHUB_ENV
+              ;;
+            moderate)
+              echo 'NBADB_SEMAPHORE_TIERS={"box_score": 30, "play_by_play": 15, "game_log": 50, "player_info": 30, "default": 25}' >> $GITHUB_ENV
+              ;;
+            aggressive)
+              echo 'NBADB_SEMAPHORE_TIERS={"box_score": 100, "play_by_play": 50, "game_log": 150, "player_info": 100, "default": 75}' >> $GITHUB_ENV
+              ;;
+          esac
+
+      # ── Run extraction ──
+      - name: Run full extraction
+        id: extract
+        run: |
+          set +e
+          uv run nbadb init \
+            --season-start ${{ inputs.season_start }} \
+            --season-end ${{ inputs.season_end }}
+          exit_code=$?
+
+          if [ "$exit_code" -eq 0 ]; then
+            echo "status=complete" >> $GITHUB_OUTPUT
+          else
+            echo "status=incomplete" >> $GITHUB_OUTPUT
+          fi
+          # Always succeed so we can save state and chain
+          exit 0
+
+      # ── Save state ──
+      - name: Save extraction state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: nbadb/
+          key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}-${{ github.run_id }}
+
+      # ── Upload artifacts every iteration ──
+      - name: Upload extraction artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nbadb-extraction-iter-${{ inputs.iteration }}
+          path: |
+            nbadb/*.duckdb
+            nbadb/*.sqlite
+            nbadb/parquet/
+            nbadb/csv/
+          retention-days: 30
+          compression-level: 6
+
+      # ── Self-chain: trigger next iteration if incomplete ──
+      - name: Chain next iteration
+        if: steps.extract.outputs.status == 'incomplete'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          current=${{ inputs.iteration }}
+          max=${{ inputs.max_iterations }}
+          next=$((current + 1))
+
+          if [ "$next" -gt "$max" ]; then
+            echo "::warning::Reached max iterations ($max). Extraction may be incomplete."
+            echo "::warning::Re-trigger manually to continue."
+            exit 0
+          fi
+
+          echo "::notice::Extraction incomplete — triggering iteration $next/$max"
+          gh workflow run full-extraction.yml \
+            -f use_proxy=${{ inputs.use_proxy }} \
+            -f concurrency=${{ inputs.concurrency }} \
+            -f season_start=${{ inputs.season_start }} \
+            -f season_end=${{ inputs.season_end }} \
+            -f iteration=$next \
+            -f max_iterations=$max
+
+      - name: Extraction complete
+        if: steps.extract.outputs.status == 'complete'
+        run: |
+          echo "::notice::🏆 Full extraction complete on iteration ${{ inputs.iteration }}!"
+          ls -lh nbadb/ 2>/dev/null || true
+
+      - name: Upload to Kaggle
+        if: steps.extract.outputs.status == 'complete'
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: uv run nbadb upload --data-dir nbadb -m "Full extraction $(date +%Y-%m-%d)"
+
+      # ── Cleanup ──
+      - name: Proxy fleet logs
+        if: failure() && inputs.use_proxy == 'true'
+        run: docker compose -f docker-compose.proxy.yml logs --tail 50
+
+      - name: Stop proxy fleet
+        if: always() && inputs.use_proxy == 'true'
+        run: docker compose -f docker-compose.proxy.yml down

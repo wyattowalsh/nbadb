@@ -1,0 +1,134 @@
+---
+title: Troubleshooting Playbook
+description: Diagnose and remediate generated dependency, quality, coverage, and docs artifacts.
+---
+
+# Troubleshooting Playbook
+
+Use this guide when artifact generation or CI health checks fail.
+
+## Dependency inventory artifact (`dependency-inventory.json`)
+
+**Generate**
+
+```bash
+uv run python -m nbadb.core.dependency_inventory --project-root . --output artifacts/health/local/dependency-inventory.json
+```
+
+**Diagnose**
+
+```bash
+python - <<'PY'
+import json
+data = json.load(open("artifacts/health/local/dependency-inventory.json"))
+print("summary:", data["summary"])
+print("lockfile_present:", data["lockfile"]["present"])
+print("pyproject_present:", data["pyproject"]["present"])
+print("docs_package_present:", data["docs_package"]["present"])
+PY
+```
+
+**Remediate**
+
+- If `lockfile_present` is `false`, run `uv sync` (or provide `--lock-path`) and commit the lockfile used by CI.
+- If `docs_package_present` is `false`, run from repo root or pass `--docs-package-path /abs/path/docs/package.json`.
+- If `summary.package_count` is unexpectedly low, check `--project-root` and re-run with an absolute path.
+
+## Data-quality JSON artifact (`data-quality-report.json`)
+
+**Generate**
+
+```bash
+uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
+```
+
+**Diagnose**
+
+```bash
+python - <<'PY'
+import json
+report = json.load(open("artifacts/health/local/data-quality-report.json"))
+print("summary:", report["summary"])
+print("failed:", [r["message"] for r in report["results"] if not r["passed"]][:10])
+PY
+```
+
+**Remediate**
+
+- If you see `Error: database not found. Run 'nbadb init' first.`, run `uv run nbadb init` (or `download` + `daily/monthly`) before `run-quality`.
+- If `summary.total` is `0`, the command exits non-zero; verify the DuckDB file exists at the configured `--data-dir`.
+- If checks fail, inspect reported tables/columns and run `uv run nbadb daily` or `uv run nbadb monthly` to refill missing data.
+
+**Known issue:** `nbadb run-quality` logs failed checks but does not fail the process when checks ran; gate on `summary.failed > 0` in CI if strict enforcement is required.
+
+## Endpoint coverage artifacts (`artifacts/endpoint-coverage/*`)
+
+**Generate**
+
+```bash
+uv run nbadb extract-completeness
+
+# CI gate: exits non-zero when non-covered endpoints remain
+uv run nbadb extract-completeness --require-full
+```
+
+By default this writes:
+- `artifacts/endpoint-coverage/endpoint-coverage-matrix.json`
+- `artifacts/endpoint-coverage/endpoint-coverage-summary.json`
+- `artifacts/endpoint-coverage/endpoint-coverage-report.md`
+
+Use `--output-dir` to write artifacts elsewhere.
+
+**Diagnose**
+
+```bash
+python - <<'PY'
+import json
+s = json.load(open("artifacts/endpoint-coverage/endpoint-coverage-summary.json"))
+print("runtime:", s["runtime_version"], "classes:", s["runtime_endpoint_class_count"])
+print("coverage:", s["coverage"])
+PY
+```
+
+**Remediate**
+
+- If `runtime_version` is `unknown` or class count is `0`, run `uv sync` to ensure `nba_api` is installed in the active environment.
+- If `runtime_gap` is high, validate runtime refs in `src/nbadb/extract/stats/*.py` and endpoint names in `src/nbadb/orchestrate/staging_map.py`.
+- If `extractor_only` rows appear, either add the endpoint to staging maps or normalize endpoint aliases in coverage generation.
+
+## Docs-autogen artifacts (`docs/content/docs/*`)
+
+**Generate**
+
+```bash
+uv run nbadb docs-autogen --docs-root docs/content/docs
+```
+
+**Expected generated files**
+
+- `schema/{raw,staging,star}-reference.mdx`
+- `data-dictionary/{raw,staging,star}.mdx`
+- `diagrams/er-auto.mdx`
+- `lineage/lineage-auto.mdx`
+- `lineage/lineage.json`
+
+**Diagnose + remediate**
+
+- If command output does not list `updated:`/`unchanged:`, verify you are running from repo root and `uv sync` has installed docs-gen dependencies.
+- If generated docs exist but site build fails, run:
+
+```bash
+cd docs && pnpm install --frozen-lockfile && pnpm build
+```
+
+- If only `unchanged:` appears after schema edits, confirm metadata changed in `nbadb.schemas.*` and rerun.
+
+## Common CLI/CI command failures
+
+| Command | Symptom | Fix |
+|---|---|---|
+| `uv sync` | resolver/lock mismatch | Regenerate lock (`uv lock`), then `uv sync`; commit lockfile changes. |
+| `uv run nbadb download` / `upload` | `Download failed: ...` or `Upload failed: ...` in daily/monthly workflows | Ensure Kaggle credentials are set (`KAGGLE_USERNAME`, `KAGGLE_KEY`) in CI secrets/local env. |
+| `uv run nbadb run-quality --report-path ...` | `database not found` | Initialize/populate DB first (`nbadb init`/`daily`/`monthly`). |
+| `actions/upload-artifact` | "No files were found with the provided path" | Ensure upstream command wrote the artifact path exactly as configured in workflow. |
+| `cd docs && pnpm install --frozen-lockfile` | lockfile out of date | Run `pnpm install` in `docs/`, commit `docs/pnpm-lock.yaml`, rerun build. |

@@ -1,1 +1,14 @@
-{"title": "Schema Reference"}
+{
+  "title": "Schema Reference",
+  "pages": [
+    "---",
+    "dimensions",
+    "facts",
+    "relationships",
+    "derived",
+    "analytics-views",
+    "raw-reference",
+    "staging-reference",
+    "star-reference"
+  ]
+}

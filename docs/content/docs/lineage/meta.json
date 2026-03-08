@@ -1,4 +1,4 @@
 {
   "title": "Data Lineage",
-  "pages": ["---", "column-lineage", "table-lineage"]
+  "pages": ["---", "column-lineage", "table-lineage", "lineage-auto"]
 }

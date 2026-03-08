@@ -249,6 +249,34 @@ class TestRunPattern:
         result = await runner.run_pattern("season", [], [entry])
         assert "stg_ep1" not in result or result.get("stg_ep1", pl.DataFrame()).is_empty()
 
+    @pytest.mark.asyncio
+    async def test_run_pattern_tolerates_schema_drift_across_param_sets(self):
+        class _SchemaDriftExtractor:
+            category = "default"
+            _proxy_url = None
+
+            async def extract(self, **kwargs):
+                season = kwargs.get("season")
+                if season == "2024-25":
+                    return pl.DataFrame({"a": [1], "b": [2]})
+                return pl.DataFrame({"a": [3], "c": [4]})
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings()
+        registry = _make_registry(_SchemaDriftExtractor)
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner.run_pattern(
+            "season",
+            [{"season": "2024-25"}, {"season": "2025-26"}],
+            [entry],
+        )
+
+        assert "stg_ep1" in result
+        assert result["stg_ep1"].shape[0] == 2
+        assert set(result["stg_ep1"].columns) == {"a", "b", "c"}
+
 
 # ---------------------------------------------------------------------------
 # Proxy integration in runner

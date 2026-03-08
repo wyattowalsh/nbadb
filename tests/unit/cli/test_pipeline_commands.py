@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -83,7 +84,24 @@ def test_init_season_start() -> None:
         result = runner.invoke(app, ["init", "--season-start", "2020"])
     assert result.exit_code == 0
     # Verify the season was forwarded to run_init
-    mock_cls.return_value.run_init.assert_awaited_once_with(start_season=2020)
+    mock_cls.return_value.run_init.assert_awaited_once_with(start_season=2020, end_season=None)
+
+
+def test_init_season_end() -> None:
+    with patch(_INIT_PATH) as mock_cls:
+        mock_cls.return_value.run_init = AsyncMock(return_value=_make_result())
+        result = runner.invoke(app, ["init", "--season-start", "2020", "--season-end", "2024"])
+    assert result.exit_code == 0
+    mock_cls.return_value.run_init.assert_awaited_once_with(start_season=2020, end_season=2024)
+
+
+def test_init_partial_failure_exits_nonzero() -> None:
+    with patch(_INIT_PATH) as mock_cls:
+        mock_cls.return_value.run_init = AsyncMock(
+            return_value=_make_result(failed_extractions=5)
+        )
+        result = runner.invoke(app, ["init"])
+    assert result.exit_code == 1
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +204,7 @@ class TestRunQualityCommand:
         real_conn.close()
 
         mock_monitor = MagicMock()
-        mock_monitor.summary.return_value = {"passed": 0, "total": 0, "failed": 0}
+        mock_monitor.summary.return_value = {"passed": 1, "total": 1, "failed": 0}
         mock_monitor.failed.return_value = []
 
         with patch(_MONITOR_PATH, return_value=mock_monitor) as mock_cls:
@@ -195,6 +213,22 @@ class TestRunQualityCommand:
         assert result.exit_code == 0, result.output
         mock_cls.assert_called_once()
         mock_monitor.log_summary.assert_called_once()
+
+    def test_run_quality_fails_when_no_checks_run(self, tmp_path: Path) -> None:
+        """When no checks are executed, run-quality exits with a non-zero code."""
+        db_file = tmp_path / "nba.duckdb"
+        real_conn = duckdb.connect(str(db_file))
+        real_conn.close()
+
+        mock_monitor = MagicMock()
+        mock_monitor.summary.return_value = {"passed": 0, "total": 0, "failed": 0}
+        mock_monitor.failed.return_value = []
+
+        with patch(_MONITOR_PATH, return_value=mock_monitor):
+            result = runner.invoke(app, ["run-quality", "--data-dir", str(tmp_path)])
+
+        assert result.exit_code == 1
+        assert "no checks were executed" in result.output.lower()
 
     def test_run_quality_no_database(self, tmp_path: Path) -> None:
         """When the DuckDB file does not exist, exit 1 with error message."""
@@ -214,3 +248,45 @@ class TestRunQualityCommand:
 
         assert result.exit_code == 1
         assert "Quality check failed" in result.output or "RuntimeError" in result.output
+
+    def test_run_quality_writes_report_json(self, tmp_path: Path) -> None:
+        """When --report-path is set, run-quality writes a JSON report artifact."""
+        db_file = tmp_path / "nba.duckdb"
+        real_conn = duckdb.connect(str(db_file))
+        real_conn.close()
+
+        mock_monitor = MagicMock()
+        mock_monitor.summary.return_value = {"passed": 1, "total": 1, "failed": 0}
+        mock_monitor.failed.return_value = []
+        mock_monitor.to_report.return_value = {
+            "summary": {"passed": 1, "total": 1, "failed": 0},
+            "summary_by_layer": {"structural": {"passed": 1, "total": 1, "failed": 0}},
+            "results": [
+                {
+                    "table": "dim_player",
+                    "check_type": "row_count",
+                    "layer": "structural",
+                    "passed": True,
+                    "message": "dim_player: 1 rows",
+                    "details": None,
+                }
+            ],
+        }
+        report_path = tmp_path / "quality-report.json"
+
+        with patch(_MONITOR_PATH, return_value=mock_monitor):
+            result = runner.invoke(
+                app,
+                [
+                    "run-quality",
+                    "--data-dir",
+                    str(tmp_path),
+                    "--report-path",
+                    str(report_path),
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert report_path.exists()
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        assert report["summary"]["total"] == 1

@@ -36,17 +36,22 @@ nbadb upload
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `nbadb init` | Full rebuild (~2-4h) |
-| `nbadb daily` | Incremental update (~5-15m) |
-| `nbadb monthly` | Dimension refresh (~30-60m) |
-| `nbadb full` | Fill gaps, preserve existing |
-| `nbadb export` | Re-export to all formats |
-| `nbadb upload` | Push to Kaggle |
-| `nbadb download` | Pull from Kaggle |
-| `nbadb schema list` | List all table schemas |
-| `nbadb status` | DB stats and freshness |
+| Command | Positional args | Options |
+|---------|------------------|---------|
+| `nbadb init` | — | `--data-dir/-d`, `--format/-f` (repeatable), `--season-start/-s` (default: `1946`), `--verbose/-v`, `--quality-check` |
+| `nbadb daily` | — | `--data-dir/-d`, `--verbose/-v`, `--quality-check` |
+| `nbadb monthly` | — | `--data-dir/-d`, `--verbose/-v`, `--quality-check` |
+| `nbadb full` | — | `--data-dir/-d`, `--verbose/-v`, `--quality-check` |
+| `nbadb migrate` | — | `--data-dir/-d` |
+| `nbadb run-quality` | — | `--data-dir/-d`, `--report-path` |
+| `nbadb export` | — | `--data-dir/-d`, `--format/-f` (repeatable) |
+| `nbadb upload` | — | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`) |
+| `nbadb download` | — | `--data-dir/-d` |
+| `nbadb extract-completeness` | — | `--output-dir/-o`, `--require-full` (exit non-zero when non-covered endpoints remain) |
+| `nbadb docs-autogen` | — | `--docs-root` (default: `docs/content/docs`) |
+| `nbadb schema [TABLE]` | optional `TABLE` | — |
+| `nbadb status` | — | `--data-dir/-d`, `--output-format/-f` (default: `text`; `json` supported) |
+| `nbadb ask QUESTION` | required `QUESTION` | `--limit/-l` (default: `10`), `--verbose/-v` |
 
 ## Tech Stack
 
