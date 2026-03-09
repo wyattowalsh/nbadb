@@ -49,13 +49,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350  # ~5h50m, leaves margin before 6hr hard limit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -64,7 +64,7 @@ jobs:
       # ── Restore state from previous iteration ──
       - name: Restore extraction state
         id: restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: nbadb/
           key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}
@@ -160,7 +160,7 @@ jobs:
       # ── Save state ──
       - name: Save extraction state
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: nbadb/
           key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}-${{ github.run_id }}
@@ -168,7 +168,7 @@ jobs:
       # ── Upload artifacts every iteration ──
       - name: Upload extraction artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nbadb-extraction-iter-${{ inputs.iteration }}
           path: |
