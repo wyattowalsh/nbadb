@@ -304,7 +304,7 @@ class TestRunInit:
         assert result.rows_total == 100
         assert result.duration_seconds > 0
 
-    def test_run_init_restarts_extraction_when_journal_has_done_entries(self):
+    def test_run_init_resumes_when_journal_has_done_entries(self):
         orch, db, journal = _build_orchestrator_with_mocks()
         journal.has_done_entries.return_value = True
 
@@ -329,7 +329,8 @@ class TestRunInit:
         ):
             asyncio.run(orch.run_init())
 
-        journal.clear_journal.assert_called_once()
+        # Journal should NOT be cleared — resume skips done entries
+        journal.clear_journal.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

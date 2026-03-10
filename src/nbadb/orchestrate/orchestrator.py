@@ -297,11 +297,12 @@ class Orchestrator:
         start_season: int = 1946,
         end_season: int | None = None,
     ) -> PipelineResult:
-        """Full history build from scratch with interruption-safe restart.
+        """Full history build with resume support.
 
-        To avoid partial rebuilds after interruptions, init clears prior
-        completed extraction journal rows and restarts extraction from
-        scratch when such rows are detected.
+        Resume logic works automatically via the extraction journal:
+        - Each extraction checks ``journal.was_extracted()``
+        - If interrupted, re-running skips all successful work
+        - Failed extractions are retried on the next run
         """
         bound_log = logger.bind(run_mode="init")
         t0 = time.perf_counter()
@@ -312,11 +313,7 @@ class Orchestrator:
         runner = self._build_runner(journal)
 
         if journal.has_done_entries():
-            bound_log.warning(
-                "init resume detected completed extraction journal entries; "
-                "restarting extraction for safe completeness"
-            )
-            journal.clear_journal()
+            bound_log.info("init resume: prior completed entries found, will skip those")
 
         # -- 1. Entity discovery (parallel) --------------------
         pp = self._progress
