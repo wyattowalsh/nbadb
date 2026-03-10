@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class AggAllTimeLeadersTransformer(BaseTransformer):
+class AggAllTimeLeadersTransformer(SqlTransformer):
     output_table: ClassVar[str] = "agg_all_time_leaders"
     depends_on: ClassVar[list[str]] = ["stg_all_time"]
 
@@ -21,6 +18,3 @@ class AggAllTimeLeadersTransformer(BaseTransformer):
         FROM stg_all_time
         ORDER BY pts_rank
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self.conn.execute(self._SQL).pl()

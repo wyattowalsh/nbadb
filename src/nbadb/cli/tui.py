@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from math import sin
 
 from rich.text import Text
 from textual import work
@@ -22,14 +21,11 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.theme import Theme
-from textual.widget import Widget
 from textual.widgets import (
     DataTable,
-    Digits,
     Footer,
     ProgressBar,
     RichLog,
-    Rule,
     Sparkline,
     Static,
 )

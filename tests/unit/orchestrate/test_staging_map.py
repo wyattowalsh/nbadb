@@ -74,9 +74,9 @@ def _extractor_endpoint_names() -> set[str]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        # 60 season + 34 game + 16 date + 55 player + 25 team +
+        # 60 season + 35 game + 16 date + 56 player + 25 team +
         # 1 player_season + 2 team_season + 5 static
-        assert len(STAGING_MAP) == 198
+        assert len(STAGING_MAP) == 200
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -89,10 +89,10 @@ class TestStagingMap:
 
     def test_get_by_pattern_game(self) -> None:
         entries = get_by_pattern("game")
-        assert len(entries) == 34
+        assert len(entries) == 35
 
     def test_get_by_pattern_player(self) -> None:
-        assert len(get_by_pattern("player")) == 55
+        assert len(get_by_pattern("player")) == 56
 
     def test_get_by_pattern_team(self) -> None:
         assert len(get_by_pattern("team")) == 25
@@ -153,9 +153,7 @@ class TestStagingMap:
         # gl_alum_box_score_similarity_score excluded: requires person1_id/person2_id
         _excluded = {"gl_alum_box_score_similarity_score"}
         extractor_only = sorted(
-            _extractor_endpoint_names()
-            - {e.endpoint_name for e in STAGING_MAP}
-            - _excluded
+            _extractor_endpoint_names() - {e.endpoint_name for e in STAGING_MAP} - _excluded
         )
         assert extractor_only == []
 

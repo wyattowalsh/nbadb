@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class AggLineupEfficiencyTransformer(BaseTransformer):
+class AggLineupEfficiencyTransformer(SqlTransformer):
     output_table: ClassVar[str] = "agg_lineup_efficiency"
     depends_on: ClassVar[list[str]] = ["fact_lineup_stats"]
 
@@ -24,6 +21,3 @@ class AggLineupEfficiencyTransformer(BaseTransformer):
         GROUP BY group_id, team_id, season_year
         ORDER BY season_year, avg_net_rating DESC
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

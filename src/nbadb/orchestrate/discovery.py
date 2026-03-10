@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
+_DISCOVERY_CONCURRENCY = 10
 
 
 async def _extract_with_retry(
@@ -25,7 +26,11 @@ async def _extract_with_retry(
     label: str,
     **kwargs: object,
 ) -> pl.DataFrame:
-    """Extract with retries and inter-call delay for rate limiting."""
+    """Extract with retries and inter-call delay for rate limiting.
+
+    Uses ``asyncio.to_thread`` + ``_sync_extract`` so the synchronous
+    nba_api call does not block the event loop.
+    """
     import polars as pl
 
     for attempt in range(1, _RETRY_ATTEMPTS + 1):
@@ -75,37 +80,48 @@ class EntityDiscovery:
 
         Returns (game_ids, raw_df). The raw_df is also usable as
         stg_league_game_log (dual purpose -- avoids re-extraction).
+
+        Seasons are fetched concurrently (up to ``_DISCOVERY_CONCURRENCY``
+        in-flight at once). Each season failure is isolated -- it does not
+        cancel the remaining seasons.
         """
         import polars as pl
 
         extractor_cls = self._registry.get("league_game_log")
-        extractor = extractor_cls()
 
         if on_progress is not None:
             on_progress.start_pattern(f"game discovery ({len(seasons)} seasons)", len(seasons))
 
-        frames: list[pl.DataFrame] = []
-        for season in seasons:
-            logger.info("discovering game IDs for season {}", season)
-            try:
-                _assign_proxy(extractor, self._proxy_pool)
-                df = await _extract_with_retry(
-                    extractor,
-                    f"league_game_log({season})",
-                    season=season,
-                )
-                if not df.is_empty():
-                    frames.append(df)
-                if on_progress is not None:
-                    on_progress.advance_pattern(success=True)
-            except Exception as exc:
-                logger.error(
-                    "failed to extract game log for {}: {}",
-                    season,
-                    type(exc).__name__,
-                )
-                if on_progress is not None:
-                    on_progress.advance_pattern(success=False)
+        semaphore = asyncio.Semaphore(_DISCOVERY_CONCURRENCY)
+
+        async def _fetch_season(season: str) -> pl.DataFrame | None:
+            async with semaphore:
+                logger.info("discovering game IDs for season {}", season)
+                extractor = extractor_cls()
+                try:
+                    _assign_proxy(extractor, self._proxy_pool)
+                    df = await _extract_with_retry(
+                        extractor,
+                        f"league_game_log({season})",
+                        season=season,
+                    )
+                    if on_progress is not None:
+                        on_progress.advance_pattern(success=True)
+                    if not df.is_empty():
+                        return df
+                    return None
+                except Exception as exc:
+                    logger.error(
+                        "failed to extract game log for {}: {}",
+                        season,
+                        type(exc).__name__,
+                    )
+                    if on_progress is not None:
+                        on_progress.advance_pattern(success=False)
+                    return None
+
+        results = await asyncio.gather(*[_fetch_season(s) for s in seasons])
+        frames: list[pl.DataFrame] = [df for df in results if df is not None]
 
         if not frames:
             logger.warning("no game log data returned")

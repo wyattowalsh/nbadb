@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class FactPlayerGameMiscTransformer(BaseTransformer):
+class FactPlayerGameMiscTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_player_game_misc"
     depends_on: ClassVar[list[str]] = [
         "stg_box_score_misc",
@@ -22,13 +19,13 @@ class FactPlayerGameMiscTransformer(BaseTransformer):
             m.player_id,
             m.team_id,
             m.pts_off_tov,
-            m.pts_2nd_chance,
-            m.pts_fb,
-            m.pts_paint,
+            m.pts_2nd_chance AS second_chance_pts,
+            m.pts_fb AS fbps,
+            m.pts_paint AS pitp,
             m.opp_pts_off_tov,
-            m.opp_pts_2nd_chance,
-            m.opp_pts_fb,
-            m.opp_pts_paint,
+            m.opp_pts_2nd_chance AS opp_second_chance_pts,
+            m.opp_pts_fb AS opp_fbps,
+            m.opp_pts_paint AS opp_pitp,
             s.pct_fga_2pt,
             s.pct_fga_3pt,
             s.pct_pts_2pt,
@@ -65,6 +62,3 @@ class FactPlayerGameMiscTransformer(BaseTransformer):
         LEFT JOIN stg_box_score_usage u
             ON m.game_id = u.game_id AND m.player_id = u.player_id
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

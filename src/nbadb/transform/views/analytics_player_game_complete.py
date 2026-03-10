@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class AnalyticsPlayerGameCompleteTransformer(BaseTransformer):
+class AnalyticsPlayerGameCompleteTransformer(SqlTransformer):
     output_table: ClassVar[str] = "analytics_player_game_complete"
     depends_on: ClassVar[list[str]] = [
         "fact_player_game_traditional",
@@ -41,15 +38,16 @@ class AnalyticsPlayerGameCompleteTransformer(BaseTransformer):
             a.ast_pct, a.ast_ratio, a.reb_pct, a.oreb_pct, a.dreb_pct,
             a.efg_pct, a.ts_pct, a.pace, a.pie,
             -- misc
-            m.pts_off_tov, m.pts_2nd_chance, m.pts_fb, m.pts_paint,
-            m.usg_pct,
+            m.pts_off_tov, m.second_chance_pts, m.fbps, m.pitp,
+            -- advanced
+            a.usg_pct,
             -- hustle
             h.contested_shots, h.deflections,
             h.loose_balls_recovered, h.charges_drawn,
             h.screen_assists,
             -- tracking
-            k.dist_miles, k.speed, k.touches, k.passes,
-            k.contested_shots_defended, k.dfg_pct
+            k.dist, k.spd, k.tchs, k.passes,
+            k.dfg_pct
         FROM fact_player_game_traditional t
         LEFT JOIN fact_player_game_advanced a
             ON t.player_id = a.player_id AND t.game_id = a.game_id
@@ -64,6 +62,3 @@ class AnalyticsPlayerGameCompleteTransformer(BaseTransformer):
         LEFT JOIN dim_team tm ON t.team_id = tm.team_id
         ORDER BY g.game_date, t.player_id
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

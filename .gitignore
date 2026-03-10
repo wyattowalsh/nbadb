@@ -57,6 +57,13 @@ artifacts/
 coverage.json
 COVERAGE_METRICS.json
 
+# Credentials & secrets
+credentials.json
+*.pem
+*.key
+kaggle.json
+service-account*.json
+
 # AI agent / tool state
 .claude/
 .gemini/

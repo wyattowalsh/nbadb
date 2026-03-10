@@ -210,7 +210,9 @@ def _run_pipeline(
                 typer.echo(f"\n{mode}: forced shutdown", err=True)
                 raise SystemExit(1)
             shutdown_requested = True
-            typer.echo(f"\n{mode}: shutting down gracefully (press Ctrl+C again to force)...", err=True)
+            typer.echo(
+                f"\n{mode}: shutting down gracefully (press Ctrl+C again to force)...", err=True
+            )
             try:
                 loop = asyncio.get_running_loop()
                 for task in asyncio.all_tasks(loop):
@@ -228,7 +230,9 @@ def _run_pipeline(
                 try:
                     result = asyncio.run(run_fn(orch))  # type: ignore[arg-type]
                 except (asyncio.CancelledError, KeyboardInterrupt):
-                    typer.echo(f"\n{mode}: stopped — progress saved in journal (resume-safe)", err=True)
+                    typer.echo(
+                        f"\n{mode}: stopped — progress saved in journal (resume-safe)", err=True
+                    )
                     raise typer.Exit(0) from None
                 except Exception as exc:
                     typer.echo(f"{mode} failed: {type(exc).__name__}", err=True)

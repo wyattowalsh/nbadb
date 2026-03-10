@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class AggPlayerRollingTransformer(BaseTransformer):
+class AggPlayerRollingTransformer(SqlTransformer):
     output_table: ClassVar[str] = "agg_player_rolling"
     depends_on: ClassVar[list[str]] = ["fact_player_game_traditional", "dim_game"]
 
@@ -35,6 +32,3 @@ class AggPlayerRollingTransformer(BaseTransformer):
                     ROWS BETWEEN 19 PRECEDING AND CURRENT ROW)
         ORDER BY t.player_id, g.game_date
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

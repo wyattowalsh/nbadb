@@ -64,7 +64,7 @@ def test_agg_shot_zones_has_dim_game_dependency():
 
 
 def test_agg_player_season_per48_output_table():
-    from nbadb.transform.derived.agg_player_season_per100 import (
+    from nbadb.transform.derived.agg_player_season_per48 import (
         AggPlayerSeasonPer48Transformer,
     )
 

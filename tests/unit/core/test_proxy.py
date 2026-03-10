@@ -119,6 +119,7 @@ class TestFromSettings:
         from nbadb.core.config import NbaDbSettings
 
         settings = NbaDbSettings(
+            _env_file=None,
             proxy_enabled=True,
             proxy_bootstrap=True,
             proxy_urls=[],
@@ -140,6 +141,7 @@ class TestFromSettings:
         from nbadb.core.config import NbaDbSettings
 
         settings = NbaDbSettings(
+            _env_file=None,
             proxy_enabled=True,
             proxy_bootstrap=True,
             proxy_use_all_sources=True,
@@ -161,6 +163,7 @@ class TestFromSettings:
         from nbadb.core.config import NbaDbSettings
 
         settings = NbaDbSettings(
+            _env_file=None,
             proxy_enabled=True,
             proxy_bootstrap=True,
             proxy_use_all_sources=False,
@@ -234,6 +237,7 @@ class TestBuildProxyPool:
         from nbadb.core.proxy import build_proxy_pool
 
         settings = NbaDbSettings(
+            _env_file=None,
             proxy_enabled=True,
             proxy_bootstrap=True,
             proxy_urls=[],
@@ -248,6 +252,7 @@ class TestBuildProxyPool:
         from nbadb.core.proxy import build_proxy_pool
 
         settings = NbaDbSettings(
+            _env_file=None,
             proxy_enabled=True,
             proxy_bootstrap=False,
             proxy_urls=[],

@@ -44,18 +44,22 @@ permissions:
   actions: write
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   extract:
     runs-on: ubuntu-latest
     timeout-minutes: 350  # ~5h50m, leaves margin before 6hr hard limit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.12"
 
@@ -64,7 +68,7 @@ jobs:
       # ── Restore state from previous iteration ──
       - name: Restore extraction state
         id: restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: nbadb/
           key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}
@@ -72,8 +76,11 @@ jobs:
             ${{ env.CACHE_KEY }}-
 
       - name: Show iteration info
+        env:
+          ITERATION: ${{ inputs.iteration }}
+          MAX_ITERATIONS: ${{ inputs.max_iterations }}
         run: |
-          echo "::notice::Iteration ${{ inputs.iteration }} of max ${{ inputs.max_iterations }}"
+          echo "::notice::Iteration $ITERATION of max $MAX_ITERATIONS"
           if [ -f nbadb/nba.sqlite ]; then
             echo "::notice::Resuming from cached state"
             ls -lh nbadb/ 2>/dev/null || true
@@ -135,8 +142,11 @@ jobs:
 
       # ── Configure environment ──
       - name: Configure extraction environment
+        env:
+          USE_PROXY: ${{ inputs.use_proxy }}
+          CONCURRENCY: ${{ inputs.concurrency }}
         run: |
-          if [ "${{ inputs.use_proxy }}" = "true" ]; then
+          if [ "$USE_PROXY" = "true" ]; then
             echo 'NBADB_PROXY_ENABLED=true' >> $GITHUB_ENV
             echo 'NBADB_PROXY_BOOTSTRAP=false' >> $GITHUB_ENV
             echo 'NBADB_PROXY_URLS=["http://localhost:18881","http://localhost:18882","http://localhost:18883","http://localhost:18884","http://localhost:18885","http://localhost:18886"]' >> $GITHUB_ENV
@@ -144,7 +154,7 @@ jobs:
             echo 'NBADB_PROXY_ENABLED=false' >> $GITHUB_ENV
           fi
 
-          case "${{ inputs.concurrency }}" in
+          case "$CONCURRENCY" in
             conservative)
               echo 'NBADB_SEMAPHORE_TIERS={"box_score": 10, "play_by_play": 5, "game_log": 15, "player_info": 10, "default": 10}' >> $GITHUB_ENV
               ;;
@@ -159,12 +169,17 @@ jobs:
       # ── Run extraction with timeout guard ──
       - name: Run full extraction
         id: extract
+        env:
+          SEASON_START: ${{ inputs.season_start }}
+          SEASON_END: ${{ inputs.season_end }}
         run: |
           # Kill extraction 10 min before job timeout to allow save/chain
+          set +e
           timeout 20400 uv run nbadb init \
-            --season-start ${{ inputs.season_start }} \
-            --season-end ${{ inputs.season_end }} || true
+            --season-start "$SEASON_START" \
+            --season-end "$SEASON_END"
           exit_code=$?
+          set -e
 
           # timeout returns 124 on timeout, nbadb returns 1 on partial failure
           if [ "$exit_code" -eq 0 ]; then
@@ -177,7 +192,7 @@ jobs:
       # ── Save state ──
       - name: Save extraction state
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: nbadb/
           key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}-${{ github.run_id }}
@@ -185,7 +200,7 @@ jobs:
       # ── Upload artifacts every iteration ──
       - name: Upload extraction artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: nbadb-extraction-iter-${{ inputs.iteration }}
           path: |
@@ -201,9 +216,15 @@ jobs:
         if: steps.extract.outputs.status == 'incomplete'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ITERATION: ${{ inputs.iteration }}
+          MAX_ITERATIONS: ${{ inputs.max_iterations }}
+          USE_PROXY: ${{ inputs.use_proxy }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+          SEASON_START: ${{ inputs.season_start }}
+          SEASON_END: ${{ inputs.season_end }}
         run: |
-          current=${{ inputs.iteration }}
-          max=${{ inputs.max_iterations }}
+          current=$ITERATION
+          max=$MAX_ITERATIONS
           next=$((current + 1))
 
           if [ "$next" -gt "$max" ]; then
@@ -214,17 +235,19 @@ jobs:
 
           echo "::notice::Extraction incomplete — triggering iteration $next/$max"
           gh workflow run full-extraction.yml \
-            -f use_proxy=${{ inputs.use_proxy }} \
-            -f concurrency=${{ inputs.concurrency }} \
-            -f season_start=${{ inputs.season_start }} \
-            -f season_end=${{ inputs.season_end }} \
-            -f iteration=$next \
-            -f max_iterations=$max
+            -f use_proxy="$USE_PROXY" \
+            -f concurrency="$CONCURRENCY" \
+            -f season_start="$SEASON_START" \
+            -f season_end="$SEASON_END" \
+            -f iteration="$next" \
+            -f max_iterations="$max"
 
       - name: Extraction complete
         if: steps.extract.outputs.status == 'complete'
+        env:
+          ITERATION: ${{ inputs.iteration }}
         run: |
-          echo "::notice::🏆 Full extraction complete on iteration ${{ inputs.iteration }}!"
+          echo "::notice::Full extraction complete on iteration $ITERATION!"
           ls -lh nbadb/ 2>/dev/null || true
 
       - name: Upload to Kaggle

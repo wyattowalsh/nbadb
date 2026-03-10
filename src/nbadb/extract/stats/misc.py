@@ -10,7 +10,9 @@ from nba_api.stats.endpoints import (
     DunkScoreLeaders,
     GLAlumBoxScoreSimilarityScore,
     GravityLeaders,
+    InfographicFanDuelPlayer,
     LeagueGameFinder,
+    PlayerFantasyProfileBarGraph,
     TeamGameStreakFinder,
 )
 
@@ -143,4 +145,31 @@ class GravityLeadersExtractor(BaseExtractor):
             GravityLeaders,
             season=season,
             season_type_all_star=season_type,
+        )
+
+
+@registry.register
+class InfographicFanDuelPlayerExtractor(BaseExtractor):
+    endpoint_name = "infographic_fanduel_player"
+    category = "misc"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        game_id: str = params["game_id"]
+        return self._from_nba_api(InfographicFanDuelPlayer, game_id=game_id)
+
+
+@registry.register
+class PlayerFantasyProfileBarGraphExtractor(BaseExtractor):
+    endpoint_name = "player_fantasy_profile"
+    category = "misc"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "2024-25")
+        season_type: str = params.get("season_type", "")
+        return self._from_nba_api(
+            PlayerFantasyProfileBarGraph,
+            player_id=player_id,
+            season=season,
+            season_type_all_star_nullable=season_type,
         )

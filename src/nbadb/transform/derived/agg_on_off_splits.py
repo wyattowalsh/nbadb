@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class AggOnOffSplitsTransformer(BaseTransformer):
+class AggOnOffSplitsTransformer(SqlTransformer):
     output_table: ClassVar[str] = "agg_on_off_splits"
     depends_on: ClassVar[list[str]] = [
         "stg_team_dashboard_on_off",
@@ -37,6 +34,3 @@ class AggOnOffSplitsTransformer(BaseTransformer):
         FROM stg_team_dashboard_on_off
         ORDER BY season_year, entity_type, entity_id
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

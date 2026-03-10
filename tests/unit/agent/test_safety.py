@@ -95,8 +95,59 @@ def test_blocks_empty_query(guard: ReadOnlyGuard) -> None:
 def test_wrap_with_limit_adds_limit(guard: ReadOnlyGuard) -> None:
     result = guard.wrap_with_limit("SELECT * FROM t")
     assert "LIMIT" in result
+    assert result.startswith("SELECT * FROM (")
+    assert "_limited" in result
 
 
-def test_wrap_with_limit_preserves_existing(guard: ReadOnlyGuard) -> None:
+def test_wrap_with_limit_always_wraps(guard: ReadOnlyGuard) -> None:
+    """Even if the inner query has LIMIT, the outer wrapper enforces the cap."""
     result = guard.wrap_with_limit("SELECT * FROM t LIMIT 5")
-    assert result.count("LIMIT") == 1
+    assert "_limited" in result
+    assert result.endswith("LIMIT 10000")
+
+
+def test_wrap_with_limit_cte(guard: ReadOnlyGuard) -> None:
+    """CTE queries are safely wrapped with an outer LIMIT."""
+    sql = "WITH cte AS (SELECT 1) SELECT * FROM cte"
+    result = guard.wrap_with_limit(sql)
+    assert result.startswith("SELECT * FROM (")
+    assert "_limited" in result
+
+
+# ---------------------------------------------------------------------------
+# INFRA-004: SQL comment bypass
+# ---------------------------------------------------------------------------
+
+
+def test_blocks_write_hidden_in_block_comment(guard: ReadOnlyGuard) -> None:
+    """Block comments must not hide write keywords."""
+    result = guard.validate("SELECT /* DROP TABLE dim_player */ 1")
+    assert result is None, "Benign query with comment should pass"
+
+
+def test_blocks_drop_outside_block_comment(guard: ReadOnlyGuard) -> None:
+    result = guard.validate("SELECT 1; /* harmless */ DROP TABLE dim_player")
+    assert result is not None
+    assert "Write operation" in result
+
+
+def test_blocks_write_in_line_comment(guard: ReadOnlyGuard) -> None:
+    result = guard.validate("SELECT 1 -- DROP TABLE\nFROM dim_player")
+    assert result is None, "Write keyword inside line comment should be ignored"
+
+
+def test_blocks_actual_drop_after_line_comment(guard: ReadOnlyGuard) -> None:
+    result = guard.validate("SELECT 1 -- safe\n; DROP TABLE dim_player")
+    assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# INFRA-004: Unicode normalization
+# ---------------------------------------------------------------------------
+
+
+def test_blocks_fullwidth_drop(guard: ReadOnlyGuard) -> None:
+    """Fullwidth 'DROP' (U+FF24 etc.) must be caught after NFKC normalization."""
+    fullwidth_drop = "\uff24\uff32\uff2f\uff30"  # DROP in fullwidth
+    result = guard.validate(f"SELECT 1; {fullwidth_drop} TABLE dim_player")
+    assert result is not None

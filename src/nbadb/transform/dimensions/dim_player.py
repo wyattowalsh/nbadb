@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class DimPlayerTransformer(BaseTransformer):
+class DimPlayerTransformer(SqlTransformer):
     output_table: ClassVar[str] = "dim_player"
     depends_on: ClassVar[list[str]] = ["stg_player_info"]
 
-    _SCD2_SQL: ClassVar[str] = """
+    _SQL: ClassVar[str] = """
         WITH versioned AS (
             SELECT
                 player_id,
@@ -82,6 +79,3 @@ class DimPlayerTransformer(BaseTransformer):
         FROM changes
         ORDER BY player_sk
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SCD2_SQL).pl()

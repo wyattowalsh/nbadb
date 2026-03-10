@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class AnalyticsHeadToHeadTransformer(BaseTransformer):
+class AnalyticsHeadToHeadTransformer(SqlTransformer):
     output_table: ClassVar[str] = "analytics_head_to_head"
     depends_on: ClassVar[list[str]] = [
         "fact_team_game",
@@ -49,6 +46,3 @@ class AnalyticsHeadToHeadTransformer(BaseTransformer):
                  t1.abbreviation, t2.abbreviation
         ORDER BY m.season_year, t1.abbreviation, wins DESC
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

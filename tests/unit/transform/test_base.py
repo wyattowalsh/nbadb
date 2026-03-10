@@ -5,7 +5,7 @@ from typing import ClassVar
 import polars as pl
 import pytest
 
-from nbadb.transform.base import BaseTransformer
+from nbadb.transform.base import BaseTransformer, SqlTransformer
 
 
 class _StubTransformer(BaseTransformer):
@@ -45,3 +45,56 @@ class TestBaseTransformer:
     def test_abstract_cannot_instantiate(self) -> None:
         with pytest.raises(TypeError):
             BaseTransformer()  # type: ignore[abstract]
+
+
+class _TestSqlTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "test_sql"
+    depends_on: ClassVar[list[str]] = []
+    _SQL: ClassVar[str] = "SELECT 1 AS val"
+
+
+class TestSqlTransformer:
+    def test_executes_sql(self) -> None:
+        import duckdb
+
+        conn = duckdb.connect()
+        t = _TestSqlTransformer()
+        t._conn = conn
+        result = t.transform({})
+        assert result["val"].to_list() == [1]
+        conn.close()
+
+    def test_missing_sql_raises(self) -> None:
+        import duckdb
+
+        class _NoSql(SqlTransformer):
+            output_table: ClassVar[str] = "no_sql"
+            depends_on: ClassVar[list[str]] = []
+
+        conn = duckdb.connect()
+        t = _NoSql()
+        t._conn = conn
+        with pytest.raises(NotImplementedError, match="must define a non-empty _SQL"):
+            t.transform({})
+        conn.close()
+
+    def test_is_not_abstract(self) -> None:
+        """SqlTransformer with _SQL set can be instantiated directly."""
+        t = _TestSqlTransformer()
+        assert t.output_table == "test_sql"
+
+    def test_run_delegates_to_transform(self) -> None:
+        import duckdb
+
+        conn = duckdb.connect()
+        t = _TestSqlTransformer()
+        t._conn = conn
+        result = t.run({})
+        assert result.shape == (1, 1)
+        conn.close()
+
+    def test_conn_property_used(self) -> None:
+        """Without injection, transform raises RuntimeError via .conn."""
+        t = _TestSqlTransformer()
+        with pytest.raises(RuntimeError, match="No DuckDB connection injected"):
+            t.transform({})

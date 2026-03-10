@@ -31,6 +31,11 @@ class NbaDbSettings(BaseSettings):
 
     daily_lookback_days: int = 7
     pbp_chunk_size: int = 500
+    default_chunk_size: int = 500
+    thread_pool_size: int = 32
+    rate_limit: float = 10.0  # max requests per second (global across all patterns)
+    adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff
+    adaptive_rate_recovery: int = 50  # consecutive successes before rate recovery
 
     sqlite_path: Path | None = None
     duckdb_path: Path | None = None
@@ -49,14 +54,6 @@ class NbaDbSettings(BaseSettings):
     proxy_max_retries: int = 3
     proxy_use_all_sources: bool = True
     proxy_semaphore_multiplier: float = 1.0
-
-    # ── strategic migration scaffolding (placeholders only) ─────────
-    strategic_track_ingestion_v2_enabled: bool = False
-    strategic_track_storage_v2_enabled: bool = False
-    strategic_track_schema_v2_enabled: bool = False
-    strategic_track_serving_v2_enabled: bool = False
-    strategic_phase_1_shadow_mode_enabled: bool = False
-    strategic_phase_2_dual_write_enabled: bool = False
 
     @model_validator(mode="after")
     def _default_db_paths(self) -> NbaDbSettings:

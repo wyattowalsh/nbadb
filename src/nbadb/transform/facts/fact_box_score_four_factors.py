@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class FactBoxScoreFourFactorsTransformer(BaseTransformer):
+class FactBoxScoreFourFactorsTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_box_score_four_factors"
     depends_on: ClassVar[list[str]] = ["stg_box_score_four_factors_player"]
 
@@ -26,6 +23,3 @@ class FactBoxScoreFourFactorsTransformer(BaseTransformer):
         FROM stg_box_score_four_factors_player
         ORDER BY game_id, team_id, player_id
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

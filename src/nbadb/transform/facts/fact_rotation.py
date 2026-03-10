@@ -1,27 +1,29 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class FactRotationTransformer(BaseTransformer):
+class FactRotationTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_rotation"
-    depends_on: ClassVar[list[str]] = ["stg_rotation"]
+    depends_on: ClassVar[list[str]] = ["stg_rotation_away", "stg_rotation_home"]
 
     _SQL: ClassVar[str] = """
         SELECT
-            game_id, team_id, player_id,
-            team_side,
-            in_period, in_time_remaining,
-            out_period, out_time_remaining,
-            player_pts, pt_diff
-        FROM stg_rotation
-        ORDER BY game_id, team_id, in_period, in_time_remaining DESC
+            game_id,
+            team_id,
+            person_id AS player_id,
+            in_time_real,
+            out_time_real,
+            player_pts AS pts,
+            pt_diff AS pts_diff,
+            usg_pct,
+            side
+        FROM (
+            SELECT *, 'away' AS side FROM stg_rotation_away
+            UNION ALL
+            SELECT *, 'home' AS side FROM stg_rotation_home
+        )
+        ORDER BY game_id, team_id, in_time_real
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class AggShotZonesTransformer(BaseTransformer):
+class AggShotZonesTransformer(SqlTransformer):
     output_table: ClassVar[str] = "agg_shot_zones"
     depends_on: ClassVar[list[str]] = ["fact_shot_chart", "dim_game"]
 
@@ -29,6 +26,3 @@ class AggShotZonesTransformer(BaseTransformer):
                  s.zone_basic, s.zone_area, s.zone_range
         ORDER BY g.season_year, s.player_id, s.zone_basic
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

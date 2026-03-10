@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class FactPlayerEstimatedMetricsTransformer(BaseTransformer):
+class FactPlayerEstimatedMetricsTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_player_estimated_metrics"
     depends_on: ClassVar[list[str]] = ["stg_player_tracking"]
 
@@ -35,11 +32,8 @@ class FactPlayerEstimatedMetricsTransformer(BaseTransformer):
         ORDER BY season_year, player_id
     """
 
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()
 
-
-class FactTeamEstimatedMetricsTransformer(BaseTransformer):
+class FactTeamEstimatedMetricsTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_team_estimated_metrics"
     depends_on: ClassVar[list[str]] = ["stg_team_dashboard_estimated"]
 
@@ -63,6 +57,3 @@ class FactTeamEstimatedMetricsTransformer(BaseTransformer):
         FROM stg_team_dashboard_estimated t
         ORDER BY season_year, team_id
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

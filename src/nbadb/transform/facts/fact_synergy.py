@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class FactSynergyTransformer(BaseTransformer):
+class FactSynergyTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_synergy"
     depends_on: ClassVar[list[str]] = ["stg_synergy"]
 
@@ -25,6 +22,3 @@ class FactSynergyTransformer(BaseTransformer):
         FROM stg_synergy
         ORDER BY season_year, entity_type, player_id, play_type
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

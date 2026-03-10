@@ -45,22 +45,6 @@ class FactRotationSchema(BaseSchema):
             "description": ("Check-out time (tenths of sec)"),
         },
     )
-    in_period: int | None = pa.Field(
-        nullable=True,
-        gt=0,
-        metadata={
-            "source": ("GameRotation.HomeTeam.IN_PERIOD"),
-            "description": ("Period when player checked in"),
-        },
-    )
-    out_period: int | None = pa.Field(
-        nullable=True,
-        gt=0,
-        metadata={
-            "source": ("GameRotation.HomeTeam.OUT_PERIOD"),
-            "description": ("Period when player checked out"),
-        },
-    )
     pts: int | None = pa.Field(
         nullable=True,
         ge=0,
@@ -88,11 +72,5 @@ class FactRotationSchema(BaseSchema):
         metadata={
             "source": "derived.side",
             "description": ("Home or away designation"),
-        },
-    )
-    season_year: str = pa.Field(
-        metadata={
-            "source": "derived.season_year",
-            "description": ("Season year (e.g. 2024-25)"),
         },
     )

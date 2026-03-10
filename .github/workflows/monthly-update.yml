@@ -5,16 +5,23 @@ on:
     - cron: "0 8 1 * *"  # 8 AM UTC on 1st of month
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   monthly:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.12"
       - run: uv sync
@@ -23,7 +30,7 @@ jobs:
           output_path="${GITHUB_WORKSPACE}/artifacts/health/monthly/dependency-inventory.json"
           uv run python -m nbadb.core.dependency_inventory --project-root "${GITHUB_WORKSPACE}" --output "$output_path"
       - name: Upload monthly health inventory artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: monthly-health-inventory
           path: artifacts/health/monthly/dependency-inventory.json
@@ -38,7 +45,7 @@ jobs:
           uv run nbadb export
           uv run nbadb upload
       - name: Upload monthly data quality artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: monthly-data-quality-report
           path: artifacts/health/monthly/data-quality-report.json

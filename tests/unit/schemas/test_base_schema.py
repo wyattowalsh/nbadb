@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import pandera.polars as pa
 import polars as pl
-import pytest
-from pandera.errors import SchemaError
 
 from nbadb.schemas.base import BaseSchema
 
@@ -17,15 +15,15 @@ class TestBaseSchema:
     def test_coerce_enabled(self) -> None:
         assert _TestSchema.Config.coerce is True
 
-    def test_strict_enabled(self) -> None:
-        assert _TestSchema.Config.strict is True
+    def test_strict_disabled_for_two_tier(self) -> None:
+        assert _TestSchema.Config.strict is False
 
     def test_valid_data_passes(self) -> None:
         df = pl.DataFrame({"name": ["a", "b"], "value": [1, 2]})
         result = _TestSchema.validate(df)
         assert result.shape == (2, 2)
 
-    def test_extra_columns_rejected(self) -> None:
+    def test_extra_columns_stripped_with_warning(self) -> None:
         df = pl.DataFrame(
             {
                 "name": ["a"],
@@ -33,5 +31,6 @@ class TestBaseSchema:
                 "extra": [True],
             }
         )
-        with pytest.raises(SchemaError):
-            _TestSchema.validate(df)
+        result = _TestSchema.validate(df)
+        assert "extra" not in result.columns
+        assert result.shape == (1, 2)

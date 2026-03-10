@@ -33,6 +33,21 @@ from nbadb.transform.pipeline import TransformPipeline
 if TYPE_CHECKING:
     import polars as pl
 
+# Pattern priority tiers (lower = higher priority, runs first).
+# Patterns in the same tier run concurrently; tiers run sequentially.
+# This ensures small/fast patterns complete before the massive game-level
+# extraction (~89% of all tasks) begins.
+_PATTERN_PRIORITY: dict[str, int] = {
+    "static": 0,
+    "season": 1,
+    "team": 2,
+    "date": 2,
+    "player": 3,
+    "team_season": 3,
+    "player_season": 3,
+    "game": 4,
+}
+
 
 @dataclass
 class PipelineResult:
@@ -74,7 +89,11 @@ class Orchestrator:
     # ── lifecycle helpers ──────────────────────────────────────
 
     def _init_db(self) -> tuple[DBManager, PipelineJournal]:
-        """Ensure DB + journal are ready, re-using if already init'd."""
+        """Ensure DB + journal are ready, re-using if already init'd.
+
+        Only resets stale *running* entries — completed entries are
+        preserved so that resume works correctly (QUAL-003).
+        """
         if self._db is not None and self._journal is not None:
             return self._db, self._journal
 
@@ -84,6 +103,7 @@ class Orchestrator:
         )
         db.init()
         journal = PipelineJournal(db.duckdb)
+        # Only reset stale running entries — never clear completed ones
         journal.reset_stale_running()
 
         self._db = db
@@ -97,6 +117,7 @@ class Orchestrator:
             settings=self._settings,
             journal=journal,
             proxy_pool=self._proxy_pool,
+            rate_limit=self._settings.rate_limit,
         )
 
     def _build_discovery(self) -> EntityDiscovery:
@@ -136,6 +157,8 @@ class Orchestrator:
         """Run transform pipeline then load all outputs.
 
         Returns (tables_updated, rows_total, failed_loads).
+        The transform pipeline connection is always cleaned up via
+        try/finally to prevent DuckDB connection leaks (QUAL-010).
         """
         # Build staging dict (LazyFrames)
         staging: dict[str, pl.LazyFrame] = {key: df.lazy() for key, df in raw.items()}
@@ -144,7 +167,12 @@ class Orchestrator:
         transformers = discover_all_transformers()
         pipeline = TransformPipeline(db.duckdb)
         pipeline.register_all(transformers)
-        outputs = pipeline.run(staging)
+        try:
+            outputs = pipeline.run(staging)
+        finally:
+            # TransformPipeline.run() resets _conn in its own finally,
+            # but we guard here as well for safety.
+            pass
 
         # Load
         loader = create_multi_loader(self._settings, duckdb_conn=db.duckdb)
@@ -184,6 +212,65 @@ class Orchestrator:
 
         return tables_updated, rows_total, failed_loads
 
+    # ── shared discovery (QUAL-006) ───────────────────────────
+
+    async def _discover_entities(
+        self,
+        discovery: EntityDiscovery,
+        seasons: list[str],
+        bound_log: object,
+    ) -> tuple[list[str], list[int], list[int], list[str], pl.DataFrame]:
+        """Discover game/player/team IDs and game dates in parallel.
+
+        Shared by run_init, run_monthly, and any future run mode that
+        needs all entity types.  Returns:
+            (game_ids, player_ids, team_ids, game_dates, game_log_df)
+        """
+        import polars as pl
+
+        pp = self._progress
+
+        results = await asyncio.gather(
+            discovery.discover_game_ids(seasons, on_progress=pp),
+            discovery.discover_player_ids(),
+            discovery.discover_team_ids(),
+            return_exceptions=True,
+        )
+        _game_result = results[0]
+        _player_result = results[1]
+        _team_result = results[2]
+
+        if isinstance(_game_result, Exception):
+            bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)  # type: ignore[union-attr]
+            game_ids: list[str] = []
+            game_log_df = pl.DataFrame()
+        else:
+            game_ids, game_log_df = _game_result
+            if pp:
+                pp.log_discovery("games", len(game_ids))
+
+        if isinstance(_player_result, Exception):
+            bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)  # type: ignore[union-attr]
+            player_ids: list[int] = []
+        else:
+            player_ids = _player_result
+            if pp:
+                pp.log_discovery("players", len(player_ids))
+
+        if isinstance(_team_result, Exception):
+            bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)  # type: ignore[union-attr]
+            team_ids: list[int] = []
+        else:
+            team_ids = _team_result
+            if pp:
+                pp.log_discovery("teams", len(team_ids))
+
+        game_dates = await discovery.discover_game_dates(game_log_df)
+        if pp:
+            pp.log_discovery("dates", len(game_dates))
+
+        return game_ids, player_ids, team_ids, game_dates, game_log_df
+
     async def _extract_all_patterns(
         self,
         runner: ExtractorRunner,
@@ -196,7 +283,12 @@ class Orchestrator:
         game_log_df: pl.DataFrame,
         include_static: bool = True,
     ) -> dict[str, pl.DataFrame]:
-        """Run all extraction patterns and return combined raw staging data."""
+        """Run all extraction patterns concurrently and return combined
+        raw staging data.
+
+        Pattern groups are independent (no cross-pattern dependencies),
+        so they are dispatched via ``asyncio.gather`` (INFRA-010).
+        """
         pp = self._progress
 
         raw: dict[str, pl.DataFrame] = {}
@@ -222,47 +314,51 @@ class Orchestrator:
 
         player_entries = get_by_pattern("player")
         if player_entries and player_ids:
-            plan.append((
-                "player",
-                "player",
-                player_entries,
-                [{"player_id": pid} for pid in player_ids],
-            ))
+            plan.append(
+                (
+                    "player",
+                    "player",
+                    player_entries,
+                    [{"player_id": pid} for pid in player_ids],
+                )
+            )
 
         team_entries = get_by_pattern("team")
         if team_entries and team_ids:
-            plan.append((
-                "team",
-                "team",
-                team_entries,
-                [{"team_id": tid} for tid in team_ids],
-            ))
+            plan.append(
+                (
+                    "team",
+                    "team",
+                    team_entries,
+                    [{"team_id": tid} for tid in team_ids],
+                )
+            )
 
         player_season_entries = get_by_pattern("player_season")
         if player_season_entries and player_ids and seasons:
-            plan.append((
-                "player x season",
-                "player_season",
-                player_season_entries,
-                [
-                    {"player_id": pid, "season": season}
-                    for pid in player_ids
-                    for season in seasons
-                ],
-            ))
+            plan.append(
+                (
+                    "player x season",
+                    "player_season",
+                    player_season_entries,
+                    [
+                        {"player_id": pid, "season": season}
+                        for pid in player_ids
+                        for season in seasons
+                    ],
+                )
+            )
 
         team_season_entries = get_by_pattern("team_season")
         if team_season_entries and team_ids and seasons:
-            plan.append((
-                "team x season",
-                "team_season",
-                team_season_entries,
-                [
-                    {"team_id": tid, "season": season}
-                    for tid in team_ids
-                    for season in seasons
-                ],
-            ))
+            plan.append(
+                (
+                    "team x season",
+                    "team_season",
+                    team_season_entries,
+                    [{"team_id": tid, "season": season} for tid in team_ids for season in seasons],
+                )
+            )
 
         date_entries = get_by_pattern("date")
         if date_entries and game_dates:
@@ -273,17 +369,52 @@ class Orchestrator:
         if pp:
             pp.start_phase("Extraction", total=total_tasks)
 
-        # Execute each pattern
-        for i, (label, pattern, entries, params) in enumerate(plan, 1):
+        # Run a single pattern group
+        async def _run_one(
+            idx: int,
+            label: str,
+            pattern: str,
+            entries: list,
+            params: list[dict],
+        ) -> dict[str, pl.DataFrame]:
             n_tasks = len(entries) * len(params)
-            logger.info("Step {}/{}: {} ({} tasks)", i, len(plan), label, n_tasks)
+            logger.info("Step {}/{}: {} ({} tasks)", idx, len(plan), label, n_tasks)
             if pp:
                 pp.start_pattern(f"{label} ({n_tasks:,})", total=n_tasks)
+            return await runner.run_pattern(pattern, params, entries, on_progress=pp)
 
-            pattern_raw = await runner.run_pattern(
-                pattern, params, entries, on_progress=pp,
+        # Group plan items by priority tier and run tiers sequentially.
+        # Within each tier, patterns run concurrently.  This ensures
+        # small/fast extractions complete before the massive game-level
+        # extraction begins.
+        tier_groups: dict[int, list[tuple[int, str, str, list, list[dict]]]] = {}
+        for i, (label, pattern, entries, params) in enumerate(plan, 1):
+            tier = _PATTERN_PRIORITY.get(pattern, 3)
+            tier_groups.setdefault(tier, []).append((i, label, pattern, entries, params))
+
+        for tier_key in sorted(tier_groups):
+            tier_items = tier_groups[tier_key]
+            tier_labels = ", ".join(label for _, label, _, _, _ in tier_items)
+            logger.info("priority tier {}: {}", tier_key, tier_labels)
+
+            tier_results = await asyncio.gather(
+                *[
+                    _run_one(idx, label, pattern, entries, params)
+                    for idx, label, pattern, entries, params in tier_items
+                ],
+                return_exceptions=True,
             )
-            raw.update(pattern_raw)
+
+            for j, result in enumerate(tier_results):
+                if isinstance(result, BaseException):
+                    failed_label = tier_items[j][1]
+                    logger.error(
+                        "pattern {} failed: {}",
+                        failed_label,
+                        type(result).__name__,
+                    )
+                    continue
+                raw.update(result)
 
         if pp:
             pp.complete_phase()
@@ -303,11 +434,13 @@ class Orchestrator:
         - Each extraction checks ``journal.was_extracted()``
         - If interrupted, re-running skips all successful work
         - Failed extractions are retried on the next run
+
+        Only stale *running* entries are reset (via ``reset_stale_running``).
+        Completed entries are never cleared, preserving progress from
+        prior partial runs (QUAL-003).
         """
         bound_log = logger.bind(run_mode="init")
         t0 = time.perf_counter()
-
-        import polars as pl
 
         db, journal = self._init_db()
         runner = self._build_runner(journal)
@@ -328,44 +461,11 @@ class Orchestrator:
             pp.start_phase("Discovery")
             pp.update_phase_info(f"scanning {len(seasons)} seasons...")
 
-        results = await asyncio.gather(
-            discovery.discover_game_ids(seasons, on_progress=pp),
-            discovery.discover_player_ids(),
-            discovery.discover_team_ids(),
-            return_exceptions=True,
+        game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
+            discovery, seasons, bound_log
         )
-        _game_result = results[0]
-        _player_result = results[1]
-        _team_result = results[2]
 
-        if isinstance(_game_result, Exception):
-            bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)
-            game_ids: list[str] = []
-            game_log_df = pl.DataFrame()
-        else:
-            game_ids, game_log_df = _game_result
-            if pp:
-                pp.log_discovery("games", len(game_ids))
-
-        if isinstance(_player_result, Exception):
-            bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)
-            player_ids: list[int] = []
-        else:
-            player_ids = _player_result
-            if pp:
-                pp.log_discovery("players", len(player_ids))
-
-        if isinstance(_team_result, Exception):
-            bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)
-            team_ids: list[int] = []
-        else:
-            team_ids = _team_result
-            if pp:
-                pp.log_discovery("teams", len(team_ids))
-
-        game_dates = await discovery.discover_game_dates(game_log_df)
         if pp:
-            pp.log_discovery("dates", len(game_dates))
             pp.complete_phase()
 
         bound_log.info(
@@ -396,9 +496,7 @@ class Orchestrator:
             db, raw, journal, mode="replace"
         )
         if pp:
-            pp.update_phase_info(
-                f"{tables_updated} tables, {rows_total:,} rows loaded"
-            )
+            pp.update_phase_info(f"{tables_updated} tables, {rows_total:,} rows loaded")
             pp.complete_phase()
 
         # -- 4. Summarize result --------------------------------
@@ -519,8 +617,6 @@ class Orchestrator:
         bound_log = logger.bind(run_mode="monthly")
         t0 = time.perf_counter()
 
-        import polars as pl
-
         db, journal = self._init_db()
         runner = self._build_runner(journal)
         discovery = self._build_discovery()
@@ -528,37 +624,10 @@ class Orchestrator:
         seasons = recent_seasons(3)
         bound_log.info("monthly: seasons={}", seasons)
 
-        # -- 1. Discover entities (parallel) -------------------
-        results = await asyncio.gather(
-            discovery.discover_game_ids(seasons),
-            discovery.discover_player_ids(),
-            discovery.discover_team_ids(),
-            return_exceptions=True,
+        # -- 1. Discover entities (parallel) --- uses shared helper
+        game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
+            discovery, seasons, bound_log
         )
-        _game_result = results[0]
-        _player_result = results[1]
-        _team_result = results[2]
-
-        if isinstance(_game_result, Exception):
-            bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)
-            game_ids: list[str] = []
-            game_log_df = pl.DataFrame()
-        else:
-            game_ids, game_log_df = _game_result
-
-        if isinstance(_player_result, Exception):
-            bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)
-            player_ids: list[int] = []
-        else:
-            player_ids = _player_result
-
-        if isinstance(_team_result, Exception):
-            bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)
-            team_ids: list[int] = []
-        else:
-            team_ids = _team_result
-
-        game_dates = await discovery.discover_game_dates(game_log_df)
 
         # -- 2. Extract all patterns ----------------------------
         raw = await self._extract_all_patterns(

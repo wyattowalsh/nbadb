@@ -51,6 +51,10 @@ class TestPipelineTables:
         "_extraction_journal",
         "_pipeline_metadata",
         "_pipeline_metrics",
+        "_transform_checkpoints",
+        "_transform_metrics",
+        "_schema_versions",
+        "_schema_version_history",
     }
 
     def test_pipeline_tables_created(self, initialized_db):
@@ -65,7 +69,7 @@ class TestPipelineTables:
             "SELECT table_name FROM information_schema.tables"
             " WHERE table_name LIKE '\\_%' ESCAPE '\\'"
         ).fetchall()
-        assert len(rows) == 4
+        assert len(rows) == len(self.EXPECTED_TABLES)
 
 
 class TestSession:

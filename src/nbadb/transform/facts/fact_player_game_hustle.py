@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class FactPlayerGameHustleTransformer(BaseTransformer):
+class FactPlayerGameHustleTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_player_game_hustle"
     depends_on: ClassVar[list[str]] = ["stg_box_score_hustle"]
 
@@ -22,6 +19,3 @@ class FactPlayerGameHustleTransformer(BaseTransformer):
         FROM stg_box_score_hustle
         WHERE player_id IS NOT NULL
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

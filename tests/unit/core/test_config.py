@@ -21,15 +21,6 @@ class TestNbaDbSettingsDefaults:
     def test_default_proxy_disabled(self) -> None:
         assert NbaDbSettings(_env_file=None).proxy_enabled is False
 
-    def test_default_strategic_flags_disabled(self) -> None:
-        settings = NbaDbSettings()
-        assert settings.strategic_track_ingestion_v2_enabled is False
-        assert settings.strategic_track_storage_v2_enabled is False
-        assert settings.strategic_track_schema_v2_enabled is False
-        assert settings.strategic_track_serving_v2_enabled is False
-        assert settings.strategic_phase_1_shadow_mode_enabled is False
-        assert settings.strategic_phase_2_dual_write_enabled is False
-
     def test_default_db_paths_validator(self) -> None:
         settings = NbaDbSettings()
         assert settings.sqlite_path == Path("nbadb") / "nba.sqlite"

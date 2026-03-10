@@ -24,6 +24,11 @@ def _mock_settings():
     s.pbp_chunk_size = 50
     s.proxy_urls = []
     s.daily_lookback_days = 7
+    s.default_chunk_size = 500
+    s.thread_pool_size = 4
+    s.rate_limit = 10.0
+    s.adaptive_rate_min = 1.0
+    s.adaptive_rate_recovery = 50
     return s
 
 
@@ -213,6 +218,54 @@ class TestTransformAndLoad:
 
 
 class TestExtractAllPatterns:
+    def test_patterns_run_in_priority_order(self):
+        """Patterns execute in priority tiers: static/season before game."""
+        orch, db, journal = _build_orchestrator_with_mocks()
+        runner = MagicMock()
+        call_order: list[str] = []
+
+        async def track_pattern(pattern, params, entries, on_progress=None):
+            call_order.append(pattern)
+            return {}
+
+        runner.run_pattern = AsyncMock(side_effect=track_pattern)
+
+        static_entries = [MagicMock(endpoint_name="league_standings")]
+        season_entries = [MagicMock(endpoint_name="league_game_log")]
+        season_entries[0].endpoint_name = "common_team_roster"
+        game_entries = [MagicMock(endpoint_name="box_score_traditional")]
+
+        def _entries(pattern: str):
+            mapping = {
+                "static": static_entries,
+                "season": season_entries,
+                "game": game_entries,
+                "player": [],
+                "team": [],
+                "date": [],
+                "player_season": [],
+                "team_season": [],
+            }
+            return mapping.get(pattern, [])
+
+        with patch(_GET_BY_PATTERN, side_effect=_entries):
+            asyncio.run(
+                orch._extract_all_patterns(
+                    runner,
+                    seasons=["2024-25"],
+                    game_ids=["0022400001"],
+                    player_ids=[],
+                    team_ids=[],
+                    game_dates=[],
+                    game_log_df=pl.DataFrame(),
+                )
+            )
+
+        # Static (tier 0) must come before season (tier 1) which must
+        # come before game (tier 4)
+        assert call_order.index("static") < call_order.index("season")
+        assert call_order.index("season") < call_order.index("game")
+
     def test_extracts_player_team_season_cross_product_patterns(self):
         orch, db, journal = _build_orchestrator_with_mocks()
         runner = MagicMock()

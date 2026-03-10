@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class FactDraftTransformer(BaseTransformer):
+class FactDraftTransformer(SqlTransformer):
     output_table: ClassVar[str] = "fact_draft"
     depends_on: ClassVar[list[str]] = ["stg_draft", "stg_draft_combine"]
 
@@ -42,6 +39,3 @@ class FactDraftTransformer(BaseTransformer):
             ON d.person_id = c.player_id AND d.season = c.season
         ORDER BY d.season, d.overall_pick
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SQL).pl()

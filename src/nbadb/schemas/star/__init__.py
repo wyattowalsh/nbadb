@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from nbadb.schemas.star.bridge_game_official import BridgeGameOfficialSchema
+from nbadb.schemas.star.bridge_game_team import BridgeGameTeamSchema
+from nbadb.schemas.star.bridge_lineup_player import BridgeLineupPlayerSchema
 from nbadb.schemas.star.bridge_play_player import BridgePlayPlayerSchema
+from nbadb.schemas.star.bridge_player_team_season import BridgePlayerTeamSeasonSchema
 from nbadb.schemas.star.dim_arena import DimArenaSchema
 from nbadb.schemas.star.dim_coach import DimCoachSchema
 from nbadb.schemas.star.dim_college import DimCollegeSchema
@@ -44,7 +47,10 @@ from nbadb.schemas.star.fact_win_probability import FactWinProbabilitySchema
 
 __all__ = [
     "BridgeGameOfficialSchema",
+    "BridgeGameTeamSchema",
+    "BridgeLineupPlayerSchema",
     "BridgePlayPlayerSchema",
+    "BridgePlayerTeamSeasonSchema",
     "DimArenaSchema",
     "DimCoachSchema",
     "DimCollegeSchema",

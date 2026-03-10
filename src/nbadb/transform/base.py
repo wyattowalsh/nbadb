@@ -35,3 +35,20 @@ class BaseTransformer(ABC):
         df = self.transform(staging)
         logger.info(f"{self.output_table}: {df.shape[0]} rows, {df.shape[1]} cols")
         return df
+
+
+class SqlTransformer(BaseTransformer):
+    """Base for transformers that execute a single SQL query.
+
+    Define ``_SQL`` as a ClassVar and the ``transform`` method is provided
+    automatically.  There is no need to override ``transform()``.
+    """
+
+    _SQL: ClassVar[str] = ""
+
+    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+        if not self._SQL:
+            raise NotImplementedError(
+                f"{type(self).__name__} must define a non-empty _SQL ClassVar"
+            )
+        return self.conn.execute(self._SQL).pl()

@@ -105,6 +105,49 @@ class DBManager:
                 PRIMARY KEY (endpoint, run_timestamp)
             )
         """)
+        self._duckdb_conn.execute("""
+            CREATE TABLE IF NOT EXISTS _transform_checkpoints (
+                run_id VARCHAR NOT NULL,
+                table_name VARCHAR NOT NULL,
+                completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                row_count BIGINT,
+                PRIMARY KEY (run_id, table_name)
+            )
+        """)
+        self._duckdb_conn.execute("""
+            CREATE TABLE IF NOT EXISTS _schema_versions (
+                table_name VARCHAR NOT NULL,
+                version INT NOT NULL DEFAULT 1,
+                column_hash VARCHAR NOT NULL,
+                columns_json VARCHAR NOT NULL,
+                recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (table_name)
+            )
+        """)
+        self._duckdb_conn.execute("""
+            CREATE TABLE IF NOT EXISTS _schema_version_history (
+                table_name VARCHAR NOT NULL,
+                version INT NOT NULL,
+                column_hash VARCHAR NOT NULL,
+                columns_json VARCHAR NOT NULL,
+                recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (table_name, version)
+            )
+        """)
+        self._duckdb_conn.execute("""
+            CREATE TABLE IF NOT EXISTS _transform_metrics (
+                run_id VARCHAR NOT NULL,
+                table_name VARCHAR NOT NULL,
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                duration_seconds FLOAT,
+                row_count BIGINT,
+                column_count INT,
+                status VARCHAR NOT NULL DEFAULT 'success',
+                error_message VARCHAR,
+                PRIMARY KEY (run_id, table_name)
+            )
+        """)
 
     @property
     def engine(self) -> Engine:

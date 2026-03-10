@@ -756,6 +756,10 @@ STAGING_MAP: list[StagingEntry] = [
         "static",
     ),
     StagingEntry("draft_board", "stg_draft_board", "season"),
+    # Game-level — FanDuel infographic per player per game
+    StagingEntry("infographic_fanduel_player", "stg_fanduel_player", "game"),
+    # Player-level — Fantasy profile bar graph
+    StagingEntry("player_fantasy_profile", "stg_player_fantasy_profile", "player"),
 ]
 
 

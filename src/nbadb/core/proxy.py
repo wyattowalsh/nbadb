@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
 if TYPE_CHECKING:
     from nbadb.core.config import NbaDbSettings
+
+# Pattern to redact credentials from URLs like socks5h://user:pass@host:port
+_CRED_RE = re.compile(r"(://)[^@]+@")
+
+
+def _redact_url(url: str) -> str:
+    """Replace credentials in a proxy URL with ***."""
+    return _CRED_RE.sub(r"\1***:***@", url)
 
 
 class SimpleProxyRotator:
@@ -33,6 +42,15 @@ class SimpleProxyRotator:
     def size(self) -> int:
         """Number of proxies in the rotator."""
         return len(self._urls)
+
+    def __repr__(self) -> str:
+        """Redact credentials from proxy URLs in repr output."""
+        redacted = [_redact_url(u) for u in self._urls]
+        return f"SimpleProxyRotator(urls={redacted!r})"
+
+    def __str__(self) -> str:
+        """Redact credentials from proxy URLs in str output."""
+        return self.__repr__()
 
 
 class ProxyPool:
@@ -91,7 +109,17 @@ class ProxyPool:
             logger.info("proxy pool ready: {} explicit proxies", pool.size)
         elif settings.proxy_bootstrap:
             logger.info("proxy pool: running bootstrap discovery...")
-            whirl._bootstrap_pool_if_empty()
+            # RISK: _bootstrap_pool_if_empty is a private proxywhirl API.
+            # It may be removed or renamed in future versions. If the private
+            # API changes, we fall back to get_proxy() which triggers lazy
+            # bootstrapping internally.
+            try:
+                whirl._bootstrap_pool_if_empty()
+            except AttributeError:
+                logger.warning(
+                    "proxywhirl private API changed (_bootstrap_pool_if_empty removed); "
+                    "bootstrap will happen lazily on first proxy request"
+                )
             logger.info("proxy pool ready: {} bootstrapped proxies", pool.size)
         return pool
 
@@ -99,14 +127,31 @@ class ProxyPool:
         """Return the next proxy URL string, or None if pool empty."""
         from proxywhirl import ProxyPoolEmptyError
 
+        # RISK: _select_proxy_with_circuit_breaker is a private proxywhirl API.
+        # If the private API changes, we fall back to the public get_proxy() method.
         try:
             proxy = self._whirl._select_proxy_with_circuit_breaker()
             return proxy.url
+        except AttributeError:
+            logger.warning(
+                "proxywhirl private API changed (_select_proxy_with_circuit_breaker removed); "
+                "falling back to public get_proxy()"
+            )
+            return self._get_proxy_public_api()
         except ProxyPoolEmptyError:
             logger.debug("proxy pool empty, falling back to direct")
             return None
         except Exception as exc:
             logger.warning("proxy selection failed: {}", type(exc).__name__)
+            return None
+
+    def _get_proxy_public_api(self) -> str | None:
+        """Fallback: use the public get_proxy() API if private methods are removed."""
+        try:
+            proxy = self._whirl.get_proxy()
+            return proxy.url if proxy else None
+        except Exception as exc:
+            logger.warning("proxy public API fallback failed: {}", type(exc).__name__)
             return None
 
     @property
@@ -128,10 +173,7 @@ _NORDVPN_SOCKS5_HOSTS = [
 
 def _build_socks5_urls(user: str, password: str) -> list[str]:
     """Construct SOCKS5 proxy URLs from credentials and NordVPN hosts."""
-    return [
-        f"socks5h://{user}:{password}@{host}:1080"
-        for host in _NORDVPN_SOCKS5_HOSTS
-    ]
+    return [f"socks5h://{user}:{password}@{host}:1080" for host in _NORDVPN_SOCKS5_HOSTS]
 
 
 def build_proxy_pool(settings: NbaDbSettings) -> SimpleProxyRotator | ProxyPool | None:

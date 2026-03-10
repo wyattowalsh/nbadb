@@ -184,6 +184,7 @@ def test_analytics_player_game_complete():
             "ts_pct": [0.6],
             "pace": [100.0],
             "pie": [0.15],
+            "usg_pct": [0.28],
         }
     )
     fact_misc = pl.DataFrame(
@@ -191,10 +192,9 @@ def test_analytics_player_game_complete():
             "player_id": [101],
             "game_id": [1001],
             "pts_off_tov": [5],
-            "pts_2nd_chance": [4],
-            "pts_fb": [6],
-            "pts_paint": [10],
-            "usg_pct": [0.28],
+            "second_chance_pts": [4],
+            "fbps": [6],
+            "pitp": [10],
         }
     )
     fact_hustle = pl.DataFrame(
@@ -212,11 +212,10 @@ def test_analytics_player_game_complete():
         {
             "player_id": [101],
             "game_id": [1001],
-            "dist_miles": [2.5],
-            "speed": [4.3],
-            "touches": [60],
+            "dist": [2.5],
+            "spd": [4.3],
+            "tchs": [60],
             "passes": [40],
-            "contested_shots_defended": [5],
             "dfg_pct": [0.42],
         }
     )
@@ -389,8 +388,8 @@ def test_analytics_team_season_summary():
             "wins": [52],
             "losses": [30],
             "win_pct": [0.634],
-            "conference_rank": [3],
-            "division_rank": [2],
+            "conf_rank": [3],
+            "div_rank": [2],
             "home_record": ["30-11"],
             "road_record": ["22-19"],
             "last_ten": ["7-3"],

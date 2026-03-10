@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
-from nbadb.orchestrate.extractor_runner import ExtractorRunner, _assign_proxy
+from nbadb.orchestrate.extractor_runner import ExtractorRunner, _AdaptiveThrottle, _assign_proxy
 from nbadb.orchestrate.staging_map import StagingEntry
 
 # ---------------------------------------------------------------------------
@@ -51,6 +51,10 @@ def _make_settings(**overrides):
     s.semaphore_tiers = {"default": 5}
     s.proxy_semaphore_multiplier = 2.0
     s.pbp_chunk_size = 50
+    s.default_chunk_size = 500
+    s.thread_pool_size = 4
+    s.adaptive_rate_min = 1.0
+    s.adaptive_rate_recovery = 50
     for k, v in overrides.items():
         setattr(s, k, v)
     return s
@@ -309,3 +313,104 @@ class TestRunnerProxy:
 
         sem = runner._get_semaphore("default")
         assert sem._value == 15
+
+
+# ---------------------------------------------------------------------------
+# _AdaptiveThrottle tests
+# ---------------------------------------------------------------------------
+
+
+class TestAdaptiveThrottle:
+    def test_initial_rate_equals_base(self):
+        t = _AdaptiveThrottle(base_rate=10.0)
+        assert t.current_rate == 10.0
+
+    def test_failure_reduces_rate(self):
+        t = _AdaptiveThrottle(base_rate=10.0, min_rate=1.0)
+        new_rate = t.record_failure()
+        assert new_rate is not None
+        assert new_rate < 10.0
+        assert t.current_rate == pytest.approx(7.0, abs=0.01)
+
+    def test_multiple_failures_converge_to_min(self):
+        t = _AdaptiveThrottle(base_rate=10.0, min_rate=1.0)
+        for _ in range(50):
+            t.record_failure()
+        assert t.current_rate == pytest.approx(1.0, abs=0.01)
+
+    def test_recovery_after_sustained_success(self):
+        t = _AdaptiveThrottle(base_rate=10.0, min_rate=1.0, recovery_threshold=5)
+        # Drive rate down
+        for _ in range(5):
+            t.record_failure()
+        low_rate = t.current_rate
+        assert low_rate < 10.0
+        # Recover
+        for _ in range(5):
+            t.record_success()
+        assert t.current_rate > low_rate
+
+    def test_recovery_does_not_exceed_base_rate(self):
+        t = _AdaptiveThrottle(base_rate=10.0, min_rate=1.0, recovery_threshold=3)
+        # Small dip then lots of recovery
+        t.record_failure()
+        for _ in range(100):
+            t.record_success()
+        assert t.current_rate <= 10.0
+
+    def test_failure_resets_consecutive_success(self):
+        t = _AdaptiveThrottle(base_rate=10.0, min_rate=1.0, recovery_threshold=5)
+        t.record_failure()  # drop rate
+        for _ in range(4):
+            t.record_success()
+        rate_before = t.current_rate
+        t.record_failure()  # resets consecutive counter
+        for _ in range(4):
+            t.record_success()
+        # Should NOT have recovered since we never hit 5 consecutive
+        assert t.current_rate <= rate_before
+
+    def test_no_rate_change_returns_none_on_success(self):
+        t = _AdaptiveThrottle(base_rate=10.0, recovery_threshold=50)
+        # At base rate, no change expected
+        result = t.record_success()
+        assert result is None
+
+
+class TestAdaptiveThrottleIntegration:
+    @pytest.mark.asyncio
+    async def test_runner_backs_off_on_failure(self):
+        """Verify the runner replaces its rate limiter after extraction failure."""
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(adaptive_rate_recovery=5)
+        registry = _make_registry(_make_extractor(exc=TimeoutError("boom")))
+        runner = ExtractorRunner(registry, settings, journal, rate_limit=10.0)
+
+        original_limiter = runner._rate_limiter
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        await runner._extract_single(entry, {"season": "2024-25"})
+
+        # Rate limiter should have been replaced with a slower one
+        assert runner._rate_limiter is not original_limiter
+        assert runner._adaptive.current_rate < 10.0
+
+    @pytest.mark.asyncio
+    async def test_runner_recovers_after_sustained_success(self):
+        """Verify the runner increases rate after consecutive successes."""
+        df = pl.DataFrame({"a": [1]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(adaptive_rate_recovery=3)
+        registry = _make_registry(_make_extractor(df=df))
+        runner = ExtractorRunner(registry, settings, journal, rate_limit=10.0)
+
+        # First: drive rate down
+        runner._adaptive.record_failure()
+        runner._adaptive.record_failure()
+        low_rate = runner._adaptive.current_rate
+
+        # Now: run 3 successful extractions to trigger recovery
+        for i in range(3):
+            entry = StagingEntry(f"ep{i}", f"stg_ep{i}", "season")
+            await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert runner._adaptive.current_rate > low_rate
