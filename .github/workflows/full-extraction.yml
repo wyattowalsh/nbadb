@@ -156,22 +156,22 @@ jobs:
               ;;
           esac
 
-      # ── Run extraction ──
+      # ── Run extraction with timeout guard ──
       - name: Run full extraction
         id: extract
         run: |
-          set +e
-          uv run nbadb init \
+          # Kill extraction 10 min before job timeout to allow save/chain
+          timeout 20400 uv run nbadb init \
             --season-start ${{ inputs.season_start }} \
-            --season-end ${{ inputs.season_end }}
+            --season-end ${{ inputs.season_end }} || true
           exit_code=$?
 
+          # timeout returns 124 on timeout, nbadb returns 1 on partial failure
           if [ "$exit_code" -eq 0 ]; then
             echo "status=complete" >> $GITHUB_OUTPUT
           else
             echo "status=incomplete" >> $GITHUB_OUTPUT
           fi
-          # Always succeed so we can save state and chain
           exit 0
 
       # ── Save state ──
