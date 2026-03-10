@@ -157,14 +157,23 @@ jobs:
           case "$CONCURRENCY" in
             conservative)
               echo 'NBADB_SEMAPHORE_TIERS={"box_score": 10, "play_by_play": 5, "game_log": 15, "player_info": 10, "default": 10}' >> $GITHUB_ENV
+              echo 'NBADB_RATE_LIMIT=10' >> $GITHUB_ENV
               ;;
             moderate)
               echo 'NBADB_SEMAPHORE_TIERS={"box_score": 30, "play_by_play": 15, "game_log": 50, "player_info": 30, "default": 25}' >> $GITHUB_ENV
+              echo 'NBADB_RATE_LIMIT=60' >> $GITHUB_ENV
               ;;
             aggressive)
               echo 'NBADB_SEMAPHORE_TIERS={"box_score": 100, "play_by_play": 50, "game_log": 150, "player_info": 100, "default": 75}' >> $GITHUB_ENV
+              echo 'NBADB_RATE_LIMIT=120' >> $GITHUB_ENV
               ;;
           esac
+
+          # Scale concurrency for proxy fleet (6 proxies)
+          if [ "$USE_PROXY" = "true" ]; then
+            echo 'NBADB_PROXY_SEMAPHORE_MULTIPLIER=3' >> $GITHUB_ENV
+            echo 'NBADB_THREAD_POOL_SIZE=64' >> $GITHUB_ENV
+          fi
 
       # ── Run extraction with timeout guard ──
       - name: Run full extraction
