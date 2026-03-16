@@ -3,7 +3,7 @@ from __future__ import annotations
 import typer
 
 from nbadb.cli.app import app
-from nbadb.cli.commands._helpers import _build_settings, _open_db_readonly
+from nbadb.cli.commands._helpers import _build_settings
 from nbadb.cli.options import DataDirOption, FormatOption  # noqa: TC001
 
 
@@ -22,7 +22,9 @@ def export(
         typer.echo("Database not found. Run 'nbadb init' first.")
         raise typer.Exit(1)
 
-    conn = _open_db_readonly(db_path)
+    import duckdb
+
+    conn = duckdb.connect(str(db_path))
 
     try:
         from nbadb.core.db import get_user_tables
@@ -32,7 +34,7 @@ def export(
             typer.echo("No tables found to export.")
             raise typer.Exit(1)
 
-        loader = create_multi_loader(settings)
+        loader = create_multi_loader(settings, duckdb_conn=conn)
         exported = 0
         for table in tables:
             try:

@@ -13,13 +13,32 @@ class KaggleClient:
         self._dataset = self._settings.kaggle_dataset
 
     def download(self, target_dir: Path | None = None) -> Path:
-        """Download latest dataset from Kaggle."""
+        """Download latest dataset from Kaggle and copy to data dir."""
+        import shutil
+
         import kagglehub
 
         path = kagglehub.dataset_download(self._dataset)
         download_path = Path(path)
         logger.info(f"Downloaded dataset to {download_path}")
-        return download_path
+
+        dest = Path(target_dir) if target_dir else self._settings.data_dir
+        dest.mkdir(parents=True, exist_ok=True)
+
+        # Copy downloaded files into the working data directory
+        copied = 0
+        for src_file in download_path.iterdir():
+            if src_file.is_file():
+                shutil.copy2(src_file, dest / src_file.name)
+                copied += 1
+            elif src_file.is_dir():
+                dst_sub = dest / src_file.name
+                if dst_sub.exists():
+                    shutil.rmtree(dst_sub)
+                shutil.copytree(src_file, dst_sub)
+                copied += 1
+        logger.info(f"Copied {copied} items from Kaggle cache to {dest}")
+        return dest
 
     def upload(
         self,

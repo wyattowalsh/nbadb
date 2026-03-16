@@ -20,12 +20,16 @@ def _clear_settings_cache() -> None:
 
 class TestKaggleClientDownload:
     @patch("nbadb.kaggle.client.get_settings")
-    def test_download_returns_path(self, mock_settings: MagicMock, tmp_path: Path) -> None:
+    def test_download_copies_to_data_dir(self, mock_settings: MagicMock, tmp_path: Path) -> None:
+        data_dir = tmp_path / "data"
         mock_settings.return_value = NbaDbSettings(
-            data_dir=tmp_path / "data", log_dir=tmp_path / "logs"
+            data_dir=data_dir, log_dir=tmp_path / "logs"
         )
         download_dir = tmp_path / "downloaded"
         download_dir.mkdir()
+        # Simulate kagglehub cached files
+        (download_dir / "nba.duckdb").write_text("fake")
+        (download_dir / "nba.sqlite").write_text("fake")
 
         from nbadb.kaggle.client import KaggleClient
 
@@ -33,7 +37,9 @@ class TestKaggleClientDownload:
         with patch("kagglehub.dataset_download", return_value=str(download_dir)) as mock_dl:
             result = client.download()
             mock_dl.assert_called_once_with("wyattowalsh/basketball")
-            assert result == download_dir
+            assert result == data_dir
+            assert (data_dir / "nba.duckdb").exists()
+            assert (data_dir / "nba.sqlite").exists()
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_download_passes_dataset_handle(self, mock_settings: MagicMock, tmp_path: Path) -> None:
