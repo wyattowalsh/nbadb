@@ -30,12 +30,14 @@ class KaggleClient:
         for src_file in download_path.iterdir():
             if src_file.is_file():
                 shutil.copy2(src_file, dest / src_file.name)
+                logger.info(f"  copied file: {src_file.name} ({src_file.stat().st_size / 1_048_576:.1f} MB)")
                 copied += 1
             elif src_file.is_dir():
                 dst_sub = dest / src_file.name
                 if dst_sub.exists():
                     shutil.rmtree(dst_sub)
                 shutil.copytree(src_file, dst_sub)
+                logger.info(f"  copied dir: {src_file.name}/")
                 copied += 1
         logger.info(f"Copied {copied} items from Kaggle cache to {dest}")
         return dest

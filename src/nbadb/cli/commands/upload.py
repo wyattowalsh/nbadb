@@ -26,6 +26,6 @@ def upload(
         client.ensure_metadata(settings.data_dir)
         client.upload(settings.data_dir, version_notes=message)
     except Exception as exc:
-        typer.echo(f"Upload failed: {type(exc).__name__}", err=True)
+        typer.echo(f"Upload failed: {type(exc).__name__}: {exc}", err=True)
         raise typer.Exit(1) from exc
     typer.echo("Upload complete")
