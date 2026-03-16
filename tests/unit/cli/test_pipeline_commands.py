@@ -95,9 +95,18 @@ def test_init_season_end() -> None:
     mock_cls.return_value.run_init.assert_awaited_once_with(start_season=2020, end_season=2024)
 
 
-def test_init_partial_failure_exits_nonzero() -> None:
+def test_init_partial_failure_exits_zero_when_data_extracted() -> None:
     with patch(_INIT_PATH) as mock_cls:
         mock_cls.return_value.run_init = AsyncMock(return_value=_make_result(failed_extractions=5))
+        result = runner.invoke(app, ["init"])
+    assert result.exit_code == 0
+
+
+def test_init_complete_failure_exits_nonzero() -> None:
+    with patch(_INIT_PATH) as mock_cls:
+        mock_cls.return_value.run_init = AsyncMock(
+            return_value=_make_result(failed_extractions=5, tables_updated=0, rows_total=0)
+        )
         result = runner.invoke(app, ["init"])
     assert result.exit_code == 1
 

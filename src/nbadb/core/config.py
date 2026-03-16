@@ -36,6 +36,8 @@ class NbaDbSettings(BaseSettings):
     rate_limit: float = 10.0  # max requests per second (global across all patterns)
     adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff
     adaptive_rate_recovery: int = 50  # consecutive successes before rate recovery
+    extract_max_retries: int = 3  # per-extraction retry attempts for transient errors
+    extract_retry_base_delay: float = 2.0  # base delay in seconds (exponential backoff)
 
     sqlite_path: Path | None = None
     duckdb_path: Path | None = None

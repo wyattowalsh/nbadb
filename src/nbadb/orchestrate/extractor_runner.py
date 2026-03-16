@@ -348,6 +348,30 @@ class ExtractorRunner:
         """Set proxy URL on an extractor instance before extraction."""
         _assign_proxy(extractor, self._proxy_pool)
 
+    # Exception types that warrant a retry (transient network / rate-limit errors)
+    _RETRYABLE_ERRORS: tuple[type[Exception], ...] = ()
+
+    @staticmethod
+    def _is_retryable(exc: Exception) -> bool:
+        """Return True if the exception is transient and worth retrying."""
+        # Import-safe: check by name so we don't require requests at import time
+        name = type(exc).__name__
+        if name in (
+            "ReadTimeout",
+            "ConnectTimeout",
+            "ConnectionError",
+            "ConnectionResetError",
+            "JSONDecodeError",
+            "ChunkedEncodingError",
+            "RemoteDisconnected",
+        ):
+            return True
+        # KeyError / IndexError from nba_api when the API returns an error page
+        # instead of JSON — transient when caused by rate limiting
+        if name in ("KeyError", "IndexError"):
+            return True
+        return False
+
     async def _run_with_journal(
         self,
         endpoint_name: str,
@@ -355,11 +379,11 @@ class ExtractorRunner:
         *,
         fn: Callable,
     ) -> pl.DataFrame | list[pl.DataFrame] | None:
-        """Execute an extraction call with full journal tracking.
+        """Execute an extraction call with full journal tracking and retries.
 
         *fn* is a one-arg async-compatible callable ``fn(extractor)``
         that performs the actual extraction (params captured via
-        closure).  Returns ``None`` on failure.
+        closure).  Returns ``None`` on failure after all retries exhausted.
         """
         try:
             extractor_cls = self._registry.get(endpoint_name)
@@ -367,46 +391,77 @@ class ExtractorRunner:
             logger.warning("no extractor for endpoint: {}", endpoint_name)
             return None
 
-        extractor = extractor_cls()
-        self._prepare_extractor(extractor)
-        sem = self._get_semaphore(extractor.category)
+        max_retries = self._settings.extract_max_retries
+        base_delay = self._settings.extract_retry_base_delay
+        last_exc: Exception | None = None
 
         self._journal.record_start(endpoint_name, params_json)
         t0 = time.perf_counter()
 
-        try:
-            async with self._rate_limiter, sem:
-                result = await fn(extractor)
-        except Exception as exc:
-            duration = time.perf_counter() - t0
-            self._journal.record_failure(endpoint_name, params_json, type(exc).__name__)
-            self._journal.record_metric(endpoint_name, duration, 0, errors=1)
-            # Adaptive backoff on failure
-            new_rate = self._adaptive.record_failure()
-            if new_rate is not None:
-                self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
-                logger.warning("adaptive rate: backing off to {:.1f} req/s", new_rate)
-            logger.error(
-                "extract failed: {} [{}] -> {}",
-                endpoint_name,
-                params_json,
-                type(exc).__name__,
-            )
-            return None
+        for attempt in range(max_retries + 1):
+            extractor = extractor_cls()
+            self._prepare_extractor(extractor)
+            sem = self._get_semaphore(extractor.category)
 
+            try:
+                async with self._rate_limiter, sem:
+                    result = await fn(extractor)
+            except Exception as exc:
+                last_exc = exc
+                if attempt < max_retries and self._is_retryable(exc):
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "extract retry {}/{}: {} [{}] -> {} (backoff {:.1f}s)",
+                        attempt + 1,
+                        max_retries,
+                        endpoint_name,
+                        params_json,
+                        type(exc).__name__,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                # Non-retryable or retries exhausted
+                break
+            else:
+                # Success
+                duration = time.perf_counter() - t0
+                if isinstance(result, list):
+                    rows = sum(df.shape[0] for df in result if not df.is_empty())
+                else:
+                    rows = result.shape[0] if not result.is_empty() else 0
+                self._journal.record_success(endpoint_name, params_json, rows)
+                self._journal.record_metric(endpoint_name, duration, rows)
+                new_rate = self._adaptive.record_success()
+                if new_rate is not None:
+                    self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
+                    logger.info("adaptive rate: recovering to {:.1f} req/s", new_rate)
+                if attempt > 0:
+                    logger.info(
+                        "extract succeeded on retry {}: {} [{}]",
+                        attempt,
+                        endpoint_name,
+                        params_json,
+                    )
+                return result
+
+        # All retries exhausted
         duration = time.perf_counter() - t0
-        if isinstance(result, list):
-            rows = sum(df.shape[0] for df in result if not df.is_empty())
-        else:
-            rows = result.shape[0] if not result.is_empty() else 0
-        self._journal.record_success(endpoint_name, params_json, rows)
-        self._journal.record_metric(endpoint_name, duration, rows)
-        # Adaptive recovery on success
-        new_rate = self._adaptive.record_success()
+        exc_name = type(last_exc).__name__ if last_exc else "Unknown"
+        self._journal.record_failure(endpoint_name, params_json, exc_name)
+        self._journal.record_metric(endpoint_name, duration, 0, errors=1)
+        new_rate = self._adaptive.record_failure()
         if new_rate is not None:
             self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
-            logger.info("adaptive rate: recovering to {:.1f} req/s", new_rate)
-        return result
+            logger.warning("adaptive rate: backing off to {:.1f} req/s", new_rate)
+        logger.error(
+            "extract failed after {} attempts: {} [{}] -> {}",
+            max_retries + 1,
+            endpoint_name,
+            params_json,
+            exc_name,
+        )
+        return None
 
     async def _extract_single(
         self,

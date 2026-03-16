@@ -34,17 +34,47 @@ jobs:
         with:
           name: monthly-health-inventory
           path: artifacts/health/monthly/dependency-inventory.json
-      - name: Run monthly update
+      - name: Derive NordVPN service credentials
+        env:
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+        run: |
+          creds=$(curl -sf -u "token:$NORDVPN_TOKEN" \
+            https://api.nordvpn.com/v1/users/services/credentials)
+          user=$(echo "$creds" | jq -r .username)
+          pass=$(echo "$creds" | jq -r .password)
+          if [ -z "$user" ] || [ "$user" = "null" ]; then
+            echo "::warning::Failed to derive NordVPN credentials — running without proxy"
+          else
+            echo "::add-mask::$user"
+            echo "::add-mask::$pass"
+            echo "NBADB_PROXY_ENABLED=true" >> $GITHUB_ENV
+            echo "NBADB_PROXY_BOOTSTRAP=false" >> $GITHUB_ENV
+            echo "NBADB_PROXY_USER=$user" >> $GITHUB_ENV
+            echo "NBADB_PROXY_PASS=$pass" >> $GITHUB_ENV
+          fi
+      - name: Download latest from Kaggle
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: |
-          uv run nbadb download
-          uv run nbadb monthly
-          uv run nbadb run-quality --report-path artifacts/health/monthly/data-quality-report.json
-          uv run nbadb export
-          uv run nbadb upload
+        run: uv run nbadb download
+      - name: Run monthly extraction
+        id: monthly
+        continue-on-error: true
+        run: uv run nbadb monthly
+      - name: Run quality checks
+        if: always() && steps.monthly.outcome != 'skipped'
+        run: uv run nbadb run-quality --report-path artifacts/health/monthly/data-quality-report.json
+      - name: Export data
+        if: always() && steps.monthly.outcome != 'skipped'
+        run: uv run nbadb export
+      - name: Upload to Kaggle
+        if: always() && steps.monthly.outcome != 'skipped'
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: uv run nbadb upload
       - name: Upload monthly data quality artifact
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: monthly-data-quality-report

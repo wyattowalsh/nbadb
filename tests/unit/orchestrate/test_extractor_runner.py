@@ -55,6 +55,8 @@ def _make_settings(**overrides):
     s.thread_pool_size = 4
     s.adaptive_rate_min = 1.0
     s.adaptive_rate_recovery = 50
+    s.extract_max_retries = 0  # disable retries in unit tests by default
+    s.extract_retry_base_delay = 0.0
     for k, v in overrides.items():
         setattr(s, k, v)
     return s
@@ -134,6 +136,37 @@ class TestExtractSingle:
         error_msg = call_args[0][2]
         assert error_msg == "ConnectionError"
         assert "secret" not in error_msg
+
+    @pytest.mark.asyncio
+    async def test_retries_on_transient_error(self):
+        """Retry transient errors up to extract_max_retries times."""
+        call_count = 0
+        df = pl.DataFrame({"a": [1]})
+
+        class _FlakyExt:
+            endpoint_name = "ep1"
+            category = "default"
+            _proxy_url = None
+
+            async def extract(self, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count < 3:
+                    raise ConnectionError("transient")
+                return df
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(extract_max_retries=3, extract_retry_base_delay=0.0)
+        registry = MagicMock()
+        registry.get.return_value = _FlakyExt
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner._extract_single(entry, {"season": "2024-25"})
+        assert result is not None
+        assert call_count == 3  # 2 failures + 1 success
+        journal.record_success.assert_called_once()
+        journal.record_failure.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_unknown_endpoint_returns_none(self):

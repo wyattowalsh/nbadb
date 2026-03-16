@@ -243,6 +243,8 @@ def _run_pipeline(
 
     _print_result(mode, result)  # type: ignore[arg-type]
     if result.failed_extractions:  # type: ignore[union-attr]
-        raise typer.Exit(1)
+        if result.tables_updated == 0 and result.rows_total == 0:  # type: ignore[union-attr]
+            raise typer.Exit(1)  # Complete failure — nothing extracted
+        # Partial failure — data was extracted, continue with warnings already printed
     if quality_check:
         _run_quality_checks(settings)
