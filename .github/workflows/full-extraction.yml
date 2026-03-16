@@ -34,7 +34,6 @@ on:
 
 env:
   NBADB_DATA_DIR: nbadb
-  NBADB_FORMATS: '["duckdb","parquet"]'
   NBADB_PBP_CHUNK_SIZE: "1000"
   NBADB_PROXY_TIMEOUT: "30"
   # Shared cache key — persists across all iterations
@@ -258,6 +257,10 @@ jobs:
         run: |
           echo "::notice::Full extraction complete on iteration $ITERATION!"
           ls -lh nbadb/ 2>/dev/null || true
+
+      - name: Export all formats
+        if: steps.extract.outputs.status == 'complete'
+        run: uv run nbadb export
 
       - name: Upload to Kaggle
         if: steps.extract.outputs.status == 'complete'

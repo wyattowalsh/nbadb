@@ -40,7 +40,47 @@ class KaggleClient:
                 logger.info(f"  copied dir: {src_file.name}/")
                 copied += 1
         logger.info(f"Copied {copied} items from Kaggle cache to {dest}")
+
+        # Seed DuckDB from SQLite if no DuckDB was downloaded
+        duckdb_path = dest / "nba.duckdb"
+        sqlite_path = dest / "nba.sqlite"
+        if sqlite_path.exists() and not duckdb_path.exists():
+            self._seed_duckdb_from_sqlite(sqlite_path, duckdb_path)
+
         return dest
+
+    @staticmethod
+    def _seed_duckdb_from_sqlite(sqlite_path: Path, duckdb_path: Path) -> None:
+        """Import all tables from SQLite into a new DuckDB file."""
+        import duckdb
+
+        logger.info(f"Seeding DuckDB from {sqlite_path.name}...")
+        conn = duckdb.connect(str(duckdb_path))
+        try:
+            conn.execute("INSTALL sqlite; LOAD sqlite;")
+            conn.execute(
+                f"ATTACH '{sqlite_path}' AS sqlite_db (TYPE SQLITE, READ_ONLY)"
+            )
+            tables = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_db.sqlite_master WHERE type='table'"
+                ).fetchall()
+            ]
+            total_rows = 0
+            for table in tables:
+                conn.execute(
+                    f"CREATE TABLE IF NOT EXISTS {table} AS SELECT * FROM sqlite_db.{table}"
+                )
+                rows = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                total_rows += rows
+                logger.debug(f"  seeded {table}: {rows:,} rows")
+            conn.execute("DETACH sqlite_db")
+            logger.info(
+                f"Seeded DuckDB: {len(tables)} tables, {total_rows:,} rows total"
+            )
+        finally:
+            conn.close()
 
     def upload(
         self,
