@@ -99,7 +99,7 @@ class PipelineJournal:
             """,
             [now, rows, endpoint, params],
         )
-        logger.debug(
+        logger.info(
             "journal OK: {} [{}] -> {} rows",
             endpoint,
             params,
@@ -205,6 +205,41 @@ class PipelineJournal:
         if count:
             logger.info("reset {} stale running entries to failed", count)
         return count
+
+    def log_summary(self) -> None:
+        """Log a summary of extraction results at INFO level."""
+        row = self._conn.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'done') AS done,
+                COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+                COUNT(*) FILTER (WHERE status = 'running') AS running,
+                COALESCE(SUM(rows_extracted) FILTER (WHERE status = 'done'), 0) AS total_rows
+            FROM _extraction_journal
+            """
+        ).fetchone()
+        done, failed, running, total_rows = row
+        logger.info(
+            "extraction journal summary: {} done ({} rows), {} failed, {} running",
+            done,
+            total_rows,
+            failed,
+            running,
+        )
+        if failed > 0:
+            # Log top failure reasons
+            error_rows = self._conn.execute(
+                """
+                SELECT error_message, COUNT(*) AS cnt
+                FROM _extraction_journal
+                WHERE status = 'failed'
+                GROUP BY error_message
+                ORDER BY cnt DESC
+                LIMIT 10
+                """
+            ).fetchall()
+            for error_msg, cnt in error_rows:
+                logger.info("  failure: {} x{}", error_msg, cnt)
 
     def clear_journal(self) -> None:
         """Delete all journal entries (for fresh runs)."""

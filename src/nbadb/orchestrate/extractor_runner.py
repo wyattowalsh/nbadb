@@ -364,6 +364,8 @@ class ExtractorRunner:
             "JSONDecodeError",
             "ChunkedEncodingError",
             "RemoteDisconnected",
+            "ProxyError",
+            "TypeError",
         ):
             return True
         # KeyError / IndexError from nba_api when the API returns an error page

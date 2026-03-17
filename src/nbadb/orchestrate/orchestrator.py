@@ -517,6 +517,7 @@ class Orchestrator:
             result.failed_extractions,
             result.failed_loads,
         )
+        journal.log_summary()
         return result
 
     async def run_daily(self) -> PipelineResult:
@@ -786,4 +787,5 @@ class Orchestrator:
             result.duration_seconds,
             result.failed_extractions,
         )
+        journal.log_summary()
         return result

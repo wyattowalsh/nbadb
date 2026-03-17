@@ -12,6 +12,7 @@ class NbaDbSettings(BaseSettings):
         env_prefix="NBADB_",
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     data_dir: Path = Path("nbadb")
