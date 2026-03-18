@@ -2,7 +2,14 @@
   "name": "nbadb-docs",
   "private": true,
   "engines": {
-    "node": ">=18.18"
+    "node": "22"
+  },
+  "prettier": {
+    "semi": true,
+    "singleQuote": false,
+    "tabWidth": 2,
+    "trailingComma": "all",
+    "printWidth": 80
   },
   "scripts": {
     "dev": "next dev",
