@@ -1,6 +1,0 @@
-{
-    "[python]": {
-        "editor.defaultFormatter": "eeyore.yapf"
-    },
-    "python.formatting.provider": "none"
-}
