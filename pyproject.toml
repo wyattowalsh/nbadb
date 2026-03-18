@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "nbadb"
 version = "4.0.0"
-description = "Comprehensive NBA database: 131 endpoints → star schema → SQLite + DuckDB + Parquet + CSV"
+description = "Comprehensive NBA database: 130 endpoints → star schema → SQLite + DuckDB + Parquet + CSV"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
@@ -56,6 +56,9 @@ Homepage = "https://github.com/wyattowalsh/nbadb"
 Documentation = "https://nbadb.w4w.dev"
 Repository = "https://github.com/wyattowalsh/nbadb"
 "Kaggle Dataset" = "https://www.kaggle.com/datasets/wyattowalsh/basketball"
+
+[tool.uv]
+python-version = "3.12"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nbadb"]
