@@ -80,6 +80,10 @@ class ReadOnlyGuard:
 
         normalized = _normalize_sql(stripped)
 
+        # Block stacked queries (embedded semicolons after comment stripping)
+        if ";" in normalized:
+            return "Multiple statements not allowed"
+
         match = _WRITE_PATTERN.search(normalized)
         if match:
             return f"Write operation not allowed: {match.group(0)}"

@@ -92,6 +92,7 @@ class QueryAgent:
     def _execute(self, sql: str) -> str:
         try:
             with duckdb.connect(str(self._path), read_only=True) as conn:
+                conn.execute("SET enable_external_access = false")
                 conn.execute(f"SET statement_timeout='{int(QUERY_TIMEOUT_SECONDS)}s'")
                 result = conn.execute(sql)
                 columns = [desc[0] for desc in result.description]

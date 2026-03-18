@@ -58,7 +58,7 @@ Repository = "https://github.com/wyattowalsh/nbadb"
 "Kaggle Dataset" = "https://www.kaggle.com/datasets/wyattowalsh/basketball"
 
 [tool.uv]
-python-version = "3.12"
+required-version = ">=0.4"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nbadb"]

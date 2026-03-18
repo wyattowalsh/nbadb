@@ -11,7 +11,7 @@ class AggPlayerSeasonPer36Transformer(SqlTransformer):
 
     _SQL: ClassVar[str] = """
         SELECT
-            player_id, season_year, season_type, gp, avg_min,
+            player_id, team_id, season_year, season_type, gp, avg_min,
             CASE WHEN avg_min>0 THEN avg_pts*36.0/avg_min ELSE NULL END AS pts_per36,
             CASE WHEN avg_min>0 THEN avg_reb*36.0/avg_min ELSE NULL END AS reb_per36,
             CASE WHEN avg_min>0 THEN avg_ast*36.0/avg_min ELSE NULL END AS ast_per36,

@@ -388,13 +388,12 @@ def test_analytics_team_season_summary():
             "wins": [52],
             "losses": [30],
             "win_pct": [0.634],
-            "conf_rank": [3],
-            "div_rank": [2],
+            "conference_rank": [3],
+            "division_rank": [2],
             "home_record": ["30-11"],
             "road_record": ["22-19"],
             "last_ten": ["7-3"],
             "streak": ["W3"],
-            "standings_date": ["2024-04-14"],
         }
     )
 

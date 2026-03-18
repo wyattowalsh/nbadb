@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import traceback
 import uuid
 from dataclasses import dataclass, field
@@ -165,6 +166,10 @@ class TransformPipeline:
             checkpointed = self._load_checkpoint()
             if checkpointed:
                 logger.info(f"Checkpoint: {len(checkpointed)} tables from prior run")
+
+        # DuckDB optimization: allow reordering for lower memory usage
+        with contextlib.suppress(Exception):
+            self._conn.execute("SET preserve_insertion_order = false")
 
         # INFRA-006: Register all staging tables ONCE before the transformer loop
         failed_staging = self._register_staging(staging)

@@ -128,7 +128,7 @@ def test_blocks_write_hidden_in_block_comment(guard: ReadOnlyGuard) -> None:
 def test_blocks_drop_outside_block_comment(guard: ReadOnlyGuard) -> None:
     result = guard.validate("SELECT 1; /* harmless */ DROP TABLE dim_player")
     assert result is not None
-    assert "Write operation" in result
+    assert "Multiple statements" in result or "Write operation" in result
 
 
 def test_blocks_write_in_line_comment(guard: ReadOnlyGuard) -> None:

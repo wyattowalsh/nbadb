@@ -33,9 +33,9 @@ class DimTeamHistoryTransformer(BaseTransformer):
             SELECT *
             FROM source
             WHERE prev_city IS NULL
-               OR city != prev_city
-               OR nickname != prev_nickname
-               OR abbreviation != prev_abbr
+               OR city IS DISTINCT FROM prev_city
+               OR nickname IS DISTINCT FROM prev_nickname
+               OR abbreviation IS DISTINCT FROM prev_abbr
         )
         SELECT
             ROW_NUMBER() OVER (ORDER BY team_id, season_year)

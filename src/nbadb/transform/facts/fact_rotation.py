@@ -22,7 +22,7 @@ class FactRotationTransformer(SqlTransformer):
             side
         FROM (
             SELECT *, 'away' AS side FROM stg_rotation_away
-            UNION ALL
+            UNION ALL BY NAME
             SELECT *, 'home' AS side FROM stg_rotation_home
         )
         ORDER BY game_id, team_id, in_time_real

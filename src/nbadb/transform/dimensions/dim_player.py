@@ -45,9 +45,9 @@ class DimPlayerTransformer(SqlTransformer):
             SELECT *
             FROM versioned
             WHERE prev_team IS NULL
-               OR team_id != prev_team
-               OR position != prev_pos
-               OR jersey_number != prev_jersey
+               OR team_id IS DISTINCT FROM prev_team
+               OR position IS DISTINCT FROM prev_pos
+               OR jersey_number IS DISTINCT FROM prev_jersey
         )
         SELECT
             ROW_NUMBER() OVER (ORDER BY player_id, valid_from) AS player_sk,

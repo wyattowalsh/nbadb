@@ -11,9 +11,6 @@ class FactGameContextTransformer(SqlTransformer):
         "stg_game_info",
         "stg_game_summary",
         "stg_other_stats",
-        "stg_season_series",
-        "stg_last_meeting",
-        "stg_inactive_players",
     ]
 
     _SQL: ClassVar[str] = """

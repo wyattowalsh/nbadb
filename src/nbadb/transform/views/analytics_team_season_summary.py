@@ -26,8 +26,8 @@ class AnalyticsTeamSeasonSummaryTransformer(SqlTransformer):
             ts.fg_pct, ts.fg3_pct, ts.ft_pct,
             -- standings
             st.wins, st.losses, st.win_pct,
-            st.conference, st.conf_rank,
-            st.division, st.div_rank
+            st.conference, st.conference_rank,
+            st.division, st.division_rank
         FROM agg_team_season ts
         LEFT JOIN fact_standings st
             ON ts.team_id = st.team_id

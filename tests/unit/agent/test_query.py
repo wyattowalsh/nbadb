@@ -128,8 +128,8 @@ class TestQueryAgentExecution:
         mock_result.fetchall.return_value = [(1, "Test Player", 2500)]
 
         mock_conn = MagicMock()
-        # First call is SET statement_timeout, second is the actual query
-        mock_conn.execute.side_effect = [None, mock_result]
+        # Calls: enable_external_access, statement_timeout, actual query
+        mock_conn.execute.side_effect = [None, None, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -146,7 +146,7 @@ class TestQueryAgentExecution:
         mock_result.fetchall.return_value = []
 
         mock_conn = MagicMock()
-        mock_conn.execute.side_effect = [None, mock_result]
+        mock_conn.execute.side_effect = [None, None, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -161,7 +161,7 @@ class TestQueryAgentExecution:
         mock_result.fetchall.return_value = [("x", "y"), ("a", "b")]
 
         mock_conn = MagicMock()
-        mock_conn.execute.side_effect = [None, mock_result]
+        mock_conn.execute.side_effect = [None, None, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -241,14 +241,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, mock_result]
+            mock_conn.execute.side_effect = [None, None, mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=3)
 
-            sql = mock_conn.execute.call_args_list[1].args[0]
+            sql = mock_conn.execute.call_args_list[2].args[0]
             assert "LIMIT 3" in sql.upper()
 
     @pytest.mark.parametrize("limit", [0, -5])
@@ -260,14 +260,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, mock_result]
+            mock_conn.execute.side_effect = [None, None, mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=limit)
 
-            sql = mock_conn.execute.call_args_list[1].args[0]
+            sql = mock_conn.execute.call_args_list[2].args[0]
             assert "LIMIT 1" in sql.upper()
 
     def test_ask_clamps_very_large_limit(self, tmp_db: Path) -> None:
@@ -278,14 +278,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, mock_result]
+            mock_conn.execute.side_effect = [None, None, mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=MAX_RESULT_ROWS + 1)
 
-            sql = mock_conn.execute.call_args_list[1].args[0]
+            sql = mock_conn.execute.call_args_list[2].args[0]
             assert f"LIMIT {MAX_RESULT_ROWS}" in sql.upper()
 
     def test_timeout_is_set(self, tmp_db: Path) -> None:

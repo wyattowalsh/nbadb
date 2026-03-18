@@ -15,11 +15,18 @@ class FactPlayerGameLogTransformer(SqlTransformer):
 
     _SQL: ClassVar[str] = """
         SELECT *
-        FROM stg_player_game_logs
-        UNION ALL BY NAME
-        SELECT *
-        FROM stg_player_game_log
-        UNION ALL BY NAME
-        SELECT *
-        FROM stg_player_game_logs_v2
+        FROM (
+            SELECT *
+            FROM stg_player_game_logs
+            UNION ALL BY NAME
+            SELECT *
+            FROM stg_player_game_log
+            UNION ALL BY NAME
+            SELECT *
+            FROM stg_player_game_logs_v2
+        )
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY player_id, game_id
+            ORDER BY player_id
+        ) = 1
     """
