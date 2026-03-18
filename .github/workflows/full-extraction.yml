@@ -172,6 +172,7 @@ jobs:
           if [ "$USE_PROXY" = "true" ]; then
             echo 'NBADB_PROXY_SEMAPHORE_MULTIPLIER=3' >> $GITHUB_ENV
             echo 'NBADB_THREAD_POOL_SIZE=64' >> $GITHUB_ENV
+            echo 'NBADB_PROXY_TIMEOUT=60' >> $GITHUB_ENV
           fi
 
       # ── Run extraction with timeout guard ──
