@@ -107,14 +107,15 @@ class PipelineJournal:
         )
 
     def record_failure(self, endpoint: str, params: str, error: str) -> None:
-        """Mark an extraction as failed."""
+        """Mark an extraction as failed, incrementing the retry counter."""
         now = datetime.now(UTC).isoformat()
         self._conn.execute(
             """
             UPDATE _extraction_journal
             SET status = 'failed',
                 completed_at = $1,
-                error_message = $2
+                error_message = $2,
+                retry_count = retry_count + 1
             WHERE endpoint = $3 AND params = $4
             """,
             [now, error, endpoint, params],
@@ -127,13 +128,13 @@ class PipelineJournal:
         )
 
     def was_extracted(self, endpoint: str, params: str) -> bool:
-        """Return True if this (endpoint, params) completed successfully."""
+        """Return True if this (endpoint, params) is done or abandoned (skip either way)."""
         row = self._conn.execute(
             """
             SELECT 1 FROM _extraction_journal
             WHERE endpoint = $1
               AND params = $2
-              AND status = 'done'
+              AND status IN ('done', 'abandoned')
             """,
             [endpoint, params],
         ).fetchone()
@@ -171,24 +172,55 @@ class PipelineJournal:
             f"""
             SELECT endpoint, params
             FROM _extraction_journal
-            WHERE status = 'done'
+            WHERE status IN ('done', 'abandoned')
               AND (endpoint, params) IN ({placeholders})
             """,
             flat_params,
         ).fetchall()
         return {(r[0], r[1]) for r in rows}
 
+    MAX_RETRIES = 5
+
     def get_failed(self) -> list[tuple[str, str, str]]:
-        """Return all failed extractions as (endpoint, params, error)."""
+        """Return failed extractions that haven't exceeded the retry cap."""
         rows = self._conn.execute(
             """
             SELECT endpoint, params, error_message
             FROM _extraction_journal
             WHERE status = 'failed'
+              AND retry_count < $1
             ORDER BY started_at
-            """
+            """,
+            [self.MAX_RETRIES],
         ).fetchall()
         return [(r[0], r[1], r[2] or "") for r in rows]
+
+    def has_retryable_failures(self) -> bool:
+        """Return True if any failed entries are still under the retry cap."""
+        row = self._conn.execute(
+            """
+            SELECT 1 FROM _extraction_journal
+            WHERE status = 'failed' AND retry_count < $1
+            LIMIT 1
+            """,
+            [self.MAX_RETRIES],
+        ).fetchone()
+        return row is not None
+
+    def abandon_exhausted(self) -> int:
+        """Mark failed entries that hit the retry cap as 'abandoned'. Returns count."""
+        result = self._conn.execute(
+            """
+            UPDATE _extraction_journal
+            SET status = 'abandoned'
+            WHERE status = 'failed' AND retry_count >= $1
+            """,
+            [self.MAX_RETRIES],
+        )
+        count = result.rowcount or 0
+        if count:
+            logger.warning("abandoned {} exhausted extractions (retry_count >= {})", count, self.MAX_RETRIES)
+        return count
 
     def reset_stale_running(self, cutoff_minutes: int = 60) -> int:
         """Mark running entries older than cutoff as failed (stale from crash)."""
@@ -214,16 +246,18 @@ class PipelineJournal:
                 COUNT(*) FILTER (WHERE status = 'done') AS done,
                 COUNT(*) FILTER (WHERE status = 'failed') AS failed,
                 COUNT(*) FILTER (WHERE status = 'running') AS running,
+                COUNT(*) FILTER (WHERE status = 'abandoned') AS abandoned,
                 COALESCE(SUM(rows_extracted) FILTER (WHERE status = 'done'), 0) AS total_rows
             FROM _extraction_journal
             """
         ).fetchone()
-        done, failed, running, total_rows = row
+        done, failed, running, abandoned, total_rows = row
         logger.info(
-            "extraction journal summary: {} done ({} rows), {} failed, {} running",
+            "extraction journal summary: {} done ({} rows), {} failed, {} abandoned, {} running",
             done,
             total_rows,
             failed,
+            abandoned,
             running,
         )
         if failed > 0:

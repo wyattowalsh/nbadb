@@ -84,8 +84,21 @@ class DBManager:
                 completed_at TIMESTAMP,
                 rows_extracted BIGINT,
                 error_message VARCHAR,
+                retry_count INTEGER DEFAULT 0,
                 PRIMARY KEY (endpoint, params)
             )
+        """)
+        # Migrate existing DBs that lack retry_count
+        self._duckdb_conn.execute("""
+            ALTER TABLE _extraction_journal
+            ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0
+        """)
+        # Seed existing failed entries: assume they've been tried ~4 times already
+        # so they get one more attempt before being abandoned at MAX_RETRIES=5.
+        self._duckdb_conn.execute("""
+            UPDATE _extraction_journal
+            SET retry_count = 4
+            WHERE status = 'failed' AND retry_count = 0
         """)
         self._duckdb_conn.execute("""
             CREATE TABLE IF NOT EXISTS _pipeline_metadata (

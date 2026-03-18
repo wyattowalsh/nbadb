@@ -500,6 +500,10 @@ class Orchestrator:
             pp.complete_phase()
 
         # -- 4. Summarize result --------------------------------
+        # Abandon items that have exceeded the retry cap so they don't
+        # block the chain from terminating.
+        abandoned = journal.abandon_exhausted()
+
         result = self._build_result(
             t0,
             tables_updated,
@@ -510,11 +514,12 @@ class Orchestrator:
         result.skipped_extractions = runner.skipped
 
         bound_log.info(
-            "init complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} load failures",
+            "init complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} abandoned, {} load failures",
             result.tables_updated,
             result.rows_total,
             result.duration_seconds,
             result.failed_extractions,
+            abandoned,
             result.failed_loads,
         )
         journal.log_summary()

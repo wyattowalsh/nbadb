@@ -30,6 +30,7 @@ def journal() -> PipelineJournal:
             completed_at TIMESTAMP,
             rows_extracted BIGINT,
             error_message VARCHAR,
+            retry_count INTEGER DEFAULT 0,
             PRIMARY KEY (endpoint, params)
         )
     """)
