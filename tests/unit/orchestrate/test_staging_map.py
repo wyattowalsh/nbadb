@@ -74,9 +74,11 @@ def _extractor_endpoint_names() -> set[str]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        # 60 season + 35 game + 16 date + 56 player + 25 team +
+        # 60 season + 35 game + 15 date + 55 player + 25 team +
         # 1 player_season + 2 team_season + 5 static
-        assert len(STAGING_MAP) == 200
+        # (stg_scoreboard_available merged into stg_scoreboard;
+        #  stg_player_fantasy_profile removed — endpoint discontinued)
+        assert len(STAGING_MAP) == 198
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -92,7 +94,7 @@ class TestStagingMap:
         assert len(entries) == 35
 
     def test_get_by_pattern_player(self) -> None:
-        assert len(get_by_pattern("player")) == 56
+        assert len(get_by_pattern("player")) == 55
 
     def test_get_by_pattern_team(self) -> None:
         assert len(get_by_pattern("team")) == 25
@@ -113,7 +115,7 @@ class TestStagingMap:
         assert len(get_by_pattern("static")) == 5
 
     def test_get_by_pattern_date(self) -> None:
-        assert len(get_by_pattern("date")) == 16
+        assert len(get_by_pattern("date")) == 15
 
     def test_get_by_staging_key_found(self) -> None:
         entry = get_by_staging_key("stg_league_game_log")
@@ -151,7 +153,8 @@ class TestStagingMap:
 
     def test_no_extractor_only_endpoints_remain_after_mapping(self) -> None:
         # gl_alum_box_score_similarity_score excluded: requires person1_id/person2_id
-        _excluded = {"gl_alum_box_score_similarity_score"}
+        # player_fantasy_profile excluded: endpoint discontinued in nba_api v1.11.3
+        _excluded = {"gl_alum_box_score_similarity_score", "player_fantasy_profile"}
         extractor_only = sorted(
             _extractor_endpoint_names() - {e.endpoint_name for e in STAGING_MAP} - _excluded
         )

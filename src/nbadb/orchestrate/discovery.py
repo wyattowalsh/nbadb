@@ -75,11 +75,16 @@ class EntityDiscovery:
         self,
         seasons: list[str],
         on_progress: object | None = None,
+        season_types: list[str] | None = None,
     ) -> tuple[list[str], pl.DataFrame]:
-        """Extract league_game_log for given seasons.
+        """Extract league_game_log for given seasons and season_types.
 
         Returns (game_ids, raw_df). The raw_df is also usable as
         stg_league_game_log (dual purpose -- avoids re-extraction).
+
+        When *season_types* is provided, the game log is fetched once per
+        (season, season_type) pair so that Playoff, All-Star, and Pre Season
+        games are discovered alongside Regular Season games.
 
         Seasons are fetched concurrently (up to ``_DISCOVERY_CONCURRENCY``
         in-flight at once). Each season failure is isolated -- it does not
@@ -87,23 +92,29 @@ class EntityDiscovery:
         """
         import polars as pl
 
+        if season_types is None:
+            season_types = ["Regular Season"]
+
         extractor_cls = self._registry.get("league_game_log")
 
+        combos = [(s, st) for s in seasons for st in season_types]
         if on_progress is not None:
-            on_progress.start_pattern(f"game discovery ({len(seasons)} seasons)", len(seasons))
+            on_progress.start_pattern(f"game discovery ({len(combos)} combos)", len(combos))
 
         semaphore = asyncio.Semaphore(_DISCOVERY_CONCURRENCY)
 
-        async def _fetch_season(season: str) -> pl.DataFrame | None:
+        async def _fetch(season: str, season_type: str) -> pl.DataFrame | None:
             async with semaphore:
-                logger.info("discovering game IDs for season {}", season)
+                label = f"league_game_log({season}, {season_type})"
+                logger.info("discovering game IDs: {}", label)
                 extractor = extractor_cls()
                 try:
                     _assign_proxy(extractor, self._proxy_pool)
                     df = await _extract_with_retry(
                         extractor,
-                        f"league_game_log({season})",
+                        label,
                         season=season,
+                        season_type=season_type,
                     )
                     if on_progress is not None:
                         on_progress.advance_pattern(success=True)
@@ -113,14 +124,14 @@ class EntityDiscovery:
                 except Exception as exc:
                     logger.error(
                         "failed to extract game log for {}: {}",
-                        season,
+                        label,
                         type(exc).__name__,
                     )
                     if on_progress is not None:
                         on_progress.advance_pattern(success=False)
                     return None
 
-        results = await asyncio.gather(*[_fetch_season(s) for s in seasons])
+        results = await asyncio.gather(*[_fetch(s, st) for s, st in combos])
         frames: list[pl.DataFrame] = [df for df in results if df is not None]
 
         if not frames:
@@ -130,9 +141,9 @@ class EntityDiscovery:
         combined = pl.concat(frames, how="diagonal_relaxed")
         game_ids = combined.get_column("game_id").unique().sort().to_list()
         logger.info(
-            "discovered {} unique game IDs across {} seasons",
+            "discovered {} unique game IDs across {} season×type combos",
             len(game_ids),
-            len(seasons),
+            len(combos),
         )
         return game_ids, combined
 
@@ -195,6 +206,20 @@ class EntityDiscovery:
             id_column="person_id",
             params=params,
             filter_fn=_active_only,
+        )
+
+    async def discover_all_player_ids(self, season: str | None = None) -> list[int]:
+        """Get ALL player IDs (active + historical) from common_all_players.
+
+        Use this for ``run_init()`` to ensure historical players are included
+        in player-level extraction.
+        """
+        params = {"season": season} if season else {}
+        return await self._discover_entity_ids(
+            endpoint="common_all_players",
+            staging_key="common_all_players",
+            id_column="person_id",
+            params=params,
         )
 
     async def discover_team_ids(self) -> list[int]:

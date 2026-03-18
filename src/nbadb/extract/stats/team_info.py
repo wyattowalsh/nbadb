@@ -17,6 +17,7 @@ from nba_api.stats.endpoints import (
 
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
+from nbadb.orchestrate.seasons import current_season
 
 
 @registry.register
@@ -134,7 +135,7 @@ class TeamAndPlayersVsPlayersExtractor(BaseExtractor):
         vs_player_id3: int = params.get("vs_player_id3", 0)
         vs_player_id4: int = params.get("vs_player_id4", 0)
         vs_player_id5: int = params.get("vs_player_id5", 0)
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         return self._from_nba_api(
             TeamAndPlayersVsPlayers,
             team_id=team_id,

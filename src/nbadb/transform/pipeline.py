@@ -126,14 +126,26 @@ class TransformPipeline:
             visit(name)
         return order
 
-    def _register_staging(self, staging: dict[str, pl.LazyFrame]) -> None:
-        """Register all staging tables into the shared DuckDB connection once."""
+    def _register_staging(self, staging: dict[str, pl.LazyFrame]) -> set[str]:
+        """Register all staging tables into the shared DuckDB connection once.
+
+        Returns the set of staging keys that failed to register so callers
+        can skip transforms that depend on them.
+        """
+        failed: set[str] = set()
         for key, val in staging.items():
             try:
                 data = val.collect() if hasattr(val, "collect") else val
                 self._conn.register(key, data)
-            except Exception:
-                logger.warning(f"Failed to register staging table '{key}'")
+            except Exception as exc:
+                failed.add(key)
+                logger.error(
+                    "Failed to register staging table '{}': {} — "
+                    "transforms depending on it will be skipped",
+                    key,
+                    type(exc).__name__,
+                )
+        return failed
 
     def run(
         self,
@@ -155,11 +167,19 @@ class TransformPipeline:
                 logger.info(f"Checkpoint: {len(checkpointed)} tables from prior run")
 
         # INFRA-006: Register all staging tables ONCE before the transformer loop
-        self._register_staging(staging)
+        failed_staging = self._register_staging(staging)
 
         try:
             for transformer in ordered:
                 table = transformer.output_table
+
+                # Skip if any dependency failed to register
+                missing_deps = failed_staging & set(transformer.depends_on)
+                if missing_deps:
+                    error_msg = f"missing staging: {', '.join(sorted(missing_deps))}"
+                    logger.warning(f"Skipping {table}: {error_msg}")
+                    result.failed.append((table, error_msg))
+                    continue
 
                 # Resume path: skip if already in memory outputs
                 if resume and table in self._outputs:

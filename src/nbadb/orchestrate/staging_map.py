@@ -20,6 +20,12 @@ class StagingEntry:
     ]
     result_set_index: int = 0
     use_multi: bool = False
+    deprecated_after: str | None = None
+    """ISO date (YYYY-MM-DD) after which this entry should be skipped.
+
+    Used for V2 endpoints superseded by V3 — historical data is still valid
+    but current data is unreliable after the cutoff date.
+    """
 
 
 STAGING_MAP: list[StagingEntry] = [
@@ -211,10 +217,9 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     # ── Date-level (12) ───────────────────────────────────────────
-    StagingEntry("scoreboard_v2", "stg_scoreboard", "date"),
     StagingEntry(
         "scoreboard_v2",
-        "stg_scoreboard_available",
+        "stg_scoreboard",
         "date",
         result_set_index=0,
         use_multi=True,
@@ -758,8 +763,7 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("draft_board", "stg_draft_board", "season"),
     # Game-level — FanDuel infographic per player per game
     StagingEntry("infographic_fanduel_player", "stg_fanduel_player", "game"),
-    # Player-level — Fantasy profile bar graph
-    StagingEntry("player_fantasy_profile", "stg_player_fantasy_profile", "player"),
+    # player_fantasy_profile removed — endpoint discontinued in nba_api v1.11.3
 ]
 
 

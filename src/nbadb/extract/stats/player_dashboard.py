@@ -14,6 +14,7 @@ from nba_api.stats.endpoints import (
 
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
+from nbadb.orchestrate.seasons import current_season
 
 if TYPE_CHECKING:
     import polars as pl
@@ -148,7 +149,7 @@ class PlayerDashGameSplitsExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             PlayerDashboardByGameSplits,
@@ -165,7 +166,7 @@ class PlayerDashGeneralSplitsExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             PlayerDashboardByGeneralSplits,
@@ -182,7 +183,7 @@ class PlayerDashLastNGamesExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             PlayerDashboardByLastNGames,
@@ -199,7 +200,7 @@ class PlayerDashShootingSplitsExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             PlayerDashboardByShootingSplits,
@@ -216,7 +217,7 @@ class PlayerDashTeamPerfExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             PlayerDashboardByTeamPerformance,
@@ -233,7 +234,7 @@ class PlayerDashYoyExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             PlayerDashboardByYearOverYear,
