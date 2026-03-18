@@ -219,20 +219,32 @@ class Orchestrator:
         discovery: EntityDiscovery,
         seasons: list[str],
         bound_log: object,
+        *,
+        season_types: list[str] | None = None,
+        include_historical_players: bool = False,
     ) -> tuple[list[str], list[int], list[int], list[str], pl.DataFrame]:
         """Discover game/player/team IDs and game dates in parallel.
 
         Shared by run_init, run_monthly, and any future run mode that
         needs all entity types.  Returns:
             (game_ids, player_ids, team_ids, game_dates, game_log_df)
+
+        When *include_historical_players* is True (used by run_init),
+        all players are discovered (active + retired).
         """
         import polars as pl
 
         pp = self._progress
 
+        player_coro = (
+            discovery.discover_all_player_ids()
+            if include_historical_players
+            else discovery.discover_player_ids()
+        )
+
         results = await asyncio.gather(
-            discovery.discover_game_ids(seasons, on_progress=pp),
-            discovery.discover_player_ids(),
+            discovery.discover_game_ids(seasons, on_progress=pp, season_types=season_types),
+            player_coro,
             discovery.discover_team_ids(),
             return_exceptions=True,
         )
@@ -282,6 +294,7 @@ class Orchestrator:
         game_dates: list[str],
         game_log_df: pl.DataFrame,
         include_static: bool = True,
+        season_types: list[str] | None = None,
     ) -> dict[str, pl.DataFrame]:
         """Run all extraction patterns concurrently and return combined
         raw staging data.
@@ -305,8 +318,14 @@ class Orchestrator:
         season_entries = [
             e for e in get_by_pattern("season") if e.endpoint_name != "league_game_log"
         ]
+        _st_list = season_types or ["Regular Season"]
         if season_entries and seasons:
-            plan.append(("season", "season", season_entries, [{"season": s} for s in seasons]))
+            plan.append((
+                "season",
+                "season",
+                season_entries,
+                [{"season": s, "season_type": st} for s in seasons for st in _st_list],
+            ))
 
         game_entries = get_by_pattern("game")
         if game_entries and game_ids:
@@ -427,6 +446,7 @@ class Orchestrator:
         self,
         start_season: int = 1946,
         end_season: int | None = None,
+        season_types: list[str] | None = None,
     ) -> PipelineResult:
         """Full history build with resume support.
 
@@ -438,7 +458,13 @@ class Orchestrator:
         Only stale *running* entries are reset (via ``reset_stale_running``).
         Completed entries are never cleared, preserving progress from
         prior partial runs (QUAL-003).
+
+        *season_types* controls which season types are extracted.
+        Defaults to ``["Regular Season", "Playoffs"]``.
         """
+        if season_types is None:
+            season_types = ["Regular Season", "Playoffs"]
+
         bound_log = logger.bind(run_mode="init")
         t0 = time.perf_counter()
 
@@ -454,15 +480,20 @@ class Orchestrator:
         discovery = self._build_discovery()
 
         bound_log.info(
-            "init: discovering entities for {} seasons",
+            "init: discovering entities for {} seasons × {} season_types",
             len(seasons),
+            len(season_types),
         )
         if pp:
             pp.start_phase("Discovery")
             pp.update_phase_info(f"scanning {len(seasons)} seasons...")
 
         game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-            discovery, seasons, bound_log
+            discovery,
+            seasons,
+            bound_log,
+            season_types=season_types,
+            include_historical_players=True,
         )
 
         if pp:
@@ -485,6 +516,7 @@ class Orchestrator:
             team_ids=team_ids,
             game_dates=game_dates,
             game_log_df=game_log_df,
+            season_types=season_types,
         )
 
         # -- 3. Transform + Load --------------------------------
@@ -514,7 +546,8 @@ class Orchestrator:
         result.skipped_extractions = runner.skipped
 
         bound_log.info(
-            "init complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} abandoned, {} load failures",
+            "init complete: {} tables, {} rows, {:.1f}s, "
+            "{} extract failures, {} abandoned, {} load failures",
             result.tables_updated,
             result.rows_total,
             result.duration_seconds,
@@ -546,8 +579,11 @@ class Orchestrator:
         season = current_season()
         bound_log.info("daily: season={}", season)
 
-        # -- 1. Discover recent game_ids ------------------------
-        game_ids, game_log_df = await discovery.discover_game_ids([season])
+        # -- 1. Discover recent game_ids (Regular + Playoffs) -----
+        _daily_st = ["Regular Season", "Playoffs"]
+        game_ids, game_log_df = await discovery.discover_game_ids(
+            [season], season_types=_daily_st
+        )
 
         raw: dict[str, pl.DataFrame] = {}
         if not game_log_df.is_empty():
@@ -572,18 +608,27 @@ class Orchestrator:
             len(game_dates),
         )
 
-        # -- 2. Game + season + date extraction via shared helper
-        # (no player/team/static for daily)
+        # -- 2. Discover active players + teams for lightweight refresh
+        player_ids = await discovery.discover_player_ids()
+        team_ids = await discovery.discover_team_ids()
+        bound_log.info(
+            "daily: {} active players, {} teams for refresh",
+            len(player_ids),
+            len(team_ids),
+        )
+
+        # -- 3. Game + season + date + player/team extraction
         raw.update(
             await self._extract_all_patterns(
                 runner,
                 seasons=[season],
                 game_ids=game_ids,
-                player_ids=[],
-                team_ids=[],
+                player_ids=player_ids,
+                team_ids=team_ids,
                 game_dates=game_dates,
                 game_log_df=pl.DataFrame(),  # already seeded above
                 include_static=False,
+                season_types=_daily_st,
             )
         )
         # Keep the seeded game_log_df (update may have cleared it)
@@ -632,8 +677,9 @@ class Orchestrator:
         bound_log.info("monthly: seasons={}", seasons)
 
         # -- 1. Discover entities (parallel) --- uses shared helper
+        _monthly_st = ["Regular Season", "Playoffs"]
         game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-            discovery, seasons, bound_log
+            discovery, seasons, bound_log, season_types=_monthly_st
         )
 
         # -- 2. Extract all patterns ----------------------------
@@ -645,6 +691,7 @@ class Orchestrator:
             team_ids=team_ids,
             game_dates=game_dates,
             game_log_df=game_log_df,
+            season_types=_monthly_st,
         )
 
         # -- 3. Transform + Load --------------------------------
@@ -740,34 +787,31 @@ class Orchestrator:
             retry_raw = await runner.run_pattern(pattern, param_list, ep_entries)
             raw.update(retry_raw)
 
-        # -- 2. Check watermarks for missing seasons ------------
+        # -- 2. Gap-fill ALL patterns (not just season+game) ------
+        _full_st = ["Regular Season", "Playoffs"]
         seasons = season_range()
-        season_entries = get_by_pattern("season")
-        season_params = [{"season": s} for s in seasons]
 
-        # Runner will skip already-extracted via journal
-        if season_entries:
-            bound_log.info(
-                "full: checking {} seasons for gaps",
-                len(seasons),
+        # Discover entities for gap-filling
+        game_ids, player_ids, team_ids, game_dates, game_log_df = (
+            await self._discover_entities(
+                discovery, seasons, bound_log, season_types=_full_st
             )
-            season_raw = await runner.run_pattern("season", season_params, season_entries)
-            raw.update(season_raw)
-
-        # Discover entities for any game-level gaps
-        game_ids, game_log_df = await discovery.discover_game_ids(seasons)
+        )
         if not game_log_df.is_empty():
             raw.setdefault("stg_league_game_log", game_log_df)
 
-        game_entries = get_by_pattern("game")
-        if game_entries and game_ids:
-            game_params = [{"game_id": gid} for gid in game_ids]
-            bound_log.info(
-                "full: checking {} games for gaps",
-                len(game_ids),
-            )
-            game_raw = await runner.run_pattern("game", game_params, game_entries)
-            raw.update(game_raw)
+        # Run all patterns — runner will skip already-extracted via journal
+        gap_raw = await self._extract_all_patterns(
+            runner,
+            seasons=seasons,
+            game_ids=game_ids,
+            player_ids=player_ids,
+            team_ids=team_ids,
+            game_dates=game_dates,
+            game_log_df=game_log_df,
+            season_types=_full_st,
+        )
+        raw.update(gap_raw)
 
         # -- 3. Transform + Load --------------------------------
         tables_updated = 0
