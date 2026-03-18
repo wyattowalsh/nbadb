@@ -128,15 +128,19 @@ class PipelineJournal:
         )
 
     def was_extracted(self, endpoint: str, params: str) -> bool:
-        """Return True if this (endpoint, params) is done or abandoned (skip either way)."""
+        """Return True if this (endpoint, params) should be skipped.
+
+        Skips entries that are done, abandoned, or have exhausted the retry cap
+        (retry_count >= MAX_RETRIES) even before abandon_exhausted() is called.
+        """
         row = self._conn.execute(
             """
             SELECT 1 FROM _extraction_journal
             WHERE endpoint = $1
               AND params = $2
-              AND status IN ('done', 'abandoned')
+              AND (status IN ('done', 'abandoned') OR retry_count >= $3)
             """,
-            [endpoint, params],
+            [endpoint, params, self.MAX_RETRIES],
         ).fetchone()
         return row is not None
 
@@ -162,17 +166,20 @@ class PipelineJournal:
             return set()
 
         # Build parameterized placeholders: ($1, $2), ($3, $4), ...
-        placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(len(items)))
+        n = len(items)
+        placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(n))
+        retry_param_idx = n * 2 + 1
         flat_params: list[str] = []
         for endpoint, params in items:
             flat_params.append(endpoint)
             flat_params.append(params)
+        flat_params.append(self.MAX_RETRIES)
 
         rows = self._conn.execute(
             f"""
             SELECT endpoint, params
             FROM _extraction_journal
-            WHERE status IN ('done', 'abandoned')
+            WHERE (status IN ('done', 'abandoned') OR retry_count >= ${retry_param_idx})
               AND (endpoint, params) IN ({placeholders})
             """,
             flat_params,
@@ -194,18 +201,6 @@ class PipelineJournal:
             [self.MAX_RETRIES],
         ).fetchall()
         return [(r[0], r[1], r[2] or "") for r in rows]
-
-    def has_retryable_failures(self) -> bool:
-        """Return True if any failed entries are still under the retry cap."""
-        row = self._conn.execute(
-            """
-            SELECT 1 FROM _extraction_journal
-            WHERE status = 'failed' AND retry_count < $1
-            LIMIT 1
-            """,
-            [self.MAX_RETRIES],
-        ).fetchone()
-        return row is not None
 
     def abandon_exhausted(self) -> int:
         """Mark failed entries that hit the retry cap as 'abandoned'. Returns count."""

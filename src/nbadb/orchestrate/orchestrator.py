@@ -595,6 +595,7 @@ class Orchestrator:
             db, raw, journal, mode="replace"
         )
 
+        journal.abandon_exhausted()
         result = self._build_result(
             t0,
             tables_updated,
@@ -651,6 +652,7 @@ class Orchestrator:
             db, raw, journal, mode="replace"
         )
 
+        journal.abandon_exhausted()
         result = self._build_result(
             t0,
             tables_updated,

@@ -52,6 +52,10 @@ jobs:
           fi
       - name: Start proxy fleet
         run: |
+          if [ -z "$OPENVPN_USER" ]; then
+            echo "::warning::No VPN credentials derived — skipping proxy fleet"
+            exit 0
+          fi
           docker compose -f docker-compose.proxy.yml up -d
           echo "Waiting for OpenVPN tunnels to establish..."
           for attempt in 1 2 3 4 5 6; do

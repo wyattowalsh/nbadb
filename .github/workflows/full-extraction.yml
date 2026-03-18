@@ -204,7 +204,7 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: nbadb/
-          key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}-${{ github.run_id }}
+          key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}
 
       # ── Upload artifacts every iteration ──
       - name: Upload extraction artifacts

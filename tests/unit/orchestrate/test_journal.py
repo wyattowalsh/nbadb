@@ -111,6 +111,50 @@ class TestJournalExtraction:
         assert journal.has_done_entries()
 
 
+class TestJournalRetryCap:
+    def test_retry_count_increments(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep", "p")
+        journal.record_failure("ep", "p", "err1")
+        journal.record_start("ep", "p")
+        journal.record_failure("ep", "p", "err2")
+        row = journal._conn.execute(
+            "SELECT retry_count FROM _extraction_journal WHERE endpoint = 'ep' AND params = 'p'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == 2
+
+    def test_get_failed_excludes_exhausted(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep", "p")
+        for _ in range(PipelineJournal.MAX_RETRIES):
+            journal.record_start("ep", "p")
+            journal.record_failure("ep", "p", "err")
+        assert journal.get_failed() == []
+
+    def test_abandon_exhausted_transitions_status(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
+            "VALUES ('ep', 'p', 'failed', ?)",
+            [PipelineJournal.MAX_RETRIES],
+        )
+        journal.abandon_exhausted()
+        assert journal.was_extracted("ep", "p")
+
+    def test_was_extracted_skips_abandoned(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
+            "VALUES ('ep', 'p', 'abandoned', 0)"
+        )
+        assert journal.was_extracted("ep", "p")
+
+    def test_was_extracted_skips_exhausted_failed(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
+            "VALUES ('ep', 'p', 'failed', ?)",
+            [PipelineJournal.MAX_RETRIES],
+        )
+        assert journal.was_extracted("ep", "p")
+
+
 class TestJournalMetrics:
     def test_record_metric(self, journal: PipelineJournal) -> None:
         journal.record_metric("ep", duration=1.5, rows=100, errors=0)
