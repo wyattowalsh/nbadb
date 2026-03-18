@@ -13,6 +13,7 @@ class FactStandingsTransformer(SqlTransformer):
         SELECT
             s.team_id,
             s.season_year,
+            COALESCE(s.season_type, 'Regular Season') AS season_type,
             s.conference,
             s.division,
             s.wins,
@@ -28,5 +29,5 @@ class FactStandingsTransformer(SqlTransformer):
         FROM stg_standings s
         LEFT JOIN stg_scoreboard sb ON s.team_id = sb.team_id
             AND s.season_year = sb.season_year
-        ORDER BY s.season_year, s.conference_rank
+        ORDER BY s.season_year, s.season_type, s.conference_rank
     """

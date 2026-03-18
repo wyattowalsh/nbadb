@@ -17,6 +17,7 @@ class AnalyticsTeamSeasonSummaryTransformer(SqlTransformer):
         SELECT
             ts.team_id,
             ts.season_year,
+            ts.season_type,
             tm.full_name AS team_name,
             tm.abbreviation AS team_abbreviation,
             -- season aggregates
@@ -29,7 +30,9 @@ class AnalyticsTeamSeasonSummaryTransformer(SqlTransformer):
             st.division, st.div_rank
         FROM agg_team_season ts
         LEFT JOIN fact_standings st
-            ON ts.team_id = st.team_id AND ts.season_year = st.season_year
+            ON ts.team_id = st.team_id
+            AND ts.season_year = st.season_year
         LEFT JOIN dim_team tm ON ts.team_id = tm.team_id
-        ORDER BY ts.season_year, st.win_pct DESC NULLS LAST
+        ORDER BY ts.season_year, ts.season_type,
+                 st.win_pct DESC NULLS LAST
     """
