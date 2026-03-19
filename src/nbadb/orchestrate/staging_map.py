@@ -31,7 +31,20 @@ class StagingEntry:
 STAGING_MAP: list[StagingEntry] = [
     # ── Season-level (13) ─────────────────────────────────────────
     StagingEntry("league_game_log", "stg_league_game_log", "season"),
-    StagingEntry("schedule", "stg_schedule", "season"),
+    StagingEntry(
+        "schedule",
+        "stg_schedule",
+        "season",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "schedule",
+        "stg_schedule_weeks",
+        "season",
+        result_set_index=1,
+        use_multi=True,
+    ),
     StagingEntry("league_standings", "stg_standings", "season"),
     StagingEntry("draft_history", "stg_draft", "season"),
     StagingEntry("draft_combine_stats", "stg_draft_combine", "season"),
@@ -60,7 +73,27 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
     ),
     # ── Game-level (16) ───────────────────────────────────────────
-    StagingEntry("box_score_traditional", "stg_box_score_traditional", "game"),
+    StagingEntry(
+        "box_score_traditional",
+        "stg_box_score_traditional",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_traditional",
+        "stg_box_score_traditional_starter_bench",
+        "game",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "box_score_traditional",
+        "stg_box_score_traditional_team",
+        "game",
+        result_set_index=2,
+        use_multi=True,
+    ),
     StagingEntry("box_score_advanced", "stg_box_score_advanced", "game"),
     StagingEntry("box_score_misc", "stg_box_score_misc", "game"),
     StagingEntry("box_score_scoring", "stg_box_score_scoring", "game"),
@@ -70,7 +103,13 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_box_score_four_factors_player",
         "game",
     ),
-    StagingEntry("box_score_hustle", "stg_box_score_hustle", "game"),
+    StagingEntry(
+        "box_score_hustle",
+        "stg_box_score_hustle",
+        "game",
+        result_set_index=1,
+        use_multi=True,
+    ),
     StagingEntry("box_score_player_track", "stg_box_score_player_track", "game"),
     StagingEntry("box_score_defensive", "stg_box_score_defensive", "game"),
     StagingEntry("play_by_play", "stg_play_by_play", "game"),
@@ -323,7 +362,27 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     # ── Player-level (6) ──────────────────────────────────────────
-    StagingEntry("common_player_info", "stg_player_info", "player"),
+    StagingEntry(
+        "common_player_info",
+        "stg_player_available_seasons",
+        "player",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "common_player_info",
+        "stg_player_info",
+        "player",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "common_player_info",
+        "stg_player_headline_stats",
+        "player",
+        result_set_index=2,
+        use_multi=True,
+    ),
     StagingEntry("player_awards", "stg_player_awards", "player"),
     StagingEntry("player_career_by_college", "stg_player_college", "player"),
     StagingEntry("shot_chart_detail", "stg_shot_chart", "player"),
@@ -334,7 +393,20 @@ STAGING_MAP: list[StagingEntry] = [
         "player",
     ),
     # ── Team-level (4) ────────────────────────────────────────────
-    StagingEntry("common_team_roster", "stg_team_info", "team"),
+    StagingEntry(
+        "common_team_roster",
+        "stg_coaches",
+        "team",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "common_team_roster",
+        "stg_team_info",
+        "team",
+        result_set_index=1,
+        use_multi=True,
+    ),
     StagingEntry(
         "team_estimated_metrics",
         "stg_team_dashboard_estimated",
@@ -347,7 +419,20 @@ STAGING_MAP: list[StagingEntry] = [
     ),
     StagingEntry("team_player_on_off_summary", "stg_on_off", "team"),
     # ── Static (2) ────────────────────────────────────────────────
-    StagingEntry("franchise_history", "stg_franchise", "static"),
+    StagingEntry(
+        "franchise_history",
+        "stg_franchise",
+        "static",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "franchise_history",
+        "stg_defunct_teams",
+        "static",
+        result_set_index=1,
+        use_multi=True,
+    ),
     StagingEntry("all_time_leaders_grids", "stg_all_time", "static"),
     # ── Playoff / IST (9) ─────────────────────────────────────────
     StagingEntry(
@@ -463,7 +548,20 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("player_index", "stg_player_index", "season"),
     StagingEntry("shot_chart_lineup_detail", "stg_shot_chart_lineup_detail", "season"),
     # Game-level additions
-    StagingEntry("hustle_stats_box_score", "stg_box_score_hustle_box", "game"),
+    StagingEntry(
+        "hustle_stats_box_score",
+        "stg_box_score_hustle_box",
+        "game",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "hustle_stats_box_score",
+        "stg_box_score_hustle_team",
+        "game",
+        result_set_index=2,
+        use_multi=True,
+    ),
     # gl_alum_box_score_similarity_score excluded: needs person IDs
     StagingEntry("play_by_play_v2", "stg_play_by_play_v2", "game"),
     # Player-level additions — PlayerCareerStats multi-result
@@ -668,7 +766,20 @@ STAGING_MAP: list[StagingEntry] = [
     ),
     StagingEntry("player_dash_team_perf", "stg_player_dash_team_perf", "player"),
     StagingEntry("player_dash_yoy", "stg_player_dash_yoy", "player"),
-    StagingEntry("player_dash_pt_pass", "stg_player_pt_pass", "player"),
+    StagingEntry(
+        "player_dash_pt_pass",
+        "stg_player_pt_pass",
+        "player",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "player_dash_pt_pass",
+        "stg_player_pt_pass_received",
+        "player",
+        result_set_index=1,
+        use_multi=True,
+    ),
     StagingEntry("player_dash_pt_reb", "stg_player_pt_reb", "player"),
     StagingEntry(
         "player_dash_pt_shot_defend",
@@ -727,11 +838,37 @@ STAGING_MAP: list[StagingEntry] = [
         "team",
     ),
     StagingEntry("team_dash_lineups", "stg_team_lineups", "team"),
-    StagingEntry("team_dash_pt_pass", "stg_team_pt_pass", "team"),
+    StagingEntry(
+        "team_dash_pt_pass",
+        "stg_team_pt_pass",
+        "team",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "team_dash_pt_pass",
+        "stg_team_pt_pass_received",
+        "team",
+        result_set_index=1,
+        use_multi=True,
+    ),
     StagingEntry("team_dash_pt_reb", "stg_team_pt_reb", "team"),
     StagingEntry("team_dash_pt_shots", "stg_team_pt_shots", "team"),
     StagingEntry("team_details", "stg_team_details", "team"),
-    StagingEntry("team_info_common", "stg_team_info_common", "team"),
+    StagingEntry(
+        "team_info_common",
+        "stg_team_info_common",
+        "team",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "team_info_common",
+        "stg_team_season_ranks",
+        "team",
+        result_set_index=2,
+        use_multi=True,
+    ),
     StagingEntry("team_historical_leaders", "stg_team_historical_leaders", "team"),
     StagingEntry("team_year_by_year", "stg_team_year_by_year", "team"),
     StagingEntry("common_team_years", "stg_team_years", "team"),
@@ -761,6 +898,7 @@ STAGING_MAP: list[StagingEntry] = [
         "static",
     ),
     StagingEntry("draft_board", "stg_draft_board", "season"),
+    StagingEntry("fantasy_widget", "stg_fantasy_widget", "season"),
     # Game-level — FanDuel infographic per player per game
     StagingEntry("infographic_fanduel_player", "stg_fanduel_player", "game"),
     # player_fantasy_profile removed — endpoint discontinued in nba_api v1.11.3

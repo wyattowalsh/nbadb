@@ -74,11 +74,9 @@ def _extractor_endpoint_names() -> set[str]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        # 60 season + 35 game + 15 date + 55 player + 25 team +
-        # 1 player_season + 2 team_season + 5 static
-        # (stg_scoreboard_available merged into stg_scoreboard;
-        #  stg_player_fantasy_profile removed — endpoint discontinued)
-        assert len(STAGING_MAP) == 198
+        # 62 season + 38 game + 15 date + 58 player + 28 team +
+        # 1 player_season + 2 team_season + 6 static
+        assert len(STAGING_MAP) == 210
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -86,18 +84,18 @@ class TestStagingMap:
 
     def test_get_by_pattern_season(self) -> None:
         entries = get_by_pattern("season")
-        assert len(entries) == 60
+        assert len(entries) == 62
         assert all(e.param_pattern == "season" for e in entries)
 
     def test_get_by_pattern_game(self) -> None:
         entries = get_by_pattern("game")
-        assert len(entries) == 35
+        assert len(entries) == 38
 
     def test_get_by_pattern_player(self) -> None:
-        assert len(get_by_pattern("player")) == 55
+        assert len(get_by_pattern("player")) == 58
 
     def test_get_by_pattern_team(self) -> None:
-        assert len(get_by_pattern("team")) == 25
+        assert len(get_by_pattern("team")) == 28
 
     def test_get_by_pattern_player_season(self) -> None:
         entries = get_by_pattern("player_season")
@@ -112,7 +110,7 @@ class TestStagingMap:
         assert "league_player_on_details" in names
 
     def test_get_by_pattern_static(self) -> None:
-        assert len(get_by_pattern("static")) == 5
+        assert len(get_by_pattern("static")) == 6
 
     def test_get_by_pattern_date(self) -> None:
         assert len(get_by_pattern("date")) == 15
