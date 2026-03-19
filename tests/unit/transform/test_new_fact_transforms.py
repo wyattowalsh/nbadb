@@ -292,20 +292,22 @@ class TestFactPlayerSplits:
 class TestFactPlayerPtTracking:
     def test_class_attrs(self) -> None:
         assert FactPlayerPtTrackingTransformer.output_table == "fact_player_pt_tracking"
-        assert len(FactPlayerPtTrackingTransformer.depends_on) == 4
+        assert len(FactPlayerPtTrackingTransformer.depends_on) == 5
 
     def test_union_with_tracking_type(self) -> None:
         staging = {
             "stg_player_pt_pass": pl.DataFrame({"player_id": [1], "val": [10]}).lazy(),
+            "stg_player_pt_pass_received": pl.DataFrame({"player_id": [5], "val": [12]}).lazy(),
             "stg_player_pt_reb": pl.DataFrame({"player_id": [2], "val": [8]}).lazy(),
             "stg_player_pt_shots": pl.DataFrame({"player_id": [3], "val": [15]}).lazy(),
             "stg_player_pt_shot_defend": pl.DataFrame({"player_id": [4], "val": [6]}).lazy(),
         }
         result = _run(FactPlayerPtTrackingTransformer(), staging)
-        assert result.shape[0] == 4
+        assert result.shape[0] == 5
         assert "tracking_type" in result.columns
         assert set(result["tracking_type"].to_list()) == {
             "pass",
+            "pass_received",
             "rebound",
             "shots",
             "shot_defend",
@@ -339,18 +341,20 @@ class TestFactTeamSplits:
 class TestFactTeamPtTracking:
     def test_class_attrs(self) -> None:
         assert FactTeamPtTrackingTransformer.output_table == "fact_team_pt_tracking"
-        assert len(FactTeamPtTrackingTransformer.depends_on) == 3
+        assert len(FactTeamPtTrackingTransformer.depends_on) == 4
 
     def test_union_with_tracking_type(self) -> None:
         staging = {
             "stg_team_pt_pass": pl.DataFrame({"team_id": [1], "val": [20]}).lazy(),
+            "stg_team_pt_pass_received": pl.DataFrame({"team_id": [4], "val": [18]}).lazy(),
             "stg_team_pt_reb": pl.DataFrame({"team_id": [2], "val": [15]}).lazy(),
             "stg_team_pt_shots": pl.DataFrame({"team_id": [3], "val": [25]}).lazy(),
         }
         result = _run(FactTeamPtTrackingTransformer(), staging)
-        assert result.shape[0] == 3
+        assert result.shape[0] == 4
         assert "tracking_type" in result.columns
-        assert set(result["tracking_type"].to_list()) == {"pass", "rebound", "shots"}
+        expected = {"pass", "pass_received", "rebound", "shots"}
+        assert set(result["tracking_type"].to_list()) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -537,15 +541,19 @@ class TestFactFantasy:
         assert FactFantasyTransformer.output_table == "fact_fantasy"
         assert "stg_fanduel_player" in FactFantasyTransformer.depends_on
 
-    def test_transform_passthrough(self) -> None:
+    def test_transform_union(self) -> None:
         staging = {
             "stg_fanduel_player": pl.DataFrame(
                 {"player_id": [1], "fantasy_pts": [45.2], "salary": [8500]}
             ).lazy(),
+            "stg_fantasy_widget": pl.DataFrame(
+                {"player_id": [2], "fantasy_pts": [38.0], "salary": [7200]}
+            ).lazy(),
         }
         result = _run(FactFantasyTransformer(), staging)
-        assert result.shape[0] == 1
-        assert set(result.columns) == {"player_id", "fantasy_pts", "salary"}
+        assert result.shape[0] == 2
+        assert "fantasy_source" in result.columns
+        assert set(result["fantasy_source"].to_list()) == {"fanduel", "fantasy_widget"}
 
 
 # ---------------------------------------------------------------------------
