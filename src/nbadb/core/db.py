@@ -44,6 +44,7 @@ class DBManager:
         self._apply_sqlite_pragmas()
         SQLModel.metadata.create_all(self._engine)
         self._duckdb_conn = duckdb.connect(str(self._duckdb_path))
+        self._duckdb_conn.execute("SET preserve_insertion_order = false")
         self._create_pipeline_tables()
         logger.info(f"DB initialized: SQLite={self._sqlite_path}, DuckDB={self._duckdb_path}")
 

@@ -73,12 +73,20 @@ class SchemaVersionTracker:
             return self._record(table_name, columns, self._hash_columns(typed_cols))
         return self._record(table_name, columns, self._hash_columns(columns))
 
-    def record_schema(self, table_name: str, columns: list[str]) -> SchemaChange | None:
+    def record_schema(
+        self, table_name: str, columns: list[str], dtypes: list[str] | None = None
+    ) -> SchemaChange | None:
         """Record the current schema for a table.
+
+        When *dtypes* is provided (and matches *columns* in length), the hash
+        includes ``name:type`` pairs so that type changes are also detected.
 
         Returns a SchemaChange if the schema differs from the stored version,
         or None if unchanged (or first recording).
         """
+        if dtypes and len(dtypes) == len(columns):
+            typed_cols = [f"{c}:{t}" for c, t in zip(columns, dtypes, strict=True)]
+            return self._record(table_name, columns, self._hash_columns(typed_cols))
         return self._record(table_name, columns, self._hash_columns(columns))
 
     def _record(self, table_name: str, columns: list[str], new_hash: str) -> SchemaChange | None:
@@ -146,12 +154,21 @@ class SchemaVersionTracker:
         )
         return change
 
-    def record_schemas(self, tables: dict[str, list[str]]) -> list[SchemaChange]:
-        """Record schemas for multiple tables. Returns list of detected changes."""
+    def record_schemas(
+        self,
+        tables: dict[str, list[str]],
+        table_dtypes: dict[str, list[str]] | None = None,
+    ) -> list[SchemaChange]:
+        """Record schemas for multiple tables. Returns list of detected changes.
+
+        When *table_dtypes* is provided, type information is included in
+        the schema hash so type-only changes are also detected.
+        """
         changes = []
+        dtypes_map = table_dtypes or {}
         for table_name, columns in tables.items():
             try:
-                change = self.record_schema(table_name, columns)
+                change = self.record_schema(table_name, columns, dtypes=dtypes_map.get(table_name))
                 if change is not None:
                     changes.append(change)
             except Exception as exc:

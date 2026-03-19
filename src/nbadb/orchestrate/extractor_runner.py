@@ -160,6 +160,15 @@ class ExtractorRunner:
         """Shut down the thread pool to release worker threads."""
         self._thread_pool.shutdown(wait=False)
 
+    async def __aenter__(self) -> ExtractorRunner:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        self.shutdown()
+
+    def __del__(self) -> None:
+        self._thread_pool.shutdown(wait=False)
+
     # ── public API ─────────────────────────────────────────────
 
     async def run_pattern(
