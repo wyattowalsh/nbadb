@@ -69,6 +69,7 @@ class _AdaptiveThrottle:
     def current_rate(self) -> float:
         return self._current_rate
 
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -154,6 +155,10 @@ class ExtractorRunner:
         self._multi_cache: dict[tuple[str, str], list[pl.DataFrame]] = {}
         # Count of extractions skipped because already done in journal
         self.skipped: int = 0
+
+    def shutdown(self) -> None:
+        """Shut down the thread pool to release worker threads."""
+        self._thread_pool.shutdown(wait=False)
 
     # ── public API ─────────────────────────────────────────────
 
@@ -370,9 +375,7 @@ class ExtractorRunner:
             return True
         # KeyError / IndexError from nba_api when the API returns an error page
         # instead of JSON — transient when caused by rate limiting
-        if name in ("KeyError", "IndexError"):
-            return True
-        return False
+        return name in ("KeyError", "IndexError")
 
     async def _run_with_journal(
         self,
@@ -411,7 +414,7 @@ class ExtractorRunner:
             except Exception as exc:
                 last_exc = exc
                 if attempt < max_retries and self._is_retryable(exc):
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     logger.warning(
                         "extract retry {}/{}: {} [{}] -> {} (backoff {:.1f}s)",
                         attempt + 1,
@@ -547,7 +550,6 @@ class ExtractorRunner:
 
         # Check cache first
         if cache_key not in self._multi_cache:
-
             pool = self._thread_pool
 
             async def _do(ext: object) -> list[pl.DataFrame]:

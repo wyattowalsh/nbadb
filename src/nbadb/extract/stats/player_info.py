@@ -18,6 +18,7 @@ from nba_api.stats.endpoints import (
 
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
+from nbadb.orchestrate.seasons import current_season
 
 
 @registry.register
@@ -103,7 +104,7 @@ class PlayerNextNGamesExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
         number_of_games: int = params.get("number_of_games", 5)
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             PlayerNextNGames,

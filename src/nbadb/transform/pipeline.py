@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from nbadb.transform.metrics import PipelineMetrics
+
 if TYPE_CHECKING:
     import duckdb
     import polars as pl
@@ -50,6 +52,7 @@ class TransformPipeline:
         self._transformers: list[BaseTransformer] = []
         self._outputs: dict[str, pl.DataFrame] = {}
         self._last_result: PipelineResult | None = None
+        self._metrics = PipelineMetrics(run_id=self._run_id)
 
     @property
     def last_result(self) -> PipelineResult | None:
@@ -190,6 +193,7 @@ class TransformPipeline:
                 if resume and table in self._outputs:
                     logger.info(f"Skipping {table} (already completed)")
                     result.completed.append(table)
+                    self._metrics.skip_transformer(table)
                     continue
 
                 # Checkpoint resume: skip if table was checkpointed and exists in DuckDB
@@ -199,6 +203,7 @@ class TransformPipeline:
                         self._outputs[table] = df
                         result.completed.append(table)
                         result.skipped.append(table)
+                        self._metrics.skip_transformer(table)
                         logger.info(f"Skipping {table} (loaded from checkpoint)")
                         continue
                     except Exception:
@@ -206,6 +211,7 @@ class TransformPipeline:
                             f"Checkpoint entry for '{table}' but table not in DuckDB, re-computing"
                         )
 
+                self._metrics.start_transformer(table)
                 try:
                     transformer._conn = self._conn
                     # Build combined view: original staging + accumulated outputs
@@ -216,6 +222,7 @@ class TransformPipeline:
                 except Exception as exc:
                     tb = traceback.format_exc()
                     error_msg = f"{type(exc).__name__}: {exc}"
+                    self._metrics.fail_transformer(table, error_msg)
                     logger.error(
                         f"Transformer '{table}' failed "
                         f"({type(transformer).__name__}, "
@@ -226,6 +233,7 @@ class TransformPipeline:
                     result.failed.append((table, error_msg))
                     continue
                 self._outputs[table] = df
+                self._metrics.complete_transformer(table, df.shape[0], df.shape[1])
                 # INFRA-006: Only register the NEW output from each completed transformer
                 self._conn.register(table, df)
                 result.completed.append(table)
@@ -239,6 +247,12 @@ class TransformPipeline:
             )
             if result.failed:
                 logger.warning(f"Failed transformers: {result.failed_tables}")
+
+            # Finalize and persist metrics
+            self._metrics.finalize()
+            self._metrics.log_summary()
+            with contextlib.suppress(Exception):
+                self._metrics.persist(self._conn)
 
             # Clean run completed — clear checkpoint data
             if not result.failed:

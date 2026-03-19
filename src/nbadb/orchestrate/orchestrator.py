@@ -320,12 +320,14 @@ class Orchestrator:
         ]
         _st_list = season_types or ["Regular Season"]
         if season_entries and seasons:
-            plan.append((
-                "season",
-                "season",
-                season_entries,
-                [{"season": s, "season_type": st} for s in seasons for st in _st_list],
-            ))
+            plan.append(
+                (
+                    "season",
+                    "season",
+                    season_entries,
+                    [{"season": s, "season_type": st} for s in seasons for st in _st_list],
+                )
+            )
 
         game_entries = get_by_pattern("game")
         if game_entries and game_ids:
@@ -544,6 +546,7 @@ class Orchestrator:
             journal=journal,
         )
         result.skipped_extractions = runner.skipped
+        runner.shutdown()
 
         bound_log.info(
             "init complete: {} tables, {} rows, {:.1f}s, "
@@ -581,9 +584,7 @@ class Orchestrator:
 
         # -- 1. Discover recent game_ids (Regular + Playoffs) -----
         _daily_st = ["Regular Season", "Playoffs"]
-        game_ids, game_log_df = await discovery.discover_game_ids(
-            [season], season_types=_daily_st
-        )
+        game_ids, game_log_df = await discovery.discover_game_ids([season], season_types=_daily_st)
 
         raw: dict[str, pl.DataFrame] = {}
         if not game_log_df.is_empty():
@@ -649,6 +650,7 @@ class Orchestrator:
             journal=journal,
         )
         result.skipped_extractions = runner.skipped
+        runner.shutdown()
 
         bound_log.info(
             "daily complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} load failures",
@@ -708,6 +710,7 @@ class Orchestrator:
             journal=journal,
         )
         result.skipped_extractions = runner.skipped
+        runner.shutdown()
 
         bound_log.info(
             "monthly complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} load failures",
@@ -792,10 +795,8 @@ class Orchestrator:
         seasons = season_range()
 
         # Discover entities for gap-filling
-        game_ids, player_ids, team_ids, game_dates, game_log_df = (
-            await self._discover_entities(
-                discovery, seasons, bound_log, season_types=_full_st
-            )
+        game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
+            discovery, seasons, bound_log, season_types=_full_st
         )
         if not game_log_df.is_empty():
             raw.setdefault("stg_league_game_log", game_log_df)
@@ -830,6 +831,7 @@ class Orchestrator:
             journal=journal,
         )
         result.skipped_extractions = runner.skipped
+        runner.shutdown()
 
         bound_log.info(
             "full complete: {} tables, {} rows, {:.1f}s, {} remaining failures",

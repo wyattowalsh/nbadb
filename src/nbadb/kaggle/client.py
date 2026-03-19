@@ -30,7 +30,8 @@ class KaggleClient:
         for src_file in download_path.iterdir():
             if src_file.is_file():
                 shutil.copy2(src_file, dest / src_file.name)
-                logger.info(f"  copied file: {src_file.name} ({src_file.stat().st_size / 1_048_576:.1f} MB)")
+                size_mb = src_file.stat().st_size / 1_048_576
+                logger.info(f"  copied file: {src_file.name} ({size_mb:.1f} MB)")
                 copied += 1
             elif src_file.is_dir():
                 dst_sub = dest / src_file.name
@@ -58,9 +59,9 @@ class KaggleClient:
         conn = duckdb.connect(str(duckdb_path))
         try:
             conn.execute("INSTALL sqlite; LOAD sqlite;")
-            conn.execute(
-                f"ATTACH '{sqlite_path}' AS sqlite_db (TYPE SQLITE, READ_ONLY)"
-            )
+            # Use parameterized path to prevent single-quote injection
+            safe_path = str(sqlite_path).replace("'", "''")
+            conn.execute(f"ATTACH '{safe_path}' AS sqlite_db (TYPE SQLITE, READ_ONLY)")
             tables = [
                 r[0]
                 for r in conn.execute(
@@ -69,16 +70,16 @@ class KaggleClient:
             ]
             total_rows = 0
             for table in tables:
+                # Quote identifiers to prevent SQL injection from table names
+                quoted = f'"{table}"'
                 conn.execute(
-                    f"CREATE TABLE IF NOT EXISTS {table} AS SELECT * FROM sqlite_db.{table}"
+                    f"CREATE TABLE IF NOT EXISTS {quoted} AS SELECT * FROM sqlite_db.{quoted}"
                 )
-                rows = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                rows = conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()[0]
                 total_rows += rows
                 logger.debug(f"  seeded {table}: {rows:,} rows")
             conn.execute("DETACH sqlite_db")
-            logger.info(
-                f"Seeded DuckDB: {len(tables)} tables, {total_rows:,} rows total"
-            )
+            logger.info(f"Seeded DuckDB: {len(tables)} tables, {total_rows:,} rows total")
         finally:
             conn.close()
 

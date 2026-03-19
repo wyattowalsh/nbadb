@@ -11,6 +11,7 @@ from nba_api.stats.endpoints import (
 
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
+from nbadb.orchestrate.seasons import current_season
 
 if TYPE_CHECKING:
     import polars as pl
@@ -74,7 +75,7 @@ class ShotChartLineupExtractor(BaseExtractor):
     category = "shots"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params.get("season", "2024-25")
+        season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
         group_id: str = params.get("group_id", "")
         context_measure: str = params.get("context_measure", "FGA")

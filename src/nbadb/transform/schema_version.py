@@ -44,7 +44,10 @@ class SchemaVersionTracker:
 
     @staticmethod
     def _hash_columns(columns: list[str]) -> str:
-        """Deterministic hash of sorted column names."""
+        """Deterministic hash of sorted column descriptors.
+
+        Accepts plain column names or ``name:type`` pairs for type-aware hashing.
+        """
         return hashlib.sha256(",".join(sorted(columns)).encode()).hexdigest()[:16]
 
     def get_current_version(self, table_name: str) -> tuple[int, str, list[str]] | None:
@@ -57,19 +60,32 @@ class SchemaVersionTracker:
             return None
         return (row[0], row[1], json.loads(row[2]))
 
+    def record_schema_typed(
+        self, table_name: str, columns: list[str], dtypes: list[str] | None = None
+    ) -> SchemaChange | None:
+        """Record schema with optional type information.
+
+        When *dtypes* is provided, the hash includes ``name:type`` pairs,
+        detecting type changes in addition to column additions/removals.
+        """
+        if dtypes and len(dtypes) == len(columns):
+            typed_cols = [f"{c}:{t}" for c, t in zip(columns, dtypes, strict=True)]
+            return self._record(table_name, columns, self._hash_columns(typed_cols))
+        return self._record(table_name, columns, self._hash_columns(columns))
+
     def record_schema(self, table_name: str, columns: list[str]) -> SchemaChange | None:
         """Record the current schema for a table.
 
         Returns a SchemaChange if the schema differs from the stored version,
         or None if unchanged (or first recording).
         """
-        new_hash = self._hash_columns(columns)
-        columns_json = json.dumps(columns)
+        return self._record(table_name, columns, self._hash_columns(columns))
 
+    def _record(self, table_name: str, columns: list[str], new_hash: str) -> SchemaChange | None:
+        columns_json = json.dumps(columns)
         existing = self.get_current_version(table_name)
 
         if existing is None:
-            # First time seeing this table — record version 1
             self._conn.execute(
                 """INSERT INTO _schema_versions (table_name, version, column_hash, columns_json)
                    VALUES ($1, 1, $2, $3)
@@ -91,9 +107,8 @@ class SchemaVersionTracker:
         old_version, old_hash, old_columns = existing
 
         if old_hash == new_hash:
-            return None  # No change
+            return None
 
-        # Schema changed — bump version
         new_version = old_version + 1
         added = sorted(set(columns) - set(old_columns))
         removed = sorted(set(old_columns) - set(columns))
