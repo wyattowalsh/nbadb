@@ -1,98 +1,139 @@
 ---
 title: Derived Aggregations
-description: All 15 pre-aggregated tables for common analytical queries
+description: Playbook for the 16 agg_ tables that precompute common analytical rollups
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Derived Aggregation Tables
 
-Derived tables are pre-computed aggregations that speed up common analytical patterns. They are rebuilt during each pipeline run.
+Derived tables are precomputed `agg_*` outputs built for repeat possessions: the summaries you know analysts will ask for again, where rebuilding from raw game grain every time would just be wasted dribbles.
 
-## Player Aggregations
+<StatGrid columns={3}>
+  <StatPill
+    label="agg_ tables"
+    value="16"
+    note="precomputed rollups for recurring analysis"
+  />
+  <StatPill
+    label="Primary clusters"
+    value="3"
+    note="player, team/lineup, and league/shot summaries"
+  />
+  <StatPill
+    label="Refresh cadence"
+    value="Pipeline run"
+    note="rebuilt whenever transforms refresh the warehouse"
+  />
+</StatGrid>
 
-### derived_player_career
-Career totals and averages for every player across regular season and playoffs.
+<Callout type="info">
+Use `agg_` tables when the question repeats often enough to deserve a reusable set play. Use `analytics_` views when the win comes from pre-joined context instead of a rollup.
+</Callout>
 
-**Grain**: One row per player per season type.
-**Key columns**: player_id, season_type, gp, gs, min_total, pts_total, reb_total, ast_total, ppg, rpg, apg
+## How to use this page
 
-### derived_player_season
-Season-level player statistics with per-game and total modes.
+1. **Ask whether the question is repeated summary work.** If yes, start with `agg_`.
+2. **Choose the cluster**: player, team/lineup, or league/shot context.
+3. **Drop back to [Facts & Bridges](/docs/schema/facts)** if the rollup removes a field or split you still need.
 
-**Grain**: One row per player per season per season type.
-**Key columns**: player_id, season_year, gp, ppg, rpg, apg, spg, bpg, fg_pct, fg3_pct, ft_pct, ts_pct
+## Quick navigation
 
-### derived_player_rolling
-Rolling averages (5-game, 10-game, 20-game windows) for trend analysis.
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="Choose the right rollup cluster" label="Jump to section">
+    Start with <a href="#choose-the-rollup">Choose the rollup</a> when you need the fastest way to map a player, team, lineup, or league question to the right aggregate family.
+  </ScoutCard>
+  <ScoutCard title="Player aggregation surfaces" label="Jump to section">
+    Go to <a href="#player-aggregation-bench-unit">Player aggregation bench unit</a> for career, season, per-minute, rolling-form, clutch, and on/off summaries.
+  </ScoutCard>
+  <ScoutCard title="Team and league summaries" label="Jump to section">
+    Jump to <a href="#team-and-lineup-aggregation-bench-unit">Team and lineup aggregation bench unit</a> or <a href="#league-context-aggregations">League-context aggregations</a> when the question is bigger than one player.
+  </ScoutCard>
+  <ScoutCard title="Know when to drop down" label="Generated boundary">
+    If the rollup hides too much, fall back to <a href="/docs/schema/facts">Facts &amp; Bridges</a>. If you need exact schema-backed columns, finish on <a href="/docs/schema/star-reference">Star Reference</a>.
+  </ScoutCard>
+</div>
 
-**Grain**: One row per player per game.
-**Key columns**: player_id, game_id, pts_5g, pts_10g, pts_20g, reb_5g, ast_5g
+<CourtDivider label="Second-unit scoring" />
 
-### derived_player_splits
-Player performance splits by home/away, back-to-back, opponent, month, and day of week.
+## Pick `agg_` vs facts vs analytics views
 
-**Grain**: One row per player per split category per value.
+| If you need... | Best surface | Why |
+| -------------- | ------------ | --- |
+| a reusable summary at a natural player/team/league rollup | `agg_` tables | They keep the summary at its intended analytical grain |
+| a pre-joined convenience read for a common workflow | [Analytics Views](/docs/schema/analytics-views) | Those optimize for reduced join work, not just rollup reuse |
+| a field or split only available at atomic grain | [Facts & Bridges](/docs/schema/facts) | Fact tables preserve the base detail that rollups intentionally compress |
 
-### derived_player_estimated
-Estimated advanced metrics derived from box score data.
+## Choose the rollup
 
-**Grain**: One row per player per season.
-**Key columns**: e_off_rating, e_def_rating, e_net_rating, e_usg_pct, e_pace
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Player form and value" label="Content module">
+    `agg_player_bio`, `agg_player_season`, `agg_player_season_per36`, `agg_player_season_per48`, `agg_player_career`, `agg_player_rolling`, `agg_clutch_stats`, and `agg_on_off_splits` cover the recurring player summary questions analysts ask every day.
+  </ScoutCard>
+  <ScoutCard title="Team and lineup shape" label="Content module">
+    `agg_team_season`, `agg_team_pace_and_efficiency`, `agg_team_franchise`, and `agg_lineup_efficiency` package style, efficiency, franchise history, and lineup impact at reusable summary grain.
+  </ScoutCard>
+  <ScoutCard title="League context and shot profile" label="Content module">
+    `agg_league_leaders`, `agg_all_time_leaders`, `agg_shot_zones`, and `agg_shot_location_season` keep leaderboards and spatial shooting summaries off the critical path for every notebook.
+  </ScoutCard>
+</div>
 
-## Team Aggregations
+| Cluster | Tables in the rotation | Grain | Best for |
+| ------- | ---------------------- | ----- | -------- |
+| Player form and value | `agg_player_bio`, `agg_player_season`, `agg_player_season_per36`, `agg_player_season_per48`, `agg_player_career`, `agg_player_rolling`, `agg_clutch_stats`, `agg_on_off_splits` | Player-season, player-game, or player/entity split | Career summaries, rolling form, normalized rates, and clutch/on-off context |
+| Team and lineup shape | `agg_team_season`, `agg_team_pace_and_efficiency`, `agg_team_franchise`, `agg_lineup_efficiency` | Team-season, franchise row, or lineup-season | Pace, efficiency, franchise history, and lineup impact |
+| League context and shot profile | `agg_league_leaders`, `agg_all_time_leaders`, `agg_shot_zones`, `agg_shot_location_season` | League-season, all-time row, or player-zone season | Leaderboards, shot maps, and contextual comparison around player/team outputs |
 
-### derived_team_season
-Season-level team statistics.
+## Fast picks by question
 
-**Grain**: One row per team per season per season type.
-**Key columns**: team_id, season_year, gp, w, l, w_pct, pts_pg, opp_pts_pg, diff_pts_pg
+| If the question sounds like... | Start with | Why |
+| ------------------------------ | ---------- | --- |
+| "What does this player's season look like without rebuilding it from game rows?" | `agg_player_season` | It is the baseline player-season rollup |
+| "How is this player trending recently?" | `agg_player_rolling` | The rolling windows are already computed |
+| "How do these players compare on a minutes-normalized basis?" | `agg_player_season_per36` or `agg_player_season_per48` | The normalization is already packaged |
+| "What is this team's style and efficiency profile?" | `agg_team_pace_and_efficiency` | Pace and efficiency live together at team-season grain |
+| "What are the best five-man groups?" | `agg_lineup_efficiency` | It keeps lineup impact at the right unit of analysis |
+| "Who leads the league or all-time list?" | `agg_league_leaders` or `agg_all_time_leaders` | Leaderboards are already rolled up and ranked for reuse |
+| "How does the shot profile break down spatially?" | `agg_shot_zones` or `agg_shot_location_season` | These preserve the shooting summary without dropping to individual shots |
 
-### derived_team_year_by_year
-Historical year-by-year team statistics.
+## Player aggregation bench unit
 
-**Grain**: One row per team per year.
+| Table | What it summarizes | Reach for it when |
+| ----- | ------------------ | ----------------- |
+| `agg_player_bio` | Season-level bio/profile rows | You want roster/profile context already aligned for analysis |
+| `agg_player_season` | Player season totals and averages | You need the baseline season stat line |
+| `agg_player_season_per36` / `agg_player_season_per48` | Minute-normalized player season rates | You want usage-neutral or minutes-adjusted comparisons |
+| `agg_player_career` | Career totals and career-rate summary | You are building long-arc player dossiers |
+| `agg_player_rolling` | 5/10/20-game rolling trends | You care about form, streaks, and recent trend lines |
+| `agg_clutch_stats` | Clutch scoring and baseline context | You are isolating late-game performance |
+| `agg_on_off_splits` | On/off splits by entity and team context | You need lineup-free impact framing without rebuilding split logic |
 
-### derived_team_estimated
-Estimated advanced metrics for teams.
+## Team and lineup aggregation bench unit
 
-**Grain**: One row per team per season.
+| Table | What it summarizes | Reach for it when |
+| ----- | ------------------ | ----------------- |
+| `agg_team_season` | Team season averages | You need the clean season snapshot |
+| `agg_team_pace_and_efficiency` | Pace and rating rollups | You are comparing style and efficiency together |
+| `agg_team_franchise` | Franchise history summary | You need long-horizon team history context |
+| `agg_lineup_efficiency` | Group/lineup efficiency | You are comparing five-man units instead of individual players |
 
-## League Aggregations
+## League-context aggregations
 
-### derived_league_leaders
-Season statistical category leaders.
+| Table | What it summarizes | Reach for it when |
+| ----- | ------------------ | ----------------- |
+| `agg_league_leaders` | Season category leaders | You need quick leaderboards |
+| `agg_all_time_leaders` | All-time leaderboard rows | You are doing historical leaderboard work |
+| `agg_shot_zones` | Player-season shooting by zone | You need a zone-by-zone shot report |
+| `agg_shot_location_season` | Shot-location season summaries | You want season-level spatial shooting context |
 
-**Grain**: One row per player per stat category per season.
-**Key columns**: player_id, season_year, stat_category, stat_value, rank
+## Good exit ramps
 
-### derived_league_player_stats
-League-wide player dashboard statistics.
+| If `agg_` is not enough because... | Next move |
+| ---------------------------------- | --------- |
+| you still need atomic game, event, or participant detail | Drop to the relevant [Facts](/docs/schema/facts) family |
+| you want the rollup plus rich denormalized context already attached | Check [Analytics Views](/docs/schema/analytics-views) |
+| you need exact field names, types, or nullability | Confirm the contract in the generated [Star Reference](/docs/schema/star-reference) |
 
-**Grain**: One row per player per season per measure type.
-
-### derived_league_team_stats
-League-wide team dashboard statistics.
-
-**Grain**: One row per team per season per measure type.
-
-### derived_league_shot_zones
-League-wide shot zone efficiency averages.
-
-**Grain**: One row per zone combination per season.
-**Key columns**: shot_zone_basic, shot_zone_area, shot_zone_range, fga, fgm, fg_pct
-
-### derived_all_time_leaders
-All-time career and season records across statistical categories.
-
-**Grain**: One row per player per stat category.
-
-## Draft Aggregations
-
-### derived_draft_combine
-Combined draft combine results with measurements and drill results.
-
-**Grain**: One row per player per combine year.
-
-### derived_player_awards
-Aggregated awards and honors per player.
-
-**Grain**: One row per player per award type per season.
+<Callout>
+If you still find yourself joining three or four tables after landing on an `agg_` output, check <a href="/docs/schema/analytics-views">Analytics Views</a>. If you need a column that only exists at atomic grain, drop back to the relevant <a href="/docs/schema/facts">Facts</a> family.
+</Callout>

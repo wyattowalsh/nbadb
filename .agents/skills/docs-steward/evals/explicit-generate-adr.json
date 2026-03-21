@@ -1,0 +1,12 @@
+{
+  "skills": ["docs-steward"],
+  "query": "/docs-steward generate adr Use SQLModel for database layer",
+  "files": [],
+  "expected_behavior": [
+    "Routes to Mode J (Generate)",
+    "Loads data/adr-template.json for MADR structure",
+    "Runs adr-scaffolder.py with the decision title",
+    "Produces MADR-format ADR with Context, Decision, Consequences sections",
+    "Asks clarifying questions if context or alternatives not provided"
+  ]
+}

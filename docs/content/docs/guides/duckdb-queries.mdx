@@ -1,13 +1,30 @@
 ---
 title: DuckDB Query Examples
-description: Example SQL queries for analyzing NBA data with DuckDB
+description: Set menu of DuckDB queries for common NBA analysis workflows.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # DuckDB Query Examples
 
-DuckDB provides the fastest analytical query experience for nbadb data.
+DuckDB provides the fastest analytical query experience for nbadb data. Treat this page like a scouting packet: pick the set that matches your question, then run that possession end-to-end.
+
+## Pick a query lane
+
+| If you need… | Jump to |
+| ------------- | ------- |
+| Season leaders and player workload reads | [Scoring and player load](#scoring-and-player-load) |
+| Standings, matchup, or pace prep | [Team prep and standings](#team-prep-and-standings) |
+| Shot-zone volume and efficiency | [Shot profile reads](#shot-profile-reads) |
+| Game-flow or clutch context | [Late-game reads](#late-game-reads) |
+
+<Callout type="info">
+**Coaching note:** Keep `season_year`, `season_type`, and minimum-games filters explicit so analysts can rerun the same possession and reach the same conclusion.
+</Callout>
 
 ## Setup
+
+### Connect to DuckDB
 
 ```python
 import duckdb
@@ -15,7 +32,11 @@ import duckdb
 conn = duckdb.connect("nba.duckdb")
 ```
 
-## Top Scorers by Season
+## Scoring and player load
+
+### Top scorers by season
+
+Use this when you want a quick leaderboard with a minimum-games floor.
 
 ```sql
 SELECT
@@ -35,7 +56,9 @@ ORDER BY ppg DESC
 LIMIT 20;
 ```
 
-## Player Career Averages
+### Player career averages
+
+Use this when you want a broad regular-season baseline across long careers.
 
 ```sql
 SELECT
@@ -57,66 +80,9 @@ ORDER BY ppg DESC
 LIMIT 25;
 ```
 
-## Team Records and Standings
+### Triple-doubles in a season
 
-```sql
-SELECT
-    t.city || ' ' || t.nickname AS team,
-    s.conference,
-    s.division,
-    s.wins,
-    s.losses,
-    ROUND(s.win_pct, 3) AS win_pct,
-    s.playoff_rank,
-    s.current_streak
-FROM fact_standings s
-JOIN dim_team t ON s.team_id = t.team_id
-WHERE s.season_id = '2024-25'
-ORDER BY s.conference, s.playoff_rank;
-```
-
-## Head-to-Head Matchups
-
-```sql
-SELECT
-    home_t.abbreviation AS home_team,
-    away_t.abbreviation AS away_team,
-    COUNT(*) AS games,
-    SUM(CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END) AS home_wins,
-    SUM(CASE WHEN g.away_score > g.home_score THEN 1 ELSE 0 END) AS away_wins,
-    ROUND(AVG(g.home_score), 1) AS avg_home_pts,
-    ROUND(AVG(g.away_score), 1) AS avg_away_pts
-FROM dim_game g
-JOIN dim_team home_t ON g.home_team_id = home_t.team_id
-JOIN dim_team away_t ON g.away_team_id = away_t.team_id
-WHERE g.season_type = 'Regular Season'
-  AND g.season_year = 2024
-  AND home_t.abbreviation = 'BOS'
-GROUP BY 1, 2
-ORDER BY games DESC;
-```
-
-## Shot Chart Zone Analysis
-
-```sql
-SELECT
-    p.first_name || ' ' || p.last_name AS player,
-    sc.shot_zone_basic,
-    sc.shot_zone_area,
-    COUNT(*) AS attempts,
-    SUM(sc.shot_made_flag) AS makes,
-    ROUND(100.0 * SUM(sc.shot_made_flag) / COUNT(*), 1) AS fg_pct
-FROM fact_shot_chart sc
-JOIN dim_player p ON sc.player_id = p.player_id
-JOIN dim_game g ON sc.game_id = g.game_id
-WHERE p.last_name = 'Curry'
-  AND p.first_name = 'Stephen'
-  AND g.season_year = 2024
-GROUP BY 1, 2, 3
-ORDER BY attempts DESC;
-```
-
-## Triple-Doubles in a Season
+Use this when you want a fast all-around production check without building a custom metric first.
 
 ```sql
 SELECT
@@ -133,7 +99,9 @@ ORDER BY triple_doubles DESC
 LIMIT 20;
 ```
 
-## Most Efficient Scorers (TS%)
+### Most efficient scorers (TS%)
+
+Use this when volume alone is not enough and you need efficiency with a minimum scoring threshold.
 
 ```sql
 SELECT
@@ -155,7 +123,54 @@ ORDER BY ts_pct DESC
 LIMIT 20;
 ```
 
-## Team Pace Leaders
+## Team prep and standings
+
+### Team records and standings
+
+Use this when you need a season snapshot that already carries conference and playoff context.
+
+```sql
+SELECT
+    t.city || ' ' || t.nickname AS team,
+    s.conference,
+    s.division,
+    s.wins,
+    s.losses,
+    ROUND(s.win_pct, 3) AS win_pct,
+    s.playoff_rank,
+    s.current_streak
+FROM fact_standings s
+JOIN dim_team t ON s.team_id = t.team_id
+WHERE s.season_id = '2024-25'
+ORDER BY s.conference, s.playoff_rank;
+```
+
+### Head-to-head matchups
+
+Use this when you want a quick opponent-specific prep packet for one club.
+
+```sql
+SELECT
+    home_t.abbreviation AS home_team,
+    away_t.abbreviation AS away_team,
+    COUNT(*) AS games,
+    SUM(CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END) AS home_wins,
+    SUM(CASE WHEN g.away_score > g.home_score THEN 1 ELSE 0 END) AS away_wins,
+    ROUND(AVG(g.home_score), 1) AS avg_home_pts,
+    ROUND(AVG(g.away_score), 1) AS avg_away_pts
+FROM dim_game g
+JOIN dim_team home_t ON g.home_team_id = home_t.team_id
+JOIN dim_team away_t ON g.away_team_id = away_t.team_id
+WHERE g.season_type = 'Regular Season'
+  AND g.season_year = 2024
+  AND home_t.abbreviation = 'BOS'
+GROUP BY 1, 2
+ORDER BY games DESC;
+```
+
+### Team pace leaders
+
+Use this when you need tempo plus offensive and defensive context in the same read.
 
 ```sql
 SELECT
@@ -174,7 +189,35 @@ GROUP BY 1, 2
 ORDER BY pace DESC;
 ```
 
-## Win Probability Swings
+## Shot profile reads
+
+### Shot chart zone analysis
+
+Use this when you want zone-level volume and efficiency before you move into plotting.
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    sc.shot_zone_basic,
+    sc.shot_zone_area,
+    COUNT(*) AS attempts,
+    SUM(sc.shot_made_flag) AS makes,
+    ROUND(100.0 * SUM(sc.shot_made_flag) / COUNT(*), 1) AS fg_pct
+FROM fact_shot_chart sc
+JOIN dim_player p ON sc.player_id = p.player_id
+JOIN dim_game g ON sc.game_id = g.game_id
+WHERE p.last_name = 'Curry'
+  AND p.first_name = 'Stephen'
+  AND g.season_year = 2024
+GROUP BY 1, 2, 3
+ORDER BY attempts DESC;
+```
+
+## Late-game reads
+
+### Win probability swings
+
+Use this when you need the event-by-event leverage moments from one specific game.
 
 ```sql
 SELECT
@@ -196,7 +239,9 @@ WHERE g.game_id = '0022400001'
 ORDER BY wp.event_num;
 ```
 
-## Clutch Performance (Last 5 Minutes, Score Within 5)
+### Clutch performance (Last 5 minutes, score within 5)
+
+Use this when you want a closer-only shooting table you can compare across players.
 
 ```sql
 SELECT
@@ -217,3 +262,12 @@ HAVING COUNT(*) >= 30
 ORDER BY clutch_points DESC
 LIMIT 20;
 ```
+
+## Where to go next
+
+| If this packet got you moving, next read… | Why |
+| ----------------------------------------- | --- |
+| [Analytics Quickstart](/docs/guides/analytics-quickstart) | Faster first-query route for new analysts |
+| [Shot Chart Analysis](/docs/guides/shot-chart-analysis) | Turns the shot-zone query into actual court maps |
+| [Player Comparison](/docs/guides/player-comparison) | Builds side-by-side player reads from similar building blocks |
+| [Schema Reference](/docs/schema) | Helps you trace table names and columns before writing custom SQL |

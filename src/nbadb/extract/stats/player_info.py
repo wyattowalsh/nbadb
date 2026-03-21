@@ -31,6 +31,10 @@ class CommonPlayerInfoExtractor(BaseExtractor):
         logger.debug(f"Extracting common player info for {player_id}")
         return self._from_nba_api(CommonPlayerInfo, player_id=player_id)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        return self._from_nba_api_multi(CommonPlayerInfo, player_id=player_id)
+
 
 @registry.register
 class PlayerCareerStatsExtractor(BaseExtractor):

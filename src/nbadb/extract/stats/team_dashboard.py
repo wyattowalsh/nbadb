@@ -34,6 +34,17 @@ class TeamDashboardByShootingSplitsExtractor(BaseExtractor):
             season_type_all_star=season_type,
         )
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
+            TeamDashboardByShootingSplits,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
 
 @registry.register
 class TeamDashboardByGeneralSplitsExtractor(BaseExtractor):
@@ -45,6 +56,17 @@ class TeamDashboardByGeneralSplitsExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            TeamDashboardByGeneralSplits,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             TeamDashboardByGeneralSplits,
             team_id=team_id,
             season=season,
@@ -68,6 +90,17 @@ class TeamPlayerOnOffDetailsExtractor(BaseExtractor):
             season_type_all_star=season_type,
         )
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
+            TeamPlayerOnOffDetails,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
 
 @registry.register
 class TeamPlayerOnOffSummaryExtractor(BaseExtractor):
@@ -85,6 +118,17 @@ class TeamPlayerOnOffSummaryExtractor(BaseExtractor):
             season_type_all_star=season_type,
         )
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
+            TeamPlayerOnOffSummary,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
 
 @registry.register
 class TeamPlayerDashboardExtractor(BaseExtractor):
@@ -96,6 +140,17 @@ class TeamPlayerDashboardExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            TeamPlayerDashboard,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             TeamPlayerDashboard,
             team_id=team_id,
             season=season,

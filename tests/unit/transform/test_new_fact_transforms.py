@@ -153,7 +153,7 @@ class TestFactDraftBoard:
 class TestFactPlayerCareer:
     def test_class_attrs(self) -> None:
         assert FactPlayerCareerTransformer.output_table == "fact_player_career"
-        assert len(FactPlayerCareerTransformer.depends_on) == 4
+        assert len(FactPlayerCareerTransformer.depends_on) == 8
 
     def test_union_with_career_type(self) -> None:
         staging = {
@@ -163,17 +163,31 @@ class TestFactPlayerCareer:
             "stg_player_career_total_postseason": pl.DataFrame(
                 {"player_id": [2], "pts": [50]}
             ).lazy(),
+            "stg_player_career_total_allstar": pl.DataFrame(
+                {"player_id": [5], "pts": [25]}
+            ).lazy(),
+            "stg_player_career_total_college": pl.DataFrame(
+                {"player_id": [6], "pts": [15]}
+            ).lazy(),
             "stg_player_career_allstar": pl.DataFrame({"player_id": [3], "pts": [30]}).lazy(),
             "stg_player_career_college": pl.DataFrame({"player_id": [4], "pts": [80]}).lazy(),
+            "stg_player_career_regular": pl.DataFrame({"player_id": [7], "pts": [90]}).lazy(),
+            "stg_player_career_postseason": pl.DataFrame(
+                {"player_id": [8], "pts": [40]}
+            ).lazy(),
         }
         result = _run(FactPlayerCareerTransformer(), staging)
-        assert result.shape[0] == 4
+        assert result.shape[0] == 8
         assert "career_type" in result.columns
         assert set(result["career_type"].to_list()) == {
             "regular",
             "postseason",
+            "total_allstar",
+            "total_college",
             "allstar",
             "college",
+            "season_regular",
+            "season_postseason",
         }
 
 
@@ -204,7 +218,7 @@ class TestFactPlayerSeasonRanks:
 class TestFactPlayerProfile:
     def test_class_attrs(self) -> None:
         assert FactPlayerProfileTransformer.output_table == "fact_player_profile"
-        assert len(FactPlayerProfileTransformer.depends_on) == 3
+        assert len(FactPlayerProfileTransformer.depends_on) == 15
 
     def test_union_with_profile_type(self) -> None:
         staging = {
@@ -214,15 +228,65 @@ class TestFactPlayerProfile:
             "stg_player_profile_season_highs": pl.DataFrame(
                 {"player_id": [2], "value": [55]}
             ).lazy(),
-            "stg_player_profile_next_game": pl.DataFrame({"player_id": [3], "value": [0]}).lazy(),
+            "stg_player_profile_next_game": pl.DataFrame(
+                {"player_id": [3], "value": [0]}
+            ).lazy(),
+            "stg_player_profile_regular": pl.DataFrame(
+                {"player_id": [4], "value": [10]}
+            ).lazy(),
+            "stg_player_profile_postseason": pl.DataFrame(
+                {"player_id": [5], "value": [11]}
+            ).lazy(),
+            "stg_player_profile_allstar": pl.DataFrame(
+                {"player_id": [6], "value": [12]}
+            ).lazy(),
+            "stg_player_profile_college": pl.DataFrame(
+                {"player_id": [7], "value": [13]}
+            ).lazy(),
+            "stg_player_profile_preseason": pl.DataFrame(
+                {"player_id": [8], "value": [14]}
+            ).lazy(),
+            "stg_player_profile_ranks_regular": pl.DataFrame(
+                {"player_id": [9], "value": [15]}
+            ).lazy(),
+            "stg_player_profile_ranks_postseason": pl.DataFrame(
+                {"player_id": [10], "value": [16]}
+            ).lazy(),
+            "stg_player_profile_total_regular": pl.DataFrame(
+                {"player_id": [11], "value": [17]}
+            ).lazy(),
+            "stg_player_profile_total_postseason": pl.DataFrame(
+                {"player_id": [12], "value": [18]}
+            ).lazy(),
+            "stg_player_profile_total_allstar": pl.DataFrame(
+                {"player_id": [13], "value": [19]}
+            ).lazy(),
+            "stg_player_profile_total_college": pl.DataFrame(
+                {"player_id": [14], "value": [20]}
+            ).lazy(),
+            "stg_player_profile_total_preseason": pl.DataFrame(
+                {"player_id": [15], "value": [21]}
+            ).lazy(),
         }
         result = _run(FactPlayerProfileTransformer(), staging)
-        assert result.shape[0] == 3
+        assert result.shape[0] == 15
         assert "profile_type" in result.columns
         assert set(result["profile_type"].to_list()) == {
             "career_highs",
             "season_highs",
             "next_game",
+            "season_regular",
+            "season_postseason",
+            "season_allstar",
+            "season_college",
+            "season_preseason",
+            "ranks_regular",
+            "ranks_postseason",
+            "total_regular",
+            "total_postseason",
+            "total_allstar",
+            "total_college",
+            "total_preseason",
         }
 
 
@@ -292,7 +356,7 @@ class TestFactPlayerSplits:
 class TestFactPlayerPtTracking:
     def test_class_attrs(self) -> None:
         assert FactPlayerPtTrackingTransformer.output_table == "fact_player_pt_tracking"
-        assert len(FactPlayerPtTrackingTransformer.depends_on) == 5
+        assert len(FactPlayerPtTrackingTransformer.depends_on) == 6
 
     def test_union_with_tracking_type(self) -> None:
         staging = {
@@ -301,9 +365,10 @@ class TestFactPlayerPtTracking:
             "stg_player_pt_reb": pl.DataFrame({"player_id": [2], "val": [8]}).lazy(),
             "stg_player_pt_shots": pl.DataFrame({"player_id": [3], "val": [15]}).lazy(),
             "stg_player_pt_shot_defend": pl.DataFrame({"player_id": [4], "val": [6]}).lazy(),
+            "stg_player_dash_pt_defend": pl.DataFrame({"player_id": [6], "val": [7]}).lazy(),
         }
         result = _run(FactPlayerPtTrackingTransformer(), staging)
-        assert result.shape[0] == 5
+        assert result.shape[0] == 6
         assert "tracking_type" in result.columns
         assert set(result["tracking_type"].to_list()) == {
             "pass",
@@ -311,6 +376,7 @@ class TestFactPlayerPtTracking:
             "rebound",
             "shots",
             "shot_defend",
+            "defense",
         }
 
 
@@ -363,7 +429,7 @@ class TestFactTeamPtTracking:
 class TestFactTeamHistorical:
     def test_class_attrs(self) -> None:
         assert FactTeamHistoricalTransformer.output_table == "fact_team_historical"
-        assert len(FactTeamHistoricalTransformer.depends_on) == 2
+        assert len(FactTeamHistoricalTransformer.depends_on) == 3
 
     def test_union_with_history_type(self) -> None:
         staging = {
@@ -371,11 +437,18 @@ class TestFactTeamHistorical:
                 {"team_id": [1], "player_name": ["Jordan"]}
             ).lazy(),
             "stg_team_year_by_year": pl.DataFrame({"team_id": [1], "season": ["2023-24"]}).lazy(),
+            "stg_team_year_by_year_stats": pl.DataFrame(
+                {"team_id": [1], "season": ["2023-24"]}
+            ).lazy(),
         }
         result = _run(FactTeamHistoricalTransformer(), staging)
-        assert result.shape[0] == 2
+        assert result.shape[0] == 3
         assert "history_type" in result.columns
-        assert set(result["history_type"].to_list()) == {"leaders", "year_by_year"}
+        assert set(result["history_type"].to_list()) == {
+            "leaders",
+            "year_by_year",
+            "year_by_year_stats",
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -486,32 +559,36 @@ class TestFactGameContext:
             "stg_game_info",
             "stg_game_summary",
             "stg_other_stats",
+            "stg_inactive_players",
+            "stg_season_series",
+            "stg_last_meeting",
+            "stg_game_summary_available_video",
         }
 
-    def test_join_on_game_id(self) -> None:
+    def test_union_with_context_source(self) -> None:
         staging = {
             "stg_game_summary": pl.DataFrame({"game_id": ["001"], "home_team_id": [1]}).lazy(),
             "stg_game_info": pl.DataFrame({"game_id": ["001"], "attendance": [18000]}).lazy(),
             "stg_other_stats": pl.DataFrame({"game_id": ["001"], "lead_changes": [12]}).lazy(),
+            "stg_inactive_players": pl.DataFrame(
+                {"game_id": ["002"], "player_id": [99]}
+            ).lazy(),
+            "stg_season_series": pl.DataFrame({"game_id": ["003"], "series_leader": [1]}).lazy(),
+            "stg_last_meeting": pl.DataFrame({"game_id": ["004"], "winner": [2]}).lazy(),
+            "stg_game_summary_available_video": pl.DataFrame(
+                {"game_id": ["005"], "video_available": [1]}
+            ).lazy(),
         }
         result = _run(FactGameContextTransformer(), staging)
-        assert result.shape[0] == 1
-        assert "game_id" in result.columns
-        assert "attendance" in result.columns
-        assert "lead_changes" in result.columns
-        assert "home_team_id" in result.columns
-        # game_id should appear only once (EXCLUDE removes duplicates)
-        assert result.columns.count("game_id") == 1
-
-    def test_left_join_null_when_missing(self) -> None:
-        staging = {
-            "stg_game_summary": pl.DataFrame({"game_id": ["001"], "home_team_id": [1]}).lazy(),
-            "stg_game_info": pl.DataFrame({"game_id": ["999"], "attendance": [0]}).lazy(),
-            "stg_other_stats": pl.DataFrame({"game_id": ["999"], "lead_changes": [0]}).lazy(),
+        assert result.shape[0] == 5
+        assert "context_source" in result.columns
+        assert set(result["context_source"].to_list()) == {
+            "summary",
+            "inactive_players",
+            "season_series",
+            "last_meeting",
+            "available_video",
         }
-        result = _run(FactGameContextTransformer(), staging)
-        assert result.shape[0] == 1
-        assert result["attendance"][0] is None
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +616,12 @@ class TestFactSeasonMatchups:
 class TestFactFantasy:
     def test_class_attrs(self) -> None:
         assert FactFantasyTransformer.output_table == "fact_fantasy"
-        assert "stg_fanduel_player" in FactFantasyTransformer.depends_on
+        assert set(FactFantasyTransformer.depends_on) == {
+            "stg_fanduel_player",
+            "stg_fantasy_widget",
+            "stg_player_fantasy_profile_last_five_games_avg",
+            "stg_player_fantasy_profile_season_avg",
+        }
 
     def test_transform_union(self) -> None:
         staging = {
@@ -549,11 +631,22 @@ class TestFactFantasy:
             "stg_fantasy_widget": pl.DataFrame(
                 {"player_id": [2], "fantasy_pts": [38.0], "salary": [7200]}
             ).lazy(),
+            "stg_player_fantasy_profile_last_five_games_avg": pl.DataFrame(
+                {"player_id": [3], "fantasy_pts": [26.1]}
+            ).lazy(),
+            "stg_player_fantasy_profile_season_avg": pl.DataFrame(
+                {"player_id": [4], "fantasy_pts": [41.7]}
+            ).lazy(),
         }
         result = _run(FactFantasyTransformer(), staging)
-        assert result.shape[0] == 2
+        assert result.shape[0] == 4
         assert "fantasy_source" in result.columns
-        assert set(result["fantasy_source"].to_list()) == {"fanduel", "fantasy_widget"}
+        assert set(result["fantasy_source"].to_list()) == {
+            "fanduel",
+            "fantasy_widget",
+            "player_fantasy_profile_last_five_games_avg",
+            "player_fantasy_profile_season_avg",
+        }
 
 
 # ---------------------------------------------------------------------------

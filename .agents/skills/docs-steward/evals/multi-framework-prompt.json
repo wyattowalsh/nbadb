@@ -1,0 +1,17 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "Please run docs-steward on this monorepo that has both Astro/Starlight and Sphinx.",
+  "files": [
+    "apps/docs/astro.config.ts",
+    "apps/docs/src/content/docs/index.mdx",
+    "legacy-docs/conf.py"
+  ],
+  "expected_behavior": [
+    "Agent detects multiple docs frameworks",
+    "Agent asks user which framework to operate on for this run in auto mode",
+    "Agent suggests matrix mode if user wants all frameworks processed",
+    "Agent avoids defaulting to a single framework without user confirmation"
+  ]
+}

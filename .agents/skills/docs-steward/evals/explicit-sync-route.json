@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward sync docusaurus",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "website/docs/intro.md",
+    "package.json"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode C (Sync) with explicit docusaurus target",
+    "Agent loads references/docusaurus.md and references/advanced-components.md before sync actions",
+    "Agent regenerates framework artifacts from current docs/config state and reports updated outputs",
+    "Agent avoids unrelated content rewrites outside sync scope"
+  ]
+}

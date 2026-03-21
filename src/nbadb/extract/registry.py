@@ -29,17 +29,29 @@ class EndpointRegistry:
     def get_all(self) -> list[type[BaseExtractor]]:
         return list(self._extractors.values())
 
-    def discover(self, package_name: str = "nbadb.extract.stats") -> None:
-        try:
-            package = importlib.import_module(package_name)
-        except ImportError:
-            logger.warning(f"Cannot import {package_name}")
-            return
-        for _, module_name, _ in pkgutil.walk_packages(package.__path__, prefix=f"{package_name}."):
+    def discover(
+        self,
+        package_name: str | tuple[str, ...] = (
+            "nbadb.extract.stats",
+            "nbadb.extract.static",
+            "nbadb.extract.live",
+        ),
+    ) -> None:
+        package_names = (package_name,) if isinstance(package_name, str) else package_name
+        for current_package in package_names:
             try:
-                importlib.import_module(module_name)
-            except ImportError as e:
-                logger.warning(f"Cannot import {module_name}: {e}")
+                package = importlib.import_module(current_package)
+            except ImportError:
+                logger.warning(f"Cannot import {current_package}")
+                continue
+            for _, module_name, _ in pkgutil.walk_packages(
+                package.__path__,
+                prefix=f"{current_package}.",
+            ):
+                try:
+                    importlib.import_module(module_name)
+                except ImportError as e:
+                    logger.warning(f"Cannot import {module_name}: {e}")
 
     @property
     def count(self) -> int:

@@ -180,6 +180,66 @@ class TestEntityDiscoveryProxy:
             mock_assign.assert_called_once_with(mock_extractor, None)
 
     # ------------------------------------------------------------------
+    # discover_player_team_season_params
+    # ------------------------------------------------------------------
+
+    def test_discover_player_team_season_params_assign_proxy_called_with_pool(self) -> None:
+        player_df = pl.DataFrame({"person_id": [1, 2], "team_id": [10, 20]})
+
+        with (
+            patch(
+                "nbadb.orchestrate.discovery._extract_with_retry",
+                new_callable=AsyncMock,
+            ) as mock_retry,
+            patch("nbadb.orchestrate.discovery._assign_proxy") as mock_assign,
+        ):
+            mock_retry.return_value = player_df
+
+            registry = MagicMock()
+            mock_extractor = MagicMock()
+            mock_extractor_cls = MagicMock(return_value=mock_extractor)
+            registry.get.return_value = mock_extractor_cls
+
+            mock_pool = MagicMock()
+            discovery = EntityDiscovery(registry, proxy_pool=mock_pool)
+
+            result = asyncio.run(
+                discovery.discover_player_team_season_params(["2024-25", "2025-26"])
+            )
+
+            assert mock_assign.call_count == 2
+            mock_assign.assert_called_with(mock_extractor, mock_pool)
+            assert result == [
+                {"player_id": 1, "team_id": 10, "season": "2024-25"},
+                {"player_id": 2, "team_id": 20, "season": "2024-25"},
+                {"player_id": 1, "team_id": 10, "season": "2025-26"},
+                {"player_id": 2, "team_id": 20, "season": "2025-26"},
+            ]
+
+    def test_discover_player_team_season_params_assign_proxy_called_with_none_pool(self) -> None:
+        player_df = pl.DataFrame({"person_id": [10], "team_id": [20]})
+
+        with (
+            patch(
+                "nbadb.orchestrate.discovery._extract_with_retry",
+                new_callable=AsyncMock,
+            ) as mock_retry,
+            patch("nbadb.orchestrate.discovery._assign_proxy") as mock_assign,
+        ):
+            mock_retry.return_value = player_df
+
+            registry = MagicMock()
+            mock_extractor = MagicMock()
+            mock_extractor_cls = MagicMock(return_value=mock_extractor)
+            registry.get.return_value = mock_extractor_cls
+
+            discovery = EntityDiscovery(registry, proxy_pool=None)
+
+            asyncio.run(discovery.discover_player_team_season_params(["2024-25"]))
+
+            mock_assign.assert_called_once_with(mock_extractor, None)
+
+    # ------------------------------------------------------------------
     # discover_team_ids
     # ------------------------------------------------------------------
 

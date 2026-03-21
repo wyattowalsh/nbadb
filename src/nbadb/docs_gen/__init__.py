@@ -6,6 +6,7 @@ from nbadb.docs_gen.dependency_inventory import DependencyInventoryGenerator
 from nbadb.docs_gen.er_diagram import ERDiagramGenerator
 from nbadb.docs_gen.lineage import LineageGenerator
 from nbadb.docs_gen.schema_docs import SchemaDocsGenerator
+from nbadb.docs_gen.transform_dependency_graph import TransformDependencyGraphGenerator
 
 __all__ = [
     "DEFAULT_DOCS_ROOT",
@@ -14,5 +15,6 @@ __all__ = [
     "ERDiagramGenerator",
     "LineageGenerator",
     "SchemaDocsGenerator",
+    "TransformDependencyGraphGenerator",
     "generate_docs_artifacts",
 ]

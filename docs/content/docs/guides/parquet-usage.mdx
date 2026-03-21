@@ -1,101 +1,149 @@
 ---
 title: Parquet Usage
-description: Working with nbadb Parquet files for analytics
+description: Practice-facility guide for reading nbadb Parquet exports efficiently and correctly.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Parquet Usage
 
-nbadb exports all tables as individual Parquet files with zstd compression for efficient columnar analytics.
+Use this guide when your workflow lives in **Polars, Pandas, PyArrow, or DuckDB over files** instead of inside `nba.duckdb`.
 
-## Benefits of Parquet
+## Know the floor layout first
 
-- **Columnar storage**: Only reads columns you need
-- **Compression**: zstd compression reduces file sizes by 5-10x
-- **Type preservation**: Schema metadata embedded in files
-- **Zero-copy reads**: Direct memory mapping for Polars/Arrow
+nbadb writes Parquet exports under your data directory like this:
 
-## Reading with Polars
+```text
+nbadb/parquet/
+├── dim_player/
+│   └── dim_player.parquet
+├── dim_team/
+│   └── dim_team.parquet
+└── fact_shot_chart/
+    ├── season_year=2023/
+    │   └── part0.parquet
+    └── season_year=2024/
+        └── part0.parquet
+```
+
+| Pattern | Shape | Typical use |
+| ------- | ----- | ----------- |
+| `parquet/<table>/<table>.parquet` | Single-file table | Dimensions and non-partitioned tables |
+| `parquet/<table>/season_year=<year>/part0.parquet` | Partitioned directory tree | Season-based fact tables |
+
+<Callout type="info">
+Lead with column selection and lazy scans. Parquet rewards narrow, targeted possessions much more than “load every column and sort it out later.”
+</Callout>
+
+## Choose the right tool for the possession
+
+| Tool | Best for |
+| ---- | -------- |
+| Polars | Fast lazy scans and selective reads |
+| DuckDB | SQL across many Parquet tables or partitions |
+| Pandas | Compatibility with notebook and plotting ecosystems |
+| PyArrow | Metadata, schema inspection, and lower-level Arrow workflows |
+
+## Read with Polars
+
+### Single-file table
 
 ```python
 import polars as pl
 
-# Read a single table
-players = pl.read_parquet("dim_player.parquet")
+players = pl.read_parquet("nbadb/parquet/dim_player/dim_player.parquet")
+```
 
-# Read with column selection (only loads requested columns)
+### Select only the columns you need
+
+```python
 players = pl.read_parquet(
-    "dim_player.parquet",
-    columns=["player_id", "first_name", "last_name", "position"]
+    "nbadb/parquet/dim_player/dim_player.parquet",
+    columns=["player_id", "first_name", "last_name", "position"],
 )
+```
 
-# Lazy scan for large tables
+### Lazy-scan a partitioned fact table
+
+```python
 box_scores = (
-    pl.scan_parquet("fact_box_score_player.parquet")
-    .filter(pl.col("pts") >= 40)
-    .select(["game_id", "player_id", "pts", "reb", "ast"])
+    pl.scan_parquet("nbadb/parquet/fact_shot_chart/**/*.parquet")
+    .filter(pl.col("shot_made_flag") == 1)
+    .select(["game_id", "player_id", "shot_zone_basic", "shot_distance"])
     .collect()
 )
 ```
 
-## Reading with DuckDB
+## Query with DuckDB over Parquet files
+
+### Single-file table
 
 ```sql
--- DuckDB can query Parquet files directly
-SELECT * FROM read_parquet('dim_player.parquet') LIMIT 10;
-
--- Join across multiple Parquet files
-SELECT
-    p.first_name || ' ' || p.last_name AS player,
-    AVG(b.pts) AS ppg
-FROM read_parquet('fact_box_score_player.parquet') b
-JOIN read_parquet('dim_player.parquet') p
-    ON b.player_id = p.player_id
-GROUP BY 1
-ORDER BY ppg DESC
+SELECT *
+FROM read_parquet('nbadb/parquet/dim_player/dim_player.parquet')
 LIMIT 10;
-
--- Glob pattern for multiple files
-SELECT * FROM read_parquet('fact_box_score_*.parquet');
 ```
 
-## Reading with Pandas
+### Partitioned directory glob
+
+```sql
+SELECT season_year, COUNT(*) AS attempts
+FROM read_parquet('nbadb/parquet/fact_shot_chart/**/*.parquet')
+GROUP BY 1
+ORDER BY 1;
+```
+
+### Join across Parquet files directly
+
+```sql
+SELECT
+    p.first_name || ' ' || p.last_name AS player,
+    AVG(sc.shot_distance) AS avg_shot_distance
+FROM read_parquet('nbadb/parquet/fact_shot_chart/**/*.parquet') sc
+JOIN read_parquet('nbadb/parquet/dim_player/dim_player.parquet') p
+    ON sc.player_id = p.player_id
+GROUP BY 1
+ORDER BY avg_shot_distance DESC
+LIMIT 10;
+```
+
+## Read with Pandas
 
 ```python
 import pandas as pd
 
-df = pd.read_parquet("dim_player.parquet")
+df = pd.read_parquet("nbadb/parquet/dim_player/dim_player.parquet")
 
-# With column selection
-df = pd.read_parquet(
-    "dim_player.parquet",
-    columns=["player_id", "first_name", "last_name"]
+subset = pd.read_parquet(
+    "nbadb/parquet/dim_player/dim_player.parquet",
+    columns=["player_id", "first_name", "last_name"],
 )
 ```
 
-## Reading with PyArrow
+## Inspect with PyArrow
 
 ```python
 import pyarrow.parquet as pq
 
-# Read metadata only
-metadata = pq.read_metadata("dim_player.parquet")
+metadata = pq.read_metadata("nbadb/parquet/dim_player/dim_player.parquet")
 print(f"Rows: {metadata.num_rows}")
 print(f"Columns: {metadata.num_columns}")
 
-# Read schema
-schema = pq.read_schema("dim_player.parquet")
+schema = pq.read_schema("nbadb/parquet/dim_player/dim_player.parquet")
 print(schema)
-
-# Read table
-table = pq.read_table("dim_player.parquet")
 ```
 
-## File Sizes (Approximate)
+## Habits that pay off
 
-| Table | Rows (approx) | Parquet Size |
-|-------|---------------|--------------|
-| fact_box_score_player | ~3M | ~150 MB |
-| fact_play_by_play | ~15M | ~800 MB |
-| fact_shot_chart | ~5M | ~200 MB |
-| dim_player | ~5K | ~500 KB |
-| dim_game | ~70K | ~5 MB |
+| Do this | Why |
+| ------- | --- |
+| Filter on `season_year` as early as possible for partitioned fact tables | You reduce scan cost before collection |
+| Select only the columns you need | Narrow reads keep memory use predictable |
+| Use DuckDB when you need joins across many tables or partitions | SQL over files is often simpler than manual DataFrame stitching |
+| Use Parquet as the handoff format when downstream systems do not need the whole DuckDB file | Smaller, more modular delivery surface |
+
+## Related routes
+
+- [Analytics Quickstart](/docs/guides/analytics-quickstart) for the fastest first query path
+- [Shot Chart Analysis](/docs/guides/shot-chart-analysis) for a concrete Parquet/DuckDB analysis pattern
+- [Kaggle Setup](/docs/guides/kaggle-setup) for where these files come from and how they are published

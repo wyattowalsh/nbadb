@@ -1,0 +1,19 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward init-sync starlight for this existing monorepo",
+  "files": [
+    "package.json",
+    "pnpm-workspace.yaml",
+    "apps/api/src/main.ts",
+    "README.md"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode I (Init) with init-sync flow and explicit starlight target",
+    "Agent treats this as existing-codebase bootstrap work (non-destructive, no app code rewrites)",
+    "Agent loads references/init-sync-existing-repos.md and references/astro-starlight.md before bootstrap actions",
+    "Agent performs non-destructive docs bootstrap in a dedicated project-local docs root",
+    "Agent runs Mode C (Sync) and Mode E (Maintain) checks after bootstrap and reports created vs skipped files"
+  ]
+}

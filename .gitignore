@@ -11,8 +11,6 @@ build/
 .venv/
 venv/
 
-# Data output (root-relative only — NOT src/nbadb/)
-/nbadb/
 
 # Logs
 logs/

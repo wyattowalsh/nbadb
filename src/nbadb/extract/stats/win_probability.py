@@ -21,3 +21,7 @@ class WinProbabilityExtractor(BaseExtractor):
         game_id: str = params["game_id"]
         logger.debug(f"Extracting win probability for {game_id}")
         return self._from_nba_api(WinProbabilityPBP, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(WinProbabilityPBP, game_id=game_id)

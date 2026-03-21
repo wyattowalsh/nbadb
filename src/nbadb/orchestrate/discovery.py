@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
 
@@ -13,8 +13,14 @@ if TYPE_CHECKING:
 
     import polars as pl
 
-    from nbadb.core.proxy import ProxyPool
+    from nbadb.core.proxy import ProxyUrlProvider
     from nbadb.extract.registry import EndpointRegistry
+
+
+class _PatternProgress(Protocol):
+    def start_pattern(self, pattern: str, total: int) -> None: ...
+
+    def advance_pattern(self, *, success: bool = True) -> None: ...
 
 _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
@@ -66,7 +72,7 @@ class EntityDiscovery:
     def __init__(
         self,
         registry: EndpointRegistry,
-        proxy_pool: ProxyPool | None = None,
+        proxy_pool: ProxyUrlProvider | None = None,
     ) -> None:
         self._registry = registry
         self._proxy_pool = proxy_pool
@@ -74,7 +80,7 @@ class EntityDiscovery:
     async def discover_game_ids(
         self,
         seasons: list[str],
-        on_progress: object | None = None,
+        on_progress: _PatternProgress | None = None,
         season_types: list[str] | None = None,
     ) -> tuple[list[str], pl.DataFrame]:
         """Extract league_game_log for given seasons and season_types.
@@ -221,6 +227,77 @@ class EntityDiscovery:
             id_column="person_id",
             params=params,
         )
+
+    async def discover_player_team_season_params(
+        self,
+        seasons: list[str],
+    ) -> list[dict[str, int | str]]:
+        """Get season-scoped player/team tuples from common_all_players."""
+        import polars as pl
+
+        if not seasons:
+            return []
+
+        extractor_cls = self._registry.get("common_all_players")
+        semaphore = asyncio.Semaphore(_DISCOVERY_CONCURRENCY)
+
+        async def _fetch(season: str) -> pl.DataFrame | None:
+            async with semaphore:
+                label = f"common_all_players({season})"
+                logger.info("discovering player/team pairs: {}", label)
+                extractor = extractor_cls()
+                try:
+                    _assign_proxy(extractor, self._proxy_pool)
+                    df = await _extract_with_retry(extractor, label, season=season)
+                except Exception as exc:
+                    logger.error(
+                        "failed to discover player/team pairs for {}: {}",
+                        label,
+                        type(exc).__name__,
+                    )
+                    return None
+
+                if df.is_empty():
+                    logger.warning("no common_all_players data returned for {}", season)
+                    return None
+
+                required = {"person_id", "team_id"}
+                missing = required - set(df.columns)
+                if missing:
+                    logger.warning(
+                        "common_all_players missing columns {} for {}",
+                        sorted(missing),
+                        season,
+                    )
+                    return None
+
+                return (
+                    df.select(
+                        pl.col("person_id").cast(pl.Int64, strict=False).alias("player_id"),
+                        pl.col("team_id").cast(pl.Int64, strict=False).alias("team_id"),
+                    )
+                    .filter(
+                        pl.col("player_id").is_not_null()
+                        & pl.col("team_id").is_not_null()
+                        & (pl.col("team_id") > 0)
+                    )
+                    .with_columns(pl.lit(season).alias("season"))
+                    .unique()
+                )
+
+        results = await asyncio.gather(*[_fetch(season) for season in seasons])
+        frames = [df for df in results if df is not None]
+        if not frames:
+            return []
+
+        combined = (
+            pl.concat(frames, how="vertical_relaxed")
+            .unique(subset=["player_id", "team_id", "season"])
+            .sort(["season", "player_id", "team_id"])
+        )
+        params = combined.to_dicts()
+        logger.info("discovered {} player/team/season combos", len(params))
+        return params
 
     async def discover_team_ids(self) -> list[int]:
         """Get all team IDs from common_team_years."""

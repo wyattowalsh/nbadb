@@ -1,39 +1,166 @@
 ---
 title: Getting Started
-description: Comprehensive NBA database documentation
+description: The tip-off and control tower for nbadb's public analytical surface.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # nbadb Documentation
 
-nbadb provides a comprehensive NBA database built from 131 nba_api endpoints, normalized into a star schema with ~58 tables.
+Welcome to the **Arena Data Lab** for nbadb: the control tower for getting from first install to first query, first refresh, and first production handoff.
 
-## Quick Start
+nbadb turns the NBA stats surface into a **141-table public analytical model** with DuckDB staging, SQL-first transforms, and exports for DuckDB, SQLite, Parquet, and CSV.
+
+<StatGrid columns={4}>
+  <StatPill
+    label="Public surface"
+    value="141"
+    note="dimensions, facts, bridges, aggregates, and analytics outputs"
+  />
+  <StatPill
+    label="Extractors"
+    value="143"
+    note="registered wrappers around the current nba_api runtime surface"
+  />
+  <StatPill
+    label="Core run modes"
+    value="4"
+    note="init, daily, monthly, and full"
+  />
+  <StatPill
+    label="Export formats"
+    value="4"
+    note="sqlite, duckdb, csv, and parquet by default"
+  />
+</StatGrid>
+
+## Quick navigation
+
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <ScoutCard title="Start the install" label="Entry surface">
+    Jump to <a href="/docs/installation">Installation</a> for prerequisites, install routes, env defaults, and the first sanity checks.
+  </ScoutCard>
+  <ScoutCard title="Understand the pipeline" label="Entry surface">
+    Open <a href="/docs/architecture">Architecture</a> for the raw → staging → star flow, internal state boundaries, and why the warehouse is shaped this way.
+  </ScoutCard>
+  <ScoutCard title="Find the right command" label="Entry surface">
+    Use <a href="/docs/cli-reference">CLI Reference</a> when the question is "what command does this?" or "what flags are accepted right now?"
+  </ScoutCard>
+  <ScoutCard title="Find the right table" label="Entry surface">
+    Start with <a href="/docs/schema">Schema Reference</a>, then move to the <a href="/docs/data-dictionary">Data Dictionary</a> when you need exact fields and meanings.
+  </ScoutCard>
+</div>
+
+## Use this page when…
+
+| If you need to… | Go here first | Why this is the shortest route |
+| --------------- | ------------- | ------------------------------ |
+| Get nbadb onto a machine and prove it works | [Installation](/docs/installation) | It covers prerequisites, install paths, `NBADB_` defaults, and first-run checks |
+| Understand how raw extraction becomes queryable warehouse tables | [Architecture](/docs/architecture) | It explains the raw → staging → star flow, validation tiers, and internal state boundaries |
+| Find the exact command or flag surface | [CLI Reference](/docs/cli-reference) | It maps command intent, shared behaviors, and current signatures in one place |
+| Find the right public table family or field | [Schema Reference](/docs/schema) and [Data Dictionary](/docs/data-dictionary) | Use schema pages for table discovery, then switch to field-level definitions |
+
+<CourtDivider label="First-five-minutes route" />
+
+## First five minutes
+
+If you just want to get oriented without reading the whole site, take this route:
+
+1. Install nbadb from <a href="/docs/installation">Installation</a>.
+2. Run a first build or pull a published dataset.
+3. Check <a href="/docs/cli-reference">CLI Reference</a> for the exact command surface.
+4. Use <a href="/docs/schema">Schema Reference</a> to find the right table family.
+5. Move into the guide lane that matches your job.
 
 ```bash
 pip install nbadb
 nbadb init
+nbadb schema
 ```
 
-## Architecture
+<Callout type="info">
+`nbadb init` is the full historical build and usually takes hours, not minutes. Once your data directory is seeded, `nbadb daily` becomes the standard game-day possession for refreshing the current season.
+</Callout>
 
-The database uses a **star schema** design:
+## Choose your route
 
-- **13 Dimensions**: Players, teams, games, seasons, dates, officials, coaches, arenas, and more
-- **20 Fact Tables**: Box scores, play-by-play, shot charts, matchups, lineups, standings, draft
-- **2 Bridge Tables**: Game-official and play-player associations
-- **15 Derived Aggregations**: Season totals, rolling averages, career stats, league leaders
-- **4 Analytics Views**: Pre-joined denormalized views for common analyses
+<DataColumns>
+  <ScoutCard title="I am installing or evaluating nbadb" label="Reader lane">
+    Start with <a href="/docs/installation">Installation</a>. It covers the PyPI route, the source route, the `NBADB_` settings that matter first, and what should appear in your data directory when things work.
+  </ScoutCard>
+  <ScoutCard title="I need to understand how the warehouse works" label="Reader lane">
+    Read <a href="/docs/architecture">Architecture</a> next. That page explains the pipeline stages, validation tiers, internal pipeline tables, export lanes, and the design choices behind the public model.
+  </ScoutCard>
+  <ScoutCard title="I need to query or model against the data" label="Reader lane">
+    Use <a href="/docs/schema">Schema Reference</a> to find the right table family, then switch to the <a href="/docs/data-dictionary">Data Dictionary</a> for field-level meaning and the <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a> guide for working SQL.
+  </ScoutCard>
+  <ScoutCard title="I need recurring operator workflows" label="Reader lane">
+    Keep <a href="/docs/guides/daily-updates">Daily Updates</a>, <a href="/docs/guides/kaggle-setup">Kaggle Setup</a>, and the <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a> open together. Those are the practical runbook pages.
+  </ScoutCard>
+</DataColumns>
 
-## Output Formats
+### Reader routes in one glance
 
-| Format | Use Case |
-|--------|----------|
-| **SQLite** | Portable single-file database |
-| **DuckDB** | Columnar analytics engine |
-| **Parquet** | Compressed columnar files (zstd) |
-| **CSV** | Universal flat files |
+| Reader | Start here | Keep this open next |
+| ------ | ---------- | ------------------- |
+| Evaluator or first-time installer | [Installation](/docs/installation) | [CLI Reference](/docs/cli-reference) |
+| Analyst looking for usable tables fast | [Schema Reference](/docs/schema) | [DuckDB Query Examples](/docs/guides/duckdb-queries) |
+| Builder changing pipeline or docs behavior | [Architecture](/docs/architecture) | [CLI Reference](/docs/cli-reference) |
+| Operator running recurring refreshes | [Daily Updates](/docs/guides/daily-updates) | [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
 
-## Need Help?
+## What's on the floor
 
-- [Role-Based Onboarding Hub](/docs/guides/role-based-onboarding-hub) for contributor/user/operator/stakeholder start paths
-- [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) for dependency/quality/coverage/docs artifact failures
+| Surface | Count | Reach for it when… | Start here |
+| ------- | ----: | ------------------ | ---------- |
+| Dimensions | 17 | You need stable entities like players, teams, games, seasons, and identity/history context | [Dimensions](/docs/schema/dimensions) |
+| Facts | 102 | You need grain-specific measurements across player, team, game, play, shot, and specialty surfaces | [Facts & Bridges](/docs/schema/facts) |
+| Bridges | 2 | You are resolving many-to-many relationships between public entities | [Facts & Bridges](/docs/schema/facts) |
+| Aggregates (`agg_*`) | 16 | You want pre-rolled summaries instead of rebuilding the same rollups in downstream SQL | [Derived Aggregations](/docs/schema/derived) |
+| Analytics outputs (`analytics_*`) | 4 | You want the shortest route to analysis-ready convenience surfaces | [Analytics Views](/docs/schema/analytics-views) |
+
+<CourtDivider label="Role-based lanes" />
+
+## Fast lanes by reader
+
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+  <ScoutCard title="Analyst lane" label="Who should start here">
+    Begin with <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>, keep <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a> open for working SQL, and jump to <a href="/docs/schema/analytics-views">Analytics Views</a> when you want the shortest route to a usable surface.
+  </ScoutCard>
+  <ScoutCard title="Builder lane" label="Who should start here">
+    Start with <a href="/docs/installation">Installation</a>, then read <a href="/docs/cli-reference">CLI Reference</a> and <a href="/docs/architecture">Architecture</a> before changing pipeline behavior, schemas, or docs generation flows.
+  </ScoutCard>
+  <ScoutCard title="Operator lane" label="Who should start here">
+    Use <a href="/docs/guides/daily-updates">Daily Updates</a> for the recurring refresh cadence, <a href="/docs/guides/kaggle-setup">Kaggle Setup</a> for distribution handoffs, and the <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a> when artifacts or CI go sideways.
+  </ScoutCard>
+</div>
+
+## Generated vs. hand-written docs
+
+Some docs pages are hand-authored. Others are generated from schema metadata and lineage information.
+
+```bash
+uv run nbadb docs-autogen --docs-root docs/content/docs
+```
+
+<Callout>
+That command owns `schema/{raw,staging,star}-reference.mdx`, `data-dictionary/{raw,staging,star}.mdx`, `diagrams/er-auto.mdx`, `lineage/lineage-auto.mdx`, and `lineage/lineage.json`. Regenerate those outputs when code changes; do not hand-edit them.
+</Callout>
+
+## Jump to the rest of the arena
+
+### Core entry pages
+
+- **[Installation](/docs/installation)** — prerequisites, install routes, config defaults, and first checks
+- **[Architecture](/docs/architecture)** — pipeline stages, validation tiers, internal state, and design decisions
+- **[CLI Reference](/docs/cli-reference)** — exact command signatures plus operator and CI notes
+
+### Reference surfaces
+
+- **[Schema Reference](/docs/schema)** — table families, join lanes, and generated reference coverage
+- **[Data Dictionary](/docs/data-dictionary)** — column-level definitions and glossary terms
+- **[Endpoints](/docs/endpoints)** — upstream endpoint grouping and extraction coverage
+
+### Guided routes
+
+- **[Guides](/docs/guides/role-based-onboarding-hub)** — onboarding, recurring ops, and analysis drills
+- **[Visual Asset Prompt Pack](/docs/guides/visual-asset-prompt-pack)** — basketball-native prompts for hero art, Open Graph cards, icons, and subtle atmosphere assets

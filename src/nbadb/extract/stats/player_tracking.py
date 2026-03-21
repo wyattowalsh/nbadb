@@ -33,6 +33,17 @@ class PlayerDashPtShotsExtractor(BaseExtractor):
             season_type_all_star=season_type,
         )
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
+            PlayerDashPtShots,
+            player_id=player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
 
 @registry.register
 class PlayerDashPtPassExtractor(BaseExtractor):
@@ -50,6 +61,17 @@ class PlayerDashPtPassExtractor(BaseExtractor):
             season_type_all_star=season_type,
         )
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
+            PlayerDashPtPass,
+            player_id=player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
 
 @registry.register
 class PlayerDashPtRebExtractor(BaseExtractor):
@@ -61,6 +83,17 @@ class PlayerDashPtRebExtractor(BaseExtractor):
         season: str = params.get("season", "")
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            PlayerDashPtReb,
+            player_id=player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", "")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             PlayerDashPtReb,
             player_id=player_id,
             season=season,

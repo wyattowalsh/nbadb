@@ -1,0 +1,11 @@
+{
+  "skills": ["docs-steward"],
+  "query": "I need API documentation for the wagents package",
+  "files": [],
+  "expected_behavior": [
+    "Detects natural language requesting documentation generation",
+    "Routes to Mode J (Generate) with api sub-mode",
+    "Runs extraction scripts on the target path",
+    "Does not route to Enhance (Mode D) or Maintain (Mode E)"
+  ]
+}

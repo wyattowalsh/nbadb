@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "nbadb"
 version = "4.0.0"
-description = "Comprehensive NBA database: 130 endpoints → star schema → SQLite + DuckDB + Parquet + CSV"
+description = "Comprehensive NBA database: 131 endpoints → 141-table star schema → SQLite + DuckDB + Parquet + CSV"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
@@ -102,3 +102,6 @@ possibly-missing-import = "ignore"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--cov=src/nbadb --cov-report=term-missing --import-mode=importlib"
+
+[tool.coverage.run]
+omit = ["src/nbadb/cli/tui.py"]

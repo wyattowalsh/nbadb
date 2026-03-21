@@ -9,6 +9,7 @@ import polars as pl
 from loguru import logger
 
 _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
+_UPPER_TOKEN_RE = re.compile(r"^[A-Z0-9_]+$")
 
 # nba_api kwargs that carry the season_type value (checked in priority order)
 _SEASON_TYPE_KEYS = (
@@ -37,8 +38,11 @@ def _to_snake_case(name: str) -> str:
     """Convert any column name style to snake_case.
 
     Handles UPPER_SNAKE_CASE (e.g., GAME_ID -> game_id),
+    all-uppercase nba_api stat shorthands (e.g., FG3M -> fg3m),
     camelCase (e.g., gameId -> game_id), and mixed cases.
     """
+    if _UPPER_TOKEN_RE.fullmatch(name):
+        return name.lower()
     return _CAMEL_RE.sub(r"\1_\2", name).lower()
 
 
@@ -108,3 +112,56 @@ class BaseExtractor(ABC):
                 df = df.with_columns(pl.lit(season_type).alias("season_type"))
             converted.append(df)
         return converted
+
+    @staticmethod
+    def _live_payload_to_frame(payload: Any) -> pl.DataFrame:
+        if hasattr(payload, "get_dict"):
+            payload = payload.get_dict()
+        elif hasattr(payload, "data"):
+            payload = payload.data
+
+        if payload is None:
+            return pl.DataFrame()
+        if isinstance(payload, dict):
+            records: list[dict[str, Any]] = [payload]
+        elif isinstance(payload, list):
+            if not payload:
+                return pl.DataFrame()
+            if isinstance(payload[0], dict):
+                records = payload
+            else:
+                return pl.DataFrame({"value": payload})
+        else:
+            return pl.DataFrame({"value": [payload]})
+
+        df = pl.from_dicts(records)
+        return df.rename({c: _to_snake_case(c) for c in df.columns})
+
+    def _from_nba_live(self, endpoint_cls: type, attr: str, **kwargs: Any) -> pl.DataFrame:
+        """Call nba_api live endpoint and convert a single dataset to Polars."""
+        self._inject_proxy(kwargs)
+        result = endpoint_cls(**kwargs)
+        dataset = getattr(result, attr, None)
+        if dataset is None:
+            logger.warning(f"{self.endpoint_name}: live dataset {attr!r} was not returned")
+            return pl.DataFrame()
+        return self._live_payload_to_frame(dataset)
+
+    def _from_nba_live_multi(
+        self,
+        endpoint_cls: type,
+        attrs: list[str],
+        **kwargs: Any,
+    ) -> list[pl.DataFrame]:
+        """Call nba_api live endpoint and convert multiple datasets to Polars."""
+        self._inject_proxy(kwargs)
+        result = endpoint_cls(**kwargs)
+        frames: list[pl.DataFrame] = []
+        for attr in attrs:
+            dataset = getattr(result, attr, None)
+            if dataset is None:
+                logger.warning(f"{self.endpoint_name}: live dataset {attr!r} was not returned")
+                frames.append(pl.DataFrame())
+                continue
+            frames.append(self._live_payload_to_frame(dataset))
+        return frames

@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "CI headless autosync run: /docs-steward auto after Docusaurus and MkDocs config changes; prompts are disabled.",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "docs/mkdocs.yml",
+    "docs/docs/index.md"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode A (Auto) and detects ambiguous multi-framework targeting in headless execution",
+    "Agent applies Headless Fallback Contract and downgrades autosync to read-only Mode E (Maintain) in Mode G (Matrix)",
+    "Agent processes frameworks in deterministic order and emits a headless fallback warning",
+    "Agent skips mutating autosync paths until an explicit framework target is provided"
+  ]
+}

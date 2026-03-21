@@ -258,3 +258,69 @@ class TestBuildProxyPool:
             proxy_urls=[],
         )
         assert build_proxy_pool(settings) is None
+
+    def test_credentials_build_socks5_urls(self) -> None:
+        from nbadb.core.config import NbaDbSettings
+        from nbadb.core.proxy import build_proxy_pool
+
+        settings = NbaDbSettings(
+            _env_file=None,
+            proxy_enabled=True,
+            proxy_bootstrap=False,
+            proxy_urls=[],
+            proxy_user="testuser",
+            proxy_pass="testpass",
+        )
+        pool = build_proxy_pool(settings)
+        assert isinstance(pool, SimpleProxyRotator)
+        assert pool.size == 6
+
+
+class TestProxyPoolGetProxyUrl:
+    def test_attribute_error_fallback(self) -> None:
+        """When private API raises AttributeError, fall back to public get_proxy()."""
+        mock_whirl = MagicMock()
+        mock_whirl._select_proxy_with_circuit_breaker.side_effect = AttributeError
+        mock_proxy = MagicMock()
+        mock_proxy.url = "http://fallback:8080"
+        mock_whirl.get_proxy.return_value = mock_proxy
+        pool = ProxyPool(mock_whirl)
+        assert pool.get_proxy_url() == "http://fallback:8080"
+
+
+class TestGetProxyPublicApi:
+    def test_success(self) -> None:
+        mock_whirl = MagicMock()
+        mock_proxy = MagicMock()
+        mock_proxy.url = "http://pub:8080"
+        mock_whirl.get_proxy.return_value = mock_proxy
+        pool = ProxyPool(mock_whirl)
+        assert pool._get_proxy_public_api() == "http://pub:8080"
+
+    def test_returns_none_when_proxy_is_none(self) -> None:
+        mock_whirl = MagicMock()
+        mock_whirl.get_proxy.return_value = None
+        pool = ProxyPool(mock_whirl)
+        assert pool._get_proxy_public_api() is None
+
+    def test_returns_none_on_exception(self) -> None:
+        mock_whirl = MagicMock()
+        mock_whirl.get_proxy.side_effect = RuntimeError("fail")
+        pool = ProxyPool(mock_whirl)
+        assert pool._get_proxy_public_api() is None
+
+
+class TestBuildSocks5Urls:
+    def test_format_and_count(self) -> None:
+        from nbadb.core.proxy import _build_socks5_urls
+
+        urls = _build_socks5_urls("user", "pass")
+        assert len(urls) == 6
+        assert all(u.startswith("socks5h://user:pass@") for u in urls)
+        assert all(u.endswith(":1080") for u in urls)
+
+    def test_special_characters_in_credentials(self) -> None:
+        from nbadb.core.proxy import _build_socks5_urls
+
+        urls = _build_socks5_urls("u@ser", "p:ass")
+        assert all("u@ser:p:ass@" in u for u in urls)

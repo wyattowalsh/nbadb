@@ -1,0 +1,1 @@
+After Python changes, run targeted ruff, ty, and pytest commands using `--import-mode=importlib` for pytest. After docs changes, regenerate docs artifacts with `uv run nbadb docs-autogen --docs-root docs/content/docs` when relevant and validate the site with `cd docs && pnpm build`.

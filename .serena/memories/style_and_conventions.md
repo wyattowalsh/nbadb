@@ -1,0 +1,1 @@
+Use uv for Python workflows, ruff for lint/format, and ty for type checking. Tests should use `--import-mode=importlib` because the repo-root `nbadb/` shadows `src/nbadb/`. Transformer naming follows `dim_*`, `fact_*`, `bridge_*`, `agg_*`/`derived_*`, and `view_*`; most transformers extend `SqlTransformer` and only define `_SQL`.

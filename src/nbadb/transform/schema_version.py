@@ -179,6 +179,57 @@ class SchemaVersionTracker:
                 )
         return changes
 
+    # -- Schema evolution guardrails ------------------------------------------
+
+    @staticmethod
+    def compatible_change(change: SchemaChange) -> bool:
+        """Return True if the change is purely additive (no columns removed)."""
+        return len(change.removed_columns) == 0
+
+    def guard_evolution(
+        self,
+        changes: list[SchemaChange],
+        *,
+        allow_removals: set[str] | None = None,
+    ) -> list[str]:
+        """Validate schema changes and raise on destructive drift.
+
+        Returns a list of warning messages for additive changes.
+        Raises ``SchemaEvolutionError`` if any change removes columns
+        and the table isn't in *allow_removals*.
+
+        Parameters
+        ----------
+        changes:
+            Output of ``record_schemas()``.
+        allow_removals:
+            Set of table names where column removal is explicitly allowed
+            (e.g., during intentional schema migrations).
+        """
+        safe = allow_removals or set()
+        warnings: list[str] = []
+        errors: list[str] = []
+
+        for c in changes:
+            if c.removed_columns and c.table_name not in safe:
+                errors.append(
+                    f"{c.table_name} v{c.old_version}→v{c.new_version}: "
+                    f"removed columns {c.removed_columns}"
+                )
+            if c.added_columns:
+                msg = (
+                    f"{c.table_name} v{c.old_version}→v{c.new_version}: "
+                    f"added columns {c.added_columns}"
+                )
+                warnings.append(msg)
+                logger.info("schema evolution (additive): {}", msg)
+
+        if errors:
+            raise SchemaEvolutionError(
+                "Destructive schema changes detected:\n" + "\n".join(f"  • {e}" for e in errors)
+            )
+        return warnings
+
     def get_history(self, table_name: str) -> list[tuple[int, str, list[str], str]]:
         """Return version history for a table as [(version, hash, columns, recorded_at)]."""
         rows = self._conn.execute(
@@ -196,3 +247,7 @@ class SchemaVersionTracker:
             "SELECT table_name, version FROM _schema_versions ORDER BY table_name"
         ).fetchall()
         return {r[0]: r[1] for r in rows}
+
+
+class SchemaEvolutionError(Exception):
+    """Raised when a destructive schema change is detected without explicit allowance."""

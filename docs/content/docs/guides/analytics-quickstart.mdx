@@ -1,19 +1,37 @@
 ---
 title: Analytics Quickstart
-description: Get started analyzing NBA data in minutes
+description: Opening possession for analysts who want to get from download to first query in minutes.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Analytics Quickstart
 
-Get up and running with NBA data analysis in under 5 minutes.
+Get from dataset download to a real answer in a few minutes. This page is the **opening possession**: install a lightweight stack, open the DuckDB file, and leave with one leaderboard, one shot read, and one standings query you can reuse.
 
-## Step 1: Install Dependencies
+## Pick your route
+
+| If you need to… | Start here | Stop when… |
+| --------------- | ---------- | ---------- |
+| Prove the dataset is usable locally | [Install dependencies](#possession-1--install-dependencies) | `SHOW TABLES` returns the surfaces you expect |
+| Grab one working analysis pattern fast | [Run your first question](#possession-4--run-your-first-question) | You have one query you can now swap filters into |
+| Go deeper after the first result | [Where to go next](#where-to-go-next) | You are on the guide that matches the next question |
+
+<Callout type="info">
+**Coaching note:** Start with the denormalized `analytics_*` surfaces when you need the fastest first read, then drop to fact tables once you know which possession deserves deeper inspection.
+</Callout>
+
+## Run the opening four possessions
+
+### Possession 1 — Install dependencies
 
 ```bash
 pip install polars duckdb kagglehub
 ```
 
-## Step 2: Download the Data
+This gives you one SQL engine (`duckdb`), one DataFrame tool (`polars`), and one download path (`kagglehub`) without a heavier local stack.
+
+### Possession 2 — Download the data
 
 ```python
 import kagglehub
@@ -22,7 +40,9 @@ path = kagglehub.dataset_download("wyattowalsh/basketball")
 print(f"Data at: {path}")
 ```
 
-## Step 3: Connect and Query
+You want the printed path because the next possession reuses it directly.
+
+### Possession 3 — Connect and confirm the floor
 
 ```python
 import duckdb
@@ -35,9 +55,13 @@ for t in tables:
     print(t[0])
 ```
 
-## Step 4: Run Your First Analysis
+**What good looks like:** you can see familiar surfaces such as dimension tables (`dim_*`), fact tables (`fact_*`), and convenience analytics outputs (`analytics_*`).
 
-### Who are the all-time scoring leaders?
+### Possession 4 — Run your first question
+
+Pick one of these three reads before you branch out. Each one gives you a reusable pattern for joins, filters, and aggregation.
+
+#### Option A — Who are the all-time scoring leaders?
 
 ```python
 df = conn.sql("""
@@ -58,7 +82,9 @@ df = conn.sql("""
 print(df)
 ```
 
-### What does a player's shot chart look like?
+Use this pattern when you need a **leaderboard**: join a fact table, add player or team labels from dimensions, then aggregate.
+
+#### Option B — What does a player's shot chart look like?
 
 ```python
 import polars as pl
@@ -83,7 +109,9 @@ print(shots.group_by("shot_zone_basic").agg([
 ]))
 ```
 
-### How do teams compare this season?
+Use this pattern when you need a **player-level slice** with location columns you can later plot.
+
+#### Option C — How do teams compare this season?
 
 ```python
 standings = conn.sql("""
@@ -102,9 +130,13 @@ standings = conn.sql("""
 print(standings)
 ```
 
-## Next Steps
+Use this pattern when you need a **current-season snapshot** that already lives in a purpose-built fact table.
 
-- [DuckDB Query Examples](/docs/guides/duckdb-queries) for 10+ advanced queries
-- [Shot Chart Analysis](/docs/guides/shot-chart-analysis) for visualization
-- [Player Comparison](/docs/guides/player-comparison) for head-to-head analysis
-- [Schema Reference](/docs/schema) for table documentation
+## Where to go next
+
+| Your next question | Best route |
+| ------------------ | ---------- |
+| “Give me more SQL examples I can copy.” | [DuckDB Query Examples](/docs/guides/duckdb-queries) |
+| “Now I want to visualize shooting locations.” | [Shot Chart Analysis](/docs/guides/shot-chart-analysis) |
+| “I need side-by-side player reads.” | [Player Comparison](/docs/guides/player-comparison) |
+| “I need table-level documentation before I write more SQL.” | [Schema Reference](/docs/schema) |

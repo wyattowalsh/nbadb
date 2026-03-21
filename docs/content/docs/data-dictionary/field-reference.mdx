@@ -1,479 +1,220 @@
 ---
 title: Field Reference
-description: Every column in every table with types, nullability, and descriptions
+description: Curated scorer's-table guide to the most important column patterns across the warehouse
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Field Reference
 
-Complete column-level documentation for all tables in the nbadb warehouse. Columns are extracted from Pandera schema definitions.
-
-## Dimension Tables
-
-### dim_player
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| player_sk | int | No | Surrogate key for SCD2 player |
-| player_id | int | No | Natural key -- NBA player identifier |
-| full_name | str | No | Player full name |
-| position | str | Yes | Player position |
-| team_id | int | Yes | Team identifier (FK: dim_team.team_id) |
-| jersey_number | str | Yes | Jersey number |
-| height | str | Yes | Player height |
-| weight | float | Yes | Player weight in lbs |
-| birth_date | str | Yes | Date of birth |
-| country | str | Yes | Country of origin |
-| draft_year | int | Yes | Draft year |
-| draft_round | int | Yes | Draft round |
-| draft_number | int | Yes | Draft pick number |
-| college_id | int | Yes | College identifier (FK: dim_college.college_id) |
-| valid_from | str | Yes | SCD2 valid-from season |
-| valid_to | str | Yes | SCD2 valid-to season |
-| is_current | bool | No | Whether this is the current record |
-
-### dim_team
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| team_id | int | No | Primary key (NBA team_id) |
-| abbreviation | str | No | Three-letter code (e.g., LAL) |
-| nickname | str | No | Team nickname (e.g., Lakers) |
-| city | str | No | Team city |
-| full_name | str | No | Full team name |
-| conference | str | No | East or West |
-| division | str | No | Division name |
-| arena | str | Yes | Home arena name |
-| arena_capacity | int | Yes | Arena seating capacity |
-| year_founded | int | Yes | Year franchise was established |
-| owner | str | Yes | Team owner |
-| general_manager | str | Yes | GM name |
-| head_coach | str | Yes | Head coach name |
-
-### dim_game
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | Primary key (10-digit NBA game ID) |
-| game_date | date | No | Date of the game |
-| season_year | int | No | Season start year |
-| season_type | str | No | Regular Season, Playoffs, etc. |
-| home_team_id | int | No | FK to dim_team |
-| away_team_id | int | No | FK to dim_team |
-| home_score | int | Yes | Final home team score |
-| away_score | int | Yes | Final away team score |
-| arena_name | str | Yes | Arena where game was played |
-| arena_city | str | Yes | Arena city |
-| arena_state | str | Yes | Arena state |
-
-### dim_season
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| season_id | str | No | Primary key (e.g., "2024-25") |
-| year_start | int | No | Starting calendar year |
-| year_end | int | No | Ending calendar year |
-| season_type | str | No | Regular, Playoffs, Pre Season |
-
-### dim_date
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| date_id | date | No | Primary key |
-| year | int | No | Calendar year |
-| month | int | No | Month number |
-| day | int | No | Day of month |
-| day_of_week | int | No | Day of week (0=Monday) |
-| month_name | str | No | Month name |
-| is_weekend | bool | No | Saturday or Sunday |
-
-### dim_official
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| official_id | int | No | Primary key |
-| first_name | str | No | Official first name |
-| last_name | str | No | Official last name |
-| jersey_num | str | Yes | Jersey number |
-
-### dim_coach
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| coach_id | int | No | Primary key |
-| first_name | str | No | Coach first name |
-| last_name | str | No | Coach last name |
-| coach_type | str | No | Head Coach, Assistant, etc. |
-| is_assistant | bool | No | Whether assistant coach |
-
-### dim_arena
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| arena_id | int | No | Primary key (generated) |
-| arena_name | str | No | Arena name |
-| arena_city | str | Yes | City |
-| arena_state | str | Yes | State |
-| capacity | int | Yes | Seating capacity |
-
-### dim_shot_zone
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| zone_id | int | No | Primary key (generated) |
-| zone_basic | str | No | Basic zone (Restricted Area, Paint, etc.) |
-| zone_area | str | No | Court area (Left, Right, Center) |
-| zone_range | str | No | Distance range (0-8ft, 8-16ft, etc.) |
-
-### dim_play_type
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| play_type_id | int | No | Primary key (generated) |
-| play_type | str | No | Play type (Isolation, PnR Ball Handler, etc.) |
-| type_grouping | str | No | Offensive or Defensive |
-
-### dim_action_type
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| action_type_id | int | No | Primary key (generated) |
-| action_type | str | No | Action type name |
-| sub_type | str | Yes | Action sub-type |
-| is_field_goal | bool | No | Whether action is a FG attempt |
-
-### dim_lineup
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| lineup_id | int | No | Primary key (generated) |
-| lineup_hash | str | No | Hash of sorted player IDs |
-| team_id | int | No | FK to dim_team |
-| player_1_id | int | No | FK to dim_player |
-| player_2_id | int | No | FK to dim_player |
-| player_3_id | int | No | FK to dim_player |
-| player_4_id | int | No | FK to dim_player |
-| player_5_id | int | No | FK to dim_player |
-
-### dim_draft
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| draft_id | int | No | Primary key (generated) |
-| season | int | No | Draft year |
-| round_number | int | No | Draft round |
-| round_pick | int | No | Pick within round |
-| overall_pick | int | No | Overall pick number |
-| draft_type | str | No | Type of draft |
-
-### dim_college
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| college_id | int | No | Primary key (generated) |
-| college_name | str | No | College or university name |
-
-## Fact Tables
-
-### fact_box_score_player (Traditional)
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| player_id | int | No | FK to dim_player |
-| team_id | int | No | FK to dim_team |
-| start_position | str | Yes | Starting lineup position |
-| comment | str | Yes | Player status comment |
-| min | float | Yes | Minutes played |
-| fgm | int | Yes | Field goals made |
-| fga | int | Yes | Field goals attempted |
-| fg_pct | float | Yes | Field goal percentage (0.0-1.0) |
-| fg3m | int | Yes | Three-pointers made |
-| fg3a | int | Yes | Three-pointers attempted |
-| fg3_pct | float | Yes | Three-point percentage (0.0-1.0) |
-| ftm | int | Yes | Free throws made |
-| fta | int | Yes | Free throws attempted |
-| ft_pct | float | Yes | Free throw percentage (0.0-1.0) |
-| oreb | int | Yes | Offensive rebounds |
-| dreb | int | Yes | Defensive rebounds |
-| reb | int | Yes | Total rebounds |
-| ast | int | Yes | Assists |
-| stl | int | Yes | Steals |
-| blk | int | Yes | Blocks |
-| tov | int | Yes | Turnovers |
-| pf | int | Yes | Personal fouls |
-| pts | int | Yes | Points scored |
-| plus_minus | float | Yes | Plus/minus rating |
-
-### fact_box_score_advanced_player
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| player_id | int | No | FK to dim_player |
-| team_id | int | No | FK to dim_team |
-| off_rating | float | Yes | Offensive rating |
-| def_rating | float | Yes | Defensive rating |
-| net_rating | float | Yes | Net rating |
-| ast_pct | float | Yes | Assist percentage (0.0-1.0) |
-| ast_tov | float | Yes | Assist-to-turnover ratio |
-| ast_ratio | float | Yes | Assist ratio |
-| oreb_pct | float | Yes | Offensive rebound percentage |
-| dreb_pct | float | Yes | Defensive rebound percentage |
-| reb_pct | float | Yes | Total rebound percentage |
-| tov_pct | float | Yes | Turnover percentage |
-| efg_pct | float | Yes | Effective FG percentage |
-| ts_pct | float | Yes | True shooting percentage |
-| usg_pct | float | Yes | Usage percentage |
-| pace | float | Yes | Pace factor |
-| pie | float | Yes | Player impact estimate |
-
-### fact_box_score_hustle
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| player_id | int | No | FK to dim_player |
-| team_id | int | No | FK to dim_team |
-| contested_shots | int | Yes | Contested shot attempts by opponent |
-| deflections | int | Yes | Ball deflections |
-| charges_drawn | int | Yes | Charges drawn |
-| loose_balls_recovered | int | Yes | Loose balls recovered |
-| screen_assists | int | Yes | Screen assists |
-
-### fact_play_by_play
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| action_number | int | No | Sequential action number |
-| clock | str | Yes | Game clock time |
-| period | int | No | Game period |
-| action_type | str | Yes | Action type description |
-| sub_type | str | Yes | Action sub-type |
-| description | str | Yes | Play description text |
-| person_id | int | Yes | FK to dim_player |
-| team_id | int | Yes | FK to dim_team |
-| shot_distance | float | Yes | Distance of shot attempt |
-| shot_result | str | Yes | Made or Missed |
-| points_total | int | Yes | Running point total |
-| is_field_goal | int | Yes | Whether play is a FG attempt (0/1) |
-
-### fact_shot_chart
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| player_id | int | No | FK to dim_player |
-| team_id | int | No | FK to dim_team |
-| zone_id | int | Yes | FK to dim_shot_zone |
-| loc_x | float | No | Court x-coordinate |
-| loc_y | float | No | Court y-coordinate |
-| shot_distance | int | No | Shot distance in feet |
-| shot_made_flag | int | No | 1 = made, 0 = missed |
-| action_type | str | Yes | Shot action type |
-| shot_type | str | Yes | 2PT or 3PT |
-| period | int | No | Game period |
-| minutes_remaining | int | Yes | Minutes left in period |
-| seconds_remaining | int | Yes | Seconds left in period |
-
-### fact_win_probability
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| event_num | int | No | Event number |
-| home_pct | float | No | Home team win probability (0.0-1.0) |
-| visitor_pct | float | No | Visitor team win probability (0.0-1.0) |
-| home_pts | int | No | Home team points at event |
-| visitor_pts | int | No | Visitor team points at event |
-| period | int | No | Game period |
-| seconds_remaining | float | No | Seconds remaining in period |
-
-### fact_rotation
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| person_id | int | No | FK to dim_player |
-| team_id | int | No | FK to dim_team |
-| in_time_real | float | No | Check-in time (seconds from game start) |
-| out_time_real | float | No | Check-out time (seconds from game start) |
-| player_pts | int | Yes | Points scored during stint |
-| pt_diff | int | Yes | Point differential during stint |
-
-### fact_matchup
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| off_player_id | int | No | Offensive player FK to dim_player |
-| def_player_id | int | No | Defensive player FK to dim_player |
-| off_team_id | int | No | Offensive team FK to dim_team |
-| def_team_id | int | No | Defensive team FK to dim_team |
-| matchup_min | float | Yes | Matchup minutes |
-| partial_poss | float | Yes | Partial possessions |
-| player_pts | int | Yes | Points scored by offensive player |
-| matchup_fgm | int | Yes | FG made during matchup |
-| matchup_fga | int | Yes | FG attempted during matchup |
-
-### fact_standings
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| team_id | int | No | FK to dim_team |
-| season_id | str | No | FK to dim_season |
-| conference | str | No | East or West |
-| w | int | No | Wins |
-| l | int | No | Losses |
-| w_pct | float | No | Win percentage (0.0-1.0) |
-| home_record | str | Yes | Home win-loss record |
-| road_record | str | Yes | Road win-loss record |
-
-### fact_draft
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| person_id | int | No | FK to dim_player |
-| team_id | int | No | FK to dim_team |
-| season | int | No | Draft year |
-| round_number | int | No | Round number |
-| round_pick | int | No | Pick within round |
-| overall_pick | int | No | Overall pick number |
-| organization | str | Yes | Drafting organization |
-
-### fact_synergy
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| player_id | int | No | FK to dim_player |
-| team_id | int | No | FK to dim_team |
-| season_id | str | No | FK to dim_season |
-| play_type | str | No | Play type category |
-| gp | int | Yes | Games played |
-| poss | float | Yes | Possessions |
-| ppp | float | Yes | Points per possession |
-| fg_pct | float | Yes | Field goal percentage |
-| efg_pct | float | Yes | Effective FG percentage |
-| score_pct | float | Yes | Scoring frequency |
-| percentile | float | Yes | Percentile ranking |
-
-## Bridge Tables
-
-### bridge_game_official
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| official_id | int | No | FK to dim_official |
-
-### bridge_play_player
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| game_id | str | No | FK to dim_game |
-| event_num | int | No | Event number in game |
-| player_id | int | No | FK to dim_player |
-| involvement_type | str | No | Primary, secondary, tertiary |
-
-## Derived Aggregations
-
-### derived_player_season
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| player_id | int | No | FK to dim_player |
-| season_year | int | No | Season start year |
-| season_type | str | No | Regular Season or Playoffs |
-| gp | int | No | Games played |
-| total_min | float | No | Total minutes |
-| avg_min | float | No | Average minutes per game |
-| total_pts | int | No | Total points |
-| avg_pts | float | No | Points per game |
-| total_reb | int | No | Total rebounds |
-| avg_reb | float | No | Rebounds per game |
-| total_ast | int | No | Total assists |
-| avg_ast | float | No | Assists per game |
-| fg_pct | float | Yes | Season field goal percentage |
-| fg3_pct | float | Yes | Season three-point percentage |
-| ft_pct | float | Yes | Season free throw percentage |
-| avg_off_rating | float | Yes | Average offensive rating |
-| avg_def_rating | float | Yes | Average defensive rating |
-| avg_ts_pct | float | Yes | Average true shooting percentage |
-| avg_usg_pct | float | Yes | Average usage percentage |
-
-### derived_player_rolling
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| player_id | int | No | FK to dim_player |
-| game_id | str | No | FK to dim_game |
-| pts_5g | float | Yes | 5-game rolling average points |
-| pts_10g | float | Yes | 10-game rolling average points |
-| pts_20g | float | Yes | 20-game rolling average points |
-| reb_5g | float | Yes | 5-game rolling average rebounds |
-| ast_5g | float | Yes | 5-game rolling average assists |
-
-### derived_team_season
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| team_id | int | No | FK to dim_team |
-| season_year | int | No | Season start year |
-| season_type | str | No | Regular Season or Playoffs |
-| gp | int | No | Games played |
-| w | int | No | Wins |
-| l | int | No | Losses |
-| w_pct | float | No | Win percentage |
-| pts_pg | float | No | Points per game |
-| opp_pts_pg | float | No | Opponent points per game |
-| diff_pts_pg | float | No | Point differential per game |
-
-## Analytics Views
-
-### view_player_game_complete
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| player_id | int | No | FK to dim_player |
-| player_name | str | No | Player display name |
-| position | str | Yes | Playing position |
-| team_id | int | No | FK to dim_team |
-| team_abbreviation | str | No | Team three-letter code |
-| game_id | str | No | FK to dim_game |
-| game_date | date | No | Date of game |
-| season_year | int | No | Season start year |
-| season_type | str | No | Regular Season or Playoffs |
-| home_or_away | str | No | Home or Away |
-| opp_team_id | int | No | Opponent team FK |
-| opp_abbreviation | str | No | Opponent abbreviation |
-| min | float | Yes | Minutes played |
-| pts | int | Yes | Points scored |
-| reb | int | Yes | Total rebounds |
-| ast | int | Yes | Assists |
-| stl | int | Yes | Steals |
-| blk | int | Yes | Blocks |
-| tov | int | Yes | Turnovers |
-| fg_pct | float | Yes | Field goal percentage |
-| fg3_pct | float | Yes | Three-point percentage |
-| ft_pct | float | Yes | Free throw percentage |
-| plus_minus | float | Yes | Plus/minus |
-| wl | str | Yes | Win or Loss |
-
-### view_shot_chart_complete
-
-| Column | Type | Nullable | Description |
-|--------|------|:--------:|-------------|
-| player_id | int | No | FK to dim_player |
-| player_name | str | No | Player display name |
-| game_id | str | No | FK to dim_game |
-| game_date | date | No | Date of game |
-| season_year | int | No | Season start year |
-| loc_x | float | No | Court x-coordinate |
-| loc_y | float | No | Court y-coordinate |
-| shot_distance | int | No | Shot distance in feet |
-| zone_basic | str | Yes | Basic zone category |
-| zone_area | str | Yes | Court area |
-| zone_range | str | Yes | Distance range |
-| shot_made_flag | int | No | 1 = made, 0 = missed |
-| shot_type | str | Yes | 2PT or 3PT |
-| action_type | str | Yes | Shot action type |
+This page is the scorer's-table cheat sheet for the warehouse: not every single field in every generated schema block, but the recurring column patterns that make dense reference pages faster to scan and much harder to misread.
+
+Use it when the column name is technically familiar but context is still fuzzy: is this an identity key or a history key, a side-of-ball label or a duplicate-looking participant slot, a rate or a total, or a discriminator that changes the row's meaning entirely?
+
+<div className="grid gap-3 md:grid-cols-4">
+  <StatPill
+    label="Best use"
+    value="Decode patterns"
+    note="learn how keys, roles, metrics, and suffixes behave across the model"
+  />
+  <StatPill
+    label="Primary hubs"
+    value="4"
+    note="player, team, game, and season fields carry most joins"
+  />
+  <StatPill
+    label="Watch closely"
+    value="Grain"
+    note="discriminator columns often define what a row actually means"
+  />
+  <StatPill
+    label="Exact inventory"
+    value="Generated"
+    note="use raw, staging, and star pages for exhaustive schema-backed field lists"
+  />
+</div>
+
+<Callout type="info">
+Need the exact field list for a specific schema-backed table? Jump to the generated [Raw](/docs/data-dictionary/raw), [Staging](/docs/data-dictionary/staging), or [Star](/docs/data-dictionary/star) inventory. Use this page to decode how those fields behave.
+</Callout>
+
+<CourtDivider label="Pick the lookup sheet" />
+
+## Quick routes on this page
+
+Use this page like a scan aid, not like a linear essay.
+
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="Find the join anchors first" label="Quick route">
+    Jump to <a href="#identity-and-grain-columns">Identity and grain columns</a> when you need to
+    decide whether a row is keyed by player, team, game, season, date, or lineup/group context.
+  </ScoutCard>
+  <ScoutCard title="Decode who the row is talking about" label="Quick route">
+    Use <a href="#role-and-context-columns">Role and context columns</a> for home vs visitor,
+    offense vs defense, participant-slot fields, and shot-zone labels.
+  </ScoutCard>
+  <ScoutCard title="Read the stat name by sight" label="Quick route">
+    Open <a href="#metric-naming-quick-read">Metric naming quick read</a> when the question is
+    really about suffixes like <code>{"_pct"}</code>, <code>{"_rank"}</code>,{" "}
+    <code>{"total_"}</code>, or rolling windows.
+  </ScoutCard>
+  <ScoutCard title="Explain the duplicate-looking rows" label="Quick route">
+    Go to <a href="#discriminator-columns">Discriminator columns</a> when repeated keys might
+    actually be different slices, summaries, or tracking cuts rather than bad duplication.
+  </ScoutCard>
+</div>
+
+## Start here by question
+
+| If the question is... | Read this section | Why |
+| --------------------- | ----------------- | --- |
+| "Which columns identify the row and define its grain?" | [Identity and grain columns](#identity-and-grain-columns) | These are the keys and season/game anchors that keep joins honest |
+| "What do these home/visitor/offense/defense columns mean?" | [Role and context columns](#role-and-context-columns) | These fields tell you which side of the possession a row is describing |
+| "How should I interpret `_pct`, `avg_`, `total_`, or rolling fields?" | [Metric naming quick read](#metric-naming-quick-read) | This is the fastest way to decode a stat column by sight |
+| "Why do multiple rows exist for what looks like the same entity?" | [Discriminator columns](#discriminator-columns) | Dashboard-style surfaces often encode row meaning in type/context fields |
+
+<DataColumns>
+  <InsightCard title="Fast reading sequence">
+    Read dense generated tables in this order: <strong>grain</strong> first, then{" "}
+    <strong>discriminator</strong>, then <strong>role/context</strong>, and only after that the
+    measures. That order prevents most bad joins and most stat-name misreads.
+  </InsightCard>
+  <InsightCard title="Where exactness lives">
+    This page explains patterns that repeat across the warehouse. The authoritative exhaustive
+    field lists still live on the generated <a href="/docs/data-dictionary/raw">Raw</a>,{" "}
+    <a href="/docs/data-dictionary/staging">Staging</a>, and{" "}
+    <a href="/docs/data-dictionary/star">Star</a> pages.
+  </InsightCard>
+</DataColumns>
+
+## Identity and grain columns
+
+### Primary join anchors
+
+| Pattern | Where you will see it | How to read it |
+| ------- | --------------------- | -------------- |
+| `player_id` | `dim_player`, player facts, matchup and shot tables | Default natural key for player joins across the analytical surface |
+| `team_id` | `dim_team`, team facts, many player/team mixed facts | Default team join key for both team-level and roster-context analysis |
+| `game_id` | `dim_game`, game facts, player-game and team-game facts | The main possession/game anchor for event and box-score style analysis |
+| `group_id` | lineup-oriented facts and bridges | Identifier for lineup/group analysis rather than a single player or team |
+
+### Grain-scoping helpers
+
+| Pattern | Where you will see it | How to read it |
+| ------- | --------------------- | -------------- |
+| `season_year` | `dim_game`, season-level facts, aggregates, analytics views | Common season-scoping field; use it early to narrow wide scans |
+| `season_type` | game or season summary surfaces | Distinguishes regular season, playoffs, and other competition phases |
+| `date_key` / `full_date` | `dim_date` and date-aware reporting | Calendar helpers for reporting windows, weekday analysis, and date joins |
+
+### History-aware keys
+
+| Pattern | Where you will see it | How to read it |
+| ------- | --------------------- | -------------- |
+| `<entity>_sk` | history-aware dimensions such as `dim_player` | Surrogate/history key used when row state over time matters |
+
+<Callout>
+If a table exposes both <code>&lt;entity&gt;_id</code> and <code>&lt;entity&gt;_sk</code>, read them as different jobs, not duplicate columns. The natural key answers <em>who</em>; the surrogate/history key answers <em>which versioned row</em>.
+</Callout>
+
+## Role and context columns
+
+### Side-of-game context
+
+| Column or pattern | What it usually signals | Scouting note |
+| ----------------- | ----------------------- | ------------- |
+| `home_team_id` / `visitor_team_id` | Both clubs attached to one game row | The main game dimension uses `visitor`, not `away`, for the second team |
+| `side` | Home/away designation on a row | Important in stint and bridge-style tables where one surface carries both sides |
+| `def_player_id` / `def_team_id` | Defensive-side participant in matchup or defense tables | Keep offense and defense in separate lanes when joining |
+
+### Participant-slot columns
+
+| Column or pattern | What it usually signals | Scouting note |
+| ----------------- | ----------------------- | ------------- |
+| `player1_id` / `player2_id` / `player3_id` | Event participants embedded directly on an action row | Common on play-by-play style data before participant rows are fanned out |
+
+### Human-readable labels and geography
+
+| Column or pattern | What it usually signals | Scouting note |
+| ----------------- | ----------------------- | ------------- |
+| `matchup`, `conference`, `division` | Human-readable context labels | Useful for output and grouping, but not substitutes for business keys |
+| `zone_basic`, `zone_area`, `zone_range` | Shot geography | Read these together to describe where a shot came from on the floor |
+
+## Metric naming quick read
+
+### Percentages, ratings, and ranks
+
+| Pattern | Meaning | Example interpretation |
+| ------- | ------- | ---------------------- |
+| `_pct` | Decimal percentage or rate | `fg_pct`, `ts_pct`, `score_pct` are typically stored as `0.0-1.0` |
+| `_rating` | Per-possession rating metric | `off_rating`, `def_rating`, and `net_rating` describe scoring efficiency context |
+| `_rank` | Ordering within a category | `pts_rank` or `conference_rank` is only meaningful with the matching leaderboard or standings context |
+
+### Totals, averages, and windows
+
+| Pattern | Meaning | Example interpretation |
+| ------- | ------- | ---------------------- |
+| `total_` | Aggregate count or sum | `total_pts` means season total points, not per-game output |
+| `avg_` | Average over the row's grain | `avg_pts` on a season rollup means points per game at that summary grain |
+| `_rollN` | Rolling window metric | `pts_roll5` means a five-game rolling average, not a season mean |
+
+### Flags and shorthand
+
+| Pattern | Meaning | Example interpretation |
+| ------- | ------- | ---------------------- |
+| `is_` | Boolean flag | `is_current` and `is_weekend` are yes/no state markers |
+| shorthand metrics | Established basketball abbreviations | `pie`, `pace`, `ppp`, `tchs`, and `spd` are compact stat names rather than suffix-based patterns |
+
+<CourtDivider label="Read the row meaning" />
+
+## Discriminator columns
+
+Some surfaces look denormalized because they intentionally stack multiple related feeds or analytical cuts into one table. In those cases, the discriminator column is part of the row's meaning.
+
+| Pattern | What it tells you | Common examples |
+| ------- | ----------------- | --------------- |
+| `*_type` | Which slice or variant produced the row | `detail_type`, `summary_type`, `tracking_type`, `leader_type` |
+| `*_source` | Which upstream context or feed produced the row | `context_source` |
+| `split_*` | Which analytical split the row belongs to | `split_type` |
+| `entity_*` | Which entity level is represented | `entity_type`, `entity_id` |
+| chart/shot labels | Which shot or chart cut is present | `shot_type`, `chart_type` |
+
+If two rows share the same `player_id` or `team_id` but differ on one of these fields, they are usually not duplicates. They are different possessions in the same set.
+
+### Stop here before calling it a duplicate
+
+- If the repeated row differs by `detail_type`, `summary_type`, `tracking_type`, or `split_type`, it is usually a different analytical cut.
+- If the repeated row differs by `entity_type`, it may represent a different level of analysis on the same surface.
+- If the repeated row differs by shot/chart labels, you are often looking at parallel geography buckets, not bad dedupe.
+
+## Practical reading order for dense tables
+
+1. **Find the grain first**: look for `game_id`, `season_year`, `player_id`, `team_id`, or lineup/group keys.
+2. **Check the discriminator fields**: a `detail_type` or `split_type` can change the entire meaning of the row.
+3. **Read role columns next**: home vs visitor, offense vs defense, or participant slot fields tell you which side of the ball you are looking at.
+4. **Only then scan the measures**: percentages, ratings, counts, and ranks make sense once the row's role is clear.
+
+## Common misread traps
+
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="Natural key vs history key" label="Trap to avoid">
+    Do not treat <code>&lt;entity&gt;_id</code> and <code>&lt;entity&gt;_sk</code> as interchangeable.
+    The natural key answers <em>who</em>; the surrogate/history key answers <em>which row version</em>.
+  </ScoutCard>
+  <ScoutCard title="Home/visitor labels are not noise" label="Trap to avoid">
+    On game-centered surfaces, <code>home_team_id</code> and <code>visitor_team_id</code> define
+    the matchup context. They are part of the row's story, not decorative lookup columns.
+  </ScoutCard>
+  <ScoutCard title="Totals and averages should not be mixed casually" label="Trap to avoid">
+    <code>total_pts</code> and <code>avg_pts</code> can sit near each other on season surfaces but
+    answer different questions. Check the grain before comparing them to player-game rows.
+  </ScoutCard>
+  <ScoutCard title="Repeated IDs are often intentional" label="Trap to avoid">
+    If repeated keys differ on <code>detail_type</code>, <code>summary_type</code>,{" "}
+    <code>tracking_type</code>, or <code>split_type</code>, you are probably looking at parallel
+    analytical cuts rather than a broken dedupe.
+  </ScoutCard>
+</div>
+
+<Callout>
+When the table is still too dense, switch to the schema page first: [Dimensions](/docs/schema/dimensions), [Facts](/docs/schema/facts), [Derived Aggregations](/docs/schema/derived), or [Analytics Views](/docs/schema/analytics-views). Use the curated page to understand the table family, then come back to the generated field inventory for exact columns.
+</Callout>

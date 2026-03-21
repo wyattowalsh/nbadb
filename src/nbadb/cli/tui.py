@@ -12,6 +12,7 @@ Features:
 
 from __future__ import annotations
 
+import contextlib
 import time
 from dataclasses import dataclass
 
@@ -689,10 +690,8 @@ class TuiLogSink:
             style = ""
         elif "SUCCESS" in msg:
             style = "green"
-        try:
+        with contextlib.suppress(Exception):
             self._app.write_log(msg, style)
-        except Exception:
-            pass
 
 
 # ── public entry point ─────────────────────────────────────

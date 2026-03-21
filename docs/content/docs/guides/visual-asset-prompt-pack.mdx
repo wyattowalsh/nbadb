@@ -1,0 +1,255 @@
+---
+title: Visual Asset Prompt Pack
+description: Basketball-native prompts for generating hero art, share cards, icons, and ambient textures that still feel like nbadb.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+# Visual Asset Prompt Pack
+
+Use this guide as the **art department bench** for nbadb. It is the prompt library for generating visual assets that match the docs system instead of drifting into generic sports wallpaper or AI sludge.
+
+The goal is not maximum spectacle. The goal is a repeatable visual language: hardwood geometry, scoreboard hierarchy, film-room annotation energy, and enough restraint that the data still leads the possession.
+
+<StatGrid columns={4}>
+  <StatPill label="Prompt families" value="6" note="hero art, OG cards, icons, textures, sections, variants" />
+  <StatPill label="Core moods" value="3" note="broadcast, film room, arena atmosphere" />
+  <StatPill label="Target outputs" value="5" note="homepage, docs sections, social, icons, ambient plates" />
+  <StatPill label="Bias" value="Controlled" note="basketball-native and editorial over glossy sci-fi UI" />
+</StatGrid>
+
+<Callout type="info">
+  Treat these prompts as a starting rotation, not a frozen artifact. Preserve the
+  visual constraints even when you swap subject matter, crop ratios, or color emphasis.
+</Callout>
+
+## Brand pillars
+
+<DataColumns>
+  <ScoutCard title="Court-first geometry" label="Shape language">
+    Use center lines, arcs, lane rectangles, score ribbons, and telestrator marks as the structural backbone. The site should feel like it borrowed from coaching diagrams and arena graphics, not a generic SaaS dashboard.
+  </ScoutCard>
+  <ScoutCard title="Editorial clarity" label="Reading priority">
+    The background should support the information architecture. Use contrast, motion, and texture to frame content, not to compete with headings and code blocks.
+  </ScoutCard>
+  <ScoutCard title="Broadcast energy" label="Mood">
+    Favor dramatic but composed lighting: arena spotlights, soft lens bloom, scoreboard glow, subtle hardwood grain, and controlled color accents from the site palette.
+  </ScoutCard>
+  <ScoutCard title="NBA without IP drift" label="Safety rail">
+    Capture the feeling of pro basketball presentation without depending on player likenesses, team logos, or trademark-heavy poster language. Build from abstractions, silhouettes, ball movement, and court marks.
+  </ScoutCard>
+</DataColumns>
+
+<CourtDivider label="Visual system map" />
+
+<Mermaid
+  chart={`flowchart LR
+    A[Brand pillars] --> B[Hero art]
+    A --> C[OG cards]
+    A --> D[Icons]
+    A --> E[Ambient textures]
+    B --> F[Homepage + section headers]
+    C --> G[Social sharing + previews]
+    D --> H[Favicons + badges]
+    E --> I[Subtle backgrounds + overlays]
+    F --> J[Readable, court-first docs shell]
+    G --> J
+    H --> J
+    I --> J`}
+/>
+
+## Universal constraints
+
+Use these clauses in nearly every prompt.
+
+```text
+basketball-native documentation art direction, editorial sports graphic design,
+hardwood court geometry, scoreboard rhythm, film-room telestrator details,
+clean hierarchy, restrained composition, premium but practical, atmospheric lighting,
+text-safe framing, negative space for headings, no logos, no jersey branding,
+no player likeness dependency, no cluttered UI mockup, no random floating widgets
+```
+
+### Negative prompt baseline
+
+```text
+generic dribbler poster, esports neon overload, cyberpunk HUD clutter,
+photoreal celebrity face, trademarked logos, watermark, low-contrast mud,
+cheap lens flare, fake 3D dashboard mockup, glossy crypto aesthetic,
+oversaturated purple gradient, unreadable typography area, posterized skin,
+busy background noise, clip-art basketball, toy-like render
+```
+
+## Prompt roster
+
+| Asset | Recommended ratio | Best use | What matters most |
+| ----- | ----------------- | -------- | ----------------- |
+| Hero artwork | `16:9` or `3:2` | homepage and section hero backplates | text-safe framing and strong central geometry |
+| Open Graph card | `1200x630` | page sharing and previews | bold title space, fast legibility, clear visual motif |
+| Icon tile | `1:1` | favicon and app icon derivations | simple silhouette, strong contrast, recognizable at 32px |
+| Ambient texture | wide crop | subtle shells and overlays | low-noise detail and non-distracting patterning |
+| Section variant | `4:3` or `3:2` | schema, lineage, endpoints, guides hubs | match motif to the page role, not just to basketball in general |
+
+## Master prompt for homepage hero art
+
+Use this when you want a dominant landing image or poster plate behind the main homepage shell.
+
+```text
+Create a cinematic editorial background for an NBA data documentation homepage.
+The composition should feel like a hybrid of a television scoreboard package,
+a coach's whiteboard, and a premium hardwood-court broadcast graphic.
+
+Visual ingredients:
+- half-court arcs and lane lines used as geometric framing devices
+- soft spotlight bloom from the top edge, as if arena lights are hitting polished wood
+- subtle telestrator circles, path arrows, and scouting marks
+- disciplined red, blue, gold, cream, and graphite palette
+- layered but low-noise background with negative space reserved for a large heading block
+- no logos, no player faces, no team marks, no fake UI panels
+
+Style:
+editorial sports design, premium documentation backdrop, tactile hardwood grain,
+scoreboard typography energy, minimal but dramatic, readable, intentional,
+text-safe, modern, grounded, high contrast, elegant restraint
+```
+
+<InsightCard title="Why this works">
+  This prompt makes the court geometry do the branding work. It keeps the result aligned with the site shell instead of collapsing into a generic athlete poster.
+</InsightCard>
+
+## Open Graph card prompt
+
+Use this for page-share images, social previews, and card crops used outside the live docs UI.
+
+```text
+Design an Open Graph preview card for a basketball analytics documentation site.
+Format: 1200x630.
+
+Composition:
+- left or upper-left text-safe block for a short title
+- right side anchored by bold half-court geometry and scoreboard strip details
+- layered hardwood texture and calm arena lighting
+- one accent motif from the page topic: schema nodes, lineage arrows, endpoint scouting icons, or guide-route arrows
+
+Look and feel:
+crisp editorial sports graphic, premium, modern, restrained, clear hierarchy,
+designed for immediate readability at small preview size, no logos,
+no player portrait dependency, no noisy photoreal crowd background
+```
+
+### Topic overlays for OG cards
+
+| Topic | Add this clause |
+| ----- | --------------- |
+| Schema | `entity-relationship node clusters, clean table-group geometry, warehouse map feel` |
+| Lineage | `flow arrows, dependency chains, replay-path energy, ball-movement metaphor` |
+| Endpoints | `scouting-report markers, grouped coverage zones, system inventory feel` |
+| Guides | `playbook card layout, route arrows, drill sequencing, practice-facility mood` |
+
+## Icon prompt
+
+Use this when you want a favicon, app tile, or small square mark derived from the same visual language.
+
+```text
+Create a square app icon for a basketball analytics documentation platform.
+Simple, bold, and legible at small sizes.
+
+Core motif:
+- abstract half-court line work
+- one central scoreboard or data-grid cue
+- strong silhouette that reads at 32px and 64px
+
+Palette:
+cream background, deep graphite base, controlled red and gold accents,
+optional blue accent line
+
+Avoid:
+mascot imagery, player faces, logo lookalikes, excessive detail, tiny text,
+3D bevel effects, clutter, neon cyberpunk gradients
+```
+
+## Ambient texture prompt
+
+This is for subtle plates behind cards, sections, or page shells.
+
+```text
+Generate a subtle background texture for a basketball analytics documentation site.
+The result should look like premium printed sports editorial stock mixed with faint
+hardwood grain and diagram overlays.
+
+Requirements:
+- very low contrast
+- repeated court-line fragments, score ticks, and telestrator marks
+- soft paper or hardwood texture
+- no focal subject
+- usable behind text and UI without distraction
+```
+
+## Section-specific prompt variants
+
+<DataColumns>
+  <ScoutCard title="Schema" label="Section variant">
+    Emphasize table-group geometry, clean blocks, and disciplined line work. Think warehouse blueprint on top of a court diagram.
+
+    ```text
+    basketball data warehouse blueprint, half-court geometry merged with table clusters,
+    precise lines, dimensional blocks, analyst-ready calm, premium editorial sports graphic
+    ```
+  </ScoutCard>
+  <ScoutCard title="Endpoints" label="Section variant">
+    Use scouting boards, grouped zones, and inventory language. It should feel like coverage mapping.
+
+    ```text
+    endpoint scouting board, grouped coverage zones, coach's route markers,
+    systematic inventory, disciplined scoreboard graphics, basketball analytics mood
+    ```
+  </ScoutCard>
+  <ScoutCard title="Lineage" label="Section variant">
+    Favor motion, arrow paths, and dependency chains. The metaphor is ball movement through the pipeline.
+
+    ```text
+    dependency replay graphic, ball-movement arrows, possession chain, flowing links,
+    layered but readable, premium sports diagram, no generic flowchart UI
+    ```
+  </ScoutCard>
+  <ScoutCard title="Guides" label="Section variant">
+    Lean into practice-facility cues, play cards, and route sequencing instead of abstract data nodes.
+
+    ```text
+    practice-facility visual system, playbook cards, route arrows, court tape marks,
+    editorial sports instruction graphic, crisp and inviting
+    ```
+  </ScoutCard>
+</DataColumns>
+
+<CourtDivider label="Workflow" />
+
+## Recommended generation workflow
+
+1. Start with the master prompt plus one asset-specific prompt.
+2. Add exactly one topic overlay if the asset belongs to a section.
+3. Generate 4 to 8 candidates, then reject anything that breaks text-safe composition.
+4. Downshift contrast and reduce detail before shipping into the docs shell.
+5. Crop once for the destination surface instead of forcing a single image to do every job.
+
+## Review checklist
+
+| Check | Pass condition |
+| ----- | -------------- |
+| Text-safe area | Headings and badges can sit on the image without emergency overlays |
+| Brand fit | Court geometry and scoreboard logic are visible even before reading copy |
+| Restraint | The image supports the page instead of hijacking attention |
+| Share legibility | OG crops are still readable in small link previews |
+| System reuse | The asset can spawn icons, detail crops, or section variants without starting over |
+
+<Callout>
+  If the first result looks like a sports poster instead of a documentation system,
+  simplify the prompt. Remove athlete-centric language, reduce photoreal spectacle,
+  and increase references to geometry, hierarchy, and negative space.
+</Callout>
+
+## Best next stops
+
+- Go back to [Guides](/docs/guides) to slot this into the broader authored workflow set.
+- Open [Architecture](/docs/architecture) if you want the design language to mirror how the pipeline actually behaves.
+- Use [Pipeline Flow](/docs/diagrams/pipeline-flow) when a visual asset should echo the system's real movement and handoff structure.

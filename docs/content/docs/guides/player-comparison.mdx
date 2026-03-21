@@ -1,13 +1,29 @@
 ---
 title: Player Comparison
-description: Compare players across statistical dimensions
+description: Hands-on playbook for comparing player profiles across box score, shooting, and clutch possessions.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Player Comparison
 
-Use nbadb to build comprehensive player comparisons across any statistical dimension.
+Use nbadb to build comprehensive player comparisons across any statistical dimension. Start with a tight rotation of players, then swap names, seasons, or filters to run the same set again.
 
-## Basic Stat Comparison
+## Pick the comparison lane
+
+| If you need… | Start here |
+| ------------- | ---------- |
+| One baseline table with counting stats | [Box score baseline](#box-score-baseline) |
+| One player across multiple seasons | [Trend line](#trend-line) |
+| Efficiency and shooting volume | [Shooting and efficiency](#shooting-and-efficiency) |
+| Closing-time shot making | [Closing-time read](#closing-time-read) |
+| A presentation-friendly visual | [Turn the comparison into a radar chart](#turn-the-comparison-into-a-radar-chart) |
+
+<Callout type="info">
+**Coaching note:** Hold season and eligibility filters constant across every query so the comparison stays possession-for-possession instead of mixing different contexts.
+</Callout>
+
+## Set up the rotation
 
 ```python
 import duckdb
@@ -17,7 +33,15 @@ conn = duckdb.connect("nba.duckdb")
 
 players = ["LeBron James", "Kevin Durant", "Stephen Curry"]
 placeholders = ", ".join(f"'{p}'" for p in players)
+```
 
+Swap the names once, then reuse `placeholders` in each comparison query below.
+
+## Box score baseline
+
+Start here when you need the quickest side-by-side production read.
+
+```python
 comparison = conn.sql(f"""
     SELECT
         p.first_name || ' ' || p.last_name AS player,
@@ -42,7 +66,9 @@ comparison = conn.sql(f"""
 print(comparison)
 ```
 
-## Season-over-Season Trends
+## Trend line
+
+Use this when the question is “how has this player changed?” rather than “who is better right now?”
 
 ```python
 trends = conn.sql("""
@@ -65,7 +91,9 @@ trends = conn.sql("""
 print(trends)
 ```
 
-## Shooting Comparison
+## Shooting and efficiency
+
+Use this when raw box score volume is not enough and you need shot quality context too.
 
 ```python
 shooting = conn.sql(f"""
@@ -89,7 +117,9 @@ shooting = conn.sql(f"""
 print(shooting)
 ```
 
-## Clutch Performance Comparison
+## Closing-time read
+
+Use this when you want a tighter late-game shot-making comparison.
 
 ```python
 clutch = conn.sql(f"""
@@ -112,25 +142,36 @@ clutch = conn.sql(f"""
 print(clutch)
 ```
 
-## Radar Chart Visualization
+## Turn the comparison into a radar chart
+
+Join the baseline and shooting tables first so the chart includes both counting stats and efficiency.
 
 ```python
 import matplotlib.pyplot as plt
 import numpy as np
 
 categories = ["PPG", "RPG", "APG", "SPG", "BPG", "TS%"]
+metrics = ["ppg", "rpg", "apg", "spg", "bpg", "ts_pct"]
 
-# Normalize each stat to 0-1 scale for radar chart
+radar_source = comparison.join(
+    shooting.select(["player", "ts_pct"]),
+    on="player",
+)
+
+# Normalize each stat to a 0-1 scale relative to this player pool.
 def normalize(val, min_val, max_val):
     return (val - min_val) / (max_val - min_val) if max_val > min_val else 0
+
+mins = {metric: radar_source[metric].min() for metric in metrics}
+maxs = {metric: radar_source[metric].max() for metric in metrics}
 
 angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False)
 angles = np.concatenate([angles, [angles[0]]])
 
 fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
 
-for row in comparison.iter_rows(named=True):
-    values = [row["ppg"], row["rpg"], row["apg"], row["spg"], row["bpg"], 0]
+for row in radar_source.iter_rows(named=True):
+    values = [normalize(row[metric], mins[metric], maxs[metric]) for metric in metrics]
     values = np.concatenate([values, [values[0]]])
     ax.plot(angles, values, label=row["player"])
     ax.fill(angles, values, alpha=0.1)
@@ -141,3 +182,11 @@ ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.0))
 plt.title("Player Comparison Radar")
 plt.show()
 ```
+
+**Important:** this chart is relative to the selected player pool. If you change the pool, the normalized shape changes too.
+
+## Related routes
+
+- [Analytics Quickstart](/docs/guides/analytics-quickstart) for the shortest route into your first query
+- [DuckDB Query Examples](/docs/guides/duckdb-queries) for more reusable SQL patterns
+- [Shot Chart Analysis](/docs/guides/shot-chart-analysis) when the comparison shifts from box score to location data

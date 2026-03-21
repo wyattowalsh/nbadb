@@ -1,21 +1,44 @@
 ---
 title: Kaggle Setup
-description: How to access nbadb data on Kaggle
+description: Download, inspect, and publish nbadb through the Kaggle delivery lane.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Kaggle Setup
 
-The nbadb dataset is available on Kaggle at [wyattowalsh/basketball](https://www.kaggle.com/datasets/wyattowalsh/basketball).
+Use this guide as the **loading dock** for the public nbadb dataset on Kaggle: [wyattowalsh/basketball](https://www.kaggle.com/datasets/wyattowalsh/basketball).
 
-## Download via CLI
+## Pick the right delivery format
+
+| If you want… | Use… |
+| ------------ | ---- |
+| A single portable database file | `nba.sqlite` |
+| Fast local SQL and inspection | `nba.duckdb` |
+| Columnar files for Polars/Pandas/Arrow | `parquet/` |
+| Broadest compatibility | `csv/` |
+
+<Callout type="info">
+`nbadb download` copies the latest Kaggle dataset into your configured data directory. If Kaggle provides `nba.sqlite` but not `nba.duckdb`, nbadb seeds DuckDB from the SQLite file automatically.
+</Callout>
+
+## Choose your Kaggle route
+
+| If you need to… | Start here | Why |
+| --------------- | ---------- | --- |
+| Get a ready-to-use local dataset through the CLI | [Download via the nbadb CLI](#download-via-the-nbadb-cli) | Fastest path into the rest of the nbadb command surface |
+| Control the download inside Python | [Download via `kagglehub`](#download-via-kagglehub) | Easier notebook or script integration |
+| Publish your own refreshed build | [Upload your own build](#upload-your-own-build) | Handles metadata generation and dataset upload |
+
+## Download via the nbadb CLI
 
 ```bash
 nbadb download
 ```
 
-This uses `kagglehub` to download the latest version of the dataset.
+That command downloads the dataset, copies the files into your data directory, and makes the local folder ready for the rest of the CLI.
 
-## Download via kagglehub
+## Download via `kagglehub`
 
 ```python
 import kagglehub
@@ -24,24 +47,46 @@ path = kagglehub.dataset_download("wyattowalsh/basketball")
 print(f"Dataset downloaded to: {path}")
 ```
 
-## Available Files
+Use this route when you want direct control over download handling inside Python.
 
-| File | Format | Description |
-|------|--------|-------------|
-| `nba.sqlite` | SQLite | Full database, single file |
-| `nba.duckdb` | DuckDB | Columnar analytics database |
-| `*.parquet` | Parquet | One file per table (zstd compressed) |
-| `*.csv` | CSV | One file per table |
+## What lands on disk
 
-## Loading in Python
+A default local layout looks like this:
+
+```text
+nbadb/
+├── nba.sqlite
+├── nba.duckdb
+├── parquet/
+│   └── <table>/...
+├── csv/
+│   └── <table>.csv
+└── dataset-metadata.json
+```
+
+| Path | What it is | Reach for it when… |
+| ---- | ---------- | ------------------ |
+| `nba.sqlite` | Portable relational export | You need maximum tool compatibility |
+| `nba.duckdb` | Fast analytical local database | You want immediate SQL without file globs |
+| `parquet/` | Columnar table exports | Your workflow is Polars, Pandas, Arrow, or DuckDB-over-files |
+| `csv/` | Flat text exports | A downstream system cannot read DuckDB or Parquet |
+| `dataset-metadata.json` | Kaggle dataset metadata | You are preparing or inspecting a publish handoff |
+
+## Load the files in Python
+
+| Format | Best for |
+| ------ | -------- |
+| SQLite | Portable inspection or compatibility-oriented tools |
+| DuckDB | Fast SQL, joins, and ad hoc analysis |
+| Parquet | DataFrame-first or file-based analytical workflows |
 
 ### SQLite
 
 ```python
 import sqlite3
 
-conn = sqlite3.connect("nba.sqlite")
-cursor = conn.execute("SELECT * FROM dim_player LIMIT 5")
+conn = sqlite3.connect("nbadb/nba.sqlite")
+rows = conn.execute("SELECT * FROM dim_player LIMIT 5").fetchall()
 ```
 
 ### DuckDB
@@ -49,7 +94,7 @@ cursor = conn.execute("SELECT * FROM dim_player LIMIT 5")
 ```python
 import duckdb
 
-conn = duckdb.connect("nba.duckdb")
+conn = duckdb.connect("nbadb/nba.duckdb")
 df = conn.sql("SELECT * FROM dim_player LIMIT 5").pl()
 ```
 
@@ -58,7 +103,7 @@ df = conn.sql("SELECT * FROM dim_player LIMIT 5").pl()
 ```python
 import polars as pl
 
-df = pl.read_parquet("dim_player.parquet")
+df = pl.read_parquet("nbadb/parquet/dim_player/dim_player.parquet")
 ```
 
 ### Parquet with Pandas
@@ -66,13 +111,35 @@ df = pl.read_parquet("dim_player.parquet")
 ```python
 import pandas as pd
 
-df = pd.read_parquet("dim_player.parquet")
+df = pd.read_parquet("nbadb/parquet/dim_player/dim_player.parquet")
 ```
 
-## Upload Your Own Build
+## Upload your own build
 
 ```bash
 nbadb upload
 ```
 
-This packages all export formats and pushes to Kaggle using the configured dataset slug.
+### Preflight checklist
+
+| Confirm this first | Why |
+| ------------------ | --- |
+| Your target data directory already contains the dataset you want to publish | `upload` publishes what is on disk |
+| Kaggle credentials are available to the environment that `kagglehub` uses | Upload cannot authenticate without them |
+| `NBADB_KAGGLE_DATASET` points at the correct slug if you are not using the default | Metadata and upload target must agree |
+
+## Version notes and metadata
+
+```bash
+nbadb upload --message "Post-trade-deadline refresh"
+```
+
+- The CLI default message is `"Automated update"`.
+- nbadb ensures `dataset-metadata.json` exists before upload.
+- The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
+
+## Related routes
+
+- [Daily Updates](/docs/guides/daily-updates) for recurring refreshes before publish
+- [Parquet Usage](/docs/guides/parquet-usage) for DataFrame-first workflows
+- [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) for Kaggle, artifact, and credential misses

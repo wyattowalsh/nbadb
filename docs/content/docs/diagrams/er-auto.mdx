@@ -167,12 +167,16 @@ erDiagram
     }
     dim_team_history {
         type[pandera.api.polars.model_config.BaseConfig] Config
+        int team_history_sk
         int team_id PK
-        str season_year
         str city
         str nickname
         str abbreviation
+        str franchise_name
         str league_id PK
+        str valid_from
+        str valid_to
+        bool is_current
     }
     fact_box_score_four_factors {
         type[pandera.api.polars.model_config.BaseConfig] Config
@@ -534,13 +538,10 @@ erDiagram
         int player_id PK
         float in_time_real
         float out_time_real
-        int in_period
-        int out_period
         int pts
         int pts_diff
         float usg_pct
         str side
-        str season_year
     }
     fact_shot_chart {
         type[pandera.api.polars.model_config.BaseConfig] Config

@@ -1,0 +1,15 @@
+{
+  "id": "wyattowalsh/nba-play-by-play-insights",
+  "title": "Inside the Possession: Play-by-Play Analytics and Win Probability",
+  "code_file": "nba_play_by_play_insights.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "wyattowalsh/basketball"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

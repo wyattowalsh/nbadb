@@ -22,6 +22,10 @@ class PlayByPlayExtractor(BaseExtractor):
         logger.debug(f"Extracting play-by-play for {game_id}")
         return self._from_nba_api(PlayByPlayV3, game_id=game_id)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(PlayByPlayV3, game_id=game_id)
+
 
 @registry.register
 class PlayByPlayV2Extractor(BaseExtractor):
@@ -31,3 +35,7 @@ class PlayByPlayV2Extractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
         return self._from_nba_api(PlayByPlayV2, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(PlayByPlayV2, game_id=game_id)

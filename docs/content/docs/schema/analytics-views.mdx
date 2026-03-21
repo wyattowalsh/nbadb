@@ -1,113 +1,132 @@
 ---
 title: Analytics Views
-description: 4 pre-joined denormalized views for common analyses
+description: Playbook for the 4 analytics_ outputs that pre-join common analytical workflows
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Analytics Views
 
-Analytics views are pre-joined, denormalized tables designed for the most common analytical queries. They eliminate the need for multi-table joins in everyday analysis.
+Analytics views are the warehouse fast break: pre-joined `analytics_*` outputs that trade a little duplication for a much faster first read in notebooks, dashboards, and exploratory SQL.
 
-## view_player_game_complete
+<StatGrid columns={3}>
+  <StatPill
+    label="analytics_ views"
+    value="4"
+    note="pre-joined surfaces for quick analyst reads"
+  />
+  <StatPill
+    label="Manual joins saved"
+    value="5+"
+    note="common player-game and season joins are already packed"
+  />
+  <StatPill
+    label="Best entry"
+    value="First read"
+    note="start here before dropping to raw fact grain"
+  />
+</StatGrid>
 
-The most comprehensive single-table view: every player's complete game record with all dimensional context.
+<Callout type="info">
+Use analytics views when the question is familiar and speed matters more than reconstructing the entire possession chain yourself. Drop to facts or `agg_` tables only when you need a different grain or a field these views intentionally leave behind.
+</Callout>
 
-**Joins**: fact_box_score_player + dim_player + dim_team + dim_game + dim_season
+## How to use this page
 
-| Column Group | Description |
-|-------------|-------------|
-| Player info | player_id, first_name, last_name, position, height, weight |
-| Team info | team_id, team_abbreviation, team_name, conference, division |
-| Game info | game_id, game_date, season_year, season_type, home_or_away |
-| Opponent | opp_team_id, opp_abbreviation, opp_name |
-| Traditional stats | min, pts, reb, ast, stl, blk, tov, pf, fgm, fga, fg_pct, etc. |
-| Result | wl, plus_minus |
+1. **Start here for the first read** when the workflow is common and the model already has a packed convenience surface.
+2. **Check the row grain** before using a view as a downstream source; convenience does not change the underlying grain.
+3. **Drop down deliberately** to [Facts & Bridges](/docs/schema/facts) or [Derived Aggregations](/docs/schema/derived) when you need more detail or a different summary boundary.
 
-**Use case**: Quick player analysis without any joins.
+## Quick navigation
 
-```sql
-SELECT player_name, game_date, pts, reb, ast
-FROM view_player_game_complete
-WHERE player_name = 'LeBron James'
-  AND season_year = 2024
-ORDER BY game_date;
-```
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="Choose a view fast" label="Jump to section">
+    Start with <a href="#view-chooser">View chooser</a> when you know the workflow but not the exact `analytics_` object.
+  </ScoutCard>
+  <ScoutCard title="Read each view surface" label="Jump to section">
+    Jump to <a href="#view-scouting-reports">View scouting reports</a> for a one-card explanation of what each analytics view includes and when to trust it.
+  </ScoutCard>
+  <ScoutCard title="Know when not to use them" label="Jump to section">
+    Go to <a href="#when-not-to-use-an-analytics-view">When not to use an analytics view</a> when you suspect the fast-break surface is hiding too much detail.
+  </ScoutCard>
+  <ScoutCard title="Finish on exact contracts" label="Generated boundary">
+    Use <a href="/docs/schema/star-reference">Star Reference</a> for exact schema-backed columns after you choose the right view family here.
+  </ScoutCard>
+</div>
 
-## view_team_game_complete
+<CourtDivider label="Pick your outlet pass" />
 
-Team-level game records with full dimensional context.
+## Four views at a glance
 
-**Joins**: fact_box_score_team + dim_team + dim_game + dim_season
+| View | Row grain | What it already packs together | Best first use |
+| ---- | --------- | ------------------------------ | -------------- |
+| `analytics_player_game_complete` | one player-game row | player-game stat families plus player, team, and game context | notebook exploration, player game logs, quick dashboards |
+| `analytics_player_season_complete` | one player-season row | season totals, averages, and per-minute normalizations | leaderboard work and player season comparison |
+| `analytics_team_season_summary` | one team-season row | team summary metrics, standings, and team context | season snapshots, standings overlays, team comparison |
+| `analytics_head_to_head` | one team-opponent summary row | opponent results and scoring margin context | rivalry, matchup prep, and opponent scouting |
 
-| Column Group | Description |
-|-------------|-------------|
-| Team info | team_id, abbreviation, nickname, city, conference, division |
-| Game info | game_id, game_date, season_year, season_type |
-| Opponent | opp_team_id, opp_abbreviation |
-| Stats | pts, reb, ast, fgm, fga, fg_pct, fg3m, fg3a, fg3_pct, etc. |
-| Result | wl, plus_minus, home_or_away |
+## View chooser
 
-**Use case**: Team performance analysis and game logs.
+| If you want... | Start here | Why it clears space |
+| -------------- | ---------- | ------------------- |
+| Single-game player analysis | `analytics_player_game_complete` | Multiple player-game fact families plus player, team, and game context land in one row set |
+| Season leaderboards and rate comparisons | `analytics_player_season_complete` | Totals, averages, and per-minute normalizations stay together |
+| Team snapshots with standings context | `analytics_team_season_summary` | Team rollups and standings move in the same possession |
+| Rivalry or opponent scouting summaries | `analytics_head_to_head` | Team-vs-team results and scoring margins are already grouped for you |
 
-```sql
-SELECT game_date, abbreviation, opp_abbreviation, pts, wl
-FROM view_team_game_complete
-WHERE abbreviation = 'BOS'
-  AND season_year = 2024
-ORDER BY game_date;
-```
+## View scouting reports
 
-## view_shot_chart_complete
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="analytics_player_game_complete" label="View surface">
+    The all-purpose player-game read: traditional, advanced, misc, hustle, and tracking stats joined with player, team, and game context.
+    <br />
+    <br />
+    <strong>Best when:</strong> you want one player-game row with most common context already attached.
+  </ScoutCard>
+  <ScoutCard title="analytics_player_season_complete" label="View surface">
+    A season dossier for player comparison: totals, averages, and per-36/per-48 normalization in one place.
+    <br />
+    <br />
+    <strong>Best when:</strong> you are ranking players, building season dashboards, or comparing volume to rate stats.
+  </ScoutCard>
+  <ScoutCard title="analytics_team_season_summary" label="View surface">
+    Team-season summary that layers season rollups with standings and team context.
+    <br />
+    <br />
+    <strong>Best when:</strong> you need quick team snapshots, standings overlays, or year-over-year club comparison.
+  </ScoutCard>
+  <ScoutCard title="analytics_head_to_head" label="View surface">
+    Opponent scouting summary that condenses team-vs-team outcomes and scoring margins.
+    <br />
+    <br />
+    <strong>Best when:</strong> you want rivalry, matchup, or opponent-prep reporting without rebuilding the join yourself.
+  </ScoutCard>
+</div>
 
-Shot chart data enriched with player, team, game, and zone context.
+## Common entry questions
 
-**Joins**: fact_shot_chart + dim_player + dim_team + dim_game + dim_shot_zone
+| If the analyst says... | Best opening move | Why |
+| ---------------------- | ----------------- | --- |
+| "Just give me the complete player game row." | `analytics_player_game_complete` | It eliminates most manual player/team/game joins on day one |
+| "I need a player season comparison table now." | `analytics_player_season_complete` | Totals, averages, and rate views are already aligned |
+| "Show me the team season picture with standings context." | `analytics_team_season_summary` | Summary and standings logic travel together |
+| "How have these two teams played each other?" | `analytics_head_to_head` | Opponent-focused summary work is already shaped for that question |
 
-| Column Group | Description |
-|-------------|-------------|
-| Player info | player_id, player_name, position |
-| Game context | game_id, game_date, season_year, home_or_away |
-| Shot location | loc_x, loc_y, shot_distance |
-| Shot zone | zone_basic, zone_area, zone_range |
-| Result | shot_made_flag, event_type, action_type, shot_type |
+<CourtDivider label="Exit ramps" />
 
-**Use case**: Shot chart visualization and zone analysis.
+## When not to use an analytics view
 
-```sql
-SELECT zone_basic, COUNT(*) AS attempts,
-       SUM(shot_made_flag) AS makes,
-       ROUND(100.0 * SUM(shot_made_flag) / COUNT(*), 1) AS fg_pct
-FROM view_shot_chart_complete
-WHERE player_name = 'Stephen Curry'
-  AND season_year = 2024
-GROUP BY zone_basic
-ORDER BY attempts DESC;
-```
+| Situation | Better choice | Why |
+| --------- | ------------- | --- |
+| You need event-by-event tape | [Facts](/docs/schema/facts) | Analytics views intentionally sit above atomic event grain |
+| You need a reusable rollup, not a denormalized read | [Derived Aggregations](/docs/schema/derived) | `agg_` tables keep the summary at its natural aggregated grain |
+| You are validating exact schema-backed columns | [Star Reference](/docs/schema/star-reference) | The generated tier page is the contract surface |
 
-## view_matchup_complete
+## Common drop-down targets
 
-Player-vs-player matchup data with full context.
-
-**Joins**: fact_matchup + dim_player (offense) + dim_player (defense) + dim_team + dim_game
-
-| Column Group | Description |
-|-------------|-------------|
-| Offensive player | off_player_id, off_player_name, off_team |
-| Defensive player | def_player_id, def_player_name, def_team |
-| Game context | game_id, game_date, season_year |
-| Matchup stats | matchup_min, partial_poss, player_pts, matchup_fgm, matchup_fga |
-
-**Use case**: Defensive analysis and matchup scouting.
-
-```sql
-SELECT off_player_name, def_player_name,
-       SUM(matchup_min) AS total_min,
-       SUM(matchup_fgm) AS fgm,
-       SUM(matchup_fga) AS fga,
-       ROUND(100.0 * SUM(matchup_fgm) / NULLIF(SUM(matchup_fga), 0), 1) AS fg_pct
-FROM view_matchup_complete
-WHERE season_year = 2024
-GROUP BY 1, 2
-HAVING SUM(matchup_min) >= 20
-ORDER BY fg_pct ASC
-LIMIT 20;
-```
+| Starting view | Drop down when... | Likely next stop |
+| ------------- | ----------------- | ---------------- |
+| `analytics_player_game_complete` | you need a specific player-game stat family field or finer event detail | `fact_player_game_*`, `fact_play_by_play`, or `fact_shot_chart` |
+| `analytics_player_season_complete` | you need custom split logic or a missing player summary component | player profile/splits facts or `agg_player_*` tables |
+| `analytics_team_season_summary` | you need a different team-season rollup or deeper game-level detail | `agg_team_*` tables or team-game facts |
+| `analytics_head_to_head` | you need atomic game rows behind the rivalry summary | `dim_game`, `fact_team_game`, and supporting dimensions |

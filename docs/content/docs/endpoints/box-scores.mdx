@@ -1,81 +1,71 @@
 ---
 title: Box Score Endpoints
-description: Traditional, advanced, and specialty box score endpoints
+description: Game package feeds for traditional, advanced, and specialty box scores
 ---
 
 # Box Score Endpoints
 
-Ten endpoints provide comprehensive box score data for every NBA game.
+Ten endpoints make up the standard game package for a single NBA matchup.
 
-## BoxScoreTraditionalV3
+> **One-route key:** Every endpoint on this page starts from `game_id`.
+>
+> Pair this board with [Play-by-Play](/docs/endpoints/play-by-play) for event order and [Other](/docs/endpoints/other) for rotations, officials, shot maps, and summary tables.
 
-The primary box score endpoint with traditional stats (points, rebounds, assists, etc.) for both players and teams.
+## Quick route
 
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Parameters**: `game_id` (required)
-- **Target tables**: `fact_box_score_player`, `fact_box_score_team`
+| If you need... | Use | Why it is the fastest route |
+| -------------- | --- | --------------------------- |
+| the main player and team line | `BoxScoreTraditionalV3` | Baseline postgame totals for both sides and every player |
+| ratings, pace, and possession-based efficiency | `BoxScoreAdvancedV3` | Best single stop for offensive/defensive context |
+| Dean Oliver four factors | `BoxScoreFourFactorsV3` | Turns the game into shooting, turnover, rebounding, and free-throw share |
+| scoring shape or shot-source mix | `BoxScoreScoringV3` and `BoxScoreMiscV3` | Separates how points were created from where they came from |
+| touches, distance, and tracking detail | `BoxScorePlayerTrackV3` | Adds Second Spectrum movement and touch volume |
+| matchup tape support | `BoxScoreDefensiveV2` and `BoxScoreMatchupsV3` | Focuses on player-vs-player defensive assignments |
+| hustle and effort stats | `BoxScoreHustleV2` | Surface-level scrappy actions that do not read cleanly from the main line |
+| possession share and finishing share | `BoxScoreUsageV3` | Shows who consumed team possessions and scoring chances |
 
-## BoxScoreAdvancedV3
+## Core box packet
 
-Advanced metrics including offensive/defensive rating, usage rate, pace, and efficiency stats.
+| Endpoint | Result sets | What it gives you | Route cue |
+| -------- | ----------- | ----------------- | --------- |
+| `BoxScoreTraditionalV3` | `PlayerStats`, `TeamStats` | The primary box score: points, rebounds, assists, minutes, shooting totals, and team line | Start here when the question is simply “what happened?” |
+| `BoxScoreAdvancedV3` | `PlayerStats`, `TeamStats` | Offensive/defensive rating, net rating, usage, pace, rebounding share, and PIE | Add immediately after the traditional line when efficiency matters |
+| `BoxScoreFourFactorsV3` | `PlayerStats`, `TeamStats` | `efg_pct`, `fta_rate`, `tm_tov_pct`, `oreb_pct` | Use when you want the fastest explanation for why one side won |
+| `BoxScoreMiscV3` | `PlayerStats`, `TeamStats` | `pts_off_tov`, `pts_2nd_chance`, `pts_fb`, `pts_paint` | Best for scoring-environment context that is not obvious from totals alone |
 
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Parameters**: `game_id` (required)
-- **Key columns**: `off_rating`, `def_rating`, `net_rating`, `ast_pct`, `reb_pct`, `usg_pct`, `pace`, `pie`
+## Shot mix, role, and tracking layers
 
-## BoxScoreDefensiveV2
+| Endpoint | Result sets | Key columns / signals | Route cue |
+| -------- | ----------- | --------------------- | --------- |
+| `BoxScoreScoringV3` | `PlayerStats`, `TeamStats` | `pct_fga_2pt`, `pct_fga_3pt`, `pct_ast_2pm`, `pct_ast_3pm`, `pct_uast_2pm`, `pct_uast_3pm` | Use when you need shot distribution and assisted-vs-unassisted scoring shape |
+| `BoxScoreUsageV3` | `PlayerStats`, `TeamStats` | `usg_pct`, `pct_fgm`, `pct_fga`, `pct_fg3m`, `pct_fg3a`, `pct_ftm`, `pct_fta` | Best for role load: who finished possessions and who took the volume |
+| `BoxScorePlayerTrackV3` | `PlayerStats`, `TeamStats` | `speed`, `distance`, `touches`, `passes`, `contested_shots_2pt`, `contested_shots_3pt` | Add when movement, touch count, or tracking-derived effort changes the read |
+| `BoxScoreHustleV2` | `PlayerStats`, `TeamStats` | `contested_shots`, `deflections`, `charges_drawn`, `loose_balls_recovered` | Pull this when the game turned on chaos, pressure, or extra possessions |
 
-Individual defensive matchup statistics per game.
+## Matchup-specific boards
 
-- **Result sets**: `PlayerStats`
-- **Parameters**: `game_id` (required)
-- **Key columns**: `matchup_min`, `partial_poss`, `player_pts`, `def_player_id`
+| Endpoint | Result sets | Key columns / signals | Route cue |
+| -------- | ----------- | --------------------- | --------- |
+| `BoxScoreDefensiveV2` | `PlayerStats` | `matchup_min`, `partial_poss`, `player_pts`, `def_player_id` | Use when you want defender-assignment context from the defensive side |
+| `BoxScoreMatchupsV3` | `PlayerStats` | `off_player_id`, `def_player_id`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga` | Use when the question is explicitly one player against another |
 
-## BoxScoreFourFactorsV3
+<CourtDivider label="Next possession" />
 
-Dean Oliver's four factors of basketball success per game.
+## Next steps from box scores
 
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Key columns**: `efg_pct`, `fta_rate`, `tm_tov_pct`, `oreb_pct`
-
-## BoxScoreHustleV2
-
-Hustle statistics including contested shots, deflections, charges, and loose balls.
-
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Key columns**: `contested_shots`, `deflections`, `charges_drawn`, `loose_balls_recovered`
-
-## BoxScoreMiscV3
-
-Miscellaneous game stats including points off turnovers, second chance points, and fast break points.
-
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Key columns**: `pts_off_tov`, `pts_2nd_chance`, `pts_fb`, `pts_paint`
-
-## BoxScorePlayerTrackV3
-
-Player tracking data from Second Spectrum cameras.
-
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Key columns**: `speed`, `distance`, `touches`, `passes`, `contested_shots_2pt`, `contested_shots_3pt`
-
-## BoxScoreScoringV3
-
-Scoring breakdown by shot type and assist status.
-
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Key columns**: `pct_fga_2pt`, `pct_fga_3pt`, `pct_ast_2pm`, `pct_ast_3pm`, `pct_uast_2pm`, `pct_uast_3pm`
-
-## BoxScoreUsageV3
-
-Usage-based statistics showing each player's proportion of team possessions.
-
-- **Result sets**: `PlayerStats`, `TeamStats`
-- **Key columns**: `usg_pct`, `pct_fgm`, `pct_fga`, `pct_fg3m`, `pct_fg3a`, `pct_ftm`, `pct_fta`
-
-## BoxScoreMatchupsV3
-
-Individual player-vs-player matchup data per game.
-
-- **Result sets**: `PlayerStats`
-- **Key columns**: `off_player_id`, `def_player_id`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga`
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Rebuild the possession timeline" label="Next stop">
+    Move to <a href="/docs/endpoints/play-by-play">Play-by-Play</a> when the final line
+    is not enough and you need the ordered action log, event taxonomy, or win-probability
+    swing for the same <code>game_id</code>.
+  </ScoutCard>
+  <ScoutCard title="Add rotations, officials, and shot maps" label="Next stop">
+    Use <a href="/docs/endpoints/other">Other</a> to round out the same game with stint
+    charts, officiating crews, shot-chart coordinates, and summary result sets that
+    do not belong on the main box board.
+  </ScoutCard>
+  <ScoutCard title="Compare the game to season baselines" label="Next stop">
+    Jump to <a href="/docs/endpoints/league-stats">League Stats</a> when you need to place
+    one game's pace, ratings, or matchups against the wider season leaderboard and lineup context.
+  </ScoutCard>
+</div>

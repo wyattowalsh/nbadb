@@ -3,6 +3,7 @@ from __future__ import annotations
 from nbadb.core.config import NbaDbSettings, get_settings
 from nbadb.core.dependency_inventory import DependencyInventoryGenerator
 from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+from nbadb.core.transform_dependency_graph import TransformDependencyGraphGenerator
 from nbadb.core.types import (
     CURRENT_SEASON,
     NBA_FIRST_SEASON,
@@ -29,6 +30,7 @@ __all__: list[str] = [
     "NbaDbSettings",
     "DependencyInventoryGenerator",
     "EndpointCoverageGenerator",
+    "TransformDependencyGraphGenerator",
     "PlayerId",
     "SeasonPhase",
     "SeasonType",

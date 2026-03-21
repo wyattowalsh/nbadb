@@ -30,6 +30,17 @@ class TestFromNbaApi:
         assert set(result.columns) == {"player_id", "pts"}
         assert result.shape == (1, 2)
 
+    def test_preserves_nba_stat_shorthand_columns(self) -> None:
+        ext = _StubExtractor()
+        mock_endpoint = MagicMock()
+        import pandas as pd
+
+        mock_endpoint.return_value.get_data_frames.return_value = [
+            pd.DataFrame({"FG3M": [4], "FG2A": [7], "PCT_AST_2PM": [0.6]})
+        ]
+        result = ext._from_nba_api(mock_endpoint)
+        assert set(result.columns) == {"fg3m", "fg2a", "pct_ast_2pm"}
+
     def test_empty_data_frames(self) -> None:
         ext = _StubExtractor()
         mock_endpoint = MagicMock()

@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
 
 if TYPE_CHECKING:
     from nbadb.core.config import NbaDbSettings
+
+
+class ProxyUrlProvider(Protocol):
+    """Shared contract for objects that can supply proxy URLs."""
+
+    def get_proxy_url(self) -> str | None: ...
+
 
 # Pattern to redact credentials from URLs like socks5h://user:pass@host:port
 _CRED_RE = re.compile(r"(://)[^@]+@")
@@ -114,7 +121,8 @@ class ProxyPool:
             # API changes, we fall back to get_proxy() which triggers lazy
             # bootstrapping internally.
             try:
-                whirl._bootstrap_pool_if_empty()
+                bootstrap_pool = getattr(whirl, "_bootstrap_pool_if_empty")  # noqa: B009
+                bootstrap_pool()
             except AttributeError:
                 logger.warning(
                     "proxywhirl private API changed (_bootstrap_pool_if_empty removed); "
@@ -130,7 +138,11 @@ class ProxyPool:
         # RISK: _select_proxy_with_circuit_breaker is a private proxywhirl API.
         # If the private API changes, we fall back to the public get_proxy() method.
         try:
-            proxy = self._whirl._select_proxy_with_circuit_breaker()
+            select_proxy = getattr(  # noqa: B009
+                self._whirl,
+                "_select_proxy_with_circuit_breaker",
+            )
+            proxy = select_proxy()
             return proxy.url
         except AttributeError:
             logger.warning(
@@ -148,7 +160,8 @@ class ProxyPool:
     def _get_proxy_public_api(self) -> str | None:
         """Fallback: use the public get_proxy() API if private methods are removed."""
         try:
-            proxy = self._whirl.get_proxy()
+            get_proxy = getattr(self._whirl, "get_proxy")  # noqa: B009
+            proxy = get_proxy()
             return proxy.url if proxy else None
         except Exception as exc:
             logger.warning("proxy public API fallback failed: {}", type(exc).__name__)
@@ -157,7 +170,8 @@ class ProxyPool:
     @property
     def size(self) -> int:
         """Number of proxies currently in the pool."""
-        stats = self._whirl.get_pool_stats()
+        get_pool_stats = getattr(self._whirl, "get_pool_stats")  # noqa: B009
+        stats = get_pool_stats()
         return stats.get("total_proxies", 0)
 
 
@@ -176,7 +190,7 @@ def _build_socks5_urls(user: str, password: str) -> list[str]:
     return [f"socks5h://{user}:{password}@{host}:1080" for host in _NORDVPN_SOCKS5_HOSTS]
 
 
-def build_proxy_pool(settings: NbaDbSettings) -> SimpleProxyRotator | ProxyPool | None:
+def build_proxy_pool(settings: NbaDbSettings) -> ProxyUrlProvider | None:
     """Build a proxy pool from settings, or return None if disabled.
 
     Priority:

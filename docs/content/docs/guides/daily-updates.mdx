@@ -1,88 +1,129 @@
 ---
 title: Daily Updates
-description: Configure and run incremental daily updates
+description: Game-day runbook for keeping nbadb current with daily, monthly, and full refreshes.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Daily Updates
 
-nbadb supports incremental updates to keep your database current throughout the NBA season.
+This guide is the **game-day operations board** for keeping nbadb current once your data directory already exists.
 
-## How It Works
+## Pick the right play
 
-The daily update pipeline:
+| Command | Use it when… | What it covers |
+| ------- | ------------ | -------------- |
+| `nbadb daily` | You want the normal recurring refresh | Current season, recent games inside the daily lookback window, plus active player/team refresh |
+| `nbadb monthly` | You need a broader sweep | The last 3 seasons |
+| `nbadb full` | You are recovering from failures or filling old gaps | Failed journal entries first, then the full season range |
 
-1. **Checks watermarks**: Reads the last update timestamp from the database
-2. **Lookback window**: Fetches data from `now - 7 days` to cover late-arriving data
-3. **Extracts changed data**: Only pulls endpoints that could have new data
-4. **Validates and transforms**: Runs the full validation pipeline on new data
-5. **Upserts**: Merges new records into existing tables (insert or update)
+<Callout type="info">
+`nbadb daily` is the default half-court set. Reach for `monthly` when you need a wider recent-history sweep, and use `full` when you need recovery plus gap-filling without starting from a blank slate.
+</Callout>
 
-## Running a Daily Update
+## Fast operator route
+
+| Step | What you do | Why it matters |
+| ---- | ----------- | -------------- |
+| 1 | Run the narrowest refresh that fits the need | Shorter possessions are easier to diagnose and rerun |
+| 2 | Check status and quality artifacts right after the run | You catch drift while the command context is still fresh |
+| 3 | Escalate from `daily` to `monthly` or `full` only when the symptoms demand it | Wider reruns cost more time and hide the original miss |
+
+## What `nbadb daily` actually does
+
+The daily run is more specific than “update everything.” It:
+
+1. Detects the **current season**
+2. Discovers game IDs for **Regular Season** and **Playoffs**
+3. Filters those games to `now - NBADB_DAILY_LOOKBACK_DAYS` (default: `7`)
+4. Refreshes the active player/team universe
+5. Runs the matching extract patterns for those recent games and entities
+6. Rebuilds downstream tables in **`replace` mode**
+
+That makes `daily` a strong fit for postgame refreshes and recurring automation.
+
+## Runbook by command
+
+### Daily refresh
 
 ```bash
 nbadb daily
 ```
 
-Typical duration: **5-15 minutes** depending on games played.
+**Best fit:** the default recurring refresh after your first full build.
 
-## What Gets Updated
-
-| Category | Endpoints | Trigger |
-|----------|-----------|---------|
-| Box scores | All 10 box score endpoints | New games completed |
-| Play-by-play | V2 and V3 | New games completed |
-| Game logs | League, player, team | New games completed |
-| Standings | LeagueStandingsV3 | Daily |
-| Schedule | ScheduleLeagueV2 | Daily |
-| Win probability | WinProbabilityPBP | New games completed |
-| Shot charts | ShotChartDetail | New games completed |
-
-## What Does NOT Update Daily
-
-These are updated via `nbadb monthly` instead:
-
-- Player biographical info (CommonPlayerInfo)
-- Team details (TeamDetails)
-- Rosters (CommonTeamRoster)
-- Draft data
-- Franchise history
-- Synergy play types
-- Season matchups
-
-## Configuration
-
-```bash
-# Adjust lookback window (default: 7 days)
-export NBADB_DAILY_LOOKBACK_DAYS=14
-
-# Run with custom data directory
-export NBADB_DATA_DIR=/path/to/data
-nbadb daily
-```
-
-## Scheduling with Cron
-
-```bash
-# Run daily at 6 AM ET (after most West Coast games finish)
-0 6 * * * cd /path/to/nbadb && nbadb daily >> /var/log/nbadb-daily.log 2>&1
-```
-
-## Monthly Refresh
-
-For dimension tables and slowly changing data:
+### Monthly sweep
 
 ```bash
 nbadb monthly
 ```
 
-Duration: **30-60 minutes**. Run once per month or after roster moves.
+**Best fit:** a wider recent-history refresh across the last 3 seasons.
 
-## Full Rebuild
-
-To fill any gaps without losing existing data:
+### Full recovery + gap fill
 
 ```bash
 nbadb full
 ```
 
-Duration: **2-4 hours**. Preserves existing data and fills gaps.
+**Best fit:** retrying failed extractions first, then scanning the full season range for missed work.
+
+## Configuration knobs that actually change the possession
+
+| Setting | Default | Why you touch it |
+| ------- | ------- | ---------------- |
+| `NBADB_DAILY_LOOKBACK_DAYS` | `7` | Widen or tighten the recent-game window for `daily` |
+| `NBADB_DATA_DIR` | environment-dependent | Point the CLI at a different local dataset location |
+
+```bash
+# Widen the recent-game window (default: 7 days)
+export NBADB_DAILY_LOOKBACK_DAYS=14
+
+# Move the working dataset somewhere else
+export NBADB_DATA_DIR=/path/to/data
+
+# Run the standard refresh play
+nbadb daily
+```
+
+## Operator cues during the run
+
+| Signal | What it means |
+| ------ | ------------- |
+| Textual UI appears | stdout is interactive and `--verbose` is not set |
+| Plain logs appear | you passed `--verbose` or the run is non-interactive |
+| `--quality-check` reports issues | checks ran, but reported failures are informational today |
+| First `Ctrl+C` | graceful stop request that preserves resume-safe state |
+| Second `Ctrl+C` | forced exit |
+
+## Scheduling the possession
+
+A practical recurring pattern is to run after most late games have settled.
+
+```bash
+# Example: run daily at 6 AM ET
+0 6 * * * cd /path/to/nbadb && nbadb daily >> /var/log/nbadb-daily.log 2>&1
+```
+
+## What to check after the buzzer
+
+| Check | Why | Escalate when… |
+| ----- | --- | --------------- |
+| `nbadb status` | Inspect pipeline metadata, journal, and watermarks | state looks stale or failed work remains queued |
+| `uv run nbadb run-quality --report-path …` | Capture a machine-readable quality report | failed checks point at empty or inconsistent tables |
+| `artifacts/endpoint-coverage/*` | Confirm coverage artifacts when extractor/staging work changed | coverage drift appears after a supposedly good refresh |
+
+## When to escalate from `daily`
+
+Move up to `monthly` or `full` when you see any of these:
+
+- A wider season scope is needed than the daily lookback window can cover
+- Recent runs left failed journal entries behind
+- You are backfilling missed history or cleaning up a period of instability
+- Health artifacts show missing coverage or missing downstream tables after a supposedly successful refresh
+
+## Related routes
+
+- [CLI Reference](/docs/cli-reference) for exact options and shared pipeline behavior
+- [Kaggle Setup](/docs/guides/kaggle-setup) for distribution handoffs
+- [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) for failed health checks, coverage drift, and docs artifacts

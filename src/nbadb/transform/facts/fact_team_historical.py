@@ -10,6 +10,7 @@ class FactTeamHistoricalTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = [
         "stg_team_historical_leaders",
         "stg_team_year_by_year",
+        "stg_team_year_by_year_stats",
     ]
 
     _SQL: ClassVar[str] = """
@@ -18,4 +19,7 @@ class FactTeamHistoricalTransformer(SqlTransformer):
         UNION ALL BY NAME
         SELECT *, 'year_by_year' AS history_type
         FROM stg_team_year_by_year
+        UNION ALL BY NAME
+        SELECT *, 'year_by_year_stats' AS history_type
+        FROM stg_team_year_by_year_stats
     """

@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "Our docs are stale and links keep breaking after recent framework upgrades. Can you diagnose and stabilize them?",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "docs/mkdocs.yml",
+    "docs/docs/index.md"
+  ],
+  "expected_behavior": [
+    "Agent recognizes docs maintenance request from natural language",
+    "Agent routes to Maintain mode by intent",
+    "Agent runs framework detection before diagnostics",
+    "Agent asks a clarifying question if framework target is ambiguous"
+  ]
+}

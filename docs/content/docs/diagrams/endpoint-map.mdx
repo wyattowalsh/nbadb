@@ -3,116 +3,174 @@ title: Endpoint Map
 description: Mapping of 131 NBA API endpoints to database tables
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 # Endpoint Map
 
-nbadb extracts from **131 nba_api endpoints** and normalizes them into **~58 tables** in the star schema.
+nbadb extracts from **131 nba_api endpoints** and normalizes them into **141 star tables/views** across dimensions, facts, bridges, aggregates, and analytics outputs.
 
-## Box Score Endpoints (10)
+> **Coverage cue:** Read each family top to bottom: endpoint first, result set second, target table third. That order tells you where a question should start and where it lands.
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| BoxScoreTraditionalV3 | PlayerStats, TeamStats | fact_box_score_player, fact_box_score_team |
-| BoxScoreAdvancedV3 | PlayerStats, TeamStats | fact_box_score_advanced_player, fact_box_score_advanced_team |
-| BoxScoreDefensiveV2 | PlayerStats | fact_box_score_defensive |
-| BoxScoreFourFactorsV3 | PlayerStats, TeamStats | fact_box_score_four_factors |
-| BoxScoreHustleV2 | PlayerStats, TeamStats | fact_box_score_hustle |
-| BoxScoreMiscV3 | PlayerStats, TeamStats | fact_box_score_misc |
-| BoxScorePlayerTrackV3 | PlayerStats, TeamStats | fact_box_score_player_track |
-| BoxScoreScoringV3 | PlayerStats, TeamStats | fact_box_score_scoring |
-| BoxScoreUsageV3 | PlayerStats, TeamStats | fact_box_score_usage |
-| BoxScoreMatchupsV3 | PlayerStats | fact_matchup |
+<Callout type="info">
+This page is the source-coverage overlay for the warehouse. Use it when you know the inbound feed
+or endpoint family; switch to <a href="/docs/lineage/table-lineage">Table Lineage</a> when you need
+the full possession chain through raw and staging layers.
+</Callout>
 
-## Play-by-Play Endpoints (3)
+## Quick navigation
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| PlayByPlayV3 | PlayByPlay | fact_play_by_play |
-| PlayByPlayV2 | PlayByPlay, AvailableVideo | fact_play_by_play_v2 |
-| WinProbabilityPBP | WinProbPBP, GameInfo | fact_win_probability |
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <ScoutCard title="Start with box scores" label="Fastest route">
+    Jump to <a href="#box-score-endpoints">Box score endpoints</a> when the issue lives in the
+    player-game or team-game stat families.
+  </ScoutCard>
+  <ScoutCard title="Check game flow feeds" label="Fastest route">
+    Use <a href="#play-by-play-endpoints">Play-by-play endpoints</a> or{' '}
+    <a href="#schedule--scoreboard-endpoints">Schedule &amp; scoreboard endpoints</a> when the
+    question is about events, game headers, or live-state coverage.
+  </ScoutCard>
+  <ScoutCard title="Inspect broader warehouse families" label="Fastest route">
+    Go to <a href="#league-wide-endpoints">League-wide endpoints</a> or{' '}
+    <a href="#draft-endpoints">Draft endpoints</a> when the source is not tied to a single game.
+  </ScoutCard>
+  <ScoutCard title="Check what stays out" label="Boundary">
+    Open <a href="#skipped-endpoints">Skipped endpoints</a> when you need to confirm why a feed is
+    not represented on the board.
+  </ScoutCard>
+</div>
 
-## Game Log Endpoints (3)
+## Read the board in three passes
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| LeagueGameLog | LeagueGameLog | fact_game_log |
+| Pass | What to scan first | Why it helps |
+| ---- | ------------------ | ------------ |
+| 1. Endpoint family | The section heading that matches your nba_api surface | It narrows the search before you read result-set names or table names |
+| 2. Result set | The middle column in each table | It tells you which payload slice actually lands, especially on multi-result endpoints |
+| 3. Target table | The warehouse output column | It tells you whether to switch next to diagrams, lineage, or schema reference |
+
+## Coverage families in one glance
+
+| Family | Count | Start here when… |
+| ------ | ----- | ---------------- |
+| Box score | 10 | The question is about per-game player/team stat splits |
+| Play-by-play | 3 | You need event streams, available video flags, or win-probability data |
+| Game logs | 3 | You are tracing season log-style tables rather than event-level feeds |
+| Player | 7 | The issue is identity, profile, awards, streaks, or career history |
+| Team | 6 | The source concerns franchise, roster, coach, or team history context |
+| Schedule & scoreboard | 3 | The problem starts with game headers, line scores, or schedule coverage |
+| League-wide | 8 | The source is cross-league rather than game-specific |
+| Draft | 7 | The feed belongs to draft history or combine workflows |
+| Shot chart | 2 | The question is about location-level shooting data |
+| Other | 6 | The feed sits outside the main family buckets |
+| Skipped | 8 | You need the exclusion rationale for deprecated or redundant feeds |
+
+<CourtDivider label="Trace the source families" />
+
+## Box score endpoints
+
+| Endpoint              | Result Sets            | Target Tables                                                |
+| --------------------- | ---------------------- | ------------------------------------------------------------ |
+| BoxScoreTraditionalV3 | PlayerStats, TeamStats | fact_box_score_player, fact_box_score_team                   |
+| BoxScoreAdvancedV3    | PlayerStats, TeamStats | fact_box_score_advanced_player, fact_box_score_advanced_team |
+| BoxScoreDefensiveV2   | PlayerStats            | fact_box_score_defensive                                     |
+| BoxScoreFourFactorsV3 | PlayerStats, TeamStats | fact_box_score_four_factors                                  |
+| BoxScoreHustleV2      | PlayerStats, TeamStats | fact_box_score_hustle                                        |
+| BoxScoreMiscV3        | PlayerStats, TeamStats | fact_box_score_misc                                          |
+| BoxScorePlayerTrackV3 | PlayerStats, TeamStats | fact_box_score_player_track                                  |
+| BoxScoreScoringV3     | PlayerStats, TeamStats | fact_box_score_scoring                                       |
+| BoxScoreUsageV3       | PlayerStats, TeamStats | fact_box_score_usage                                         |
+| BoxScoreMatchupsV3    | PlayerStats            | fact_matchup                                                 |
+
+## Play-by-play endpoints
+
+| Endpoint          | Result Sets                | Target Tables        |
+| ----------------- | -------------------------- | -------------------- |
+| PlayByPlayV3      | PlayByPlay                 | fact_play_by_play    |
+| PlayByPlayV2      | PlayByPlay, AvailableVideo | fact_play_by_play_v2 |
+| WinProbabilityPBP | WinProbPBP, GameInfo       | fact_win_probability |
+
+## Game log endpoints
+
+| Endpoint      | Result Sets   | Target Tables        |
+| ------------- | ------------- | -------------------- |
+| LeagueGameLog | LeagueGameLog | fact_game_log        |
 | PlayerGameLog | PlayerGameLog | fact_player_game_log |
-| TeamGameLog | TeamGameLog | fact_team_game_log |
+| TeamGameLog   | TeamGameLog   | fact_team_game_log   |
 
-## Player Endpoints (7)
+## Player endpoints
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| CommonAllPlayers | CommonAllPlayers | dim_player (staging) |
-| PlayerIndex | PlayerIndex | dim_player (staging) |
-| CommonPlayerInfo | CommonPlayerInfo, PlayerHeadlineStats | dim_player |
-| PlayerCareerStats | SeasonTotals (Reg/Post/AllStar) | derived_player_career |
-| PlayerAwards | PlayerAwards | fact_player_awards |
-| PlayerDashboardByYearOverYear | OverallPlayerDashboard | derived_player_dashboard |
-| PlayerGameStreakFinder | PlayerGameStreakFinderResults | fact_player_streaks |
+| Endpoint                      | Result Sets                           | Target Tables            |
+| ----------------------------- | ------------------------------------- | ------------------------ |
+| CommonAllPlayers              | CommonAllPlayers                      | dim_player (staging)     |
+| PlayerIndex                   | PlayerIndex                           | dim_player (staging)     |
+| CommonPlayerInfo              | CommonPlayerInfo, PlayerHeadlineStats | dim_player               |
+| PlayerCareerStats             | SeasonTotals (Reg/Post/AllStar)       | fact_player_career       |
+| PlayerAwards                  | PlayerAwards                          | fact_player_awards       |
+| PlayerDashboardByYearOverYear | OverallPlayerDashboard                | fact_player_dashboard_yoy_overall |
+| PlayerGameStreakFinder        | PlayerGameStreakFinderResults         | fact_player_streaks      |
 
-## Team Endpoints (6)
+## Team endpoints
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| CommonTeamYears | TeamYears | dim_team (staging) |
-| TeamInfoCommon | TeamInfoCommon, TeamSeasonRanks | dim_team |
-| TeamDetails | TeamBackground, TeamHistory | dim_team, fact_franchise_history |
-| CommonTeamRoster | CommonTeamRoster, Coaches | dim_player, dim_coach |
-| FranchiseHistory | FranchiseHistory, DefunctTeams | fact_franchise_history |
-| TeamYearByYearStats | TeamStats | derived_team_year_by_year |
+| Endpoint            | Result Sets                     | Target Tables                    |
+| ------------------- | ------------------------------- | -------------------------------- |
+| CommonTeamYears     | TeamYears                       | dim_team (staging)               |
+| TeamInfoCommon      | TeamInfoCommon, TeamSeasonRanks | dim_team                         |
+| TeamDetails         | TeamBackground, TeamHistory     | dim_team, fact_franchise_history |
+| CommonTeamRoster    | CommonTeamRoster, Coaches       | dim_player, dim_coach            |
+| FranchiseHistory    | FranchiseHistory, DefunctTeams  | fact_franchise_history           |
+| TeamYearByYearStats | TeamStats                       | fact_team_historical             |
 
-## Schedule & Scoreboard Endpoints (3)
+## Schedule & scoreboard endpoints
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| ScheduleLeagueV2 | ScheduleLeagueV2 | dim_game |
-| ScoreboardV2 | GameHeader, LineScore, SeriesStandings | dim_game, fact_line_score |
-| LeagueGameFinder | LeagueGameFinderResults | fact_game_finder |
+| Endpoint         | Result Sets                            | Target Tables             |
+| ---------------- | -------------------------------------- | ------------------------- |
+| ScheduleLeagueV2 | ScheduleLeagueV2                       | dim_game                  |
+| ScoreboardV2     | GameHeader, LineScore, SeriesStandings | dim_game, fact_line_score |
+| LeagueGameFinder | LeagueGameFinderResults                | fact_game_finder          |
 
-## League-Wide Endpoints (8)
+## League-wide endpoints
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| LeagueDashPlayerStats | LeagueDashPlayerStats | derived_league_player_stats |
-| LeagueDashTeamStats | LeagueDashTeamStats | derived_league_team_stats |
-| LeagueStandingsV3 | Standings | fact_standings |
-| SynergyPlayTypes | SynergyPlayType | fact_synergy |
-| LeagueSeasonMatchups | SeasonMatchups | fact_season_matchups |
-| LeagueDashLineups | Lineups | fact_lineups |
-| LeagueLeaders | LeagueLeaders | derived_league_leaders |
-| AllTimeLeadersGrids | Various | derived_all_time_leaders |
+| Endpoint              | Result Sets           | Target Tables               |
+| --------------------- | --------------------- | --------------------------- |
+| LeagueDashPlayerStats | LeagueDashPlayerStats | fact_league_dash_player_stats |
+| LeagueDashTeamStats   | LeagueDashTeamStats   | fact_league_dash_team_stats   |
+| LeagueStandingsV3     | Standings             | fact_standings              |
+| SynergyPlayTypes      | SynergyPlayType       | fact_synergy                |
+| LeagueSeasonMatchups  | SeasonMatchups        | fact_season_matchups        |
+| LeagueDashLineups     | Lineups               | fact_lineups                |
+| LeagueLeaders         | LeagueLeaders         | fact_league_leaders_detail  |
+| AllTimeLeadersGrids   | Various               | agg_all_time_leaders        |
 
-## Draft Endpoints (7)
+## Draft endpoints
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| DraftHistory | DraftHistory | fact_draft, dim_draft |
-| DraftBoard | DraftBoard | fact_draft_board |
-| DraftCombineStats | DraftCombineStats | fact_draft_combine |
-| DraftCombineDrillResults | Results | fact_draft_combine_drills |
-| DraftCombineSpotShooting | Results | fact_draft_combine_shooting |
-| DraftCombineNonStationaryShooting | Results | fact_draft_combine_shooting |
-| DraftCombinePlayerAnthro | Results | fact_draft_combine_anthro |
+| Endpoint                          | Result Sets       | Target Tables               |
+| --------------------------------- | ----------------- | --------------------------- |
+| DraftHistory                      | DraftHistory      | fact_draft, dim_draft       |
+| DraftBoard                        | DraftBoard        | fact_draft_board            |
+| DraftCombineStats                 | DraftCombineStats | fact_draft_combine          |
+| DraftCombineDrillResults          | Results           | fact_draft_combine_drills   |
+| DraftCombineSpotShooting          | Results           | fact_draft_combine_shooting |
+| DraftCombineNonStationaryShooting | Results           | fact_draft_combine_shooting |
+| DraftCombinePlayerAnthro          | Results           | fact_draft_combine_anthro   |
 
-## Shot Chart Endpoints (2)
+## Shot chart endpoints
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| ShotChartDetail | Shot_Chart_Detail | fact_shot_chart |
-| ShotChartLeagueWide | League_Wide | derived_league_shot_zones |
+| Endpoint            | Result Sets       | Target Tables             |
+| ------------------- | ----------------- | ------------------------- |
+| ShotChartDetail     | Shot_Chart_Detail | fact_shot_chart           |
+| ShotChartLeagueWide | League_Wide       | fact_shot_chart_league   |
 
-## Other Endpoints (6)
+## Other endpoints
 
-| Endpoint | Result Sets | Target Tables |
-|----------|-------------|---------------|
-| GameRotation | HomeTeam, AwayTeam | fact_rotation |
-| HustleStatsBoxScore | PlayerStats, TeamStats | fact_box_score_hustle |
-| PlayerEstimatedMetrics | PlayerEstimatedMetrics | derived_player_estimated |
-| TeamEstimatedMetrics | TeamEstimatedMetrics | derived_team_estimated |
-| BoxScoreSummaryV2 | GameSummary, OtherStats, Officials | dim_game, bridge_game_official |
-| InfographicFanDuelPlayer | FanDuelPlayer | fact_fanduel |
+| Endpoint                 | Result Sets                        | Target Tables                  |
+| ------------------------ | ---------------------------------- | ------------------------------ |
+| GameRotation             | HomeTeam, AwayTeam                 | fact_rotation                  |
+| HustleStatsBoxScore      | PlayerStats, TeamStats             | fact_box_score_hustle          |
+| PlayerEstimatedMetrics   | PlayerEstimatedMetrics             | fact_player_estimated_metrics  |
+| TeamEstimatedMetrics     | TeamEstimatedMetrics               | fact_team_estimated_metrics    |
+| BoxScoreSummaryV2        | GameSummary, OtherStats, Officials | dim_game, bridge_game_official |
+| InfographicFanDuelPlayer | FanDuelPlayer                      | fact_fanduel                   |
 
-## Skipped Endpoints (8)
+## Skipped endpoints
 
 These endpoints are excluded due to deprecation, instability, or redundancy:
 
@@ -124,3 +182,23 @@ These endpoints are excluded due to deprecation, instability, or redundancy:
 - LeagueDashOppPtShot (merged into tracking)
 - LeagueDashPtDefend (merged into tracking)
 - LeagueDashPtTeamDefend (merged into tracking)
+
+<CourtDivider label="Next board cut" />
+
+## Next steps from endpoint map
+
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="See where these tables live on the floor" label="Next stop">
+    Open <a href="/docs/diagrams/er-diagram">ER Diagram</a> when the coverage board tells you
+    which table matters and you now need the warehouse context around that table's joins and neighbors.
+  </ScoutCard>
+  <ScoutCard title="Follow one feed through the playbook" label="Next stop">
+    Continue to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> when the problem is not
+    coverage but stage movement: validation checkpoints, DuckDB staging, transform fan-out, and export.
+  </ScoutCard>
+  <ScoutCard title="Trace the exact downstream possession chain" label="Next stop">
+    Move to <a href="/docs/lineage/table-lineage">Table Lineage</a> or{" "}
+    <a href="/docs/lineage/column-lineage">Column Lineage</a> when you need to follow one table or
+    field from endpoint touch to final analytical surface.
+  </ScoutCard>
+</div>

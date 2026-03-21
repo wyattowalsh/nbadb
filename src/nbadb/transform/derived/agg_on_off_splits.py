@@ -10,6 +10,7 @@ class AggOnOffSplitsTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = [
         "stg_team_dashboard_on_off",
         "stg_on_off",
+        "stg_player_on_details",
     ]
 
     _SQL: ClassVar[str] = """
@@ -32,5 +33,15 @@ class AggOnOffSplitsTransformer(SqlTransformer):
             gp, min, pts, reb, ast,
             off_rating, def_rating, net_rating
         FROM stg_team_dashboard_on_off
+        UNION ALL BY NAME
+        SELECT
+            'player_detail' AS entity_type,
+            player_id AS entity_id,
+            team_id,
+            season_year,
+            on_off,
+            gp, min, pts, reb, ast,
+            off_rating, def_rating, net_rating
+        FROM stg_player_on_details
         ORDER BY season_year, entity_type, entity_id
     """

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+import polars as pl
 from nba_api.stats.endpoints import (
     PlayerDashboardByClutch,
     PlayerDashboardByGameSplits,
@@ -16,8 +17,71 @@ from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.seasons import current_season
 
-if TYPE_CHECKING:
-    import polars as pl
+
+def _attach_player_dashboard_context(
+    df: pl.DataFrame,
+    *,
+    player_id: int,
+    season: str,
+    season_type: str,
+) -> pl.DataFrame:
+    additions: list[pl.Expr] = []
+    if "player_id" not in df.columns:
+        additions.append(pl.lit(player_id).alias("player_id"))
+    if "season_year" not in df.columns:
+        additions.append(pl.lit(season).alias("season_year"))
+    if "season_type" not in df.columns:
+        additions.append(pl.lit(season_type).alias("season_type"))
+    return df.with_columns(additions) if additions else df
+
+
+def _extract_dashboard_frame(
+    extractor: BaseExtractor,
+    endpoint_cls: type,
+    *,
+    player_id: int,
+    season: str,
+    season_type: str,
+    season_type_kw: str,
+) -> pl.DataFrame:
+    df = extractor._from_nba_api(
+        endpoint_cls,
+        player_id=player_id,
+        season=season,
+        **{season_type_kw: season_type},
+    )
+    return _attach_player_dashboard_context(
+        df,
+        player_id=player_id,
+        season=season,
+        season_type=season_type,
+    )
+
+
+def _extract_dashboard_frames(
+    extractor: BaseExtractor,
+    endpoint_cls: type,
+    *,
+    player_id: int,
+    season: str,
+    season_type: str,
+    season_type_kw: str,
+) -> list[pl.DataFrame]:
+    dfs = extractor._from_nba_api_multi(
+        endpoint_cls,
+        player_id=player_id,
+        season=season,
+        **{season_type_kw: season_type},
+    )
+    return [
+        _attach_player_dashboard_context(
+            df,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+        )
+        for df in dfs
+    ]
 
 
 @registry.register
@@ -29,11 +93,26 @@ class PlayerDashboardByYearOverYearExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByYearOverYear,
             player_id=player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByYearOverYear,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
         )
 
 
@@ -46,11 +125,26 @@ class PlayerDashboardByLastNGamesExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByLastNGames,
             player_id=player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByLastNGames,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
         )
 
 
@@ -63,11 +157,26 @@ class PlayerDashboardByGameSplitsExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByGameSplits,
             player_id=player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByGameSplits,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
         )
 
 
@@ -80,11 +189,26 @@ class PlayerDashboardByClutchExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByClutch,
             player_id=player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByClutch,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
         )
 
 
@@ -97,11 +221,26 @@ class PlayerDashboardByShootingSplitsExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByShootingSplits,
             player_id=player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByShootingSplits,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
         )
 
 
@@ -114,11 +253,26 @@ class PlayerDashboardByTeamPerformanceExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByTeamPerformance,
             player_id=player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByTeamPerformance,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
         )
 
 
@@ -131,11 +285,26 @@ class PlayerDashboardGeneralSplitsExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByGeneralSplits,
             player_id=player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByGeneralSplits,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_all_star",
         )
 
 
@@ -151,11 +320,26 @@ class PlayerDashGameSplitsExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByGameSplits,
             player_id=player_id,
             season=season,
-            season_type_playoffs=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByGameSplits,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
         )
 
 
@@ -168,11 +352,26 @@ class PlayerDashGeneralSplitsExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByGeneralSplits,
             player_id=player_id,
             season=season,
-            season_type_playoffs=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByGeneralSplits,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
         )
 
 
@@ -185,11 +384,26 @@ class PlayerDashLastNGamesExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByLastNGames,
             player_id=player_id,
             season=season,
-            season_type_playoffs=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByLastNGames,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
         )
 
 
@@ -202,11 +416,26 @@ class PlayerDashShootingSplitsExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByShootingSplits,
             player_id=player_id,
             season=season,
-            season_type_playoffs=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByShootingSplits,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
         )
 
 
@@ -219,11 +448,26 @@ class PlayerDashTeamPerfExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByTeamPerformance,
             player_id=player_id,
             season=season,
-            season_type_playoffs=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByTeamPerformance,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
         )
 
 
@@ -236,9 +480,24 @@ class PlayerDashYoyExtractor(BaseExtractor):
         player_id: int = params["player_id"]
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        return _extract_dashboard_frame(
+            self,
             PlayerDashboardByYearOverYear,
             player_id=player_id,
             season=season,
-            season_type_playoffs=season_type,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return _extract_dashboard_frames(
+            self,
+            PlayerDashboardByYearOverYear,
+            player_id=player_id,
+            season=season,
+            season_type=season_type,
+            season_type_kw="season_type_playoffs",
         )

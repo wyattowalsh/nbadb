@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import contextlib
+import importlib
+import inspect
+import pkgutil
 import traceback
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from functools import lru_cache
+from typing import TYPE_CHECKING, cast
 
+import pandera.polars as pa
+import polars as pl
 from loguru import logger
 
 from nbadb.transform.metrics import PipelineMetrics
 
 if TYPE_CHECKING:
     import duckdb
-    import polars as pl
 
     from nbadb.transform.base import BaseTransformer
 
@@ -38,6 +43,133 @@ class PipelineResult:
     @property
     def failed_tables(self) -> list[str]:
         return [t for t, _ in self.failed]
+
+
+_INPUT_SCHEMA_ALIASES = {
+    "stg_schedule": "stg_schedule_league_v2",
+    "stg_standings": "stg_league_standings_v3",
+    "stg_draft": "stg_draft_history",
+    "stg_draft_combine": "stg_draft_combine_stats",
+    "stg_synergy": "stg_synergy_play_types",
+    "stg_box_score_traditional": "stg_box_score_traditional_player",
+    "stg_box_score_advanced": "stg_box_score_advanced_player",
+    "stg_box_score_hustle": "stg_box_score_hustle_player",
+    "stg_box_score_defensive": "stg_box_score_defensive_player",
+    "stg_play_by_play": "stg_play_by_play_v3",
+    "stg_matchup": "stg_box_score_matchups",
+    "stg_rotation_away": "stg_game_rotation",
+    "stg_rotation_home": "stg_game_rotation",
+    "stg_scoreboard": "stg_scoreboard_v2",
+    "stg_shot_chart": "stg_shot_chart_detail",
+    "stg_team_years": "stg_common_team_years",
+    "stg_player_info": "raw_common_player_info",
+    "stg_team_info": "raw_team_info_common",
+    "stg_coaches": "raw_common_team_roster_coaches",
+    "stg_franchise": "raw_franchise_history",
+    "stg_box_score_misc": "raw_box_score_misc_player",
+    "stg_box_score_scoring": "raw_box_score_scoring_player",
+    "stg_box_score_usage": "raw_box_score_usage_player",
+    "stg_playoff_picture_east": "raw_playoff_picture",
+    "stg_playoff_picture_west": "raw_playoff_picture",
+    "stg_draft_combine_drills": "raw_draft_combine_drill_results",
+    "stg_draft_combine_nonstat_shooting": "raw_draft_combine_non_stationary_shooting",
+    "stg_draft_combine_anthro": "raw_draft_combine_player_anthro",
+}
+
+
+def _table_name_from_schema_class(
+    class_name: str,
+    *,
+    class_prefix: str = "",
+    table_prefix: str = "",
+) -> str:
+    name = class_name.removesuffix("Schema").removesuffix("Model")
+    if class_prefix:
+        name = name.removeprefix(class_prefix)
+    parts: list[str] = []
+    for index, char in enumerate(name):
+        if char.isupper() and index > 0:
+            parts.append("_")
+        parts.append(char.lower())
+    return f"{table_prefix}{''.join(parts)}"
+
+
+def _discover_schema_map(
+    package_name: str,
+    *,
+    class_prefix: str,
+    table_prefix: str,
+) -> dict[str, type[pa.DataFrameModel]]:
+    try:
+        schema_pkg = importlib.import_module(package_name)
+    except ImportError:
+        return {}
+
+    schema_map: dict[str, type[pa.DataFrameModel]] = {}
+    for _, module_name, _ in pkgutil.walk_packages(schema_pkg.__path__, prefix=f"{package_name}."):
+        module = importlib.import_module(module_name)
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                obj.__module__ != module_name
+                or not issubclass(obj, pa.DataFrameModel)
+                or obj is pa.DataFrameModel
+                or not name.endswith(("Schema", "Model"))
+                or (class_prefix and not name.startswith(class_prefix))
+            ):
+                continue
+            table_name = _table_name_from_schema_class(
+                name,
+                class_prefix=class_prefix,
+                table_prefix=table_prefix,
+            )
+            schema_map[table_name] = obj
+    return schema_map
+
+
+@lru_cache(maxsize=1)
+def _star_schema_map() -> dict[str, type[pa.DataFrameModel]]:
+    return _discover_schema_map(
+        "nbadb.schemas.star",
+        class_prefix="",
+        table_prefix="",
+    )
+
+
+@lru_cache(maxsize=1)
+def _staging_schema_map() -> dict[str, type[pa.DataFrameModel]]:
+    return _discover_schema_map(
+        "nbadb.schemas.staging",
+        class_prefix="Staging",
+        table_prefix="stg_",
+    )
+
+
+@lru_cache(maxsize=1)
+def _raw_schema_map() -> dict[str, type[pa.DataFrameModel]]:
+    return _discover_schema_map(
+        "nbadb.schemas.raw",
+        class_prefix="Raw",
+        table_prefix="raw_",
+    )
+
+
+def _input_schema_for(table: str) -> type[pa.DataFrameModel] | None:
+    if schema_cls := _staging_schema_map().get(table):
+        return schema_cls
+
+    alias = _INPUT_SCHEMA_ALIASES.get(table)
+    if alias is not None:
+        if schema_cls := _staging_schema_map().get(alias):
+            return schema_cls
+        if schema_cls := _raw_schema_map().get(alias):
+            return schema_cls
+
+    if table.startswith("stg_"):
+        raw_table = f"raw_{table.removeprefix('stg_')}"
+        if schema_cls := _raw_schema_map().get(raw_table):
+            return schema_cls
+
+    return None
 
 
 class TransformPipeline:
@@ -130,32 +262,71 @@ class TransformPipeline:
             visit(name)
         return order
 
-    def _register_staging(self, staging: dict[str, pl.LazyFrame]) -> set[str]:
-        """Register all staging tables into the shared DuckDB connection once.
+    @staticmethod
+    def _validate_input_schema(table: str, df: pl.DataFrame) -> pl.DataFrame:
+        schema_cls = _input_schema_for(table)
+        if schema_cls is None:
+            return df
+        validated = schema_cls.validate(df)
+        if not isinstance(validated, pl.DataFrame):
+            raise TypeError(
+                f"{schema_cls.__name__}.validate() returned {type(validated).__name__}, "
+                "expected polars.DataFrame"
+            )
+        logger.debug("Validated input '{}' against {}", table, schema_cls.__name__)
+        return validated
 
-        Returns the set of staging keys that failed to register so callers
-        can skip transforms that depend on them.
+    def _prepare_staging(
+        self,
+        staging: dict[str, pl.LazyFrame],
+        *,
+        validate_input_schemas: bool = False,
+    ) -> tuple[dict[str, pl.LazyFrame], set[str]]:
+        """Validate and register staging tables into the shared DuckDB connection once.
+
+        Returns the prepared staging mapping plus the set of staging keys that
+        failed to validate/register so callers can skip dependent transforms.
         """
+        prepared: dict[str, pl.LazyFrame] = {}
         failed: set[str] = set()
         for key, val in staging.items():
             try:
-                data = val.collect() if hasattr(val, "collect") else val
+                data = cast("pl.DataFrame", val.collect())
+                if validate_input_schemas:
+                    data = self._validate_input_schema(key, data)
+                prepared[key] = data.lazy()
                 self._conn.register(key, data)
             except Exception as exc:
                 failed.add(key)
                 logger.error(
-                    "Failed to register staging table '{}': {} — "
+                    "Failed to prepare staging table '{}': {} — "
                     "transforms depending on it will be skipped",
                     key,
                     type(exc).__name__,
                 )
-        return failed
+        return prepared, failed
+
+    @staticmethod
+    def _validate_output_schema(table: str, df: pl.DataFrame) -> pl.DataFrame:
+        schema_cls = _star_schema_map().get(table)
+        if schema_cls is None:
+            return df
+        validated = schema_cls.validate(df)
+        if not isinstance(validated, pl.DataFrame):
+            raise TypeError(
+                f"{schema_cls.__name__}.validate() returned {type(validated).__name__}, "
+                "expected polars.DataFrame"
+            )
+        logger.debug("Validated '{}' against {}", table, schema_cls.__name__)
+        return validated
 
     def run(
         self,
         staging: dict[str, pl.LazyFrame],
         *,
         resume: bool = False,
+        validate_input_schemas: bool = False,
+        validate_output_schemas: bool = True,
     ) -> dict[str, pl.DataFrame]:
         ordered = self._topological_sort()
         logger.info(f"Pipeline: {len(ordered)} transformers in dependency order")
@@ -175,7 +346,10 @@ class TransformPipeline:
             self._conn.execute("SET preserve_insertion_order = false")
 
         # INFRA-006: Register all staging tables ONCE before the transformer loop
-        failed_staging = self._register_staging(staging)
+        prepared_staging, failed_staging = self._prepare_staging(
+            staging,
+            validate_input_schemas=validate_input_schemas,
+        )
 
         try:
             for transformer in ordered:
@@ -200,25 +374,31 @@ class TransformPipeline:
                 if resume and table in checkpointed:
                     try:
                         df = self._conn.execute(f'SELECT * FROM "{table}"').pl()
+                        if validate_output_schemas:
+                            df = self._validate_output_schema(table, df)
                         self._outputs[table] = df
                         result.completed.append(table)
                         result.skipped.append(table)
                         self._metrics.skip_transformer(table)
                         logger.info(f"Skipping {table} (loaded from checkpoint)")
                         continue
-                    except Exception:
+                    except Exception as exc:
                         logger.warning(
-                            f"Checkpoint entry for '{table}' but table not in DuckDB, re-computing"
+                            "Checkpoint entry for '{}' could not be reused ({}), re-computing",
+                            table,
+                            type(exc).__name__,
                         )
 
                 self._metrics.start_transformer(table)
                 try:
                     transformer._conn = self._conn
                     # Build combined view: original staging + accumulated outputs
-                    combined = {**staging}
+                    combined = {**prepared_staging}
                     for name, out_df in self._outputs.items():
                         combined[name] = out_df.lazy()
                     df = transformer.run(combined)
+                    if validate_output_schemas:
+                        df = self._validate_output_schema(table, df)
                 except Exception as exc:
                     tb = traceback.format_exc()
                     error_msg = f"{type(exc).__name__}: {exc}"

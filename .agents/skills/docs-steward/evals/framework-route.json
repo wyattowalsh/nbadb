@@ -1,0 +1,17 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward framework sphinx maintain",
+  "files": [
+    "docs/conf.py",
+    "docs/index.rst",
+    "pyproject.toml"
+  ],
+  "expected_behavior": [
+    "Agent routes to framework-targeted mode then maintain workflow",
+    "Agent loads references/sphinx.md for theme and build checks",
+    "Agent performs read-only diagnostics and reports critical/warning/suggestion sections",
+    "Agent does not rewrite content during maintain mode"
+  ]
+}

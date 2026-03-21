@@ -1,1 +1,15 @@
-{"title": "Endpoints"}
+{
+  "title": "Endpoints",
+  "pages": [
+    "---Game Package---",
+    "box-scores",
+    "play-by-play",
+    "other",
+    "---Scouting Reports---",
+    "player-stats",
+    "team-stats",
+    "draft",
+    "---League Desk---",
+    "league-stats"
+  ]
+}

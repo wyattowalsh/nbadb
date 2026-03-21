@@ -73,18 +73,10 @@ class LineageGenerator:
         for class_name, schema_cls in schemas:
             table_name = self._table_name_from_class(class_name)
             columns: dict[str, dict[str, str]] = {}
+            schema = schema_cls.to_schema()
 
-            annotations = {}
-            for cls in reversed(schema_cls.__mro__):
-                annotations.update(getattr(cls, "__annotations__", {}))
-
-            for field_name in annotations:
-                if field_name.startswith("_"):
-                    continue
-                field_obj = getattr(schema_cls, field_name, None)
-                if field_obj is None:
-                    continue
-                metadata = getattr(field_obj, "metadata", {}) or {}
+            for field_name, field_obj in schema.columns.items():
+                metadata = field_obj.metadata or {}
                 source = metadata.get("source", "")
                 fk_ref = metadata.get("fk_ref", "")
 

@@ -181,10 +181,7 @@ class PipelineProgress:
 
             # Status icon with animation
             if p.status == "done":
-                if p.failed == 0:
-                    icon = "[green]✓[/]"
-                else:
-                    icon = "[yellow]![/]"
+                icon = "[green]✓[/]" if p.failed == 0 else "[yellow]![/]"
                 bar_color = "green" if p.failed == 0 else "yellow"
             elif p.status == "running":
                 icon = f"[dark_orange3]{_SPINNER[self._tick % len(_SPINNER)]}[/]"

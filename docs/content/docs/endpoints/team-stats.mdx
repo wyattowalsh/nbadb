@@ -1,53 +1,69 @@
 ---
 title: Team Stats Endpoints
-description: Team information, rosters, and franchise history
+description: Coverage board endpoints for rosters, franchise context, and team history
 ---
 
 # Team Stats Endpoints
 
-Six endpoints provide team-level data.
+Six endpoints assemble the franchise coverage board.
 
-## CommonTeamYears
+> **Primary route:** Start with `team_id` when you have it; use the team-year surfaces when you are still orienting across franchise history.
+>
+> Pair these feeds with [Player Stats](/docs/endpoints/player-stats) for individual dossiers and [League Stats](/docs/endpoints/league-stats) for season-wide context.
 
-List of all teams with their years of activity.
+## Quick route
 
-- **Result sets**: `TeamYears`
-- **Key columns**: `league_id`, `team_id`, `min_year`, `max_year`, `abbreviation`
+| If you need... | Use | Why it is the fastest route |
+| -------------- | --- | --------------------------- |
+| a directory of team years | `CommonTeamYears` | Fast way to orient on active ranges and franchise abbreviations |
+| one team's current snapshot | `TeamInfoCommon` | Best team dossier opener for record, ranking, and conference/division context |
+| ownership, arena, coach, and background detail | `TeamDetails` | Best source for front-office and organization context |
+| a season roster and coaching staff | `CommonTeamRoster` | Quickest route to the people attached to one team-season |
+| relocation and long-run franchise history | `FranchiseHistory` | Best for brand changes, defunct branches, and long-view record context |
+| year-by-year statistical history | `TeamYearByYearStats` | Best for one franchise's season trendline across eras |
 
-## TeamInfoCommon
+## Lookup and current snapshot
 
-Current team information including record and rankings.
+| Endpoint | Parameters | Result sets | Route cue |
+| -------- | ---------- | ----------- | --------- |
+| `CommonTeamYears` | none listed | `TeamYears` | Start here when you need the franchise directory or active-year bounds before choosing a team |
+| `TeamInfoCommon` | `team_id` (required) | `TeamInfoCommon`, `TeamSeasonRanks` | Default opener for one club's current-season identity, record, and ranking context |
 
-- **Result sets**: `TeamInfoCommon`, `TeamSeasonRanks`
-- **Parameters**: `team_id` (required)
-- **Key columns**: `team_city`, `team_name`, `team_abbreviation`, `team_conference`, `team_division`, `w`, `l`, `pct`, `conf_rank`, `div_rank`
+## Organization and roster detail
 
-## TeamDetails
+| Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
+| -------- | ---------- | ----------- | --------------------- | --------- |
+| `TeamDetails` | `team_id` (required) | `TeamBackground`, `TeamHistory`, `TeamSocialSites`, `TeamAwardsChampionships`, `TeamAwardsConf`, `TeamAwardsDiv`, `TeamHof`, `TeamRetired` | `abbreviation`, `nickname`, `yearfounded`, `city`, `arena`, `arenacapacity`, `owner`, `generalmanager`, `headcoach` | Use when the team file needs ownership, venue, honors, or retired-number context |
+| `CommonTeamRoster` | `team_id` (required), `season` (required) | `CommonTeamRoster`, `Coaches` | player roster rows plus coaching staff rows | Use when the question is about who was on the team in a specific season |
 
-Detailed team background including ownership and arena.
+## Franchise history lane
 
-- **Result sets**: `TeamBackground`, `TeamHistory`, `TeamSocialSites`, `TeamAwardsChampionships`, `TeamAwardsConf`, `TeamAwardsDiv`, `TeamHof`, `TeamRetired`
-- **Parameters**: `team_id` (required)
-- **Key columns**: `abbreviation`, `nickname`, `yearfounded`, `city`, `arena`, `arenacapacity`, `owner`, `generalmanager`, `headcoach`
+| Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
+| -------- | ---------- | ----------- | --------------------- | --------- |
+| `FranchiseHistory` | none listed | `FranchiseHistory`, `DefunctTeams` | `team_id`, `team_city`, `team_name`, `start_year`, `end_year`, `years`, `games`, `wins`, `losses`, `win_pct`, `po_appearances`, `div_titles`, `conf_titles`, `league_titles` | Use when relocation, naming, or defunct-team lineage is part of the question |
+| `TeamYearByYearStats` | `team_id` (required) | `TeamStats` | year-by-year team statistical output | Use when you want the franchise trendline rather than one-season snapshot |
 
-## CommonTeamRoster
+## Route cues
 
-Current and historical team rosters and coaching staff.
+- Use **`TeamInfoCommon`** as the default first stop for a current club file.
+- Add **`CommonTeamRoster`** the moment the question becomes “who was actually there?”
+- Reach for **history endpoints** only when the question crosses seasons, relocations, or eras.
 
-- **Result sets**: `CommonTeamRoster`, `Coaches`
-- **Parameters**: `team_id` (required), `season` (required)
-- **Key columns**: Player roster data (player_id, position, height, weight, birth_date, age, exp, school) and coaching staff data
+<CourtDivider label="Next assignment" />
 
-## FranchiseHistory
+## Next steps from team coverage
 
-Complete franchise history including relocations and name changes.
-
-- **Result sets**: `FranchiseHistory`, `DefunctTeams`
-- **Key columns**: `team_id`, `team_city`, `team_name`, `start_year`, `end_year`, `years`, `games`, `wins`, `losses`, `win_pct`, `po_appearances`, `div_titles`, `conf_titles`, `league_titles`
-
-## TeamYearByYearStats
-
-Year-by-year team statistics across all seasons.
-
-- **Result sets**: `TeamStats`
-- **Parameters**: `team_id` (required)
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Drill into the people on the roster" label="Next stop">
+    Move to <a href="/docs/endpoints/player-stats">Player Stats</a> when the team file
+    needs player bios, career arcs, awards, and individual dashboards behind the roster sheet.
+  </ScoutCard>
+  <ScoutCard title="Zoom out to season-wide competition" label="Next stop">
+    Use <a href="/docs/endpoints/league-stats">League Stats</a> to place one franchise inside
+    the standings, leaderboards, lineups, and matchup environment for a given season.
+  </ScoutCard>
+  <ScoutCard title="Connect franchise context to incoming talent" label="Next stop">
+    Open <a href="/docs/endpoints/draft">Draft</a> when the next question is about pick history,
+    class order, or combine packets tied to a team-building timeline.
+  </ScoutCard>
+</div>

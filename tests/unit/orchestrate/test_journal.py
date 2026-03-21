@@ -167,3 +167,114 @@ class TestJournalMetrics:
         assert row[1] == pytest.approx(1.5)
         assert row[2] == 100
         assert row[3] == 0
+
+
+# ---------------------------------------------------------------------------
+# was_extracted_batch
+# ---------------------------------------------------------------------------
+
+
+class TestJournalBatch:
+    def test_was_extracted_batch_empty(self, journal: PipelineJournal) -> None:
+        assert journal.was_extracted_batch([]) == set()
+
+    def test_was_extracted_batch_with_done(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep1", "p1")
+        journal.record_success("ep1", "p1", 10)
+        journal.record_start("ep2", "p2")
+        result = journal.was_extracted_batch([("ep1", "p1"), ("ep2", "p2")])
+        assert ("ep1", "p1") in result
+        assert ("ep2", "p2") not in result
+
+    def test_was_extracted_batch_includes_abandoned(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
+            "VALUES ('ep1', 'p1', 'abandoned', 0)"
+        )
+        result = journal.was_extracted_batch([("ep1", "p1")])
+        assert ("ep1", "p1") in result
+
+    def test_was_extracted_batch_includes_exhausted(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
+            "VALUES ('ep1', 'p1', 'failed', ?)",
+            [PipelineJournal.MAX_RETRIES],
+        )
+        result = journal.was_extracted_batch([("ep1", "p1")])
+        assert ("ep1", "p1") in result
+
+    def test_was_extracted_batch_multiple_items(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep1", "p1")
+        journal.record_success("ep1", "p1", 10)
+        journal.record_start("ep2", "p2")
+        journal.record_success("ep2", "p2", 20)
+        journal.record_start("ep3", "p3")
+        result = journal.was_extracted_batch([
+            ("ep1", "p1"),
+            ("ep2", "p2"),
+            ("ep3", "p3"),
+            ("ep4", "p4"),
+        ])
+        assert result == {("ep1", "p1"), ("ep2", "p2")}
+
+
+# ---------------------------------------------------------------------------
+# log_summary
+# ---------------------------------------------------------------------------
+
+
+class TestJournalSummary:
+    def test_log_summary_empty(self, journal: PipelineJournal) -> None:
+        journal.log_summary()  # should not raise
+
+    def test_log_summary_with_done_and_failed(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep1", "p1")
+        journal.record_success("ep1", "p1", 100)
+        journal.record_start("ep2", "p2")
+        journal.record_failure("ep2", "p2", "timeout")
+        journal.log_summary()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# reset_stale_running
+# ---------------------------------------------------------------------------
+
+
+class TestJournalStaleRunning:
+    def test_reset_stale_running(self, journal: PipelineJournal) -> None:
+        # Insert an entry with an old started_at timestamp
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal (endpoint, params, status, started_at) "
+            "VALUES ('ep1', 'p1', 'running', '2020-01-01T00:00:00')"
+        )
+        journal.reset_stale_running(cutoff_minutes=1)
+        # Verify the entry is now failed with stale_running error
+        row = journal._conn.execute(
+            "SELECT status, error_message FROM _extraction_journal "
+            "WHERE endpoint='ep1' AND params='p1'"
+        ).fetchone()
+        assert row[0] == "failed"
+        assert row[1] == "stale_running"
+
+    def test_reset_stale_running_no_stale(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep1", "p1")
+        # Recently started entry should not be reset
+        row_before = journal._conn.execute(
+            "SELECT status FROM _extraction_journal WHERE endpoint='ep1' AND params='p1'"
+        ).fetchone()
+        journal.reset_stale_running(cutoff_minutes=60)
+        row_after = journal._conn.execute(
+            "SELECT status FROM _extraction_journal WHERE endpoint='ep1' AND params='p1'"
+        ).fetchone()
+        assert row_after[0] == row_before[0]  # unchanged
+
+    def test_reset_stale_running_does_not_affect_done(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal (endpoint, params, status, started_at) "
+            "VALUES ('ep1', 'p1', 'done', '2020-01-01T00:00:00')"
+        )
+        journal.reset_stale_running(cutoff_minutes=1)
+        row = journal._conn.execute(
+            "SELECT status FROM _extraction_journal WHERE endpoint='ep1' AND params='p1'"
+        ).fetchone()
+        assert row[0] == "done"

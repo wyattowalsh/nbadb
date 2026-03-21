@@ -55,6 +55,38 @@ class PlayerCompareExtractor(BaseExtractor):
             request_kwargs["season"] = season
         return self._from_nba_api(PlayerCompare, **request_kwargs)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        def _normalize_id_list(value: Any) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, (list, tuple, set)):
+                return ",".join(str(v) for v in value)
+            return str(value)
+
+        player_id_list = _normalize_id_list(params.get("player_id_list"))
+        if not player_id_list:
+            player_id_list = _normalize_id_list(params.get("player_id"))
+
+        vs_player_id_list = _normalize_id_list(params.get("vs_player_id_list"))
+        if not vs_player_id_list:
+            vs_player_id_list = _normalize_id_list(params.get("vs_player_id"))
+        if not vs_player_id_list:
+            vs_player_id_list = player_id_list
+
+        if not player_id_list or not vs_player_id_list:
+            return []
+
+        season = params.get("season")
+        season_type: str = params.get("season_type", "Regular Season")
+        request_kwargs: dict[str, Any] = {
+            "player_id_list": player_id_list,
+            "vs_player_id_list": vs_player_id_list,
+            "season_type_all_star": season_type,
+        }
+        if season:
+            request_kwargs["season"] = season
+        return self._from_nba_api_multi(PlayerCompare, **request_kwargs)
+
 
 @registry.register
 class PlayerVsPlayerExtractor(BaseExtractor):
@@ -67,6 +99,19 @@ class PlayerVsPlayerExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            PlayerVsPlayer,
+            player_id=player_id,
+            vs_player_id=vs_player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        vs_player_id: int = params["vs_player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             PlayerVsPlayer,
             player_id=player_id,
             vs_player_id=vs_player_id,
@@ -93,6 +138,19 @@ class TeamVsPlayerExtractor(BaseExtractor):
             season_type_all_star=season_type,
         )
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        vs_player_id: int = params["vs_player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
+            TeamVsPlayer,
+            team_id=team_id,
+            vs_player_id=vs_player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
 
 @registry.register
 class TeamAndPlayersVsPlayersExtractor(BaseExtractor):
@@ -106,6 +164,21 @@ class TeamAndPlayersVsPlayersExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            TeamAndPlayersVsPlayers,
+            team_id=team_id,
+            player_id1=player_id1,
+            player_id2=player_id2,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        player_id1: int = params["player_id1"]
+        player_id2: int = params["player_id2"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             TeamAndPlayersVsPlayers,
             team_id=team_id,
             player_id1=player_id1,

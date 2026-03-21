@@ -15,6 +15,10 @@ from nba_api.stats.endpoints import (
     LeagueGameFinder,
     PlayerFantasyProfileBarGraph,
     TeamGameStreakFinder,
+    VideoDetails,
+    VideoDetailsAsset,
+    VideoEvents,
+    VideoStatus,
 )
 
 from nbadb.extract.base import BaseExtractor
@@ -23,6 +27,14 @@ from nbadb.orchestrate.seasons import current_season
 
 if TYPE_CHECKING:
     import polars as pl
+
+
+def _season_start_year(season: str | int | None) -> int:
+    if isinstance(season, int):
+        return season
+    if isinstance(season, str) and season:
+        return int(season.split("-", 1)[0])
+    return int(current_season().split("-", 1)[0])
 
 
 @registry.register
@@ -35,6 +47,17 @@ class CumeStatsPlayerExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            CumeStatsPlayer,
+            player_id=player_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             CumeStatsPlayer,
             player_id=player_id,
             season=season,
@@ -69,6 +92,17 @@ class CumeStatsTeamExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            CumeStatsTeam,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             CumeStatsTeam,
             team_id=team_id,
             season=season,
@@ -117,7 +151,25 @@ class GLAlumBoxScoreSimilarityScoreExtractor(BaseExtractor):
     category = "misc"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        return self._from_nba_api(GLAlumBoxScoreSimilarityScore, **params)
+        person1_id = params.get("person1_id", params.get("player_id"))
+        if person1_id is None:
+            raise KeyError("person1_id")
+
+        person2_id = params.get("person2_id", params.get("comparison_player_id", person1_id))
+        season_year = _season_start_year(params.get("season"))
+        season_type = params.get("season_type", "Regular Season")
+        league_id = params.get("league_id", "00")
+        return self._from_nba_api(
+            GLAlumBoxScoreSimilarityScore,
+            person1_id=person1_id,
+            person2_id=person2_id,
+            person1_league_id=params.get("person1_league_id", league_id),
+            person1_season_year=params.get("person1_season_year", season_year),
+            person1_season_type=params.get("person1_season_type", season_type),
+            person2_league_id=params.get("person2_league_id", league_id),
+            person2_season_year=params.get("person2_season_year", season_year),
+            person2_season_type=params.get("person2_season_type", season_type),
+        )
 
 
 @registry.register
@@ -161,6 +213,69 @@ class InfographicFanDuelPlayerExtractor(BaseExtractor):
 
 
 @registry.register
+class VideoStatusExtractor(BaseExtractor):
+    endpoint_name = "video_status"
+    category = "misc"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        game_date: str = params["game_date"]
+        league_id: str = params.get("league_id", "00")
+        return self._from_nba_api(
+            VideoStatus,
+            game_date=game_date,
+            league_id=league_id,
+        )
+
+
+@registry.register
+class VideoEventsExtractor(BaseExtractor):
+    endpoint_name = "video_events"
+    category = "misc"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        game_id: str = params["game_id"]
+        return self._from_nba_api(VideoEvents, game_id=game_id)
+
+
+@registry.register
+class VideoDetailsExtractor(BaseExtractor):
+    endpoint_name = "video_details"
+    category = "misc"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        team_id: int = params["team_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            VideoDetails,
+            player_id=player_id,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
+class VideoDetailsAssetExtractor(BaseExtractor):
+    endpoint_name = "video_details_asset"
+    category = "misc"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        player_id: int = params["player_id"]
+        team_id: int = params["team_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api(
+            VideoDetailsAsset,
+            player_id=player_id,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+
+@registry.register
 class FantasyWidgetExtractor(BaseExtractor):
     endpoint_name = "fantasy_widget"
     category = "league_stats"
@@ -185,6 +300,17 @@ class PlayerFantasyProfileBarGraphExtractor(BaseExtractor):
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "")
         return self._from_nba_api(
+            PlayerFantasyProfileBarGraph,
+            player_id=player_id,
+            season=season,
+            season_type_all_star_nullable=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params["player_id"]
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "")
+        return self._from_nba_api_multi(
             PlayerFantasyProfileBarGraph,
             player_id=player_id,
             season=season,

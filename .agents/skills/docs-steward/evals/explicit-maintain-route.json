@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward maintain mkdocs",
+  "files": [
+    "docs/mkdocs.yml",
+    "docs/docs/index.md",
+    "docs/docs/getting-started.md",
+    "pyproject.toml"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode E (Maintain) with explicit mkdocs target",
+    "Agent loads references/mkdocs.md before diagnostics",
+    "Agent runs read-only health checks and reports critical, warning, and suggestion findings",
+    "Agent does not rewrite docs content or config during maintain mode"
+  ]
+}

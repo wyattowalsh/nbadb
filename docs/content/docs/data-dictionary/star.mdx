@@ -187,12 +187,16 @@ description: Field-level documentation for all star schema tables
 
 | Column | Type | Nullable | Description | Source |
 |--------|------|----------|-------------|--------|
+| `team_history_sk` | `Int64` | No | Surrogate key for SCD2 versioning | `derived.ROW_NUMBER` |
 | `team_id` | `Int64` | No | Team identifier (FK → dim_team.team_id) | `FranchiseHistory.FranchiseHistory.TEAM_ID` |
-| `season_year` | `String` | No | Season year (e.g. 2024-25) (FK → dim_season.season_year) | `derived.season_year` |
-| `city` | `String` | Yes | Team city for season | `FranchiseHistory.FranchiseHistory.TEAM_CITY` |
-| `nickname` | `String` | Yes | Team nickname for season | `FranchiseHistory.FranchiseHistory.TEAM_NAME` |
-| `abbreviation` | `String` | Yes | Team abbreviation for season | `TeamInfoCommon.TeamInfoCommon.TEAM_ABBREVIATION` |
+| `city` | `String` | Yes | Team city for this version | `TeamInfoCommon.TeamInfoCommon.TEAM_CITY` |
+| `nickname` | `String` | Yes | Team nickname for this version | `TeamInfoCommon.TeamInfoCommon.TEAM_NAME` |
+| `abbreviation` | `String` | Yes | Team abbreviation for this version | `TeamInfoCommon.TeamInfoCommon.TEAM_ABBREVIATION` |
+| `franchise_name` | `String` | Yes | Franchise name | `FranchiseHistory.FranchiseHistory.TEAM_NAME` |
 | `league_id` | `String` | Yes | League identifier | `FranchiseHistory.FranchiseHistory.LEAGUE_ID` |
+| `valid_from` | `String` | No | Season when this version became active | `derived.valid_from` |
+| `valid_to` | `String` | Yes | Season of next change; NULL = current | `derived.valid_to` |
+| `is_current` | `Boolean` | No | TRUE if this is the current version | `derived.is_current` |
 
 ## dim_team
 
@@ -604,13 +608,10 @@ description: Field-level documentation for all star schema tables
 | `player_id` | `Int64` | No | Player identifier (FK → dim_player.player_id) | `GameRotation.HomeTeam.PERSON_ID` |
 | `in_time_real` | `Float64` | Yes | Check-in time (tenths of sec) | `GameRotation.HomeTeam.IN_TIME_REAL` |
 | `out_time_real` | `Float64` | Yes | Check-out time (tenths of sec) | `GameRotation.HomeTeam.OUT_TIME_REAL` |
-| `in_period` | `Int64` | Yes | Period when player checked in | `GameRotation.HomeTeam.IN_PERIOD` |
-| `out_period` | `Int64` | Yes | Period when player checked out | `GameRotation.HomeTeam.OUT_PERIOD` |
 | `pts` | `Int64` | Yes | Points during stint | `GameRotation.HomeTeam.PTS` |
 | `pts_diff` | `Int64` | Yes | Point differential during stint | `GameRotation.HomeTeam.PT_DIFF` |
 | `usg_pct` | `Float64` | Yes | Usage percentage during stint | `GameRotation.HomeTeam.USG_PCT` |
 | `side` | `String` | No | Home or away designation | `derived.side` |
-| `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
 
 ## fact_shot_chart
 

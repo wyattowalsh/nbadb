@@ -10,7 +10,7 @@ This tier contains 43 schema(s).
 ## `bridge_game_official`
 
 **Class**: `BridgeGameOfficialSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -21,7 +21,7 @@ This tier contains 43 schema(s).
 ## `bridge_game_team`
 
 **Class**: `BridgeGameTeamSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -34,7 +34,7 @@ This tier contains 43 schema(s).
 ## `bridge_lineup_player`
 
 **Class**: `BridgeLineupPlayerSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -47,7 +47,7 @@ This tier contains 43 schema(s).
 ## `bridge_play_player`
 
 **Class**: `BridgePlayPlayerSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -60,7 +60,7 @@ This tier contains 43 schema(s).
 ## `bridge_player_team_season`
 
 **Class**: `BridgePlayerTeamSeasonSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -73,7 +73,7 @@ This tier contains 43 schema(s).
 ## `dim_arena`
 
 **Class**: `DimArenaSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -86,7 +86,7 @@ This tier contains 43 schema(s).
 ## `dim_coach`
 
 **Class**: `DimCoachSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -101,7 +101,7 @@ This tier contains 43 schema(s).
 ## `dim_college`
 
 **Class**: `DimCollegeSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -111,7 +111,7 @@ This tier contains 43 schema(s).
 ## `dim_date`
 
 **Class**: `DimDateSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -130,7 +130,7 @@ This tier contains 43 schema(s).
 ## `dim_game`
 
 **Class**: `DimGameSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -147,7 +147,7 @@ This tier contains 43 schema(s).
 ## `dim_official`
 
 **Class**: `DimOfficialSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -159,7 +159,7 @@ This tier contains 43 schema(s).
 ## `dim_play_event_type`
 
 **Class**: `DimPlayEventTypeSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -170,7 +170,7 @@ This tier contains 43 schema(s).
 ## `dim_player`
 
 **Class**: `DimPlayerSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -200,7 +200,7 @@ This tier contains 43 schema(s).
 ## `dim_season_phase`
 
 **Class**: `DimSeasonPhaseSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -211,7 +211,7 @@ This tier contains 43 schema(s).
 ## `dim_season`
 
 **Class**: `DimSeasonSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -224,7 +224,7 @@ This tier contains 43 schema(s).
 ## `dim_shot_zone`
 
 **Class**: `DimShotZoneSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -236,21 +236,25 @@ This tier contains 43 schema(s).
 ## `dim_team_history`
 
 **Class**: `DimTeamHistorySchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
+| `team_history_sk` | `Int64` | No | gt=0 | Surrogate key for SCD2 versioning |
 | `team_id` | `Int64` | No | gt=0, FK→dim_team.team_id | Team identifier |
-| `season_year` | `String` | No | FK→dim_season.season_year | Season year (e.g. 2024-25) |
-| `city` | `String` | Yes | — | Team city for season |
-| `nickname` | `String` | Yes | — | Team nickname for season |
-| `abbreviation` | `String` | Yes | — | Team abbreviation for season |
+| `city` | `String` | Yes | — | Team city for this version |
+| `nickname` | `String` | Yes | — | Team nickname for this version |
+| `abbreviation` | `String` | Yes | — | Team abbreviation for this version |
+| `franchise_name` | `String` | Yes | — | Franchise name |
 | `league_id` | `String` | Yes | — | League identifier |
+| `valid_from` | `String` | No | — | Season when this version became active |
+| `valid_to` | `String` | Yes | — | Season of next change; NULL = current |
+| `is_current` | `Boolean` | No | — | TRUE if this is the current version |
 
 ## `dim_team`
 
 **Class**: `DimTeamSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -267,7 +271,7 @@ This tier contains 43 schema(s).
 ## `fact_box_score_four_factors`
 
 **Class**: `FactBoxScoreFourFactorsSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -286,7 +290,7 @@ This tier contains 43 schema(s).
 ## `fact_draft`
 
 **Class**: `FactDraftSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -304,7 +308,7 @@ This tier contains 43 schema(s).
 ## `fact_estimated_metrics`
 
 **Class**: `FactEstimatedMetricsSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -329,7 +333,7 @@ This tier contains 43 schema(s).
 ## `fact_game_leaders`
 
 **Class**: `FactGameLeadersSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -349,7 +353,7 @@ This tier contains 43 schema(s).
 ## `fact_game_result`
 
 **Class**: `FactGameResultSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -380,7 +384,7 @@ This tier contains 43 schema(s).
 ## `fact_game_scoring`
 
 **Class**: `FactGameScoringSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -394,7 +398,7 @@ This tier contains 43 schema(s).
 ## `fact_league_lineup_viz`
 
 **Class**: `FactLeagueLineupVizSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -426,7 +430,7 @@ This tier contains 43 schema(s).
 ## `fact_lineup_stats`
 
 **Class**: `FactLineupStatsSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -462,7 +466,7 @@ This tier contains 43 schema(s).
 ## `fact_matchup`
 
 **Class**: `FactMatchupSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -486,7 +490,7 @@ This tier contains 43 schema(s).
 ## `fact_play_by_play`
 
 **Class**: `FactPlayByPlaySchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -514,7 +518,7 @@ This tier contains 43 schema(s).
 ## `fact_player_awards`
 
 **Class**: `FactPlayerAwardsSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -533,7 +537,7 @@ This tier contains 43 schema(s).
 ## `fact_player_estimated_metrics`
 
 **Class**: `FactPlayerEstimatedMetricsSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -558,7 +562,7 @@ This tier contains 43 schema(s).
 ## `fact_player_game_advanced`
 
 **Class**: `FactPlayerGameAdvancedSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -586,7 +590,7 @@ This tier contains 43 schema(s).
 ## `fact_player_game_hustle`
 
 **Class**: `FactPlayerGameHustleSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -607,7 +611,7 @@ This tier contains 43 schema(s).
 ## `fact_player_game_misc`
 
 **Class**: `FactPlayerGameMiscSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -640,7 +644,7 @@ This tier contains 43 schema(s).
 ## `fact_player_game_tracking`
 
 **Class**: `FactPlayerGameTrackingSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -672,7 +676,7 @@ This tier contains 43 schema(s).
 ## `fact_player_game_traditional`
 
 **Class**: `FactPlayerGameTraditionalSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -705,7 +709,7 @@ This tier contains 43 schema(s).
 ## `fact_rotation`
 
 **Class**: `FactRotationSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -714,18 +718,15 @@ This tier contains 43 schema(s).
 | `player_id` | `Int64` | No | gt=0, FK→dim_player.player_id | Player identifier |
 | `in_time_real` | `Float64` | Yes | — | Check-in time (tenths of sec) |
 | `out_time_real` | `Float64` | Yes | — | Check-out time (tenths of sec) |
-| `in_period` | `Int64` | Yes | gt=0 | Period when player checked in |
-| `out_period` | `Int64` | Yes | gt=0 | Period when player checked out |
 | `pts` | `Int64` | Yes | — | Points during stint |
 | `pts_diff` | `Int64` | Yes | — | Point differential during stint |
 | `usg_pct` | `Float64` | Yes | — | Usage percentage during stint |
 | `side` | `String` | No | in=['home', 'away'] | Home or away designation |
-| `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
 
 ## `fact_shot_chart`
 
 **Class**: `FactShotChartSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -749,7 +750,7 @@ This tier contains 43 schema(s).
 ## `fact_standings`
 
 **Class**: `FactStandingsSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -776,7 +777,7 @@ This tier contains 43 schema(s).
 ## `fact_synergy`
 
 **Class**: `FactSynergySchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -802,7 +803,7 @@ This tier contains 43 schema(s).
 ## `fact_team_estimated_metrics`
 
 **Class**: `FactTeamEstimatedMetricsSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -825,7 +826,7 @@ This tier contains 43 schema(s).
 ## `fact_team_game`
 
 **Class**: `FactTeamGameSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -858,7 +859,7 @@ This tier contains 43 schema(s).
 ## `fact_tracking_defense`
 
 **Class**: `FactTrackingDefenseSchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
@@ -878,7 +879,7 @@ This tier contains 43 schema(s).
 ## `fact_win_probability`
 
 **Class**: `FactWinProbabilitySchema`
-**Coerce**: True | **Strict**: True
+**Coerce**: True | **Strict**: False
 
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|

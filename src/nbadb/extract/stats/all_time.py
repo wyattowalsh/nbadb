@@ -19,3 +19,7 @@ class AllTimeLeadersGridsExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(AllTimeLeadersGrids, season_type=season_type)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(AllTimeLeadersGrids, season_type=season_type)

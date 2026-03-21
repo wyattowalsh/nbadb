@@ -93,3 +93,16 @@ class TeamDashLineupsExtractor(BaseExtractor):
             season_type_all_star=season_type,
             group_quantity=group_quantity,
         )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        group_quantity: int = params.get("group_quantity", 5)
+        return self._from_nba_api_multi(
+            TeamDashLineups,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+            group_quantity=group_quantity,
+        )

@@ -1,0 +1,17 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward enhance improve onboarding docs with architecture flow and implementation examples",
+  "files": [
+    "apps/docs/astro.config.mjs",
+    "apps/docs/src/content/docs/getting-started.md",
+    "apps/docs/src/content/docs/architecture.md"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Enhance mode",
+    "Agent recommends or applies advanced components (Mermaid, codeblocks, tables, embeds) where they improve comprehension",
+    "Agent uses framework-specific patterns from references/advanced-components.md and includes safe fallbacks for unsupported components",
+    "Agent preserves accessibility context (diagram text alternatives, labeled code fences, and titled embeds)"
+  ]
+}

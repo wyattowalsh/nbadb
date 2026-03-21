@@ -1,0 +1,330 @@
+"""Unit tests for nbadb.orchestrate.discovery module."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import polars as pl
+import pytest
+
+from nbadb.orchestrate.discovery import EntityDiscovery, _extract_with_retry
+
+
+@pytest.fixture(autouse=True)
+def _fast_retry(monkeypatch):
+    """Patch retry delay to 0 for fast tests."""
+    monkeypatch.setattr("nbadb.orchestrate.discovery._RETRY_DELAY", 0.0)
+
+
+# ---------------------------------------------------------------------------
+# _extract_with_retry
+# ---------------------------------------------------------------------------
+
+
+class TestExtractWithRetry:
+    async def test_success_on_first_try(self):
+        ext = MagicMock()
+        df = pl.DataFrame({"a": [1]})
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            result = await _extract_with_retry(ext, "test")
+        assert result.shape[0] == 1
+
+    async def test_retries_on_failure_then_succeeds(self):
+        ext = MagicMock()
+        df = pl.DataFrame({"a": [1]})
+        call_count = 0
+
+        def _side_effect(*a, **kw):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ConnectionError("fail")
+            return df
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            result = await _extract_with_retry(ext, "test")
+        assert result.shape[0] == 1
+        assert call_count == 3
+
+    async def test_raises_after_all_retries_exhausted(self):
+        ext = MagicMock()
+        with (
+            patch(
+                "nbadb.orchestrate.discovery._sync_extract",
+                side_effect=ConnectionError("fail"),
+            ),
+            pytest.raises(ConnectionError, match="fail"),
+        ):
+            await _extract_with_retry(ext, "test")
+
+    async def test_passes_kwargs_to_sync_extract(self):
+        ext = MagicMock()
+        df = pl.DataFrame({"x": [1]})
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df) as mock_se:
+            await _extract_with_retry(ext, "test", season="2024-25", season_type="Playoffs")
+        mock_se.assert_called_once_with(ext, season="2024-25", season_type="Playoffs")
+
+
+# ---------------------------------------------------------------------------
+# EntityDiscovery
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverGameDates:
+    async def test_empty_dataframe(self):
+        disc = EntityDiscovery(MagicMock())
+        result = await disc.discover_game_dates(pl.DataFrame())
+        assert result == []
+
+    async def test_returns_sorted_unique_dates(self):
+        disc = EntityDiscovery(MagicMock())
+        df = pl.DataFrame({"game_date": ["2025-01-15", "2025-01-10", "2025-01-15"]})
+        result = await disc.discover_game_dates(df)
+        assert result == ["2025-01-10", "2025-01-15"]
+
+    async def test_single_date(self):
+        disc = EntityDiscovery(MagicMock())
+        df = pl.DataFrame({"game_date": ["2025-03-01"]})
+        result = await disc.discover_game_dates(df)
+        assert result == ["2025-03-01"]
+
+
+class TestDiscoverPlayerIds:
+    async def test_filters_active_players(self):
+        df = pl.DataFrame({"person_id": [1, 2, 3], "is_active": [1, 0, 1]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_ids(season="2024-25")
+        assert result == [1, 3]
+
+    async def test_returns_empty_on_failure(self):
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=ConnectionError("fail"),
+        ):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_ids()
+        assert result == []
+
+    async def test_no_is_active_column_returns_all(self):
+        """When is_active column is missing, all players are returned."""
+        df = pl.DataFrame({"person_id": [10, 20, 30]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_ids()
+        assert result == [10, 20, 30]
+
+
+class TestDiscoverAllPlayerIds:
+    async def test_returns_all_players_unfiltered(self):
+        df = pl.DataFrame({"person_id": [1, 2, 3], "is_active": [1, 0, 1]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_all_player_ids(season="2024-25")
+        assert result == [1, 2, 3]
+
+
+class TestDiscoverPlayerTeamSeasonParams:
+    async def test_returns_unique_player_team_season_params(self):
+        season_frames = {
+            "2024-25": pl.DataFrame(
+                {
+                    "person_id": [1, 2, 2, 3],
+                    "team_id": [10, 20, 20, 0],
+                }
+            ),
+            "2025-26": pl.DataFrame({"person_id": [4], "team_id": [30]}),
+        }
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+
+        def _by_season(*_args, **kwargs):
+            return season_frames[kwargs["season"]]
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_by_season):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
+
+        assert result == [
+            {"player_id": 1, "team_id": 10, "season": "2024-25"},
+            {"player_id": 2, "team_id": 20, "season": "2024-25"},
+            {"player_id": 4, "team_id": 30, "season": "2025-26"},
+        ]
+
+    async def test_returns_empty_on_failure(self):
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=ConnectionError("fail"),
+        ):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_team_season_params(["2024-25"])
+        assert result == []
+
+
+class TestDiscoverTeamIds:
+    async def test_returns_team_ids(self):
+        df = pl.DataFrame({"team_id": [10, 20]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_team_ids()
+        assert result == [10, 20]
+
+    async def test_empty_result(self):
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            return_value=pl.DataFrame(),
+        ):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_team_ids()
+        assert result == []
+
+
+class TestDiscoverGameIds:
+    async def test_returns_unique_sorted_game_ids(self):
+        df = pl.DataFrame({"game_id": ["001", "002", "001"]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            ids, combined = await disc.discover_game_ids(["2024-25"])
+        assert ids == ["001", "002"]
+        assert combined.shape[0] == 3
+
+    async def test_empty_result(self):
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            return_value=pl.DataFrame(),
+        ):
+            disc = EntityDiscovery(reg)
+            ids, combined = await disc.discover_game_ids(["2024-25"])
+        assert ids == []
+        assert combined.is_empty()
+
+    async def test_multiple_seasons(self):
+        call_count = 0
+
+        def _make_df(*a, **kw):
+            nonlocal call_count
+            call_count += 1
+            return pl.DataFrame({"game_id": [f"00{call_count}"]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_make_df):
+            disc = EntityDiscovery(reg)
+            ids, combined = await disc.discover_game_ids(["2023-24", "2024-25"])
+        assert len(ids) == 2
+        assert combined.shape[0] == 2
+
+    async def test_multiple_season_types(self):
+        call_count = 0
+
+        def _make_df(*a, **kw):
+            nonlocal call_count
+            call_count += 1
+            return pl.DataFrame({"game_id": [f"00{call_count}"]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_make_df):
+            disc = EntityDiscovery(reg)
+            ids, combined = await disc.discover_game_ids(
+                ["2024-25"],
+                season_types=["Regular Season", "Playoffs"],
+            )
+        assert len(ids) == 2
+        assert call_count == 2
+
+    async def test_failure_in_one_season_does_not_cancel_others(self):
+        call_count = 0
+
+        def _side_effect(*a, **kw):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ConnectionError("fail")
+            return pl.DataFrame({"game_id": ["002"]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg)
+            ids, combined = await disc.discover_game_ids(["2023-24", "2024-25"])
+        # One season failed, but the other should still work
+        assert "002" in ids
+
+    async def test_on_progress_callback(self):
+        df = pl.DataFrame({"game_id": ["001"]})
+
+        class _Ext:
+            _proxy_url = None
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        progress = MagicMock()
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            await disc.discover_game_ids(["2024-25"], on_progress=progress)
+        progress.start_pattern.assert_called_once()
+        progress.advance_pattern.assert_called_once_with(success=True)

@@ -214,7 +214,9 @@ class PipelineJournal:
         )
         count = result.rowcount or 0
         if count:
-            logger.warning("abandoned {} exhausted extractions (retry_count >= {})", count, self.MAX_RETRIES)
+            logger.warning(
+                "abandoned {} exhausted extractions (retry_count >= {})", count, self.MAX_RETRIES
+            )
         return count
 
     def reset_stale_running(self, cutoff_minutes: int = 60) -> int:

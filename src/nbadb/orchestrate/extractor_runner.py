@@ -70,13 +70,122 @@ class _AdaptiveThrottle:
         return self._current_rate
 
 
+class _CircuitBreaker:
+    """Per-endpoint circuit breaker — trips after *threshold* consecutive
+    failures, preventing further API calls until *recovery_seconds* elapse.
+
+    States:
+    - CLOSED: normal operation, calls proceed
+    - OPEN:   tripped, calls are rejected immediately
+    - HALF-OPEN: after recovery window, one probe call is allowed
+    """
+
+    __slots__ = ("_threshold", "_recovery_seconds", "_state")
+
+    def __init__(
+        self,
+        threshold: int = 10,
+        recovery_seconds: float = 120.0,
+    ) -> None:
+        self._threshold = threshold
+        self._recovery_seconds = recovery_seconds
+        # state per endpoint: (consecutive_failures, tripped_at_monotonic | None)
+        self._state: dict[str, tuple[int, float | None]] = {}
+
+    def is_open(self, endpoint: str) -> bool:
+        """Return True if the breaker is tripped and recovery hasn't elapsed."""
+        failures, tripped_at = self._state.get(endpoint, (0, None))
+        if tripped_at is None:
+            return False
+        if time.monotonic() - tripped_at >= self._recovery_seconds:
+            # Half-open: allow one probe — reset failures to threshold-1
+            self._state[endpoint] = (self._threshold - 1, None)
+            return False
+        return True
+
+    def record_success(self, endpoint: str) -> None:
+        """Reset the failure counter on success."""
+        if endpoint in self._state:
+            self._state[endpoint] = (0, None)
+
+    def record_failure(self, endpoint: str) -> None:
+        """Increment failure counter; trip if threshold reached."""
+        failures, _ = self._state.get(endpoint, (0, None))
+        failures += 1
+        if failures >= self._threshold:
+            self._state[endpoint] = (failures, time.monotonic())
+            logger.warning(
+                "circuit breaker OPEN for '{}' after {} consecutive failures "
+                "(recovery in {:.0f}s)",
+                endpoint,
+                failures,
+                self._recovery_seconds,
+            )
+        else:
+            self._state[endpoint] = (failures, None)
+
+    def tripped_endpoints(self) -> list[str]:
+        """Return list of currently tripped endpoint names."""
+        return [
+            ep
+            for ep, (_, tripped_at) in self._state.items()
+            if tripped_at is not None and time.monotonic() - tripped_at < self._recovery_seconds
+        ]
+
+
+class _LatencyTracker:
+    """Lightweight per-endpoint latency histogram.
+
+    Stores the last *window_size* latencies and provides percentile queries.
+    """
+
+    __slots__ = ("_window_size", "_data")
+
+    def __init__(self, window_size: int = 200) -> None:
+        self._window_size = window_size
+        self._data: dict[str, list[float]] = {}
+
+    def record(self, endpoint: str, duration: float) -> None:
+        """Record a latency sample."""
+        buf = self._data.setdefault(endpoint, [])
+        buf.append(duration)
+        if len(buf) > self._window_size:
+            buf.pop(0)
+
+    def percentile(self, endpoint: str, p: float) -> float | None:
+        """Return the *p*-th percentile (0–100) latency, or None if no data."""
+        buf = self._data.get(endpoint)
+        if not buf:
+            return None
+        s = sorted(buf)
+        idx = int(len(s) * p / 100)
+        return s[min(idx, len(s) - 1)]
+
+    def summary(self, endpoint: str) -> dict[str, float] | None:
+        """Return p50/p95/p99 for an endpoint, or None."""
+        if endpoint not in self._data:
+            return None
+        return {
+            "p50": self.percentile(endpoint, 50) or 0.0,
+            "p95": self.percentile(endpoint, 95) or 0.0,
+            "p99": self.percentile(endpoint, 99) or 0.0,
+            "count": float(len(self._data[endpoint])),
+        }
+
+    def all_summaries(self) -> dict[str, dict[str, float]]:
+        """Return latency summaries for all tracked endpoints."""
+        return {
+            ep: s for ep in self._data if (s := self.summary(ep)) is not None
+        }
+
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     import polars as pl
 
     from nbadb.core.config import NbaDbSettings
-    from nbadb.core.proxy import ProxyPool
+    from nbadb.core.proxy import ProxyUrlProvider
     from nbadb.extract.registry import EndpointRegistry
     from nbadb.orchestrate.journal import PipelineJournal
 
@@ -102,7 +211,7 @@ def _drive_coroutine(coro: object) -> object:
     else:
         raise RuntimeError("coroutine yielded unexpectedly; it may perform real async I/O")
     finally:
-        coro.close()  # type: ignore[union-attr]
+        coro.close()
 
 
 def _sync_extract(extractor: object, **kwargs: object) -> pl.DataFrame:
@@ -115,10 +224,10 @@ def _sync_extract_all(extractor: object, **kwargs: object) -> list[pl.DataFrame]
     return _drive_coroutine(extractor.extract_all(**kwargs))  # type: ignore[union-attr,return-value]
 
 
-def _assign_proxy(extractor: object, proxy_pool: object) -> None:
+def _assign_proxy(extractor: object, proxy_pool: ProxyUrlProvider | None) -> None:
     """Assign a proxy URL to an extractor if a pool is available."""
     if proxy_pool is not None:
-        url = proxy_pool.get_proxy_url()  # type: ignore[union-attr]
+        url = proxy_pool.get_proxy_url()
         extractor._proxy_url = url  # type: ignore[attr-defined]
 
 
@@ -136,7 +245,7 @@ class ExtractorRunner:
         registry: EndpointRegistry,
         settings: NbaDbSettings,
         journal: PipelineJournal,
-        proxy_pool: ProxyPool | None = None,
+        proxy_pool: ProxyUrlProvider | None = None,
         rate_limit: float = 10.0,
     ) -> None:
         self._registry = registry
@@ -151,6 +260,13 @@ class ExtractorRunner:
             recovery_threshold=getattr(settings, "adaptive_rate_recovery", 50),
         )
         self._thread_pool = ThreadPoolExecutor(max_workers=settings.thread_pool_size)
+        self._circuit_breaker = _CircuitBreaker(
+            threshold=getattr(settings, "circuit_breaker_threshold", 10),
+            recovery_seconds=getattr(settings, "circuit_breaker_recovery", 120.0),
+        )
+        self._latency = _LatencyTracker(
+            window_size=getattr(settings, "latency_window_size", 200),
+        )
         # Cache for multi-endpoint results: (endpoint, params_json) -> DFs
         self._multi_cache: dict[tuple[str, str], list[pl.DataFrame]] = {}
         # Count of extractions skipped because already done in journal
@@ -159,6 +275,19 @@ class ExtractorRunner:
     def shutdown(self) -> None:
         """Shut down the thread pool to release worker threads."""
         self._thread_pool.shutdown(wait=False)
+
+    def log_latency_summary(self) -> None:
+        """Log the top 5 slowest endpoints by p95 latency."""
+        sums = self._latency.all_summaries()
+        if not sums:
+            return
+        sorted_eps = sorted(sums.items(), key=lambda kv: kv[1]["p95"], reverse=True)
+        logger.info("Latency Summary (Top 5 slowest endpoints by p95):")
+        for ep, s in sorted_eps[:5]:
+            logger.info(
+                "  {:<25} | p50: {:5.2f}s | p95: {:5.2f}s | p99: {:5.2f}s | count: {}",
+                ep, s['p50'], s['p95'], s['p99'], int(s['count'])
+            )
 
     async def __aenter__(self) -> ExtractorRunner:
         return self
@@ -253,6 +382,21 @@ class ExtractorRunner:
                 batch_items.append((ep_name, json.dumps(params, sort_keys=True)))
         return self._journal.was_extracted_batch(batch_items) if batch_items else set()
 
+    @staticmethod
+    def _season_year(params: dict) -> int | None:
+        """Extract the integer season year from param sets.
+
+        Handles formats: ``"2024-25"`` → 2024, ``"2024"`` → 2024.
+        Returns ``None`` when no season key is present (e.g. game-level).
+        """
+        season = params.get("season")
+        if season is None:
+            return None
+        try:
+            return int(str(season)[:4])
+        except (ValueError, TypeError):
+            return None
+
     def _build_chunk_tasks(
         self,
         single_entries: list[StagingEntry],
@@ -266,6 +410,15 @@ class ExtractorRunner:
 
         for entry in single_entries:
             for params in chunk:
+                # HR-A-014: skip entries whose min_season exceeds
+                # the requested season — avoids fruitless API calls
+                # for pre-tracking-era historical runs.
+                sy = self._season_year(params)
+                if entry.min_season is not None and sy is not None and sy < entry.min_season:
+                    self.skipped += 1
+                    if on_progress is not None:
+                        on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                    continue
                 tasks.append(
                     asyncio.create_task(
                         self._extract_single(
@@ -279,11 +432,25 @@ class ExtractorRunner:
 
         for ep_name, ep_entries in multi_by_ep.items():
             for params in chunk:
+                # For multi-endpoint groups, filter entries down to those
+                # eligible for this season.  If none remain, skip entirely.
+                sy = self._season_year(params)
+                eligible = [
+                    e
+                    for e in ep_entries
+                    if e.min_season is None or sy is None or sy >= e.min_season
+                ]
+                if not eligible:
+                    self.skipped += len(ep_entries)
+                    if on_progress is not None:
+                        for _ in ep_entries:
+                            on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                    continue
                 tasks.append(
                     asyncio.create_task(
                         self._extract_multi(
                             ep_name,
-                            ep_entries,
+                            eligible,
                             params,
                             already_done=already_done,
                             on_progress=on_progress,
@@ -317,7 +484,7 @@ class ExtractorRunner:
                     type(result).__name__,
                 )
                 if on_progress is not None:
-                    on_progress.advance_pattern(success=False)  # type: ignore[union-attr]
+                    on_progress.advance_pattern(success=False)
                 continue
             if on_progress is not None:
                 on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
@@ -399,6 +566,15 @@ class ExtractorRunner:
         that performs the actual extraction (params captured via
         closure).  Returns ``None`` on failure after all retries exhausted.
         """
+        # Circuit breaker: skip endpoint if it's been failing too much
+        if self._circuit_breaker.is_open(endpoint_name):
+            logger.debug(
+                "circuit breaker OPEN, skipping: {} [{}]",
+                endpoint_name,
+                params_json,
+            )
+            return None
+
         try:
             extractor_cls = self._registry.get(endpoint_name)
         except KeyError:
@@ -446,6 +622,8 @@ class ExtractorRunner:
                     rows = result.shape[0] if not result.is_empty() else 0
                 self._journal.record_success(endpoint_name, params_json, rows)
                 self._journal.record_metric(endpoint_name, duration, rows)
+                self._circuit_breaker.record_success(endpoint_name)
+                self._latency.record(endpoint_name, duration)
                 new_rate = self._adaptive.record_success()
                 if new_rate is not None:
                     self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
@@ -464,6 +642,8 @@ class ExtractorRunner:
         exc_name = type(last_exc).__name__ if last_exc else "Unknown"
         self._journal.record_failure(endpoint_name, params_json, exc_name)
         self._journal.record_metric(endpoint_name, duration, 0, errors=1)
+        self._circuit_breaker.record_failure(endpoint_name)
+        self._latency.record(endpoint_name, duration)
         new_rate = self._adaptive.record_failure()
         if new_rate is not None:
             self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)

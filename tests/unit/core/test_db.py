@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from sqlalchemy import Engine, text
 from sqlmodel import Session
@@ -118,3 +120,74 @@ class TestDoubleInit:
         db.init()
         db.init()  # second call should not error
         db.close()
+
+
+class TestGetUserTables:
+    def test_returns_user_tables_only(self, initialized_db):
+        from nbadb.core.db import get_user_tables
+
+        # Create a user table
+        initialized_db.duckdb.execute("CREATE TABLE my_table (id INT)")
+        tables = get_user_tables(initialized_db.duckdb)
+        assert "my_table" in tables
+        # Internal tables (prefixed with _) should be excluded
+        assert all(not t.startswith("_") for t in tables)
+
+    def test_empty_when_no_user_tables(self, initialized_db):
+        from nbadb.core.db import get_user_tables
+
+        tables = get_user_tables(initialized_db.duckdb)
+        assert tables == []
+
+    def test_sorted_output(self, initialized_db):
+        from nbadb.core.db import get_user_tables
+
+        initialized_db.duckdb.execute("CREATE TABLE z_table (id INT)")
+        initialized_db.duckdb.execute("CREATE TABLE a_table (id INT)")
+        tables = get_user_tables(initialized_db.duckdb)
+        assert tables == sorted(tables)
+
+
+class TestDBManagerDefaultPaths:
+    def test_defaults_from_settings(self, tmp_path, monkeypatch):
+        """DBManager uses settings defaults when paths not provided."""
+        from nbadb.core.config import get_settings
+
+        get_settings.cache_clear()
+        monkeypatch.setenv("NBADB_SQLITE_PATH", str(tmp_path / "s.sqlite"))
+        monkeypatch.setenv("NBADB_DUCKDB_PATH", str(tmp_path / "d.duckdb"))
+        get_settings.cache_clear()
+        db = DBManager()
+        db.init()
+        db.close()
+        get_settings.cache_clear()
+        assert (tmp_path / "s.sqlite").exists()
+        assert (tmp_path / "d.duckdb").exists()
+
+    def test_init_raises_when_sqlite_path_is_none(self, monkeypatch):
+        """init() raises ValueError when sqlite_path resolves to None."""
+        from unittest.mock import patch
+
+        from nbadb.core.config import get_settings
+
+        get_settings.cache_clear()
+        mock_settings = MagicMock()
+        mock_settings.sqlite_path = None
+        mock_settings.duckdb_path = None
+        with patch("nbadb.core.db.get_settings", return_value=mock_settings):
+            db = DBManager(sqlite_path=None, duckdb_path=None)
+            with pytest.raises(ValueError, match="sqlite_path required"):
+                db.init()
+        get_settings.cache_clear()
+
+
+class TestApplySqlitePragmasBeforeInit:
+    def test_pragmas_raises_before_engine(self, db):
+        with pytest.raises(RuntimeError, match="not initialized"):
+            db._apply_sqlite_pragmas()
+
+
+class TestCreatePipelineTablesBeforeInit:
+    def test_raises_before_duckdb(self, db):
+        with pytest.raises(RuntimeError, match="not initialized"):
+            db._create_pipeline_tables()

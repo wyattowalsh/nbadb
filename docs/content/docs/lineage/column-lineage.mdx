@@ -3,9 +3,48 @@ title: Column Lineage
 description: Column-level lineage examples showing field transformations across pipeline stages
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 # Column Lineage
 
-This page traces individual columns through the pipeline -- from their NBA API source field through raw, staging, and star schema layers. Understanding column lineage is essential for debugging data issues and validating transformations.
+This page traces individual columns through the pipeline -- from their NBA API source field through raw, staging, and star schema layers. Use it like replay review for one touch in the possession: the exact field that drifted, changed names, or started failing validation.
+
+<Callout>
+Start here when the bug is field-shaped: a wrong percentage, a renamed key, a surprising nullability
+change, or a foreign key that no longer lands where you expect.
+</Callout>
+
+## Quick navigation
+
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <ScoutCard title="Trace identity fields" label="Entry surface">
+    Start with <a href="#player-identity-lineage">Player identity lineage</a> when the issue is a
+    key, natural identifier, or rename across layers.
+  </ScoutCard>
+  <ScoutCard title="Check metric math" label="Entry surface">
+    Use <a href="#shooting-stats-lineage">Shooting stats lineage</a> or{' '}
+    <a href="#advanced-metrics-lineage">Advanced metrics lineage</a> when a percentage or rating
+    changed unexpectedly.
+  </ScoutCard>
+  <ScoutCard title="Follow context keys" label="Entry surface">
+    Jump to <a href="#game-context-lineage">Game context lineage</a> or{' '}
+    <a href="#team-lineage">Team lineage</a> when the breakage is about joins rather than metric math.
+  </ScoutCard>
+  <ScoutCard title="Inspect metadata sources" label="Under the hood">
+    Go to <a href="#lineage-metadata-in-code">Lineage metadata in code</a> when you need to confirm
+    how schema metadata and transformer dependencies encode the replay.
+  </ScoutCard>
+</div>
+
+## Scan modes
+
+| If the issue looks like… | Start here | Why |
+| ------------------------ | ---------- | --- |
+| A renamed or drifting identifier | [Player identity lineage](#player-identity-lineage) | Keys usually reveal where naming changed between API, staging, and star layers |
+| A wrong percentage or derived metric | [Shooting stats lineage](#shooting-stats-lineage) | Metric examples show where values are passed through versus recomputed |
+| A join or season-context mismatch | [Game context lineage](#game-context-lineage) | Shared keys like `game_id` and `season_year` explain most warehouse joins |
+| A denormalization or dimension split | [Shot chart lineage](#shot-chart-lineage) | These examples show how raw fields become normalized dimensions and foreign keys |
+| A code-generation question | [Lineage metadata in code](#lineage-metadata-in-code) | The schema metadata and `depends_on` declarations power the generated lineage surface |
 
 ## How Column Lineage Works
 
@@ -20,6 +59,15 @@ flowchart LR
 
 The `source` metadata on staging schemas and `description` + `fk_ref` metadata on star schemas encode this lineage.
 
+| Frame | Typical change | What to watch for |
+| ----- | -------------- | ----------------- |
+| API → Raw | Usually a straight pass-through | Nullable or mixed-type payloads |
+| Raw → Staging | Renames to `snake_case` + validation | Contract tightening, parsed types, and nullability changes |
+| Staging → Star | Modeling decisions and FK wiring | Surrogate keys, dimension resolution, and derived fields |
+| Star → Analytics/Aggs | Convenience joins or recomputation | Semantic renames and metric rollups |
+
+<CourtDivider label="Field-level replay" />
+
 ## Player Identity Lineage
 
 ### player_id
@@ -32,13 +80,13 @@ flowchart LR
     D --> E["fact_box_score_player\nplayer_id (FK: dim_player)"]
 ```
 
-| Stage | Column Name | Type | Constraints |
-|-------|-------------|------|-------------|
-| API Response | `PERSON_ID` | varies | none |
-| Raw | `PERSON_ID` | `int \| None` | nullable |
-| Staging | `person_id` | `int` | `not null, gt=0` |
-| Star (dim) | `player_id` | `int` | `not null, gt=0, NK` |
-| Star (fact) | `player_id` | `int` | `not null, FK: dim_player.player_id` |
+| Stage        | Column Name | Type          | Constraints                          |
+| ------------ | ----------- | ------------- | ------------------------------------ |
+| API Response | `PERSON_ID` | varies        | none                                 |
+| Raw          | `PERSON_ID` | `int \| None` | nullable                             |
+| Staging      | `person_id` | `int`         | `not null, gt=0`                     |
+| Star (dim)   | `player_id` | `int`         | `not null, gt=0, NK`                 |
+| Star (fact)  | `player_id` | `int`         | `not null, FK: dim_player.player_id` |
 
 **Key transformation**: Raw `PERSON_ID` is renamed to `person_id` in staging. In `dim_player`, it becomes the natural key alongside the generated `player_sk` surrogate key. SCD2 logic creates multiple rows per player when team/position/jersey changes.
 
@@ -49,10 +97,12 @@ flowchart LR
     A["CommonPlayerInfo\nDISPLAY_FIRST_LAST"] --> B["raw_player_info\nDISPLAY_FIRST_LAST"]
     B --> C["stg_player_info\ndisplay_first_last"]
     C --> D["dim_player\nfull_name"]
-    D --> E["view_player_game_complete\nplayer_name"]
+    D --> E["analytics_player_game_complete\nplayer_name"]
 ```
 
-**Key transformation**: Renamed at each stage. The analytics views use `player_name` for user-friendly querying.
+**Key transformation**: Renamed at each stage. The current `analytics_*` outputs use `player_name` for user-friendly querying.
+
+<CourtDivider label="Metric math" />
 
 ## Shooting Stats Lineage
 
@@ -63,18 +113,18 @@ flowchart LR
     A["BoxScoreTraditionalV3\nFG_PCT"] --> B["raw_box_score_traditional\nFG_PCT (float|None)"]
     B --> C["stg_box_score_traditional\nfg_pct (float, ge=0, le=1)"]
     C --> D["fact_player_game_traditional\nfg_pct (float)"]
-    D --> E["derived_player_season\nfg_pct = SUM(fgm)/SUM(fga)"]
+    D --> E["agg_player_season\nfg_pct = SUM(fgm)/SUM(fga)"]
 ```
 
-| Stage | Column | Notes |
-|-------|--------|-------|
-| API | `FG_PCT` | Pre-computed by NBA |
-| Raw | `FG_PCT` | Passed through |
-| Staging | `fg_pct` | Validated: 0.0 - 1.0 |
-| Fact | `fg_pct` | Per-game value |
-| Derived | `fg_pct` | Re-computed from season totals for accuracy |
+| Stage   | Column   | Notes                                       |
+| ------- | -------- | ------------------------------------------- |
+| API     | `FG_PCT` | Pre-computed by NBA                         |
+| Raw     | `FG_PCT` | Passed through                              |
+| Staging | `fg_pct` | Validated: 0.0 - 1.0                        |
+| Fact    | `fg_pct` | Per-game value                              |
+| Aggregate | `fg_pct` | Re-computed from season totals for accuracy |
 
-**Key transformation**: In `derived_player_season`, the season `fg_pct` is recomputed as `SUM(fgm) / SUM(fga)` rather than averaging per-game percentages, which would be statistically incorrect.
+**Key transformation**: In `agg_player_season`, the season `fg_pct` is recomputed as `SUM(fgm) / SUM(fga)` rather than averaging per-game percentages, which would be statistically incorrect.
 
 ### ts_pct (True Shooting Percentage)
 
@@ -83,10 +133,12 @@ flowchart LR
     A["BoxScoreAdvancedV3\nTS_PCT"] --> B["raw_box_score_advanced\nTS_PCT"]
     B --> C["stg_box_score_advanced\nts_pct (ge=0, le=1)"]
     C --> D["fact_player_game_advanced\nts_pct"]
-    D --> E["derived_player_season\navg_ts_pct = AVG(ts_pct)"]
+    D --> E["agg_player_season\navg_ts_pct = AVG(ts_pct)"]
 ```
 
 **Key transformation**: Season-level `avg_ts_pct` is computed as a simple average of per-game values in the current implementation. For more accurate results, recompute from totals: `PTS / (2 * (FGA + 0.44 * FTA))`.
+
+<CourtDivider label="Shared context keys" />
 
 ## Game Context Lineage
 
@@ -109,7 +161,7 @@ flowchart LR
     A["ScheduleLeagueV2\nSEASON_ID"] --> B["raw_schedule\nSEASON_ID"]
     B --> C["stg_schedule\nseason_id"]
     C --> D["dim_game\nseason_year (int)"]
-    D --> E["view_player_game_complete\nseason_year"]
+    D --> E["analytics_player_game_complete\nseason_year"]
 ```
 
 **Key transformation**: The API returns `SEASON_ID` as a string like `"22024"` (type prefix + year). The staging layer parses this to extract the integer year. `dim_game` stores it as `season_year` (int).
@@ -120,13 +172,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A["ScoreboardV2\nHOME_TEAM_ID"] --> B["raw_schedule\nHOME_TEAM_ID"]
-    B --> C["stg_schedule\nhome_team_id"]
-    C --> D["dim_game\nhome_team_id (FK: dim_team)"]
-    D --> E["view_player_game_complete\nteam_id + opp_team_id"]
+    A["BoxScoreTraditionalV3\nTEAM_ID"] --> B["raw_box_score_traditional\nTEAM_ID"]
+    B --> C["stg_box_score_traditional\nteam_id"]
+    C --> D["fact_player_game_traditional\nteam_id"]
+    D --> E["analytics_player_game_complete\nteam_id"]
 ```
 
-**Key transformation**: `dim_game` stores both `home_team_id` and `away_team_id` as separate FK references to `dim_team`. Analytics views resolve these into `team_id` (player's team) and `opp_team_id` based on the `home_or_away` flag.
+**Key transformation**: Player game rows carry `team_id` directly from the box score feed into `fact_player_game_traditional`, and `analytics_player_game_complete` preserves that team context alongside season and date metadata.
+
+<CourtDivider label="Location and dimension resolution" />
 
 ## Shot Chart Lineage
 
@@ -137,10 +191,9 @@ flowchart LR
     A["ShotChartDetail\nLOC_X, LOC_Y"] --> B["raw_shot_chart\nLOC_X, LOC_Y"]
     B --> C["stg_shot_chart\nloc_x, loc_y (float)"]
     C --> D["fact_shot_chart\nloc_x, loc_y"]
-    D --> E["view_shot_chart_complete\nloc_x, loc_y + zone_basic"]
 ```
 
-**Coordinate system**: `LOC_X` ranges from -250 to 250 (tenths of feet from basket center, left-right). `LOC_Y` ranges from -50 to 890 (tenths of feet from basket, towards half-court). The basket is at (0, 0).
+**Coordinate system**: `LOC_X` ranges from -250 to 250 (tenths of feet from basket center, left-right). `LOC_Y` ranges from -50 to 890 (tenths of feet from basket, towards half-court). The basket is at (0, 0). Current analytics rollups summarize shot zones in `agg_shot_zones`, but the raw coordinates remain available at `fact_shot_chart` grain.
 
 ### shot_zone (Dimension Resolution)
 
@@ -153,6 +206,8 @@ flowchart LR
 
 **Key transformation**: The three zone fields are denormalized in the API response. The transform extracts distinct combinations into `dim_shot_zone` and replaces the three text columns with a single `zone_id` FK in the fact table.
 
+<CourtDivider label="Ratings and rollups" />
+
 ## Advanced Metrics Lineage
 
 ### off_rating / def_rating / net_rating
@@ -161,11 +216,13 @@ flowchart LR
 flowchart LR
     A["BoxScoreAdvancedV3\nOFF_RATING / DEF_RATING / NET_RATING"] --> B["stg_box_score_advanced"]
     B --> C["fact_player_game_advanced\noff_rating, def_rating, net_rating"]
-    C --> D["derived_player_season\navg_off_rating, avg_def_rating, avg_net_rating"]
-    C --> E["derived_player_estimated\ne_off_rating, e_def_rating, e_net_rating"]
+    C --> D["agg_player_season\navg_off_rating, avg_def_rating, avg_net_rating"]
+    C --> E["agg_team_pace_and_efficiency\navg_ortg, avg_drtg, avg_net_rtg"]
 ```
 
-**Key transformation**: Per-game ratings flow directly to the fact table. Derived tables compute season averages. The `derived_player_estimated` table may apply additional estimation adjustments.
+**Key transformation**: Per-game ratings flow directly to the fact table. Aggregate tables compute player-season averages in `agg_player_season` and team-level pace/efficiency summaries in `agg_team_pace_and_efficiency`.
+
+<CourtDivider label="How the replay gets encoded" />
 
 ## Lineage Metadata in Code
 
@@ -211,3 +268,24 @@ class AggPlayerSeasonTransformer(BaseTransformer):
 ```
 
 Together, these three metadata sources (`source`, `fk_ref`, `depends_on`) enable fully automated lineage generation via `nbadb.docs_gen.lineage`.
+
+<CourtDivider label="Next replay angle" />
+
+## Next steps from column lineage
+
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Zoom back out to table-level movement" label="Next stop">
+    Continue to <a href="/docs/lineage/table-lineage">Table Lineage</a> when the issue has spread
+    beyond one field and you need the full upstream/downstream dependency chain.
+  </ScoutCard>
+  <ScoutCard title="Check naming and semantic intent" label="Next stop">
+    Use <a href="/docs/data-dictionary/field-reference">Field Reference</a> or the{" "}
+    <a href="/docs/data-dictionary/glossary">Glossary</a> when the lineage is clear but the meaning
+    of the metric, suffix, or field family still is not.
+  </ScoutCard>
+  <ScoutCard title="Verify the exact generated contract" label="Next stop">
+    Open <a href="/docs/schema/staging-reference">Staging Reference</a> or{" "}
+    <a href="/docs/schema/star-reference">Star Reference</a> when you need the current schema-backed
+    type, nullability, and constraint details for the field you just traced.
+  </ScoutCard>
+</div>

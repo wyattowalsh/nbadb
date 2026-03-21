@@ -39,6 +39,9 @@ class PlayerCareerByCollegeRollupExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         return self._from_nba_api(PlayerCareerByCollegeRollup, **params)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        return self._from_nba_api_multi(PlayerCareerByCollegeRollup, **params)
+
 
 @registry.register
 class PlayerCollegeRollupExtractor(BaseExtractor):
@@ -51,6 +54,13 @@ class PlayerCollegeRollupExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            PlayerCareerByCollegeRollup,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             PlayerCareerByCollegeRollup,
             season_type_all_star=season_type,
         )

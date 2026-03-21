@@ -1,0 +1,1 @@
+nbadb is a Python 3.12 NBA database project that extracts 131 nba_api endpoints, stages data in DuckDB, transforms it into a star schema, and exports DuckDB/SQLite/Parquet/CSV artifacts. The repo also contains a Fumadocs + Next.js docs site under docs/ and auto-generates schema/data-dictionary/ER/lineage docs from src/nbadb/docs_gen.

@@ -32,6 +32,10 @@ class BoxScoreTraditionalExtractor(BaseExtractor):
         logger.debug(f"Extracting traditional box score for {game_id}")
         return self._from_nba_api(BoxScoreTraditionalV3, game_id=game_id)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreTraditionalV3, game_id=game_id)
+
 
 @registry.register
 class BoxScoreAdvancedExtractor(BaseExtractor):
@@ -41,6 +45,10 @@ class BoxScoreAdvancedExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScoreAdvancedV3, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreAdvancedV3, game_id=game_id)
 
 
 @registry.register
@@ -52,6 +60,10 @@ class BoxScoreMiscExtractor(BaseExtractor):
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScoreMiscV3, game_id=game_id)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreMiscV3, game_id=game_id)
+
 
 @registry.register
 class BoxScoreScoringExtractor(BaseExtractor):
@@ -61,6 +73,10 @@ class BoxScoreScoringExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScoreScoringV3, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreScoringV3, game_id=game_id)
 
 
 @registry.register
@@ -72,6 +88,10 @@ class BoxScoreUsageExtractor(BaseExtractor):
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScoreUsageV3, game_id=game_id)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreUsageV3, game_id=game_id)
+
 
 @registry.register
 class BoxScoreFourFactorsExtractor(BaseExtractor):
@@ -81,6 +101,10 @@ class BoxScoreFourFactorsExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScoreFourFactorsV3, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreFourFactorsV3, game_id=game_id)
 
 
 @registry.register
@@ -92,6 +116,10 @@ class BoxScoreHustleExtractor(BaseExtractor):
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScoreHustleV2, game_id=game_id)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreHustleV2, game_id=game_id)
+
 
 @registry.register
 class BoxScorePlayerTrackExtractor(BaseExtractor):
@@ -102,6 +130,10 @@ class BoxScorePlayerTrackExtractor(BaseExtractor):
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScorePlayerTrackV3, game_id=game_id)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScorePlayerTrackV3, game_id=game_id)
+
 
 @registry.register
 class BoxScoreDefensiveExtractor(BaseExtractor):
@@ -111,3 +143,7 @@ class BoxScoreDefensiveExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
         return self._from_nba_api(BoxScoreDefensiveV2, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(BoxScoreDefensiveV2, game_id=game_id)

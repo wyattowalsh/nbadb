@@ -6,8 +6,10 @@ import polars as pl
 from nba_api.stats.static import players as static_players
 
 from nbadb.extract.base import BaseExtractor
+from nbadb.extract.registry import registry
 
 
+@registry.register
 class StaticPlayersExtractor(BaseExtractor):
     endpoint_name = "static_players"
     category = "static"

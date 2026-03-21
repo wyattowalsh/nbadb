@@ -83,3 +83,7 @@ class HustleStatsBoxScoreExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
         return self._from_nba_api(HustleStatsBoxScore, game_id=game_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        game_id: str = params["game_id"]
+        return self._from_nba_api_multi(HustleStatsBoxScore, game_id=game_id)

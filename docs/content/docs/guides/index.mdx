@@ -1,0 +1,93 @@
+---
+title: Guides
+description: Practice-facility hub for analysts and operators who need repeatable NBA data workflows.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+# Guides
+
+Use this section like the **practice facility** for nbadb: pick the workflow that matches the job in front of you, run the opening drill, and then branch into deeper schema, lineage, or troubleshooting pages only when the possession demands it.
+
+<StatGrid columns={4}>
+  <StatPill
+    label="Guides"
+    value="11"
+    note="hands-on plays for analysis, ops, and onboarding"
+  />
+  <StatPill
+    label="Tracks"
+    value="4"
+    note="opening drill, skill work, game-day ops, recovery"
+  />
+  <StatPill
+    label="Best for"
+    value="Execution"
+    note="repeatable workflows over static reference reading"
+  />
+  <StatPill
+    label="Tone"
+    value="Practice"
+    note="start narrow, then widen only when the play calls for it"
+  />
+</StatGrid>
+
+<Callout type="info">
+  Start with the guide that matches the question you need answered
+  <strong> today</strong>. The best route is usually the shortest one that gets
+  you to a working query, a clean rerun, or a confident handoff.
+</Callout>
+
+## Pick your first drill
+
+| If you need to… | Start here | Finish on… |
+| --------------- | ---------- | ---------- |
+| get a new analyst productive quickly | [Role-Based Onboarding Hub](/docs/guides/role-based-onboarding-hub) | one follow-up guide matched to their job |
+| answer a basketball question fast | [Analytics Quickstart](/docs/guides/analytics-quickstart) | a reusable DuckDB, Polars, or shot-chart pattern |
+| run or recover the pipeline | [Daily Updates](/docs/guides/daily-updates) | a clean rerun or a narrower failure lane |
+| debug a broken artifact or command | [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) | the exact report, JSON artifact, or command that explains the miss |
+
+## Practice lanes
+
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="Opening drill" label="Get oriented">
+    Start with <a href="/docs/guides/role-based-onboarding-hub">Role-Based Onboarding Hub</a> when you need the fastest route by role, or jump straight to <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a> if the goal is a first working query in minutes.
+  </ScoutCard>
+  <ScoutCard title="Skill work" label="Analysis reps">
+    Use <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a>, <a href="/docs/guides/player-comparison">Player Comparison</a>, <a href="/docs/guides/shot-chart-analysis">Shot Chart Analysis</a>, and <a href="/docs/guides/parquet-usage">Parquet Usage</a> when the possession has already narrowed to a specific analysis pattern.
+  </ScoutCard>
+  <ScoutCard title="Creative systems" label="Share surfaces">
+    Reach for <a href="/docs/guides/visual-asset-prompt-pack">Visual Asset Prompt Pack</a> when you need AI-generated hero art, Open Graph cards, icons, or texture plates that still match the court-first nbadb identity.
+  </ScoutCard>
+  <ScoutCard title="Game-day operations" label="Run the floor">
+    Keep <a href="/docs/guides/daily-updates">Daily Updates</a> open for recurring refresh work, and move to <a href="/docs/guides/kaggle-setup">Kaggle Setup</a> when the conversation shifts from local data shape to packaging and distribution.
+  </ScoutCard>
+  <ScoutCard title="Film room and recovery" label="Debug the miss">
+    Use <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a> for artifact-first debugging, then read <a href="/docs/guides/strategic-shift-rollout">Strategic Shift Rollout</a> when the problem is really about sequencing, migration, or stakeholder alignment.
+  </ScoutCard>
+</div>
+
+<CourtDivider label="Route board" />
+
+## Guide roster
+
+| Guide | Best for | Typical next stop |
+| ----- | -------- | ----------------- |
+| [Role-Based Onboarding Hub](/docs/guides/role-based-onboarding-hub) | Choosing the right first page and command by persona | [Installation](/docs/installation), [CLI Reference](/docs/cli-reference), or [Schema Reference](/docs/schema) |
+| [Analytics Quickstart](/docs/guides/analytics-quickstart) | Getting from download to first answer | [DuckDB Query Examples](/docs/guides/duckdb-queries) or [Player Comparison](/docs/guides/player-comparison) |
+| [DuckDB Query Examples](/docs/guides/duckdb-queries) | SQL-first exploration | [Schema Reference](/docs/schema) or [Table Lineage](/docs/lineage/table-lineage) |
+| [Player Comparison](/docs/guides/player-comparison) | Head-to-head player reads | [Shot Chart Analysis](/docs/guides/shot-chart-analysis) |
+| [Shot Chart Analysis](/docs/guides/shot-chart-analysis) | Court-map and zone work | [Column Lineage](/docs/lineage/column-lineage) |
+| [Visual Asset Prompt Pack](/docs/guides/visual-asset-prompt-pack) | Generating on-brand hero art, OG cards, icons, and background plates | homepage redesigns, social sharing, and docs art refreshes |
+| [Parquet Usage](/docs/guides/parquet-usage) | DataFrame-first workflows | [Schema Reference](/docs/schema) |
+| [Daily Updates](/docs/guides/daily-updates) | Recurring pipeline refreshes | [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
+| [Kaggle Setup](/docs/guides/kaggle-setup) | Publish and delivery flow | [Architecture](/docs/architecture) |
+| [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) | Narrow recovery loops for failures | exact health artifacts, coverage reports, or docs-autogen commands |
+| [Strategic Shift Rollout](/docs/guides/strategic-shift-rollout) | Change management and rollout sequencing | [Architecture](/docs/architecture) or [Pipeline Flow](/docs/diagrams/pipeline-flow) |
+
+## How to use this section well
+
+1. Start on the guide that matches the current job, not the whole platform.
+2. Borrow a working pattern before you invent a new one.
+3. Drop into [Schema Reference](/docs/schema) or [Lineage](/docs/lineage) only when the workflow turns into a contract or dependency question.
+4. End on the narrowest reusable artifact: a query, command, report, or checklist you can rerun on the next possession.

@@ -56,7 +56,7 @@ class TestPipelineE2E:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register(DimSeasonTransformer())
-        outputs = pipeline.run(_make_staging())
+        outputs = pipeline.run(_make_staging(), validate_output_schemas=False)
         df = outputs["dim_season"]
         assert df.shape[0] == 2
         assert "season_year" in df.columns
@@ -71,7 +71,7 @@ class TestPipelineE2E:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register(_DimTeamStubTransformer())
-        outputs = pipeline.run(_make_staging())
+        outputs = pipeline.run(_make_staging(), validate_output_schemas=False)
         df = outputs["dim_team"]
         assert df.shape[1] == 1
         assert "team_id" in df.columns
@@ -91,7 +91,7 @@ class TestPipelineE2E:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register_all([DimSeasonTransformer(), _DimTeamStubTransformer()])
-        pipeline.run(_make_staging())
+        pipeline.run(_make_staging(), validate_output_schemas=False)
         season_count = conn.execute("SELECT COUNT(*) FROM dim_season").fetchone()[0]
         assert season_count == 2
         team_count = conn.execute("SELECT COUNT(*) FROM dim_team").fetchone()[0]
@@ -102,7 +102,7 @@ class TestPipelineE2E:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register(DimSeasonTransformer())
-        outputs = pipeline.run(_make_staging())
+        outputs = pipeline.run(_make_staging(), validate_output_schemas=False)
         df = outputs["dim_season"]
         expected_rows = df.shape[0]
 
@@ -141,7 +141,7 @@ class TestPipelineE2E:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register(DimSeasonTransformer())
-        outputs = pipeline.run(_make_staging())
+        outputs = pipeline.run(_make_staging(), validate_output_schemas=False)
         df = outputs["dim_season"]
 
         loader = MultiLoader(
@@ -166,7 +166,7 @@ class TestPipelineE2E:
         ) as db:
             pipeline = TransformPipeline(db.duckdb)
             pipeline.register(DimSeasonTransformer())
-            outputs = pipeline.run(_make_staging())
+            outputs = pipeline.run(_make_staging(), validate_output_schemas=False)
             csv_loader = CSVLoader(tmp_path / "csv")
             csv_loader.load("dim_season", outputs["dim_season"])
             loaded = pl.read_csv(tmp_path / "csv" / "dim_season.csv")
@@ -183,7 +183,7 @@ class TestPipelineE2E:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register(DimSeasonTransformer())
-        outputs = pipeline.run(_make_staging())
+        outputs = pipeline.run(_make_staging(), validate_output_schemas=False)
         loader = create_multi_loader(settings)
         loader.load("dim_season", outputs["dim_season"])
         assert (tmp_path / "data" / "csv" / "dim_season.csv").exists()
@@ -194,7 +194,7 @@ class TestPipelineE2E:
         conn = duckdb.connect()
         pipeline = TransformPipeline(conn)
         pipeline.register(DimSeasonTransformer())
-        pipeline.run(_make_staging())
+        pipeline.run(_make_staging(), validate_output_schemas=False)
         result = pipeline.get_output("dim_season")
         assert result is not None
         assert result.shape[0] == 2

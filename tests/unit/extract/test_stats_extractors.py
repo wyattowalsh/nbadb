@@ -110,7 +110,12 @@ from nbadb.extract.stats.misc import (
     GLAlumBoxScoreSimilarityScoreExtractor,
     GravityLeadersExtractor,
     LeagueGameFinderExtractor,
+    PlayerFantasyProfileBarGraphExtractor,
     TeamGameStreakFinderExtractor,
+    VideoDetailsAssetExtractor,
+    VideoDetailsExtractor,
+    VideoEventsExtractor,
+    VideoStatusExtractor,
 )
 
 # ── play_by_play ────────────────────────────────────────────────────────────
@@ -142,6 +147,12 @@ from nbadb.extract.stats.player_dashboard import (
     PlayerDashboardByTeamPerformanceExtractor,
     PlayerDashboardByYearOverYearExtractor,
     PlayerDashboardGeneralSplitsExtractor,
+    PlayerDashGameSplitsExtractor,
+    PlayerDashGeneralSplitsExtractor,
+    PlayerDashLastNGamesExtractor,
+    PlayerDashShootingSplitsExtractor,
+    PlayerDashTeamPerfExtractor,
+    PlayerDashYoyExtractor,
 )
 
 # ── player_game_log ─────────────────────────────────────────────────────────
@@ -365,7 +376,7 @@ _ALL_EXTRACTORS = [
     (DefenseHubExtractor, "defense_hub", "leaders"),
     (TeamHistoricalLeadersExtractor, "team_historical_leaders", "leaders"),
     (TeamYearByYearStatsExtractor, "team_year_by_year_stats", "leaders"),
-    # misc (9)
+    # misc (10)
     (CumeStatsPlayerExtractor, "cume_stats_player", "misc"),
     (CumeStatsPlayerGamesExtractor, "cume_stats_player_games", "misc"),
     (CumeStatsTeamExtractor, "cume_stats_team", "misc"),
@@ -375,6 +386,11 @@ _ALL_EXTRACTORS = [
     (GLAlumBoxScoreSimilarityScoreExtractor, "gl_alum_box_score_similarity_score", "misc"),
     (DunkScoreLeadersExtractor, "dunk_score_leaders", "misc"),
     (GravityLeadersExtractor, "gravity_leaders", "misc"),
+    (PlayerFantasyProfileBarGraphExtractor, "player_fantasy_profile", "misc"),
+    (VideoDetailsExtractor, "video_details", "misc"),
+    (VideoDetailsAssetExtractor, "video_details_asset", "misc"),
+    (VideoEventsExtractor, "video_events", "misc"),
+    (VideoStatusExtractor, "video_status", "misc"),
 ]
 
 
@@ -509,6 +525,30 @@ class TestCrossProductParameterHandling:
         assert result.is_empty()
 
     @pytest.mark.asyncio
+    async def test_gl_alum_accepts_player_season_and_defaults_to_self_compare(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = GLAlumBoxScoreSimilarityScoreExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(player_id=201939, season="2024-25")
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["person1_id"] == 201939
+        assert kwargs["person2_id"] == 201939
+        assert kwargs["person1_season_year"] == 2024
+        assert kwargs["person2_season_year"] == 2024
+        assert kwargs["person1_season_type"] == "Regular Season"
+        assert kwargs["person2_season_type"] == "Regular Season"
+
+    @pytest.mark.asyncio
     async def test_player_game_log_season_is_optional(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -544,3 +584,155 @@ class TestCrossProductParameterHandling:
         assert isinstance(kwargs, dict)
         assert kwargs["team_id"] == 1610612744
         assert "season" not in kwargs
+
+
+# Per-endpoint param overrides — only entries that differ from the category default.
+_EXTRACT_PARAMS: dict[str, dict[str, object]] = {
+    # game_log: ScoreboardV2 needs game_date, not season
+    "scoreboard_v2": {"game_date": "2024-10-22"},
+    # player_info: some only need player_id (no season required by extract())
+    "common_player_info": {"player_id": 201939},
+    "player_career_stats": {"player_id": 201939},
+    "player_awards": {"player_id": 201939},
+    "player_profile_v2": {"player_id": 201939},
+    # player_info: PlayerIndex / CommonAllPlayers use optional season
+    "player_index": {"season": "2024-25"},
+    "common_all_players": {"season": "2024-25"},
+    # player_info: PlayerEstimatedMetrics only needs season (no player_id)
+    "player_estimated_metrics": {"season": "2024-25"},
+    # player_info: PlayerGameStreakFinder passes **params through
+    "player_game_streak_finder": {"season": "2024-25"},
+    # player_info: PlayerCareerByCollege* pass through or use optional params
+    "player_career_by_college": {"season": "2024-25"},
+    "player_career_by_college_rollup": {"season": "2024-25"},
+    # player_compare special cases
+    "player_compare": {"player_id": 201939, "season": "2024-25"},
+    "player_vs_player": {
+        "player_id": 201939,
+        "vs_player_id": 201566,
+        "season": "2024-25",
+    },
+    "team_vs_player": {
+        "team_id": 1610612744,
+        "vs_player_id": 201939,
+        "season": "2024-25",
+    },
+    "team_and_players_vs_players": {
+        "team_id": 1610612744,
+        "player_id1": 201939,
+        "player_id2": 201566,
+        "season": "2024-25",
+    },
+    # leaders: TeamHistoricalLeaders needs team_id only
+    "team_historical_leaders": {"team_id": 1610612744},
+    # leaders: TeamYearByYearStats needs team_id (no season required)
+    "team_year_by_year_stats": {"team_id": 1610612744},
+    # leaders: AllTimeLeadersGrids needs no required params
+    "all_time_leaders_grids": {},
+    # league: TeamDashLineups needs team_id + season
+    "team_dash_lineups": {"team_id": 1610612744, "season": "2024-25"},
+    # league: LeaguePlayerOnDetails needs team_id + season
+    "league_player_on_details": {"team_id": 1610612744, "season": "2024-25"},
+    # misc: CumeStats* need player_id or team_id + season
+    "cume_stats_player": {"player_id": 201939, "season": "2024-25"},
+    "cume_stats_player_games": {"player_id": 201939, "season": "2024-25"},
+    "cume_stats_team": {"team_id": 1610612744, "season": "2024-25"},
+    "cume_stats_team_games": {"team_id": 1610612744, "season": "2024-25"},
+    # misc: GLAlum needs person IDs passed through
+    "gl_alum_box_score_similarity_score": {
+        "person1_id": 201939,
+        "person2_id": 201566,
+    },
+    # misc: PlayerFantasyProfile requires player_id + optional season
+    "player_fantasy_profile": {"player_id": 201939, "season": "2024-25"},
+    "video_details": {"player_id": 201939, "team_id": 1610612744, "season": "2024-25"},
+    "video_details_asset": {
+        "player_id": 201939,
+        "team_id": 1610612744,
+        "season": "2024-25",
+    },
+    # misc: LeagueGameFinder / TeamGameStreakFinder pass **params
+    "league_game_finder": {"season": "2024-25"},
+    "team_game_streak_finder": {"season": "2024-25"},
+    "video_events": {"game_id": "0022400001"},
+    "video_status": {"game_date": "2024-10-22", "league_id": "00"},
+    # hustle: HustleStatsBoxScore needs game_id
+    "hustle_stats_box_score": {"game_id": "0022400001"},
+    # team_info: FranchiseHistory needs no params
+    "franchise_history": {},
+    # team_info: CommonTeamYears needs no params
+    "common_team_years": {},
+    # team_info: TeamEstimatedMetrics only needs season (no team_id)
+    "team_estimated_metrics": {"season": "2024-25"},
+    # shots: ShotChartDetail has all optional params with defaults
+    "shot_chart_detail": {"season": "2024-25"},
+    # shots: ShotChartLineupDetail needs season
+    "shot_chart_lineup_detail": {"season": "2024-25"},
+}
+
+# Category defaults — used when endpoint_name is NOT in _EXTRACT_PARAMS.
+_CATEGORY_DEFAULTS: dict[str, dict[str, object]] = {
+    "box_score": {"game_id": "0022400001"},
+    "play_by_play": {"game_id": "0022400001"},
+    "game_log": {"season": "2024-25"},
+    "player_info": {"player_id": 201939, "season": "2024-25"},
+    "team_info": {"team_id": 1610612744, "season": "2024-25"},
+    "draft": {"season": "2024-25"},
+    "standings": {"season": "2024-25"},
+    "shots": {"player_id": 201939, "season": "2024-25"},
+    "league": {"season": "2024-25"},
+    "schedule": {"season": "2024-25"},
+    "rotation": {"game_id": "0022400001"},
+    "synergy": {"season": "2024-25"},
+    "hustle": {"season": "2024-25"},
+    "tracking": {"season": "2024-25"},
+    "leaders": {"season": "2024-25"},
+    "misc": {"season": "2024-25"},
+    "franchise": {"team_id": 1610612744},
+}
+
+
+def _get_params(endpoint_name: str, category: str) -> dict[str, object]:
+    """Return the params dict for a given extractor."""
+    if endpoint_name in _EXTRACT_PARAMS:
+        return _EXTRACT_PARAMS[endpoint_name]
+    return _CATEGORY_DEFAULTS.get(category, {"season": "2024-25"})
+
+
+# Combine _ALL_EXTRACTORS + aliased extractors not in the main list.
+_ALL_WITH_ALIASES = _ALL_EXTRACTORS + [
+    (PlayerDashGameSplitsExtractor, "player_dash_game_splits", "player_info"),
+    (PlayerDashGeneralSplitsExtractor, "player_dash_general_splits", "player_info"),
+    (PlayerDashLastNGamesExtractor, "player_dash_last_n_games", "player_info"),
+    (PlayerDashShootingSplitsExtractor, "player_dash_shooting_splits", "player_info"),
+    (PlayerDashTeamPerfExtractor, "player_dash_team_perf", "player_info"),
+    (PlayerDashYoyExtractor, "player_dash_yoy", "player_info"),
+]
+
+
+@pytest.mark.parametrize(
+    "cls, endpoint_name, category",
+    _ALL_WITH_ALIASES,
+    ids=[t[1] for t in _ALL_WITH_ALIASES],
+)
+class TestExtractMethodCoverage:
+    """Verify every extractor's extract() runs through _from_nba_api."""
+
+    @pytest.mark.asyncio
+    async def test_extract_returns_dataframe(
+        self,
+        cls: type,
+        endpoint_name: str,
+        category: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = cls()
+        dummy_df = pl.DataFrame({"col": [1, 2, 3]})
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            return dummy_df
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        params = _get_params(endpoint_name, category)
+        result = await ext.extract(**params)
+        assert isinstance(result, pl.DataFrame)

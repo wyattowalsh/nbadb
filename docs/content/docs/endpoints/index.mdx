@@ -1,33 +1,133 @@
 ---
 title: Endpoints
-description: Overview of all 131 NBA API endpoints used by nbadb
+description: Coverage board for all 131 NBA API endpoints used by nbadb
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Endpoints
 
 nbadb extracts data from **131 nba_api endpoints**, covering every major statistical category in the NBA.
 
-## Categories
+<div className="grid gap-3 md:grid-cols-4">
+  <StatPill
+    label="Covered endpoints"
+    value="131"
+    note="nba_api classes with extractor coverage in nbadb"
+  />
+  <StatPill
+    label="Registered extractors"
+    value="143"
+    note="some endpoints split into multiple extractor/result-set lanes"
+  />
+  <StatPill
+    label="Curated boards"
+    value="7"
+    note="hand-authored landing pages for the main endpoint families"
+  />
+  <StatPill
+    label="Skipped endpoints"
+    value="8"
+    note="excluded for deprecation, auth walls, or redundancy"
+  />
+</div>
 
-| Category | Endpoints | Description |
-|----------|-----------|-------------|
-| [Box Scores](/docs/endpoints/box-scores) | 10 | Traditional, advanced, hustle, tracking, matchups |
-| [Play-by-Play](/docs/endpoints/play-by-play) | 3 | V2/V3 play-by-play and win probability |
-| [Player Stats](/docs/endpoints/player-stats) | 7 | Player info, career stats, awards, dashboards |
-| [Team Stats](/docs/endpoints/team-stats) | 6 | Team info, rosters, franchise history |
-| [League Stats](/docs/endpoints/league-stats) | 8 | League-wide dashboards, standings, synergy |
-| [Draft](/docs/endpoints/draft) | 7 | Draft history, board, combine measurements |
-| [Other](/docs/endpoints/other) | 6 | Shots, rotations, hustle, estimated metrics |
+<Callout type="info">
+  nbadb now inventories the full `nba_api` runtime surface across stats, static,
+  and live feeds. Some classes still split into multiple extractor paths or
+  result-set lanes, so the docs pages below are the quickest way to find the
+  right family before you drill into source code or tables.
+</Callout>
 
-## Extraction Strategy
+<CourtDivider label="Pick the right board" />
 
-All endpoints use the `nba_api` Python package. Key patterns:
+## Route by the first reliable key
 
-- **Rate limiting**: Tiered semaphores per endpoint category
-- **Retry logic**: Exponential backoff with jitter
-- **Proxy rotation**: Optional proxy list for high-volume extraction
-- **Incremental updates**: Watermark-based with configurable lookback window
+| If your first handle is...                          | Start here                                   | Then add                                                                                      | Why this route works                                                                                 |
+| --------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `game_id` for one matchup                           | [Box Scores](/docs/endpoints/box-scores)     | [Play-by-Play](/docs/endpoints/play-by-play) and [Other](/docs/endpoints/other)               | Keeps the whole game packet together: final line, event order, rotations, officials, and shot detail |
+| possession timing or action order                   | [Play-by-Play](/docs/endpoints/play-by-play) | [Box Scores](/docs/endpoints/box-scores)                                                      | Starts at the action log, then adds the postgame totals that explain what the feed produced          |
+| `player_id`, a player name, or player bio/history   | [Player Stats](/docs/endpoints/player-stats) | [Team Stats](/docs/endpoints/team-stats) and [Draft](/docs/endpoints/draft)                   | Builds the player file from lookup surface to team context and pre-NBA background                    |
+| `team_id` or franchise context                      | [Team Stats](/docs/endpoints/team-stats)     | [Player Stats](/docs/endpoints/player-stats) and [League Stats](/docs/endpoints/league-stats) | Starts with the club file, then branches into roster detail and season-wide competition              |
+| season-wide rankings, leaders, lineups, or matchups | [League Stats](/docs/endpoints/league-stats) | [Team Stats](/docs/endpoints/team-stats) or [Box Scores](/docs/endpoints/box-scores)          | Opens with the league desk, then drills down to clubs or single games                                |
+| draft class, board order, or combine testing        | [Draft](/docs/endpoints/draft)               | [Player Stats](/docs/endpoints/player-stats)                                                  | Keeps prospect-era context tied to later NBA careers                                                 |
 
-## Skipped Endpoints (8)
+## Coverage lanes at a glance
 
-Eight endpoints are deliberately excluded due to deprecation, authentication requirements, or redundancy with other endpoints.
+Use the section like a scouting department wall: pick the lane first, then the exact endpoint.
+
+| Lane                 | Pages in order                                                                                                           | Common keys                       | Best for                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------- | --------------------------------------------------------------------------------------- |
+| **Game package**     | [Box Scores](/docs/endpoints/box-scores) → [Play-by-Play](/docs/endpoints/play-by-play) → [Other](/docs/endpoints/other) | `game_id`                         | One matchup from final stat line to possession log, rotations, officials, and shot maps |
+| **Scouting reports** | [Player Stats](/docs/endpoints/player-stats) ↔ [Team Stats](/docs/endpoints/team-stats) ↔ [Draft](/docs/endpoints/draft) | `player_id`, `team_id`, `season`  | Player dossiers, franchise files, and incoming-class context                            |
+| **League desk**      | [League Stats](/docs/endpoints/league-stats)                                                                             | `season` plus leaderboard filters | Standings, leaders, lineups, play types, and season matchup coverage                    |
+
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Game package" label="Coverage lane">
+    Start with <a href="/docs/endpoints/box-scores">Box Scores</a> for the
+    postgame line, move to{" "}
+    <a href="/docs/endpoints/play-by-play">Play-by-Play</a> for ordered actions,
+    and finish on <a href="/docs/endpoints/other">Other</a> for rotations,
+    officials, and shot-chart detail keyed by the same <code>game_id</code>.
+  </ScoutCard>
+  <ScoutCard title="Scouting reports" label="Coverage lane">
+    Use <a href="/docs/endpoints/player-stats">Player Stats</a>,{" "}
+    <a href="/docs/endpoints/team-stats">Team Stats</a>, and{" "}
+    <a href="/docs/endpoints/draft">Draft</a> when the question is about a
+    person, a franchise, or a class rather than one night.
+  </ScoutCard>
+  <ScoutCard title="League desk" label="Coverage lane">
+    Go to <a href="/docs/endpoints/league-stats">League Stats</a> when you need
+    the season board: standings, leaders, lineups, play types, and matchup
+    coverage that frame the single-game and single-team pages.
+  </ScoutCard>
+</div>
+
+## Board directory
+
+| Page                                         | Endpoints | Common entry key     | What the page covers                                                                              | Route cue                                                 |
+| -------------------------------------------- | --------: | -------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| [Box Scores](/docs/endpoints/box-scores)     |        10 | `game_id`            | Traditional line, ratings, four factors, hustle, tracking, usage, and matchup tables for one game | Start here when the game is the unit of work              |
+| [Play-by-Play](/docs/endpoints/play-by-play) |         3 | `game_id`            | Ordered action log, V2 event codes, V3 action taxonomy, and win probability                       | Use when sequence matters more than totals                |
+| [Other](/docs/endpoints/other)               |         6 | `game_id` / `season` | Shot charts, rotations, officials, summary packets, and estimated metrics outside the core boards | Open when the core game packet is missing context         |
+| [Player Stats](/docs/endpoints/player-stats) |         7 | `player_id`          | Player identity, bio, career arc, honors, dashboards, and streak search                           | Best first stop for a player dossier                      |
+| [Team Stats](/docs/endpoints/team-stats)     |         6 | `team_id`            | Team identity, roster sheets, front-office context, and franchise history                         | Best first stop for a club file                           |
+| [Draft](/docs/endpoints/draft)               |         7 | `season`             | Draft order, historical picks, combine measurements, drills, and shooting tests                   | Use when the question starts before a player's NBA debut  |
+| [League Stats](/docs/endpoints/league-stats) |         8 | `season`             | Standings, leaders, lineups, play types, and season matchups                                      | Use when the question is bigger than one team or one game |
+
+## Extraction notes
+
+All endpoint coverage flows through `nba_api`, with a few operational patterns that matter when you move from docs to extraction code:
+
+- **Rate limiting**: tiered semaphores by endpoint family
+- **Retry logic**: exponential backoff with jitter
+- **Proxy rotation**: optional proxy list for higher-volume runs
+- **Incremental updates**: watermark-based refresh with configurable lookback windows
+
+## Skipped endpoints
+
+Eight endpoints are deliberately excluded because they are deprecated, redundant with better surfaces, or blocked behind authentication requirements.
+
+<CourtDivider label="Keep the board moving" />
+
+## Next steps from Endpoints
+
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Follow one game from tip to final horn" label="Next stop">
+    Open <a href="/docs/endpoints/box-scores">Box Scores</a> first, then layer
+    in <a href="/docs/endpoints/play-by-play">Play-by-Play</a> and{" "}
+    <a href="/docs/endpoints/other">Other</a> when you need the full single-game
+    packet.
+  </ScoutCard>
+  <ScoutCard title="Build a player or team dossier" label="Next stop">
+    Jump to <a href="/docs/endpoints/player-stats">Player Stats</a> or{" "}
+    <a href="/docs/endpoints/team-stats">Team Stats</a> when the question is
+    about identity, history, and current context rather than one event stream.
+  </ScoutCard>
+  <ScoutCard title="Zoom out to season context" label="Next stop">
+    Use <a href="/docs/endpoints/league-stats">League Stats</a> for standings,
+    leaders, lineups, and matchup baselines, or{" "}
+    <a href="/docs/endpoints/draft">Draft</a> for incoming-class and historical
+    board work.
+  </ScoutCard>
+</div>

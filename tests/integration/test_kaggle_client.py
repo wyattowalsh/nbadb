@@ -127,7 +127,7 @@ class TestKaggleClientEnsureMetadata:
         result = client.ensure_metadata(data_dir=data_dir)
         data = json.loads(result.read_text(encoding="utf-8"))
         assert data["id"] == "wyattowalsh/basketball"
-        assert len(data["resources"]) == 55
+        assert len(data["resources"]) == 141
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_ensure_metadata_creates_parent_dirs(

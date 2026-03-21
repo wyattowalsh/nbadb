@@ -218,3 +218,99 @@ class TestSummary:
         assert report["summary_by_layer"]["structural"]["total"] == 1
         assert report["results"][0]["layer"] == "structural"
         conn.close()
+
+    def test_log_summary_runs(self) -> None:
+        conn, monitor = _make_monitor()
+        monitor.check_row_count_anomaly(
+            "t", current_count=4, historical_avg=4.0, historical_std=1.0
+        )
+        monitor.check_row_count_anomaly(
+            "t", current_count=100, historical_avg=4.0, historical_std=1.0
+        )
+        monitor.log_summary()  # should not raise
+        conn.close()
+
+
+class TestCrossValidate:
+    def test_matching_sums_pass(self) -> None:
+        conn, monitor = _make_monitor()
+        # Create a reference table with same sums
+        conn.execute("""
+            CREATE TABLE ref_facts (
+                game_id VARCHAR NOT NULL,
+                player_id INT NOT NULL,
+                team_id INT NOT NULL,
+                pts INT,
+                reb INT
+            )
+        """)
+        conn.execute("""
+            INSERT INTO ref_facts VALUES
+            ('001', 1, 10, 25, 10),
+            ('001', 2, 10, 18, 7),
+            ('002', 1, 10, 30, 12),
+            ('002', 3, 20, 22, 0)
+        """)
+        result = monitor.cross_validate("test_facts", "ref_facts", ["pts"])
+        assert result.passed
+        assert result.layer == CheckLayer.STATISTICAL
+        conn.close()
+
+    def test_mismatched_sums_fail(self) -> None:
+        conn, monitor = _make_monitor()
+        conn.execute("""
+            CREATE TABLE ref_facts2 (pts INT)
+        """)
+        conn.execute("INSERT INTO ref_facts2 VALUES (999)")
+        result = monitor.cross_validate("test_facts", "ref_facts2", ["pts"])
+        assert not result.passed
+        assert len(result.details["mismatches"]) > 0
+        conn.close()
+
+    def test_query_error_handled(self) -> None:
+        conn, monitor = _make_monitor()
+        # Column doesn't exist in the reference table
+        conn.execute("CREATE TABLE ref_empty (other_col INT)")
+        conn.execute("INSERT INTO ref_empty VALUES (1)")
+        result = monitor.cross_validate(
+            "test_facts", "ref_empty", ["nonexistent_col"]
+        )
+        assert not result.passed
+        conn.close()
+
+    def test_within_tolerance(self) -> None:
+        conn, monitor = _make_monitor()
+        conn.execute("CREATE TABLE ref_close (pts INT)")
+        # Total pts in test_facts = 95. Insert something very close.
+        conn.execute("INSERT INTO ref_close VALUES (95)")
+        result = monitor.cross_validate(
+            "test_facts", "ref_close", ["pts"], tolerance=1.0
+        )
+        assert result.passed
+        conn.close()
+
+
+class TestCardinalityMaxDistinct:
+    def test_exceeds_max_distinct_fails(self) -> None:
+        conn, monitor = _make_monitor()
+        result = monitor.check_cardinality(
+            "test_facts", "player_id", min_distinct=1, max_distinct=2
+        )
+        # 3 distinct player_ids (1, 2, 3) > max_distinct=2
+        assert not result.passed
+        conn.close()
+
+
+class TestValueRangeMinViolation:
+    def test_below_min_fails(self) -> None:
+        conn, monitor = _make_monitor()
+        result = monitor.check_value_range("test_facts", "pts", min_val=20)
+        assert not result.passed
+        assert "min=" in result.message
+        conn.close()
+
+    def test_no_bounds_passes(self) -> None:
+        conn, monitor = _make_monitor()
+        result = monitor.check_value_range("test_facts", "pts")
+        assert result.passed
+        conn.close()

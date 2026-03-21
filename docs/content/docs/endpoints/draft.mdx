@@ -1,60 +1,66 @@
 ---
 title: Draft Endpoints
-description: Draft history, board, and combine measurement data
+description: Draft room endpoints for board order, history, and combine testing
 ---
 
 # Draft Endpoints
 
-Seven endpoints provide comprehensive NBA Draft data.
+Seven endpoints build the draft room packet.
 
-## DraftHistory
+> **Primary route:** Use `season` for class-specific board or combine work; use `DraftHistory` when the question spans eras.
+>
+> Pair these feeds with [Player Stats](/docs/endpoints/player-stats) once prospects reach the league and [Team Stats](/docs/endpoints/team-stats) for franchise context.
 
-Complete historical draft data from 1947 to present.
+## Quick route
 
-- **Result sets**: `DraftHistory`
-- **Key columns**: `person_id`, `player_name`, `season`, `round_number`, `round_pick`, `overall_pick`, `team_id`, `team_name`, `organization`, `organization_type`
+| If you need... | Use | Why it is the fastest route |
+| -------------- | --- | --------------------------- |
+| every drafted player across history | `DraftHistory` | Best cross-era draft ledger |
+| one class in pick order | `DraftBoard` | Best single board for one draft night |
+| combine measurements and broad testing | `DraftCombineStats` | Good overview page for body measurements and athletic profile |
+| drill-event results | `DraftCombineDrillResults` | Best for vertical, agility, sprint, and bench data |
+| spot-up shooting tests | `DraftCombineSpotShooting` | Best route for stationary shooting evaluation |
+| movement shooting tests | `DraftCombineNonStationaryShooting` | Best route for off-the-dribble combine shooting |
+| anthropometric detail only | `DraftCombinePlayerAnthro` | Best for measurement-heavy work without the rest of the combine packet |
 
-## DraftBoard
+## Board and history lane
 
-Draft board with pick-by-pick details for a specific year.
+| Endpoint | Parameters | Result sets | Route cue |
+| -------- | ---------- | ----------- | --------- |
+| `DraftHistory` | none listed | `DraftHistory` | Use when the question spans multiple classes, historical picks, or franchise draft history |
+| `DraftBoard` | `season` (required) | `DraftBoard` | Use when you need one class in exact pick order, not the whole historical ledger |
 
-- **Result sets**: `DraftBoard`
-- **Parameters**: `season` (required)
+## Combine packet
 
-## DraftCombineStats
+| Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
+| -------- | ---------- | ----------- | --------------------- | --------- |
+| `DraftCombineStats` | `season` (required) | `DraftCombineStats` | `player_id`, `first_name`, `last_name`, `position`, `height_wo_shoes`, `height_w_shoes`, `weight`, `wingspan`, `standing_reach`, `body_fat_pct`, `hand_length`, `hand_width` | Start here for the broadest one-page combine snapshot |
+| `DraftCombineDrillResults` | `season` (required) | `Results` | `standing_vertical_leap`, `max_vertical_leap`, `lane_agility_time`, `three_quarter_sprint`, `bench_press` | Use when athletic testing is the main question |
+| `DraftCombineSpotShooting` | `season` (required) | `Results` | spot-up shooting test output | Pull this when stationary jumper drills matter more than measurements |
+| `DraftCombineNonStationaryShooting` | `season` (required) | `Results` | off-the-dribble shooting test output | Use when movement shooting is the evaluation focus |
+| `DraftCombinePlayerAnthro` | `season` (required) | `Results` | `height_wo_shoes`, `height_w_shoes`, `weight`, `wingspan`, `standing_reach`, `body_fat_pct`, `hand_length`, `hand_width` | Best for measurement-only comparisons or size filters |
 
-Overall draft combine statistics including measurements and athletic testing.
+## Route cues
 
-- **Result sets**: `DraftCombineStats`
-- **Parameters**: `season` (required)
-- **Key columns**: `player_id`, `first_name`, `last_name`, `position`, `height_wo_shoes`, `height_w_shoes`, `weight`, `wingspan`, `standing_reach`, `body_fat_pct`, `hand_length`, `hand_width`
+- Use **`DraftBoard`** for one class and **`DraftHistory`** for multi-era research.
+- Treat the combine endpoints as a **packet**: broad overview first, then the drill or shooting page that matches the scouting question.
+- Jump out to player or team pages once the question shifts from prospect inputs to NBA outcomes.
 
-## DraftCombineDrillResults
+<CourtDivider label="Next assignment" />
 
-Athletic drill results from the combine (agility, sprint, bench press).
+## Next steps from the draft room
 
-- **Result sets**: `Results`
-- **Parameters**: `season` (required)
-- **Key columns**: `standing_vertical_leap`, `max_vertical_leap`, `lane_agility_time`, `three_quarter_sprint`, `bench_press`
-
-## DraftCombineSpotShooting
-
-Spot-up shooting results from the combine.
-
-- **Result sets**: `Results`
-- **Parameters**: `season` (required)
-
-## DraftCombineNonStationaryShooting
-
-Off-the-dribble shooting results from the combine.
-
-- **Result sets**: `Results`
-- **Parameters**: `season` (required)
-
-## DraftCombinePlayerAnthro
-
-Detailed anthropometric measurements from the combine.
-
-- **Result sets**: `Results`
-- **Parameters**: `season` (required)
-- **Key columns**: `height_wo_shoes`, `height_w_shoes`, `weight`, `wingspan`, `standing_reach`, `body_fat_pct`, `hand_length`, `hand_width`
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Follow prospects into NBA careers" label="Next stop">
+    Continue to <a href="/docs/endpoints/player-stats">Player Stats</a> when draft outcomes
+    need to turn into active-player bios, career arcs, awards, and year-over-year dashboards.
+  </ScoutCard>
+  <ScoutCard title="See the franchise landing spot" label="Next stop">
+    Use <a href="/docs/endpoints/team-stats">Team Stats</a> to connect draft classes back to
+    team rosters, front offices, and franchise history.
+  </ScoutCard>
+  <ScoutCard title="Benchmark a class against the wider season" label="Next stop">
+    Jump to <a href="/docs/endpoints/league-stats">League Stats</a> when a pick, combine line,
+    or draft board question turns into league-wide performance comparison after the season starts.
+  </ScoutCard>
+</div>

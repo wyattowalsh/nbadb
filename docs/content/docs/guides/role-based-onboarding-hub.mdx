@@ -1,42 +1,139 @@
 ---
 title: Role-Based Onboarding Hub
-description: Fast onboarding paths for contributors, end users, data engineers, and stakeholders.
+description: Coaching-staff hub for choosing the right nbadb route by role, task, and first command.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 # Role-Based Onboarding Hub
 
-Use the path below that matches your role. Each path is optimized for getting value quickly while using the new health, quality, coverage, and docs artifacts.
+Welcome to the **coaching staff room** for nbadb. Use this page to pick your role, run the opening drill, and get onto the right page before you burn time wandering the whole playbook.
 
-## Onboarding Paths
+## Quick route board
 
-| Role | Start here | Next steps |
-|---|---|---|
-| Contributor / Maintainer | [Installation](/docs/installation) + [CLI Reference](/docs/cli-reference) | Enable pre-commit, run lint/type/tests, use `nbadb docs-autogen`, review [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
-| End User / Analyst | [Getting Started](/docs) + [DuckDB Queries](/docs/guides/duckdb-queries) | Use `nbadb download`, query DuckDB/Parquet, then use [Player Comparison](/docs/guides/player-comparison) and [Shot Chart Analysis](/docs/guides/shot-chart-analysis) |
-| Data Engineer / Operator | [Daily Updates](/docs/guides/daily-updates) + [CLI Reference](/docs/cli-reference) | Automate daily/monthly workflows, monitor dependency and quality artifacts, run endpoint coverage and docs autogen jobs |
-| Stakeholder / Program Owner | [Architecture](/docs/architecture) + [Schema Index](/docs/schema) | Track health/quality/coverage artifacts, review strategic rollout scaffold, monitor release and update cadence |
+| Role | First read | First command | Next stop |
+| ---- | ---------- | ------------- | --------- |
+| Contributor | [Installation](/docs/installation) | `uv sync --extra dev` | [CLI Reference](/docs/cli-reference) |
+| Analyst | [Getting Started](/docs) | `nbadb download` or open `nba.duckdb` | [Analytics Quickstart](/docs/guides/analytics-quickstart) |
+| Data engineer | [Daily Updates](/docs/guides/daily-updates) | `nbadb daily` | [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
+| Stakeholder | [Architecture](/docs/architecture) | `nbadb schema` | [Schema Reference](/docs/schema) |
 
-## Contributor / Maintainer Checklist
+<Callout type="info">
+If you are not sure where to begin, start with the row that matches the job you need done **today**, not the title on your org chart.
+</Callout>
 
-1. Install dev environment (`uv sync --extra dev`).
-2. Run local guardrails:
-   - `uv run ruff check src/ tests/`
-   - `uv run ty check src/`
-   - `uv run pytest tests/unit`
-3. Regenerate docs artifacts when schemas change:
-   - `uv run nbadb docs-autogen --docs-root docs/content/docs`
-4. Use [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) when CI artifact jobs fail.
+## Pick your lane
 
-## Data Engineer / Operator Checklist
+Each tab gives you the same scan path:
 
-1. Run recurring pipeline tasks (`daily`, `monthly`, `export`, `upload`).
-2. Monitor generated artifacts:
-   - `artifacts/health/daily/dependency-inventory.json`
-   - `artifacts/health/daily/data-quality-report.json`
-   - `artifacts/endpoint-coverage/*`
-3. Investigate drift/failures via [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook).
-4. Keep docs/schema artifacts in sync with `docs-autogen`.
+1. **Run first** to get moving
+2. **Open next** so you land on the right follow-up page
+3. **Watch for** so the common misses do not cost a second possession
 
-## Strategic Rollout Context
+<Tabs items={["Contributor", "Analyst", "Data Engineer", "Stakeholder"]}>
+  <Tab value="Contributor">
+    **Primary route:** [Installation](/docs/installation) → [CLI Reference](/docs/cli-reference) → [Architecture](/docs/architecture)
 
-For planned deeper migrations (without changing current runtime behavior), see [Strategic Shift Rollout Scaffolding](/docs/guides/strategic-shift-rollout).
+    ### Run first
+
+    1. Set up the repo-local environment:
+       ```bash
+       uv sync --extra dev
+       ```
+    2. Keep the current command surface nearby in [CLI Reference](/docs/cli-reference).
+    3. Read [Architecture](/docs/architecture) before changing pipeline flow, table families, or generated docs.
+
+    ### Open next
+
+    | Route | Why |
+    | ----- | --- |
+    | [Schema Reference](/docs/schema) | Understand output naming and table families |
+    | [Data Lineage](/docs/lineage/table-lineage) | Trace a transform back upstream |
+    | `uv run nbadb docs-autogen --docs-root docs/content/docs` | Regenerate generator-owned docs after schema changes |
+
+    ### Watch for
+
+    - Generator-owned docs should be regenerated, not hand-edited.
+    - Underscore-prefixed pipeline tables are internal operational state, not part of the public analytical contract.
+    - If CI or artifacts fail, jump to the [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook).
+  </Tab>
+
+  <Tab value="Analyst">
+    **Primary route:** [Getting Started](/docs) → [Analytics Quickstart](/docs/guides/analytics-quickstart) → [DuckDB Query Examples](/docs/guides/duckdb-queries)
+
+    ### Run first
+
+    1. Seed a local dataset:
+       ```bash
+       nbadb download
+       ```
+       or use an existing `nba.duckdb` / Parquet export.
+    2. Start with `analytics_*` surfaces for the fastest first query.
+    3. Move into the table-level docs only after you know the question you want to answer.
+
+    ### Open next
+
+    | Route | Why |
+    | ----- | --- |
+    | [DuckDB Query Examples](/docs/guides/duckdb-queries) | SQL-first scouting packet |
+    | [Player Comparison](/docs/guides/player-comparison) | Head-to-head analysis patterns |
+    | [Shot Chart Analysis](/docs/guides/shot-chart-analysis) | Court-map and zone work |
+    | [Parquet Usage](/docs/guides/parquet-usage) | Polars, Pandas, and Arrow workflows |
+
+    ### Watch for
+
+    - Keep `season_year` and `season_type` explicit so repeated analysis stays comparable.
+    - DuckDB is the fastest first possession for joins; Parquet is the cleaner handoff when the rest of the workflow is DataFrame-first.
+  </Tab>
+
+  <Tab value="Data Engineer">
+    **Primary route:** [Daily Updates](/docs/guides/daily-updates) → [CLI Reference](/docs/cli-reference) → [Kaggle Setup](/docs/guides/kaggle-setup)
+
+    ### Run first
+
+    1. Review what each run mode actually does: `daily`, `monthly`, `full`, `status`, `run-quality`.
+    2. Confirm your data directory and output expectations.
+    3. Keep the latest health artifacts in view:
+       - `artifacts/health/daily/dependency-inventory.json`
+       - `artifacts/health/daily/data-quality-report.json`
+       - `artifacts/endpoint-coverage/*`
+
+    ### Open next
+
+    | Route | Why |
+    | ----- | --- |
+    | [Pipeline Flow](/docs/diagrams/pipeline-flow) | Share a stage map quickly |
+    | [Architecture](/docs/architecture) | Review validation tiers, internal state, and run-mode boundaries |
+    | [Kaggle Setup](/docs/guides/kaggle-setup) | Handle dataset handoff and publish flow |
+
+    ### Watch for
+
+    - `daily`, `monthly`, and `full` end by rebuilding downstream tables in `replace` mode.
+    - A single `Ctrl+C` is the graceful stop; a second interrupt forces exit.
+    - When something breaks, start with the exact artifact or command named in the failure message.
+  </Tab>
+
+  <Tab value="Stakeholder">
+    **Primary route:** [Architecture](/docs/architecture) → [Schema Reference](/docs/schema) → [ER Diagram](/docs/diagrams/er-diagram)
+
+    ### Run first
+
+    1. Read [Architecture](/docs/architecture) for the source-to-export story.
+    2. Scan [Schema Reference](/docs/schema) to understand what the public dataset actually contains.
+    3. Review [Kaggle Setup](/docs/guides/kaggle-setup) when the conversation shifts to distribution and delivery.
+
+    ### Open next
+
+    | Route | Why |
+    | ----- | --- |
+    | [ER Diagram](/docs/diagrams/er-diagram) | Fast visual schema read |
+    | [Endpoint Map](/docs/diagrams/endpoint-map) | Source-coverage conversations |
+    | [Strategic Shift Rollout](/docs/guides/strategic-shift-rollout) | Planned migration sequencing |
+
+    ### Watch for
+
+    - The public analytical contract is the star/analytics surface, not the underscore-prefixed internal pipeline tables.
+    - Use this hub as the handoff page for new teammates entering the rotation.
+  </Tab>
+</Tabs>

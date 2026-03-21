@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward research versions",
+  "files": [
+    "apps/docs/astro.config.mjs",
+    "docs/mkdocs.yml",
+    "package.json",
+    "skills/docs-steward/references/version-refresh.md"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Research mode",
+    "Agent refreshes latest stable versions from registry-backed sources",
+    "Agent updates version snapshot references before claiming latest guidance",
+    "Agent reports sources, date, and potential breaking-change risks"
+  ]
+}

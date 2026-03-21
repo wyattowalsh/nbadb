@@ -373,3 +373,88 @@ class DataQualityMonitor:
                 logger.info(f"  {layer.value}: {len(ls) - failed}/{len(ls)} passed")
         for r in self.failed():
             logger.warning(f"  FAIL [{r.layer.value}] {r.message}")
+
+    # -- Quality gate for staging → transform ---------------------------------
+
+    def run_staging_gate(
+        self,
+        *,
+        min_tables: int = 1,
+        warn_empty: bool = True,
+        fail_on_empty_critical: bool = False,
+        critical_tables: set[str] | None = None,
+    ) -> bool:
+        """Validate staging layer readiness before transform phase.
+
+        Queries DuckDB for all ``stg_*`` tables and runs structural checks:
+        - Total staging table count ≥ *min_tables*
+        - Warns (or fails) on empty staging tables
+        - Checks that critical tables have at least 1 row
+
+        Returns True if the gate passes, False otherwise.
+        """
+        critical = critical_tables or set()
+        try:
+            rows = self.conn.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'main' AND table_name LIKE 'stg_%'"
+            ).fetchall()
+        except Exception as exc:
+            logger.error("staging gate: failed to list tables: {}", type(exc).__name__)
+            return False
+
+        stg_tables = sorted(r[0] for r in rows)
+
+        if len(stg_tables) < min_tables:
+            self.results.append(
+                QualityResult(
+                    table="_staging_gate",
+                    check_type="staging_gate",
+                    layer=CheckLayer.STRUCTURAL,
+                    passed=False,
+                    message=f"Only {len(stg_tables)} staging tables (need ≥{min_tables})",
+                )
+            )
+            return False
+
+        gate_passed = True
+        for table in stg_tables:
+            try:
+                row = self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # noqa: S608
+                count = row[0] if row else 0
+            except Exception:
+                count = -1
+
+            if count == 0:
+                is_critical = table in critical
+                level = "FAIL" if (is_critical and fail_on_empty_critical) else "WARN"
+                if is_critical and fail_on_empty_critical:
+                    gate_passed = False
+                if warn_empty or is_critical:
+                    self.results.append(
+                        QualityResult(
+                            table=table,
+                            check_type="staging_empty",
+                            layer=CheckLayer.STRUCTURAL,
+                            passed=level != "FAIL",
+                            message=f"{table}: empty staging table ({level})",
+                        )
+                    )
+                    if level == "FAIL":
+                        logger.warning("staging gate FAIL: {} is empty", table)
+                    else:
+                        logger.debug("staging gate warn: {} is empty", table)
+
+        self.results.append(
+            QualityResult(
+                table="_staging_gate",
+                check_type="staging_gate",
+                layer=CheckLayer.STRUCTURAL,
+                passed=gate_passed,
+                message=(
+                    f"Staging gate: {len(stg_tables)} tables checked, "
+                    f"{'PASS' if gate_passed else 'FAIL'}"
+                ),
+            )
+        )
+        return gate_passed

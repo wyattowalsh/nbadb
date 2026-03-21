@@ -1,34 +1,65 @@
 ---
 title: Shot Chart Analysis
-description: Visualize and analyze NBA shot chart data
+description: Practice drill for turning nbadb shot locations into reliable court maps and zone reads.
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Shot Chart Analysis
 
-The `fact_shot_chart` table contains every field goal attempt with court coordinates and zone classifications.
+Use this guide when you want to turn `fact_shot_chart` into a reliable **film-room view** of where shots came from and how efficient they were.
 
-## Data Structure
+## Pick the first question
 
-Each shot record contains:
-- **Location**: `loc_x`, `loc_y` (court coordinates, basket at 0,0)
-- **Zones**: `shot_zone_basic`, `shot_zone_area`, `shot_zone_range`
-- **Result**: `shot_made_flag`, `event_type`
-- **Context**: `period`, `minutes_remaining`, `seconds_remaining`, `shot_distance`
+| If you need… | Start here | Finish with |
+| ------------- | ---------- | ----------- |
+| A fast zone read before plotting | [Zone efficiency query](#pass-1--zone-efficiency-query) | A table you can sort by attempts or FG% |
+| A first visual sanity check | [First-pass shot chart](#pass-2--build-a-first-pass-shot-chart) | A half-court map with makes and misses |
+| Hot and cold area reads | [Efficiency heatmap](#pass-3--convert-it-into-an-efficiency-heatmap) | A location-based FG% view |
+| Range profile by distance | [Distance read](#pass-4--add-a-distance-read) | A table you can bin or chart later |
 
-## Court Coordinates
+<Callout type="info">
+Filter to one player and one season for your first pass. Get the court rendering right before you widen the sample to teams, lineups, or league-wide heatmaps.
+</Callout>
 
-The NBA court coordinate system:
-- Origin (0, 0) is at the basket
-- X ranges from -250 to 250 (left to right, in tenths of feet)
-- Y ranges from -50 to ~900 (baseline to backcourt)
-- Half court line is at Y = 470
+## Scope the possession first
 
-## Zone Efficiency Analysis
+Before plotting anything, lock in three choices:
+
+1. **Who** are you charting? One player, one team, or the whole league
+2. **When** are you charting them? A specific `season_year` and, usually, a `season_type`
+3. **What question** are you answering? Volume, efficiency, zone splits, or location clustering
+
+## What `fact_shot_chart` gives you
+
+Each shot record includes four main buckets of context:
+
+| Bucket | Useful columns |
+| ------ | -------------- |
+| Location | `loc_x`, `loc_y` |
+| Zones | `shot_zone_basic`, `shot_zone_area`, `shot_zone_range` |
+| Result | `shot_made_flag`, `event_type`, `shot_type` |
+| Game context | `period`, `minutes_remaining`, `seconds_remaining`, `shot_distance`, `game_id`, `player_id` |
+
+## Court coordinates refresher
+
+The NBA shot-coordinate frame used here is the standard half-court orientation:
+
+- Origin `(0, 0)` is at the basket
+- `loc_x` runs left to right
+- `loc_y` runs baseline toward midcourt
+- A first-pass plot usually focuses on the offensive half court rather than the full floor
+
+## Build the analysis in four passes
+
+### Pass 1 — Zone efficiency query
+
+Start here when you want the cleanest table before you touch plotting code.
 
 ```python
 import duckdb
 
-conn = duckdb.connect("nba.duckdb")
+conn = duckdb.connect("nbadb/nba.duckdb")
 
 zones = conn.sql("""
     SELECT
@@ -42,12 +73,14 @@ zones = conn.sql("""
                 WHEN sc.shot_type = '3PT Field Goal'
                 THEN 3.0 * SUM(sc.shot_made_flag) / COUNT(*)
                 ELSE 2.0 * SUM(sc.shot_made_flag) / COUNT(*)
-            END, 3
+            END,
+            3
         ) AS pts_per_attempt
     FROM fact_shot_chart sc
     JOIN dim_player p ON sc.player_id = p.player_id
     JOIN dim_game g ON sc.game_id = g.game_id
-    WHERE p.last_name = 'Curry' AND p.first_name = 'Stephen'
+    WHERE p.last_name = 'Curry'
+      AND p.first_name = 'Stephen'
       AND g.season_year = 2024
     GROUP BY 1, 2, sc.shot_type
     ORDER BY attempts DESC
@@ -56,7 +89,9 @@ zones = conn.sql("""
 print(zones)
 ```
 
-## Plotting with Matplotlib
+### Pass 2 — Build a first-pass shot chart
+
+Start here when you want to confirm the coordinate frame and basic court rendering.
 
 ```python
 import matplotlib.pyplot as plt
@@ -68,7 +103,8 @@ shots = conn.sql("""
     FROM fact_shot_chart sc
     JOIN dim_player p ON sc.player_id = p.player_id
     JOIN dim_game g ON sc.game_id = g.game_id
-    WHERE p.last_name = 'Curry' AND p.first_name = 'Stephen'
+    WHERE p.last_name = 'Curry'
+      AND p.first_name = 'Stephen'
       AND g.season_year = 2024
 """).pl()
 
@@ -77,16 +113,10 @@ fig, ax = plt.subplots(figsize=(12, 11))
 made = shots.filter(pl.col("shot_made_flag") == 1)
 missed = shots.filter(pl.col("shot_made_flag") == 0)
 
-ax.scatter(
-    missed["loc_x"], missed["loc_y"],
-    c="red", alpha=0.3, s=10, label="Missed"
-)
-ax.scatter(
-    made["loc_x"], made["loc_y"],
-    c="green", alpha=0.3, s=10, label="Made"
-)
+ax.scatter(missed["loc_x"], missed["loc_y"], c="red", alpha=0.3, s=10, label="Missed")
+ax.scatter(made["loc_x"], made["loc_y"], c="green", alpha=0.3, s=10, label="Made")
 
-# Draw court
+# Minimal half-court frame
 court = patches.Rectangle((-250, -50), 500, 520, fill=False)
 hoop = patches.Circle((0, 0), 7.5, fill=False)
 ax.add_patch(court)
@@ -100,16 +130,21 @@ ax.set_title("Stephen Curry Shot Chart 2024-25")
 plt.show()
 ```
 
-## Hexbin Heatmap
+### Pass 3 — Convert it into an efficiency heatmap
+
+Start here once the court frame looks right and you want a denser efficiency read.
 
 ```python
 fig, ax = plt.subplots(figsize=(12, 11))
 
 hb = ax.hexbin(
-    shots["loc_x"], shots["loc_y"],
+    shots["loc_x"],
+    shots["loc_y"],
     C=shots["shot_made_flag"],
     reduce_C_function=lambda x: sum(x) / len(x),
-    gridsize=25, cmap="RdYlGn", mincnt=3
+    gridsize=25,
+    cmap="RdYlGn",
+    mincnt=3,
 )
 
 plt.colorbar(hb, label="FG%")
@@ -120,7 +155,9 @@ ax.set_title("Shot Efficiency Heatmap")
 plt.show()
 ```
 
-## Distance Analysis
+### Pass 4 — Add a distance read
+
+Start here when the real question is range profile rather than just court position.
 
 ```python
 distance = conn.sql("""
@@ -137,3 +174,18 @@ distance = conn.sql("""
     ORDER BY 1
 """).pl()
 ```
+
+## Sanity checks before you trust the chart
+
+| Check | Why |
+| ----- | --- |
+| Confirm the player, season, and season type filter | Most misleading charts are really scope mistakes |
+| Join `dim_game` when you need season-level filtering | Shot tables alone do not carry every analysis filter you need |
+| Validate the coordinate frame before tuning colors | A beautiful chart on the wrong floor is still wrong |
+| Say when you mix `Regular Season` and `Playoffs` | Otherwise the read is not comparable possession-to-possession |
+
+## Related routes
+
+- [DuckDB Query Examples](/docs/guides/duckdb-queries) for more SQL patterns
+- [Parquet Usage](/docs/guides/parquet-usage) if you want to run the same drill over Parquet files
+- [Schema Reference / Facts](/docs/schema/facts) if you need to compare `fact_shot_chart` against nearby fact tables

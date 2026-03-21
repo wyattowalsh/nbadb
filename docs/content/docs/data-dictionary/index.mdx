@@ -1,46 +1,184 @@
 ---
 title: Data Dictionary
-description: Complete column-level reference and basketball analytics glossary
+description: Scorer's-table lexicon for column meanings, naming patterns, and generated field inventories
 ---
+
+import { Callout } from "fumadocs-ui/components/callout";
 
 # Data Dictionary
 
-The data dictionary provides a complete column-level reference for every table in the nbadb star schema warehouse, plus a glossary of basketball analytics terminology.
+Think of this section as the scorer's table for the warehouse: the place you go when a stat abbreviation, column suffix, or layer name looks familiar but not familiar enough.
 
-## Sections
+The split in this section is intentional. The hand-authored pages explain meaning, naming habits, and reading strategy. The generated pages answer the contract question: which exact fields exist on a given tier right now.
 
-- **[Glossary](/docs/data-dictionary/glossary)** -- basketball analytics terms with definitions and formulas (TS%, eFG%, PIE, PACE, etc.)
-- **[Field Reference](/docs/data-dictionary/field-reference)** -- every column in every table, organized by layer (dimensions, facts, bridges, derived, views)
+<div className="grid gap-3 md:grid-cols-3">
+  <StatPill
+    label="Best first read"
+    value="Curated"
+    note="start with the glossary or field reference before diving into generated inventories"
+  />
+  <StatPill
+    label="Command-owned pages"
+    value="3"
+    note="raw, staging, and star field inventories are generated from schema metadata"
+  />
+  <StatPill
+    label="Core question"
+    value="Meaning + owner"
+    note="what does this field mean, and which tier owns it?"
+  />
+</div>
 
-## Organization
+<Callout type="info">
+Use the curated pages for interpretation and navigation. Use the generated tier pages when you need the exact field inventory for a specific schema-backed layer. If you are deciding <em>what a field means</em>, start curated. If you are checking <em>whether a field exists</em>, go generated.
+</Callout>
 
-The warehouse follows a layered naming convention:
+<CourtDivider label="Start at the scorer's table" />
 
-| Prefix | Layer | Example |
-|--------|-------|---------|
-| `dim_` | Dimension | dim_player, dim_team, dim_game |
-| `fact_` | Fact | fact_box_score_player, fact_shot_chart |
-| `bridge_` | Bridge | bridge_game_official, bridge_play_player |
-| `derived_` | Derived aggregation | derived_player_season, derived_team_season |
-| `view_` | Analytics view | view_player_game_complete |
+## Start by question
 
-## Column Naming Conventions
+If you only have one minute, pick the lane first and the page second.
 
-- **Primary keys**: `<entity>_id` (e.g., `player_id`, `game_id`)
-- **Surrogate keys**: `<entity>_sk` for SCD2 dimensions (e.g., `player_sk`)
-- **Foreign keys**: Same name as the referenced primary key
-- **Percentages**: `_pct` suffix (e.g., `fg_pct`, `ts_pct`) -- stored as 0.0-1.0
-- **Per-game averages**: `_pg` suffix (e.g., `pts_pg`, `reb_pg`)
-- **Rolling windows**: `_Ng` suffix where N is the window size (e.g., `pts_5g`, `pts_10g`)
-- **Flags**: `is_` prefix for booleans (e.g., `is_active`, `is_current`)
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="Decode a metric, acronym, or formula" label="Curated quick route">
+    Start with <a href="/docs/data-dictionary/glossary">Glossary</a> when the question is about
+    basketball shorthand such as <code>TS%</code>, <code>PIE</code>, <code>PPP</code>, or box-score abbreviations.
+  </ScoutCard>
+  <ScoutCard title="Read a dense schema page faster" label="Curated quick route">
+    Open <a href="/docs/data-dictionary/field-reference">Field Reference</a> when the question is
+    really about field patterns: keys, suffixes, home/visitor labels, rating names, or discriminator columns.
+  </ScoutCard>
+  <ScoutCard title="Verify raw-layer field names" label="Generated quick route">
+    Use <a href="/docs/data-dictionary/raw">Raw</a> for endpoint-shaped field inventories closest to
+    source naming and payload structure.
+  </ScoutCard>
+  <ScoutCard title="Verify normalized staging columns" label="Generated quick route">
+    Use <a href="/docs/data-dictionary/staging">Staging</a> when you need the cleaned, typed,
+    warehouse-ready field list feeding transforms.
+  </ScoutCard>
+  <ScoutCard title="Verify public warehouse columns" label="Generated quick route">
+    Use <a href="/docs/data-dictionary/star">Star</a> for the final schema-backed surface exposed to
+    analysis across dimensions, facts, bridges, aggregates, and analytics outputs.
+  </ScoutCard>
+  <ScoutCard title="Need the shortest possible route?" label="2am path">
+    If you do not know where to start, check <a href="/docs/data-dictionary/glossary">Glossary</a>{" "}
+    for meaning, <a href="/docs/data-dictionary/field-reference">Field Reference</a> for patterns,
+    then drop into the generated tier page that matches the layer you are touching.
+  </ScoutCard>
+</div>
 
-## Generation
+## Fast path by situation
 
-The field reference can be regenerated from Pandera schema definitions:
+<DataColumns>
+  <InsightCard title="You have a term, not a table">
+    Open <a href="/docs/data-dictionary/glossary">Glossary</a>. It answers the reading question:
+    what does this stat, acronym, or basketball shorthand usually mean?
+  </InsightCard>
+  <InsightCard title="You have a column, not a definition">
+    Open <a href="/docs/data-dictionary/field-reference">Field Reference</a>. It answers the
+    structural question: how should this name behave across joins, grains, suffixes, and row types?
+  </InsightCard>
+  <InsightCard title="You need the exact contract">
+    Open the generated <a href="/docs/data-dictionary/raw">Raw</a>,{" "}
+    <a href="/docs/data-dictionary/staging">Staging</a>, or{" "}
+    <a href="/docs/data-dictionary/star">Star</a> page. Those pages answer the inventory question:
+    is this field present on this tier right now?
+  </InsightCard>
+</DataColumns>
+
+## Choose the right lookup sheet
+
+| If you need to answer... | Start here | Why |
+| ------------------------ | ---------- | --- |
+| What does this metric or shorthand mean? | [Glossary](/docs/data-dictionary/glossary) | It decodes basketball analytics terms, formulas, and common abbreviations |
+| How should I read key names, suffixes, and recurring column patterns? | [Field Reference](/docs/data-dictionary/field-reference) | It explains the warehouse's high-signal field families and naming habits |
+| Which exact fields exist in the raw tier? | [Raw](/docs/data-dictionary/raw) | Generated inventory for extraction-shaped schemas |
+| Which exact fields exist after normalization? | [Staging](/docs/data-dictionary/staging) | Generated inventory for DuckDB-ready staging schemas |
+| Which exact fields exist on the public schema-backed surface? | [Star](/docs/data-dictionary/star) | Generated inventory for final star-tier schemas |
+
+## Curated pages vs generated pages
+
+### Curated pages: how to read the warehouse
+
+These are the hand-authored pages in this section:
+
+- [Glossary](/docs/data-dictionary/glossary) for metric meaning, formulas, and stat-family shorthand
+- [Field Reference](/docs/data-dictionary/field-reference) for keys, suffixes, role labels, and discriminator columns
+- this index page for route-finding, section boundaries, and maintenance expectations
+
+### Generated pages: what the schema exposes
+
+These are the command-owned pages in this section:
+
+- [Raw](/docs/data-dictionary/raw) for source-shaped extraction fields
+- [Staging](/docs/data-dictionary/staging) for cleaned, typed normalization fields
+- [Star](/docs/data-dictionary/star) for the final analytics-facing surface
+
+<DataColumns>
+  <InsightCard title="Curated pages own interpretation">
+    Keep the index, glossary, and field reference hand-authored. They explain intent, naming
+    habits, common traps, and how to read the generated inventories without overfitting to one
+    table.
+  </InsightCard>
+  <InsightCard title="Generated pages own inventory">
+    Treat <a href="/docs/data-dictionary/raw">Raw</a>,{" "}
+    <a href="/docs/data-dictionary/staging">Staging</a>, and{" "}
+    <a href="/docs/data-dictionary/star">Star</a> as command-owned snapshots. When schemas change,
+    regenerate them instead of hand-editing dense field blocks in place.
+  </InsightCard>
+</DataColumns>
+
+<CourtDivider label="Read the layer labels" />
+
+## Layer and prefix guide
+
+| Prefix | Layer | Example | What it usually means |
+| ------ | ----- | ------- | --------------------- |
+| `raw_` | Raw schema/reference object | `raw_boxscoretraditionalv3` | Endpoint-shaped payload contract closest to source naming |
+| `stg_` | DuckDB staging target | `stg_boxscoretraditionalv3__player_stats` | Cleaned, typed, warehouse-ready input layer |
+| `dim_` | Dimension | `dim_player`, `dim_team`, `dim_game` | Context and controlled vocabulary around the facts |
+| `fact_` | Fact | `fact_play_by_play`, `fact_team_game` | Measured events, game lines, dashboards, or specialty outputs |
+| `bridge_` | Bridge | `bridge_game_official`, `bridge_play_player` | Many-to-many helper that prevents repeated columns or duplicate joins |
+| `agg_` | Aggregate | `agg_player_season`, `agg_team_season` | Reusable rollups for common analytical questions |
+| `analytics_` | Analytics view/table | `analytics_player_game_complete` | Pre-joined shortcut for everyday analyst workflows |
+
+## Column naming conventions
+
+### The short version
+
+- **Business keys**: `<entity>_id` such as `player_id`, `team_id`, and `game_id`
+- **History-aware surrogate keys**: `<entity>_sk` where SCD Type 2 handling matters
+- **Percentages and rates**: `_pct` suffix for decimal percentages, plus names like `pace`, `pie`, or `ppp` for established metrics
+- **Aggregations**: `total_` for totals, `avg_` for averages, `_rank` for rank fields, and rolling-window names such as `pts_roll5`
+- **Flags**: `is_` prefixes for booleans like `is_current` and `is_weekend`
+- **Context labels**: discriminator columns such as `split_type`, `detail_type`, `summary_type`, and `tracking_type` often define the meaning of a row
+
+### The 2am reading order
+
+1. Find the grain anchor: `player_id`, `team_id`, `game_id`, `season_year`, or lineup/group keys.
+2. Check the row-type columns: `split_type`, `detail_type`, `summary_type`, `tracking_type`, or similar.
+3. Only then read the measures: percentages, totals, ratings, ranks, and rolling windows.
+
+<CourtDivider label="Command-owned inventories" />
+
+## Generated pages
+
+The generated tier pages in this section come from schema metadata and should be refreshed with:
 
 ```bash
-uv run nbadb docs-autogen
-# or: uv run python -m nbadb.docs_gen
+uv run nbadb docs-autogen --docs-root docs/content/docs
 ```
 
-This introspects `pa.Field()` metadata (description, fk_ref, constraints) to produce the field reference automatically.
+That command regenerates:
+
+- `data-dictionary/raw.mdx`
+- `data-dictionary/staging.mdx`
+- `data-dictionary/star.mdx`
+
+It also refreshes the matching schema reference pages plus ER and lineage artifacts. Keep this index, the glossary, and the field reference hand-authored; treat the generated tier pages as command-owned outputs with a different job and a different maintenance path.
+
+## Related docs
+
+- [Schema Reference](/docs/schema)
+- [Relationships](/docs/schema/relationships)
+- [Lineage](/docs/lineage)

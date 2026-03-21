@@ -57,6 +57,8 @@ def _make_settings(**overrides):
     s.adaptive_rate_recovery = 50
     s.extract_max_retries = 0  # disable retries in unit tests by default
     s.extract_retry_base_delay = 0.0
+    s.circuit_breaker_threshold = 5
+    s.latency_window_size = 10
     for k, v in overrides.items():
         setattr(s, k, v)
     return s
@@ -447,3 +449,173 @@ class TestAdaptiveThrottleIntegration:
             await runner._extract_single(entry, {"season": "2024-25"})
 
         assert runner._adaptive.current_rate > low_rate
+
+
+# ---------------------------------------------------------------------------
+# _drive_coroutine tests
+# ---------------------------------------------------------------------------
+
+
+class TestDriveCoroutine:
+    def test_sync_coroutine_returns_value(self):
+        from nbadb.orchestrate.extractor_runner import _drive_coroutine
+
+        async def _coro():
+            return 42
+
+        assert _drive_coroutine(_coro()) == 42
+
+    def test_raises_on_real_async(self):
+        import asyncio
+
+        from nbadb.orchestrate.extractor_runner import _drive_coroutine
+
+        async def _coro():
+            await asyncio.sleep(0)
+            return 42
+
+        with pytest.raises(RuntimeError, match="yielded unexpectedly"):
+            _drive_coroutine(_coro())
+
+
+# ---------------------------------------------------------------------------
+# _sync_extract / _sync_extract_all tests
+# ---------------------------------------------------------------------------
+
+
+class TestSyncExtract:
+    def test_basic_call(self):
+        from nbadb.orchestrate.extractor_runner import _sync_extract
+
+        class _Ext:
+            async def extract(self, **kw):
+                return pl.DataFrame({"x": [1]})
+
+        result = _sync_extract(_Ext())
+        assert result.shape == (1, 1)
+
+    def test_passes_kwargs(self):
+        from nbadb.orchestrate.extractor_runner import _sync_extract
+
+        class _Ext:
+            async def extract(self, **kw):
+                return pl.DataFrame({"season": [kw["season"]]})
+
+        result = _sync_extract(_Ext(), season="2024-25")
+        assert result["season"][0] == "2024-25"
+
+
+class TestSyncExtractAll:
+    def test_basic_call(self):
+        from nbadb.orchestrate.extractor_runner import _sync_extract_all
+
+        class _Ext:
+            async def extract_all(self, **kw):
+                return [pl.DataFrame({"x": [1]}), pl.DataFrame({"y": [2]})]
+
+        result = _sync_extract_all(_Ext())
+        assert len(result) == 2
+        assert result[0].shape == (1, 1)
+
+
+# ---------------------------------------------------------------------------
+# _is_retryable tests
+# ---------------------------------------------------------------------------
+
+
+class TestIsRetryable:
+    @pytest.mark.parametrize(
+        "exc_type",
+        [ConnectionError, ConnectionResetError, TypeError, KeyError, IndexError],
+    )
+    def test_retryable_exceptions(self, exc_type):
+        assert ExtractorRunner._is_retryable(exc_type("msg")) is True
+
+    def test_non_retryable_exception(self):
+        assert ExtractorRunner._is_retryable(ValueError("msg")) is False
+
+    def test_json_decode_error(self):
+        import json
+
+        exc = json.JSONDecodeError("msg", "doc", 0)
+        assert ExtractorRunner._is_retryable(exc) is True
+
+
+# ---------------------------------------------------------------------------
+# _collect_results tests
+# ---------------------------------------------------------------------------
+
+
+class TestCollectResults:
+    def test_base_exception_logged(self):
+        accum = {"k": []}
+        ExtractorRunner._collect_results([RuntimeError("boom")], accum, None)
+        assert accum["k"] == []
+
+    def test_none_skipped(self):
+        accum = {"k": []}
+        ExtractorRunner._collect_results([None], accum, None)
+        assert accum["k"] == []
+
+    def test_dict_result_merged(self):
+        df = pl.DataFrame({"a": [1]})
+        accum = {"k": []}
+        ExtractorRunner._collect_results([{"k": df}], accum, None)
+        assert len(accum["k"]) == 1
+
+    def test_unexpected_type_logged(self):
+        accum = {"k": []}
+        ExtractorRunner._collect_results(["unexpected_string"], accum, None)
+        assert accum["k"] == []
+
+    def test_empty_df_not_added(self):
+        accum = {"k": []}
+        ExtractorRunner._collect_results([{"k": pl.DataFrame()}], accum, None)
+        assert accum["k"] == []
+
+    def test_progress_called_on_exception(self):
+        accum = {"k": []}
+        progress = MagicMock()
+        ExtractorRunner._collect_results([RuntimeError("boom")], accum, progress)
+        progress.advance_pattern.assert_called_once_with(success=False)
+
+    def test_progress_called_on_success(self):
+        df = pl.DataFrame({"a": [1]})
+        accum = {"k": []}
+        progress = MagicMock()
+        ExtractorRunner._collect_results([{"k": df}], accum, progress)
+        progress.advance_pattern.assert_called_once_with(success=True)
+
+    def test_progress_called_on_unexpected_type(self):
+        accum = {"k": []}
+        progress = MagicMock()
+        ExtractorRunner._collect_results(["bad"], accum, progress)
+        progress.advance_pattern.assert_called_once_with(success=False)
+
+
+# ---------------------------------------------------------------------------
+# _concat_accum tests
+# ---------------------------------------------------------------------------
+
+
+class TestConcatAccum:
+    def test_empty_list_excluded(self):
+        result = ExtractorRunner._concat_accum({"k": []})
+        assert "k" not in result
+
+    def test_single_frame(self):
+        df = pl.DataFrame({"a": [1, 2]})
+        result = ExtractorRunner._concat_accum({"k": [df]})
+        assert result["k"].shape[0] == 2
+
+    def test_multiple_frames(self):
+        df1 = pl.DataFrame({"a": [1]})
+        df2 = pl.DataFrame({"a": [2]})
+        result = ExtractorRunner._concat_accum({"k": [df1, df2]})
+        assert result["k"].shape[0] == 2
+
+    def test_schema_drift_diagonal(self):
+        df1 = pl.DataFrame({"a": [1], "b": [2]})
+        df2 = pl.DataFrame({"a": [3], "c": [4]})
+        result = ExtractorRunner._concat_accum({"k": [df1, df2]})
+        assert set(result["k"].columns) == {"a", "b", "c"}

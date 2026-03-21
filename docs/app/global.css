@@ -1,2 +1,940 @@
 @import "tailwindcss";
 @import "fumadocs-ui/style.css";
+@import "fumadocs-ui/css/shadcn.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: oklch(0.988 0.004 90);
+  --foreground: oklch(0.24 0.018 258);
+  --muted: oklch(0.965 0.006 88);
+  --muted-foreground: oklch(0.51 0.025 255);
+  --popover: oklch(0.994 0.003 90);
+  --popover-foreground: oklch(0.24 0.018 258);
+  --card: oklch(0.994 0.003 90);
+  --card-foreground: oklch(0.24 0.018 258);
+  --border: oklch(0.89 0.014 84);
+  --input: oklch(0.89 0.014 84);
+  --primary: oklch(0.62 0.17 66);
+  --primary-foreground: oklch(0.985 0.004 90);
+  --secondary: oklch(0.93 0.028 255);
+  --secondary-foreground: oklch(0.22 0.018 258);
+  --accent: oklch(0.74 0.14 248);
+  --accent-foreground: oklch(0.988 0.004 90);
+  --ring: oklch(0.69 0.16 66);
+  --destructive: oklch(0.63 0.24 28);
+  --sidebar: oklch(0.978 0.005 90);
+  --sidebar-foreground: oklch(0.24 0.018 258);
+  --sidebar-border: oklch(0.89 0.014 84);
+  --sidebar-accent: oklch(0.94 0.016 255);
+  --sidebar-accent-foreground: oklch(0.22 0.018 258);
+  --sidebar-primary-foreground: oklch(0.985 0.004 90);
+  --sidebar-ring: oklch(0.69 0.16 66);
+  --radius: 1.2rem;
+  --nba-grid-line: color-mix(in oklab, var(--accent) 18%, transparent);
+  --nba-glow: color-mix(in oklab, var(--primary) 22%, transparent);
+  --nba-court-line: color-mix(in oklab, var(--primary) 20%, transparent);
+  --nba-score-strip: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --nba-spotlight: color-mix(in oklab, var(--accent) 20%, transparent);
+  --nba-stage-shadow: 0 28px 76px -42px
+    color-mix(in oklab, var(--foreground) 42%, transparent);
+}
+
+.dark {
+  --background: oklch(0.15 0.012 255);
+  --foreground: oklch(0.965 0.006 88);
+  --muted: oklch(0.205 0.012 255);
+  --muted-foreground: oklch(0.77 0.014 82);
+  --popover: oklch(0.18 0.012 255);
+  --popover-foreground: oklch(0.965 0.006 88);
+  --card: oklch(0.18 0.012 255);
+  --card-foreground: oklch(0.965 0.006 88);
+  --border: oklch(0.3 0.018 250 / 0.72);
+  --input: oklch(0.3 0.018 250 / 0.72);
+  --primary: oklch(0.77 0.16 67);
+  --primary-foreground: oklch(0.15 0.012 255);
+  --secondary: oklch(0.28 0.03 251);
+  --secondary-foreground: oklch(0.965 0.006 88);
+  --accent: oklch(0.69 0.11 230);
+  --accent-foreground: oklch(0.975 0.005 90);
+  --ring: oklch(0.78 0.16 67);
+  --destructive: oklch(0.68 0.22 28);
+  --sidebar: oklch(0.17 0.012 255);
+  --sidebar-foreground: oklch(0.965 0.006 88);
+  --sidebar-border: oklch(0.3 0.018 250 / 0.68);
+  --sidebar-accent: oklch(0.235 0.016 252);
+  --sidebar-accent-foreground: oklch(0.965 0.006 88);
+  --sidebar-primary-foreground: oklch(0.15 0.012 255);
+  --sidebar-ring: oklch(0.78 0.16 67);
+  --nba-grid-line: color-mix(in oklab, var(--accent) 16%, transparent);
+  --nba-glow: color-mix(in oklab, var(--primary) 26%, transparent);
+  --nba-court-line: color-mix(in oklab, var(--primary) 18%, transparent);
+  --nba-score-strip: color-mix(in oklab, var(--foreground) 7%, transparent);
+  --nba-spotlight: color-mix(in oklab, var(--accent) 14%, transparent);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --font-sans: var(--font-sans-var);
+  --font-display: var(--font-display-var);
+  --font-mono: var(--font-mono-var);
+  --radius-xl: 1.5rem;
+  --shadow-arena: 0 24px 54px -34px
+    color-mix(in oklab, var(--foreground) 42%, transparent);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--border) 72%, transparent),
+    0 24px 70px -38px var(--nba-glow);
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  position: relative;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background:
+    radial-gradient(circle at 50% -12%, var(--nba-spotlight), transparent 34%),
+    radial-gradient(
+      circle at top left,
+      color-mix(in oklab, var(--accent) 18%, transparent),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklab, var(--primary) 18%, transparent),
+      transparent 26%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--background) 94%, white) 0%,
+      var(--background) 100%
+    );
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  opacity: 0.12;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      var(--nba-grid-line) calc(100% - 1px)
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      var(--nba-grid-line) calc(100% - 1px)
+    );
+  background-size: 88px 88px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 84%);
+}
+
+body::after {
+  opacity: 0.28;
+  background:
+    radial-gradient(circle at 50% -10%, var(--nba-court-line), transparent 34%),
+    radial-gradient(circle at 50% 14%, var(--nba-court-line), transparent 16%),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--foreground) 4%, transparent),
+      transparent 22%
+    );
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent 58%);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--primary) 34%, transparent);
+  color: var(--foreground);
+}
+
+a,
+button,
+[role="button"] {
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+a {
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--border) 90%, transparent);
+  background: color-mix(in oklab, var(--background) 84%, transparent);
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--foreground);
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--foreground) 7%, transparent);
+}
+
+#nd-sidebar {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--sidebar) 96%, white),
+    var(--sidebar)
+  );
+  box-shadow:
+    inset -1px 0 0 color-mix(in oklab, var(--sidebar-border) 88%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--sidebar-border) 28%, transparent);
+}
+
+#nd-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--primary) 9%, transparent),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklab, var(--accent) 12%, transparent),
+      transparent 38%
+    );
+}
+
+#nd-subnav {
+  border-color: color-mix(in oklab, var(--border) 82%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.nba-home-shell,
+.nba-docs-layout,
+.nba-docs-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.nba-reveal {
+  opacity: 0;
+  animation: nba-fade-up 720ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.nba-delay-1 {
+  animation-delay: 90ms;
+}
+
+.nba-delay-2 {
+  animation-delay: 180ms;
+}
+
+.nba-delay-3 {
+  animation-delay: 270ms;
+}
+
+.nba-home-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2.4rem;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background:
+    linear-gradient(
+      155deg,
+      color-mix(in oklab, var(--background) 92%, white),
+      var(--card)
+    ),
+    radial-gradient(circle at top right, var(--nba-spotlight), transparent 28%);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: var(--nba-stage-shadow);
+}
+
+.dark .nba-home-hero {
+  background:
+    linear-gradient(
+      155deg,
+      color-mix(in oklab, var(--card) 92%, black),
+      var(--card)
+    ),
+    radial-gradient(circle at top right, var(--nba-spotlight), transparent 28%);
+}
+
+.nba-home-hero::before,
+.nba-home-hero::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.nba-home-hero::before {
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      color-mix(in oklab, var(--accent) 14%, transparent) calc(100% - 1px)
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      color-mix(in oklab, var(--accent) 14%, transparent) calc(100% - 1px)
+    );
+  background-size: 88px 88px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 78%);
+  opacity: 0.22;
+}
+
+.nba-home-hero::after {
+  inset: -10% auto auto 52%;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, var(--nba-glow), transparent 65%);
+  animation: nba-pan-glow 14s ease-in-out infinite;
+}
+
+.nba-ticker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.nba-score-ribbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border) 84%, transparent);
+  background: color-mix(in oklab, var(--background) 76%, transparent);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--foreground);
+}
+
+.nba-court-board {
+  position: relative;
+  min-height: 24rem;
+  overflow: hidden;
+  border-radius: 1.9rem;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 94%, white),
+      var(--card)
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 49.7%,
+      color-mix(in oklab, var(--primary) 14%, transparent) 50%,
+      transparent 50.3%
+    );
+  box-shadow: var(--shadow-arena);
+}
+
+.dark .nba-court-board {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 90%, black),
+      var(--card)
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 49.7%,
+      color-mix(in oklab, var(--primary) 14%, transparent) 50%,
+      transparent 50.3%
+    );
+}
+
+.nba-court-axis,
+.nba-court-lane,
+.nba-court-rim,
+.nba-court-arc {
+  position: absolute;
+  pointer-events: none;
+}
+
+.nba-court-axis {
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      color-mix(in oklab, var(--accent) 12%, transparent) calc(100% - 1px)
+    );
+  background-size: 100% 72px;
+  opacity: 0.18;
+}
+
+.nba-court-lane {
+  top: 50%;
+  left: 50%;
+  width: 8.5rem;
+  height: 12rem;
+  transform: translate(-50%, -38%);
+  border: 1px solid color-mix(in oklab, var(--primary) 22%, transparent);
+  border-top-left-radius: 1.4rem;
+  border-top-right-radius: 1.4rem;
+}
+
+.nba-court-rim {
+  top: 43%;
+  left: 50%;
+  width: 1.35rem;
+  height: 1.35rem;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 2px solid color-mix(in oklab, var(--accent) 65%, transparent);
+  box-shadow: 0 0 0 8px color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.nba-court-arc {
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 999px 999px 0 0;
+  border: 1px solid color-mix(in oklab, var(--primary) 20%, transparent);
+  border-bottom: 0;
+}
+
+.nba-court-arc--paint {
+  top: 36%;
+  width: 10rem;
+  height: 6rem;
+}
+
+.nba-court-arc--three {
+  bottom: -4.5rem;
+  width: 28rem;
+  height: 16rem;
+  opacity: 0.7;
+}
+
+.nba-court-zone {
+  position: absolute;
+  width: min(42%, 12rem);
+  border-radius: 1.2rem;
+  border: 1px solid color-mix(in oklab, var(--border) 84%, transparent);
+  background: color-mix(in oklab, var(--background) 80%, transparent);
+  padding: 0.85rem 0.95rem;
+  text-decoration: none;
+  box-shadow: 0 14px 34px -28px color-mix(in oklab, var(--foreground) 45%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.nba-court-zone:hover {
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+@keyframes nba-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nba-pan-glow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(-2rem, 1rem, 0) scale(1.06);
+  }
+}
+
+.nba-surface {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 94%, white),
+    var(--card)
+  );
+  box-shadow: var(--shadow-arena);
+  backdrop-filter: blur(14px);
+}
+
+.dark .nba-surface {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 92%, black),
+    var(--card)
+  );
+  box-shadow: var(--shadow-glow);
+}
+
+.nba-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--accent) 8%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklab, var(--primary) 12%, transparent),
+      transparent 42%
+    );
+  opacity: 0.92;
+}
+
+.nba-search-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 94%, white),
+      var(--card)
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--primary) 10%, transparent),
+      transparent 55%
+    );
+  box-shadow: var(--shadow-arena);
+}
+
+.dark .nba-search-card {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 92%, black),
+      var(--card)
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--primary) 14%, transparent),
+      transparent 55%
+    );
+  box-shadow: var(--shadow-glow);
+}
+
+.nba-search-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      color-mix(in oklab, var(--accent) 14%, transparent) calc(100% - 1px)
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      color-mix(in oklab, var(--accent) 14%, transparent) calc(100% - 1px)
+    );
+  background-size: 44px 44px;
+  opacity: 0.26;
+}
+
+.nba-kicker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--primary) 66%, var(--muted-foreground));
+}
+
+.nba-display {
+  font-family: var(--font-display), "Arial Narrow", sans-serif;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.nba-scoreboard-value {
+  font-family: var(--font-display), "Arial Narrow", sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+
+.nba-metric-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.nba-nav-command {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  padding: 0.28rem 0.5rem 0.28rem 0.7rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.nba-page-hero {
+  position: relative;
+  margin-bottom: 1.75rem;
+  overflow: hidden;
+  border-radius: 2rem;
+  border: 1px solid color-mix(in oklab, var(--border) 86%, transparent);
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--background) 90%, white),
+    var(--card)
+  );
+  padding: clamp(1.2rem, 2.5vw, 1.75rem);
+  box-shadow: var(--shadow-arena);
+}
+
+.dark .nba-page-hero {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--card) 90%, black),
+    var(--card)
+  );
+  box-shadow: var(--shadow-glow);
+}
+
+.nba-page-hero::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at top left,
+      color-mix(in oklab, var(--accent) 18%, transparent),
+      transparent 30%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 48%,
+      color-mix(in oklab, var(--primary) 14%, transparent) 49%,
+      transparent 51%
+    );
+  mask-image: linear-gradient(180deg, black, transparent 94%);
+}
+
+.nba-crumb-link,
+.nba-crumb-current {
+  border-radius: 999px;
+  padding: 0.24rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nba-crumb-link {
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  color: var(--muted-foreground);
+  text-decoration: none;
+}
+
+.nba-crumb-link:hover {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+.nba-crumb-current {
+  border: 1px solid color-mix(in oklab, var(--primary) 20%, transparent);
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  color: var(--foreground);
+}
+
+.nba-reading-lane {
+  position: relative;
+}
+
+.nba-docs-page :where(article, .prose) {
+  color: color-mix(in oklab, var(--foreground) 92%, transparent);
+}
+
+.nba-docs-page :where(article, .prose) > :first-child {
+  margin-top: 0;
+}
+
+.nba-mdx-body > h1:first-child {
+  display: none;
+}
+
+.nba-docs-page :where(h1, h2, h3, h4) {
+  font-family: var(--font-display), "Arial Narrow", sans-serif;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  scroll-margin-top: 6rem;
+}
+
+.nba-docs-page :where(h2) {
+  margin-top: 3rem;
+  padding-top: 0.2rem;
+}
+
+.nba-docs-page :where(h3) {
+  margin-top: 2.2rem;
+}
+
+.nba-docs-page :where(p, li) {
+  line-height: 1.85;
+}
+
+.nba-docs-page :where(ul, ol) {
+  padding-inline-start: 1.35rem;
+}
+
+.nba-docs-page :where(a:not(.nba-crumb-link)) {
+  color: color-mix(in oklab, var(--primary) 74%, var(--foreground));
+}
+
+.nba-docs-page :where(a:not(.nba-crumb-link)):hover {
+  color: var(--foreground);
+}
+
+.nba-docs-page :where(code:not(pre code)) {
+  border-radius: 0.55rem;
+  border: 1px solid color-mix(in oklab, var(--border) 88%, transparent);
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  padding: 0.14rem 0.38rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.92em;
+}
+
+.nba-docs-page :where(blockquote) {
+  border-inline-start: 3px solid
+    color-mix(in oklab, var(--primary) 68%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--secondary) 30%, transparent);
+  padding: 1rem 1.25rem;
+}
+
+.nba-docs-page :where(hr) {
+  margin-block: 2.5rem;
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
+}
+
+.nba-docs-page :where(table) {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 1.25rem;
+  border: 1px solid color-mix(in oklab, var(--border) 90%, transparent);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+}
+
+.nba-docs-page :where(th) {
+  background: color-mix(in oklab, var(--accent) 20%, transparent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.nba-docs-page :where(th, td) {
+  border-color: color-mix(in oklab, var(--border) 75%, transparent);
+}
+
+.nba-docs-page :where(pre, .shiki) {
+  border-radius: 1.25rem;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  box-shadow: var(--shadow-arena);
+}
+
+.nba-docs-page :where(pre) {
+  overflow-x: auto;
+}
+
+.nba-stat-grid,
+.nba-data-columns {
+  margin-block: 1.6rem;
+}
+
+.nba-analyst-note {
+  border: 1px solid color-mix(in oklab, var(--border) 86%, transparent);
+  background: color-mix(in oklab, var(--secondary) 22%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+
+.nba-viz-shell {
+  margin-block: 1.75rem;
+}
+
+.nba-viz-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.nba-viz-status {
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border) 86%, transparent);
+  background: color-mix(in oklab, var(--background) 76%, transparent);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.nba-mermaid-shell {
+  position: relative;
+  overflow: auto;
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 90%, white),
+    var(--card)
+  );
+  padding: 1.1rem;
+  box-shadow: var(--shadow-arena);
+}
+
+.nba-mermaid-shell--placeholder {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.nba-mermaid-placeholder-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.nba-mermaid-placeholder-code {
+  margin: 0;
+  overflow: auto;
+  border-radius: 1rem;
+  border: 1px dashed color-mix(in oklab, var(--border) 78%, transparent);
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  padding: 0.95rem 1rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.dark .nba-mermaid-shell {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 90%, black),
+    var(--card)
+  );
+  box-shadow: var(--shadow-glow);
+}
+
+.nba-mermaid-shell > svg {
+  width: 100%;
+  min-width: min(100%, 52rem);
+  height: auto;
+}
+
+@media (max-width: 768px) {
+  body::before {
+    background-size: 52px 52px;
+    opacity: 0.08;
+  }
+
+  .nba-home-hero {
+    border-radius: 1.8rem;
+    padding: 1rem;
+  }
+
+  .nba-court-board {
+    min-height: 20rem;
+  }
+
+  .nba-court-zone {
+    width: min(46%, 10rem);
+    padding: 0.75rem 0.8rem;
+  }
+
+  .nba-page-hero {
+    border-radius: 1.6rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .nba-docs-page :where(p, li) {
+    line-height: 1.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

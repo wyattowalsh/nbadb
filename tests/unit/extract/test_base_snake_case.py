@@ -25,6 +25,15 @@ class TestToSnakeCase:
     def test_number_in_name(self) -> None:
         assert _to_snake_case("fg3Pct") == "fg3_pct"
 
+    def test_upper_stat_shorthand_with_number(self) -> None:
+        assert _to_snake_case("FG3M") == "fg3m"
+
+    def test_upper_rank_shorthand_with_number(self) -> None:
+        assert _to_snake_case("FG3M_RANK") == "fg3m_rank"
+
+    def test_upper_multi_token_stat_shorthand(self) -> None:
+        assert _to_snake_case("PCT_AST_2PM") == "pct_ast_2pm"
+
     def test_already_snake_case(self) -> None:
         assert _to_snake_case("game_id") == "game_id"
 

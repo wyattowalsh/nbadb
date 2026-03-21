@@ -1,16 +1,64 @@
 ---
 title: Pipeline Flow
-description: ELT pipeline architecture from extraction to export
+description: Playbook view of the ELT pipeline from extraction to export
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 # Pipeline Flow
+
+This page reads like a set play: bring the ball in from the NBA API, validate each possession, stage the data, and fan it out into star-schema outputs that are ready for analysis and distribution.
+
+> **Playbook cue:** The validation checkpoints work like replay review — they stop bad possessions before they become downstream tables.
+
+<Callout type="info">
+  The shape of the play stays the same across `init`, `daily`, `monthly`,
+  `full`, and `export`; only the scope and runtime change.
+</Callout>
+
+## Quick navigation
+
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <ScoutCard title="Read the whole play left to right" label="Entry surface">
+    Start with{" "}
+    <a href="#read-the-possession-left-to-right">
+      Read the possession left to right
+    </a>
+    when you need the fast version before any command or table detail.
+  </ScoutCard>
+  <ScoutCard title="Check the command lane" label="Entry surface">
+    Jump to <a href="#pipeline-commands">Pipeline commands</a> when you already
+    know the stages and only need the run-mode route.
+  </ScoutCard>
+  <ScoutCard title="Focus on guardrails" label="Entry surface">
+    Use{" "}
+    <a href="#read-the-possession-left-to-right">
+      Read the possession left to right
+    </a>{" "}
+    for the validation checkpoints that stop bad data before it reaches star
+    outputs.
+  </ScoutCard>
+  <ScoutCard title="Leave the playbook for dependency trace" label="Next route">
+    Skip to <a href="#next-steps-from-pipeline-flow">Next steps</a> when the
+    stage map is clear and you need endpoint coverage, ER shape, or lineage.
+  </ScoutCard>
+</div>
+
+## Use this page when…
+
+| If you need to answer…                                                            | Start here                                                              |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| “Where does validation happen?”                                                   | [Read the possession left to right](#read-the-possession-left-to-right) |
+| “What actually changes between `init`, `daily`, `monthly`, `full`, and `export`?” | [Pipeline commands](#pipeline-commands)                                 |
+| “Which stages produce the public warehouse surface?”                              | [Read the possession left to right](#read-the-possession-left-to-right) |
+| “Where should I go after the stage map?”                                          | [Next steps from pipeline flow](#next-steps-from-pipeline-flow)         |
 
 nbadb follows an **ELT (Extract, Load, Transform)** pipeline pattern.
 
 ```mermaid
 flowchart TD
     subgraph Extract["1. Extract"]
-        API["nba_api\n131 endpoints"] --> Raw["Raw Polars\nDataFrames"]
+        API["nba_api\nstats + static + live"] --> Raw["Raw Polars\nDataFrames"]
         Static["Static Data\nPlayers & Teams"] --> Raw
     end
 
@@ -27,10 +75,10 @@ flowchart TD
     end
 
     subgraph Transform["5. Transform"]
-        StagingSchema --> Dims["Build 13\nDimensions"]
-        StagingSchema --> Facts["Build 20\nFact Tables"]
+        StagingSchema --> Dims["Build 17\nDimensions"]
+        StagingSchema --> Facts["Build 72\nFact Tables"]
         StagingSchema --> Bridges["Build 2\nBridge Tables"]
-        Dims --> Derived["Build 15\nDerived Aggs"]
+        Dims --> Derived["Build 16\nDerived Aggs"]
         Facts --> Derived
         Derived --> Views["Build 4\nAnalytics Views"]
     end
@@ -55,21 +103,46 @@ flowchart TD
         CSV --> Kaggle
     end
 
-    style Extract fill:#e1f5fe
-    style Transform fill:#f3e5f5
-    style Export fill:#e8f5e9
-    style Upload fill:#fff3e0
+    style Extract fill:#eff6ff,stroke:#60a5fa,color:#0f172a
+    style Validate1 fill:#f8fafc,stroke:#94a3b8,color:#0f172a
+    style Stage fill:#f5f3ff,stroke:#a78bfa,color:#0f172a
+    style Validate2 fill:#f8fafc,stroke:#94a3b8,color:#0f172a
+    style Transform fill:#fdf4ff,stroke:#d946ef,color:#0f172a
+    style Validate3 fill:#f8fafc,stroke:#94a3b8,color:#0f172a
+    style Export fill:#ecfdf5,stroke:#34d399,color:#0f172a
+    style Upload fill:#fff7ed,stroke:#fb923c,color:#0f172a
 ```
 
-## Pipeline Commands
+<CourtDivider label="Call the stages" />
 
-| Command | Stages | Duration |
-|---------|--------|----------|
-| `nbadb init` | 1-8 (full rebuild) | ~2-4h |
-| `nbadb daily` | 1-7 (incremental, 7-day lookback) | ~5-15m |
-| `nbadb monthly` | 1-7 (dimension refresh) | ~30-60m |
-| `nbadb full` | 1-7 (fill gaps, preserve existing) | ~2-4h |
-| `nbadb export` | 7-8 (re-export only) | ~5-10m |
+## Read the possession left to right
+
+| Stage                      | What to look for                                           | Why it matters                                                                 |
+| -------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 1. Extract                 | Which endpoints and static feeds start the run             | This is the inbound surface and the first place coverage gaps appear           |
+| 2. Raw validation          | Structural checks on API-shaped payloads                   | Bad possessions get stopped before they are staged as if they were trustworthy |
+| 3. Stage to DuckDB         | Normalized `stg_*` landing zone                            | This is the operational layer most transforms depend on directly               |
+| 4. Staging validation      | Type, nullability, and range checks                        | Naming is normalized here and contract drift becomes visible                   |
+| 5. Transform               | Dimension, fact, bridge, aggregate, and analytics builders | This is where warehouse shape and dependency fan-out happen                    |
+| 6. Star validation         | Final schema enforcement on public tables                  | It protects the analytical contract before export                              |
+| 7-8. Export and distribute | SQLite, DuckDB, Parquet, CSV, and Kaggle lanes             | This is the finish: same modeled surface, different packaging                  |
+
+### The short read
+
+1. **Extract** raw payloads from live endpoints and static reference sources.
+2. **Validate** the raw and staging layers before transform logic touches downstream models.
+3. **Transform** staging tables into public dimensions, facts, bridges, aggregates, and analytics views.
+4. **Export and distribute** the validated star surface to SQLite, DuckDB, Parquet, CSV, and Kaggle-ready artifacts.
+
+## Pipeline commands
+
+| Command         | Stages                             | Duration |
+| --------------- | ---------------------------------- | -------- |
+| `nbadb init`    | 1-8 (full rebuild)                 | ~2-4h    |
+| `nbadb daily`   | 1-7 (incremental, 7-day lookback)  | ~5-15m   |
+| `nbadb monthly` | 1-7 (dimension refresh)            | ~30-60m  |
+| `nbadb full`    | 1-7 (fill gaps, preserve existing) | ~2-4h    |
+| `nbadb export`  | 7-8 (re-export only)               | ~5-10m   |
 
 ## Key Technologies
 
@@ -78,3 +151,31 @@ flowchart TD
 - **Pandera**: 3-tier schema validation (raw, staging, star)
 - **ADBC**: Arrow Database Connectivity for SQLite export
 - **zstd**: Compression for Parquet output files
+
+<CourtDivider label="Next board cut" />
+
+## Next steps from pipeline flow
+
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard
+    title="Reconnect each stage to actual source families"
+    label="Next stop"
+  >
+    Use <a href="/docs/diagrams/endpoint-map">Endpoint Map</a> when you need to
+    know which endpoint families feed the possession before it reaches staging
+    and transform layers.
+  </ScoutCard>
+  <ScoutCard title="Inspect the finishing lineup" label="Next stop">
+    Open <a href="/docs/diagrams/er-diagram">ER Diagram</a> when the playbook
+    has shown the movement and you now need the shape of the dimensions, facts,
+    and bridges produced at the end.
+  </ScoutCard>
+  <ScoutCard
+    title="Replay one dependency chain in slow motion"
+    label="Next stop"
+  >
+    Continue to <a href="/docs/lineage/table-lineage">Table Lineage</a> when a
+    pipeline stage is not specific enough and you need the exact tables involved
+    in one downstream possession.
+  </ScoutCard>
+</div>

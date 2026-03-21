@@ -1,0 +1,19 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "We only have app code right now. Please set up Docusaurus docs from scratch in this repo and keep nav/sidebar artifacts in sync after initialization.",
+  "files": [
+    "package.json",
+    "src/main.ts",
+    "src/routes/index.ts",
+    "README.md"
+  ],
+  "expected_behavior": [
+    "Agent recognizes an implicit natural-language docs bootstrap + sync request for an existing codebase",
+    "Agent interprets this as equivalent to init-sync behavior even without explicit init-sync keywords",
+    "Agent routes through auto classification to Mode I (Init) with docusaurus as the requested framework",
+    "Agent loads references/init-sync-existing-repos.md and references/docusaurus.md to guide non-destructive bootstrap and sync",
+    "Agent executes init-sync behavior by running Mode C (Sync) and Mode E (Maintain) checks after scaffold"
+  ]
+}

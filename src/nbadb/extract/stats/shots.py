@@ -40,6 +40,23 @@ class ShotChartDetailExtractor(BaseExtractor):
             context_measure_simple=context_measure,
         )
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        player_id: int = params.get("player_id", 0)
+        team_id: int = params.get("team_id", 0)
+        game_id: str = params.get("game_id", "")
+        season: str = params.get("season", "")
+        season_type: str = params.get("season_type", "Regular Season")
+        context_measure: str = params.get("context_measure", "FGA")
+        return self._from_nba_api_multi(
+            ShotChartDetail,
+            player_id=player_id,
+            team_id=team_id,
+            game_id_nullable=game_id,
+            season_nullable=season,
+            season_type_all_star=season_type,
+            context_measure_simple=context_measure,
+        )
+
 
 @registry.register
 class ShotChartLineupDetailExtractor(BaseExtractor):
@@ -50,6 +67,16 @@ class ShotChartLineupDetailExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            ShotChartLineupDetail,
+            season=season,
+            season_type_all_star=season_type,
+            **{k: v for k, v in params.items() if k not in ("season", "season_type")},
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        season: str = params["season"]
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             ShotChartLineupDetail,
             season=season,
             season_type_all_star=season_type,
@@ -80,6 +107,19 @@ class ShotChartLineupExtractor(BaseExtractor):
         group_id: str = params.get("group_id", "")
         context_measure: str = params.get("context_measure", "FGA")
         return self._from_nba_api(
+            ShotChartLineupDetail,
+            season=season,
+            season_type_all_star=season_type,
+            group_id=group_id,
+            context_measure_detailed=context_measure,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
+        group_id: str = params.get("group_id", "")
+        context_measure: str = params.get("context_measure", "FGA")
+        return self._from_nba_api_multi(
             ShotChartLineupDetail,
             season=season,
             season_type_all_star=season_type,

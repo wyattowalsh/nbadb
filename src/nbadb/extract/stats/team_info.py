@@ -31,6 +31,11 @@ class CommonTeamRosterExtractor(BaseExtractor):
         logger.debug(f"Extracting team roster for {team_id} ({season})")
         return self._from_nba_api(CommonTeamRoster, team_id=team_id, season=season)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params["season"]
+        return self._from_nba_api_multi(CommonTeamRoster, team_id=team_id, season=season)
+
     async def extract_coaches(self, **params: Any) -> pl.DataFrame:
         """Return the Coaches result set."""
         team_id: int = params["team_id"]
@@ -50,6 +55,9 @@ class FranchiseHistoryExtractor(BaseExtractor):
         logger.debug("Extracting franchise history")
         return self._from_nba_api(FranchiseHistory)
 
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        return self._from_nba_api_multi(FranchiseHistory)
+
 
 @registry.register
 class TeamDetailsExtractor(BaseExtractor):
@@ -59,6 +67,10 @@ class TeamDetailsExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         team_id: int = params["team_id"]
         return self._from_nba_api(TeamDetails, team_id=team_id)
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        return self._from_nba_api_multi(TeamDetails, team_id=team_id)
 
 
 @registry.register
@@ -71,6 +83,17 @@ class TeamInfoCommonExtractor(BaseExtractor):
         season: str = params.get("season", "")
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
+            TeamInfoCommon,
+            team_id=team_id,
+            season=season,
+            season_type_all_star=season_type,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        season: str = params.get("season", "")
+        season_type: str = params.get("season_type", "Regular Season")
+        return self._from_nba_api_multi(
             TeamInfoCommon,
             team_id=team_id,
             season=season,
@@ -137,6 +160,37 @@ class TeamAndPlayersVsPlayersExtractor(BaseExtractor):
         vs_player_id5: int = params.get("vs_player_id5", 0)
         season: str = params.get("season", current_season())
         return self._from_nba_api(
+            TeamAndPlayersVsPlayers,
+            team_id=team_id,
+            vs_team_id=vs_team_id,
+            player_id1=player_id1,
+            player_id2=player_id2,
+            player_id3=player_id3,
+            player_id4=player_id4,
+            player_id5=player_id5,
+            vs_player_id1=vs_player_id1,
+            vs_player_id2=vs_player_id2,
+            vs_player_id3=vs_player_id3,
+            vs_player_id4=vs_player_id4,
+            vs_player_id5=vs_player_id5,
+            season=season,
+        )
+
+    async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
+        team_id: int = params["team_id"]
+        vs_team_id: int = params["vs_team_id"]
+        player_id1: int = params.get("player_id1", 0)
+        player_id2: int = params.get("player_id2", 0)
+        player_id3: int = params.get("player_id3", 0)
+        player_id4: int = params.get("player_id4", 0)
+        player_id5: int = params.get("player_id5", 0)
+        vs_player_id1: int = params.get("vs_player_id1", 0)
+        vs_player_id2: int = params.get("vs_player_id2", 0)
+        vs_player_id3: int = params.get("vs_player_id3", 0)
+        vs_player_id4: int = params.get("vs_player_id4", 0)
+        vs_player_id5: int = params.get("vs_player_id5", 0)
+        season: str = params.get("season", current_season())
+        return self._from_nba_api_multi(
             TeamAndPlayersVsPlayers,
             team_id=team_id,
             vs_team_id=vs_team_id,

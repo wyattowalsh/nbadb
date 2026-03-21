@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward migrate docusaurus -> fumadocs",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "apps/docs/next.config.ts",
+    "apps/docs/source.config.ts"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Migrate mode",
+    "Agent loads references/migrations.md and frames work as phased migration",
+    "Agent produces parity checklist, risk register, and rollback strategy",
+    "Agent avoids promising a destructive one-shot conversion"
+  ]
+}

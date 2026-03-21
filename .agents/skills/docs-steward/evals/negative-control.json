@@ -1,0 +1,16 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "Build me a FastAPI backend with JWT auth and PostgreSQL migrations.",
+  "files": [
+    "src/main.py",
+    "src/api/auth.py",
+    "alembic/versions/20260301_create_users.py"
+  ],
+  "expected_behavior": [
+    "Agent refuses because request is outside docs-steward scope",
+    "Agent explains docs-steward boundaries clearly",
+    "Agent redirects to a more appropriate skill for backend/API work"
+  ]
+}

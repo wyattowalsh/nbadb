@@ -10,8 +10,12 @@ class FactPlayerCareerTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = [
         "stg_player_career_total_regular",
         "stg_player_career_total_postseason",
+        "stg_player_career_total_allstar",
+        "stg_player_career_total_college",
         "stg_player_career_allstar",
         "stg_player_career_college",
+        "stg_player_career_regular",
+        "stg_player_career_postseason",
     ]
 
     _SQL: ClassVar[str] = """
@@ -21,9 +25,21 @@ class FactPlayerCareerTransformer(SqlTransformer):
         SELECT *, 'postseason' AS career_type
         FROM stg_player_career_total_postseason
         UNION ALL BY NAME
+        SELECT *, 'total_allstar' AS career_type
+        FROM stg_player_career_total_allstar
+        UNION ALL BY NAME
+        SELECT *, 'total_college' AS career_type
+        FROM stg_player_career_total_college
+        UNION ALL BY NAME
         SELECT *, 'allstar' AS career_type
         FROM stg_player_career_allstar
         UNION ALL BY NAME
         SELECT *, 'college' AS career_type
         FROM stg_player_career_college
+        UNION ALL BY NAME
+        SELECT *, 'season_regular' AS career_type
+        FROM stg_player_career_regular
+        UNION ALL BY NAME
+        SELECT *, 'season_postseason' AS career_type
+        FROM stg_player_career_postseason
     """

@@ -4,7 +4,7 @@ import typer
 
 app = typer.Typer(
     name="nbadb",
-    help="Comprehensive NBA database: 131 endpoints -> star schema",
+    help="Comprehensive NBA database: broad nba_api coverage → 141-table star schema",
     no_args_is_help=True,
 )
 

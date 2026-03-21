@@ -3,15 +3,17 @@ from __future__ import annotations
 from typing import ClassVar
 
 import duckdb
+import pandera.polars as pa
 import polars as pl
 
+from nbadb.schemas.base import BaseSchema
 from nbadb.transform.base import BaseTransformer
-from nbadb.transform.pipeline import TransformPipeline
+from nbadb.transform.pipeline import TransformPipeline, _input_schema_for
 
 
 class _TransA(BaseTransformer):
     output_table: ClassVar[str] = "table_a"
-    depends_on: ClassVar[list[str]] = []
+    depends_on: ClassVar[list[str]] = ["raw_input"]
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
         return staging["raw_input"].collect().with_columns(pl.col("val").alias("val_a"))
@@ -33,6 +35,31 @@ class _TransC(BaseTransformer):
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
         b = staging["table_b"].collect()
         return b.with_columns((pl.col("val_b") + 1).alias("val_c"))
+
+
+class _ValidatedFactSchema(BaseSchema):
+    player_id: int = pa.Field(gt=0)
+    pts: int = pa.Field(ge=0)
+
+
+class _ValidatedInputSchema(BaseSchema):
+    val: int = pa.Field(gt=0)
+
+
+class _ValidatedTransformer(BaseTransformer):
+    output_table: ClassVar[str] = "fact_validated"
+    depends_on: ClassVar[list[str]] = []
+
+    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+        return pl.DataFrame({"player_id": [1], "pts": [24]})
+
+
+class _InvalidValidatedTransformer(BaseTransformer):
+    output_table: ClassVar[str] = "fact_invalid"
+    depends_on: ClassVar[list[str]] = []
+
+    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
+        return pl.DataFrame({"player_id": [-1], "pts": [24]})
 
 
 class TestTransformPipeline:
@@ -112,6 +139,83 @@ class TestTransformPipeline:
         pipeline.run(staging)
         result = conn.execute("SELECT val_a FROM table_a").fetchone()
         assert result[0] == 42
+        conn.close()
+
+    def test_resolves_input_schema_aliases(self) -> None:
+        assert _input_schema_for("stg_schedule").__name__ == "StagingScheduleLeagueV2Schema"
+        assert _input_schema_for("stg_player_info").__name__ == "RawCommonPlayerInfoSchema"
+
+    def test_validates_input_schema_before_transform(self, monkeypatch) -> None:
+        conn = duckdb.connect()
+        pipeline = TransformPipeline(conn)
+        pipeline.register(_TransA())
+        monkeypatch.setattr(
+            "nbadb.transform.pipeline._input_schema_for",
+            lambda table: _ValidatedInputSchema if table == "raw_input" else None,
+        )
+
+        outputs = pipeline.run(
+            {"raw_input": pl.DataFrame({"val": [42], "extra": ["drop-me"]}).lazy()},
+            validate_input_schemas=True,
+        )
+
+        assert outputs["table_a"].columns == ["val", "val_a"]
+        assert conn.execute("SELECT * FROM raw_input").pl().columns == ["val"]
+        conn.close()
+
+    def test_input_schema_validation_failure_marks_dependents_failed(self, monkeypatch) -> None:
+        conn = duckdb.connect()
+        pipeline = TransformPipeline(conn)
+        pipeline.register(_TransA())
+        monkeypatch.setattr(
+            "nbadb.transform.pipeline._input_schema_for",
+            lambda table: _ValidatedInputSchema if table == "raw_input" else None,
+        )
+
+        outputs = pipeline.run(
+            {"raw_input": pl.DataFrame({"val": [-1]}).lazy()},
+            validate_input_schemas=True,
+        )
+
+        assert "table_a" not in outputs
+        result = pipeline.last_result
+        assert result is not None
+        assert result.failed == [("table_a", "missing staging: raw_input")]
+        conn.close()
+
+    def test_validates_output_against_matching_star_schema(self, monkeypatch) -> None:
+        conn = duckdb.connect()
+        pipeline = TransformPipeline(conn)
+        pipeline.register(_ValidatedTransformer())
+        monkeypatch.setattr(
+            "nbadb.transform.pipeline._star_schema_map",
+            lambda: {"fact_validated": _ValidatedFactSchema},
+        )
+
+        outputs = pipeline.run({})
+
+        assert "fact_validated" in outputs
+        assert outputs["fact_validated"]["pts"].to_list() == [24]
+        conn.close()
+
+    def test_schema_validation_failure_marks_transform_failed(self, monkeypatch) -> None:
+        conn = duckdb.connect()
+        pipeline = TransformPipeline(conn)
+        pipeline.register(_InvalidValidatedTransformer())
+        pipeline.register(_TransA())
+        monkeypatch.setattr(
+            "nbadb.transform.pipeline._star_schema_map",
+            lambda: {"fact_invalid": _ValidatedFactSchema},
+        )
+
+        staging = {"raw_input": pl.DataFrame({"val": [7]}).lazy()}
+        outputs = pipeline.run(staging)
+
+        assert "fact_invalid" not in outputs
+        assert "table_a" in outputs
+        result = pipeline.last_result
+        assert result is not None
+        assert any(table == "fact_invalid" for table, _ in result.failed)
         conn.close()
 
     def test_pipeline_exception_continues_and_logs(self) -> None:
