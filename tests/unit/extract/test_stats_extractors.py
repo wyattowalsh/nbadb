@@ -182,7 +182,7 @@ from nbadb.extract.stats.player_tracking import (
 from nbadb.extract.stats.rotation import GameRotationExtractor
 
 # ── schedule / rotation / synergy / win_probability ─────────────────────────
-from nbadb.extract.stats.schedule import ScheduleExtractor
+from nbadb.extract.stats.schedule import ScheduleExtractor, ScheduleIntExtractor
 
 # ── shots ───────────────────────────────────────────────────────────────────
 from nbadb.extract.stats.shots import (
@@ -296,8 +296,9 @@ _ALL_EXTRACTORS = [
     (MatchupsRollupExtractor, "matchups_rollup", "league"),
     (LeagueDashLineupsExtractor, "league_dash_lineups", "league"),
     (TeamDashLineupsExtractor, "team_dash_lineups", "league"),
-    # schedule (1)
+    # schedule (2)
     (ScheduleExtractor, "schedule", "schedule"),
+    (ScheduleIntExtractor, "schedule_int", "schedule"),
     # rotation (1)
     (GameRotationExtractor, "game_rotation", "rotation"),
     # synergy (1)

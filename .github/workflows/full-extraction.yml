@@ -31,6 +31,18 @@ on:
         description: "Max self-chain iterations (safety limit)"
         type: string
         default: "8"
+      backfill_endpoints:
+        description: "Comma-separated endpoints to backfill (empty = full init)"
+        type: string
+        default: ""
+      backfill_patterns:
+        description: "Comma-separated patterns to backfill (empty = all)"
+        type: string
+        default: ""
+      force_reextract:
+        description: "Force re-extraction of done entries"
+        type: boolean
+        default: false
 
 env:
   NBADB_DATA_DIR: nbadb
@@ -181,12 +193,24 @@ jobs:
         env:
           SEASON_START: ${{ inputs.season_start }}
           SEASON_END: ${{ inputs.season_end }}
+          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
+          BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
+          FORCE_REEXTRACT: ${{ inputs.force_reextract }}
         run: |
           # Kill extraction 10 min before job timeout to allow save/chain
           set +e
-          timeout 20400 uv run nbadb init \
-            --season-start "$SEASON_START" \
-            --season-end "$SEASON_END"
+
+          if [ -n "$BACKFILL_ENDPOINTS" ] || [ -n "$BACKFILL_PATTERNS" ]; then
+            CMD="uv run nbadb backfill run --seasons ${SEASON_START}:${SEASON_END}"
+            [ -n "$BACKFILL_ENDPOINTS" ] && CMD="$CMD --endpoint $BACKFILL_ENDPOINTS"
+            [ -n "$BACKFILL_PATTERNS" ] && CMD="$CMD --pattern $BACKFILL_PATTERNS"
+            [ "$FORCE_REEXTRACT" = "true" ] && CMD="$CMD --force"
+            timeout 20400 $CMD
+          else
+            timeout 20400 uv run nbadb init \
+              --season-start "$SEASON_START" \
+              --season-end "$SEASON_END"
+          fi
           exit_code=$?
           set -e
 

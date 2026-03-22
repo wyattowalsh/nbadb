@@ -127,7 +127,7 @@ class TestFactLeadersTiles:
 class TestFactDefenseHub:
     def test_validates_base_defense_hub_packet(self) -> None:
         staging = {
-            "stg_defense_hub": pl.DataFrame(
+            "stg_defense_hub_stat1": pl.DataFrame(
                 {
                     "rank": [1],
                     "team_id": [1610612738],

@@ -48,6 +48,16 @@ _CURRENT_SEASON = "nbadb.orchestrate.orchestrator.current_season"
 _RECENT_SEASONS = "nbadb.orchestrate.orchestrator.recent_seasons"
 
 
+def _mock_runner(**overrides):
+    """Create a MagicMock runner that supports ``async with``."""
+    runner = MagicMock()
+    runner.run_pattern = AsyncMock(return_value={})
+    runner.__aenter__ = AsyncMock(return_value=runner)
+    runner.__aexit__ = AsyncMock(return_value=False)
+    for k, v in overrides.items():
+        setattr(runner, k, v)
+    return runner
+
 
 def _build_orchestrator_with_mocks():
     """Set up Orchestrator with all external deps mocked."""
@@ -361,8 +371,7 @@ class TestRunInit:
         mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.run_pattern = AsyncMock(return_value={})
+        mock_runner = _mock_runner()
 
         with (
             patch(_SEASON_RANGE, return_value=["2024-25"]),
@@ -392,8 +401,7 @@ class TestRunInit:
         mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.run_pattern = AsyncMock(return_value={})
+        mock_runner = _mock_runner()
 
         with (
             patch(_SEASON_RANGE, return_value=["2024-25"]),
@@ -427,8 +435,7 @@ class TestRunDaily:
         mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.run_pattern = AsyncMock(return_value={})
+        mock_runner = _mock_runner()
 
         with (
             patch(_CURRENT_SEASON, return_value="2025-26"),
@@ -455,8 +462,7 @@ class TestRunDaily:
         mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.skipped = 0
+        mock_runner = _mock_runner(skipped=0)
         mock_extract = AsyncMock(return_value={})
 
         with (
@@ -499,9 +505,7 @@ class TestRunMonthly:
         mock_discovery.discover_game_dates.return_value = ["2026-02-28"]
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.run_pattern = AsyncMock(return_value={})
-        mock_runner.skipped = 0
+        mock_runner = _mock_runner(skipped=0)
 
         with (
             patch(_CURRENT_SEASON, return_value="2025-26"),
@@ -526,9 +530,7 @@ class TestRunMonthly:
         mock_discovery.discover_game_dates.return_value = []
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.run_pattern = AsyncMock(return_value={})
-        mock_runner.skipped = 0
+        mock_runner = _mock_runner(skipped=0)
 
         with (
             patch(_RECENT_SEASONS, return_value=["2025-26"]),
@@ -566,9 +568,7 @@ class TestRunFull:
         mock_discovery.discover_game_dates.return_value = []
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.run_pattern = AsyncMock(return_value={})
-        mock_runner.skipped = 0
+        mock_runner = _mock_runner(skipped=0)
 
         with (
             patch(_SEASON_RANGE, return_value=[]),
@@ -601,8 +601,7 @@ class TestRunFull:
         mock_discovery.discover_game_dates.return_value = []
         mock_discovery.discover_player_team_season_params.return_value = []
 
-        mock_runner = MagicMock()
-        mock_runner.run_pattern = AsyncMock(return_value={})
+        mock_runner = _mock_runner()
 
         with (
             patch(_SEASON_RANGE, return_value=["2024-25"]),

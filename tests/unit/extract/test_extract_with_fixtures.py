@@ -280,6 +280,32 @@ class TestScheduleExtract:
         assert all(c == c.lower() for c in result.columns)
 
 
+class TestScheduleIntExtract:
+    async def test_extract_returns_schedule_int(self) -> None:
+        from nbadb.extract.stats.schedule import ScheduleIntExtractor
+
+        fixture = _load_fixture("raw_schedule_int.json")
+        mock_ep = _mock_endpoint(fixture)
+
+        ext = ScheduleIntExtractor()
+        result = ext._from_nba_api(mock_ep, season="2024-25")
+        assert isinstance(result, pl.DataFrame)
+        assert result.shape[0] >= 1
+        assert all(c == c.lower() for c in result.columns)
+
+    async def test_extract_all_returns_both_result_sets(self) -> None:
+        from nbadb.extract.stats.schedule import ScheduleIntExtractor
+
+        fixture = _load_fixture("raw_schedule_int.json")
+        mock_ep = _mock_endpoint(fixture)
+
+        ext = ScheduleIntExtractor()
+        results = ext._from_nba_api_multi(mock_ep, season="2024-25")
+        assert len(results) == 2
+        assert all(c == c.lower() for c in results[0].columns)
+        assert all(c == c.lower() for c in results[1].columns)
+
+
 # ---------------------------------------------------------------------------
 # Hustle Stats
 # ---------------------------------------------------------------------------

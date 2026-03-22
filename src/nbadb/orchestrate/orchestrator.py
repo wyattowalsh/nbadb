@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
+import duckdb
 from loguru import logger
 
 from nbadb.core.config import NbaDbSettings, get_settings
@@ -407,86 +408,84 @@ class Orchestrator:
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
-        runner = self._build_runner(journal)
+        async with self._build_runner(journal) as runner:
+            if journal.has_done_entries():
+                bound_log.info("init resume: prior completed entries found, will skip those")
 
-        if journal.has_done_entries():
-            bound_log.info("init resume: prior completed entries found, will skip those")
+            # -- 1. Entity discovery (parallel) --------------------
+            pp = self._progress
+            seasons = season_range(start_season, end_season)
+            discovery = self._build_discovery()
 
-        # -- 1. Entity discovery (parallel) --------------------
-        pp = self._progress
-        seasons = season_range(start_season, end_season)
-        discovery = self._build_discovery()
+            bound_log.info(
+                "init: discovering entities for {} seasons × {} season_types",
+                len(seasons),
+                len(season_types),
+            )
+            if pp is not None:
+                pp.start_phase("Discovery")
+                pp.update_phase_info(f"scanning {len(seasons)} seasons...")
 
-        bound_log.info(
-            "init: discovering entities for {} seasons × {} season_types",
-            len(seasons),
-            len(season_types),
-        )
-        if pp is not None:
-            pp.start_phase("Discovery")
-            pp.update_phase_info(f"scanning {len(seasons)} seasons...")
+            game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
+                discovery,
+                seasons,
+                bound_log,
+                season_types=season_types,
+                include_historical_players=True,
+            )
+            player_team_season_params = await discovery.discover_player_team_season_params(seasons)
 
-        game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-            discovery,
-            seasons,
-            bound_log,
-            season_types=season_types,
-            include_historical_players=True,
-        )
-        player_team_season_params = await discovery.discover_player_team_season_params(seasons)
+            if pp is not None:
+                pp.complete_phase()
 
-        if pp is not None:
-            pp.complete_phase()
+            bound_log.info(
+                "discovered: {} games, {} players, {} teams, {} dates, {} player-team seasons",
+                len(game_ids),
+                len(player_ids),
+                len(team_ids),
+                len(game_dates),
+                len(player_team_season_params),
+            )
 
-        bound_log.info(
-            "discovered: {} games, {} players, {} teams, {} dates, {} player-team seasons",
-            len(game_ids),
-            len(player_ids),
-            len(team_ids),
-            len(game_dates),
-            len(player_team_season_params),
-        )
+            # -- 2. Extract by pattern ------------------------------
+            raw = await self._extract_all_patterns(
+                runner,
+                seasons=seasons,
+                game_ids=game_ids,
+                player_ids=player_ids,
+                team_ids=team_ids,
+                game_dates=game_dates,
+                player_team_season_params=player_team_season_params,
+                game_log_df=game_log_df,
+                season_types=season_types,
+            )
 
-        # -- 2. Extract by pattern ------------------------------
-        raw = await self._extract_all_patterns(
-            runner,
-            seasons=seasons,
-            game_ids=game_ids,
-            player_ids=player_ids,
-            team_ids=team_ids,
-            game_dates=game_dates,
-            player_team_season_params=player_team_season_params,
-            game_log_df=game_log_df,
-            season_types=season_types,
-        )
+            # -- 3. Transform + Load --------------------------------
+            if pp is not None:
+                pp.start_phase("Transform & Load")
+                pp.update_phase_info(f"{len(raw)} staging tables")
+            bound_log.info("transform + load: {} staging tables", len(raw))
+            tables_updated, rows_total, failed_loads = self._transform_and_load(
+                db, raw, journal, mode="replace"
+            )
+            if pp is not None:
+                pp.update_phase_info(f"{tables_updated} tables, {rows_total:,} rows loaded")
+                pp.complete_phase()
 
-        # -- 3. Transform + Load --------------------------------
-        if pp is not None:
-            pp.start_phase("Transform & Load")
-            pp.update_phase_info(f"{len(raw)} staging tables")
-        bound_log.info("transform + load: {} staging tables", len(raw))
-        tables_updated, rows_total, failed_loads = self._transform_and_load(
-            db, raw, journal, mode="replace"
-        )
-        if pp is not None:
-            pp.update_phase_info(f"{tables_updated} tables, {rows_total:,} rows loaded")
-            pp.complete_phase()
+            # -- 4. Summarize result --------------------------------
+            # Abandon items that have exceeded the retry cap so they don't
+            # block the chain from terminating.
+            abandoned = journal.abandon_exhausted()
 
-        # -- 4. Summarize result --------------------------------
-        # Abandon items that have exceeded the retry cap so they don't
-        # block the chain from terminating.
-        abandoned = journal.abandon_exhausted()
-
-        result = self._build_result(
-            t0,
-            tables_updated,
-            rows_total,
-            failed_loads,
-            journal=journal,
-        )
-        result.skipped_extractions = runner.skipped
-        runner.log_latency_summary()
-        runner.shutdown()
+            result = self._build_result(
+                t0,
+                tables_updated,
+                rows_total,
+                failed_loads,
+                journal=journal,
+            )
+            result.skipped_extractions = runner.skipped
+            runner.log_latency_summary()
 
         bound_log.info(
             "init complete: {} tables, {} rows, {:.1f}s, "
@@ -516,85 +515,85 @@ class Orchestrator:
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
-        runner = self._build_runner(journal)
-        discovery = self._build_discovery()
+        async with self._build_runner(journal) as runner:
+            discovery = self._build_discovery()
 
-        season = current_season()
-        bound_log.info("daily: season={}", season)
+            season = current_season()
+            bound_log.info("daily: season={}", season)
 
-        # -- 1. Discover recent game_ids (Regular + Playoffs) -----
-        _daily_st = ["Regular Season", "Playoffs"]
-        game_ids, game_log_df = await discovery.discover_game_ids([season], season_types=_daily_st)
-
-        raw: dict[str, pl.DataFrame] = {}
-        if not game_log_df.is_empty():
-            raw["stg_league_game_log"] = game_log_df
-
-        # Filter to recent dates
-        if not game_log_df.is_empty() and "game_date" in game_log_df.columns:
-            from datetime import datetime, timedelta
-
-            cutoff = (datetime.now() - timedelta(days=self._settings.daily_lookback_days)).strftime(
-                "%Y-%m-%d"
+            # -- 1. Discover recent game_ids (Regular + Playoffs) -----
+            _daily_st = ["Regular Season", "Playoffs"]
+            game_ids, game_log_df = await discovery.discover_game_ids(
+                [season], season_types=_daily_st
             )
-            recent = game_log_df.filter(pl.col("game_date").cast(pl.Utf8) >= cutoff)
-            game_ids = recent.get_column("game_id").unique().sort().to_list()
-            game_dates = recent.get_column("game_date").cast(pl.Utf8).unique().sort().to_list()
-        else:
-            game_dates = []
 
-        bound_log.info(
-            "daily: {} recent games, {} dates",
-            len(game_ids),
-            len(game_dates),
-        )
+            raw: dict[str, pl.DataFrame] = {}
+            if not game_log_df.is_empty():
+                raw["stg_league_game_log"] = game_log_df
 
-        # -- 2. Discover active players + teams for lightweight refresh
-        player_ids = await discovery.discover_player_ids()
-        team_ids = await discovery.discover_team_ids()
-        player_team_season_params = await discovery.discover_player_team_season_params([season])
-        bound_log.info(
-            "daily: {} active players, {} teams, {} player-team seasons for refresh",
-            len(player_ids),
-            len(team_ids),
-            len(player_team_season_params),
-        )
+            # Filter to recent dates
+            if not game_log_df.is_empty() and "game_date" in game_log_df.columns:
+                from datetime import datetime, timedelta
 
-        # -- 3. Game + season + date + player/team extraction
-        raw.update(
-            await self._extract_all_patterns(
-                runner,
-                seasons=[season],
-                game_ids=game_ids,
-                player_ids=player_ids,
-                team_ids=team_ids,
-                game_dates=game_dates,
-                player_team_season_params=player_team_season_params,
-                game_log_df=pl.DataFrame(),  # already seeded above
-                include_static=False,
-                season_types=_daily_st,
+                lookback = self._settings.daily_lookback_days
+                cutoff = (datetime.now() - timedelta(days=lookback)).strftime("%Y-%m-%d")
+                recent = game_log_df.filter(pl.col("game_date").cast(pl.Utf8) >= cutoff)
+                game_ids = recent.get_column("game_id").unique().sort().to_list()
+                game_dates = recent.get_column("game_date").cast(pl.Utf8).unique().sort().to_list()
+            else:
+                game_dates = []
+
+            bound_log.info(
+                "daily: {} recent games, {} dates",
+                len(game_ids),
+                len(game_dates),
             )
-        )
-        # Keep the seeded game_log_df (update may have cleared it)
-        if not game_log_df.is_empty():
-            raw.setdefault("stg_league_game_log", game_log_df)
 
-        # -- 3. Transform + Load --------------------------------
-        tables_updated, rows_total, failed_loads = self._transform_and_load(
-            db, raw, journal, mode="replace"
-        )
+            # -- 2. Discover active players + teams for lightweight refresh
+            player_ids = await discovery.discover_player_ids()
+            team_ids = await discovery.discover_team_ids()
+            player_team_season_params = await discovery.discover_player_team_season_params([season])
+            bound_log.info(
+                "daily: {} active players, {} teams, {} player-team seasons for refresh",
+                len(player_ids),
+                len(team_ids),
+                len(player_team_season_params),
+            )
 
-        journal.abandon_exhausted()
-        result = self._build_result(
-            t0,
-            tables_updated,
-            rows_total,
-            failed_loads,
-            journal=journal,
-        )
-        result.skipped_extractions = runner.skipped
-        runner.log_latency_summary()
-        runner.shutdown()
+            # -- 3. Game + season + date + player/team extraction
+            raw.update(
+                await self._extract_all_patterns(
+                    runner,
+                    seasons=[season],
+                    game_ids=game_ids,
+                    player_ids=player_ids,
+                    team_ids=team_ids,
+                    game_dates=game_dates,
+                    player_team_season_params=player_team_season_params,
+                    game_log_df=pl.DataFrame(),  # already seeded above
+                    include_static=False,
+                    season_types=_daily_st,
+                )
+            )
+            # Keep the seeded game_log_df (update may have cleared it)
+            if not game_log_df.is_empty():
+                raw.setdefault("stg_league_game_log", game_log_df)
+
+            # -- 3. Transform + Load --------------------------------
+            tables_updated, rows_total, failed_loads = self._transform_and_load(
+                db, raw, journal, mode="replace"
+            )
+
+            journal.abandon_exhausted()
+            result = self._build_result(
+                t0,
+                tables_updated,
+                rows_total,
+                failed_loads,
+                journal=journal,
+            )
+            result.skipped_extractions = runner.skipped
+            runner.log_latency_summary()
 
         bound_log.info(
             "daily complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} load failures",
@@ -616,48 +615,47 @@ class Orchestrator:
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
-        runner = self._build_runner(journal)
-        discovery = self._build_discovery()
+        async with self._build_runner(journal) as runner:
+            discovery = self._build_discovery()
 
-        seasons = recent_seasons(3)
-        bound_log.info("monthly: seasons={}", seasons)
+            seasons = recent_seasons(3)
+            bound_log.info("monthly: seasons={}", seasons)
 
-        # -- 1. Discover entities (parallel) --- uses shared helper
-        _monthly_st = ["Regular Season", "Playoffs"]
-        game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-            discovery, seasons, bound_log, season_types=_monthly_st
-        )
-        player_team_season_params = await discovery.discover_player_team_season_params(seasons)
+            # -- 1. Discover entities (parallel) --- uses shared helper
+            _monthly_st = ["Regular Season", "Playoffs"]
+            game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
+                discovery, seasons, bound_log, season_types=_monthly_st
+            )
+            player_team_season_params = await discovery.discover_player_team_season_params(seasons)
 
-        # -- 2. Extract all patterns ----------------------------
-        raw = await self._extract_all_patterns(
-            runner,
-            seasons=seasons,
-            game_ids=game_ids,
-            player_ids=player_ids,
-            team_ids=team_ids,
-            game_dates=game_dates,
-            player_team_season_params=player_team_season_params,
-            game_log_df=game_log_df,
-            season_types=_monthly_st,
-        )
+            # -- 2. Extract all patterns ----------------------------
+            raw = await self._extract_all_patterns(
+                runner,
+                seasons=seasons,
+                game_ids=game_ids,
+                player_ids=player_ids,
+                team_ids=team_ids,
+                game_dates=game_dates,
+                player_team_season_params=player_team_season_params,
+                game_log_df=game_log_df,
+                season_types=_monthly_st,
+            )
 
-        # -- 3. Transform + Load --------------------------------
-        tables_updated, rows_total, failed_loads = self._transform_and_load(
-            db, raw, journal, mode="replace"
-        )
+            # -- 3. Transform + Load --------------------------------
+            tables_updated, rows_total, failed_loads = self._transform_and_load(
+                db, raw, journal, mode="replace"
+            )
 
-        journal.abandon_exhausted()
-        result = self._build_result(
-            t0,
-            tables_updated,
-            rows_total,
-            failed_loads,
-            journal=journal,
-        )
-        result.skipped_extractions = runner.skipped
-        runner.log_latency_summary()
-        runner.shutdown()
+            journal.abandon_exhausted()
+            result = self._build_result(
+                t0,
+                tables_updated,
+                rows_total,
+                failed_loads,
+                journal=journal,
+            )
+            result.skipped_extractions = runner.skipped
+            runner.log_latency_summary()
 
         bound_log.info(
             "monthly complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} load failures",
@@ -681,107 +679,106 @@ class Orchestrator:
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
-        runner = self._build_runner(journal)
-        discovery = self._build_discovery()
+        async with self._build_runner(journal) as runner:
+            discovery = self._build_discovery()
 
-        # -- 1. Retry failed extractions ------------------------
-        failed = journal.get_failed()
-        bound_log.info(
-            "full: {} failed extractions to retry",
-            len(failed),
-        )
-
-        # Group failed by pattern for batched re-extraction
-        failed_by_entry: dict[str, list[dict]] = {}  # endpoint -> params
-        for endpoint, params_json, _error in failed:
-            try:
-                params = json.loads(params_json)
-            except (TypeError, json.JSONDecodeError) as exc:
-                quarantine_error = f"invalid_params_json:{type(exc).__name__}"
-                journal.record_failure(endpoint, params_json, quarantine_error)
-                bound_log.warning(
-                    "full: skipping malformed failed params_json for {}: {} ({})",
-                    endpoint,
-                    params_json,
-                    quarantine_error,
-                )
-                continue
-            if not isinstance(params, dict):
-                quarantine_error = f"invalid_params_json:{type(params).__name__}"
-                journal.record_failure(endpoint, params_json, quarantine_error)
-                bound_log.warning(
-                    "full: skipping non-object failed params_json for {}: {} ({})",
-                    endpoint,
-                    params_json,
-                    quarantine_error,
-                )
-                continue
-            failed_by_entry.setdefault(endpoint, []).append(params)
-
-        # Build a lookup from endpoint_name -> StagingEntry(s)
-        entries_by_ep: dict[str, list] = {}
-        for entry in STAGING_MAP:
-            entries_by_ep.setdefault(entry.endpoint_name, []).append(entry)
-
-        raw: dict[str, pl.DataFrame] = {}
-
-        for endpoint, param_list in failed_by_entry.items():
-            ep_entries = entries_by_ep.get(endpoint, [])
-            if not ep_entries:
-                bound_log.warning(
-                    "no staging entry for failed endpoint: {}",
-                    endpoint,
-                )
-                continue
-            pattern = ep_entries[0].param_pattern
-            retry_raw = await runner.run_pattern(pattern, param_list, ep_entries)
-            raw.update(retry_raw)
-
-        # -- 2. Gap-fill ALL patterns (not just season+game) ------
-        _full_st = ["Regular Season", "Playoffs"]
-        seasons = season_range()
-
-        # Discover entities for gap-filling
-        game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-            discovery, seasons, bound_log, season_types=_full_st
-        )
-        player_team_season_params = await discovery.discover_player_team_season_params(seasons)
-        if not game_log_df.is_empty():
-            raw.setdefault("stg_league_game_log", game_log_df)
-
-        # Run all patterns — runner will skip already-extracted via journal
-        gap_raw = await self._extract_all_patterns(
-            runner,
-            seasons=seasons,
-            game_ids=game_ids,
-            player_ids=player_ids,
-            team_ids=team_ids,
-            game_dates=game_dates,
-            player_team_season_params=player_team_season_params,
-            game_log_df=game_log_df,
-            season_types=_full_st,
-        )
-        raw.update(gap_raw)
-
-        # -- 3. Transform + Load --------------------------------
-        tables_updated = 0
-        rows_total = 0
-        failed_loads = 0
-        if raw:
-            tables_updated, rows_total, failed_loads = self._transform_and_load(
-                db, raw, journal, mode="replace"
+            # -- 1. Retry failed extractions ------------------------
+            failed = journal.get_failed()
+            bound_log.info(
+                "full: {} failed extractions to retry",
+                len(failed),
             )
 
-        result = self._build_result(
-            t0,
-            tables_updated,
-            rows_total,
-            failed_loads,
-            journal=journal,
-        )
-        result.skipped_extractions = runner.skipped
-        runner.log_latency_summary()
-        runner.shutdown()
+            # Group failed by pattern for batched re-extraction
+            failed_by_entry: dict[str, list[dict]] = {}  # endpoint -> params
+            for endpoint, params_json, _error in failed:
+                try:
+                    params = json.loads(params_json)
+                except (TypeError, json.JSONDecodeError) as exc:
+                    quarantine_error = f"invalid_params_json:{type(exc).__name__}"
+                    journal.record_failure(endpoint, params_json, quarantine_error)
+                    bound_log.warning(
+                        "full: skipping malformed failed params_json for {}: {} ({})",
+                        endpoint,
+                        params_json,
+                        quarantine_error,
+                    )
+                    continue
+                if not isinstance(params, dict):
+                    quarantine_error = f"invalid_params_json:{type(params).__name__}"
+                    journal.record_failure(endpoint, params_json, quarantine_error)
+                    bound_log.warning(
+                        "full: skipping non-object failed params_json for {}: {} ({})",
+                        endpoint,
+                        params_json,
+                        quarantine_error,
+                    )
+                    continue
+                failed_by_entry.setdefault(endpoint, []).append(params)
+
+            # Build a lookup from endpoint_name -> StagingEntry(s)
+            entries_by_ep: dict[str, list] = {}
+            for entry in STAGING_MAP:
+                entries_by_ep.setdefault(entry.endpoint_name, []).append(entry)
+
+            raw: dict[str, pl.DataFrame] = {}
+
+            for endpoint, param_list in failed_by_entry.items():
+                ep_entries = entries_by_ep.get(endpoint, [])
+                if not ep_entries:
+                    bound_log.warning(
+                        "no staging entry for failed endpoint: {}",
+                        endpoint,
+                    )
+                    continue
+                pattern = ep_entries[0].param_pattern
+                retry_raw = await runner.run_pattern(pattern, param_list, ep_entries)
+                raw.update(retry_raw)
+
+            # -- 2. Gap-fill ALL patterns (not just season+game) ------
+            _full_st = ["Regular Season", "Playoffs"]
+            seasons = season_range()
+
+            # Discover entities for gap-filling
+            game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
+                discovery, seasons, bound_log, season_types=_full_st
+            )
+            player_team_season_params = await discovery.discover_player_team_season_params(seasons)
+            if not game_log_df.is_empty():
+                raw.setdefault("stg_league_game_log", game_log_df)
+
+            # Run all patterns — runner will skip already-extracted via journal
+            gap_raw = await self._extract_all_patterns(
+                runner,
+                seasons=seasons,
+                game_ids=game_ids,
+                player_ids=player_ids,
+                team_ids=team_ids,
+                game_dates=game_dates,
+                player_team_season_params=player_team_season_params,
+                game_log_df=game_log_df,
+                season_types=_full_st,
+            )
+            raw.update(gap_raw)
+
+            # -- 3. Transform + Load --------------------------------
+            tables_updated = 0
+            rows_total = 0
+            failed_loads = 0
+            if raw:
+                tables_updated, rows_total, failed_loads = self._transform_and_load(
+                    db, raw, journal, mode="replace"
+                )
+
+            result = self._build_result(
+                t0,
+                tables_updated,
+                rows_total,
+                failed_loads,
+                journal=journal,
+            )
+            result.skipped_extractions = runner.skipped
+            runner.log_latency_summary()
 
         bound_log.info(
             "full complete: {} tables, {} rows, {:.1f}s, {} remaining failures",
@@ -792,3 +789,237 @@ class Orchestrator:
         )
         journal.log_summary()
         return result
+
+    async def run_backfill(
+        self,
+        *,
+        seasons: list[str] | None = None,
+        endpoints: list[str] | None = None,
+        patterns: list[str] | None = None,
+        force: bool = False,
+        extract_only: bool = False,
+        transform_only: bool = False,
+        season_types: list[str] | None = None,
+    ) -> PipelineResult:
+        """Targeted backfill with optional force re-extraction.
+
+        Parameters
+        ----------
+        seasons
+            Season strings to backfill, e.g. ``["2015-16", "2016-17"]``.
+            Defaults to all seasons.
+        endpoints
+            Endpoint names to backfill, e.g. ``["box_score_traditional"]``.
+        patterns
+            Param patterns to backfill, e.g. ``["game", "season"]``.
+        force
+            Reset matching journal entries before extraction.
+        extract_only
+            Skip transform+load phase.
+        transform_only
+            Skip extraction, re-run transforms from DuckDB staging.
+        season_types
+            Defaults to ``["Regular Season", "Playoffs"]``.
+        """
+        if season_types is None:
+            season_types = ["Regular Season", "Playoffs"]
+
+        bound_log = logger.bind(run_mode="backfill")
+        t0 = time.perf_counter()
+
+        db, journal = self._init_db()
+        pp = self._progress
+
+        # ── force reset ──
+        if force and not transform_only:
+            from nbadb.orchestrate.backfill import BackfillPlanner
+
+            planner = BackfillPlanner(db.duckdb, journal)
+            planner.force_reset(seasons=seasons, endpoints=endpoints, patterns=patterns)
+            bound_log.info("backfill: force-reset matching journal entries")
+
+        # ── transform-only path ──
+        if transform_only:
+            if pp is not None:
+                pp.start_phase("Transform (from staging)")
+            bound_log.info("backfill: transform-only — loading staging from DuckDB")
+            raw = self._load_staging_from_duckdb(db, endpoints=endpoints, patterns=patterns)
+            bound_log.info("backfill: loaded {} staging tables", len(raw))
+            if pp is not None:
+                pp.update_phase_info(f"{len(raw)} staging tables")
+
+            tables_updated, rows_total, failed_loads = self._transform_and_load(
+                db, raw, journal, mode="replace"
+            )
+            if pp is not None:
+                pp.complete_phase()
+
+            return self._build_result(t0, tables_updated, rows_total, failed_loads, journal=journal)
+
+        # ── extraction path ──
+        async with self._build_runner(journal) as runner:
+            discovery = self._build_discovery()
+            effective_seasons = seasons if seasons is not None else season_range()
+
+            bound_log.info(
+                "backfill: {} seasons, endpoints={}, patterns={}, force={}",
+                len(effective_seasons),
+                endpoints,
+                patterns,
+                force,
+            )
+
+            # -- 1. Entity discovery (scoped to requested seasons) -----
+            if pp is not None:
+                pp.start_phase("Discovery")
+                pp.update_phase_info(f"scanning {len(effective_seasons)} seasons...")
+
+            game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
+                discovery,
+                effective_seasons,
+                bound_log,
+                season_types=season_types,
+                include_historical_players=True,
+            )
+            player_team_season_params = await discovery.discover_player_team_season_params(
+                effective_seasons
+            )
+            if pp is not None:
+                pp.complete_phase()
+
+            # -- 2. Build plan and filter by user scope ─────────────────
+            plan = build_extraction_plan(
+                seasons=effective_seasons,
+                game_ids=game_ids,
+                player_ids=player_ids,
+                team_ids=team_ids,
+                game_dates=game_dates,
+                player_team_season_params=player_team_season_params,
+                season_types=season_types,
+            )
+
+            # Filter plan items by endpoint/pattern if user requested
+            if endpoints or patterns:
+                ep_set = set(endpoints) if endpoints else None
+                pat_set = set(patterns) if patterns else None
+                filtered: list = []
+                for item in plan:
+                    if pat_set and item.pattern not in pat_set:
+                        continue
+                    if ep_set:
+                        matching_entries = [e for e in item.entries if e.endpoint_name in ep_set]
+                        if not matching_entries:
+                            continue
+                        from nbadb.orchestrate.planning import ExtractionPlanItem
+
+                        filtered.append(
+                            ExtractionPlanItem(
+                                label=item.label,
+                                pattern=item.pattern,
+                                entries=matching_entries,
+                                params=item.params,
+                                priority=item.priority,
+                            )
+                        )
+                    else:
+                        filtered.append(item)
+                plan = filtered
+
+            # -- 3. Extract ──────────────────────────────────────────────
+            raw: dict[str, pl.DataFrame] = {}
+            if not game_log_df.is_empty():
+                raw["stg_league_game_log"] = game_log_df
+
+            total_tasks = sum(item.task_count for item in plan)
+            if pp is not None:
+                pp.start_phase("Extraction", total=total_tasks)
+
+            for idx, item in enumerate(plan, 1):
+                bound_log.info(
+                    "backfill step {}/{}: {} ({} tasks)",
+                    idx,
+                    len(plan),
+                    item.label,
+                    item.task_count,
+                )
+                if pp is not None:
+                    pp.start_pattern(f"{item.label} ({item.task_count:,})", total=item.task_count)
+                result_raw = await runner.run_pattern(
+                    item.pattern, item.params, item.entries, on_progress=pp
+                )
+                raw.update(result_raw)
+
+            if pp is not None:
+                pp.complete_phase()
+
+            # -- 4. Transform + Load ─────────────────────────────────────
+            tables_updated = 0
+            rows_total = 0
+            failed_loads = 0
+
+            if not extract_only and raw:
+                if pp is not None:
+                    pp.start_phase("Transform & Load")
+                    pp.update_phase_info(f"{len(raw)} staging tables")
+                tables_updated, rows_total, failed_loads = self._transform_and_load(
+                    db, raw, journal, mode="replace"
+                )
+                if pp is not None:
+                    pp.complete_phase()
+
+            # -- 5. Result ───────────────────────────────────────────────
+            journal.abandon_exhausted()
+            result = self._build_result(
+                t0, tables_updated, rows_total, failed_loads, journal=journal
+            )
+            result.skipped_extractions = runner.skipped
+            runner.log_latency_summary()
+
+        bound_log.info(
+            "backfill complete: {} tables, {} rows, {:.1f}s, {} extract failures, {} load failures",
+            result.tables_updated,
+            result.rows_total,
+            result.duration_seconds,
+            result.failed_extractions,
+            result.failed_loads,
+        )
+        journal.log_summary()
+        return result
+
+    def _load_staging_from_duckdb(
+        self,
+        db: DBManager,
+        *,
+        endpoints: list[str] | None = None,
+        patterns: list[str] | None = None,
+    ) -> dict[str, pl.DataFrame]:
+        """Read existing staging tables from DuckDB into memory.
+
+        When *endpoints* or *patterns* are provided, only staging keys
+        that match the filter are loaded (scoped backfill).  Otherwise
+        all staging keys are loaded.
+        """
+        from nbadb.orchestrate.staging_map import get_all_staging_keys
+
+        if endpoints is not None or patterns is not None:
+            ep_set = set(endpoints) if endpoints else None
+            pat_set = set(patterns) if patterns else None
+            keys = [
+                e.staging_key
+                for e in STAGING_MAP
+                if (ep_set is None or e.endpoint_name in ep_set)
+                and (pat_set is None or e.param_pattern in pat_set)
+            ]
+        else:
+            keys = get_all_staging_keys()
+
+        raw: dict[str, pl.DataFrame] = {}
+        for key in keys:
+            try:
+                df = db.duckdb.execute(f"SELECT * FROM {key}").pl()
+                if not df.is_empty():
+                    raw[key] = df
+                    logger.debug("loaded staging {}: {} rows", key, df.shape[0])
+            except duckdb.CatalogException:
+                pass  # Table doesn't exist yet
+        return raw

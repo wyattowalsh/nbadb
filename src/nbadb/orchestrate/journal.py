@@ -212,7 +212,8 @@ class PipelineJournal:
             """,
             [self.MAX_RETRIES],
         )
-        count = result.rowcount or 0
+        row = result.fetchone()
+        count = row[0] if row else 0
         if count:
             logger.warning(
                 "abandoned {} exhausted extractions (retry_count >= {})", count, self.MAX_RETRIES
@@ -230,7 +231,8 @@ class PipelineJournal:
             """,
             [cutoff_minutes],
         )
-        count = result.rowcount or 0
+        row = result.fetchone()
+        count = row[0] if row else 0
         if count:
             logger.info("reset {} stale running entries to failed", count)
         return count
@@ -282,22 +284,31 @@ class PipelineJournal:
     @staticmethod
     def _build_filter_clause(
         *,
-        endpoint: str | None = None,
+        endpoint: str | list[str] | None = None,
         status_filter: str | None = None,
         season_like: str | None = None,
-    ) -> tuple[str, list[str]]:
+    ) -> tuple[str, list[str | int]]:
         """Build a WHERE clause from AND-combined filters.
 
         Returns (where_sql, params).  At least one filter must be non-None.
+
+        ``endpoint`` accepts a single string or a list for batched
+        ``IN (...)`` queries.
         """
         clauses: list[str] = []
-        params: list[str] = []
+        params: list[str | int] = []
         idx = 1
 
         if endpoint is not None:
-            clauses.append(f"endpoint = ${idx}")
-            params.append(endpoint)
-            idx += 1
+            if isinstance(endpoint, list):
+                placeholders = ", ".join(f"${idx + i}" for i in range(len(endpoint)))
+                clauses.append(f"endpoint IN ({placeholders})")
+                params.extend(endpoint)
+                idx += len(endpoint)
+            else:
+                clauses.append(f"endpoint = ${idx}")
+                params.append(endpoint)
+                idx += 1
 
         if status_filter is not None:
             clauses.append(f"status = ${idx}")
@@ -305,8 +316,9 @@ class PipelineJournal:
             idx += 1
 
         if season_like is not None:
-            clauses.append(f"params LIKE ${idx}")
-            params.append(f'%"season": "{season_like}"%')
+            escaped = season_like.replace("%", "\\%").replace("_", "\\_")
+            clauses.append(f"params LIKE ${idx} ESCAPE '\\'")
+            params.append(f'%"season": "{escaped}"%')
             idx += 1
 
         if not clauses:
@@ -340,7 +352,8 @@ class PipelineJournal:
             """,
             params,
         )
-        count = result.rowcount or 0
+        row = result.fetchone()
+        count = row[0] if row else 0
         logger.info(
             "reset {} journal entries (endpoint={}, status={}, season={})",
             count,
@@ -374,7 +387,8 @@ class PipelineJournal:
             """,
             params,
         )
-        count = result.rowcount or 0
+        row = result.fetchone()
+        count = row[0] if row else 0
         logger.info(
             "cleared {} journal entries (endpoint={}, status={}, season={})",
             count,
@@ -415,6 +429,55 @@ class PipelineJournal:
             """
         ).fetchall()
         return [(r[0], r[1], r[2]) for r in rows]
+
+    def fetch_entries(
+        self,
+        *,
+        endpoints: list[str] | None = None,
+        seasons: list[str] | None = None,
+        status_filter: str | None = None,
+        limit: int = 100,
+    ) -> list[tuple[str, str, str, int, str]]:
+        """Query journal entries with optional filters.
+
+        Returns ``(endpoint, params, status, retry_count, started_at)`` tuples.
+        """
+        clauses: list[str] = []
+        params: list[str | int] = []
+        idx = 1
+
+        if endpoints:
+            placeholders = ", ".join(f"${idx + i}" for i in range(len(endpoints)))
+            clauses.append(f"endpoint IN ({placeholders})")
+            params.extend(endpoints)
+            idx += len(endpoints)
+
+        if status_filter:
+            clauses.append(f"status = ${idx}")
+            params.append(status_filter)
+            idx += 1
+
+        if seasons:
+            season_clauses = []
+            for season in seasons:
+                escaped = season.replace("%", "\\%").replace("_", "\\_")
+                season_clauses.append(f"params LIKE ${idx} ESCAPE '\\'")
+                params.append(f'%"season": "{escaped}"%')
+                idx += 1
+            clauses.append(f"({' OR '.join(season_clauses)})")
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(limit)
+        rows = self._conn.execute(
+            f"""
+            SELECT endpoint, params, status, retry_count, started_at
+            FROM _extraction_journal {where}
+            ORDER BY endpoint, started_at
+            LIMIT ${idx}
+            """,
+            params,
+        ).fetchall()
+        return [(r[0], r[1], r[2], r[3], str(r[4])) for r in rows]
 
     # ── pipeline metrics ──────────────────────────────────────────
 

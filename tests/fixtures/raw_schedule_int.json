@@ -1,0 +1,23 @@
+{
+  "resultSets": [
+    {
+      "name": "SeasonGames",
+      "headers": [
+        "leagueId", "seasonYear", "gameDate", "gameId", "gameCode",
+        "gameStatus", "gameStatusText"
+      ],
+      "rowSet": [
+        ["00", "2024", "2025-01-15", "0012400001", "20250115/BOSATL", 3, "Final"]
+      ]
+    },
+    {
+      "name": "SeasonWeeks",
+      "headers": [
+        "leagueId", "seasonYear", "weekNumber", "weekName", "startDate", "endDate"
+      ],
+      "rowSet": [
+        ["00", "2024", 1, "Week 1", "2024-10-22", "2024-10-28"]
+      ]
+    }
+  ]
+}

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import duckdb
+
 from nbadb.orchestrate.planning import PATTERN_PRIORITY, ExtractionPlanItem
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
@@ -10,8 +12,6 @@ from nbadb.orchestrate.staging_map import (
 )
 
 if TYPE_CHECKING:
-    import duckdb
-
     from nbadb.orchestrate.journal import PipelineJournal
 
 
@@ -33,7 +33,12 @@ class GapReport:
 
 @dataclass(frozen=True, slots=True)
 class CompletenessReport:
-    """Full data completeness assessment."""
+    """Full data completeness assessment.
+
+    ``by_season`` is only populated for season-parametrized patterns.
+    Non-season patterns (game, static, date, player, team, cross-product)
+    appear only in ``by_endpoint`` under the ``"_all"`` key.
+    """
 
     gaps: list[GapReport]
     summary: dict[str, int] = field(default_factory=dict)
@@ -122,26 +127,14 @@ class BackfillPlanner:
         endpoints: list[str] | None = None,
         patterns: list[str] | None = None,
     ) -> list[StagingEntry]:
-        """Return unique entries filtered by endpoint/pattern.
-
-        Deduplicates multi-result entries that share the same endpoint
-        (we only care about endpoint-level completeness, not per-result-set).
-        """
-        seen: set[tuple[str, str]] = set()  # (endpoint_name, param_pattern)
+        """Deduplicated entries filtered by endpoint/pattern."""
+        seen: set[tuple[str, str]] = set()
         result: list[StagingEntry] = []
-
-        for entry in STAGING_MAP:
-            if endpoints and entry.endpoint_name not in endpoints:
-                continue
-            if patterns and entry.param_pattern not in patterns:
-                continue
-
+        for entry in self._filter_entries(endpoints=endpoints, patterns=patterns):
             key = (entry.endpoint_name, entry.param_pattern)
-            if key in seen:
-                continue
-            seen.add(key)
-            result.append(entry)
-
+            if key not in seen:
+                seen.add(key)
+                result.append(entry)
         return result
 
     def _detect_entry_gaps(
@@ -169,7 +162,7 @@ class BackfillPlanner:
         if pattern == "date":
             return self._gaps_date(entry, done_total_by_ep, seasons)
         if pattern in ("player_season", "team_season", "player_team_season"):
-            return self._gaps_cross_product(entry, done_map, done_total_by_ep, seasons)
+            return self._gaps_cross_product(entry, done_total_by_ep, seasons)
 
         return []
 
@@ -203,7 +196,7 @@ class BackfillPlanner:
     ) -> list[GapReport]:
         from nbadb.orchestrate.seasons import season_range
 
-        target_seasons = seasons if seasons else season_range()
+        target_seasons = seasons if seasons is not None else season_range()
         gaps: list[GapReport] = []
 
         for season in target_seasons:
@@ -309,7 +302,6 @@ class BackfillPlanner:
     def _gaps_cross_product(
         self,
         entry: StagingEntry,
-        done_map: dict[tuple[str, str | None], int],
         done_total_by_ep: dict[str, int],
         seasons: list[str] | None,
     ) -> list[GapReport]:
@@ -355,7 +347,7 @@ class BackfillPlanner:
             else:
                 row = self._conn.execute(f"SELECT COUNT(DISTINCT {id_col}) FROM {table}").fetchone()
             return row[0] if row else None
-        except Exception:
+        except duckdb.CatalogException:
             return None
 
     def _get_columns(self, table: str) -> set[str]:
@@ -367,7 +359,7 @@ class BackfillPlanner:
                 [table],
             ).fetchall()
             return {r[0] for r in rows}
-        except Exception:
+        except duckdb.CatalogException:
             return set()
 
     @staticmethod
@@ -378,9 +370,13 @@ class BackfillPlanner:
         by_endpoint: dict[str, dict[str, int]] = {}
 
         for gap in gaps:
-            missing = gap.missing if gap.missing is not None else 0
-            summary[gap.pattern] = summary.get(gap.pattern, 0) + missing
+            if gap.missing is not None:
+                summary[gap.pattern] = summary.get(gap.pattern, 0) + gap.missing
+            else:
+                key = f"{gap.pattern}_unknown"
+                summary[key] = summary.get(key, 0) + 1
 
+            missing = gap.missing if gap.missing is not None else 0
             if gap.season:
                 by_season.setdefault(gap.season, {})[gap.endpoint] = missing
                 by_endpoint.setdefault(gap.endpoint, {})[gap.season] = missing
@@ -415,10 +411,10 @@ class BackfillPlanner:
         if season_types is None:
             season_types = list(self.DEFAULT_SEASON_TYPES)
 
-        effective_seasons = seasons if seasons else season_range()
+        effective_seasons = seasons if seasons is not None else season_range()
 
         if force:
-            self._force_reset(seasons=seasons, endpoints=endpoints, patterns=patterns)
+            self.force_reset(seasons=seasons, endpoints=endpoints, patterns=patterns)
 
         # Filter STAGING_MAP entries
         filtered_entries = self._filter_entries(endpoints=endpoints, patterns=patterns)
@@ -477,7 +473,7 @@ class BackfillPlanner:
             dry_run_summary="\n".join(summary_lines),
         )
 
-    def _force_reset(
+    def force_reset(
         self,
         *,
         seasons: list[str] | None,
@@ -486,12 +482,13 @@ class BackfillPlanner:
     ) -> None:
         """Reset journal entries matching the backfill scope."""
         target_endpoints = self._resolve_endpoint_names(endpoints=endpoints, patterns=patterns)
-        for ep in target_endpoints:
-            if seasons:
-                for season in seasons:
-                    self._journal.reset_entries(endpoint=ep, season_like=season)
-            else:
-                self._journal.reset_entries(endpoint=ep)
+        if not target_endpoints:
+            return
+        if seasons:
+            for season in seasons:
+                self._journal.reset_entries(endpoint=target_endpoints, season_like=season)
+        else:
+            self._journal.reset_entries(endpoint=target_endpoints)
 
     def _resolve_endpoint_names(
         self,

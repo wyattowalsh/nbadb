@@ -47,7 +47,7 @@ _MULTI_ROUTE_REGRESSION_ROWS = {
     "stg_all_time": "all_time_leaders_grids",
     "stg_cume_player": "cume_stats_player",
     "stg_cume_team": "cume_stats_team",
-    "stg_defense_hub": "defense_hub",
+    "stg_defense_hub_stat1": "defense_hub",
     "stg_homepage_leaders": "homepage_leaders",
     "stg_homepage_v2": "homepage_v2",
     "stg_leaders_tiles": "leaders_tiles",
@@ -62,6 +62,8 @@ _MULTI_ROUTE_REGRESSION_ROWS = {
     "stg_player_dash_yoy": "player_dash_yoy",
     "stg_player_dashboard_clutch": "player_dashboard_clutch",
     "stg_player_vs_player": "player_vs_player",
+    "stg_schedule_int": "schedule_int",
+    "stg_schedule_int_weeks": "schedule_int",
     "stg_team_and_players_vs": "team_and_players_vs",
     "stg_team_dash_general_splits": "team_dashboard_general_splits",
     "stg_team_dash_shooting_splits": "team_dashboard_shooting_splits",
@@ -77,6 +79,7 @@ _MULTI_ROUTE_NONZERO_INDICES = {
     "stg_player_dash_shooting_splits": 2,
     "stg_player_dash_yoy": 1,
     "stg_player_dashboard_clutch": 10,
+    "stg_schedule_int_weeks": 1,
 }
 
 _OVERALL_ONLY_MULTI_ENDPOINTS = {
@@ -133,9 +136,7 @@ def _extractor_endpoint_metadata() -> dict[str, tuple[str, bool]]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        # 88 season + 51 game + 17 date + 126 player + 83 team +
-        # 4 player_season + 2 player_team_season + 2 team_season + 29 static
-        assert len(STAGING_MAP) == 402
+        assert len(STAGING_MAP) == 403
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -143,7 +144,7 @@ class TestStagingMap:
 
     def test_get_by_pattern_season(self) -> None:
         entries = get_by_pattern("season")
-        assert len(entries) == 88
+        assert len(entries) == 89
         assert all(e.param_pattern == "season" for e in entries)
 
     def test_get_by_pattern_game(self) -> None:
@@ -213,7 +214,7 @@ class TestStagingMap:
         assert entry.result_set_index == 6
 
     def test_known_multi_result_regression_rows_use_expected_index(self) -> None:
-        assert len(_MULTI_ROUTE_REGRESSION_ROWS) == 24
+        assert len(_MULTI_ROUTE_REGRESSION_ROWS) == 26
 
         for staging_key, endpoint_name in _MULTI_ROUTE_REGRESSION_ROWS.items():
             entry = get_by_staging_key(staging_key)
