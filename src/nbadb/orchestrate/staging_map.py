@@ -625,6 +625,7 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("matchups_rollup", "stg_matchups_rollup", "season", min_season=2016),
     # defense_hub index 0 covered by stg_defense_hub_stat1 in Phase 4 multi-result section
     StagingEntry("shot_chart_league_wide", "stg_shot_chart_league_wide", "season", min_season=1996),
+    # Requires group_id (lineup ID) — not available in season-pattern sweep
     StagingEntry(
         "shot_chart_lineup",
         "stg_shot_chart_lineup",
@@ -632,6 +633,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         min_season=1996,
+        deprecated_after="2000-01-01",
     ),
     StagingEntry(
         "draft_combine_drill_results",
@@ -685,6 +687,7 @@ STAGING_MAP: list[StagingEntry] = [
     ),
     StagingEntry("player_game_logs", "stg_player_game_logs", "season"),
     StagingEntry("player_index", "stg_player_index", "season"),
+    # Requires group_id (lineup ID) — not available in season-pattern sweep
     StagingEntry(
         "shot_chart_lineup_detail",
         "stg_shot_chart_lineup_detail",
@@ -692,6 +695,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         min_season=1996,
+        deprecated_after="2000-01-01",
     ),
     # Game-level additions
     StagingEntry(
@@ -2257,6 +2261,7 @@ STAGING_MAP: list[StagingEntry] = [
         min_season=1996,
     ),
     # ShotChartLineupDetail (2 sets)
+    # Requires group_id (lineup ID) — not available in season-pattern sweep
     StagingEntry(
         "shot_chart_lineup_detail",
         "stg_shot_chart_lineup_league_avg",
@@ -2264,6 +2269,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=1,
         use_multi=True,
         min_season=1996,
+        deprecated_after="2000-01-01",
     ),
     # HustleStatsBoxScore — missing index 0 (HustleStatsAvailable)
     StagingEntry(

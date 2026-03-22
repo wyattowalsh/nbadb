@@ -115,8 +115,7 @@ class _CircuitBreaker:
         if failures >= self._threshold:
             self._state[endpoint] = (failures, time.monotonic())
             logger.warning(
-                "circuit breaker OPEN for '{}' after {} consecutive failures "
-                "(recovery in {:.0f}s)",
+                "circuit breaker OPEN for '{}' after {} consecutive failures (recovery in {:.0f}s)",
                 endpoint,
                 failures,
                 self._recovery_seconds,
@@ -174,9 +173,7 @@ class _LatencyTracker:
 
     def all_summaries(self) -> dict[str, dict[str, float]]:
         """Return latency summaries for all tracked endpoints."""
-        return {
-            ep: s for ep in self._data if (s := self.summary(ep)) is not None
-        }
+        return {ep: s for ep in self._data if (s := self.summary(ep)) is not None}
 
 
 if TYPE_CHECKING:
@@ -286,7 +283,11 @@ class ExtractorRunner:
         for ep, s in sorted_eps[:5]:
             logger.info(
                 "  {:<25} | p50: {:5.2f}s | p95: {:5.2f}s | p99: {:5.2f}s | count: {}",
-                ep, s['p50'], s['p95'], s['p99'], int(s['count'])
+                ep,
+                s["p50"],
+                s["p95"],
+                s["p99"],
+                int(s["count"]),
             )
 
     async def __aenter__(self) -> ExtractorRunner:
@@ -535,9 +536,11 @@ class ExtractorRunner:
     @staticmethod
     def _is_retryable(exc: Exception) -> bool:
         """Return True if the exception is transient and worth retrying."""
-        # Import-safe: check by name so we don't require requests at import time
-        name = type(exc).__name__
-        if name in (
+        # Import-safe: check by name so we don't require requests at import time.
+        # KeyError / IndexError indicate structural response mismatches —
+        # not transient, so don't waste retries. Rate-limit errors surface
+        # as JSONDecodeError (HTML error pages) which IS retried above.
+        return type(exc).__name__ in (
             "ReadTimeout",
             "ConnectTimeout",
             "ConnectionError",
@@ -547,11 +550,7 @@ class ExtractorRunner:
             "RemoteDisconnected",
             "ProxyError",
             "TypeError",
-        ):
-            return True
-        # KeyError / IndexError from nba_api when the API returns an error page
-        # instead of JSON — transient when caused by rate limiting
-        return name in ("KeyError", "IndexError")
+        )
 
     async def _run_with_journal(
         self,
