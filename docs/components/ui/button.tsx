@@ -4,26 +4,24 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border text-sm font-semibold transition-[transform,background-color,border-color,color,box-shadow] duration-200 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap border text-sm font-semibold transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         primary:
-          "border-primary bg-primary text-primary-foreground shadow-[0_18px_38px_-22px_color-mix(in_oklab,var(--primary)_80%,transparent)] hover:bg-primary/92 hover:shadow-[0_20px_42px_-24px_color-mix(in_oklab,var(--primary)_78%,transparent)]",
+          "border-primary bg-primary text-primary-foreground hover:bg-primary/85",
         secondary:
-          "border-border/80 bg-card/88 text-card-foreground shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_6%,transparent)] hover:bg-accent/18 hover:text-foreground",
+          "border-border bg-muted text-foreground hover:bg-accent/20",
         outline:
-          "border-border/85 bg-background/78 text-foreground shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_6%,transparent)] hover:border-primary/24 hover:bg-accent/12 hover:text-foreground",
+          "border-border bg-transparent text-foreground hover:bg-muted",
         ghost:
-          "border-transparent bg-transparent text-foreground hover:bg-accent/12 hover:text-foreground",
-        tint:
-          "border-primary/18 bg-linear-to-r from-primary/12 via-primary/6 to-accent/10 text-foreground shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_6%,transparent)] hover:border-primary/28 hover:from-primary/16 hover:to-accent/14",
+          "border-transparent bg-transparent text-foreground hover:bg-muted",
       },
       size: {
-        default: "h-11 px-5",
-        sm: "h-9 px-4 text-xs tracking-[0.14em] uppercase",
-        lg: "h-12 px-6 text-sm",
-        icon: "size-10 rounded-full",
+        default: "h-9 px-4",
+        sm: "h-8 px-3 text-xs tracking-[0.12em] uppercase",
+        lg: "h-10 px-5 text-sm",
+        icon: "size-9",
       },
     },
     defaultVariants: {

@@ -2,16 +2,9 @@ import Link from "next/link";
 import type { TOCItemType } from "fumadocs-core/toc";
 import {
   ArrowRight,
-  BookOpenText,
   Blocks,
   Command,
-  Database,
-  LayoutGrid,
-  Network,
-  Radar,
-  Route,
   Search,
-  Trophy,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +14,7 @@ import {
   getSectionMeta,
   type SectionId,
 } from "@/lib/site-config";
-import { cn, getDocBreadcrumbs, humanizeSlug } from "@/lib/utils";
+import { getDocBreadcrumbs, humanizeSlug } from "@/lib/utils";
 
 type DocsChromeProps = {
   slug?: string[];
@@ -30,22 +23,10 @@ type DocsChromeProps = {
   tocCount?: number;
 };
 
-const sectionIcons: Record<SectionId, typeof Radar> = {
-  core: Radar,
-  schema: Database,
-  "data-dictionary": BookOpenText,
-  diagrams: LayoutGrid,
-  endpoints: Trophy,
-  lineage: Network,
-  guides: Route,
-};
 
 export function DocsNavBadge() {
   return (
     <div className="hidden items-center gap-2 md:flex">
-      <Badge variant="accent" className="lg:text-[0.6rem] lg:tracking-[0.3em]">
-        Film Room Nav
-      </Badge>
       <div className="nba-nav-command">
         <Command className="size-3.5" />
         <span>Search</span>
@@ -57,63 +38,26 @@ export function DocsNavBadge() {
 
 export function DocsSidebarBanner() {
   return (
-    <div className="nba-surface rounded-[1.8rem] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-          <Radar className="size-3.5 text-primary" />
-          Arena Data Lab
-        </div>
-        <Badge variant="board">141 tables</Badge>
+    <div className="border border-border bg-card p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          nbadb
+        </span>
+        <Badge variant="default">141 tables</Badge>
       </div>
-      <p className="mt-3 text-sm leading-6 text-foreground/90">
-        A film-room shell for data people: warehouse maps, endpoint scouting,
-        lineage chains, operational playbooks, and visual prompt packs in one
-        possession.
-      </p>
-      <div className="mt-4 grid gap-2">
-        <Button asChild size="sm" className="justify-between rounded-2xl">
+      <div className="mt-3 grid gap-1.5">
+        <Button asChild size="sm" className="justify-between">
           <Link href="/docs/guides/analytics-quickstart">
             Quickstart
             <ArrowRight className="size-3.5" />
           </Link>
         </Button>
-        <Button
-          asChild
-          variant="tint"
-          size="sm"
-          className="justify-between rounded-2xl"
-        >
-          <Link href="/docs/diagrams/pipeline-flow">
-            Pipeline flow
+        <Button asChild variant="outline" size="sm" className="justify-between">
+          <Link href="/docs/schema">
+            Schema
             <ArrowRight className="size-3.5" />
           </Link>
         </Button>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="justify-between rounded-2xl"
-        >
-          <Link href="/docs/guides/visual-asset-prompt-pack">
-            Asset prompt pack
-            <ArrowRight className="size-3.5" />
-          </Link>
-        </Button>
-      </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {[
-          { label: "Schema", href: "/docs/schema" },
-          { label: "Lineage", href: "/docs/lineage" },
-          { label: "OG Kit", href: "/docs/guides/visual-asset-prompt-pack" },
-        ].map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="rounded-2xl border border-border/70 bg-background/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:bg-accent/12 hover:text-foreground"
-          >
-            {item.label}
-          </Link>
-        ))}
       </div>
     </div>
   );
@@ -121,41 +65,14 @@ export function DocsSidebarBanner() {
 
 export function DocsSidebarFooter() {
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-2 text-xs">
       <div className="flex flex-wrap gap-2">
-        <Badge variant="signal">131 endpoints</Badge>
-        <Badge variant="muted">47 docs pages</Badge>
-        <Badge variant="board">11 guides</Badge>
+        <Badge variant="default">131 endpoints</Badge>
+        <Badge variant="default">47 pages</Badge>
       </div>
       <p className="text-muted-foreground">
-        Built for analysts, operators, and anyone who wants basketball data to
-        feel composable instead of chaotic, shareable instead of sterile, and
-        visually consistent across docs, cards, and social surfaces.
+        <kbd>⌘K</kbd> to search tables, endpoints, guides, and diagrams.
       </p>
-      <div className="nba-search-card rounded-[1.4rem] p-3">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-foreground">
-          <Search className="size-3.5 text-primary" />
-          Search lane
-        </div>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          Use <kbd>⌘K</kbd> to jump straight to tables, guides, diagrams, and
-          endpoint families.
-        </p>
-      </div>
-      <Link
-        href="/docs/guides/visual-asset-prompt-pack"
-        className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary"
-      >
-        Build share cards and prompts
-        <ArrowRight className="size-3.5" />
-      </Link>
-      <Link
-        href="/docs/guides/role-based-onboarding-hub"
-        className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary"
-      >
-        Start with role-based onboarding
-        <ArrowRight className="size-3.5" />
-      </Link>
     </div>
   );
 }
@@ -167,8 +84,6 @@ export function DocsPageHero({
   tocCount = 0,
 }: DocsChromeProps) {
   const section = getSectionMeta(slug);
-  const contextRail = getDocsContextRail(slug);
-  const Icon = sectionIcons[section.id];
   const breadcrumbs = getDocBreadcrumbs(slug);
   const currentLabel = slug?.length
     ? humanizeSlug(slug[slug.length - 1])
@@ -203,142 +118,20 @@ export function DocsPageHero({
         </ol>
       </nav>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
-        <div className="space-y-5">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="signal">{section.label}</Badge>
-            <Badge variant="board">{section.cue}</Badge>
-            <Badge variant="muted">{currentLabel}</Badge>
-            <Badge variant="muted">{Math.max(tocCount, 1)} waypoints</Badge>
-          </div>
-
-          <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                "hidden size-15 shrink-0 items-center justify-center rounded-[1.65rem] border border-border/60 bg-linear-to-br shadow-[0_20px_48px_-28px_color-mix(in_oklab,var(--foreground)_55%,transparent)] md:flex",
-                section.toneClass,
-              )}
-            >
-              <Icon className="size-7 text-foreground" />
-            </div>
-            <div className="space-y-3">
-              <p className="nba-kicker">{section.eyebrow}</p>
-              <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground md:text-5xl xl:text-[3.4rem]">
-                {title}
-              </h1>
-              {description ? (
-                <p className="max-w-3xl text-pretty text-base leading-7 text-muted-foreground md:text-lg">
-                  {description}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button asChild size="sm">
-              <Link href={section.hubHref}>
-                Browse {section.label}
-                <ArrowRight className="size-3.5" />
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="tint">
-              <Link
-                href={
-                  contextRail.links[0]?.href ??
-                  section.quickLinks[0]?.href ??
-                  "/docs"
-                }
-              >
-                Next best page
-                <ArrowRight className="size-3.5" />
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/docs">Open docs map</Link>
-            </Button>
-          </div>
+      <div className="mt-4 space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="primary">{section.label}</Badge>
+          <Badge variant="default">{currentLabel}</Badge>
         </div>
 
-        <aside className="nba-surface rounded-[1.6rem] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="nba-kicker">Scouting report</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground">
-                Section context
-              </h2>
-            </div>
-            <Icon className="size-5 text-primary" />
-          </div>
-
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            {section.blurb}
+        <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+          {title}
+        </h1>
+        {description ? (
+          <p className="max-w-3xl text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+            {description}
           </p>
-
-          <div className="mt-4 grid gap-2 @md:grid-cols-3 xl:grid-cols-1">
-            {section.stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-[1.1rem] border border-border/70 bg-background/72 px-3 py-2"
-              >
-                <div className="nba-scoreboard-value text-lg text-foreground">
-                  {stat.value}
-                </div>
-                <div className="nba-metric-label mt-1">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              <Blocks className="size-3.5" />
-              Route stack
-            </div>
-            <div className="grid gap-2">
-              {section.quickLinks.slice(0, 3).map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="rounded-[1.1rem] border border-border/70 bg-background/72 px-3 py-3 transition-colors hover:bg-accent/12"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                      {link.title}
-                    </div>
-                    <ArrowRight className="size-3.5 text-muted-foreground" />
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {link.description}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              <Search className="size-3.5" />
-              Search lanes
-            </div>
-            <div className="grid gap-2">
-              {section.prompts.slice(0, 2).map((prompt) => (
-                <div
-                  key={prompt.query}
-                  className="rounded-[1.1rem] border border-border/70 bg-background/72 px-3 py-3"
-                >
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                    {prompt.label}
-                  </div>
-                  <div className="mt-1 font-mono text-[0.78rem] text-foreground">
-                    {prompt.query}
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {prompt.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
+        ) : null}
       </div>
     </section>
   );
@@ -357,10 +150,10 @@ export function DocsGeneratedEntrySurface({
 
   return (
     <section className="mt-8 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="nba-surface rounded-[1.8rem] p-5 md:p-6">
+      <div className="border border-border bg-card p-4 md:p-5">
         <div className="flex flex-wrap gap-2">
-          <Badge variant="signal">Generated page</Badge>
-          <Badge variant="board">Command-owned</Badge>
+          <Badge variant="primary">Generated page</Badge>
+          <Badge variant="default">Command-owned</Badge>
           <Badge variant="muted">{frame.generatorLabel}</Badge>
         </div>
 
@@ -378,7 +171,7 @@ export function DocsGeneratedEntrySurface({
           {frame.stats.map((stat) => (
             <div
               key={stat.label}
-              className="rounded-[1.25rem] border border-border/70 bg-background/72 px-4 py-3"
+              className="border border-border bg-muted px-3 py-2"
             >
               <div className="nba-metric-label">{stat.label}</div>
               <div className="nba-scoreboard-value mt-1 text-xl text-foreground">
@@ -400,7 +193,7 @@ export function DocsGeneratedEntrySurface({
             {frame.steps.map((step, index) => (
               <div
                 key={step.title}
-                className="rounded-[1.25rem] border border-border/70 bg-background/72 px-4 py-4"
+                className="border border-border bg-muted px-3 py-3"
               >
                 <div className="flex items-start gap-3">
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/12 text-xs font-semibold text-primary">
@@ -421,7 +214,7 @@ export function DocsGeneratedEntrySurface({
         </div>
       </div>
 
-      <aside className="nba-search-card rounded-[1.8rem] p-5">
+      <aside className="border border-border bg-card p-4">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-foreground">
           <Command className="size-3.5 text-primary" />
           Generator boundary
@@ -429,7 +222,7 @@ export function DocsGeneratedEntrySurface({
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           {frame.ownershipNote}
         </p>
-        <div className="mt-4 rounded-[1.2rem] border border-border/70 bg-background/72 p-4">
+        <div className="mt-4 border border-border bg-muted p-3">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             Regenerate with
           </div>
@@ -776,8 +569,8 @@ export function DocsGeneratedScanSurface({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="signal">{totalItems} {meta.itemLabel}</Badge>
-          <Badge variant="board">{clusters.length} {meta.groupingLabel}</Badge>
+          <Badge variant="primary">{totalItems} {meta.itemLabel}</Badge>
+          <Badge variant="default">{clusters.length} {meta.groupingLabel}</Badge>
           <Badge variant="muted">{sourceLabel}</Badge>
         </div>
       </div>
@@ -786,7 +579,7 @@ export function DocsGeneratedScanSurface({
         {clusters.map((cluster) => (
           <div
             key={cluster.key}
-            className="nba-surface rounded-[1.5rem] p-5"
+            className="border border-border bg-card p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -797,7 +590,7 @@ export function DocsGeneratedScanSurface({
                   {cluster.description}
                 </p>
               </div>
-              <div className="rounded-full border border-border/70 bg-background/72 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-foreground">
+              <div className="border border-border bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
                 {cluster.items.length}
               </div>
             </div>
@@ -807,7 +600,7 @@ export function DocsGeneratedScanSurface({
                 <a
                   key={item.url}
                   href={item.url}
-                  className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/72 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/35 hover:text-foreground"
+                  className="inline-flex items-center gap-2 border border-border bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
                 >
                   <Blocks className="size-3" />
                   <span>{item.title}</span>
@@ -851,7 +644,7 @@ export function DocsGeneratedModules({ slug }: { slug?: string[] }) {
           <Link
             key={module.href}
             href={module.href}
-            className="nba-surface group rounded-[1.5rem] p-5 transition-transform duration-200 hover:-translate-y-0.5"
+            className="group border border-border bg-card p-4 transition-colors hover:bg-muted"
           >
             <div className="flex items-center justify-between gap-3">
               <Badge variant="outline">{module.label}</Badge>
@@ -913,7 +706,7 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
             <Link
               key={link.href}
               href={link.href}
-              className="nba-surface group rounded-[1.5rem] p-5 transition-transform duration-200 hover:-translate-y-0.5"
+              className="group border border-border bg-card p-4 transition-colors hover:bg-muted"
             >
               <div className="flex items-center justify-between gap-3">
                 <Badge variant="outline">{getLinkBadge(link.href)}</Badge>
@@ -929,7 +722,7 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
           ))}
         </div>
 
-        <aside className="nba-search-card rounded-[1.7rem] p-5">
+        <aside className="border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="nba-kicker">Search and discovery</p>
@@ -943,7 +736,7 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
             {contextRail.prompts.map((prompt) => (
               <div
                 key={prompt.query}
-                className="rounded-[1.15rem] border border-border/70 bg-background/70 px-4 py-3"
+                className="border border-border bg-muted px-3 py-2"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">

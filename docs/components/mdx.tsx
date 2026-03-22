@@ -2,28 +2,24 @@ import type { ComponentProps, ComponentType, ReactNode } from "react";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Mermaid } from "@/components/mdx/mermaid";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 
 type MDXComponentMap = Record<
   string,
   ComponentType<{ [key: string]: unknown }>
 >;
 
-function CourtQuote({ className, ...props }: ComponentProps<"blockquote">) {
+function TerminalQuote({ ...props }: ComponentProps<"blockquote">) {
   return (
     <blockquote
-      className={cn(
-        "rounded-3xl border border-border/70 bg-secondary/18 shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_5%,transparent)]",
-        className,
-      )}
+      className="border-l-3 border-primary bg-muted px-4 py-3"
       {...props}
     />
   );
 }
 
-function CourtDivider({ label = "Split action" }: { label?: ReactNode }) {
+function SectionDivider({ label = "—" }: { label?: ReactNode }) {
   return (
-    <div className="my-10 flex items-center gap-4">
+    <div className="my-8 flex items-center gap-3">
       <span className="h-px flex-1 bg-border" />
       <Badge variant="muted">{label}</Badge>
       <span className="h-px flex-1 bg-border" />
@@ -41,12 +37,12 @@ function StatPill({
   note?: string;
 }) {
   return (
-    <div className="nba-surface rounded-[1.35rem] px-4 py-3">
+    <div className="border border-border bg-card px-3 py-2">
       <div className="nba-metric-label">{label}</div>
       <div className="nba-scoreboard-value mt-1 text-2xl text-foreground">
         {value}
       </div>
-      {note ? <div className="mt-1 text-sm text-muted-foreground">{note}</div> : null}
+      {note ? <div className="mt-1 text-xs text-muted-foreground">{note}</div> : null}
     </div>
   );
 }
@@ -67,16 +63,15 @@ function StatGrid({
   }[columns];
 
   return (
-    <div className={cn("nba-stat-grid grid gap-4", columnClass, className)}>
+    <div className={`nba-stat-grid grid gap-px border border-border ${columnClass} ${className ?? ""}`}>
       {children}
     </div>
   );
 }
 
-function ScoutCard({
+function NoteCard({
   title,
-  label = "Analyst note",
-  className,
+  label = "Note",
   children,
 }: {
   title: string;
@@ -85,12 +80,12 @@ function ScoutCard({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("nba-surface rounded-[1.6rem] p-5", className)}>
-      <Badge variant="board">{label}</Badge>
-      <h3 className="mt-4 text-xl font-semibold tracking-tight text-foreground">
+    <div className="border border-border bg-card p-4">
+      <Badge variant="default">{label}</Badge>
+      <h3 className="mt-3 text-base font-bold tracking-tight text-foreground">
         {title}
       </h3>
-      <div className="mt-3 text-sm leading-7 text-muted-foreground">
+      <div className="mt-2 text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
         {children}
       </div>
     </div>
@@ -106,10 +101,7 @@ function DataColumns({
 }) {
   return (
     <div
-      className={cn(
-        "nba-data-columns grid gap-4 md:grid-cols-2 xl:gap-6",
-        className,
-      )}
+      className={`nba-data-columns grid gap-px border border-border md:grid-cols-2 ${className ?? ""}`}
     >
       {children}
     </div>
@@ -118,17 +110,16 @@ function DataColumns({
 
 function InsightCard({
   children,
-  className,
-  title = "Field note",
+  title = "Note",
 }: {
   children: ReactNode;
   className?: string;
   title?: string;
 }) {
   return (
-    <aside className={cn("nba-analyst-note rounded-[1.5rem] px-5 py-4", className)}>
+    <aside className="border border-border border-l-3 border-l-primary bg-muted px-4 py-3">
       <p className="nba-kicker">{title}</p>
-      <div className="mt-3 text-sm leading-7 text-muted-foreground">
+      <div className="mt-2 text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
         {children}
       </div>
     </aside>
@@ -140,12 +131,12 @@ export function getMDXComponents(
 ) {
   return {
     ...defaultMdxComponents,
-    blockquote: CourtQuote,
-    CourtDivider,
+    blockquote: TerminalQuote,
+    CourtDivider: SectionDivider,
     DataColumns,
     InsightCard,
     Mermaid,
-    ScoutCard,
+    ScoutCard: NoteCard,
     StatGrid,
     StatPill,
     ...components,

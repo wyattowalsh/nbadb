@@ -12,8 +12,8 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 <StatGrid columns={4}>
   <StatPill
     label="CLI commands"
-    value="14"
-    note="current Typer command surface registered by the app"
+    value="18"
+    note="14 top-level + 4 backfill subcommands"
   />
   <StatPill
     label="Pipeline run modes"
@@ -67,6 +67,8 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 | Refresh the current season after games settle | `nbadb daily`                     |
 | Sweep the last 3 seasons more broadly         | `nbadb monthly`                   |
 | Retry failures and fill historical gaps       | `nbadb full`                      |
+| Targeted backfill with gap detection           | `nbadb backfill run`              |
+| Detect missing data across seasons             | `nbadb backfill gaps`             |
 | Re-export from the existing DuckDB database   | `nbadb export`                    |
 | Inspect pipeline state                        | `nbadb status`                    |
 | Regenerate generated docs artifacts           | `nbadb docs-autogen`              |
@@ -77,6 +79,7 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 | If your question is…                                        | Start here                                                                | Typical commands                                                                  |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | “How do I build or refresh data?”                           | [Pipeline commands](#pipeline-commands)                                   | `init`, `daily`, `monthly`, `full`                                                |
+| “How do I fill gaps or re-extract specific data?”           | [Backfill commands](#backfill-commands)                                   | `backfill run`, `backfill gaps`, `backfill completeness`, `backfill journal`      |
 | “How do I inspect, validate, or debug what already exists?” | [Inspection and quality commands](#inspection-and-quality-commands)       | `schema`, `status`, `run-quality`, `ask`                                          |
 | “How do I move artifacts in or out?”                        | [Distribution and artifact commands](#distribution-and-artifact-commands) | `export`, `download`, `upload`, `docs-autogen`, `extract-completeness`, `migrate` |
 | “What are the exact current signatures?”                    | [Exact signatures](#exact-signatures)                                     | Grouped tables for every current command                                          |
@@ -122,6 +125,71 @@ These are the commands most operators touch first.
   commands. Their extraction scope differs, but each run ends by rebuilding
   downstream tables in <strong>replace</strong> mode.
 </Callout>
+
+## Backfill commands
+
+The `backfill` command group provides targeted extraction, gap detection, and journal management. Unlike the pipeline commands above, backfill operates selectively on specific seasons, endpoints, and parameter patterns.
+
+<DataColumns>
+  <ScoutCard title="`nbadb backfill run`" label="Targeted extraction">
+    Extracts specific endpoints/seasons with `--seasons/-s`, `--endpoint/-e`, and
+    `--pattern/-p` filters. Supports `--force` to re-extract, `--extract-only` and
+    `--transform-only` for partial runs, and `--dry-run/-n` to preview.
+  </ScoutCard>
+  <ScoutCard title="`nbadb backfill gaps`" label="Gap detection">
+    Scans the extraction journal to find missing data. Reports expected vs actual
+    counts by endpoint, season, and parameter pattern. Use `--output-format json`
+    for CI.
+  </ScoutCard>
+  <ScoutCard title="`nbadb backfill completeness`" label="Coverage report">
+    Aggregated completeness view grouped by season and endpoint. Complements `gaps`
+    with summary counts rather than per-entry detail.
+  </ScoutCard>
+  <ScoutCard title="`nbadb backfill journal`" label="Journal management">
+    Show, count, reset, or clear journal entries with `--action/-a`. Filter by
+    `--endpoint`, `--seasons`, and `--status` (done/failed/abandoned). Use
+    `--yes/-y` to skip confirmation on destructive actions.
+  </ScoutCard>
+</DataColumns>
+
+### Shared backfill options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--seasons` | `-s` | Comma-separated seasons or range: `'2015-16,2016-17'` or `'2015:2020'` |
+| `--endpoint` | `-e` | Comma-separated endpoint names |
+| `--pattern` | `-p` | Comma-separated param patterns (e.g. `'game,season'`) |
+| `--data-dir` | `-d` | Override default data directory |
+| `--output-format` | `-f` | Output format: `text` (default) or `json` |
+
+### `nbadb backfill run`
+
+Use `--dry-run` to preview what would be extracted without executing:
+
+```bash
+nbadb backfill run --seasons 2023-24,2024-25 --endpoint box_score_traditional --dry-run
+```
+
+Use `--force` to re-extract entries already marked as done:
+
+```bash
+nbadb backfill run --seasons 2024-25 --force
+```
+
+Use `--extract-only` or `--transform-only` for partial pipeline runs. These flags are mutually exclusive.
+
+### `nbadb backfill journal`
+
+The journal subcommand supports four actions via `--action/-a`:
+
+| Action | Description | Destructive? |
+|--------|-------------|--------------|
+| `show` | List journal entries (default, max 100) | No |
+| `count` | Counts grouped by endpoint and status | No |
+| `reset` | Reset entries to pending (re-extractable) | Yes |
+| `clear` | Delete matching entries permanently | Yes |
+
+Destructive actions require at least one filter (`--endpoint`, `--seasons`, or `--status`) and prompt for confirmation unless `--yes/-y` is passed.
 
 ## Inspection and quality commands
 
@@ -265,6 +333,15 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 | `nbadb daily`   | Current-season refresh focused on recent games    | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
 | `nbadb monthly` | Refresh the last 3 seasons                        | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
 | `nbadb full`    | Retry failed extractions and fill historical gaps | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
+
+### Backfill commands
+
+| Command                          | What it does                                          | Positional args | Options                                                                                                                                     |
+| -------------------------------- | ----------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nbadb backfill run`             | Targeted backfill extraction                          | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--pattern/-p`, `--force`, `--extract-only`, `--transform-only`, `--dry-run/-n`, `--verbose/-v`, `--quality-check` |
+| `nbadb backfill gaps`            | Detect and report extraction gaps                     | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--pattern/-p`, `--output-format/-f`                                                      |
+| `nbadb backfill completeness`    | Show data completeness per season/endpoint            | —               | `--data-dir/-d`, `--seasons/-s`, `--endpoint/-e`, `--output-format/-f`                                                                      |
+| `nbadb backfill journal`         | Manage extraction journal entries                     | —               | `--data-dir/-d`, `--endpoint/-e`, `--seasons/-s`, `--status`, `--action/-a` (`show`/`count`/`reset`/`clear`), `--yes/-y`, `--output-format/-f` |
 
 ### Inspection and quality commands
 

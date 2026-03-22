@@ -2,7 +2,7 @@ import "./global.css";
 import Script from "next/script";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Barlow_Condensed, IBM_Plex_Mono, Inter } from "next/font/google";
+import { IBM_Plex_Mono, Inter, Noto_Sans, IBM_Plex_Sans } from "next/font/google";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import {
@@ -11,22 +11,16 @@ import {
   siteOrigin,
   siteTitle,
 } from "@/lib/site-config";
+import { cn } from "@/lib/utils";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans-var",
-});
+const ibmPlexSansHeading = IBM_Plex_Sans({subsets:['latin'],variable:'--font-heading'});
 
-const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
-  variable: "--font-display-var",
-  weight: ["400", "500", "600", "700"],
-});
+const notoSans = Noto_Sans({subsets:['latin'],variable:'--font-sans'});
 
 const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   variable: "--font-mono-var",
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -37,6 +31,13 @@ export const metadata: Metadata = {
     default: siteTitle,
   },
   description: siteDescription,
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/apple-icon.png",
+  },
+  manifest: "/site.webmanifest",
   alternates: {
     canonical: "/",
   },
@@ -68,10 +69,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${barlowCondensed.variable} ${ibmPlexMono.variable}`}
+      className={cn(ibmPlexMono.variable, "font-sans", notoSans.variable, ibmPlexSansHeading.variable)}
       suppressHydrationWarning
     >
-      <body className="nba-site flex min-h-screen flex-col bg-background text-foreground antialiased">
+      <body className="flex min-h-screen flex-col bg-background text-foreground antialiased">
         <RootProvider
           search={{ enabled: true }}
           theme={{

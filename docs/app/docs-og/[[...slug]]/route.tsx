@@ -22,69 +22,21 @@ export async function GET(
           display: "flex",
           width: "100%",
           height: "100%",
+          background: "#0a0a0c",
+          color: "#e8e8ec",
+          fontFamily: "monospace",
           position: "relative",
-          overflow: "hidden",
-          background: "linear-gradient(140deg, #fbf6ec 0%, #f2ebdd 42%, #f7efe5 100%)",
-          color: "#181e2d",
-          fontFamily: "Arial",
         }}
       >
+        {/* Top border accent */}
         <div
           style={{
             position: "absolute",
-            inset: 0,
-            backgroundImage:
-              "linear-gradient(rgba(27, 42, 92, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(27, 42, 92, 0.08) 1px, transparent 1px)",
-            backgroundSize: "88px 88px",
-            opacity: 0.55,
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: -120,
-            left: 760,
-            width: 420,
-            height: 420,
-            borderRadius: 999,
-            background: "radial-gradient(circle, rgba(200, 49, 44, 0.22), transparent 68%)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: -148,
-            left: 720,
-            width: 460,
-            height: 280,
-            borderTopLeftRadius: 240,
-            borderTopRightRadius: 240,
-            border: "3px solid rgba(200, 49, 44, 0.22)",
-            borderBottom: "0",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: 164,
-            left: 865,
-            width: 170,
-            height: 215,
-            border: "2px solid rgba(27, 42, 92, 0.18)",
-            borderTopLeftRadius: 26,
-            borderTopRightRadius: 26,
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: 146,
-            left: 934,
-            width: 32,
-            height: 32,
-            borderRadius: 999,
-            border: "4px solid rgba(242, 167, 38, 0.78)",
-            boxShadow: "0 0 0 12px rgba(242, 167, 38, 0.12)",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            background: "#f26522",
           }}
         />
 
@@ -94,82 +46,76 @@ export async function GET(
             flexDirection: "column",
             justifyContent: "space-between",
             width: "100%",
-            padding: "58px 64px",
+            padding: "56px 64px",
           }}
         >
-          <div style={{ display: "flex", gap: 16 }}>
+          {/* Header */}
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                borderRadius: 999,
-                border: "1px solid rgba(200, 49, 44, 0.2)",
-                background: "rgba(200, 49, 44, 0.1)",
-                padding: "10px 18px",
-                fontSize: 24,
+                fontSize: 28,
                 fontWeight: 700,
-                letterSpacing: "0.26em",
+                letterSpacing: "-0.03em",
+                color: "#e8e8ec",
+              }}
+            >
+              {siteName}
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: "0.2em",
                 textTransform: "uppercase",
+                color: "#f26522",
+                border: "1px solid rgba(242, 101, 34, 0.3)",
+                padding: "6px 12px",
               }}
             >
               {section.label}
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                borderRadius: 999,
-                border: "1px solid rgba(27, 42, 92, 0.14)",
-                background: "rgba(255, 255, 255, 0.7)",
-                padding: "10px 18px",
-                fontSize: 24,
-                fontWeight: 700,
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-              }}
-            >
-              {section.cue}
-            </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", maxWidth: 720 }}>
+          {/* Title + description */}
+          <div style={{ display: "flex", flexDirection: "column", maxWidth: 900 }}>
             <div
               style={{
-                fontSize: 80,
-                fontWeight: 800,
-                lineHeight: 0.95,
-                letterSpacing: "-0.06em",
+                fontSize: 72,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: "-0.04em",
+                color: "#e8e8ec",
               }}
             >
               {title}
             </div>
-            <div
-              style={{
-                marginTop: 28,
-                fontSize: 30,
-                lineHeight: 1.35,
-                color: "rgba(24, 30, 45, 0.72)",
-              }}
-            >
-              {description}
-            </div>
+            {description ? (
+              <div
+                style={{
+                  marginTop: 24,
+                  fontSize: 26,
+                  lineHeight: 1.4,
+                  color: "#888890",
+                }}
+              >
+                {description}
+              </div>
+            ) : null}
           </div>
 
-          <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-            {[siteName, section.eyebrow, "OpenGraph ready"].map((item) => (
+          {/* Footer stats */}
+          <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+            {["141 tables", "131 endpoints", "DuckDB"].map((item) => (
               <div
                 key={item}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  borderRadius: 999,
-                  border: "1px solid rgba(27, 42, 92, 0.12)",
-                  background: "rgba(255, 255, 255, 0.72)",
-                  padding: "10px 18px",
-                  fontSize: 22,
-                  fontWeight: 700,
-                  letterSpacing: "0.12em",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  letterSpacing: "0.16em",
                   textTransform: "uppercase",
+                  color: "#888890",
+                  border: "1px solid #2a2a30",
+                  padding: "8px 14px",
                 }}
               >
                 {item}

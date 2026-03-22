@@ -1,12 +1,4 @@
 import Link from "next/link";
-import {
-  BookOpenText,
-  Database,
-  LayoutGrid,
-  Network,
-  Route,
-  Trophy,
-} from "lucide-react";
 import type { ReactNode } from "react";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import type { LinkItemType } from "fumadocs-ui/layouts/shared";
@@ -29,35 +21,30 @@ const links = [
     url: "/docs/schema",
     active: "nested-url",
     on: "nav",
-    icon: <Database className="size-4" />,
   },
   {
     text: "Endpoints",
     url: "/docs/endpoints",
     active: "nested-url",
     on: "nav",
-    icon: <Trophy className="size-4" />,
   },
   {
     text: "Lineage",
     url: "/docs/lineage",
     active: "nested-url",
     on: "nav",
-    icon: <Network className="size-4" />,
   },
   {
     text: "Diagrams",
     url: "/docs/diagrams",
     active: "nested-url",
     on: "nav",
-    icon: <LayoutGrid className="size-4" />,
   },
   {
     text: "Guides",
     url: "/docs/guides",
     active: "nested-url",
     on: "nav",
-    icon: <Route className="size-4" />,
   },
   {
     type: "button",
@@ -65,14 +52,6 @@ const links = [
     url: "https://www.kaggle.com/datasets/wyattowalsh/basketball",
     external: true,
     on: "nav",
-  },
-  {
-    type: "icon",
-    text: "Role-based onboarding",
-    label: "Role-based onboarding",
-    url: "/docs/guides/role-based-onboarding-hub",
-    on: "all",
-    icon: <BookOpenText className="size-4" />,
   },
 ] satisfies LinkItemType[];
 
@@ -85,10 +64,8 @@ export default function Layout({ children }: { children: ReactNode }) {
       nav={{
         title: (
           <Link href="/" className="flex items-center gap-2">
-            <span className="nba-display text-lg tracking-tight">nbadb</span>
-            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              Arena Data Lab
-            </span>
+            <img src="/logo-600.png" alt="nbadb" className="h-7 w-auto" />
+            <span className="nba-display text-lg font-bold tracking-tight">nbadb</span>
           </Link>
         ),
         transparentMode: "top",

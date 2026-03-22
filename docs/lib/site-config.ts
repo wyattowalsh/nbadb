@@ -95,9 +95,9 @@ export type GeneratedPageFrameMeta = {
 
 export const siteOrigin = "https://nbadb.dev";
 export const siteName = "nbadb";
-export const siteTitle = "nbadb — Arena Data Lab";
+export const siteTitle = "nbadb — NBA Data Warehouse";
 export const siteDescription =
-  "Basketball-native NBA data documentation with warehouse maps, endpoint scouting reports, lineage views, operations playbooks, and visual asset prompt packs.";
+  "141-table star schema for NBA data. DuckDB-first warehouse with 131 endpoint extractors, full lineage, and schema documentation.";
 
 export const siteMetrics: SiteMetric[] = [
   { label: "Tables", value: "141", note: "17 dimensions · 102 facts" },
