@@ -5,11 +5,10 @@ from __future__ import annotations
 import pytest
 from rich.console import Console, Group
 
+from nbadb.cli._progress_common import PatternState, fmt_time, gradient_bar
 from nbadb.cli.progress import (
     NoopProgress,
     PipelineProgress,
-    _gradient_bar,
-    _PatternState,
 )
 
 # ── _gradient_bar ──────────────────────────────────────────
@@ -17,46 +16,46 @@ from nbadb.cli.progress import (
 
 class TestGradientBar:
     def test_pct_zero_returns_all_empty(self) -> None:
-        bar = _gradient_bar(0.0, width=10)
+        bar = gradient_bar(0.0, width=10)
         assert len(bar) == 10
         # First char is the partial block (space from _BAR_CHARS[0]),
         # remaining chars are empty blocks ░
         assert bar[1:] == "\u2591" * 9
 
     def test_pct_one_returns_all_full(self) -> None:
-        bar = _gradient_bar(1.0, width=10)
+        bar = gradient_bar(1.0, width=10)
         assert len(bar) == 10
         assert all(c == "\u2588" for c in bar)  # █
 
     def test_pct_one_width_30(self) -> None:
-        bar = _gradient_bar(1.0, width=30)
+        bar = gradient_bar(1.0, width=30)
         assert len(bar) == 30
         assert bar == "\u2588" * 30
 
     def test_half_returns_correct_length(self) -> None:
-        bar = _gradient_bar(0.5, width=30)
+        bar = gradient_bar(0.5, width=30)
         assert len(bar) == 30
 
     def test_half_has_filled_and_empty(self) -> None:
-        bar = _gradient_bar(0.5, width=10)
+        bar = gradient_bar(0.5, width=10)
         # First half should be filled blocks, second half empty
         assert "\u2588" in bar
         assert "\u2591" in bar
 
     def test_near_one_returns_correct_length(self) -> None:
-        bar = _gradient_bar(0.999, width=30)
+        bar = gradient_bar(0.999, width=30)
         assert len(bar) == 30
 
     def test_small_width(self) -> None:
-        bar = _gradient_bar(0.5, width=4)
+        bar = gradient_bar(0.5, width=4)
         assert len(bar) == 4
 
-    def test_default_width_is_30(self) -> None:
-        bar = _gradient_bar(0.5)
-        assert len(bar) == 30
+    def test_default_width_is_18(self) -> None:
+        bar = gradient_bar(0.5)
+        assert len(bar) == 18
 
     def test_above_one_treated_as_full(self) -> None:
-        bar = _gradient_bar(1.5, width=10)
+        bar = gradient_bar(1.5, width=10)
         assert bar == "\u2588" * 10
 
 
@@ -65,19 +64,25 @@ class TestGradientBar:
 
 class TestPatternState:
     def test_defaults(self) -> None:
-        ps = _PatternState(label="test", total=100)
+        ps = PatternState(label="test", total=100)
         assert ps.completed == 0
         assert ps.succeeded == 0
         assert ps.failed == 0
         assert ps.skipped == 0
-        assert ps.status == "pending"
+        assert ps.status == "pending"  # PatternStatus.PENDING
         assert ps.start_time == 0.0
         assert ps.end_time == 0.0
 
     def test_custom_values(self) -> None:
-        ps = _PatternState(
-            label="boxscore", total=50, completed=10, succeeded=8,
-            failed=2, skipped=0, status="running", start_time=1.0,
+        ps = PatternState(
+            label="boxscore",
+            total=50,
+            completed=10,
+            succeeded=8,
+            failed=2,
+            skipped=0,
+            status="running",
+            start_time=1.0,
         )
         assert ps.label == "boxscore"
         assert ps.total == 50
@@ -210,18 +215,18 @@ class TestPipelineProgress:
 
 class TestFmtTime:
     def test_under_60_seconds(self) -> None:
-        assert PipelineProgress._fmt_time(30) == "30s"
-        assert PipelineProgress._fmt_time(0) == "0s"
-        assert PipelineProgress._fmt_time(59.9) == "60s"
+        assert fmt_time(30) == "30s"
+        assert fmt_time(0) == "0s"
+        assert fmt_time(59.9) == "60s"
 
     def test_minutes(self) -> None:
-        assert PipelineProgress._fmt_time(60) == "1m00s"
-        assert PipelineProgress._fmt_time(125) == "2m05s"
-        assert PipelineProgress._fmt_time(3599) == "59m59s"
+        assert fmt_time(60) == "1m00s"
+        assert fmt_time(125) == "2m05s"
+        assert fmt_time(3599) == "59m59s"
 
     def test_hours(self) -> None:
-        assert PipelineProgress._fmt_time(3600) == "1h00m"
-        assert PipelineProgress._fmt_time(7265) == "2h01m"
+        assert fmt_time(3600) == "1h00m"
+        assert fmt_time(7265) == "2h01m"
 
 
 class TestRenderMethods:
@@ -306,8 +311,6 @@ class TestNoopProgress:
         noop = NoopProgress()
         # None of these should raise
         noop.start_phase("phase", total=10)
-        noop.advance_phase(1)
-        noop.update_phase_total(5)
         noop.update_phase_info("info")
         noop.complete_phase()
         noop.log_discovery("games", 100)
@@ -319,8 +322,6 @@ class TestNoopProgress:
     def test_methods_return_none(self) -> None:
         noop = NoopProgress()
         assert noop.start_phase("x") is None
-        assert noop.advance_phase() is None
-        assert noop.update_phase_total(1) is None
         assert noop.update_phase_info("x") is None
         assert noop.complete_phase() is None
         assert noop.log_discovery("x", 1) is None

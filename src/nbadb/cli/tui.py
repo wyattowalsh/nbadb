@@ -14,13 +14,18 @@ from __future__ import annotations
 
 import contextlib
 import time
-from dataclasses import dataclass
+from collections import deque
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.theme import Theme
 from textual.widgets import (
     DataTable,
@@ -31,17 +36,24 @@ from textual.widgets import (
     Static,
 )
 
+from nbadb.cli._progress_common import (
+    DONE_CHAR,
+    SPINNER_FRAMES,
+    PatternState,
+    PatternStatus,
+    fmt_time,
+    gradient_bar,
+    proportional_bar,
+)
+
 # ── constants ──────────────────────────────────────────────
-_BAR_CHARS = " ▏▎▍▌▋▊▉█"
-_DONE = "█"
-_EMPTY = "░"
-_SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-_ICONS = {"games": "🎮", "players": "👤", "teams": "🏟️ ", "dates": "📅"}
 
 # NBA official colors
 _NBA_RED = "#C8102E"
 _NBA_BLUE = "#1D428A"
 _NBA_GOLD = "#FDB927"
+
+_COLUMNS = ("", "PLAY", "PROGRESS", "%", "SCORE", "FG", "TO", "DNP", "TIME")
 
 NBA_THEME = Theme(
     name="nba-dark",
@@ -62,40 +74,18 @@ NBA_THEME = Theme(
     },
 )
 
-
-def _gradient_bar(pct: float, width: int = 18) -> str:
-    if pct >= 1.0:
-        return _DONE * width
-    filled = pct * width
-    full = int(filled)
-    rem = filled - full
-    pidx = int(rem * (len(_BAR_CHARS) - 1))
-    partial = _BAR_CHARS[pidx] if full < width else ""
-    empty = width - full - (1 if partial else 0)
-    return _DONE * full + partial + _EMPTY * empty
-
-
-def _fmt_time(seconds: float) -> str:
-    if seconds < 60:
-        return f"{seconds:.0f}s"
-    m, s = divmod(int(seconds), 60)
-    if m < 60:
-        return f"{m}m{s:02d}s"
-    h, m = divmod(m, 60)
-    return f"{h}h{m:02d}m"
-
-
-@dataclass
-class PatternState:
-    label: str
-    total: int
-    completed: int = 0
-    succeeded: int = 0
-    failed: int = 0
-    skipped: int = 0
-    status: str = "pending"
-    start_time: float = 0.0
-    end_time: float = 0.0
+# ── log level style map ───────────────────────────────────
+# Loguru format: {time:HH:mm:ss} | {level:<7} | {message}
+# Level field occupies chars 11..18 (0-indexed).
+_LEVEL_STYLES: dict[str, str] = {
+    "ERROR": _NBA_RED,
+    "CRITICA": _NBA_RED,  # CRITICAL truncated to 7 chars
+    "WARNING": _NBA_GOLD,
+    "SUCCESS": "green",
+    "INFO": "",
+    "DEBUG": "dim",
+    "TRACE": "dim",
+}
 
 
 # ── custom widgets ─────────────────────────────────────────
@@ -124,7 +114,7 @@ class Scoreboard(Static):
         t.append(" 🏀 ", style="")
         t.append(" NBADB ", style=f"bold bright_white on {_NBA_RED}")
         t.append(f" {self._mode} ", style=f"bold bright_white on {_NBA_BLUE}")
-        t.append(f"  ⏱ {_fmt_time(self._elapsed)} ", style="bold")
+        t.append(f"  ⏱ {fmt_time(self._elapsed)} ", style="bold")
         total = self._ok + self._fail
         if self._elapsed > 1 and total > 0:
             rate = total / self._elapsed
@@ -174,23 +164,21 @@ class TotalsStrip(Static):
         total = self._ok + self._fail + self._skip
         if not total:
             return Text(" Waiting for first pitch...", style="dim italic")
-        bar_w = 28
-        ok_w = max(1, int(self._ok / total * bar_w)) if self._ok else 0
-        fail_w = max(1, int(self._fail / total * bar_w)) if self._fail else 0
-        skip_w = max(1, int(self._skip / total * bar_w)) if self._skip else 0
-        used = ok_w + fail_w + skip_w
-        if used < bar_w:
-            ok_w += bar_w - used
-        elif used > bar_w and ok_w > 1:
-            ok_w -= used - bar_w
+
+        ok_w, fail_w, skip_w = proportional_bar(
+            self._ok,
+            self._fail,
+            self._skip,
+            width=28,
+        )
 
         t = Text(" ")
         if ok_w:
-            t.append(_DONE * ok_w, style="green")
+            t.append(DONE_CHAR * ok_w, style="green")
         if fail_w:
-            t.append(_DONE * fail_w, style=_NBA_RED)
+            t.append(DONE_CHAR * fail_w, style=_NBA_RED)
         if skip_w:
-            t.append(_DONE * skip_w, style=_NBA_GOLD)
+            t.append(DONE_CHAR * skip_w, style=_NBA_GOLD)
         t.append("  ")
         t.append(f"{self._ok:,}", style="bold green")
         t.append(" FGM", style="dim")
@@ -346,9 +334,19 @@ class NbaDbDashboard(App):
         Binding("s", "toggle_stats", "Stats"),
     ]
 
-    def __init__(self, mode: str = "INIT") -> None:
+    def __init__(
+        self,
+        mode: str = "INIT",
+        *,
+        run_fn: Callable[..., Awaitable[Any]] | None = None,
+        settings: Any = None,
+        orchestrator_cls: type | None = None,
+    ) -> None:
         super().__init__()
         self._mode = mode.upper()
+        self._run_fn = run_fn
+        self._settings = settings
+        self._orchestrator_cls = orchestrator_cls
         self._start_time = 0.0
         self._phase = ""
         self._phase_detail = ""
@@ -359,12 +357,15 @@ class NbaDbDashboard(App):
         self._row_keys: dict[str, object] = {}
         self._pipeline_result: object = None
         self._pipeline_error: Exception | None = None
-        self._run_fn: object = None
-        self._settings: object = None
-        self._orchestrator_cls: type | None = None
-        self._rate_history: list[float] = [0.0] * 60
+        self._rate_history: deque[float] = deque([0.0] * 60, maxlen=60)
         self._last_total = 0
         self._stat_cards: dict[str, StatCard] = {}
+        # Cached widget references — set in on_mount
+        self._scoreboard: Scoreboard | None = None
+        self._spark: Sparkline | None = None
+        self._pbar: ProgressBar | None = None
+        self._strip: TotalsStrip | None = None
+        self._table: DataTable | None = None
 
     def compose(self) -> ComposeResult:
         yield Scoreboard(mode=self._mode, id="scoreboard")
@@ -384,7 +385,7 @@ class NbaDbDashboard(App):
             yield players_card
             yield teams_card
             yield dates_card
-            yield Sparkline(self._rate_history, summary_function=max, id="throughput-spark")
+            yield Sparkline(list(self._rate_history), summary_function=max, id="throughput-spark")
 
         with Horizontal(id="main-split"):
             with Vertical(id="left-pane"):
@@ -408,11 +409,17 @@ class NbaDbDashboard(App):
 
         self._start_time = time.monotonic()
 
+        # Cache widget references
+        self._scoreboard = self.query_one("#scoreboard", Scoreboard)
+        self._spark = self.query_one("#throughput-spark", Sparkline)
+        self._pbar = self.query_one("#overall-bar", ProgressBar)
+        self._strip = self.query_one("#totals-strip", TotalsStrip)
+        self._table = self.query_one("#game-clock", DataTable)
+
         # Set up progress table
-        table = self.query_one("#game-clock", DataTable)
-        table.border_title = "🏀 GAME CLOCK"
-        table.cursor_type = "none"
-        table.add_columns("", "PLAY", "PROGRESS", "%", "SCORE", "FG", "TO", "DNP", "TIME")
+        self._table.border_title = "🏀 GAME CLOCK"
+        self._table.cursor_type = "none"
+        self._table.add_columns(*_COLUMNS)
 
         # Start the clock ticker
         self.set_interval(0.5, self._tick_clock)
@@ -440,7 +447,7 @@ class NbaDbDashboard(App):
     def pipeline_error(self) -> Exception | None:
         return self._pipeline_error
 
-    @work(exclusive=True)
+    @work(exclusive=True, exit_on_error=False)
     async def _launch_pipeline(self) -> None:
         """Run the extraction pipeline inside Textual's event loop."""
         orch_cls = self._orchestrator_cls
@@ -455,7 +462,6 @@ class NbaDbDashboard(App):
         except Exception as exc:
             self._pipeline_error = exc
             self.write_log(f"❌ Pipeline failed: {type(exc).__name__}", f"bold {_NBA_RED}")
-            raise
         else:
             self.write_log("", "")
             self.write_log("🏆 PERFECT GAME — Pipeline complete!", "bold green")
@@ -465,12 +471,19 @@ class NbaDbDashboard(App):
     def _tick_clock(self) -> None:
         self._tick += 1
         elapsed = time.monotonic() - self._start_time if self._start_time else 0
-        ok = sum(p.succeeded for p in self._patterns)
-        fail = sum(p.failed for p in self._patterns)
+
+        # Single-pass aggregation
+        ok = fail = done = total = skipped = 0
+        for p in self._patterns:
+            ok += p.succeeded
+            fail += p.failed
+            done += p.completed
+            total += p.total
+            skipped += p.skipped
 
         # Update scoreboard
-        scoreboard = self.query_one("#scoreboard", Scoreboard)
-        scoreboard.set_stats(elapsed, ok, fail, self._phase_detail or self._phase)
+        if self._scoreboard is not None:
+            self._scoreboard.set_stats(elapsed, ok, fail, self._phase_detail or self._phase)
 
         # Update throughput sparkline
         current_total = ok + fail
@@ -478,84 +491,66 @@ class NbaDbDashboard(App):
         self._last_total = current_total
         rate = delta / 0.5  # ticks every 0.5s
         self._rate_history.append(rate)
-        if len(self._rate_history) > 60:
-            self._rate_history = self._rate_history[-60:]
-        try:
-            spark = self.query_one("#throughput-spark", Sparkline)
-            spark.data = list(self._rate_history)
-        except Exception:
-            pass
+        if self._spark is not None:
+            self._spark.data = list(self._rate_history)
 
         # Animate running pattern
-        if self._current_pattern and self._current_pattern.status == "running":
+        if self._current_pattern and self._current_pattern.status == PatternStatus.RUNNING:
             self._update_pattern_row(self._current_pattern)
 
         # Overall progress
-        total_done = sum(p.completed for p in self._patterns)
-        total_all = sum(p.total for p in self._patterns)
-        try:
-            pbar = self.query_one("#overall-bar", ProgressBar)
-            if total_all > 0:
-                pbar.update(total=total_all, progress=total_done)
-        except Exception:
-            pass
+        if self._pbar is not None and total > 0:
+            self._pbar.update(total=total, progress=done)
 
         # Totals strip
-        try:
-            strip = self.query_one("#totals-strip", TotalsStrip)
-            strip.set_totals(ok, fail, sum(p.skipped for p in self._patterns))
-        except Exception:
-            pass
+        if self._strip is not None:
+            self._strip.set_totals(ok, fail, skipped)
 
     def _update_pattern_row(self, p: PatternState) -> None:
-        table = self.query_one("#game-clock", DataTable)
+        table = self._table
+        if table is None:
+            return
         key = self._row_keys.get(p.label)
         if key is None:
             return
 
         pct = p.completed / p.total if p.total else 0
 
-        if p.status == "done":
+        if p.status == PatternStatus.DONE:
             icon = "✓" if p.failed == 0 else "!"
             color = "green" if p.failed == 0 else _NBA_GOLD
-        elif p.status == "running":
-            icon = _SPINNER[self._tick % len(_SPINNER)]
+        elif p.status == PatternStatus.RUNNING:
+            icon = SPINNER_FRAMES[self._tick % len(SPINNER_FRAMES)]
             color = _NBA_GOLD
         else:
             icon = "○"
             color = "dim"
 
-        bar = _gradient_bar(pct, width=16)
+        bar = gradient_bar(pct, width=16)
 
         elapsed_str = ""
-        if p.status == "done" and p.end_time:
-            elapsed_str = _fmt_time(p.end_time - p.start_time)
-        elif p.status == "running" and p.start_time:
-            elapsed_str = _fmt_time(time.monotonic() - p.start_time)
+        if p.status == PatternStatus.DONE and p.end_time:
+            elapsed_str = fmt_time(p.end_time - p.start_time)
+        elif p.status == PatternStatus.RUNNING and p.start_time:
+            elapsed_str = fmt_time(time.monotonic() - p.start_time)
+
+        cells = (
+            Text(icon, style=color),
+            Text(p.label, style="bold" if p.status == PatternStatus.RUNNING else ""),
+            Text(bar, style=color),
+            Text(f"{pct:>3.0%}", style=color),
+            Text(f"{p.completed:,}/{p.total:,}"),
+            Text(f"{p.succeeded:,}", style="green"),
+            Text(f"{p.failed:,}", style=_NBA_RED) if p.failed else Text("0", style="dim"),
+            Text(f"{p.skipped:,}", style=_NBA_GOLD) if p.skipped else Text("-", style="dim"),
+            Text(elapsed_str, style="dim"),
+        )
 
         try:
-            table.update_cell(key, "", Text(icon, style=color))
-            table.update_cell(
-                key,
-                "PLAY",
-                Text(p.label, style="bold" if p.status == "running" else ""),
-            )
-            table.update_cell(key, "PROGRESS", Text(bar, style=color))
-            table.update_cell(key, "%", Text(f"{pct:>3.0%}", style=color))
-            table.update_cell(key, "SCORE", Text(f"{p.completed:,}/{p.total:,}"))
-            table.update_cell(key, "FG", Text(f"{p.succeeded:,}", style="green"))
-            table.update_cell(
-                key,
-                "TO",
-                Text(f"{p.failed:,}", style=_NBA_RED) if p.failed else Text("0", style="dim"),
-            )
-            table.update_cell(
-                key,
-                "DNP",
-                Text(f"{p.skipped:,}", style=_NBA_GOLD) if p.skipped else Text("-", style="dim"),
-            )
-            table.update_cell(key, "TIME", Text(elapsed_str, style="dim"))
-        except Exception:
+            with self.batch_update():
+                for col, val in zip(_COLUMNS, cells, strict=True):
+                    table.update_cell(key, col, val)
+        except NoMatches:
             pass
 
     # ── actions ────────────────────────────────────────────
@@ -573,31 +568,25 @@ class NbaDbDashboard(App):
     def write_log(self, message: str, style: str = "") -> None:
         try:
             log = self.query_one("#log-panel", RichLog)
-            if style:
-                log.write(Text(message, style=style))
-            else:
-                log.write(message)
-        except Exception:
-            pass
+        except (NoMatches, Exception):
+            return
+        if style:
+            log.write(Text(message, style=style))
+        else:
+            log.write(message)
 
     def start_phase(self, name: str, total: int = 0) -> None:
         self._phase = name
         self._phase_detail = ""
         self.write_log(f"▶ {name}", f"bold {_NBA_BLUE}")
 
-    def advance_phase(self, n: int = 1) -> None:
-        pass
-
-    def update_phase_total(self, total: int) -> None:
-        pass
-
     def update_phase_info(self, info: str) -> None:
         self._phase_detail = info
         self.write_log(f"  {info}", "dim")
 
     def complete_phase(self) -> None:
-        if self._current_pattern and self._current_pattern.status == "running":
-            self._current_pattern.status = "done"
+        if self._current_pattern and self._current_pattern.status == PatternStatus.RUNNING:
+            self._current_pattern.status = PatternStatus.DONE
             self._current_pattern.end_time = time.monotonic()
             self._update_pattern_row(self._current_pattern)
         phase = self._phase or "Phase"
@@ -613,33 +602,34 @@ class NbaDbDashboard(App):
         self.write_log(f"  🔍 {entity}: {count:,}")
 
     def start_pattern(self, pattern: str, total: int) -> None:
-        if self._current_pattern and self._current_pattern.status == "running":
-            self._current_pattern.status = "done"
+        if self._current_pattern and self._current_pattern.status == PatternStatus.RUNNING:
+            self._current_pattern.status = PatternStatus.DONE
             self._current_pattern.end_time = time.monotonic()
             self._update_pattern_row(self._current_pattern)
 
         state = PatternState(
             label=pattern,
             total=total,
-            status="running",
+            status=PatternStatus.RUNNING,
             start_time=time.monotonic(),
         )
         self._patterns.append(state)
         self._current_pattern = state
 
-        table = self.query_one("#game-clock", DataTable)
-        row_key = table.add_row(
-            Text(_SPINNER[0], style=_NBA_GOLD),
-            Text(pattern, style="bold"),
-            Text(_gradient_bar(0, width=16), style=_NBA_GOLD),
-            Text("0%", style=_NBA_GOLD),
-            Text(f"0/{total:,}"),
-            Text("0", style="green"),
-            Text("0", style="dim"),
-            Text("-", style="dim"),
-            Text("0s", style="dim"),
-        )
-        self._row_keys[pattern] = row_key
+        table = self._table
+        if table is not None:
+            row_key = table.add_row(
+                Text(SPINNER_FRAMES[0], style=_NBA_GOLD),
+                Text(pattern, style="bold"),
+                Text(gradient_bar(0, width=16), style=_NBA_GOLD),
+                Text("0%", style=_NBA_GOLD),
+                Text(f"0/{total:,}"),
+                Text("0", style="green"),
+                Text("0", style="dim"),
+                Text("-", style="dim"),
+                Text("0s", style="dim"),
+            )
+            self._row_keys[pattern] = row_key
         self.write_log(f"🏀 {pattern}: {total:,} tasks", "bold")
 
     def advance_pattern(self, *, success: bool = True) -> None:
@@ -665,7 +655,11 @@ class NbaDbDashboard(App):
             return
         self._current_pattern.completed += n
         self._current_pattern.skipped += n
-        self._update_pattern_row(self._current_pattern)
+        # Throttle like advance_pattern
+        c = self._current_pattern.completed
+        t = self._current_pattern.total
+        if c % max(1, t // 100) == 0 or c == t:
+            self._update_pattern_row(self._current_pattern)
 
 
 # ── loguru sink ────────────────────────────────────────────
@@ -681,15 +675,12 @@ class TuiLogSink:
         msg = message.rstrip("\n")
         if not msg:
             return
-        style = "dim"
-        if "ERROR" in msg or "FAIL" in msg:
-            style = _NBA_RED
-        elif "WARNING" in msg or "WARN" in msg:
-            style = _NBA_GOLD
-        elif "INFO" in msg:
-            style = ""
-        elif "SUCCESS" in msg:
-            style = "green"
+        # Parse level from known fixed position in loguru format:
+        #   {time:HH:mm:ss} | {level:<7} | {message}
+        #   0         1
+        #   0123456789012345678
+        level = msg[11:18].strip().upper() if len(msg) > 18 else ""
+        style = _LEVEL_STYLES.get(level, "dim")
         with contextlib.suppress(Exception):
             self._app.write_log(msg, style)
 
@@ -699,8 +690,8 @@ class TuiLogSink:
 
 def run_with_tui(
     mode: str,
-    run_fn: object,
-    settings: object,
+    run_fn: Callable[..., Awaitable[Any]],
+    settings: Any,
     orchestrator_cls: type | None = None,
 ) -> tuple[object, Exception | None]:
     """Run pipeline inside the Textual TUI.
@@ -710,13 +701,14 @@ def run_with_tui(
     """
     from loguru import logger
 
-    app = NbaDbDashboard(mode=mode)
-    app._run_fn = run_fn
-    app._settings = settings
-    app._orchestrator_cls = orchestrator_cls
+    app = NbaDbDashboard(
+        mode=mode,
+        run_fn=run_fn,
+        settings=settings,
+        orchestrator_cls=orchestrator_cls,
+    )
 
-    # Wire loguru into the TUI log panel
-    logger.remove()
+    # Wire loguru into the TUI log panel — don't nuke existing sinks
     sink = TuiLogSink(app)
     sink_id = logger.add(
         sink.write,

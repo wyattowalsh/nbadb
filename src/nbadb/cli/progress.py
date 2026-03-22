@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 
 from rich.console import Console, Group
 from rich.live import Live
@@ -11,40 +10,16 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-# ── smooth gradient block chars ────────────────────────────
-_BAR_CHARS = " ▏▎▍▌▋▊▉█"
-_DONE_CHAR = "█"
-_EMPTY_CHAR = "░"
-_BALL_FRAMES = ["🏀", "  ", "🏀", "  "]
-_SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-_COURT_TOP = "╔" + "═" * 60 + "╗"
-_COURT_BOT = "╚" + "═" * 60 + "╝"
-
-
-def _gradient_bar(pct: float, width: int = 30) -> str:
-    """Smooth gradient progress bar using Unicode block characters."""
-    if pct >= 1.0:
-        return _DONE_CHAR * width
-    filled_exact = pct * width
-    full_blocks = int(filled_exact)
-    remainder = filled_exact - full_blocks
-    partial_idx = int(remainder * (len(_BAR_CHARS) - 1))
-    partial = _BAR_CHARS[partial_idx] if full_blocks < width else ""
-    empty = width - full_blocks - (1 if partial else 0)
-    return _DONE_CHAR * full_blocks + partial + _EMPTY_CHAR * empty
-
-
-@dataclass
-class _PatternState:
-    label: str
-    total: int
-    completed: int = 0
-    succeeded: int = 0
-    failed: int = 0
-    skipped: int = 0
-    status: str = "pending"
-    start_time: float = 0.0
-    end_time: float = 0.0
+from nbadb.cli._progress_common import (
+    DONE_CHAR,
+    ENTITY_ICONS,
+    SPINNER_FRAMES,
+    PatternState,
+    PatternStatus,
+    fmt_time,
+    gradient_bar,
+    proportional_bar,
+)
 
 
 class PipelineProgress:
@@ -57,8 +32,8 @@ class PipelineProgress:
         self._phase = ""
         self._phase_detail = ""
         self._discoveries: dict[str, int] = {}
-        self._patterns: list[_PatternState] = []
-        self._current_pattern: _PatternState | None = None
+        self._patterns: list[PatternState] = []
+        self._current_pattern: PatternState | None = None
         self._start_time = 0.0
         self._tick = 0
 
@@ -101,7 +76,7 @@ class PipelineProgress:
         header.append(f" {ball} ", style="")
         header.append(" NBADB ", style="bold bright_white on dark_orange3")
         header.append(f" {self._mode.upper()} ", style="bold white on orange4")
-        header.append(f"  {self._fmt_time(elapsed)}", style="bold")
+        header.append(f"  {fmt_time(elapsed)}", style="bold")
         header.append(rate, style="cyan bold")
         parts.append(header)
         parts.append(Text(""))
@@ -113,7 +88,7 @@ class PipelineProgress:
 
         # ── phase spinner (pre-extraction) ──
         if self._phase and not self._patterns:
-            s = _SPINNER[self._tick % len(_SPINNER)]
+            s = SPINNER_FRAMES[self._tick % len(SPINNER_FRAMES)]
             parts.append(
                 Text.assemble(
                     ("  ", ""),
@@ -140,11 +115,10 @@ class PipelineProgress:
         for _ in self._discoveries:
             table.add_column(justify="center")
 
-        icons = {"games": "🎮", "players": "👤", "teams": "🏟️", "dates": "📅"}
         values = []
         labels = []
         for entity, count in self._discoveries.items():
-            icon = icons.get(entity, "📊")
+            icon = ENTITY_ICONS.get(entity, "📊")
             values.append(f"[bold bright_white]{count:,}[/]")
             labels.append(f"[dim]{icon} {entity}[/]")
         table.add_row(*values)
@@ -180,32 +154,32 @@ class PipelineProgress:
             pct = p.completed / p.total if p.total else 0
 
             # Status icon with animation
-            if p.status == "done":
+            if p.status == PatternStatus.DONE:
                 icon = "[green]✓[/]" if p.failed == 0 else "[yellow]![/]"
                 bar_color = "green" if p.failed == 0 else "yellow"
-            elif p.status == "running":
-                icon = f"[dark_orange3]{_SPINNER[self._tick % len(_SPINNER)]}[/]"
+            elif p.status == PatternStatus.RUNNING:
+                icon = f"[dark_orange3]{SPINNER_FRAMES[self._tick % len(SPINNER_FRAMES)]}[/]"
                 bar_color = "dark_orange3"
             else:
                 icon = "[dim]○[/]"
                 bar_color = "dim"
 
-            bar = _gradient_bar(pct, width=26)
+            bar = gradient_bar(pct, width=26)
             pct_s = f"[{bar_color}]{pct:>3.0%}[/]" if p.total else "[dim]  -[/]"
 
             elapsed = ""
-            if p.status == "done" and p.end_time:
-                elapsed = self._fmt_time(p.end_time - p.start_time)
-            elif p.status == "running" and p.start_time:
-                elapsed = self._fmt_time(time.monotonic() - p.start_time)
+            if p.status == PatternStatus.DONE and p.end_time:
+                elapsed = fmt_time(p.end_time - p.start_time)
+            elif p.status == PatternStatus.RUNNING and p.start_time:
+                elapsed = fmt_time(time.monotonic() - p.start_time)
 
             fail_s = f"[bold red]{p.failed:,}[/]" if p.failed else "[dim]0[/]"
             skip_s = f"[yellow]{p.skipped:,}[/]" if p.skipped else "[dim]-[/]"
 
-            name = f"[bold]{p.label}[/]" if p.status == "running" else p.label
+            name = f"[bold]{p.label}[/]" if p.status == PatternStatus.RUNNING else p.label
             score = (
                 f"[bold]{p.completed:,}[/]/{p.total:,}"
-                if p.status == "running"
+                if p.status == PatternStatus.RUNNING
                 else f"{p.completed:,}/{p.total:,}"
             )
 
@@ -246,25 +220,16 @@ class PipelineProgress:
         if not total:
             return Text("")
 
-        bar_w = 50
-        ok_w = max(1, int(ok / total * bar_w)) if ok else 0
-        fail_w = max(1, int(fail / total * bar_w)) if fail else 0
-        skip_w = max(1, int(skip / total * bar_w)) if skip else 0
-        # Adjust for rounding
-        used = ok_w + fail_w + skip_w
-        if used < bar_w:
-            ok_w += bar_w - used
-        elif used > bar_w and ok_w > 1:
-            ok_w -= used - bar_w
+        ok_w, fail_w, skip_w = proportional_bar(ok, fail, skip, width=50)
 
         t = Text()
         t.append("  ")
         if ok_w:
-            t.append("█" * ok_w, style="green")
+            t.append(DONE_CHAR * ok_w, style="green")
         if fail_w:
-            t.append("█" * fail_w, style="red")
+            t.append(DONE_CHAR * fail_w, style="red")
         if skip_w:
-            t.append("█" * skip_w, style="yellow")
+            t.append(DONE_CHAR * skip_w, style="yellow")
         t.append("  ")
         t.append(f"{ok:,}", style="bold green")
         t.append(" FGM", style="dim")
@@ -285,16 +250,6 @@ class PipelineProgress:
 
         return t
 
-    @staticmethod
-    def _fmt_time(seconds: float) -> str:
-        if seconds < 60:
-            return f"{seconds:.0f}s"
-        m, s = divmod(int(seconds), 60)
-        if m < 60:
-            return f"{m}m{s:02d}s"
-        h, m = divmod(m, 60)
-        return f"{h}h{m:02d}m"
-
     # ── phase management ───────────────────────────────────
 
     def start_phase(self, name: str, total: int = 0) -> None:
@@ -302,19 +257,13 @@ class PipelineProgress:
         self._phase_detail = ""
         self._refresh()
 
-    def advance_phase(self, n: int = 1) -> None:
-        pass
-
-    def update_phase_total(self, total: int) -> None:
-        pass
-
     def update_phase_info(self, info: str) -> None:
         self._phase_detail = info
         self._refresh()
 
     def complete_phase(self) -> None:
         if self._current_pattern and self._current_pattern.status == "running":
-            self._current_pattern.status = "done"
+            self._current_pattern.status = PatternStatus.DONE
             self._current_pattern.end_time = time.monotonic()
         self._phase = ""
         self._phase_detail = ""
@@ -330,13 +279,13 @@ class PipelineProgress:
 
     def start_pattern(self, pattern: str, total: int) -> None:
         if self._current_pattern and self._current_pattern.status == "running":
-            self._current_pattern.status = "done"
+            self._current_pattern.status = PatternStatus.DONE
             self._current_pattern.end_time = time.monotonic()
 
-        state = _PatternState(
+        state = PatternState(
             label=pattern,
             total=total,
-            status="running",
+            status=PatternStatus.RUNNING,
             start_time=time.monotonic(),
         )
         self._patterns.append(state)
@@ -371,12 +320,6 @@ class NoopProgress:
         pass
 
     def start_phase(self, name: str, total: int = 0) -> None:
-        pass
-
-    def advance_phase(self, n: int = 1) -> None:
-        pass
-
-    def update_phase_total(self, total: int) -> None:
         pass
 
     def update_phase_info(self, info: str) -> None:

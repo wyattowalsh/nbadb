@@ -23,6 +23,7 @@ from nbadb.cli.commands import (  # noqa: E402, F401
     migrate,
     monthly,
     run_quality,
+    scan,
     schema,
     status,
     upload,
