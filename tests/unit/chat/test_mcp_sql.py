@@ -28,20 +28,16 @@ def sample_db(tmp_path: Path) -> Path:
     db_path = tmp_path / "test.duckdb"
     with duckdb.connect(str(db_path)) as conn:
         conn.execute(
-            "CREATE TABLE dim_player "
-            "(player_id INT, full_name VARCHAR, is_current BOOLEAN)",
+            "CREATE TABLE dim_player (player_id INT, full_name VARCHAR, is_current BOOLEAN)",
         )
         conn.execute(
-            "INSERT INTO dim_player VALUES "
-            "(1, 'LeBron James', TRUE), (2, 'Stephen Curry', TRUE)",
+            "INSERT INTO dim_player VALUES (1, 'LeBron James', TRUE), (2, 'Stephen Curry', TRUE)",
         )
         conn.execute(
-            "CREATE TABLE fact_player_game_log "
-            "(player_id INT, pts INT, reb INT, ast INT)",
+            "CREATE TABLE fact_player_game_log (player_id INT, pts INT, reb INT, ast INT)",
         )
         conn.execute(
-            "INSERT INTO fact_player_game_log VALUES "
-            "(1, 30, 8, 10), (2, 35, 5, 7)",
+            "INSERT INTO fact_player_game_log VALUES (1, 30, 8, 10), (2, 35, 5, 7)",
         )
     return db_path
 
@@ -103,7 +99,8 @@ def test_run_sql_blocks_stacked_queries(sample_db):
 def test_run_sql_blocks_file_access(sample_db):
     """File access functions are blocked."""
     result = _execute_sql(
-        sample_db, "SELECT * FROM read_csv('/etc/passwd')",
+        sample_db,
+        "SELECT * FROM read_csv('/etc/passwd')",
     )
     assert "error" in result
 

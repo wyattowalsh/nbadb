@@ -38,9 +38,7 @@ def export(
         exported = 0
         for table in tables:
             try:
-                df = conn.execute(
-                    f"SELECT * FROM {table}"
-                ).pl()
+                df = conn.execute(f"SELECT * FROM {table}").pl()
                 loader.load(table, df, mode="replace")
                 typer.echo(f"  {table}: {df.shape[0]:,} rows")
                 exported += 1

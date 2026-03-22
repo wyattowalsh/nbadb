@@ -1,0 +1,21 @@
+title: "[Show & Tell] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Built something with nbadb data? Share it here — analyses, visualizations, apps, notebooks, or research.
+  - type: textarea
+    id: project
+    attributes:
+      label: What did you build?
+      description: Describe your project and how you used nbadb data.
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Links
+      description: Links to your project, notebook, repo, or write-up.
+    validations:
+      required: false

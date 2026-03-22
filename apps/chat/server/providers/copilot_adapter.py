@@ -48,9 +48,7 @@ class CopilotChatModel(BaseChatModel):
             )
             response = await session.send_and_wait({"prompt": prompt})
             content = response.data.content if hasattr(response, "data") else str(response)
-            return ChatResult(
-                generations=[ChatGeneration(message=AIMessage(content=content))]
-            )
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=content))])
         finally:
             await session.disconnect()
             await client.stop()

@@ -341,8 +341,13 @@ class PipelineJournal:
             params,
         )
         count = result.rowcount or 0
-        logger.info("reset {} journal entries (endpoint={}, status={}, season={})",
-                     count, endpoint, status_filter, season_like)
+        logger.info(
+            "reset {} journal entries (endpoint={}, status={}, season={})",
+            count,
+            endpoint,
+            status_filter,
+            season_like,
+        )
         return count
 
     def clear_entries(
@@ -370,8 +375,13 @@ class PipelineJournal:
             params,
         )
         count = result.rowcount or 0
-        logger.info("cleared {} journal entries (endpoint={}, status={}, season={})",
-                     count, endpoint, status_filter, season_like)
+        logger.info(
+            "cleared {} journal entries (endpoint={}, status={}, season={})",
+            count,
+            endpoint,
+            status_filter,
+            season_like,
+        )
         return count
 
     def count_by_endpoint_and_status(self) -> list[tuple[str, str, int]]:

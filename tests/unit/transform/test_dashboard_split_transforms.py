@@ -98,17 +98,13 @@ class TestFactPlayerClutchDetail:
         assert "stg_player_clutch_last5min_5pt" in t.depends_on
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactPlayerClutchDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerClutchDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerClutchDetailTransformer(), staging)
         assert result.shape[0] == 11
         assert "clutch_window" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactPlayerClutchDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerClutchDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerClutchDetailTransformer(), staging)
         windows = set(result["clutch_window"].to_list())
         assert "overall" in windows
@@ -118,9 +114,7 @@ class TestFactPlayerClutchDetail:
 
     def test_subset_of_sources(self) -> None:
         """SQL uses UNION ALL BY NAME so all depends_on must be registered."""
-        staging = _register_all(
-            FactPlayerClutchDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerClutchDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerClutchDetailTransformer(), staging)
         assert result["player_id"].to_list() == [201566] * 11
 
@@ -138,17 +132,13 @@ class TestFactPlayerGameSplitsDetail:
         assert len(t.depends_on) == 5
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactPlayerGameSplitsDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerGameSplitsDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerGameSplitsDetailTransformer(), staging)
         assert result.shape[0] == 5
         assert "split_type" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactPlayerGameSplitsDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerGameSplitsDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerGameSplitsDetailTransformer(), staging)
         expected = {"actual_margin", "by_half", "by_period", "score_margin", "game_overall"}
         assert set(result["split_type"].to_list()) == expected
@@ -167,21 +157,22 @@ class TestFactPlayerGeneralSplitsDetail:
         assert len(t.depends_on) == 7
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactPlayerGeneralSplitsDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerGeneralSplitsDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerGeneralSplitsDetailTransformer(), staging)
         assert result.shape[0] == 7
         assert "split_type" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactPlayerGeneralSplitsDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerGeneralSplitsDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerGeneralSplitsDetailTransformer(), staging)
         expected = {
-            "days_rest", "location", "month", "general_overall",
-            "pre_post_allstar", "starting_pos", "wins_losses",
+            "days_rest",
+            "location",
+            "month",
+            "general_overall",
+            "pre_post_allstar",
+            "starting_pos",
+            "wins_losses",
         }
         assert set(result["split_type"].to_list()) == expected
 
@@ -199,17 +190,13 @@ class TestFactPlayerLastNDetail:
         assert len(t.depends_on) == 6
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactPlayerLastNDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerLastNDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerLastNDetailTransformer(), staging)
         assert result.shape[0] == 6
         assert "window_size" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactPlayerLastNDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerLastNDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerLastNDetailTransformer(), staging)
         expected = {"game_number", "last10", "last15", "last20", "last5", "overall"}
         assert set(result["window_size"].to_list()) == expected
@@ -228,21 +215,23 @@ class TestFactPlayerShootingSplitsDetail:
         assert len(t.depends_on) == 8
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactPlayerShootingSplitsDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerShootingSplitsDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerShootingSplitsDetailTransformer(), staging)
         assert result.shape[0] == 8
         assert "shooting_split" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactPlayerShootingSplitsDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerShootingSplitsDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerShootingSplitsDetailTransformer(), staging)
         expected = {
-            "assisted_by", "assisted_shot", "overall",
-            "by_5ft", "by_8ft", "by_area", "by_type", "type_summary",
+            "assisted_by",
+            "assisted_shot",
+            "overall",
+            "by_5ft",
+            "by_8ft",
+            "by_area",
+            "by_type",
+            "type_summary",
         }
         assert set(result["shooting_split"].to_list()) == expected
 
@@ -260,17 +249,13 @@ class TestFactPlayerTeamPerfDetail:
         assert len(t.depends_on) == 4
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactPlayerTeamPerfDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerTeamPerfDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerTeamPerfDetailTransformer(), staging)
         assert result.shape[0] == 4
         assert "perf_context" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactPlayerTeamPerfDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerTeamPerfDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerTeamPerfDetailTransformer(), staging)
         expected = {"overall", "pts_scored", "pts_against", "score_diff"}
         assert set(result["perf_context"].to_list()) == expected
@@ -289,17 +274,13 @@ class TestFactPlayerYoyDetail:
         assert len(t.depends_on) == 2
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactPlayerYoyDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerYoyDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerYoyDetailTransformer(), staging)
         assert result.shape[0] == 2
         assert "yoy_type" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactPlayerYoyDetailTransformer.depends_on, _player_row
-        )
+        staging = _register_all(FactPlayerYoyDetailTransformer.depends_on, _player_row)
         result = _run(FactPlayerYoyDetailTransformer(), staging)
         assert set(result["yoy_type"].to_list()) == {"by_year", "overall"}
 
@@ -317,21 +298,21 @@ class TestFactTeamGeneralSplitsDetail:
         assert len(t.depends_on) == 6
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactTeamGeneralSplitsDetailTransformer.depends_on, _team_row
-        )
+        staging = _register_all(FactTeamGeneralSplitsDetailTransformer.depends_on, _team_row)
         result = _run(FactTeamGeneralSplitsDetailTransformer(), staging)
         assert result.shape[0] == 6
         assert "split_type" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactTeamGeneralSplitsDetailTransformer.depends_on, _team_row
-        )
+        staging = _register_all(FactTeamGeneralSplitsDetailTransformer.depends_on, _team_row)
         result = _run(FactTeamGeneralSplitsDetailTransformer(), staging)
         expected = {
-            "days_rest", "location", "month", "general_overall",
-            "pre_post_allstar", "wins_losses",
+            "days_rest",
+            "location",
+            "month",
+            "general_overall",
+            "pre_post_allstar",
+            "wins_losses",
         }
         assert set(result["split_type"].to_list()) == expected
 
@@ -354,21 +335,22 @@ class TestFactTeamShootingSplitsDetail:
         assert len(t.depends_on) == 7
 
     def test_transform_unions_all_sources(self) -> None:
-        staging = _register_all(
-            FactTeamShootingSplitsDetailTransformer.depends_on, _team_row
-        )
+        staging = _register_all(FactTeamShootingSplitsDetailTransformer.depends_on, _team_row)
         result = _run(FactTeamShootingSplitsDetailTransformer(), staging)
         assert result.shape[0] == 7
         assert "shooting_split" in result.columns
 
     def test_discriminator_values(self) -> None:
-        staging = _register_all(
-            FactTeamShootingSplitsDetailTransformer.depends_on, _team_row
-        )
+        staging = _register_all(FactTeamShootingSplitsDetailTransformer.depends_on, _team_row)
         result = _run(FactTeamShootingSplitsDetailTransformer(), staging)
         expected = {
-            "assisted_by", "assisted_shot", "overall",
-            "by_5ft", "by_8ft", "by_area", "by_type",
+            "assisted_by",
+            "assisted_shot",
+            "overall",
+            "by_5ft",
+            "by_8ft",
+            "by_area",
+            "by_type",
         }
         assert set(result["shooting_split"].to_list()) == expected
 

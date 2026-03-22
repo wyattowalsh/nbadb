@@ -1,0 +1,35 @@
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share your ideas for improving nbadb — new analytics views, schema changes, workflow improvements, or anything else.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: Describe your proposal.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why would this be valuable? What analysis or use case does it enable?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - New transform or analytics view
+        - Schema design
+        - Pipeline workflow
+        - CLI / developer experience
+        - Documentation
+        - Kaggle dataset
+        - Other
+    validations:
+      required: true

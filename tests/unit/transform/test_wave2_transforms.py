@@ -81,8 +81,12 @@ class TestFactOnOffDetail:
         staging = _register_all(FactOnOffDetailTransformer.depends_on, row)
         result = _run(FactOnOffDetailTransformer(), staging)
         expected = {
-            "detail_overall", "detail_off_court", "detail_on_court",
-            "summary_overall", "summary_off_court", "summary_on_court",
+            "detail_overall",
+            "detail_off_court",
+            "detail_on_court",
+            "summary_overall",
+            "summary_off_court",
+            "summary_on_court",
         }
         assert set(result["court_status"].to_list()) == expected
 
@@ -129,8 +133,10 @@ class TestFactCumulativeStatsDetail:
         staging = _register_all(FactCumulativeStatsDetailTransformer.depends_on, row)
         result = _run(FactCumulativeStatsDetailTransformer(), staging)
         expected = {
-            "player_game_by_game", "player_totals",
-            "team_game_by_game", "team_totals",
+            "player_game_by_game",
+            "player_totals",
+            "team_game_by_game",
+            "team_totals",
         }
         assert set(result["cume_type"].to_list()) == expected
 
@@ -156,11 +162,13 @@ class TestFactScoreboardWinProbability:
         assert result["home_pct"][0] == pytest.approx(0.65)
 
     def test_passthrough_multiple_rows(self) -> None:
-        df = pl.DataFrame({
-            "game_id": ["0022400001", "0022400002"],
-            "home_pct": [0.65, 0.45],
-            "visitor_pct": [0.35, 0.55],
-        })
+        df = pl.DataFrame(
+            {
+                "game_id": ["0022400001", "0022400002"],
+                "home_pct": [0.65, 0.45],
+                "visitor_pct": [0.35, 0.55],
+            }
+        )
         staging = {"stg_scoreboard_win_probability": df.lazy()}
         result = _run(FactScoreboardWinProbabilityTransformer(), staging)
         assert result.shape[0] == 2

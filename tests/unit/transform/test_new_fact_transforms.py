@@ -163,18 +163,12 @@ class TestFactPlayerCareer:
             "stg_player_career_total_postseason": pl.DataFrame(
                 {"player_id": [2], "pts": [50]}
             ).lazy(),
-            "stg_player_career_total_allstar": pl.DataFrame(
-                {"player_id": [5], "pts": [25]}
-            ).lazy(),
-            "stg_player_career_total_college": pl.DataFrame(
-                {"player_id": [6], "pts": [15]}
-            ).lazy(),
+            "stg_player_career_total_allstar": pl.DataFrame({"player_id": [5], "pts": [25]}).lazy(),
+            "stg_player_career_total_college": pl.DataFrame({"player_id": [6], "pts": [15]}).lazy(),
             "stg_player_career_allstar": pl.DataFrame({"player_id": [3], "pts": [30]}).lazy(),
             "stg_player_career_college": pl.DataFrame({"player_id": [4], "pts": [80]}).lazy(),
             "stg_player_career_regular": pl.DataFrame({"player_id": [7], "pts": [90]}).lazy(),
-            "stg_player_career_postseason": pl.DataFrame(
-                {"player_id": [8], "pts": [40]}
-            ).lazy(),
+            "stg_player_career_postseason": pl.DataFrame({"player_id": [8], "pts": [40]}).lazy(),
         }
         result = _run(FactPlayerCareerTransformer(), staging)
         assert result.shape[0] == 8
@@ -228,24 +222,12 @@ class TestFactPlayerProfile:
             "stg_player_profile_season_highs": pl.DataFrame(
                 {"player_id": [2], "value": [55]}
             ).lazy(),
-            "stg_player_profile_next_game": pl.DataFrame(
-                {"player_id": [3], "value": [0]}
-            ).lazy(),
-            "stg_player_profile_regular": pl.DataFrame(
-                {"player_id": [4], "value": [10]}
-            ).lazy(),
-            "stg_player_profile_postseason": pl.DataFrame(
-                {"player_id": [5], "value": [11]}
-            ).lazy(),
-            "stg_player_profile_allstar": pl.DataFrame(
-                {"player_id": [6], "value": [12]}
-            ).lazy(),
-            "stg_player_profile_college": pl.DataFrame(
-                {"player_id": [7], "value": [13]}
-            ).lazy(),
-            "stg_player_profile_preseason": pl.DataFrame(
-                {"player_id": [8], "value": [14]}
-            ).lazy(),
+            "stg_player_profile_next_game": pl.DataFrame({"player_id": [3], "value": [0]}).lazy(),
+            "stg_player_profile_regular": pl.DataFrame({"player_id": [4], "value": [10]}).lazy(),
+            "stg_player_profile_postseason": pl.DataFrame({"player_id": [5], "value": [11]}).lazy(),
+            "stg_player_profile_allstar": pl.DataFrame({"player_id": [6], "value": [12]}).lazy(),
+            "stg_player_profile_college": pl.DataFrame({"player_id": [7], "value": [13]}).lazy(),
+            "stg_player_profile_preseason": pl.DataFrame({"player_id": [8], "value": [14]}).lazy(),
             "stg_player_profile_ranks_regular": pl.DataFrame(
                 {"player_id": [9], "value": [15]}
             ).lazy(),
@@ -496,8 +478,11 @@ class TestFactLeagueHustle:
         assert result.shape[0] == 5
         assert "entity_type" in result.columns
         expected = {
-            "player", "team", "hustle_stats_player",
-            "hustle_stats_team", "bio_stats",
+            "player",
+            "team",
+            "hustle_stats_player",
+            "hustle_stats_team",
+            "bio_stats",
         }
         assert set(result["entity_type"].to_list()) == expected
 
@@ -579,9 +564,7 @@ class TestFactGameContext:
             "stg_game_summary": pl.DataFrame({"game_id": ["001"], "home_team_id": [1]}).lazy(),
             "stg_game_info": pl.DataFrame({"game_id": ["001"], "attendance": [18000]}).lazy(),
             "stg_other_stats": pl.DataFrame({"game_id": ["001"], "lead_changes": [12]}).lazy(),
-            "stg_inactive_players": pl.DataFrame(
-                {"game_id": ["002"], "player_id": [99]}
-            ).lazy(),
+            "stg_inactive_players": pl.DataFrame({"game_id": ["002"], "player_id": [99]}).lazy(),
             "stg_season_series": pl.DataFrame({"game_id": ["003"], "series_leader": [1]}).lazy(),
             "stg_last_meeting": pl.DataFrame({"game_id": ["004"], "winner": [2]}).lazy(),
             "stg_game_summary_available_video": pl.DataFrame(

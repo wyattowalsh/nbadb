@@ -12,8 +12,15 @@ def main() -> None:
     app_path = Path(__file__).resolve().parent.parent / "chainlit_app.py"
     subprocess.run(
         [
-            sys.executable, "-m", "chainlit", "run", str(app_path),
-            "--host", "0.0.0.0", "--port", "8421",
+            sys.executable,
+            "-m",
+            "chainlit",
+            "run",
+            str(app_path),
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8421",
         ],
         check=True,
     )

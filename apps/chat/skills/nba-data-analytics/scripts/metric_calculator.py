@@ -30,9 +30,11 @@ def usage_rate(
     """Usage Rate: estimates the percentage of team possessions used by a player."""
     if minutes == 0 or (team_fga + 0.44 * team_fta + team_tov) == 0:
         return 0.0
-    return 100 * (
-        (fga + 0.44 * fta + tov) * (team_minutes / 5)
-    ) / (minutes * (team_fga + 0.44 * team_fta + team_tov))
+    return (
+        100
+        * ((fga + 0.44 * fta + tov) * (team_minutes / 5))
+        / (minutes * (team_fga + 0.44 * team_fta + team_tov))
+    )
 
 
 def pace(

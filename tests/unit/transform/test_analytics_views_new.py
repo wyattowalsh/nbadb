@@ -55,87 +55,101 @@ class TestAnalyticsTeamGameComplete:
         assert set(t.depends_on) == expected
 
     def test_join_produces_wide_output(self) -> None:
-        fact_team_game = pl.DataFrame({
-            "team_id": [1610612738],
-            "game_id": ["0022400001"],
-            "pts": [110],
-            "reb": [45],
-            "ast": [25],
-            "stl": [8],
-            "blk": [5],
-            "tov": [13],
-            "fgm": [40],
-            "fga": [88],
-            "fg_pct": [0.455],
-            "fg3m": [13],
-            "fg3a": [36],
-            "fg3_pct": [0.361],
-            "ftm": [18],
-            "fta": [22],
-            "ft_pct": [0.818],
-            "oreb": [10],
-            "dreb": [35],
-            "pf": [20],
-            "plus_minus": [5],
-        }).lazy()
+        fact_team_game = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "game_id": ["0022400001"],
+                "pts": [110],
+                "reb": [45],
+                "ast": [25],
+                "stl": [8],
+                "blk": [5],
+                "tov": [13],
+                "fgm": [40],
+                "fga": [88],
+                "fg_pct": [0.455],
+                "fg3m": [13],
+                "fg3a": [36],
+                "fg3_pct": [0.361],
+                "ftm": [18],
+                "fta": [22],
+                "ft_pct": [0.818],
+                "oreb": [10],
+                "dreb": [35],
+                "pf": [20],
+                "plus_minus": [5],
+            }
+        ).lazy()
 
-        fact_adv = pl.DataFrame({
-            "team_id": [1610612738],
-            "game_id": ["0022400001"],
-            "off_rating": [112.0],
-            "def_rating": [108.0],
-            "net_rating": [4.0],
-            "ast_pct": [0.62],
-            "reb_pct": [0.51],
-            "oreb_pct": [0.28],
-            "dreb_pct": [0.74],
-            "efg_pct": [0.54],
-            "ts_pct": [0.57],
-            "pace": [100.5],
-            "pie": [0.52],
-        }).lazy()
+        fact_adv = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "game_id": ["0022400001"],
+                "off_rating": [112.0],
+                "def_rating": [108.0],
+                "net_rating": [4.0],
+                "ast_pct": [0.62],
+                "reb_pct": [0.51],
+                "oreb_pct": [0.28],
+                "dreb_pct": [0.74],
+                "efg_pct": [0.54],
+                "ts_pct": [0.57],
+                "pace": [100.5],
+                "pie": [0.52],
+            }
+        ).lazy()
 
-        fact_misc = pl.DataFrame({
-            "team_id": [1610612738],
-            "game_id": ["0022400001"],
-            "pts_off_tov": [18],
-            "second_chance_pts": [12],
-            "fbps": [15],
-            "pitp": [48],
-        }).lazy()
+        fact_misc = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "game_id": ["0022400001"],
+                "pts_off_tov": [18],
+                "second_chance_pts": [12],
+                "fbps": [15],
+                "pitp": [48],
+            }
+        ).lazy()
 
-        fact_hustle = pl.DataFrame({
-            "team_id": [1610612738],
-            "game_id": ["0022400001"],
-            "contested_shots": [45],
-            "deflections": [12],
-            "loose_balls_recovered": [6],
-            "charges_drawn": [1],
-            "screen_assists": [8],
-        }).lazy()
+        fact_hustle = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "game_id": ["0022400001"],
+                "contested_shots": [45],
+                "deflections": [12],
+                "loose_balls_recovered": [6],
+                "charges_drawn": [1],
+                "screen_assists": [8],
+            }
+        ).lazy()
 
-        fact_track = pl.DataFrame({
-            "team_id": [1610612738],
-            "game_id": ["0022400001"],
-            "dist": [250.5],
-            "spd": [4.5],
-            "tchs": [300],
-            "passes": [280],
-        }).lazy()
+        fact_track = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "game_id": ["0022400001"],
+                "dist": [250.5],
+                "spd": [4.5],
+                "tchs": [300],
+                "passes": [280],
+            }
+        ).lazy()
 
-        dim_team = pl.DataFrame({
-            "team_id": [1610612738],
-            "full_name": ["Boston Celtics"],
-            "abbreviation": ["BOS"],
-        }).lazy()
+        dim_team = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "full_name": ["Boston Celtics"],
+                "abbreviation": ["BOS"],
+            }
+        ).lazy()
 
-        dim_game = pl.DataFrame({
-            "game_id": ["0022400001"],
-            "season_year": ["2024-25"],
-            "game_date": ["2025-01-15"],
-            "home_team_id": [1610612738],
-            "visitor_team_id": [1610612739],
-        }).lazy()
+        dim_game = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "season_year": ["2024-25"],
+                "game_date": ["2025-01-15"],
+                "home_team_id": [1610612738],
+                "visitor_team_id": [1610612739],
+            }
+        ).lazy()
 
         staging = {
             "fact_team_game": fact_team_game,
@@ -171,88 +185,102 @@ class TestAnalyticsTeamGameComplete:
 
     def test_left_join_nulls_when_no_match(self) -> None:
         """LEFT JOINs produce NULLs for unmatched dimension/fact rows."""
-        fact_team_game = pl.DataFrame({
-            "team_id": [1610612738],
-            "game_id": ["0022400001"],
-            "pts": [110],
-            "reb": [45],
-            "ast": [25],
-            "stl": [8],
-            "blk": [5],
-            "tov": [13],
-            "fgm": [40],
-            "fga": [88],
-            "fg_pct": [0.455],
-            "fg3m": [13],
-            "fg3a": [36],
-            "fg3_pct": [0.361],
-            "ftm": [18],
-            "fta": [22],
-            "ft_pct": [0.818],
-            "oreb": [10],
-            "dreb": [35],
-            "pf": [20],
-            "plus_minus": [5],
-        }).lazy()
+        fact_team_game = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "game_id": ["0022400001"],
+                "pts": [110],
+                "reb": [45],
+                "ast": [25],
+                "stl": [8],
+                "blk": [5],
+                "tov": [13],
+                "fgm": [40],
+                "fga": [88],
+                "fg_pct": [0.455],
+                "fg3m": [13],
+                "fg3a": [36],
+                "fg3_pct": [0.361],
+                "ftm": [18],
+                "fta": [22],
+                "ft_pct": [0.818],
+                "oreb": [10],
+                "dreb": [35],
+                "pf": [20],
+                "plus_minus": [5],
+            }
+        ).lazy()
 
         # Empty tables for everything else
-        fact_adv = pl.DataFrame({
-            "team_id": pl.Series([], dtype=pl.Int64),
-            "game_id": pl.Series([], dtype=pl.Utf8),
-            "off_rating": pl.Series([], dtype=pl.Float64),
-            "def_rating": pl.Series([], dtype=pl.Float64),
-            "net_rating": pl.Series([], dtype=pl.Float64),
-            "ast_pct": pl.Series([], dtype=pl.Float64),
-            "reb_pct": pl.Series([], dtype=pl.Float64),
-            "oreb_pct": pl.Series([], dtype=pl.Float64),
-            "dreb_pct": pl.Series([], dtype=pl.Float64),
-            "efg_pct": pl.Series([], dtype=pl.Float64),
-            "ts_pct": pl.Series([], dtype=pl.Float64),
-            "pace": pl.Series([], dtype=pl.Float64),
-            "pie": pl.Series([], dtype=pl.Float64),
-        }).lazy()
+        fact_adv = pl.DataFrame(
+            {
+                "team_id": pl.Series([], dtype=pl.Int64),
+                "game_id": pl.Series([], dtype=pl.Utf8),
+                "off_rating": pl.Series([], dtype=pl.Float64),
+                "def_rating": pl.Series([], dtype=pl.Float64),
+                "net_rating": pl.Series([], dtype=pl.Float64),
+                "ast_pct": pl.Series([], dtype=pl.Float64),
+                "reb_pct": pl.Series([], dtype=pl.Float64),
+                "oreb_pct": pl.Series([], dtype=pl.Float64),
+                "dreb_pct": pl.Series([], dtype=pl.Float64),
+                "efg_pct": pl.Series([], dtype=pl.Float64),
+                "ts_pct": pl.Series([], dtype=pl.Float64),
+                "pace": pl.Series([], dtype=pl.Float64),
+                "pie": pl.Series([], dtype=pl.Float64),
+            }
+        ).lazy()
 
-        fact_misc = pl.DataFrame({
-            "team_id": pl.Series([], dtype=pl.Int64),
-            "game_id": pl.Series([], dtype=pl.Utf8),
-            "pts_off_tov": pl.Series([], dtype=pl.Int64),
-            "second_chance_pts": pl.Series([], dtype=pl.Int64),
-            "fbps": pl.Series([], dtype=pl.Int64),
-            "pitp": pl.Series([], dtype=pl.Int64),
-        }).lazy()
+        fact_misc = pl.DataFrame(
+            {
+                "team_id": pl.Series([], dtype=pl.Int64),
+                "game_id": pl.Series([], dtype=pl.Utf8),
+                "pts_off_tov": pl.Series([], dtype=pl.Int64),
+                "second_chance_pts": pl.Series([], dtype=pl.Int64),
+                "fbps": pl.Series([], dtype=pl.Int64),
+                "pitp": pl.Series([], dtype=pl.Int64),
+            }
+        ).lazy()
 
-        fact_hustle = pl.DataFrame({
-            "team_id": pl.Series([], dtype=pl.Int64),
-            "game_id": pl.Series([], dtype=pl.Utf8),
-            "contested_shots": pl.Series([], dtype=pl.Int64),
-            "deflections": pl.Series([], dtype=pl.Int64),
-            "loose_balls_recovered": pl.Series([], dtype=pl.Int64),
-            "charges_drawn": pl.Series([], dtype=pl.Int64),
-            "screen_assists": pl.Series([], dtype=pl.Int64),
-        }).lazy()
+        fact_hustle = pl.DataFrame(
+            {
+                "team_id": pl.Series([], dtype=pl.Int64),
+                "game_id": pl.Series([], dtype=pl.Utf8),
+                "contested_shots": pl.Series([], dtype=pl.Int64),
+                "deflections": pl.Series([], dtype=pl.Int64),
+                "loose_balls_recovered": pl.Series([], dtype=pl.Int64),
+                "charges_drawn": pl.Series([], dtype=pl.Int64),
+                "screen_assists": pl.Series([], dtype=pl.Int64),
+            }
+        ).lazy()
 
-        fact_track = pl.DataFrame({
-            "team_id": pl.Series([], dtype=pl.Int64),
-            "game_id": pl.Series([], dtype=pl.Utf8),
-            "dist": pl.Series([], dtype=pl.Float64),
-            "spd": pl.Series([], dtype=pl.Float64),
-            "tchs": pl.Series([], dtype=pl.Int64),
-            "passes": pl.Series([], dtype=pl.Int64),
-        }).lazy()
+        fact_track = pl.DataFrame(
+            {
+                "team_id": pl.Series([], dtype=pl.Int64),
+                "game_id": pl.Series([], dtype=pl.Utf8),
+                "dist": pl.Series([], dtype=pl.Float64),
+                "spd": pl.Series([], dtype=pl.Float64),
+                "tchs": pl.Series([], dtype=pl.Int64),
+                "passes": pl.Series([], dtype=pl.Int64),
+            }
+        ).lazy()
 
-        dim_team = pl.DataFrame({
-            "team_id": pl.Series([], dtype=pl.Int64),
-            "full_name": pl.Series([], dtype=pl.Utf8),
-            "abbreviation": pl.Series([], dtype=pl.Utf8),
-        }).lazy()
+        dim_team = pl.DataFrame(
+            {
+                "team_id": pl.Series([], dtype=pl.Int64),
+                "full_name": pl.Series([], dtype=pl.Utf8),
+                "abbreviation": pl.Series([], dtype=pl.Utf8),
+            }
+        ).lazy()
 
-        dim_game = pl.DataFrame({
-            "game_id": pl.Series([], dtype=pl.Utf8),
-            "season_year": pl.Series([], dtype=pl.Utf8),
-            "game_date": pl.Series([], dtype=pl.Utf8),
-            "home_team_id": pl.Series([], dtype=pl.Int64),
-            "visitor_team_id": pl.Series([], dtype=pl.Int64),
-        }).lazy()
+        dim_game = pl.DataFrame(
+            {
+                "game_id": pl.Series([], dtype=pl.Utf8),
+                "season_year": pl.Series([], dtype=pl.Utf8),
+                "game_date": pl.Series([], dtype=pl.Utf8),
+                "home_team_id": pl.Series([], dtype=pl.Int64),
+                "visitor_team_id": pl.Series([], dtype=pl.Int64),
+            }
+        ).lazy()
 
         staging = {
             "fact_team_game": fact_team_game,
@@ -293,49 +321,55 @@ class TestAnalyticsClutchPerformance:
         }
 
     def test_join_enriches_with_player_and_team(self) -> None:
-        fact = pl.DataFrame({
-            "player_id": [201566],
-            "team_id": [1610612738],
-            "season_year": ["2024-25"],
-            "clutch_window": ["last5min_5pt"],
-            "gp": [50],
-            "w": [30],
-            "l": [20],
-            "min": [5.0],
-            "fgm": [3.0],
-            "fga": [7.0],
-            "fg_pct": [0.429],
-            "fg3m": [1.0],
-            "fg3a": [3.0],
-            "fg3_pct": [0.333],
-            "ftm": [2.0],
-            "fta": [2.5],
-            "ft_pct": [0.800],
-            "oreb": [0.5],
-            "dreb": [2.0],
-            "reb": [2.5],
-            "ast": [2.0],
-            "tov": [1.0],
-            "stl": [0.5],
-            "blk": [0.2],
-            "pf": [1.0],
-            "pts": [9.0],
-            "plus_minus": [3.0],
-            "net_rating": [8.0],
-            "off_rating": [112.0],
-            "def_rating": [104.0],
-        }).lazy()
+        fact = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "team_id": [1610612738],
+                "season_year": ["2024-25"],
+                "clutch_window": ["last5min_5pt"],
+                "gp": [50],
+                "w": [30],
+                "l": [20],
+                "min": [5.0],
+                "fgm": [3.0],
+                "fga": [7.0],
+                "fg_pct": [0.429],
+                "fg3m": [1.0],
+                "fg3a": [3.0],
+                "fg3_pct": [0.333],
+                "ftm": [2.0],
+                "fta": [2.5],
+                "ft_pct": [0.800],
+                "oreb": [0.5],
+                "dreb": [2.0],
+                "reb": [2.5],
+                "ast": [2.0],
+                "tov": [1.0],
+                "stl": [0.5],
+                "blk": [0.2],
+                "pf": [1.0],
+                "pts": [9.0],
+                "plus_minus": [3.0],
+                "net_rating": [8.0],
+                "off_rating": [112.0],
+                "def_rating": [104.0],
+            }
+        ).lazy()
 
-        dim_player = pl.DataFrame({
-            "player_id": [201566],
-            "full_name": ["Russell Westbrook"],
-            "is_current": [True],
-        }).lazy()
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "full_name": ["Russell Westbrook"],
+                "is_current": [True],
+            }
+        ).lazy()
 
-        dim_team = pl.DataFrame({
-            "team_id": [1610612738],
-            "abbreviation": ["BOS"],
-        }).lazy()
+        dim_team = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "abbreviation": ["BOS"],
+            }
+        ).lazy()
 
         staging = {
             "fact_player_clutch_detail": fact,
@@ -353,49 +387,55 @@ class TestAnalyticsClutchPerformance:
 
     def test_null_player_name_when_not_current(self) -> None:
         """dim_player join requires is_current = TRUE; non-current yields NULL."""
-        fact = pl.DataFrame({
-            "player_id": [201566],
-            "team_id": [1610612738],
-            "season_year": ["2024-25"],
-            "clutch_window": ["overall"],
-            "gp": [50],
-            "w": [30],
-            "l": [20],
-            "min": [5.0],
-            "fgm": [3.0],
-            "fga": [7.0],
-            "fg_pct": [0.429],
-            "fg3m": [1.0],
-            "fg3a": [3.0],
-            "fg3_pct": [0.333],
-            "ftm": [2.0],
-            "fta": [2.5],
-            "ft_pct": [0.800],
-            "oreb": [0.5],
-            "dreb": [2.0],
-            "reb": [2.5],
-            "ast": [2.0],
-            "tov": [1.0],
-            "stl": [0.5],
-            "blk": [0.2],
-            "pf": [1.0],
-            "pts": [9.0],
-            "plus_minus": [3.0],
-            "net_rating": [8.0],
-            "off_rating": [112.0],
-            "def_rating": [104.0],
-        }).lazy()
+        fact = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "team_id": [1610612738],
+                "season_year": ["2024-25"],
+                "clutch_window": ["overall"],
+                "gp": [50],
+                "w": [30],
+                "l": [20],
+                "min": [5.0],
+                "fgm": [3.0],
+                "fga": [7.0],
+                "fg_pct": [0.429],
+                "fg3m": [1.0],
+                "fg3a": [3.0],
+                "fg3_pct": [0.333],
+                "ftm": [2.0],
+                "fta": [2.5],
+                "ft_pct": [0.800],
+                "oreb": [0.5],
+                "dreb": [2.0],
+                "reb": [2.5],
+                "ast": [2.0],
+                "tov": [1.0],
+                "stl": [0.5],
+                "blk": [0.2],
+                "pf": [1.0],
+                "pts": [9.0],
+                "plus_minus": [3.0],
+                "net_rating": [8.0],
+                "off_rating": [112.0],
+                "def_rating": [104.0],
+            }
+        ).lazy()
 
-        dim_player = pl.DataFrame({
-            "player_id": [201566],
-            "full_name": ["Russell Westbrook"],
-            "is_current": [False],
-        }).lazy()
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "full_name": ["Russell Westbrook"],
+                "is_current": [False],
+            }
+        ).lazy()
 
-        dim_team = pl.DataFrame({
-            "team_id": [1610612738],
-            "abbreviation": ["BOS"],
-        }).lazy()
+        dim_team = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "abbreviation": ["BOS"],
+            }
+        ).lazy()
 
         staging = {
             "fact_player_clutch_detail": fact,
@@ -430,40 +470,48 @@ class TestAnalyticsShootingEfficiency:
         }
 
     def test_join_enriches_shots_with_league_averages(self) -> None:
-        fact_shot = pl.DataFrame({
-            "player_id": [201566],
-            "game_id": ["0022400001"],
-            "team_id": [1610612738],
-            "shot_zone_basic": ["Mid-Range"],
-            "shot_zone_area": ["Left Side(L)"],
-            "shot_zone_range": ["8-16 ft."],
-            "shot_distance": [12],
-            "shot_type": ["2PT Field Goal"],
-            "shot_made_flag": [1],
-            "loc_x": [-80],
-            "loc_y": [90],
-        }).lazy()
+        fact_shot = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "game_id": ["0022400001"],
+                "team_id": [1610612738],
+                "shot_zone_basic": ["Mid-Range"],
+                "shot_zone_area": ["Left Side(L)"],
+                "shot_zone_range": ["8-16 ft."],
+                "shot_distance": [12],
+                "shot_type": ["2PT Field Goal"],
+                "shot_made_flag": [1],
+                "loc_x": [-80],
+                "loc_y": [90],
+            }
+        ).lazy()
 
-        fact_league_avg = pl.DataFrame({
-            "shot_zone_basic": ["Mid-Range"],
-            "shot_zone_area": ["Left Side(L)"],
-            "shot_zone_range": ["8-16 ft."],
-            "fgm": [4.2],
-            "fga": [10.5],
-            "fg_pct": [0.400],
-        }).lazy()
+        fact_league_avg = pl.DataFrame(
+            {
+                "shot_zone_basic": ["Mid-Range"],
+                "shot_zone_area": ["Left Side(L)"],
+                "shot_zone_range": ["8-16 ft."],
+                "fgm": [4.2],
+                "fga": [10.5],
+                "fg_pct": [0.400],
+            }
+        ).lazy()
 
-        dim_player = pl.DataFrame({
-            "player_id": [201566],
-            "full_name": ["Russell Westbrook"],
-            "is_current": [True],
-        }).lazy()
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "full_name": ["Russell Westbrook"],
+                "is_current": [True],
+            }
+        ).lazy()
 
-        dim_game = pl.DataFrame({
-            "game_id": ["0022400001"],
-            "season_year": ["2024-25"],
-            "game_date": ["2025-01-15"],
-        }).lazy()
+        dim_game = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "season_year": ["2024-25"],
+                "game_date": ["2025-01-15"],
+            }
+        ).lazy()
 
         staging = {
             "fact_shot_chart": fact_shot,
@@ -502,36 +550,42 @@ class TestAnalyticsPlayerMatchup:
         }
 
     def test_join_enriches_matchup_with_names(self) -> None:
-        fact = pl.DataFrame({
-            "player_id": [201566],
-            "team_id": [1610612738],
-            "vs_player_id": [203507],
-            "season_year": ["2024-25"],
-            "matchup_min": [12.5],
-            "player_pts": [8.0],
-            "team_pts": [22.0],
-            "ast": [2],
-            "tov": [1],
-            "stl": [1],
-            "blk": [0],
-            "fgm": [3],
-            "fga": [7],
-            "fg_pct": [0.429],
-            "fg3m": [1],
-            "fg3a": [3],
-            "fg3_pct": [0.333],
-        }).lazy()
+        fact = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "team_id": [1610612738],
+                "vs_player_id": [203507],
+                "season_year": ["2024-25"],
+                "matchup_min": [12.5],
+                "player_pts": [8.0],
+                "team_pts": [22.0],
+                "ast": [2],
+                "tov": [1],
+                "stl": [1],
+                "blk": [0],
+                "fgm": [3],
+                "fga": [7],
+                "fg_pct": [0.429],
+                "fg3m": [1],
+                "fg3a": [3],
+                "fg3_pct": [0.333],
+            }
+        ).lazy()
 
-        dim_player = pl.DataFrame({
-            "player_id": [201566, 203507],
-            "full_name": ["Russell Westbrook", "Giannis Antetokounmpo"],
-            "is_current": [True, True],
-        }).lazy()
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566, 203507],
+                "full_name": ["Russell Westbrook", "Giannis Antetokounmpo"],
+                "is_current": [True, True],
+            }
+        ).lazy()
 
-        dim_team = pl.DataFrame({
-            "team_id": [1610612738],
-            "abbreviation": ["BOS"],
-        }).lazy()
+        dim_team = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "abbreviation": ["BOS"],
+            }
+        ).lazy()
 
         staging = {
             "fact_player_matchups": fact,
@@ -549,36 +603,42 @@ class TestAnalyticsPlayerMatchup:
 
     def test_null_vs_player_when_not_current(self) -> None:
         """vs_player_name is NULL when vs_player has is_current = FALSE."""
-        fact = pl.DataFrame({
-            "player_id": [201566],
-            "team_id": [1610612738],
-            "vs_player_id": [203507],
-            "season_year": ["2024-25"],
-            "matchup_min": [12.5],
-            "player_pts": [8.0],
-            "team_pts": [22.0],
-            "ast": [2],
-            "tov": [1],
-            "stl": [1],
-            "blk": [0],
-            "fgm": [3],
-            "fga": [7],
-            "fg_pct": [0.429],
-            "fg3m": [1],
-            "fg3a": [3],
-            "fg3_pct": [0.333],
-        }).lazy()
+        fact = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "team_id": [1610612738],
+                "vs_player_id": [203507],
+                "season_year": ["2024-25"],
+                "matchup_min": [12.5],
+                "player_pts": [8.0],
+                "team_pts": [22.0],
+                "ast": [2],
+                "tov": [1],
+                "stl": [1],
+                "blk": [0],
+                "fgm": [3],
+                "fga": [7],
+                "fg_pct": [0.429],
+                "fg3m": [1],
+                "fg3a": [3],
+                "fg3_pct": [0.333],
+            }
+        ).lazy()
 
-        dim_player = pl.DataFrame({
-            "player_id": [201566, 203507],
-            "full_name": ["Russell Westbrook", "Giannis Antetokounmpo"],
-            "is_current": [True, False],
-        }).lazy()
+        dim_player = pl.DataFrame(
+            {
+                "player_id": [201566, 203507],
+                "full_name": ["Russell Westbrook", "Giannis Antetokounmpo"],
+                "is_current": [True, False],
+            }
+        ).lazy()
 
-        dim_team = pl.DataFrame({
-            "team_id": [1610612738],
-            "abbreviation": ["BOS"],
-        }).lazy()
+        dim_team = pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "abbreviation": ["BOS"],
+            }
+        ).lazy()
 
         staging = {
             "fact_player_matchups": fact,

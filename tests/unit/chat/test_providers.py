@@ -16,16 +16,20 @@ _has_langchain_google = importlib.util.find_spec("langchain_google_genai") is no
 _has_langchain_ollama = importlib.util.find_spec("langchain_ollama") is not None
 
 skip_no_openai = pytest.mark.skipif(
-    not _has_langchain_openai, reason="langchain-openai not installed",
+    not _has_langchain_openai,
+    reason="langchain-openai not installed",
 )
 skip_no_anthropic = pytest.mark.skipif(
-    not _has_langchain_anthropic, reason="langchain-anthropic not installed",
+    not _has_langchain_anthropic,
+    reason="langchain-anthropic not installed",
 )
 skip_no_google = pytest.mark.skipif(
-    not _has_langchain_google, reason="langchain-google-genai not installed",
+    not _has_langchain_google,
+    reason="langchain-google-genai not installed",
 )
 skip_no_ollama = pytest.mark.skipif(
-    not _has_langchain_ollama, reason="langchain-ollama not installed",
+    not _has_langchain_ollama,
+    reason="langchain-ollama not installed",
 )
 
 
@@ -50,7 +54,8 @@ def test_factory_anthropic():
     from apps.chat.server.providers.factory import create_chat_model
 
     settings = ChatSettings(
-        provider="anthropic", api_key="sk-ant-test",
+        provider="anthropic",
+        api_key="sk-ant-test",
         model="claude-sonnet-4-20250514",
     )
     model = create_chat_model(settings)
@@ -142,7 +147,9 @@ def test_factory_google():
     from apps.chat.server.providers.factory import create_chat_model
 
     settings = ChatSettings(
-        provider="google", api_key="google-key", model="gemini-2.5-pro",
+        provider="google",
+        api_key="google-key",
+        model="gemini-2.5-pro",
     )
     model = create_chat_model(settings)
 

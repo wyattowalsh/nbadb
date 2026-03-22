@@ -19,8 +19,7 @@ def generate_metadata(output_path: Path) -> None:
         "id_no": None,
         "title": "Basketball",
         "subtitle": (
-            "Comprehensive NBA database: 131 endpoints, "
-            "161-table star schema (1946\u2013present)"
+            "Comprehensive NBA database: 131 endpoints, 161-table star schema (1946\u2013present)"
         ),
         "description": (
             "The most comprehensive open NBA database available. "

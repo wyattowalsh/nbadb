@@ -99,8 +99,7 @@ def _run_quality_checks(settings: NbaDbSettings) -> None:
         skipped = 0
         if tables:
             union_sql = " UNION ALL ".join(
-                f"SELECT '{t}' AS tbl, COUNT(*) AS cnt FROM {t}"
-                for t in tables
+                f"SELECT '{t}' AS tbl, COUNT(*) AS cnt FROM {t}" for t in tables
             )
             try:
                 for tbl, cnt in conn.execute(union_sql).fetchall():
@@ -117,9 +116,7 @@ def _run_quality_checks(settings: NbaDbSettings) -> None:
                 # Fall back to per-table queries on batch failure
                 for table in tables:
                     try:
-                        row = conn.execute(
-                            f"SELECT COUNT(*) FROM {table}"
-                        ).fetchone()
+                        row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
                         count = row[0] if row else 0
                         monitor.results.append(
                             QualityResult(

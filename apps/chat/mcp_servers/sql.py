@@ -13,9 +13,7 @@ from nbadb.agent.safety import ReadOnlyGuard
 
 # DuckDB path from CLI arg or default
 DUCKDB_PATH = (
-    Path(sys.argv[1])
-    if len(sys.argv) > 1
-    else Path("~/.nbadb/data/nba.duckdb").expanduser()
+    Path(sys.argv[1]) if len(sys.argv) > 1 else Path("~/.nbadb/data/nba.duckdb").expanduser()
 )
 
 mcp = FastMCP("nbadb-sql")

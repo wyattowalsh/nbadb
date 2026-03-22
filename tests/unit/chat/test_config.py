@@ -45,7 +45,9 @@ def test_settings_from_json(tmp_path, monkeypatch):
 
     config_file = tmp_path / "chat.json"
     config_file.write_text(
-        json.dumps({"provider": "ollama", "model": "llama3.2", "base_url": "http://localhost:11434"})
+        json.dumps(
+            {"provider": "ollama", "model": "llama3.2", "base_url": "http://localhost:11434"}
+        )
     )
 
     # Override the json_file path

@@ -1,0 +1,35 @@
+title: "[Q&A] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for asking! Before posting, check the [documentation](https://nbadb.w4w.dev) and existing discussions.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What do you need help with?
+      placeholder: "How do I..."
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What have you tried? Include commands, errors, or screenshots.
+    validations:
+      required: false
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      options:
+        - Running the pipeline
+        - Querying the data
+        - Setting up the project
+        - Understanding the schema
+        - Kaggle dataset
+        - Other
+    validations:
+      required: true
