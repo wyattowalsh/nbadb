@@ -64,7 +64,6 @@ kaggle.json
 service-account*.json
 
 # AI agent / tool state
-.claude/
 .gemini/
 .specify/
 ..bfg-report/
