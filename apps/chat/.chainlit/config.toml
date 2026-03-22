@@ -1,0 +1,10 @@
+[project]
+enable_telemetry = false
+
+[features]
+multi_modal = false
+
+[UI]
+name = "nbadb Chat"
+description = "AI-powered NBA data analytics"
+default_theme = "dark"

@@ -23,7 +23,7 @@ class AggOnOffSplitsTransformer(SqlTransformer):
             gp, min, pts, reb, ast,
             off_rating, def_rating, net_rating
         FROM stg_on_off
-        UNION ALL
+        UNION ALL BY NAME
         SELECT
             'team' AS entity_type,
             NULL AS entity_id,

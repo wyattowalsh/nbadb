@@ -1,7 +1,9 @@
 "use client";
 
-import { Suspense, use, useEffect, useId, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTheme } from "next-themes";
+import { Maximize2, Minus, Plus } from "lucide-react";
+import { useZoomPan } from "@/lib/use-zoom-pan";
 
 export function Mermaid({ chart }: { chart: string }) {
   const [mounted, setMounted] = useState(false);
@@ -134,9 +136,43 @@ function MermaidFallback({
   );
 }
 
+function ZoomControls({
+  pct,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+}: {
+  pct: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div
+      className="nba-zoom-controls"
+      role="toolbar"
+      aria-label="Diagram zoom controls"
+    >
+      <button onClick={onZoomOut} aria-label="Zoom out" title="Zoom out">
+        <Minus className="size-3.5" />
+      </button>
+      <span className="nba-zoom-pct" aria-live="polite">
+        {pct}%
+      </span>
+      <button onClick={onZoomIn} aria-label="Zoom in" title="Zoom in">
+        <Plus className="size-3.5" />
+      </button>
+      <button onClick={onReset} aria-label="Fit to view" title="Fit to view">
+        <Maximize2 className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
 function MermaidContent({ chart }: { chart: string }) {
   const id = useId();
   const { resolvedTheme } = useTheme();
+  const svgRef = useRef<HTMLDivElement>(null);
   const { default: mermaid } = use(
     cachePromise("mermaid", () => import("mermaid")),
   );
@@ -156,28 +192,80 @@ function MermaidContent({ chart }: { chart: string }) {
     }),
   );
 
+  const {
+    viewportRef,
+    canvasRef,
+    canvasStyle,
+    zoomIn,
+    zoomOut,
+    resetView,
+    fitToView,
+    pct,
+    pointerHandlers,
+    onKeyDown,
+  } = useZoomPan();
+
+  // Inject SVG and bind mermaid interactivity, then fit to view
+  const combinedCanvasRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      svgRef.current = node;
+      canvasRef(node);
+    },
+    [canvasRef],
+  );
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    el.innerHTML = svg;
+    bindFunctions?.(el);
+
+    // Fit after the browser has laid out the SVG
+    requestAnimationFrame(() => {
+      fitToView();
+    });
+  }, [svg, bindFunctions, fitToView]);
+
   return (
     <div className="nba-viz-shell">
       <div className="nba-viz-toolbar">
         <div>
           <p className="nba-kicker">Mermaid diagram</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Theme-synced with the site palette for cleaner contrast in light and
-            dark mode.
+            Scroll to zoom, drag to pan. Keyboard: +/− zoom, arrows pan, 0
+            reset.
           </p>
         </div>
-        <div className="nba-viz-status max-sm:hidden">
-          {resolvedTheme === "dark" ? "Dark board" : "Light board"}
+        <div className="nba-viz-toolbar-actions">
+          <ZoomControls
+            pct={pct}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            onReset={resetView}
+          />
+          <div className="nba-viz-status max-sm:hidden">
+            {resolvedTheme === "dark" ? "Dark board" : "Light board"}
+          </div>
         </div>
       </div>
-      <div
-        aria-label="Mermaid diagram"
-        className="nba-mermaid-shell"
-        ref={(container) => {
-          if (container) bindFunctions?.(container);
-        }}
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
+      <div className="nba-mermaid-shell">
+        <div
+          className="nba-mermaid-viewport"
+          ref={viewportRef}
+          tabIndex={0}
+          role="application"
+          aria-label="Zoomable Mermaid diagram"
+          onDoubleClick={resetView}
+          onKeyDown={onKeyDown}
+          {...pointerHandlers}
+        >
+          <div
+            className="nba-mermaid-canvas"
+            ref={combinedCanvasRef}
+            style={canvasStyle}
+          />
+        </div>
+      </div>
     </div>
   );
 }

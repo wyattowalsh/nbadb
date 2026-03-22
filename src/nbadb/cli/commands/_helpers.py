@@ -99,7 +99,7 @@ def _run_quality_checks(settings: NbaDbSettings) -> None:
         skipped = 0
         if tables:
             union_sql = " UNION ALL ".join(
-                f"SELECT '{t}' AS tbl, COUNT(*) AS cnt FROM {t}"  # noqa: S608
+                f"SELECT '{t}' AS tbl, COUNT(*) AS cnt FROM {t}"
                 for t in tables
             )
             try:
@@ -118,7 +118,7 @@ def _run_quality_checks(settings: NbaDbSettings) -> None:
                 for table in tables:
                     try:
                         row = conn.execute(
-                            f"SELECT COUNT(*) FROM {table}"  # noqa: S608
+                            f"SELECT COUNT(*) FROM {table}"
                         ).fetchone()
                         count = row[0] if row else 0
                         monitor.results.append(

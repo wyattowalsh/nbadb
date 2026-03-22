@@ -1,0 +1,87 @@
+name: Feature Request
+description: Suggest a new feature or improvement for nbadb
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the feature.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: What category does this feature fall under?
+      options:
+        - New transform (dim / fact / agg / analytics)
+        - New extractor / endpoint
+        - Schema / validation
+        - CLI command or flag
+        - Export format
+        - Pipeline / orchestration
+        - Documentation
+        - Developer experience
+        - Performance
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the project is affected?
+      options:
+        - Extract (nba_api wrappers)
+        - Transform (dimensions / facts / aggregates)
+        - Load (SQLite / DuckDB / Parquet / CSV export)
+        - Schemas (Pandera validation)
+        - CLI / TUI
+        - Orchestration / Pipeline
+        - Agent (NL query)
+        - Kaggle integration
+        - Docs site
+        - CI / GitHub Actions
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation / Use Case
+      description: Why is this feature needed?
+      placeholder: Why is this feature valuable? What analysis does it enable?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your proposed solution, if you have one.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternatives you have considered.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you contribute?
+      description: Would you be willing to help implement this feature?
+      options:
+        - Yes I can submit a PR
+        - I can help test
+        - No just suggesting
+    validations:
+      required: false

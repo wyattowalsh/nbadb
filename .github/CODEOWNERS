@@ -1,0 +1,19 @@
+# Default owner for everything
+* @wyattowalsh
+
+# Source modules
+/src/nbadb/extract/     @wyattowalsh
+/src/nbadb/transform/   @wyattowalsh
+/src/nbadb/schemas/     @wyattowalsh
+/src/nbadb/load/        @wyattowalsh
+/src/nbadb/orchestrate/ @wyattowalsh
+/src/nbadb/cli/         @wyattowalsh
+/src/nbadb/agent/       @wyattowalsh
+/src/nbadb/kaggle/      @wyattowalsh
+/src/nbadb/core/        @wyattowalsh
+/src/nbadb/docs_gen/    @wyattowalsh
+
+# Docs, tests, CI
+/docs/                  @wyattowalsh
+/tests/                 @wyattowalsh
+/.github/               @wyattowalsh

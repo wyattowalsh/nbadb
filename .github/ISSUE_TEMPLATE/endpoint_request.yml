@@ -1,0 +1,72 @@
+name: Endpoint Request
+description: Request support for a new nba_api endpoint
+labels: ["endpoint-request", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        nbadb currently covers 125 of 139 nba_api endpoint classes (89.9%) with 143 extractors and 210 staging entries. Check the [coverage status](https://nbadb.w4w.dev/docs/data-dictionary/staging) before filing. The nba_api endpoint reference is at [swar/nba_api](https://github.com/swar/nba_api/tree/master/docs/nba_api/stats/endpoints).
+
+  - type: input
+    id: endpoint-class
+    attributes:
+      label: Endpoint class name
+      description: The nba_api endpoint class to add.
+      placeholder: "e.g., LeagueGameFinder, PlayerDashPtReb"
+    validations:
+      required: true
+
+  - type: input
+    id: nba-api-link
+    attributes:
+      label: nba_api link
+      description: Link to the endpoint documentation in the nba_api repo.
+      placeholder: "https://github.com/swar/nba_api/blob/master/docs/nba_api/stats/endpoints/..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data-domain
+    attributes:
+      label: Data domain
+      description: What category of data does this endpoint provide?
+      options:
+        - Player stats
+        - Team stats
+        - Game / play-by-play
+        - League-wide / leaderboards
+        - Draft / combine
+        - Scheduling / standings
+        - Tracking / hustle
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: result-sets
+    attributes:
+      label: Result sets needed
+      description: Specify which result sets are needed if the endpoint returns multiple.
+      placeholder: "If the endpoint returns multiple result sets, specify which ones. Use index numbers from the nba_api docs."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: target-table-type
+    attributes:
+      label: Target table type
+      description: What type of table should this data become?
+      options:
+        - label: Dimension (dim_*)
+        - label: Fact (fact_*)
+        - label: Aggregate (agg_*)
+        - label: Analytics view (analytics_*)
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: How would this endpoint improve the database?
+      placeholder: "How does this endpoint improve the database? What analysis does it enable?"
+    validations:
+      required: true

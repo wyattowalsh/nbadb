@@ -1,792 +1,23 @@
 {
-  "fact_estimated_metrics": {
-    "class": "FactEstimatedMetricsSchema",
+  "bridge_game_official": {
+    "class": "BridgeGameOfficialSchema",
     "columns": {
-      "player_id": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "gp": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "GP"
-      },
-      "w": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "W"
-      },
-      "l": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "L"
-      },
-      "min": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "MIN"
-      },
-      "e_off_rating": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_OFF_RATING"
-      },
-      "e_def_rating": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_DEF_RATING"
-      },
-      "e_net_rating": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_NET_RATING"
-      },
-      "e_pace": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_PACE"
-      },
-      "e_ast_ratio": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_AST_RATIO"
-      },
-      "e_oreb_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_OREB_PCT"
-      },
-      "e_dreb_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_DREB_PCT"
-      },
-      "e_reb_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_REB_PCT"
-      },
-      "e_tov_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_TOV_PCT"
-      },
-      "e_usg_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_USG_PCT"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "fact_player_estimated_metrics": {
-    "class": "FactPlayerEstimatedMetricsSchema",
-    "columns": {
-      "player_id": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "gp": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "GP"
-      },
-      "w": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "W"
-      },
-      "l": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "L"
-      },
-      "min": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "MIN"
-      },
-      "e_off_rating": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_OFF_RATING"
-      },
-      "e_def_rating": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_DEF_RATING"
-      },
-      "e_net_rating": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_NET_RATING"
-      },
-      "e_pace": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_PACE"
-      },
-      "e_ast_ratio": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_AST_RATIO"
-      },
-      "e_oreb_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_OREB_PCT"
-      },
-      "e_dreb_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_DREB_PCT"
-      },
-      "e_reb_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_REB_PCT"
-      },
-      "e_tov_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_TOV_PCT"
-      },
-      "e_usg_pct": {
-        "endpoint": "PlayerEstimatedMetrics",
-        "result_set": "PlayerEstimatedMetrics",
-        "field": "E_USG_PCT"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "fact_team_estimated_metrics": {
-    "class": "FactTeamEstimatedMetricsSchema",
-    "columns": {
-      "team_id": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "gp": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "GP"
-      },
-      "w": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "W"
-      },
-      "l": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "L"
-      },
-      "min": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "MIN"
-      },
-      "e_off_rating": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_OFF_RATING"
-      },
-      "e_def_rating": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_DEF_RATING"
-      },
-      "e_net_rating": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_NET_RATING"
-      },
-      "e_pace": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_PACE"
-      },
-      "e_ast_ratio": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_AST_RATIO"
-      },
-      "e_oreb_pct": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_OREB_PCT"
-      },
-      "e_dreb_pct": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_DREB_PCT"
-      },
-      "e_reb_pct": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_REB_PCT"
-      },
-      "e_tov_pct": {
-        "endpoint": "TeamEstimatedMetrics",
-        "result_set": "TeamEstimatedMetrics",
-        "field": "E_TOV_PCT"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "dim_official": {
-    "class": "DimOfficialSchema",
-    "columns": {
-      "official_id": {
-        "endpoint": "ScoreboardV2",
-        "result_set": "GameInfo",
-        "field": "OFFICIAL_ID"
-      },
-      "first_name": {
-        "endpoint": "ScoreboardV2",
-        "result_set": "GameInfo",
-        "field": "FIRST_NAME"
-      },
-      "last_name": {
-        "endpoint": "ScoreboardV2",
-        "result_set": "GameInfo",
-        "field": "LAST_NAME"
+      "game_id": {
+        "endpoint": "BoxScoreSummaryV2",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "Officials"
       },
       "jersey_num": {
-        "endpoint": "ScoreboardV2",
-        "result_set": "GameInfo",
-        "field": "JERSEY_NUM"
-      }
-    }
-  },
-  "fact_game_result": {
-    "class": "FactGameResultSchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "LeagueGameLog",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "game_date": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "LeagueGameLog",
-        "field": "GAME_DATE"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      },
-      "season_type": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "LeagueGameLog",
-        "field": "SEASON_ID"
-      },
-      "home_team_id": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "home_team_id",
-        "fk_ref": "dim_team.team_id"
-      },
-      "visitor_team_id": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "visitor_team_id",
-        "fk_ref": "dim_team.team_id"
-      },
-      "wl_home": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "wl_home"
-      },
-      "pts_home": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "pts_home"
-      },
-      "pts_away": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "pts_away"
-      },
-      "plus_minus_home": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "plus_minus_home"
-      },
-      "plus_minus_away": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "plus_minus_away"
-      },
-      "pts_qtr1_home": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR1_HOME"
-      },
-      "pts_qtr2_home": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR2_HOME"
-      },
-      "pts_qtr3_home": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR3_HOME"
-      },
-      "pts_qtr4_home": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR4_HOME"
-      },
-      "pts_ot1_home": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_OT1_HOME"
-      },
-      "pts_ot2_home": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_OT2_HOME"
-      },
-      "pts_qtr1_away": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR1_AWAY"
-      },
-      "pts_qtr2_away": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR2_AWAY"
-      },
-      "pts_qtr3_away": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR3_AWAY"
-      },
-      "pts_qtr4_away": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR4_AWAY"
-      },
-      "pts_ot1_away": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_OT1_AWAY"
-      },
-      "pts_ot2_away": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_OT2_AWAY"
-      }
-    }
-  },
-  "fact_game_scoring": {
-    "class": "FactGameScoringSchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "team_id": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "side": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "side"
-      },
-      "period": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "period"
-      },
-      "pts": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "fact_player_game_tracking": {
-    "class": "FactPlayerGameTrackingSchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "player_id": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "spd": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "SPD"
-      },
-      "dist": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "DIST"
-      },
-      "orbc": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "ORBC"
-      },
-      "drbc": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "DRBC"
-      },
-      "rbc": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "RBC"
-      },
-      "tchs": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "TCHS"
-      },
-      "front_ct_tchs": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "FRONT_CT_TOUCHES"
-      },
-      "time_of_poss": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "TIME_OF_POSS"
-      },
-      "passes": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "PASSES"
-      },
-      "ast": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "AST"
-      },
-      "ft_ast": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "FTAST"
-      },
-      "cfgm": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "CFGM"
-      },
-      "cfga": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "CFGA"
-      },
-      "cfg_pct": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "CFG_PCT"
-      },
-      "ufgm": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "UFGM"
-      },
-      "ufga": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "UFGA"
-      },
-      "ufg_pct": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "UFG_PCT"
-      },
-      "dfgm": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "DFGM"
-      },
-      "dfga": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "DFGA"
-      },
-      "dfg_pct": {
-        "endpoint": "BoxScorePlayerTrackV3",
-        "result_set": "PlayerStats",
-        "field": "DFG_PCT"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "fact_play_by_play": {
-    "class": "FactPlayByPlaySchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "event_num": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "EVENTNUM"
-      },
-      "event_msg_type": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "EVENTMSGTYPE"
-      },
-      "event_msg_action_type": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "EVENTMSGACTIONTYPE"
-      },
-      "period": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PERIOD"
-      },
-      "wc_time_string": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "WCTIMESTRING"
-      },
-      "pc_time_string": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PCTIMESTRING"
-      },
-      "home_description": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "HOMEDESCRIPTION"
-      },
-      "neutral_description": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "NEUTRALDESCRIPTION"
-      },
-      "visitor_description": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "VISITORDESCRIPTION"
-      },
-      "score": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "SCORE"
-      },
-      "score_margin": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "SCOREMARGIN"
-      },
-      "player1_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PLAYER1_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "player1_team_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PLAYER1_TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "player2_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PLAYER2_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "player2_team_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PLAYER2_TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "player3_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PLAYER3_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "player3_team_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "PLAYER3_TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "event_type_name": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "event_type_name"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "fact_standings": {
-    "class": "FactStandingsSchema",
-    "columns": {
-      "team_id": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "TeamID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "conference": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "Conference"
-      },
-      "division": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "Division"
-      },
-      "conf_rank": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "ConferenceRank"
-      },
-      "div_rank": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "DivisionRank"
-      },
-      "wins": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "WINS"
-      },
-      "losses": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "LOSSES"
-      },
-      "win_pct": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "WinPCT"
-      },
-      "home_record": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "HOME"
-      },
-      "road_record": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "ROAD"
-      },
-      "last_ten": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "L10"
-      },
-      "current_streak": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "CurrentStreak"
-      },
-      "games_back": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "ConferenceGamesBack"
-      },
-      "clinch_indicator": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "ClinchedPostSeason"
-      },
-      "pts_pg": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "PointsPG"
-      },
-      "opp_pts_pg": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "OppPointsPG"
-      },
-      "diff_pts_pg": {
-        "endpoint": "LeagueStandingsV3",
-        "result_set": "Standings",
-        "field": "DiffPointsPG"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      },
-      "season_type": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_type"
+        "endpoint": "BoxScoreSummaryV2",
+        "field": "JERSEY_NUM",
+        "result_set": "Officials"
+      },
+      "official_id": {
+        "endpoint": "BoxScoreSummaryV2",
+        "field": "OFFICIAL_ID",
+        "fk_ref": "dim_official.official_id",
+        "result_set": "Officials"
       }
     }
   },
@@ -795,30 +26,128 @@
     "columns": {
       "game_id": {
         "endpoint": "LeagueGameLog",
-        "result_set": "LeagueGameLog",
         "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "team_id": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "LeagueGameLog",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "side": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "side"
-      },
-      "wl": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "LeagueGameLog",
-        "field": "WL"
+        "fk_ref": "dim_game.game_id",
+        "result_set": "LeagueGameLog"
       },
       "season_year": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "field": "season_year",
+        "result_set": ""
+      },
+      "side": {
+        "endpoint": "derived",
+        "field": "side",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "LeagueGameLog",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "LeagueGameLog"
+      },
+      "wl": {
+        "endpoint": "LeagueGameLog",
+        "field": "WL",
+        "result_set": "LeagueGameLog"
+      }
+    }
+  },
+  "bridge_lineup_player": {
+    "class": "BridgeLineupPlayerSchema",
+    "columns": {
+      "group_id": {
+        "endpoint": "LeagueDashLineups",
+        "field": "GROUP_ID",
+        "fk_ref": "fact_lineup_stats.group_id",
+        "result_set": "Lineups"
+      },
+      "player_id": {
+        "endpoint": "derived",
+        "field": "player_id",
+        "fk_ref": "dim_player.player_id",
+        "result_set": ""
+      },
+      "position_in_lineup": {
+        "endpoint": "derived",
+        "field": "position_in_lineup",
+        "result_set": ""
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "LeagueDashLineups",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "Lineups"
+      }
+    }
+  },
+  "bridge_play_player": {
+    "class": "BridgePlayPlayerSchema",
+    "columns": {
+      "event_num": {
+        "endpoint": "PlayByPlayV3",
+        "field": "EVENTNUM",
+        "result_set": "PlayByPlay"
+      },
+      "game_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayByPlay"
+      },
+      "player_id": {
+        "endpoint": "derived",
+        "field": "player_id",
+        "fk_ref": "dim_player.player_id",
+        "result_set": ""
+      },
+      "player_role": {
+        "endpoint": "derived",
+        "field": "player_role",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "derived",
+        "field": "team_id",
+        "fk_ref": "dim_team.team_id",
+        "result_set": ""
+      }
+    }
+  },
+  "bridge_player_team_season": {
+    "class": "BridgePlayerTeamSeasonSchema",
+    "columns": {
+      "jersey_number": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "JERSEY",
+        "result_set": "CommonPlayerInfo"
+      },
+      "player_id": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "PERSON_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "CommonPlayerInfo"
+      },
+      "position": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "POSITION",
+        "result_set": "CommonPlayerInfo"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "CommonPlayerInfo"
       }
     }
   },
@@ -827,215 +156,85 @@
     "columns": {
       "arena_id": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "arena_id"
+        "field": "arena_id",
+        "result_set": ""
       },
       "arena_name": {
         "endpoint": "TeamDetails",
-        "result_set": "TeamBackground",
-        "field": "ARENA"
+        "field": "ARENA",
+        "result_set": "TeamBackground"
       },
       "city": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "city"
-      },
-      "state": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "state"
+        "field": "city",
+        "result_set": ""
       },
       "country": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "country"
+        "field": "country",
+        "result_set": ""
+      },
+      "state": {
+        "endpoint": "derived",
+        "field": "state",
+        "result_set": ""
       }
     }
   },
-  "fact_defense_hub_detail": {
-    "class": "FactDefenseHubDetailSchema",
+  "dim_coach": {
+    "class": "DimCoachSchema",
     "columns": {
-      "defense_metric": {
+      "coach_id": {
+        "endpoint": "CommonTeamRoster",
+        "field": "COACH_ID",
+        "result_set": "Coaches"
+      },
+      "coach_type": {
+        "endpoint": "CommonTeamRoster",
+        "field": "COACH_TYPE",
+        "result_set": "Coaches"
+      },
+      "first_name": {
+        "endpoint": "CommonTeamRoster",
+        "field": "FIRST_NAME",
+        "result_set": "Coaches"
+      },
+      "is_assistant": {
         "endpoint": "derived",
-        "result_set": "defense_hub",
-        "field": "metric"
+        "field": "is_assistant",
+        "result_set": ""
       },
-      "rank": {
-        "endpoint": "DefenseHub",
-        "result_set": "*",
-        "field": "RANK"
-      },
-      "team_id": {
-        "endpoint": "DefenseHub",
-        "result_set": "*",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "team_abbreviation": {
-        "endpoint": "DefenseHub",
-        "result_set": "*",
-        "field": "TEAM_ABBREVIATION"
-      },
-      "team_name": {
-        "endpoint": "DefenseHub",
-        "result_set": "*",
-        "field": "TEAM_NAME"
-      },
-      "season_type": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_type"
-      },
-      "stat_value": {
-        "endpoint": "derived",
-        "result_set": "defense_hub",
-        "field": "stat_value"
-      }
-    }
-  },
-  "fact_lineup_stats": {
-    "class": "FactLineupStatsSchema",
-    "columns": {
-      "group_set": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "GROUP_SET"
-      },
-      "group_id": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "GROUP_ID"
-      },
-      "group_name": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "GROUP_NAME"
-      },
-      "team_id": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "gp": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "GP"
-      },
-      "w": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "W"
-      },
-      "l": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "L"
-      },
-      "min": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "MIN"
-      },
-      "fgm": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FGM"
-      },
-      "fga": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FGA"
-      },
-      "fg_pct": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FG_PCT"
-      },
-      "fg3m": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FG3M"
-      },
-      "fg3a": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FG3A"
-      },
-      "fg3_pct": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FG3_PCT"
-      },
-      "ftm": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FTM"
-      },
-      "fta": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FTA"
-      },
-      "ft_pct": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "FT_PCT"
-      },
-      "oreb": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "OREB"
-      },
-      "dreb": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "DREB"
-      },
-      "reb": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "REB"
-      },
-      "ast": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "AST"
-      },
-      "tov": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "TOV"
-      },
-      "stl": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "STL"
-      },
-      "blk": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "BLK"
-      },
-      "pts": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "PTS"
-      },
-      "plus_minus": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "PLUS_MINUS"
-      },
-      "net_rating": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "NET_RATING"
+      "last_name": {
+        "endpoint": "CommonTeamRoster",
+        "field": "LAST_NAME",
+        "result_set": "Coaches"
       },
       "season_year": {
+        "endpoint": "CommonTeamRoster",
+        "field": "SEASON",
+        "fk_ref": "dim_season.season_year",
+        "result_set": "Coaches"
+      },
+      "team_id": {
+        "endpoint": "CommonTeamRoster",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "Coaches"
+      }
+    }
+  },
+  "dim_college": {
+    "class": "DimCollegeSchema",
+    "columns": {
+      "college_id": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "field": "college_id",
+        "result_set": ""
+      },
+      "college_name": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "SCHOOL",
+        "result_set": "CommonPlayerInfo"
       }
     }
   },
@@ -1044,581 +243,302 @@
     "columns": {
       "date_key": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "YYYYMMDD"
-      },
-      "full_date": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "full_date"
-      },
-      "year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "year"
-      },
-      "month": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "month"
+        "field": "YYYYMMDD",
+        "result_set": ""
       },
       "day": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "day"
-      },
-      "day_of_week": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "day_of_week"
+        "field": "day",
+        "result_set": ""
       },
       "day_name": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "day_name"
+        "field": "day_name",
+        "result_set": ""
       },
-      "month_name": {
+      "day_of_week": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "month_name"
+        "field": "day_of_week",
+        "result_set": ""
+      },
+      "full_date": {
+        "endpoint": "derived",
+        "field": "full_date",
+        "result_set": ""
       },
       "is_weekend": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "is_weekend"
+        "field": "is_weekend",
+        "result_set": ""
       },
-      "nba_season": {
+      "month": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "nba_season"
+        "field": "month",
+        "result_set": ""
+      },
+      "month_name": {
+        "endpoint": "derived",
+        "field": "month_name",
+        "result_set": ""
       },
       "nba_phase": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "nba_phase"
-      }
-    }
-  },
-  "bridge_game_official": {
-    "class": "BridgeGameOfficialSchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "BoxScoreSummaryV2",
-        "result_set": "Officials",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
+        "field": "nba_phase",
+        "result_set": ""
       },
-      "official_id": {
-        "endpoint": "BoxScoreSummaryV2",
-        "result_set": "Officials",
-        "field": "OFFICIAL_ID",
-        "fk_ref": "dim_official.official_id"
-      },
-      "jersey_num": {
-        "endpoint": "BoxScoreSummaryV2",
-        "result_set": "Officials",
-        "field": "JERSEY_NUM"
-      }
-    }
-  },
-  "dim_shot_zone": {
-    "class": "DimShotZoneSchema",
-    "columns": {
-      "zone_id": {
+      "nba_season": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "zone_id"
+        "field": "nba_season",
+        "result_set": ""
       },
-      "zone_basic": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "Shot_Chart_Detail",
-        "field": "SHOT_ZONE_BASIC"
-      },
-      "zone_area": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "Shot_Chart_Detail",
-        "field": "SHOT_ZONE_AREA"
-      },
-      "zone_range": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "Shot_Chart_Detail",
-        "field": "SHOT_ZONE_RANGE"
+      "year": {
+        "endpoint": "derived",
+        "field": "year",
+        "result_set": ""
       }
     }
   },
-  "fact_game_leaders": {
-    "class": "FactGameLeadersSchema",
+  "dim_game": {
+    "class": "DimGameSchema",
     "columns": {
+      "arena_city": {
+        "endpoint": "derived",
+        "field": "arena_city",
+        "result_set": ""
+      },
+      "arena_name": {
+        "endpoint": "derived",
+        "field": "arena_name",
+        "result_set": ""
+      },
+      "game_date": {
+        "endpoint": "LeagueGameLog",
+        "field": "GAME_DATE",
+        "result_set": ""
+      },
       "game_id": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "gameId",
-        "fk_ref": "dim_game.game_id"
-      },
-      "team_id": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "teamId",
-        "fk_ref": "dim_team.team_id"
-      },
-      "leader_type": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "leaderType"
-      },
-      "person_id": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "personId",
-        "fk_ref": "dim_player.player_id"
-      },
-      "name": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "name"
-      },
-      "player_slug": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "playerSlug"
-      },
-      "jersey_num": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "jerseyNum"
-      },
-      "position": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "position"
-      },
-      "team_tricode": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "teamTricode"
-      },
-      "points": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "points"
-      },
-      "rebounds": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "rebounds"
-      },
-      "assists": {
-        "endpoint": "ScoreboardV3",
-        "result_set": "GameLeaders",
-        "field": "assists"
-      }
-    }
-  },
-  "fact_matchup": {
-    "class": "FactMatchupSchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
+        "endpoint": "LeagueGameLog",
         "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
+        "result_set": ""
       },
-      "player_id": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "OFF_PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
+      "home_team_id": {
+        "endpoint": "derived",
+        "field": "home_team_id",
+        "fk_ref": "dim_team.team_id",
+        "result_set": ""
       },
-      "team_id": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "OFF_TEAM_ID",
-        "fk_ref": "dim_team.team_id"
+      "matchup": {
+        "endpoint": "LeagueGameLog",
+        "field": "MATCHUP",
+        "result_set": ""
       },
-      "def_player_id": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "DEF_PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "def_team_id": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "DEF_TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "matchup_min": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "PARTIAL_POSS"
-      },
-      "poss": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "POSS"
-      },
-      "player_pts": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "PLAYER_PTS"
-      },
-      "team_pts": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "TEAM_PTS"
-      },
-      "matchup_ast": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "MATCHUP_AST"
-      },
-      "matchup_tov": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "MATCHUP_TOV"
-      },
-      "matchup_blk": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "MATCHUP_BLK"
-      },
-      "matchup_fgm": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "MATCHUP_FGM"
-      },
-      "matchup_fga": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "MATCHUP_FGA"
-      },
-      "matchup_fg_pct": {
-        "endpoint": "BoxScoreMatchupsV3",
-        "result_set": "PlayerMatchups",
-        "field": "MATCHUP_FG_PCT"
+      "season_type": {
+        "endpoint": "derived",
+        "field": "season_type",
+        "result_set": ""
       },
       "season_year": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "field": "season_year",
+        "result_set": ""
+      },
+      "visitor_team_id": {
+        "endpoint": "derived",
+        "field": "visitor_team_id",
+        "fk_ref": "dim_team.team_id",
+        "result_set": ""
+      }
+    }
+  },
+  "dim_official": {
+    "class": "DimOfficialSchema",
+    "columns": {
+      "first_name": {
+        "endpoint": "ScoreboardV2",
+        "field": "FIRST_NAME",
+        "result_set": "GameInfo"
+      },
+      "jersey_num": {
+        "endpoint": "ScoreboardV2",
+        "field": "JERSEY_NUM",
+        "result_set": "GameInfo"
+      },
+      "last_name": {
+        "endpoint": "ScoreboardV2",
+        "field": "LAST_NAME",
+        "result_set": "GameInfo"
+      },
+      "official_id": {
+        "endpoint": "ScoreboardV2",
+        "field": "OFFICIAL_ID",
+        "result_set": "GameInfo"
       }
     }
   },
   "dim_play_event_type": {
     "class": "DimPlayEventTypeSchema",
     "columns": {
+      "event_category": {
+        "endpoint": "derived",
+        "field": "event_category",
+        "result_set": ""
+      },
       "event_type_id": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "event_type_id"
+        "field": "event_type_id",
+        "result_set": ""
       },
       "event_type_name": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "event_type_name"
-      },
-      "event_category": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "event_category"
+        "field": "event_type_name",
+        "result_set": ""
       }
     }
   },
-  "fact_player_game_misc": {
-    "class": "FactPlayerGameMiscSchema",
+  "dim_player": {
+    "class": "DimPlayerSchema",
     "columns": {
-      "game_id": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "player_id": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "pts_off_tov": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "PTS_OFF_TOV"
-      },
-      "second_chance_pts": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "SECOND_CHANCE_PTS"
-      },
-      "fbps": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "FBPS"
-      },
-      "pitp": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "PITP"
-      },
-      "opp_pts_off_tov": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "OPP_PTS_OFF_TOV"
-      },
-      "opp_second_chance_pts": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "OPP_SECOND_CHANCE_PTS"
-      },
-      "opp_fbps": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "OPP_FBPS"
-      },
-      "opp_pitp": {
-        "endpoint": "BoxScoreMiscV3",
-        "result_set": "PlayerStats",
-        "field": "OPP_PITP"
-      },
-      "pct_fga_2pt": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_FGA_2PT"
-      },
-      "pct_fga_3pt": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_FGA_3PT"
-      },
-      "pct_pts_2pt": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_PTS_2PT"
-      },
-      "pct_pts_2pt_mr": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_PTS_2PT_MR"
-      },
-      "pct_pts_3pt": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_PTS_3PT"
-      },
-      "pct_pts_fb": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_PTS_FB"
-      },
-      "pct_pts_ft": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_PTS_FT"
-      },
-      "pct_pts_off_tov": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_PTS_OFF_TOV"
-      },
-      "pct_pts_pitp": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_PTS_PITP"
-      },
-      "pct_ast_2pm": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_AST_2PM"
-      },
-      "pct_uast_2pm": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_UAST_2PM"
-      },
-      "pct_ast_3pm": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_AST_3PM"
-      },
-      "pct_uast_3pm": {
-        "endpoint": "BoxScoreScoringV3",
-        "result_set": "PlayerStats",
-        "field": "PCT_UAST_3PM"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "bridge_player_team_season": {
-    "class": "BridgePlayerTeamSeasonSchema",
-    "columns": {
-      "player_id": {
+      "birth_date": {
         "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "PERSON_ID",
-        "fk_ref": "dim_player.player_id"
+        "field": "BIRTHDATE",
+        "result_set": "CommonPlayerInfo"
       },
-      "team_id": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "season_year": {
+      "college_id": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "field": "college_id",
+        "fk_ref": "dim_college.college_id",
+        "result_set": ""
+      },
+      "country": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "COUNTRY",
+        "result_set": "CommonPlayerInfo"
+      },
+      "draft_number": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "DRAFT_NUMBER",
+        "result_set": "CommonPlayerInfo"
+      },
+      "draft_round": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "DRAFT_ROUND",
+        "result_set": "CommonPlayerInfo"
+      },
+      "draft_year": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "DRAFT_YEAR",
+        "result_set": "CommonPlayerInfo"
+      },
+      "first_name": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "FIRST_NAME",
+        "result_set": "CommonPlayerInfo"
+      },
+      "from_year": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "FROM_YEAR",
+        "result_set": "CommonPlayerInfo"
+      },
+      "full_name": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "DISPLAY_FIRST_LAST",
+        "result_set": "CommonPlayerInfo"
+      },
+      "height": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "HEIGHT",
+        "result_set": "CommonPlayerInfo"
+      },
+      "is_active": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "ROSTER_STATUS",
+        "result_set": "CommonPlayerInfo"
+      },
+      "is_current": {
+        "endpoint": "derived",
+        "field": "is_current",
+        "result_set": ""
       },
       "jersey_number": {
         "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "JERSEY"
+        "field": "JERSEY",
+        "result_set": "CommonPlayerInfo"
+      },
+      "last_name": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "LAST_NAME",
+        "result_set": "CommonPlayerInfo"
+      },
+      "player_id": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "PERSON_ID",
+        "result_set": "CommonPlayerInfo"
+      },
+      "player_sk": {
+        "endpoint": "derived",
+        "field": "ROW_NUMBER",
+        "result_set": ""
       },
       "position": {
         "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "POSITION"
+        "field": "POSITION",
+        "result_set": "CommonPlayerInfo"
+      },
+      "team_id": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "CommonPlayerInfo"
+      },
+      "to_year": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "TO_YEAR",
+        "result_set": "CommonPlayerInfo"
+      },
+      "valid_from": {
+        "endpoint": "derived",
+        "field": "valid_from",
+        "result_set": ""
+      },
+      "valid_to": {
+        "endpoint": "derived",
+        "field": "valid_to",
+        "result_set": ""
+      },
+      "weight": {
+        "endpoint": "CommonPlayerInfo",
+        "field": "WEIGHT",
+        "result_set": "CommonPlayerInfo"
       }
     }
   },
-  "fact_player_game_traditional": {
-    "class": "FactPlayerGameTraditionalSchema",
+  "dim_season": {
+    "class": "DimSeasonSchema",
     "columns": {
-      "game_id": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
+      "all_star_date": {
+        "endpoint": "derived",
+        "field": "all_star_date",
+        "result_set": ""
       },
-      "player_id": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
+      "end_date": {
+        "endpoint": "derived",
+        "field": "end_date",
+        "result_set": ""
       },
-      "team_id": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "min": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "MIN"
-      },
-      "pts": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "PTS"
-      },
-      "reb": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "REB"
-      },
-      "ast": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "AST"
-      },
-      "stl": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "STL"
-      },
-      "blk": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "BLK"
-      },
-      "tov": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "TOV"
-      },
-      "pf": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "PF"
-      },
-      "fgm": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FGM"
-      },
-      "fga": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FGA"
-      },
-      "fg_pct": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FG_PCT"
-      },
-      "fg3m": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FG3M"
-      },
-      "fg3a": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FG3A"
-      },
-      "fg3_pct": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FG3_PCT"
-      },
-      "ftm": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FTM"
-      },
-      "fta": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FTA"
-      },
-      "ft_pct": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "FT_PCT"
-      },
-      "oreb": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "OREB"
-      },
-      "dreb": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "DREB"
-      },
-      "plus_minus": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "PLUS_MINUS"
+      "playoff_start_date": {
+        "endpoint": "derived",
+        "field": "playoff_start_date",
+        "result_set": ""
       },
       "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "endpoint": "LeagueGameLog",
+        "field": "SEASON_ID",
+        "result_set": "LeagueGameLog"
       },
-      "start_position": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "PlayerStats",
-        "field": "START_POSITION"
+      "start_date": {
+        "endpoint": "derived",
+        "field": "start_date",
+        "result_set": ""
       }
     }
   },
@@ -1627,131 +547,149 @@
     "columns": {
       "phase_id": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "phase_id"
+        "field": "phase_id",
+        "result_set": ""
       },
       "phase_name": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "phase_name"
+        "field": "phase_name",
+        "result_set": ""
       },
       "phase_order": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "phase_order"
+        "field": "phase_order",
+        "result_set": ""
       }
     }
   },
-  "fact_win_probability": {
-    "class": "FactWinProbabilitySchema",
+  "dim_shot_zone": {
+    "class": "DimShotZoneSchema",
     "columns": {
-      "game_id": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
+      "zone_area": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_ZONE_AREA",
+        "result_set": "Shot_Chart_Detail"
       },
-      "event_num": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "EVENT_NUM"
+      "zone_basic": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_ZONE_BASIC",
+        "result_set": "Shot_Chart_Detail"
       },
-      "period": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "PERIOD"
-      },
-      "pc_time_string": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "PCTIMESTRING"
-      },
-      "home_pct": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "HOME_PCT"
-      },
-      "visitor_pct": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "VISITOR_PCT"
-      },
-      "home_pts": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "HOME_PTS"
-      },
-      "visitor_pts": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "VISITOR_PTS"
-      },
-      "home_score_margin": {
-        "endpoint": "WinProbabilityPBP",
-        "result_set": "WinProbPBP",
-        "field": "HOME_SCORE_MARGIN"
-      },
-      "season_year": {
+      "zone_id": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "field": "zone_id",
+        "result_set": ""
+      },
+      "zone_range": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_ZONE_RANGE",
+        "result_set": "Shot_Chart_Detail"
       }
     }
   },
-  "fact_draft": {
-    "class": "FactDraftSchema",
+  "dim_team": {
+    "class": "DimTeamSchema",
     "columns": {
-      "person_id": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "PERSON_ID",
-        "fk_ref": "dim_player.player_id"
+      "abbreviation": {
+        "endpoint": "CommonTeamYears",
+        "field": "ABBREVIATION",
+        "result_set": "CommonTeamYears"
+      },
+      "arena": {
+        "endpoint": "TeamDetails",
+        "field": "ARENA",
+        "result_set": "TeamBackground"
+      },
+      "city": {
+        "endpoint": "TeamDetails",
+        "field": "CITY",
+        "result_set": "TeamBackground"
+      },
+      "conference": {
+        "endpoint": "TeamDetails",
+        "field": "CONFERENCE",
+        "result_set": "TeamBackground"
+      },
+      "division": {
+        "endpoint": "TeamDetails",
+        "field": "DIVISION",
+        "result_set": "TeamBackground"
+      },
+      "full_name": {
+        "endpoint": "derived",
+        "field": "full_name",
+        "result_set": ""
+      },
+      "state": {
+        "endpoint": "TeamDetails",
+        "field": "STATE",
+        "result_set": "TeamBackground"
       },
       "team_id": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
+        "endpoint": "CommonTeamYears",
         "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
+        "result_set": "CommonTeamYears"
       },
-      "season": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "SEASON"
+      "year_founded": {
+        "endpoint": "CommonTeamYears",
+        "field": "MIN_YEAR",
+        "result_set": "CommonTeamYears"
+      }
+    }
+  },
+  "dim_team_history": {
+    "class": "DimTeamHistorySchema",
+    "columns": {
+      "abbreviation": {
+        "endpoint": "TeamInfoCommon",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "TeamInfoCommon"
       },
-      "round_number": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "ROUND_NUMBER"
+      "city": {
+        "endpoint": "TeamInfoCommon",
+        "field": "TEAM_CITY",
+        "result_set": "TeamInfoCommon"
       },
-      "round_pick": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "ROUND_PICK"
+      "franchise_name": {
+        "endpoint": "FranchiseHistory",
+        "field": "TEAM_NAME",
+        "result_set": "FranchiseHistory"
       },
-      "overall_pick": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "OVERALL_PICK"
+      "is_current": {
+        "endpoint": "derived",
+        "field": "is_current",
+        "result_set": ""
       },
-      "player_name": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "PLAYER_NAME"
+      "league_id": {
+        "endpoint": "FranchiseHistory",
+        "field": "LEAGUE_ID",
+        "result_set": "FranchiseHistory"
       },
-      "organization": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "ORGANIZATION"
+      "nickname": {
+        "endpoint": "TeamInfoCommon",
+        "field": "TEAM_NAME",
+        "result_set": "TeamInfoCommon"
       },
-      "organization_type": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "ORGANIZATION_TYPE"
+      "team_history_sk": {
+        "endpoint": "derived",
+        "field": "ROW_NUMBER",
+        "result_set": ""
       },
-      "player_profile_flag": {
-        "endpoint": "DraftHistory",
-        "result_set": "DraftHistory",
-        "field": "PLAYER_PROFILE_FLAG"
+      "team_id": {
+        "endpoint": "FranchiseHistory",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "FranchiseHistory"
+      },
+      "valid_from": {
+        "endpoint": "derived",
+        "field": "valid_from",
+        "result_set": ""
+      },
+      "valid_to": {
+        "endpoint": "derived",
+        "field": "valid_to",
+        "result_set": ""
       }
     }
   },
@@ -1761,957 +699,506 @@
       "game_id": {
         "fk_ref": "dim_game.game_id"
       },
-      "team_id": {
-        "fk_ref": "dim_team.team_id"
-      },
       "player_id": {
-        "fk_ref": "dim_player.player_id"
-      }
-    }
-  },
-  "fact_player_game_hustle": {
-    "class": "FactPlayerGameHustleSchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "player_id": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "PLAYER_ID",
         "fk_ref": "dim_player.player_id"
       },
       "team_id": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "TEAM_ID",
         "fk_ref": "dim_team.team_id"
-      },
-      "contested_shots": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "CONTESTED_SHOTS"
-      },
-      "contested_shots_2pt": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "CONTESTED_SHOTS_2PT"
-      },
-      "contested_shots_3pt": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "CONTESTED_SHOTS_3PT"
-      },
-      "deflections": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "DEFLECTIONS"
-      },
-      "charges_drawn": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "CHARGES_DRAWN"
-      },
-      "screen_assists": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "SCREEN_ASSISTS"
-      },
-      "screen_ast_pts": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "SCREEN_AST_PTS"
-      },
-      "loose_balls_recovered": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "LOOSE_BALLS_RECOVERED"
-      },
-      "box_outs": {
-        "endpoint": "BoxScoreHustleV2",
-        "result_set": "PlayerStats",
-        "field": "BOX_OUTS"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
       }
     }
   },
-  "dim_game": {
-    "class": "DimGameSchema",
+  "fact_defense_hub": {
+    "class": "FactDefenseHubSchema",
     "columns": {
-      "game_id": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "",
-        "field": "GAME_ID"
+      "dreb": {
+        "endpoint": "DefenseHub",
+        "field": "DREB",
+        "result_set": "DefenseHubStat1"
       },
-      "game_date": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "",
-        "field": "GAME_DATE"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+      "rank": {
+        "endpoint": "DefenseHub",
+        "field": "RANK",
+        "result_set": "DefenseHubStat1"
       },
       "season_type": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_type"
+        "field": "season_type",
+        "result_set": ""
+      },
+      "team_abbreviation": {
+        "endpoint": "DefenseHub",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "DefenseHubStat1"
+      },
+      "team_id": {
+        "endpoint": "DefenseHub",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "DefenseHubStat1"
+      },
+      "team_name": {
+        "endpoint": "DefenseHub",
+        "field": "TEAM_NAME",
+        "result_set": "DefenseHubStat1"
+      }
+    }
+  },
+  "fact_defense_hub_detail": {
+    "class": "FactDefenseHubDetailSchema",
+    "columns": {
+      "defense_metric": {
+        "endpoint": "derived",
+        "field": "metric",
+        "result_set": "defense_hub"
+      },
+      "rank": {
+        "endpoint": "DefenseHub",
+        "field": "RANK",
+        "result_set": "*"
+      },
+      "season_type": {
+        "endpoint": "derived",
+        "field": "season_type",
+        "result_set": ""
+      },
+      "stat_value": {
+        "endpoint": "derived",
+        "field": "stat_value",
+        "result_set": "defense_hub"
+      },
+      "team_abbreviation": {
+        "endpoint": "DefenseHub",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "*"
+      },
+      "team_id": {
+        "endpoint": "DefenseHub",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "*"
+      },
+      "team_name": {
+        "endpoint": "DefenseHub",
+        "field": "TEAM_NAME",
+        "result_set": "*"
+      }
+    }
+  },
+  "fact_draft": {
+    "class": "FactDraftSchema",
+    "columns": {
+      "organization": {
+        "endpoint": "DraftHistory",
+        "field": "ORGANIZATION",
+        "result_set": "DraftHistory"
+      },
+      "organization_type": {
+        "endpoint": "DraftHistory",
+        "field": "ORGANIZATION_TYPE",
+        "result_set": "DraftHistory"
+      },
+      "overall_pick": {
+        "endpoint": "DraftHistory",
+        "field": "OVERALL_PICK",
+        "result_set": "DraftHistory"
+      },
+      "person_id": {
+        "endpoint": "DraftHistory",
+        "field": "PERSON_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "DraftHistory"
+      },
+      "player_name": {
+        "endpoint": "DraftHistory",
+        "field": "PLAYER_NAME",
+        "result_set": "DraftHistory"
+      },
+      "player_profile_flag": {
+        "endpoint": "DraftHistory",
+        "field": "PLAYER_PROFILE_FLAG",
+        "result_set": "DraftHistory"
+      },
+      "round_number": {
+        "endpoint": "DraftHistory",
+        "field": "ROUND_NUMBER",
+        "result_set": "DraftHistory"
+      },
+      "round_pick": {
+        "endpoint": "DraftHistory",
+        "field": "ROUND_PICK",
+        "result_set": "DraftHistory"
+      },
+      "season": {
+        "endpoint": "DraftHistory",
+        "field": "SEASON",
+        "result_set": "DraftHistory"
+      },
+      "team_id": {
+        "endpoint": "DraftHistory",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "DraftHistory"
+      }
+    }
+  },
+  "fact_estimated_metrics": {
+    "class": "FactEstimatedMetricsSchema",
+    "columns": {
+      "e_ast_ratio": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_AST_RATIO",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_def_rating": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_DEF_RATING",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_dreb_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_DREB_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_net_rating": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_NET_RATING",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_off_rating": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_OFF_RATING",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_oreb_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_OREB_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_pace": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_PACE",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_reb_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_REB_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_tov_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_TOV_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_usg_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_USG_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "gp": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "GP",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "l": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "L",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "min": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "MIN",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "player_id": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "w": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "W",
+        "result_set": "PlayerEstimatedMetrics"
+      }
+    }
+  },
+  "fact_game_leaders": {
+    "class": "FactGameLeadersSchema",
+    "columns": {
+      "assists": {
+        "endpoint": "ScoreboardV3",
+        "field": "assists",
+        "result_set": "GameLeaders"
+      },
+      "game_id": {
+        "endpoint": "ScoreboardV3",
+        "field": "gameId",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "GameLeaders"
+      },
+      "jersey_num": {
+        "endpoint": "ScoreboardV3",
+        "field": "jerseyNum",
+        "result_set": "GameLeaders"
+      },
+      "leader_type": {
+        "endpoint": "ScoreboardV3",
+        "field": "leaderType",
+        "result_set": "GameLeaders"
+      },
+      "name": {
+        "endpoint": "ScoreboardV3",
+        "field": "name",
+        "result_set": "GameLeaders"
+      },
+      "person_id": {
+        "endpoint": "ScoreboardV3",
+        "field": "personId",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "GameLeaders"
+      },
+      "player_slug": {
+        "endpoint": "ScoreboardV3",
+        "field": "playerSlug",
+        "result_set": "GameLeaders"
+      },
+      "points": {
+        "endpoint": "ScoreboardV3",
+        "field": "points",
+        "result_set": "GameLeaders"
+      },
+      "position": {
+        "endpoint": "ScoreboardV3",
+        "field": "position",
+        "result_set": "GameLeaders"
+      },
+      "rebounds": {
+        "endpoint": "ScoreboardV3",
+        "field": "rebounds",
+        "result_set": "GameLeaders"
+      },
+      "team_id": {
+        "endpoint": "ScoreboardV3",
+        "field": "teamId",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "GameLeaders"
+      },
+      "team_tricode": {
+        "endpoint": "ScoreboardV3",
+        "field": "teamTricode",
+        "result_set": "GameLeaders"
+      }
+    }
+  },
+  "fact_game_result": {
+    "class": "FactGameResultSchema",
+    "columns": {
+      "game_date": {
+        "endpoint": "LeagueGameLog",
+        "field": "GAME_DATE",
+        "result_set": "LeagueGameLog"
+      },
+      "game_id": {
+        "endpoint": "LeagueGameLog",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "LeagueGameLog"
       },
       "home_team_id": {
         "endpoint": "derived",
-        "result_set": "",
         "field": "home_team_id",
-        "fk_ref": "dim_team.team_id"
+        "fk_ref": "dim_team.team_id",
+        "result_set": ""
+      },
+      "plus_minus_away": {
+        "endpoint": "derived",
+        "field": "plus_minus_away",
+        "result_set": ""
+      },
+      "plus_minus_home": {
+        "endpoint": "derived",
+        "field": "plus_minus_home",
+        "result_set": ""
+      },
+      "pts_away": {
+        "endpoint": "derived",
+        "field": "pts_away",
+        "result_set": ""
+      },
+      "pts_home": {
+        "endpoint": "derived",
+        "field": "pts_home",
+        "result_set": ""
+      },
+      "pts_ot1_away": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_OT1_AWAY",
+        "result_set": "LineScore"
+      },
+      "pts_ot1_home": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_OT1_HOME",
+        "result_set": "LineScore"
+      },
+      "pts_ot2_away": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_OT2_AWAY",
+        "result_set": "LineScore"
+      },
+      "pts_ot2_home": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_OT2_HOME",
+        "result_set": "LineScore"
+      },
+      "pts_qtr1_away": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR1_AWAY",
+        "result_set": "LineScore"
+      },
+      "pts_qtr1_home": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR1_HOME",
+        "result_set": "LineScore"
+      },
+      "pts_qtr2_away": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR2_AWAY",
+        "result_set": "LineScore"
+      },
+      "pts_qtr2_home": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR2_HOME",
+        "result_set": "LineScore"
+      },
+      "pts_qtr3_away": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR3_AWAY",
+        "result_set": "LineScore"
+      },
+      "pts_qtr3_home": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR3_HOME",
+        "result_set": "LineScore"
+      },
+      "pts_qtr4_away": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR4_AWAY",
+        "result_set": "LineScore"
+      },
+      "pts_qtr4_home": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR4_HOME",
+        "result_set": "LineScore"
+      },
+      "season_type": {
+        "endpoint": "LeagueGameLog",
+        "field": "SEASON_ID",
+        "result_set": "LeagueGameLog"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
       },
       "visitor_team_id": {
         "endpoint": "derived",
-        "result_set": "",
         "field": "visitor_team_id",
-        "fk_ref": "dim_team.team_id"
+        "fk_ref": "dim_team.team_id",
+        "result_set": ""
       },
-      "matchup": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "",
-        "field": "MATCHUP"
-      },
-      "arena_name": {
+      "wl_home": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "arena_name"
-      },
-      "arena_city": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "arena_city"
+        "field": "wl_home",
+        "result_set": ""
       }
     }
   },
-  "fact_leaders_tiles_detail": {
-    "class": "FactLeadersTilesDetailSchema",
-    "columns": {
-      "tile_variant": {
-        "endpoint": "derived",
-        "result_set": "leaders_tiles",
-        "field": "variant"
-      },
-      "rank": {
-        "endpoint": "LeadersTiles",
-        "result_set": "*",
-        "field": "RANK"
-      },
-      "team_id": {
-        "endpoint": "LeadersTiles",
-        "result_set": "*",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "team_abbreviation": {
-        "endpoint": "LeadersTiles",
-        "result_set": "*",
-        "field": "TEAM_ABBREVIATION"
-      },
-      "team_name": {
-        "endpoint": "LeadersTiles",
-        "result_set": "*",
-        "field": "TEAM_NAME"
-      },
-      "season_year": {
-        "endpoint": "LeadersTiles",
-        "result_set": "*",
-        "field": "SEASON_YEAR"
-      },
-      "season_type": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_type"
-      },
-      "pts": {
-        "endpoint": "LeadersTiles",
-        "result_set": "*",
-        "field": "PTS"
-      }
-    }
-  },
-  "dim_team": {
-    "class": "DimTeamSchema",
-    "columns": {
-      "team_id": {
-        "endpoint": "CommonTeamYears",
-        "result_set": "CommonTeamYears",
-        "field": "TEAM_ID"
-      },
-      "abbreviation": {
-        "endpoint": "CommonTeamYears",
-        "result_set": "CommonTeamYears",
-        "field": "ABBREVIATION"
-      },
-      "full_name": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "full_name"
-      },
-      "city": {
-        "endpoint": "TeamDetails",
-        "result_set": "TeamBackground",
-        "field": "CITY"
-      },
-      "state": {
-        "endpoint": "TeamDetails",
-        "result_set": "TeamBackground",
-        "field": "STATE"
-      },
-      "arena": {
-        "endpoint": "TeamDetails",
-        "result_set": "TeamBackground",
-        "field": "ARENA"
-      },
-      "year_founded": {
-        "endpoint": "CommonTeamYears",
-        "result_set": "CommonTeamYears",
-        "field": "MIN_YEAR"
-      },
-      "conference": {
-        "endpoint": "TeamDetails",
-        "result_set": "TeamBackground",
-        "field": "CONFERENCE"
-      },
-      "division": {
-        "endpoint": "TeamDetails",
-        "result_set": "TeamBackground",
-        "field": "DIVISION"
-      }
-    }
-  },
-  "dim_team_history": {
-    "class": "DimTeamHistorySchema",
-    "columns": {
-      "team_history_sk": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "ROW_NUMBER"
-      },
-      "team_id": {
-        "endpoint": "FranchiseHistory",
-        "result_set": "FranchiseHistory",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "city": {
-        "endpoint": "TeamInfoCommon",
-        "result_set": "TeamInfoCommon",
-        "field": "TEAM_CITY"
-      },
-      "nickname": {
-        "endpoint": "TeamInfoCommon",
-        "result_set": "TeamInfoCommon",
-        "field": "TEAM_NAME"
-      },
-      "abbreviation": {
-        "endpoint": "TeamInfoCommon",
-        "result_set": "TeamInfoCommon",
-        "field": "TEAM_ABBREVIATION"
-      },
-      "franchise_name": {
-        "endpoint": "FranchiseHistory",
-        "result_set": "FranchiseHistory",
-        "field": "TEAM_NAME"
-      },
-      "league_id": {
-        "endpoint": "FranchiseHistory",
-        "result_set": "FranchiseHistory",
-        "field": "LEAGUE_ID"
-      },
-      "valid_from": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "valid_from"
-      },
-      "valid_to": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "valid_to"
-      },
-      "is_current": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "is_current"
-      }
-    }
-  },
-  "dim_college": {
-    "class": "DimCollegeSchema",
-    "columns": {
-      "college_id": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "college_id"
-      },
-      "college_name": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "SCHOOL"
-      }
-    }
-  },
-  "fact_rotation": {
-    "class": "FactRotationSchema",
+  "fact_game_scoring": {
+    "class": "FactGameScoringSchema",
     "columns": {
       "game_id": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
+        "endpoint": "Scoreboard",
         "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
+        "fk_ref": "dim_game.game_id",
+        "result_set": "LineScore"
       },
-      "team_id": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "player_id": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
-        "field": "PERSON_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "in_time_real": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
-        "field": "IN_TIME_REAL"
-      },
-      "out_time_real": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
-        "field": "OUT_TIME_REAL"
+      "period": {
+        "endpoint": "derived",
+        "field": "period",
+        "result_set": ""
       },
       "pts": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
-        "field": "PTS"
+        "endpoint": "Scoreboard",
+        "field": "PTS",
+        "result_set": "LineScore"
       },
-      "pts_diff": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
-        "field": "PT_DIFF"
-      },
-      "usg_pct": {
-        "endpoint": "GameRotation",
-        "result_set": "HomeTeam",
-        "field": "USG_PCT"
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
       },
       "side": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "side"
+        "field": "side",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "Scoreboard",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "LineScore"
       }
     }
   },
-  "fact_player_game_advanced": {
-    "class": "FactPlayerGameAdvancedSchema",
+  "fact_homepage": {
+    "class": "FactHomepageSchema",
     "columns": {
-      "game_id": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "player_id": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "off_rating": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "OFF_RATING"
-      },
-      "def_rating": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "DEF_RATING"
-      },
-      "net_rating": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "NET_RATING"
-      },
-      "ast_pct": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "AST_PCT"
-      },
-      "ast_to": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "AST_TOV"
-      },
-      "ast_ratio": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "AST_RATIO"
-      },
-      "oreb_pct": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "OREB_PCT"
-      },
-      "dreb_pct": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "DREB_PCT"
-      },
-      "reb_pct": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "REB_PCT"
-      },
-      "efg_pct": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "EFG_PCT"
-      },
-      "ts_pct": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "TS_PCT"
-      },
-      "usg_pct": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "USG_PCT"
-      },
-      "pace": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "PACE"
-      },
-      "pie": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "PIE"
-      },
-      "poss": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "POSS"
-      },
-      "fta_rate": {
-        "endpoint": "BoxScoreAdvancedV3",
-        "result_set": "PlayerStats",
-        "field": "FTA_RATE"
-      },
-      "season_year": {
+      "homepage_source": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "fact_synergy": {
-    "class": "FactSynergySchema",
-    "columns": {
-      "player_id": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "play_type": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "PLAY_TYPE"
-      },
-      "type_grouping": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "TYPE_GROUPING"
-      },
-      "gp": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "GP"
-      },
-      "poss_pct": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "POSS_PCT"
-      },
-      "poss": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "POSS"
+        "field": "homepage_source",
+        "result_set": ""
       },
       "pts": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "PTS"
-      },
-      "fgm": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "FGM"
-      },
-      "fga": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "FGA"
-      },
-      "fg_pct": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "FG_PCT"
-      },
-      "efg_pct": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "EFG_PCT"
-      },
-      "ppp": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "PPP"
-      },
-      "score_pct": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "SCORE_PCT"
-      },
-      "tov_pct": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "TOV_PCT"
-      },
-      "ft_poss_pct": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "FT_POSS_PCT"
-      },
-      "percentile": {
-        "endpoint": "SynergyPlayTypes",
-        "result_set": "SynergyPlayType",
-        "field": "PERCENTILE"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "bridge_play_player": {
-    "class": "BridgePlayPlayerSchema",
-    "columns": {
-      "game_id": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "event_num": {
-        "endpoint": "PlayByPlayV3",
-        "result_set": "PlayByPlay",
-        "field": "EVENTNUM"
-      },
-      "player_id": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "player_id",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "team_id",
-        "fk_ref": "dim_team.team_id"
-      },
-      "player_role": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "player_role"
-      }
-    }
-  },
-  "fact_player_awards": {
-    "class": "FactPlayerAwardsSchema",
-    "columns": {
-      "player_id": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "PERSON_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "description": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "DESCRIPTION"
-      },
-      "all_nba_team_number": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "ALL_NBA_TEAM_NUMBER"
-      },
-      "season": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "SEASON"
-      },
-      "month": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "MONTH"
-      },
-      "week": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "WEEK"
-      },
-      "conference": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "CONFERENCE"
-      },
-      "award_type": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "TYPE"
-      },
-      "subtype1": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "SUBTYPE1"
-      },
-      "subtype2": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "SUBTYPE2"
-      },
-      "subtype3": {
-        "endpoint": "PlayerAwards",
-        "result_set": "PlayerAwards",
-        "field": "SUBTYPE3"
-      }
-    }
-  },
-  "fact_league_lineup_viz": {
-    "class": "FactLeagueLineupVizSchema",
-    "columns": {
-      "group_id": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "GROUP_ID"
-      },
-      "group_name": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "GROUP_NAME"
-      },
-      "team_id": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "team_abbreviation": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "TEAM_ABBREVIATION"
-      },
-      "min": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "MIN"
-      },
-      "off_rating": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "OFF_RATING"
-      },
-      "def_rating": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "DEF_RATING"
-      },
-      "net_rating": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "NET_RATING"
-      },
-      "pace": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PACE"
-      },
-      "ts_pct": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "TS_PCT"
-      },
-      "fta_rate": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "FTA_RATE"
-      },
-      "tm_ast_pct": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "TM_AST_PCT"
-      },
-      "pct_fga_2pt": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_FGA_2PT"
-      },
-      "pct_fga_3pt": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_FGA_3PT"
-      },
-      "pct_pts_2pt_mr": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_PTS_2PT_MR"
-      },
-      "pct_pts_fb": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_PTS_FB"
-      },
-      "pct_pts_ft": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_PTS_FT"
-      },
-      "pct_pts_paint": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_PTS_PAINT"
-      },
-      "pct_ast_fgm": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_AST_FGM"
-      },
-      "pct_uast_fgm": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "PCT_UAST_FGM"
-      },
-      "opp_fg3_pct": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "OPP_FG3_PCT"
-      },
-      "opp_efg_pct": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "OPP_EFG_PCT"
-      },
-      "opp_fta_rate": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "OPP_FTA_RATE"
-      },
-      "opp_tov_pct": {
-        "endpoint": "LeagueLineupViz",
-        "result_set": "LeagueLineupViz",
-        "field": "OPP_TOV_PCT"
-      }
-    }
-  },
-  "dim_season": {
-    "class": "DimSeasonSchema",
-    "columns": {
-      "season_year": {
-        "endpoint": "LeagueGameLog",
-        "result_set": "LeagueGameLog",
-        "field": "SEASON_ID"
-      },
-      "start_date": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "start_date"
-      },
-      "end_date": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "end_date"
-      },
-      "all_star_date": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "all_star_date"
-      },
-      "playoff_start_date": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "playoff_start_date"
-      }
-    }
-  },
-  "fact_homepage_leaders_detail": {
-    "class": "FactHomepageLeadersDetailSchema",
-    "columns": {
-      "leader_variant": {
-        "endpoint": "derived",
-        "result_set": "homepage_leaders",
-        "field": "variant"
+        "endpoint": "HomePageV2",
+        "field": "PTS",
+        "result_set": "HomePageStat1"
       },
       "rank": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "HomePageLeaders",
-        "field": "RANK"
-      },
-      "team_id": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "HomePageLeaders",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "team_abbreviation": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "HomePageLeaders",
-        "field": "TEAM_ABBREVIATION"
-      },
-      "team_name": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "HomePageLeaders",
-        "field": "TEAM_NAME"
+        "endpoint": "HomePageV2",
+        "field": "RANK",
+        "result_set": "HomePageStat1"
       },
       "season_type": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_type"
+        "field": "season_type",
+        "result_set": ""
       },
-      "pts": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "*",
-        "field": "PTS"
-      },
-      "fg_pct": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "*",
-        "field": "FG_PCT"
-      },
-      "fg3_pct": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "*",
-        "field": "FG3_PCT"
-      },
-      "ft_pct": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "*",
-        "field": "FT_PCT"
-      },
-      "efg_pct": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "*",
-        "field": "EFG_PCT"
-      },
-      "ts_pct": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "*",
-        "field": "TS_PCT"
-      },
-      "pts_per48": {
-        "endpoint": "HomePageLeaders",
-        "result_set": "*",
-        "field": "PTS_PER48"
-      }
-    }
-  },
-  "bridge_lineup_player": {
-    "class": "BridgeLineupPlayerSchema",
-    "columns": {
-      "group_id": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
-        "field": "GROUP_ID",
-        "fk_ref": "fact_lineup_stats.group_id"
-      },
-      "player_id": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "player_id",
-        "fk_ref": "dim_player.player_id"
+      "team_abbreviation": {
+        "endpoint": "HomePageV2",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "HomePageStat1"
       },
       "team_id": {
-        "endpoint": "LeagueDashLineups",
-        "result_set": "Lineups",
+        "endpoint": "HomePageV2",
         "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
+        "fk_ref": "dim_team.team_id",
+        "result_set": "HomePageStat1"
       },
-      "position_in_lineup": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "position_in_lineup"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
-      }
-    }
-  },
-  "dim_coach": {
-    "class": "DimCoachSchema",
-    "columns": {
-      "coach_id": {
-        "endpoint": "CommonTeamRoster",
-        "result_set": "Coaches",
-        "field": "COACH_ID"
-      },
-      "team_id": {
-        "endpoint": "CommonTeamRoster",
-        "result_set": "Coaches",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "season_year": {
-        "endpoint": "CommonTeamRoster",
-        "result_set": "Coaches",
-        "field": "SEASON",
-        "fk_ref": "dim_season.season_year"
-      },
-      "first_name": {
-        "endpoint": "CommonTeamRoster",
-        "result_set": "Coaches",
-        "field": "FIRST_NAME"
-      },
-      "last_name": {
-        "endpoint": "CommonTeamRoster",
-        "result_set": "Coaches",
-        "field": "LAST_NAME"
-      },
-      "coach_type": {
-        "endpoint": "CommonTeamRoster",
-        "result_set": "Coaches",
-        "field": "COACH_TYPE"
-      },
-      "is_assistant": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "is_assistant"
+      "team_name": {
+        "endpoint": "HomePageV2",
+        "field": "TEAM_NAME",
+        "result_set": "HomePageStat1"
       }
     }
   },
@@ -2720,443 +1207,2175 @@
     "columns": {
       "homepage_metric": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "homepage_metric"
+        "field": "homepage_metric",
+        "result_set": ""
       },
       "rank": {
         "endpoint": "HomePageV2",
-        "result_set": "HomePageStat*",
-        "field": "RANK"
-      },
-      "team_id": {
-        "endpoint": "HomePageV2",
-        "result_set": "HomePageStat*",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "team_abbreviation": {
-        "endpoint": "HomePageV2",
-        "result_set": "HomePageStat*",
-        "field": "TEAM_ABBREVIATION"
-      },
-      "team_name": {
-        "endpoint": "HomePageV2",
-        "result_set": "HomePageStat*",
-        "field": "TEAM_NAME"
+        "field": "RANK",
+        "result_set": "HomePageStat*"
       },
       "season_type": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_type"
+        "field": "season_type",
+        "result_set": ""
       },
       "stat_value": {
         "endpoint": "derived",
-        "result_set": "homepage_v2",
-        "field": "stat_value"
+        "field": "stat_value",
+        "result_set": "homepage_v2"
+      },
+      "team_abbreviation": {
+        "endpoint": "HomePageV2",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "HomePageStat*"
+      },
+      "team_id": {
+        "endpoint": "HomePageV2",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "HomePageStat*"
+      },
+      "team_name": {
+        "endpoint": "HomePageV2",
+        "field": "TEAM_NAME",
+        "result_set": "HomePageStat*"
       }
     }
   },
-  "dim_player": {
-    "class": "DimPlayerSchema",
+  "fact_homepage_leaders": {
+    "class": "FactHomepageLeadersSchema",
     "columns": {
-      "player_sk": {
+      "leader_source": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "ROW_NUMBER"
+        "field": "leader_source",
+        "result_set": ""
       },
-      "player_id": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "PERSON_ID"
+      "rank": {
+        "endpoint": "HomePageLeaders",
+        "field": "RANK",
+        "result_set": "HomePageLeaders"
       },
-      "full_name": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "DISPLAY_FIRST_LAST"
+      "season_type": {
+        "endpoint": "derived",
+        "field": "season_type",
+        "result_set": ""
       },
-      "first_name": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "FIRST_NAME"
-      },
-      "last_name": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "LAST_NAME"
-      },
-      "is_active": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "ROSTER_STATUS"
+      "team_abbreviation": {
+        "endpoint": "HomePageLeaders",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "HomePageLeaders"
       },
       "team_id": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
+        "endpoint": "HomePageLeaders",
         "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
+        "fk_ref": "dim_team.team_id",
+        "result_set": "HomePageLeaders"
       },
-      "position": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "POSITION"
-      },
-      "jersey_number": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "JERSEY"
-      },
-      "height": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "HEIGHT"
-      },
-      "weight": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "WEIGHT"
-      },
-      "birth_date": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "BIRTHDATE"
-      },
-      "country": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "COUNTRY"
-      },
-      "college_id": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "college_id",
-        "fk_ref": "dim_college.college_id"
-      },
-      "draft_year": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "DRAFT_YEAR"
-      },
-      "draft_round": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "DRAFT_ROUND"
-      },
-      "draft_number": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "DRAFT_NUMBER"
-      },
-      "from_year": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "FROM_YEAR"
-      },
-      "to_year": {
-        "endpoint": "CommonPlayerInfo",
-        "result_set": "CommonPlayerInfo",
-        "field": "TO_YEAR"
-      },
-      "valid_from": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "valid_from"
-      },
-      "valid_to": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "valid_to"
-      },
-      "is_current": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "is_current"
+      "team_name": {
+        "endpoint": "HomePageLeaders",
+        "field": "TEAM_NAME",
+        "result_set": "HomePageLeaders"
       }
     }
   },
-  "fact_team_game": {
-    "class": "FactTeamGameSchema",
+  "fact_homepage_leaders_detail": {
+    "class": "FactHomepageLeadersDetailSchema",
     "columns": {
-      "game_id": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "TeamStats",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "team_id": {
-        "endpoint": "BoxScoreTraditionalV3",
-        "result_set": "TeamStats",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "fgm": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "fgm"
-      },
-      "fga": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "fga"
-      },
-      "fg_pct": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "fg_pct"
-      },
-      "fg3m": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "fg3m"
-      },
-      "fg3a": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "fg3a"
+      "efg_pct": {
+        "endpoint": "HomePageLeaders",
+        "field": "EFG_PCT",
+        "result_set": "*"
       },
       "fg3_pct": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "fg3_pct"
+        "endpoint": "HomePageLeaders",
+        "field": "FG3_PCT",
+        "result_set": "*"
       },
-      "ftm": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "ftm"
-      },
-      "fta": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "fta"
+      "fg_pct": {
+        "endpoint": "HomePageLeaders",
+        "field": "FG_PCT",
+        "result_set": "*"
       },
       "ft_pct": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "ft_pct"
+        "endpoint": "HomePageLeaders",
+        "field": "FT_PCT",
+        "result_set": "*"
       },
-      "oreb": {
+      "leader_variant": {
         "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "oreb"
-      },
-      "dreb": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "dreb"
-      },
-      "reb": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "reb"
-      },
-      "ast": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "ast"
-      },
-      "stl": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "stl"
-      },
-      "blk": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "blk"
-      },
-      "tov": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "tov"
-      },
-      "pf": {
-        "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "pf"
+        "field": "variant",
+        "result_set": "homepage_leaders"
       },
       "pts": {
+        "endpoint": "HomePageLeaders",
+        "field": "PTS",
+        "result_set": "*"
+      },
+      "pts_per48": {
+        "endpoint": "HomePageLeaders",
+        "field": "PTS_PER48",
+        "result_set": "*"
+      },
+      "rank": {
+        "endpoint": "HomePageLeaders",
+        "field": "RANK",
+        "result_set": "HomePageLeaders"
+      },
+      "season_type": {
         "endpoint": "derived",
-        "result_set": "team_agg",
-        "field": "pts"
+        "field": "season_type",
+        "result_set": ""
       },
-      "pts_qtr1": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR1"
+      "team_abbreviation": {
+        "endpoint": "HomePageLeaders",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "HomePageLeaders"
       },
-      "pts_qtr2": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR2"
+      "team_id": {
+        "endpoint": "HomePageLeaders",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "HomePageLeaders"
       },
-      "pts_qtr3": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR3"
+      "team_name": {
+        "endpoint": "HomePageLeaders",
+        "field": "TEAM_NAME",
+        "result_set": "HomePageLeaders"
       },
-      "pts_qtr4": {
-        "endpoint": "Scoreboard",
-        "result_set": "LineScore",
-        "field": "PTS_QTR4"
-      },
-      "season_year": {
-        "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+      "ts_pct": {
+        "endpoint": "HomePageLeaders",
+        "field": "TS_PCT",
+        "result_set": "*"
       }
     }
   },
-  "fact_tracking_defense": {
-    "class": "FactTrackingDefenseSchema",
+  "fact_leaders_tiles": {
+    "class": "FactLeadersTilesSchema",
     "columns": {
-      "player_id": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "CLOSE_DEF_PERSON_ID",
-        "fk_ref": "dim_player.player_id"
+      "pts": {
+        "endpoint": "LeadersTiles",
+        "field": "PTS",
+        "result_set": "AllTimeSeasonHigh"
+      },
+      "season_type": {
+        "endpoint": "derived",
+        "field": "season_type",
+        "result_set": ""
+      },
+      "season_year": {
+        "endpoint": "LeadersTiles",
+        "field": "SEASON_YEAR",
+        "result_set": "AllTimeSeasonHigh"
+      },
+      "team_abbreviation": {
+        "endpoint": "LeadersTiles",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "AllTimeSeasonHigh"
       },
       "team_id": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
+        "endpoint": "LeadersTiles",
         "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
+        "fk_ref": "dim_team.team_id",
+        "result_set": "AllTimeSeasonHigh"
       },
-      "defense_category": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "DEFENSE_CATEGORY"
+      "team_name": {
+        "endpoint": "LeadersTiles",
+        "field": "TEAM_NAME",
+        "result_set": "AllTimeSeasonHigh"
+      }
+    }
+  },
+  "fact_leaders_tiles_detail": {
+    "class": "FactLeadersTilesDetailSchema",
+    "columns": {
+      "pts": {
+        "endpoint": "LeadersTiles",
+        "field": "PTS",
+        "result_set": "*"
+      },
+      "rank": {
+        "endpoint": "LeadersTiles",
+        "field": "RANK",
+        "result_set": "*"
+      },
+      "season_type": {
+        "endpoint": "derived",
+        "field": "season_type",
+        "result_set": ""
+      },
+      "season_year": {
+        "endpoint": "LeadersTiles",
+        "field": "SEASON_YEAR",
+        "result_set": "*"
+      },
+      "team_abbreviation": {
+        "endpoint": "LeadersTiles",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "*"
+      },
+      "team_id": {
+        "endpoint": "LeadersTiles",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "*"
+      },
+      "team_name": {
+        "endpoint": "LeadersTiles",
+        "field": "TEAM_NAME",
+        "result_set": "*"
+      },
+      "tile_variant": {
+        "endpoint": "derived",
+        "field": "variant",
+        "result_set": "leaders_tiles"
+      }
+    }
+  },
+  "fact_league_lineup_viz": {
+    "class": "FactLeagueLineupVizSchema",
+    "columns": {
+      "def_rating": {
+        "endpoint": "LeagueLineupViz",
+        "field": "DEF_RATING",
+        "result_set": "LeagueLineupViz"
+      },
+      "fta_rate": {
+        "endpoint": "LeagueLineupViz",
+        "field": "FTA_RATE",
+        "result_set": "LeagueLineupViz"
+      },
+      "group_id": {
+        "endpoint": "LeagueLineupViz",
+        "field": "GROUP_ID",
+        "result_set": "LeagueLineupViz"
+      },
+      "group_name": {
+        "endpoint": "LeagueLineupViz",
+        "field": "GROUP_NAME",
+        "result_set": "LeagueLineupViz"
+      },
+      "min": {
+        "endpoint": "LeagueLineupViz",
+        "field": "MIN",
+        "result_set": "LeagueLineupViz"
+      },
+      "net_rating": {
+        "endpoint": "LeagueLineupViz",
+        "field": "NET_RATING",
+        "result_set": "LeagueLineupViz"
+      },
+      "off_rating": {
+        "endpoint": "LeagueLineupViz",
+        "field": "OFF_RATING",
+        "result_set": "LeagueLineupViz"
+      },
+      "opp_efg_pct": {
+        "endpoint": "LeagueLineupViz",
+        "field": "OPP_EFG_PCT",
+        "result_set": "LeagueLineupViz"
+      },
+      "opp_fg3_pct": {
+        "endpoint": "LeagueLineupViz",
+        "field": "OPP_FG3_PCT",
+        "result_set": "LeagueLineupViz"
+      },
+      "opp_fta_rate": {
+        "endpoint": "LeagueLineupViz",
+        "field": "OPP_FTA_RATE",
+        "result_set": "LeagueLineupViz"
+      },
+      "opp_tov_pct": {
+        "endpoint": "LeagueLineupViz",
+        "field": "OPP_TOV_PCT",
+        "result_set": "LeagueLineupViz"
+      },
+      "pace": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PACE",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_ast_fgm": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_AST_FGM",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_fga_2pt": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_FGA_2PT",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_fga_3pt": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_FGA_3PT",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_pts_2pt_mr": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_PTS_2PT_MR",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_pts_fb": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_PTS_FB",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_pts_ft": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_PTS_FT",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_pts_paint": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_PTS_PAINT",
+        "result_set": "LeagueLineupViz"
+      },
+      "pct_uast_fgm": {
+        "endpoint": "LeagueLineupViz",
+        "field": "PCT_UAST_FGM",
+        "result_set": "LeagueLineupViz"
+      },
+      "team_abbreviation": {
+        "endpoint": "LeagueLineupViz",
+        "field": "TEAM_ABBREVIATION",
+        "result_set": "LeagueLineupViz"
+      },
+      "team_id": {
+        "endpoint": "LeagueLineupViz",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "LeagueLineupViz"
+      },
+      "tm_ast_pct": {
+        "endpoint": "LeagueLineupViz",
+        "field": "TM_AST_PCT",
+        "result_set": "LeagueLineupViz"
+      },
+      "ts_pct": {
+        "endpoint": "LeagueLineupViz",
+        "field": "TS_PCT",
+        "result_set": "LeagueLineupViz"
+      }
+    }
+  },
+  "fact_lineup_stats": {
+    "class": "FactLineupStatsSchema",
+    "columns": {
+      "ast": {
+        "endpoint": "LeagueDashLineups",
+        "field": "AST",
+        "result_set": "Lineups"
+      },
+      "blk": {
+        "endpoint": "LeagueDashLineups",
+        "field": "BLK",
+        "result_set": "Lineups"
+      },
+      "dreb": {
+        "endpoint": "LeagueDashLineups",
+        "field": "DREB",
+        "result_set": "Lineups"
+      },
+      "fg3_pct": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FG3_PCT",
+        "result_set": "Lineups"
+      },
+      "fg3a": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FG3A",
+        "result_set": "Lineups"
+      },
+      "fg3m": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FG3M",
+        "result_set": "Lineups"
+      },
+      "fg_pct": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FG_PCT",
+        "result_set": "Lineups"
+      },
+      "fga": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FGA",
+        "result_set": "Lineups"
+      },
+      "fgm": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FGM",
+        "result_set": "Lineups"
+      },
+      "ft_pct": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FT_PCT",
+        "result_set": "Lineups"
+      },
+      "fta": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FTA",
+        "result_set": "Lineups"
+      },
+      "ftm": {
+        "endpoint": "LeagueDashLineups",
+        "field": "FTM",
+        "result_set": "Lineups"
       },
       "gp": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "GP"
+        "endpoint": "LeagueDashLineups",
+        "field": "GP",
+        "result_set": "Lineups"
       },
-      "g": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "G"
+      "group_id": {
+        "endpoint": "LeagueDashLineups",
+        "field": "GROUP_ID",
+        "result_set": "Lineups"
       },
-      "freq": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "FREQ"
+      "group_name": {
+        "endpoint": "LeagueDashLineups",
+        "field": "GROUP_NAME",
+        "result_set": "Lineups"
       },
-      "d_fgm": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "D_FGM"
+      "group_set": {
+        "endpoint": "LeagueDashLineups",
+        "field": "GROUP_SET",
+        "result_set": "Lineups"
       },
-      "d_fga": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "D_FGA"
+      "l": {
+        "endpoint": "LeagueDashLineups",
+        "field": "L",
+        "result_set": "Lineups"
       },
-      "d_fg_pct": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "D_FG_PCT"
+      "min": {
+        "endpoint": "LeagueDashLineups",
+        "field": "MIN",
+        "result_set": "Lineups"
       },
-      "normal_fg_pct": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "NORMAL_FG_PCT"
+      "net_rating": {
+        "endpoint": "LeagueDashLineups",
+        "field": "NET_RATING",
+        "result_set": "Lineups"
       },
-      "pct_plusminus": {
-        "endpoint": "LeagueDashPtDefend",
-        "result_set": "LeagueDashPtDefend",
-        "field": "PCT_PLUSMINUS"
+      "oreb": {
+        "endpoint": "LeagueDashLineups",
+        "field": "OREB",
+        "result_set": "Lineups"
+      },
+      "plus_minus": {
+        "endpoint": "LeagueDashLineups",
+        "field": "PLUS_MINUS",
+        "result_set": "Lineups"
+      },
+      "pts": {
+        "endpoint": "LeagueDashLineups",
+        "field": "PTS",
+        "result_set": "Lineups"
+      },
+      "reb": {
+        "endpoint": "LeagueDashLineups",
+        "field": "REB",
+        "result_set": "Lineups"
       },
       "season_year": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "field": "season_year",
+        "result_set": ""
+      },
+      "stl": {
+        "endpoint": "LeagueDashLineups",
+        "field": "STL",
+        "result_set": "Lineups"
+      },
+      "team_id": {
+        "endpoint": "LeagueDashLineups",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "Lineups"
+      },
+      "tov": {
+        "endpoint": "LeagueDashLineups",
+        "field": "TOV",
+        "result_set": "Lineups"
+      },
+      "w": {
+        "endpoint": "LeagueDashLineups",
+        "field": "W",
+        "result_set": "Lineups"
+      }
+    }
+  },
+  "fact_matchup": {
+    "class": "FactMatchupSchema",
+    "columns": {
+      "def_player_id": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "DEF_PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerMatchups"
+      },
+      "def_team_id": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "DEF_TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerMatchups"
+      },
+      "game_id": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayerMatchups"
+      },
+      "matchup_ast": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "MATCHUP_AST",
+        "result_set": "PlayerMatchups"
+      },
+      "matchup_blk": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "MATCHUP_BLK",
+        "result_set": "PlayerMatchups"
+      },
+      "matchup_fg_pct": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "MATCHUP_FG_PCT",
+        "result_set": "PlayerMatchups"
+      },
+      "matchup_fga": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "MATCHUP_FGA",
+        "result_set": "PlayerMatchups"
+      },
+      "matchup_fgm": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "MATCHUP_FGM",
+        "result_set": "PlayerMatchups"
+      },
+      "matchup_min": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "PARTIAL_POSS",
+        "result_set": "PlayerMatchups"
+      },
+      "matchup_tov": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "MATCHUP_TOV",
+        "result_set": "PlayerMatchups"
+      },
+      "player_id": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "OFF_PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerMatchups"
+      },
+      "player_pts": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "PLAYER_PTS",
+        "result_set": "PlayerMatchups"
+      },
+      "poss": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "POSS",
+        "result_set": "PlayerMatchups"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "OFF_TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerMatchups"
+      },
+      "team_pts": {
+        "endpoint": "BoxScoreMatchupsV3",
+        "field": "TEAM_PTS",
+        "result_set": "PlayerMatchups"
+      }
+    }
+  },
+  "fact_play_by_play": {
+    "class": "FactPlayByPlaySchema",
+    "columns": {
+      "event_msg_action_type": {
+        "endpoint": "PlayByPlayV3",
+        "field": "EVENTMSGACTIONTYPE",
+        "result_set": "PlayByPlay"
+      },
+      "event_msg_type": {
+        "endpoint": "PlayByPlayV3",
+        "field": "EVENTMSGTYPE",
+        "result_set": "PlayByPlay"
+      },
+      "event_num": {
+        "endpoint": "PlayByPlayV3",
+        "field": "EVENTNUM",
+        "result_set": "PlayByPlay"
+      },
+      "event_type_name": {
+        "endpoint": "derived",
+        "field": "event_type_name",
+        "result_set": ""
+      },
+      "game_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayByPlay"
+      },
+      "home_description": {
+        "endpoint": "PlayByPlayV3",
+        "field": "HOMEDESCRIPTION",
+        "result_set": "PlayByPlay"
+      },
+      "neutral_description": {
+        "endpoint": "PlayByPlayV3",
+        "field": "NEUTRALDESCRIPTION",
+        "result_set": "PlayByPlay"
+      },
+      "pc_time_string": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PCTIMESTRING",
+        "result_set": "PlayByPlay"
+      },
+      "period": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PERIOD",
+        "result_set": "PlayByPlay"
+      },
+      "player1_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PLAYER1_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayByPlay"
+      },
+      "player1_team_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PLAYER1_TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayByPlay"
+      },
+      "player2_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PLAYER2_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayByPlay"
+      },
+      "player2_team_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PLAYER2_TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayByPlay"
+      },
+      "player3_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PLAYER3_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayByPlay"
+      },
+      "player3_team_id": {
+        "endpoint": "PlayByPlayV3",
+        "field": "PLAYER3_TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayByPlay"
+      },
+      "score": {
+        "endpoint": "PlayByPlayV3",
+        "field": "SCORE",
+        "result_set": "PlayByPlay"
+      },
+      "score_margin": {
+        "endpoint": "PlayByPlayV3",
+        "field": "SCOREMARGIN",
+        "result_set": "PlayByPlay"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "visitor_description": {
+        "endpoint": "PlayByPlayV3",
+        "field": "VISITORDESCRIPTION",
+        "result_set": "PlayByPlay"
+      },
+      "wc_time_string": {
+        "endpoint": "PlayByPlayV3",
+        "field": "WCTIMESTRING",
+        "result_set": "PlayByPlay"
+      }
+    }
+  },
+  "fact_player_awards": {
+    "class": "FactPlayerAwardsSchema",
+    "columns": {
+      "all_nba_team_number": {
+        "endpoint": "PlayerAwards",
+        "field": "ALL_NBA_TEAM_NUMBER",
+        "result_set": "PlayerAwards"
+      },
+      "award_type": {
+        "endpoint": "PlayerAwards",
+        "field": "TYPE",
+        "result_set": "PlayerAwards"
+      },
+      "conference": {
+        "endpoint": "PlayerAwards",
+        "field": "CONFERENCE",
+        "result_set": "PlayerAwards"
+      },
+      "description": {
+        "endpoint": "PlayerAwards",
+        "field": "DESCRIPTION",
+        "result_set": "PlayerAwards"
+      },
+      "month": {
+        "endpoint": "PlayerAwards",
+        "field": "MONTH",
+        "result_set": "PlayerAwards"
+      },
+      "player_id": {
+        "endpoint": "PlayerAwards",
+        "field": "PERSON_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerAwards"
+      },
+      "season": {
+        "endpoint": "PlayerAwards",
+        "field": "SEASON",
+        "result_set": "PlayerAwards"
+      },
+      "subtype1": {
+        "endpoint": "PlayerAwards",
+        "field": "SUBTYPE1",
+        "result_set": "PlayerAwards"
+      },
+      "subtype2": {
+        "endpoint": "PlayerAwards",
+        "field": "SUBTYPE2",
+        "result_set": "PlayerAwards"
+      },
+      "subtype3": {
+        "endpoint": "PlayerAwards",
+        "field": "SUBTYPE3",
+        "result_set": "PlayerAwards"
+      },
+      "week": {
+        "endpoint": "PlayerAwards",
+        "field": "WEEK",
+        "result_set": "PlayerAwards"
+      }
+    }
+  },
+  "fact_player_estimated_metrics": {
+    "class": "FactPlayerEstimatedMetricsSchema",
+    "columns": {
+      "e_ast_ratio": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_AST_RATIO",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_def_rating": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_DEF_RATING",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_dreb_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_DREB_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_net_rating": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_NET_RATING",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_off_rating": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_OFF_RATING",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_oreb_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_OREB_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_pace": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_PACE",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_reb_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_REB_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_tov_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_TOV_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "e_usg_pct": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "E_USG_PCT",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "gp": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "GP",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "l": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "L",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "min": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "MIN",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "player_id": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerEstimatedMetrics"
+      },
+      "w": {
+        "endpoint": "PlayerEstimatedMetrics",
+        "field": "W",
+        "result_set": "PlayerEstimatedMetrics"
+      }
+    }
+  },
+  "fact_player_game_advanced": {
+    "class": "FactPlayerGameAdvancedSchema",
+    "columns": {
+      "ast_pct": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "AST_PCT",
+        "result_set": "PlayerStats"
+      },
+      "ast_ratio": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "AST_RATIO",
+        "result_set": "PlayerStats"
+      },
+      "ast_to": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "AST_TOV",
+        "result_set": "PlayerStats"
+      },
+      "def_rating": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "DEF_RATING",
+        "result_set": "PlayerStats"
+      },
+      "dreb_pct": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "DREB_PCT",
+        "result_set": "PlayerStats"
+      },
+      "efg_pct": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "EFG_PCT",
+        "result_set": "PlayerStats"
+      },
+      "fta_rate": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "FTA_RATE",
+        "result_set": "PlayerStats"
+      },
+      "game_id": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayerStats"
+      },
+      "net_rating": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "NET_RATING",
+        "result_set": "PlayerStats"
+      },
+      "off_rating": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "OFF_RATING",
+        "result_set": "PlayerStats"
+      },
+      "oreb_pct": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "OREB_PCT",
+        "result_set": "PlayerStats"
+      },
+      "pace": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "PACE",
+        "result_set": "PlayerStats"
+      },
+      "pie": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "PIE",
+        "result_set": "PlayerStats"
+      },
+      "player_id": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerStats"
+      },
+      "poss": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "POSS",
+        "result_set": "PlayerStats"
+      },
+      "reb_pct": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "REB_PCT",
+        "result_set": "PlayerStats"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerStats"
+      },
+      "ts_pct": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "TS_PCT",
+        "result_set": "PlayerStats"
+      },
+      "usg_pct": {
+        "endpoint": "BoxScoreAdvancedV3",
+        "field": "USG_PCT",
+        "result_set": "PlayerStats"
+      }
+    }
+  },
+  "fact_player_game_hustle": {
+    "class": "FactPlayerGameHustleSchema",
+    "columns": {
+      "box_outs": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "BOX_OUTS",
+        "result_set": "PlayerStats"
+      },
+      "charges_drawn": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "CHARGES_DRAWN",
+        "result_set": "PlayerStats"
+      },
+      "contested_shots": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "CONTESTED_SHOTS",
+        "result_set": "PlayerStats"
+      },
+      "contested_shots_2pt": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "CONTESTED_SHOTS_2PT",
+        "result_set": "PlayerStats"
+      },
+      "contested_shots_3pt": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "CONTESTED_SHOTS_3PT",
+        "result_set": "PlayerStats"
+      },
+      "deflections": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "DEFLECTIONS",
+        "result_set": "PlayerStats"
+      },
+      "game_id": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayerStats"
+      },
+      "loose_balls_recovered": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "LOOSE_BALLS_RECOVERED",
+        "result_set": "PlayerStats"
+      },
+      "player_id": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerStats"
+      },
+      "screen_assists": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "SCREEN_ASSISTS",
+        "result_set": "PlayerStats"
+      },
+      "screen_ast_pts": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "SCREEN_AST_PTS",
+        "result_set": "PlayerStats"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "BoxScoreHustleV2",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerStats"
+      }
+    }
+  },
+  "fact_player_game_misc": {
+    "class": "FactPlayerGameMiscSchema",
+    "columns": {
+      "fbps": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "FBPS",
+        "result_set": "PlayerStats"
+      },
+      "game_id": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayerStats"
+      },
+      "opp_fbps": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "OPP_FBPS",
+        "result_set": "PlayerStats"
+      },
+      "opp_pitp": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "OPP_PITP",
+        "result_set": "PlayerStats"
+      },
+      "opp_pts_off_tov": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "OPP_PTS_OFF_TOV",
+        "result_set": "PlayerStats"
+      },
+      "opp_second_chance_pts": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "OPP_SECOND_CHANCE_PTS",
+        "result_set": "PlayerStats"
+      },
+      "pct_ast_2pm": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_AST_2PM",
+        "result_set": "PlayerStats"
+      },
+      "pct_ast_3pm": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_AST_3PM",
+        "result_set": "PlayerStats"
+      },
+      "pct_fga_2pt": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_FGA_2PT",
+        "result_set": "PlayerStats"
+      },
+      "pct_fga_3pt": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_FGA_3PT",
+        "result_set": "PlayerStats"
+      },
+      "pct_pts_2pt": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_PTS_2PT",
+        "result_set": "PlayerStats"
+      },
+      "pct_pts_2pt_mr": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_PTS_2PT_MR",
+        "result_set": "PlayerStats"
+      },
+      "pct_pts_3pt": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_PTS_3PT",
+        "result_set": "PlayerStats"
+      },
+      "pct_pts_fb": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_PTS_FB",
+        "result_set": "PlayerStats"
+      },
+      "pct_pts_ft": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_PTS_FT",
+        "result_set": "PlayerStats"
+      },
+      "pct_pts_off_tov": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_PTS_OFF_TOV",
+        "result_set": "PlayerStats"
+      },
+      "pct_pts_pitp": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_PTS_PITP",
+        "result_set": "PlayerStats"
+      },
+      "pct_uast_2pm": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_UAST_2PM",
+        "result_set": "PlayerStats"
+      },
+      "pct_uast_3pm": {
+        "endpoint": "BoxScoreScoringV3",
+        "field": "PCT_UAST_3PM",
+        "result_set": "PlayerStats"
+      },
+      "pitp": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "PITP",
+        "result_set": "PlayerStats"
+      },
+      "player_id": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerStats"
+      },
+      "pts_off_tov": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "PTS_OFF_TOV",
+        "result_set": "PlayerStats"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "second_chance_pts": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "SECOND_CHANCE_PTS",
+        "result_set": "PlayerStats"
+      },
+      "team_id": {
+        "endpoint": "BoxScoreMiscV3",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerStats"
+      }
+    }
+  },
+  "fact_player_game_tracking": {
+    "class": "FactPlayerGameTrackingSchema",
+    "columns": {
+      "ast": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "AST",
+        "result_set": "PlayerStats"
+      },
+      "cfg_pct": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "CFG_PCT",
+        "result_set": "PlayerStats"
+      },
+      "cfga": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "CFGA",
+        "result_set": "PlayerStats"
+      },
+      "cfgm": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "CFGM",
+        "result_set": "PlayerStats"
+      },
+      "dfg_pct": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "DFG_PCT",
+        "result_set": "PlayerStats"
+      },
+      "dfga": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "DFGA",
+        "result_set": "PlayerStats"
+      },
+      "dfgm": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "DFGM",
+        "result_set": "PlayerStats"
+      },
+      "dist": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "DIST",
+        "result_set": "PlayerStats"
+      },
+      "drbc": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "DRBC",
+        "result_set": "PlayerStats"
+      },
+      "front_ct_tchs": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "FRONT_CT_TOUCHES",
+        "result_set": "PlayerStats"
+      },
+      "ft_ast": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "FTAST",
+        "result_set": "PlayerStats"
+      },
+      "game_id": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayerStats"
+      },
+      "orbc": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "ORBC",
+        "result_set": "PlayerStats"
+      },
+      "passes": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "PASSES",
+        "result_set": "PlayerStats"
+      },
+      "player_id": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerStats"
+      },
+      "rbc": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "RBC",
+        "result_set": "PlayerStats"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "spd": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "SPD",
+        "result_set": "PlayerStats"
+      },
+      "tchs": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "TCHS",
+        "result_set": "PlayerStats"
+      },
+      "team_id": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerStats"
+      },
+      "time_of_poss": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "TIME_OF_POSS",
+        "result_set": "PlayerStats"
+      },
+      "ufg_pct": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "UFG_PCT",
+        "result_set": "PlayerStats"
+      },
+      "ufga": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "UFGA",
+        "result_set": "PlayerStats"
+      },
+      "ufgm": {
+        "endpoint": "BoxScorePlayerTrackV3",
+        "field": "UFGM",
+        "result_set": "PlayerStats"
+      }
+    }
+  },
+  "fact_player_game_traditional": {
+    "class": "FactPlayerGameTraditionalSchema",
+    "columns": {
+      "ast": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "AST",
+        "result_set": "PlayerStats"
+      },
+      "blk": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "BLK",
+        "result_set": "PlayerStats"
+      },
+      "dreb": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "DREB",
+        "result_set": "PlayerStats"
+      },
+      "fg3_pct": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FG3_PCT",
+        "result_set": "PlayerStats"
+      },
+      "fg3a": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FG3A",
+        "result_set": "PlayerStats"
+      },
+      "fg3m": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FG3M",
+        "result_set": "PlayerStats"
+      },
+      "fg_pct": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FG_PCT",
+        "result_set": "PlayerStats"
+      },
+      "fga": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FGA",
+        "result_set": "PlayerStats"
+      },
+      "fgm": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FGM",
+        "result_set": "PlayerStats"
+      },
+      "ft_pct": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FT_PCT",
+        "result_set": "PlayerStats"
+      },
+      "fta": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FTA",
+        "result_set": "PlayerStats"
+      },
+      "ftm": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "FTM",
+        "result_set": "PlayerStats"
+      },
+      "game_id": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "PlayerStats"
+      },
+      "min": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "MIN",
+        "result_set": "PlayerStats"
+      },
+      "oreb": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "OREB",
+        "result_set": "PlayerStats"
+      },
+      "pf": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "PF",
+        "result_set": "PlayerStats"
+      },
+      "player_id": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "PlayerStats"
+      },
+      "plus_minus": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "PLUS_MINUS",
+        "result_set": "PlayerStats"
+      },
+      "pts": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "PTS",
+        "result_set": "PlayerStats"
+      },
+      "reb": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "REB",
+        "result_set": "PlayerStats"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "start_position": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "START_POSITION",
+        "result_set": "PlayerStats"
+      },
+      "stl": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "STL",
+        "result_set": "PlayerStats"
+      },
+      "team_id": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "PlayerStats"
+      },
+      "tov": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "TOV",
+        "result_set": "PlayerStats"
+      }
+    }
+  },
+  "fact_player_matchups_detail": {
+    "class": "FactPlayerMatchupsDetailSchema",
+    "columns": {
+      "detail_source": {
+        "endpoint": "derived",
+        "field": "detail_source",
+        "result_set": "player_matchups_detail"
+      },
+      "detail_variant": {
+        "endpoint": "derived",
+        "field": "detail_variant",
+        "result_set": "player_matchups_detail"
+      }
+    }
+  },
+  "fact_player_matchups_shot_detail": {
+    "class": "FactPlayerMatchupsShotDetailSchema",
+    "columns": {
+      "split_family": {
+        "endpoint": "derived",
+        "field": "split_family",
+        "result_set": "player_matchups_shot_detail"
+      },
+      "split_scope": {
+        "endpoint": "derived",
+        "field": "split_scope",
+        "result_set": "player_matchups_shot_detail"
+      }
+    }
+  },
+  "fact_rotation": {
+    "class": "FactRotationSchema",
+    "columns": {
+      "game_id": {
+        "endpoint": "GameRotation",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "HomeTeam"
+      },
+      "in_time_real": {
+        "endpoint": "GameRotation",
+        "field": "IN_TIME_REAL",
+        "result_set": "HomeTeam"
+      },
+      "out_time_real": {
+        "endpoint": "GameRotation",
+        "field": "OUT_TIME_REAL",
+        "result_set": "HomeTeam"
+      },
+      "player_id": {
+        "endpoint": "GameRotation",
+        "field": "PERSON_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "HomeTeam"
+      },
+      "pts": {
+        "endpoint": "GameRotation",
+        "field": "PTS",
+        "result_set": "HomeTeam"
+      },
+      "pts_diff": {
+        "endpoint": "GameRotation",
+        "field": "PT_DIFF",
+        "result_set": "HomeTeam"
+      },
+      "side": {
+        "endpoint": "derived",
+        "field": "side",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "GameRotation",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "HomeTeam"
+      },
+      "usg_pct": {
+        "endpoint": "GameRotation",
+        "field": "USG_PCT",
+        "result_set": "HomeTeam"
       }
     }
   },
   "fact_shot_chart": {
     "class": "FactShotChartSchema",
     "columns": {
-      "game_id": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "GAME_ID",
-        "fk_ref": "dim_game.game_id"
-      },
-      "player_id": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "PLAYER_ID",
-        "fk_ref": "dim_player.player_id"
-      },
-      "team_id": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "TEAM_ID",
-        "fk_ref": "dim_team.team_id"
-      },
-      "period": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "PERIOD"
-      },
-      "minutes_remaining": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "MINUTES_REMAINING"
-      },
-      "seconds_remaining": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "SECONDS_REMAINING"
-      },
       "action_type": {
         "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "ACTION_TYPE"
+        "field": "ACTION_TYPE",
+        "result_set": "ShotChartDetail"
       },
-      "shot_type": {
+      "game_id": {
         "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "SHOT_TYPE"
-      },
-      "zone_basic": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "SHOT_ZONE_BASIC"
-      },
-      "zone_area": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "SHOT_ZONE_AREA"
-      },
-      "zone_range": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "SHOT_ZONE_RANGE"
-      },
-      "shot_distance": {
-        "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "SHOT_DISTANCE"
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "ShotChartDetail"
       },
       "loc_x": {
         "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "LOC_X"
+        "field": "LOC_X",
+        "result_set": "ShotChartDetail"
       },
       "loc_y": {
         "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "LOC_Y"
+        "field": "LOC_Y",
+        "result_set": "ShotChartDetail"
       },
-      "shot_made_flag": {
+      "minutes_remaining": {
         "endpoint": "ShotChartDetail",
-        "result_set": "ShotChartDetail",
-        "field": "SHOT_MADE_FLAG"
+        "field": "MINUTES_REMAINING",
+        "result_set": "ShotChartDetail"
+      },
+      "period": {
+        "endpoint": "ShotChartDetail",
+        "field": "PERIOD",
+        "result_set": "ShotChartDetail"
+      },
+      "player_id": {
+        "endpoint": "ShotChartDetail",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "ShotChartDetail"
       },
       "season_year": {
         "endpoint": "derived",
-        "result_set": "",
-        "field": "season_year"
+        "field": "season_year",
+        "result_set": ""
+      },
+      "seconds_remaining": {
+        "endpoint": "ShotChartDetail",
+        "field": "SECONDS_REMAINING",
+        "result_set": "ShotChartDetail"
+      },
+      "shot_distance": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_DISTANCE",
+        "result_set": "ShotChartDetail"
+      },
+      "shot_made_flag": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_MADE_FLAG",
+        "result_set": "ShotChartDetail"
+      },
+      "shot_type": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_TYPE",
+        "result_set": "ShotChartDetail"
+      },
+      "team_id": {
+        "endpoint": "ShotChartDetail",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "ShotChartDetail"
+      },
+      "zone_area": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_ZONE_AREA",
+        "result_set": "ShotChartDetail"
+      },
+      "zone_basic": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_ZONE_BASIC",
+        "result_set": "ShotChartDetail"
+      },
+      "zone_range": {
+        "endpoint": "ShotChartDetail",
+        "field": "SHOT_ZONE_RANGE",
+        "result_set": "ShotChartDetail"
+      }
+    }
+  },
+  "fact_shot_chart_league_averages": {
+    "class": "FactShotChartLeagueAveragesSchema",
+    "columns": {
+      "average_source": {
+        "endpoint": "derived",
+        "field": "average_source",
+        "result_set": "shot_chart_league_averages"
+      }
+    }
+  },
+  "fact_standings": {
+    "class": "FactStandingsSchema",
+    "columns": {
+      "clinch_indicator": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "ClinchedPostSeason",
+        "result_set": "Standings"
+      },
+      "conf_rank": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "ConferenceRank",
+        "result_set": "Standings"
+      },
+      "conference": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "Conference",
+        "result_set": "Standings"
+      },
+      "current_streak": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "CurrentStreak",
+        "result_set": "Standings"
+      },
+      "diff_pts_pg": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "DiffPointsPG",
+        "result_set": "Standings"
+      },
+      "div_rank": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "DivisionRank",
+        "result_set": "Standings"
+      },
+      "division": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "Division",
+        "result_set": "Standings"
+      },
+      "games_back": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "ConferenceGamesBack",
+        "result_set": "Standings"
+      },
+      "home_record": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "HOME",
+        "result_set": "Standings"
+      },
+      "last_ten": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "L10",
+        "result_set": "Standings"
+      },
+      "losses": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "LOSSES",
+        "result_set": "Standings"
+      },
+      "opp_pts_pg": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "OppPointsPG",
+        "result_set": "Standings"
+      },
+      "pts_pg": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "PointsPG",
+        "result_set": "Standings"
+      },
+      "road_record": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "ROAD",
+        "result_set": "Standings"
+      },
+      "season_type": {
+        "endpoint": "derived",
+        "field": "season_type",
+        "result_set": ""
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "TeamID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "Standings"
+      },
+      "win_pct": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "WinPCT",
+        "result_set": "Standings"
+      },
+      "wins": {
+        "endpoint": "LeagueStandingsV3",
+        "field": "WINS",
+        "result_set": "Standings"
+      }
+    }
+  },
+  "fact_synergy": {
+    "class": "FactSynergySchema",
+    "columns": {
+      "efg_pct": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "EFG_PCT",
+        "result_set": "SynergyPlayType"
+      },
+      "fg_pct": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "FG_PCT",
+        "result_set": "SynergyPlayType"
+      },
+      "fga": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "FGA",
+        "result_set": "SynergyPlayType"
+      },
+      "fgm": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "FGM",
+        "result_set": "SynergyPlayType"
+      },
+      "ft_poss_pct": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "FT_POSS_PCT",
+        "result_set": "SynergyPlayType"
+      },
+      "gp": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "GP",
+        "result_set": "SynergyPlayType"
+      },
+      "percentile": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "PERCENTILE",
+        "result_set": "SynergyPlayType"
+      },
+      "play_type": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "PLAY_TYPE",
+        "result_set": "SynergyPlayType"
+      },
+      "player_id": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "PLAYER_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "SynergyPlayType"
+      },
+      "poss": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "POSS",
+        "result_set": "SynergyPlayType"
+      },
+      "poss_pct": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "POSS_PCT",
+        "result_set": "SynergyPlayType"
+      },
+      "ppp": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "PPP",
+        "result_set": "SynergyPlayType"
+      },
+      "pts": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "PTS",
+        "result_set": "SynergyPlayType"
+      },
+      "score_pct": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "SCORE_PCT",
+        "result_set": "SynergyPlayType"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "SynergyPlayType"
+      },
+      "tov_pct": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "TOV_PCT",
+        "result_set": "SynergyPlayType"
+      },
+      "type_grouping": {
+        "endpoint": "SynergyPlayTypes",
+        "field": "TYPE_GROUPING",
+        "result_set": "SynergyPlayType"
+      }
+    }
+  },
+  "fact_team_estimated_metrics": {
+    "class": "FactTeamEstimatedMetricsSchema",
+    "columns": {
+      "e_ast_ratio": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_AST_RATIO",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_def_rating": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_DEF_RATING",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_dreb_pct": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_DREB_PCT",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_net_rating": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_NET_RATING",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_off_rating": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_OFF_RATING",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_oreb_pct": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_OREB_PCT",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_pace": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_PACE",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_reb_pct": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_REB_PCT",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "e_tov_pct": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "E_TOV_PCT",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "gp": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "GP",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "l": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "L",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "min": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "MIN",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "TeamEstimatedMetrics"
+      },
+      "w": {
+        "endpoint": "TeamEstimatedMetrics",
+        "field": "W",
+        "result_set": "TeamEstimatedMetrics"
+      }
+    }
+  },
+  "fact_team_game": {
+    "class": "FactTeamGameSchema",
+    "columns": {
+      "ast": {
+        "endpoint": "derived",
+        "field": "ast",
+        "result_set": "team_agg"
+      },
+      "blk": {
+        "endpoint": "derived",
+        "field": "blk",
+        "result_set": "team_agg"
+      },
+      "dreb": {
+        "endpoint": "derived",
+        "field": "dreb",
+        "result_set": "team_agg"
+      },
+      "fg3_pct": {
+        "endpoint": "derived",
+        "field": "fg3_pct",
+        "result_set": "team_agg"
+      },
+      "fg3a": {
+        "endpoint": "derived",
+        "field": "fg3a",
+        "result_set": "team_agg"
+      },
+      "fg3m": {
+        "endpoint": "derived",
+        "field": "fg3m",
+        "result_set": "team_agg"
+      },
+      "fg_pct": {
+        "endpoint": "derived",
+        "field": "fg_pct",
+        "result_set": "team_agg"
+      },
+      "fga": {
+        "endpoint": "derived",
+        "field": "fga",
+        "result_set": "team_agg"
+      },
+      "fgm": {
+        "endpoint": "derived",
+        "field": "fgm",
+        "result_set": "team_agg"
+      },
+      "ft_pct": {
+        "endpoint": "derived",
+        "field": "ft_pct",
+        "result_set": "team_agg"
+      },
+      "fta": {
+        "endpoint": "derived",
+        "field": "fta",
+        "result_set": "team_agg"
+      },
+      "ftm": {
+        "endpoint": "derived",
+        "field": "ftm",
+        "result_set": "team_agg"
+      },
+      "game_id": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "TeamStats"
+      },
+      "oreb": {
+        "endpoint": "derived",
+        "field": "oreb",
+        "result_set": "team_agg"
+      },
+      "pf": {
+        "endpoint": "derived",
+        "field": "pf",
+        "result_set": "team_agg"
+      },
+      "pts": {
+        "endpoint": "derived",
+        "field": "pts",
+        "result_set": "team_agg"
+      },
+      "pts_qtr1": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR1",
+        "result_set": "LineScore"
+      },
+      "pts_qtr2": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR2",
+        "result_set": "LineScore"
+      },
+      "pts_qtr3": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR3",
+        "result_set": "LineScore"
+      },
+      "pts_qtr4": {
+        "endpoint": "Scoreboard",
+        "field": "PTS_QTR4",
+        "result_set": "LineScore"
+      },
+      "reb": {
+        "endpoint": "derived",
+        "field": "reb",
+        "result_set": "team_agg"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "stl": {
+        "endpoint": "derived",
+        "field": "stl",
+        "result_set": "team_agg"
+      },
+      "team_id": {
+        "endpoint": "BoxScoreTraditionalV3",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "TeamStats"
+      },
+      "tov": {
+        "endpoint": "derived",
+        "field": "tov",
+        "result_set": "team_agg"
+      }
+    }
+  },
+  "fact_team_matchups_detail": {
+    "class": "FactTeamMatchupsDetailSchema",
+    "columns": {
+      "detail_source": {
+        "endpoint": "derived",
+        "field": "detail_source",
+        "result_set": "team_matchups_detail"
+      },
+      "detail_variant": {
+        "endpoint": "derived",
+        "field": "detail_variant",
+        "result_set": "team_matchups_detail"
+      }
+    }
+  },
+  "fact_team_matchups_shot_detail": {
+    "class": "FactTeamMatchupsShotDetailSchema",
+    "columns": {
+      "split_family": {
+        "endpoint": "derived",
+        "field": "split_family",
+        "result_set": "team_matchups_shot_detail"
+      },
+      "split_scope": {
+        "endpoint": "derived",
+        "field": "split_scope",
+        "result_set": "team_matchups_shot_detail"
+      }
+    }
+  },
+  "fact_tracking_defense": {
+    "class": "FactTrackingDefenseSchema",
+    "columns": {
+      "d_fg_pct": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "D_FG_PCT",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "d_fga": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "D_FGA",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "d_fgm": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "D_FGM",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "defense_category": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "DEFENSE_CATEGORY",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "freq": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "FREQ",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "g": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "G",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "gp": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "GP",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "normal_fg_pct": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "NORMAL_FG_PCT",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "pct_plusminus": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "PCT_PLUSMINUS",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "player_id": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "CLOSE_DEF_PERSON_ID",
+        "fk_ref": "dim_player.player_id",
+        "result_set": "LeagueDashPtDefend"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "team_id": {
+        "endpoint": "LeagueDashPtDefend",
+        "field": "TEAM_ID",
+        "fk_ref": "dim_team.team_id",
+        "result_set": "LeagueDashPtDefend"
+      }
+    }
+  },
+  "fact_win_probability": {
+    "class": "FactWinProbabilitySchema",
+    "columns": {
+      "event_num": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "EVENT_NUM",
+        "result_set": "WinProbPBP"
+      },
+      "game_id": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "GAME_ID",
+        "fk_ref": "dim_game.game_id",
+        "result_set": "WinProbPBP"
+      },
+      "home_pct": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "HOME_PCT",
+        "result_set": "WinProbPBP"
+      },
+      "home_pts": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "HOME_PTS",
+        "result_set": "WinProbPBP"
+      },
+      "home_score_margin": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "HOME_SCORE_MARGIN",
+        "result_set": "WinProbPBP"
+      },
+      "pc_time_string": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "PCTIMESTRING",
+        "result_set": "WinProbPBP"
+      },
+      "period": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "PERIOD",
+        "result_set": "WinProbPBP"
+      },
+      "season_year": {
+        "endpoint": "derived",
+        "field": "season_year",
+        "result_set": ""
+      },
+      "visitor_pct": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "VISITOR_PCT",
+        "result_set": "WinProbPBP"
+      },
+      "visitor_pts": {
+        "endpoint": "WinProbabilityPBP",
+        "field": "VISITOR_PTS",
+        "result_set": "WinProbPBP"
       }
     }
   }

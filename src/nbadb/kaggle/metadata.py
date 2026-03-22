@@ -20,13 +20,13 @@ def generate_metadata(output_path: Path) -> None:
         "title": "Basketball",
         "subtitle": (
             "Comprehensive NBA database: 131 endpoints, "
-            "141-table star schema (1946\u2013present)"
+            "161-table star schema (1946\u2013present)"
         ),
         "description": (
             "The most comprehensive open NBA database available. "
             "131 stats.nba.com endpoints extracted via nba_api, normalized into a "
-            "141-table star schema with 17 dimensions, 102 facts, 2 bridges, "
-            "16 derived aggregations, and 4 analytics views. "
+            "161-table star schema with 17 dimensions, 118 facts, 2 bridges, "
+            "16 derived aggregations, and 8 analytics views. "
             "Covers every NBA season from 1946-47 to present.\n\n"
             "Includes box scores (traditional, advanced, misc, hustle, four factors, tracking), "
             "play-by-play, shot charts, rotations, win probability, lineups, synergy play types, "
@@ -102,6 +102,7 @@ def _build_resources() -> list[dict]:
             "fact_box_score_usage_team",
             "fact_college_rollup",
             "fact_cumulative_stats",
+            "fact_cumulative_stats_detail",
             "fact_defense_hub",
             "fact_draft",
             "fact_draft_board",
@@ -112,8 +113,10 @@ def _build_resources() -> list[dict]:
             "fact_game_leaders",
             "fact_game_result",
             "fact_game_scoring",
+            "fact_gl_alum_similarity",
             "fact_homepage",
             "fact_homepage_leaders",
+            "fact_hustle_availability",
             "fact_ist_standings",
             "fact_leaders_tiles",
             "fact_league_dash_player_stats",
@@ -127,10 +130,12 @@ def _build_resources() -> list[dict]:
             "fact_league_team_clutch",
             "fact_lineup_stats",
             "fact_matchup",
+            "fact_on_off_detail",
             "fact_play_by_play",
             "fact_player_available_seasons",
             "fact_player_awards",
             "fact_player_career",
+            "fact_player_clutch_detail",
             "fact_player_dashboard_clutch_overall",
             "fact_player_dashboard_game_splits_overall",
             "fact_player_dashboard_general_splits_overall",
@@ -143,9 +148,12 @@ def _build_resources() -> list[dict]:
             "fact_player_game_hustle",
             "fact_player_game_log",
             "fact_player_game_misc",
+            "fact_player_game_splits_detail",
             "fact_player_game_tracking",
             "fact_player_game_traditional",
+            "fact_player_general_splits_detail",
             "fact_player_headline_stats",
+            "fact_player_last_n_detail",
             "fact_player_matchups",
             "fact_player_next_games",
             "fact_player_profile",
@@ -153,12 +161,16 @@ def _build_resources() -> list[dict]:
             "fact_player_pt_shots_detail",
             "fact_player_pt_tracking",
             "fact_player_season_ranks",
+            "fact_player_shooting_splits_detail",
             "fact_player_splits",
+            "fact_player_team_perf_detail",
+            "fact_player_yoy_detail",
             "fact_playoff_picture",
             "fact_playoff_series",
             "fact_rotation",
             "fact_scoreboard_detail",
             "fact_scoreboard_v3",
+            "fact_scoreboard_win_probability",
             "fact_season_matchups",
             "fact_shot_chart",
             "fact_shot_chart_league",
@@ -166,17 +178,21 @@ def _build_resources() -> list[dict]:
             "fact_standings",
             "fact_streak_finder",
             "fact_synergy",
+            "fact_team_available_seasons",
             "fact_team_awards_conf",
             "fact_team_awards_div",
             "fact_team_background",
             "fact_team_dashboard_general_overall",
             "fact_team_dashboard_shooting_overall",
+            "fact_team_estimated_metrics",
             "fact_team_game",
             "fact_team_game_hustle",
             "fact_team_game_log",
+            "fact_team_general_splits_detail",
             "fact_team_historical",
             "fact_team_history_detail",
             "fact_team_hof",
+            "fact_team_lineups_detail",
             "fact_team_lineups_overall",
             "fact_team_matchups",
             "fact_team_player_dashboard",
@@ -185,9 +201,9 @@ def _build_resources() -> list[dict]:
             "fact_team_pt_tracking",
             "fact_team_retired",
             "fact_team_season_ranks",
+            "fact_team_shooting_splits_detail",
             "fact_team_social_sites",
             "fact_team_splits",
-            "fact_team_estimated_metrics",
             "fact_tracking_defense",
             "fact_win_probability",
         ],
@@ -210,9 +226,13 @@ def _build_resources() -> list[dict]:
             "agg_team_season",
         ],
         "analytics": [
+            "analytics_clutch_performance",
             "analytics_head_to_head",
             "analytics_player_game_complete",
+            "analytics_player_matchup",
             "analytics_player_season_complete",
+            "analytics_shooting_efficiency",
+            "analytics_team_game_complete",
             "analytics_team_season_summary",
         ],
     }

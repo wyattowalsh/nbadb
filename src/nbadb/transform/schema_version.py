@@ -60,19 +60,6 @@ class SchemaVersionTracker:
             return None
         return (row[0], row[1], json.loads(row[2]))
 
-    def record_schema_typed(
-        self, table_name: str, columns: list[str], dtypes: list[str] | None = None
-    ) -> SchemaChange | None:
-        """Record schema with optional type information.
-
-        When *dtypes* is provided, the hash includes ``name:type`` pairs,
-        detecting type changes in addition to column additions/removals.
-        """
-        if dtypes and len(dtypes) == len(columns):
-            typed_cols = [f"{c}:{t}" for c, t in zip(columns, dtypes, strict=True)]
-            return self._record(table_name, columns, self._hash_columns(typed_cols))
-        return self._record(table_name, columns, self._hash_columns(columns))
-
     def record_schema(
         self, table_name: str, columns: list[str], dtypes: list[str] | None = None
     ) -> SchemaChange | None:

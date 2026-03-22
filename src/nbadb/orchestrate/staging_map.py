@@ -2171,3 +2171,18 @@ def get_multi_entries() -> dict[str, list[StagingEntry]]:
         if e.use_multi:
             groups.setdefault(e.endpoint_name, []).append(e)
     return groups
+
+
+def get_by_endpoint(endpoint_name: str) -> list[StagingEntry]:
+    """Return all staging entries for the given endpoint_name."""
+    return [e for e in STAGING_MAP if e.endpoint_name == endpoint_name]
+
+
+def get_unique_endpoints() -> list[str]:
+    """Return sorted list of unique endpoint names in STAGING_MAP."""
+    return sorted({e.endpoint_name for e in STAGING_MAP})
+
+
+def get_unique_patterns() -> list[str]:
+    """Return sorted list of unique param_patterns in STAGING_MAP."""
+    return sorted({e.param_pattern for e in STAGING_MAP})

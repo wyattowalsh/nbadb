@@ -480,17 +480,26 @@ class TestFactFranchiseDetail:
 class TestFactLeagueHustle:
     def test_class_attrs(self) -> None:
         assert FactLeagueHustleTransformer.output_table == "fact_league_hustle"
-        assert len(FactLeagueHustleTransformer.depends_on) == 2
+        assert len(FactLeagueHustleTransformer.depends_on) == 5
 
     def test_union_with_entity_type(self) -> None:
+        p = pl.DataFrame({"player_id": [1], "deflections": [5]}).lazy()
+        t = pl.DataFrame({"team_id": [10], "deflections": [40]}).lazy()
         staging = {
-            "stg_league_hustle_player": pl.DataFrame({"player_id": [1], "deflections": [5]}).lazy(),
-            "stg_league_hustle_team": pl.DataFrame({"team_id": [10], "deflections": [40]}).lazy(),
+            "stg_league_hustle_player": p,
+            "stg_league_hustle_team": t,
+            "stg_league_hustle_stats_player": p,
+            "stg_league_hustle_stats_team": t,
+            "stg_league_dash_player_bio_stats": p,
         }
         result = _run(FactLeagueHustleTransformer(), staging)
-        assert result.shape[0] == 2
+        assert result.shape[0] == 5
         assert "entity_type" in result.columns
-        assert set(result["entity_type"].to_list()) == {"player", "team"}
+        expected = {
+            "player", "team", "hustle_stats_player",
+            "hustle_stats_team", "bio_stats",
+        }
+        assert set(result["entity_type"].to_list()) == expected
 
 
 # ---------------------------------------------------------------------------

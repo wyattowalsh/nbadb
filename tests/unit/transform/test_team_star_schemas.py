@@ -442,11 +442,16 @@ class TestTeamDashboardStarSchemas:
         _assert_schema_valid("fact_team_dashboard_shooting_overall", result)
 
     def test_team_player_dashboard_schema_validates_transform_output(self) -> None:
-        staging = {"stg_team_player_dashboard": _frame(_team_player_row()).lazy()}
+        staging = {
+            "stg_team_player_dashboard": _frame(_team_player_row()).lazy(),
+            "stg_team_player_dash_players": _frame(_team_player_row()).lazy(),
+            "stg_team_player_dash_overall": _frame(_team_player_row()).lazy(),
+        }
 
         result = _run(FactTeamPlayerDashboardTransformer(), staging)
 
-        assert result.shape == (1, len(_team_player_row()))
+        assert result.shape[0] == 3
+        assert "dashboard_type" in result.columns
         _assert_schema_valid("fact_team_player_dashboard", result)
 
     def test_team_lineups_overall_schema_validates_transform_output(self) -> None:
@@ -458,16 +463,31 @@ class TestTeamDashboardStarSchemas:
         _assert_schema_valid("fact_team_lineups_overall", result)
 
     def test_team_tracking_schemas_validate_transform_outputs(self) -> None:
-        staging = {
+        tracking_staging = {
             "stg_team_pt_pass": _frame(_team_pt_pass_row()).lazy(),
             "stg_team_pt_pass_received": _frame(_team_pt_pass_received_row()).lazy(),
             "stg_team_pt_reb": _frame(_team_pt_reb_row()).lazy(),
             "stg_team_pt_shots": _frame(_team_pt_shots_row()).lazy(),
         }
+        reb_staging = {
+            "stg_team_pt_reb": _frame(_team_pt_reb_row()).lazy(),
+            "stg_team_pt_reb_overall": _frame(_team_pt_reb_row()).lazy(),
+            "stg_team_pt_reb_distance": _frame(_team_pt_reb_row()).lazy(),
+            "stg_team_pt_reb_shot_dist": _frame(_team_pt_reb_row()).lazy(),
+            "stg_team_pt_reb_shot_type": _frame(_team_pt_reb_row()).lazy(),
+        }
+        shots_staging = {
+            "stg_team_pt_shots": _frame(_team_pt_shots_row()).lazy(),
+            "stg_team_pt_shots_closest_def": _frame(_team_pt_shots_row()).lazy(),
+            "stg_team_pt_shots_dribble": _frame(_team_pt_shots_row()).lazy(),
+            "stg_team_pt_shots_general": _frame(_team_pt_shots_row()).lazy(),
+            "stg_team_pt_shots_shot_clock": _frame(_team_pt_shots_row()).lazy(),
+            "stg_team_pt_shots_touch_time": _frame(_team_pt_shots_row()).lazy(),
+        }
 
-        tracking = _run(FactTeamPtTrackingTransformer(), staging)
-        reb_detail = _run(FactTeamPtRebDetailTransformer(), staging)
-        shots_detail = _run(FactTeamPtShotsDetailTransformer(), staging)
+        tracking = _run(FactTeamPtTrackingTransformer(), tracking_staging)
+        reb_detail = _run(FactTeamPtRebDetailTransformer(), reb_staging)
+        shots_detail = _run(FactTeamPtShotsDetailTransformer(), shots_staging)
 
         assert set(tracking["tracking_type"].to_list()) == {
             "pass",

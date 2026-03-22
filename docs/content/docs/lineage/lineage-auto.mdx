@@ -63,14 +63,18 @@ flowchart LR
     dim_team[(dim_team)]
     dim_team_history[(dim_team_history)]
     fact_box_score_four_factors[(fact_box_score_four_factors)]
+    fact_defense_hub[(fact_defense_hub)]
     fact_defense_hub_detail[(fact_defense_hub_detail)]
     fact_draft[(fact_draft)]
     fact_estimated_metrics[(fact_estimated_metrics)]
     fact_game_leaders[(fact_game_leaders)]
     fact_game_result[(fact_game_result)]
     fact_game_scoring[(fact_game_scoring)]
+    fact_homepage[(fact_homepage)]
     fact_homepage_detail[(fact_homepage_detail)]
+    fact_homepage_leaders[(fact_homepage_leaders)]
     fact_homepage_leaders_detail[(fact_homepage_leaders_detail)]
+    fact_leaders_tiles[(fact_leaders_tiles)]
     fact_leaders_tiles_detail[(fact_leaders_tiles_detail)]
     fact_league_lineup_viz[(fact_league_lineup_viz)]
     fact_lineup_stats[(fact_lineup_stats)]
@@ -83,12 +87,17 @@ flowchart LR
     fact_player_game_misc[(fact_player_game_misc)]
     fact_player_game_tracking[(fact_player_game_tracking)]
     fact_player_game_traditional[(fact_player_game_traditional)]
+    fact_player_matchups_detail[(fact_player_matchups_detail)]
+    fact_player_matchups_shot_detail[(fact_player_matchups_shot_detail)]
     fact_rotation[(fact_rotation)]
     fact_shot_chart[(fact_shot_chart)]
+    fact_shot_chart_league_averages[(fact_shot_chart_league_averages)]
     fact_standings[(fact_standings)]
     fact_synergy[(fact_synergy)]
     fact_team_estimated_metrics[(fact_team_estimated_metrics)]
     fact_team_game[(fact_team_game)]
+    fact_team_matchups_detail[(fact_team_matchups_detail)]
+    fact_team_matchups_shot_detail[(fact_team_matchups_shot_detail)]
     fact_tracking_defense[(fact_tracking_defense)]
     fact_win_probability[(fact_win_probability)]
     BoxScoreAdvancedV3 --> fact_player_game_advanced
@@ -105,12 +114,16 @@ flowchart LR
     CommonPlayerInfo --> dim_player
     CommonTeamRoster --> dim_coach
     CommonTeamYears --> dim_team
+    DefenseHub --> fact_defense_hub
     DefenseHub --> fact_defense_hub_detail
     DraftHistory --> fact_draft
     FranchiseHistory --> dim_team_history
     GameRotation --> fact_rotation
+    HomePageLeaders --> fact_homepage_leaders
     HomePageLeaders --> fact_homepage_leaders_detail
+    HomePageV2 --> fact_homepage
     HomePageV2 --> fact_homepage_detail
+    LeadersTiles --> fact_leaders_tiles
     LeadersTiles --> fact_leaders_tiles_detail
     LeagueDashLineups --> bridge_lineup_player
     LeagueDashLineups --> fact_lineup_stats

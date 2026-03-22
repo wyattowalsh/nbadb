@@ -170,9 +170,12 @@ class ProxyPool:
     @property
     def size(self) -> int:
         """Number of proxies currently in the pool."""
-        get_pool_stats = getattr(self._whirl, "get_pool_stats")  # noqa: B009
-        stats = get_pool_stats()
-        return stats.get("total_proxies", 0)
+        try:
+            get_pool_stats = getattr(self._whirl, "get_pool_stats")  # noqa: B009
+            stats = get_pool_stats()
+            return stats.get("total_proxies", 0)
+        except AttributeError:
+            return 0
 
 
 _NORDVPN_SOCKS5_HOSTS = [

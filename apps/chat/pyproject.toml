@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nbadb-chat"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "nbadb",
+    "chainlit>=3.0",
+    "deepagents",
+    "langchain-mcp-adapters",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.3",
+    "langchain-anthropic>=0.3",
+    "langchain-google-genai>=2.0",
+    "langchain-ollama>=0.3",
+    "github-copilot-sdk",
+    "mcp[cli]",
+    "pydantic-settings>=2.13",
+    "plotly>=6.0",
+    "matplotlib>=3.10",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "duckduckgo-search>=7.0",
+    "trafilatura>=2.0",
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+e2b = ["e2b-code-interpreter>=1.0"]

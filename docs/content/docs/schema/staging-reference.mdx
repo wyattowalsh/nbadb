@@ -5,7 +5,7 @@ description: Complete schema docs for staging tier
 
 # Schema Reference — Staging
 
-This tier contains 33 schema(s).
+This tier contains 43 schema(s).
 
 ## `staging_arena_info`
 
@@ -732,6 +732,490 @@ This tier contains 33 schema(s).
 | `video_available` | `Int64` | Yes | — | Video availability flag |
 | `action_id` | `Int64` | Yes | — | Unique action identifier |
 
+## `staging_player_dashboard_clutch`
+
+**Class**: `StagingPlayerDashboardClutchSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_dashboard_game_splits`
+
+**Class**: `StagingPlayerDashboardGameSplitsSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_dashboard_general_splits`
+
+**Class**: `StagingPlayerDashboardGeneralSplitsSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_dashboard_last_n_games`
+
+**Class**: `StagingPlayerDashboardLastNGamesSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_dashboard_shooting_splits`
+
+**Class**: `StagingPlayerDashboardShootingSplitsSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `efg_pct_rank` | `Int64` | Yes | — | Effective field goal percentage rank. |
+| `pct_ast_2pm_rank` | `Int64` | Yes | — | Assisted two-point make percentage rank. |
+| `pct_uast_2pm_rank` | `Int64` | Yes | — | Unassisted two-point make percentage rank. |
+| `pct_ast_3pm_rank` | `Int64` | Yes | — | Assisted three-point make percentage rank. |
+| `pct_uast_3pm_rank` | `Int64` | Yes | — | Unassisted three-point make percentage rank. |
+| `pct_ast_fgm_rank` | `Int64` | Yes | — | Assisted field goal make percentage rank. |
+| `pct_uast_fgm_rank` | `Int64` | Yes | — | Unassisted field goal make percentage rank. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage. |
+| `pct_ast_2pm` | `Float64` | Yes | — | Share of made twos that were assisted. |
+| `pct_uast_2pm` | `Float64` | Yes | — | Share of made twos that were unassisted. |
+| `pct_ast_3pm` | `Float64` | Yes | — | Share of made threes that were assisted. |
+| `pct_uast_3pm` | `Float64` | Yes | — | Share of made threes that were unassisted. |
+| `pct_ast_fgm` | `Float64` | Yes | — | Share of made field goals that were assisted. |
+| `pct_uast_fgm` | `Float64` | Yes | — | Share of made field goals that were unassisted. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_dashboard_team_performance`
+
+**Class**: `StagingPlayerDashboardTeamPerformanceSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_dashboard_year_over_year`
+
+**Class**: `StagingPlayerDashboardYearOverYearSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `team_id` | `Int64` | Yes | gt=0 | Team identifier for the season row. |
+| `team_abbreviation` | `String` | Yes | — | Team abbreviation. |
+| `max_game_date` | `String` | Yes | — | Most recent game date in the split. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
 ## `staging_player_game_log`
 
 **Class**: `StagingPlayerGameLogSchema`
@@ -799,6 +1283,153 @@ This tier contains 33 schema(s).
 | `stats_timeframe` | `String` | Yes | — | Timeframe for stats |
 | `from_year` | `String` | Yes | — | First year in the league |
 | `to_year` | `String` | Yes | — | Last year in the league |
+
+## `staging_player_perf_pts_scored`
+
+**Class**: `StagingPlayerPerfPtsScoredSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_value_order` | `Int64` | Yes | — | Sort order for grouped dashboard rows. |
+| `group_value_2` | `String` | Yes | — | Secondary grouping value returned by the endpoint. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_shoot_assisted_by`
+
+**Class**: `StagingPlayerShootAssistedBySchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `efg_pct_rank` | `Int64` | Yes | — | Effective field goal percentage rank. |
+| `pct_ast_2pm_rank` | `Int64` | Yes | — | Assisted two-point make percentage rank. |
+| `pct_uast_2pm_rank` | `Int64` | Yes | — | Unassisted two-point make percentage rank. |
+| `pct_ast_3pm_rank` | `Int64` | Yes | — | Assisted three-point make percentage rank. |
+| `pct_uast_3pm_rank` | `Int64` | Yes | — | Unassisted three-point make percentage rank. |
+| `pct_ast_fgm_rank` | `Int64` | Yes | — | Assisted field goal make percentage rank. |
+| `pct_uast_fgm_rank` | `Int64` | Yes | — | Unassisted field goal make percentage rank. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage. |
+| `pct_ast_2pm` | `Float64` | Yes | — | Share of made twos that were assisted. |
+| `pct_uast_2pm` | `Float64` | Yes | — | Share of made twos that were unassisted. |
+| `pct_ast_3pm` | `Float64` | Yes | — | Share of made threes that were assisted. |
+| `pct_uast_3pm` | `Float64` | Yes | — | Share of made threes that were unassisted. |
+| `pct_ast_fgm` | `Float64` | Yes | — | Share of made field goals that were assisted. |
+| `pct_uast_fgm` | `Float64` | Yes | — | Share of made field goals that were unassisted. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `player_name` | `String` | Yes | — | Player name returned by the assisted-by split. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `staging_player_shoot_type_summary`
+
+**Class**: `StagingPlayerShootTypeSummarySchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage. |
+| `pct_ast_2pm` | `Float64` | Yes | — | Share of made twos that were assisted. |
+| `pct_uast_2pm` | `Float64` | Yes | — | Share of made twos that were unassisted. |
+| `pct_ast_3pm` | `Float64` | Yes | — | Share of made threes that were assisted. |
+| `pct_uast_3pm` | `Float64` | Yes | — | Share of made threes that were unassisted. |
+| `pct_ast_fgm` | `Float64` | Yes | — | Share of made field goals that were assisted. |
+| `pct_uast_fgm` | `Float64` | Yes | — | Share of made field goals that were unassisted. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
 
 ## `staging_schedule_league_v2`
 

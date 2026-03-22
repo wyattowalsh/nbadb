@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "nbadb"
 version = "4.0.0"
-description = "Comprehensive NBA database: 131 endpoints → 141-table star schema → SQLite + DuckDB + Parquet + CSV"
+description = "Comprehensive NBA database: 154 extractors covering 125 NBA API endpoints → star schema with 96 transforms → DuckDB + Parquet + CSV"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

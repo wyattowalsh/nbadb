@@ -66,8 +66,14 @@ class DataQualityMonitor:
         table: str,
         expected_hash: str,
         current_columns: list[str],
+        current_types: list[str] | None = None,
     ) -> QualityResult:
-        current_hash = hashlib.sha256(",".join(sorted(current_columns)).encode()).hexdigest()[:16]
+        if current_types and len(current_types) == len(current_columns):
+            pairs = sorted(zip(current_columns, current_types, strict=True))
+            raw = ",".join(f"{c}:{t}" for c, t in pairs)
+        else:
+            raw = ",".join(sorted(current_columns))
+        current_hash = hashlib.sha256(raw.encode()).hexdigest()[:16]
         passed = current_hash == expected_hash
         result = QualityResult(
             table=table,
@@ -420,7 +426,7 @@ class DataQualityMonitor:
         gate_passed = True
         for table in stg_tables:
             try:
-                row = self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # noqa: S608
+                row = self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
                 count = row[0] if row else 0
             except Exception:
                 count = -1

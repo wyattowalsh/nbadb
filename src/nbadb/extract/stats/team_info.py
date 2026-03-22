@@ -126,7 +126,7 @@ class TeamGameLogsExtractor(BaseExtractor):
 
 
 @registry.register
-class TeamYearByYearStatsExtractor(BaseExtractor):
+class TeamYearByYearExtractor(BaseExtractor):
     endpoint_name = "team_year_by_year"
     category = "team_info"
 
@@ -141,7 +141,7 @@ class TeamYearByYearStatsExtractor(BaseExtractor):
 
 
 @registry.register
-class TeamAndPlayersVsPlayersExtractor(BaseExtractor):
+class TeamAndPlayersVsExtractor(BaseExtractor):
     endpoint_name = "team_and_players_vs"
     category = "team_info"
 

@@ -277,6 +277,135 @@ class PipelineJournal:
         self._conn.execute("DELETE FROM _extraction_journal")
         logger.info("extraction journal cleared")
 
+    # ── selective journal operations (backfill) ────────────────────
+
+    @staticmethod
+    def _build_filter_clause(
+        *,
+        endpoint: str | None = None,
+        status_filter: str | None = None,
+        season_like: str | None = None,
+    ) -> tuple[str, list[str]]:
+        """Build a WHERE clause from AND-combined filters.
+
+        Returns (where_sql, params).  At least one filter must be non-None.
+        """
+        clauses: list[str] = []
+        params: list[str] = []
+        idx = 1
+
+        if endpoint is not None:
+            clauses.append(f"endpoint = ${idx}")
+            params.append(endpoint)
+            idx += 1
+
+        if status_filter is not None:
+            clauses.append(f"status = ${idx}")
+            params.append(status_filter)
+            idx += 1
+
+        if season_like is not None:
+            clauses.append(f"params LIKE ${idx}")
+            params.append(f'%"season": "{season_like}"%')
+            idx += 1
+
+        if not clauses:
+            raise ValueError("at least one filter must be provided")
+
+        return " AND ".join(clauses), params
+
+    def reset_entries(
+        self,
+        *,
+        endpoint: str | None = None,
+        status_filter: str | None = None,
+        season_like: str | None = None,
+    ) -> int:
+        """Reset matching journal entries to ``failed`` with ``retry_count=0``.
+
+        Makes entries eligible for re-extraction by the runner.
+        Filters are AND-combined; at least one must be provided.
+        Returns the number of entries reset.
+        """
+        where, params = self._build_filter_clause(
+            endpoint=endpoint,
+            status_filter=status_filter,
+            season_like=season_like,
+        )
+        result = self._conn.execute(
+            f"""
+            UPDATE _extraction_journal
+            SET status = 'failed', retry_count = 0, error_message = 'backfill_reset'
+            WHERE {where}
+            """,
+            params,
+        )
+        count = result.rowcount or 0
+        logger.info("reset {} journal entries (endpoint={}, status={}, season={})",
+                     count, endpoint, status_filter, season_like)
+        return count
+
+    def clear_entries(
+        self,
+        *,
+        endpoint: str | None = None,
+        status_filter: str | None = None,
+        season_like: str | None = None,
+    ) -> int:
+        """Delete matching journal entries.
+
+        Filters are AND-combined; at least one must be provided.
+        Returns the number of entries deleted.
+        """
+        where, params = self._build_filter_clause(
+            endpoint=endpoint,
+            status_filter=status_filter,
+            season_like=season_like,
+        )
+        result = self._conn.execute(
+            f"""
+            DELETE FROM _extraction_journal
+            WHERE {where}
+            """,
+            params,
+        )
+        count = result.rowcount or 0
+        logger.info("cleared {} journal entries (endpoint={}, status={}, season={})",
+                     count, endpoint, status_filter, season_like)
+        return count
+
+    def count_by_endpoint_and_status(self) -> list[tuple[str, str, int]]:
+        """Return ``(endpoint, status, count)`` grouped rows."""
+        rows = self._conn.execute(
+            """
+            SELECT endpoint, status, COUNT(*) AS cnt
+            FROM _extraction_journal
+            GROUP BY endpoint, status
+            ORDER BY endpoint, status
+            """
+        ).fetchall()
+        return [(r[0], r[1], r[2]) for r in rows]
+
+    def count_done_by_endpoint_and_season(self) -> list[tuple[str, str | None, int]]:
+        """Return ``(endpoint, season, done_count)`` using JSON extraction.
+
+        Uses DuckDB ``json_extract_string`` on the params column to group
+        by season without Python-side JSON parsing.
+        """
+        rows = self._conn.execute(
+            """
+            SELECT
+                endpoint,
+                json_extract_string(params, '$.season') AS season,
+                COUNT(*) AS done_count
+            FROM _extraction_journal
+            WHERE status = 'done'
+            GROUP BY endpoint, json_extract_string(params, '$.season')
+            ORDER BY endpoint, season
+            """
+        ).fetchall()
+        return [(r[0], r[1], r[2]) for r in rows]
+
     # ── pipeline metrics ──────────────────────────────────────────
 
     def record_metric(

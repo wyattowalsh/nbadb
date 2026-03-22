@@ -1,5 +1,7 @@
 import "./global.css";
+import Script from "next/script";
 import { RootProvider } from "fumadocs-ui/provider/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Barlow_Condensed, IBM_Plex_Mono, Inter } from "next/font/google";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -80,6 +82,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           {children}
         </RootProvider>
+        {process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
+          <Script
+            async
+            defer
+            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+            src={
+              process.env.NEXT_PUBLIC_UMAMI_HOST
+                ? `${process.env.NEXT_PUBLIC_UMAMI_HOST}/script.js`
+                : "https://cloud.umami.is/script.js"
+            }
+          />
+        )}
+        <SpeedInsights />
       </body>
     </html>
   );

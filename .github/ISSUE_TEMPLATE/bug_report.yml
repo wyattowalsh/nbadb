@@ -1,0 +1,96 @@
+name: Bug Report
+description: Report a bug in nbadb
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the project is affected?
+      options:
+        - Extract (nba_api wrappers)
+        - Transform (dimensions / facts / aggregates)
+        - Load (SQLite / DuckDB / Parquet / CSV export)
+        - Schemas (Pandera validation)
+        - CLI / TUI
+        - Orchestration / Pipeline
+        - Agent (NL query)
+        - Kaggle integration
+        - Docs site
+        - CI / GitHub Actions
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical (data loss or corruption)
+        - High (feature broken, no workaround)
+        - Medium (feature broken, workaround exists)
+        - Low (cosmetic or minor)
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Provide the steps to reproduce the bug.
+      placeholder: |
+        1. Run `...`
+        2. Observe that ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Include any error messages or tracebacks.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide details about your environment.
+      value: |
+        - nbadb version:
+        - Python version:
+        - OS:
+        - DuckDB version:
+        - uv version:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Paste any relevant logs or attach screenshots.
+      render: shell
+    validations:
+      required: false

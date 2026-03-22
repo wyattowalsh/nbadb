@@ -1,0 +1,33 @@
+changelog:
+  exclude:
+    labels:
+      - "skip-changelog"
+    authors:
+      - "dependabot"
+      - "dependabot[bot]"
+  categories:
+    - title: "New Features"
+      labels:
+        - "enhancement"
+        - "feat"
+    - title: "Bug Fixes"
+      labels:
+        - "bug"
+        - "fix"
+    - title: "New Endpoints / Coverage"
+      labels:
+        - "endpoint-request"
+    - title: "Documentation"
+      labels:
+        - "documentation"
+        - "docs"
+    - title: "Dependencies"
+      labels:
+        - "dependencies"
+    - title: "CI / Infrastructure"
+      labels:
+        - "github-actions"
+        - "ci"
+    - title: "Other Changes"
+      labels:
+        - "*"

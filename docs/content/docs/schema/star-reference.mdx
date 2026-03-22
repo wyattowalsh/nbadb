@@ -5,7 +5,349 @@ description: Complete schema docs for star tier
 
 # Schema Reference — Star
 
-This tier contains 43 schema(s).
+This tier contains 109 schema(s).
+
+## `agg_all_time_leaders`
+
+**Class**: `AggAllTimeLeadersSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `player_name` | `String` | No | — |  |
+| `pts` | `Int64` | Yes | — |  |
+| `ast` | `Int64` | Yes | — |  |
+| `reb` | `Int64` | Yes | — |  |
+| `pts_rank` | `Int64` | No | — |  |
+| `ast_rank` | `Int64` | No | — |  |
+| `reb_rank` | `Int64` | No | — |  |
+
+## `agg_clutch_stats`
+
+**Class**: `AggClutchStatsSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | Yes | gt=0 |  |
+| `season_year` | `String` | Yes | — |  |
+| `clutch_gp` | `Int64` | Yes | — |  |
+| `clutch_min` | `Float64` | Yes | — |  |
+| `clutch_pts` | `Float64` | Yes | — |  |
+| `clutch_fg_pct` | `Float64` | Yes | — |  |
+| `clutch_ft_pct` | `Float64` | Yes | — |  |
+| `league_clutch_pts` | `Float64` | Yes | — |  |
+| `league_clutch_fg_pct` | `Float64` | Yes | — |  |
+
+## `agg_league_leaders`
+
+**Class**: `AggLeagueLeadersSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `avg_pts` | `Float64` | Yes | — |  |
+| `avg_reb` | `Float64` | Yes | — |  |
+| `avg_ast` | `Float64` | Yes | — |  |
+| `avg_stl` | `Float64` | Yes | — |  |
+| `avg_blk` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `pts_rank` | `Int64` | No | — |  |
+| `reb_rank` | `Int64` | No | — |  |
+| `ast_rank` | `Int64` | No | — |  |
+| `stl_rank` | `Int64` | No | — |  |
+| `blk_rank` | `Int64` | No | — |  |
+
+## `agg_lineup_efficiency`
+
+**Class**: `AggLineupEfficiencySchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `group_id` | `String` | No | — |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `total_gp` | `Int64` | Yes | — |  |
+| `total_min` | `Float64` | Yes | — |  |
+| `pts_per48` | `Float64` | Yes | — |  |
+| `avg_net_rating` | `Float64` | Yes | — |  |
+| `total_plus_minus` | `Float64` | Yes | — |  |
+
+## `agg_on_off_splits`
+
+**Class**: `AggOnOffSplitsSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `entity_type` | `String` | No | in=['player', 'team', 'player_detail'] |  |
+| `entity_id` | `Int64` | Yes | gt=0 |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `on_off` | `String` | No | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `off_rating` | `Float64` | Yes | — |  |
+| `def_rating` | `Float64` | Yes | — |  |
+| `net_rating` | `Float64` | Yes | — |  |
+
+## `agg_player_bio`
+
+**Class**: `AggPlayerBioSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `player_name` | `String` | No | — |  |
+| `team_id` | `Int64` | Yes | gt=0 |  |
+| `team_abbreviation` | `String` | Yes | — |  |
+| `age` | `Float64` | Yes | — |  |
+| `player_height` | `String` | Yes | — |  |
+| `player_height_inches` | `Float64` | Yes | — |  |
+| `player_weight` | `String` | Yes | — |  |
+| `college` | `String` | Yes | — |  |
+| `country` | `String` | Yes | — |  |
+| `draft_year` | `String` | Yes | — |  |
+| `draft_round` | `String` | Yes | — |  |
+| `draft_number` | `String` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `net_rating` | `Float64` | Yes | — |  |
+| `oreb_pct` | `Float64` | Yes | — |  |
+| `dreb_pct` | `Float64` | Yes | — |  |
+| `usg_pct` | `Float64` | Yes | — |  |
+| `ts_pct` | `Float64` | Yes | — |  |
+| `ast_pct` | `Float64` | Yes | — |  |
+| `season_year` | `String` | No | — |  |
+
+## `agg_player_career`
+
+**Class**: `AggPlayerCareerSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `career_gp` | `Int64` | Yes | — |  |
+| `career_min` | `Float64` | Yes | — |  |
+| `career_pts` | `Float64` | Yes | — |  |
+| `career_ppg` | `Float64` | Yes | — |  |
+| `career_rpg` | `Float64` | Yes | — |  |
+| `career_apg` | `Float64` | Yes | — |  |
+| `career_spg` | `Float64` | Yes | — |  |
+| `career_bpg` | `Float64` | Yes | — |  |
+| `career_fg_pct` | `Float64` | Yes | — |  |
+| `career_fg3_pct` | `Float64` | Yes | — |  |
+| `career_ft_pct` | `Float64` | Yes | — |  |
+| `first_season` | `String` | Yes | — |  |
+| `last_season` | `String` | Yes | — |  |
+| `seasons_played` | `Int64` | Yes | — |  |
+
+## `agg_player_rolling`
+
+**Class**: `AggPlayerRollingSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `game_id` | `String` | No | — |  |
+| `player_id` | `Int64` | No | gt=0 |  |
+| `game_date` | `String` | No | — |  |
+| `pts_roll5` | `Float64` | Yes | — |  |
+| `reb_roll5` | `Float64` | Yes | — |  |
+| `ast_roll5` | `Float64` | Yes | — |  |
+| `pts_roll10` | `Float64` | Yes | — |  |
+| `reb_roll10` | `Float64` | Yes | — |  |
+| `ast_roll10` | `Float64` | Yes | — |  |
+| `pts_roll20` | `Float64` | Yes | — |  |
+| `reb_roll20` | `Float64` | Yes | — |  |
+| `ast_roll20` | `Float64` | Yes | — |  |
+
+## `agg_player_season_per36`
+
+**Class**: `AggPlayerSeasonPer36Schema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
+| `gp` | `Int64` | No | — |  |
+| `avg_min` | `Float64` | Yes | — |  |
+| `pts_per36` | `Float64` | Yes | — |  |
+| `reb_per36` | `Float64` | Yes | — |  |
+| `ast_per36` | `Float64` | Yes | — |  |
+| `stl_per36` | `Float64` | Yes | — |  |
+| `blk_per36` | `Float64` | Yes | — |  |
+| `tov_per36` | `Float64` | Yes | — |  |
+
+## `agg_player_season_per48`
+
+**Class**: `AggPlayerSeasonPer48Schema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
+| `gp` | `Int64` | No | — |  |
+| `avg_min` | `Float64` | Yes | — |  |
+| `pts_per48` | `Float64` | Yes | — |  |
+| `reb_per48` | `Float64` | Yes | — |  |
+| `ast_per48` | `Float64` | Yes | — |  |
+| `stl_per48` | `Float64` | Yes | — |  |
+| `blk_per48` | `Float64` | Yes | — |  |
+| `tov_per48` | `Float64` | Yes | — |  |
+
+## `agg_player_season`
+
+**Class**: `AggPlayerSeasonSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
+| `gp` | `Int64` | No | — |  |
+| `total_min` | `Float64` | Yes | — |  |
+| `avg_min` | `Float64` | Yes | — |  |
+| `total_pts` | `Float64` | Yes | — |  |
+| `avg_pts` | `Float64` | Yes | — |  |
+| `total_reb` | `Float64` | Yes | — |  |
+| `avg_reb` | `Float64` | Yes | — |  |
+| `total_ast` | `Float64` | Yes | — |  |
+| `avg_ast` | `Float64` | Yes | — |  |
+| `total_stl` | `Float64` | Yes | — |  |
+| `avg_stl` | `Float64` | Yes | — |  |
+| `total_blk` | `Float64` | Yes | — |  |
+| `avg_blk` | `Float64` | Yes | — |  |
+| `total_tov` | `Float64` | Yes | — |  |
+| `avg_tov` | `Float64` | Yes | — |  |
+| `total_fgm` | `Float64` | Yes | — |  |
+| `total_fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `total_fg3m` | `Float64` | Yes | — |  |
+| `total_fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `total_ftm` | `Float64` | Yes | — |  |
+| `total_fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `avg_off_rating` | `Float64` | Yes | — |  |
+| `avg_def_rating` | `Float64` | Yes | — |  |
+| `avg_net_rating` | `Float64` | Yes | — |  |
+| `avg_ts_pct` | `Float64` | Yes | — |  |
+| `avg_usg_pct` | `Float64` | Yes | — |  |
+| `avg_pie` | `Float64` | Yes | — |  |
+
+## `agg_shot_location_season`
+
+**Class**: `AggShotLocationSeasonSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `fgm` | `Int64` | Yes | — |  |
+| `season_fgm_rank` | `Int64` | No | — |  |
+
+## `agg_shot_zones`
+
+**Class**: `AggShotZonesSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `zone_basic` | `String` | Yes | — |  |
+| `zone_area` | `String` | Yes | — |  |
+| `zone_range` | `String` | Yes | — |  |
+| `attempts` | `Int64` | Yes | — |  |
+| `makes` | `Int64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `avg_distance` | `Float64` | Yes | — |  |
+
+## `agg_team_franchise`
+
+**Class**: `AggTeamFranchiseSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `team_id` | `Int64` | No | gt=0 |  |
+| `team_city` | `String` | Yes | — |  |
+| `team_name` | `String` | Yes | — |  |
+| `start_year` | `Int64` | Yes | — |  |
+| `end_year` | `Int64` | Yes | — |  |
+| `years` | `Int64` | Yes | — |  |
+| `games` | `Int64` | Yes | — |  |
+| `wins` | `Int64` | Yes | — |  |
+| `losses` | `Int64` | Yes | — |  |
+| `win_pct` | `Float64` | Yes | — |  |
+| `po_appearances` | `Int64` | Yes | — |  |
+| `div_titles` | `Int64` | Yes | — |  |
+| `conf_titles` | `Int64` | Yes | — |  |
+| `league_titles` | `Int64` | Yes | — |  |
+| `franchise_age_years` | `Int64` | Yes | — |  |
+| `computed_win_pct` | `Float64` | Yes | — |  |
+
+## `agg_team_pace_and_efficiency`
+
+**Class**: `AggTeamPaceAndEfficiencySchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `team_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
+| `gp` | `Int64` | No | — |  |
+| `avg_pace` | `Float64` | Yes | — |  |
+| `avg_ortg` | `Float64` | Yes | — |  |
+| `avg_drtg` | `Float64` | Yes | — |  |
+| `avg_net_rtg` | `Float64` | Yes | — |  |
+
+## `agg_team_season`
+
+**Class**: `AggTeamSeasonSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `team_id` | `Int64` | No | gt=0 |  |
+| `season_year` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
+| `gp` | `Int64` | No | — |  |
+| `avg_pts` | `Float64` | Yes | — |  |
+| `avg_reb` | `Float64` | Yes | — |  |
+| `avg_ast` | `Float64` | Yes | — |  |
+| `avg_stl` | `Float64` | Yes | — |  |
+| `avg_blk` | `Float64` | Yes | — |  |
+| `avg_tov` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
 
 ## `bridge_game_official`
 
@@ -287,6 +629,35 @@ This tier contains 43 schema(s).
 | `opp_team_turnover_percentage` | `Float64` | Yes | — | Opponent team turnover percentage |
 | `opp_offensive_rebound_percentage` | `Float64` | Yes | — | Opponent offensive rebound percentage |
 
+## `fact_defense_hub_detail`
+
+**Class**: `FactDefenseHubDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `defense_metric` | `String` | No | — | Normalized defense-hub metric discriminator |
+| `rank` | `Int64` | Yes | gt=0 | Rank within the defense hub metric lane |
+| `team_id` | `Int64` | Yes | gt=0, FK→dim_team.team_id | Team identifier when present |
+| `team_abbreviation` | `String` | Yes | — | Team abbreviation when present |
+| `team_name` | `String` | Yes | — | Team display name when present |
+| `season_type` | `String` | Yes | — | Season type used for the defense hub request |
+| `stat_value` | `Float64` | Yes | — | Metric value for the selected defense hub lane |
+
+## `fact_defense_hub`
+
+**Class**: `FactDefenseHubSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `rank` | `Int64` | Yes | gt=0 | Rank within the base defense-hub packet |
+| `team_id` | `Int64` | No | gt=0, FK→dim_team.team_id | Team identifier |
+| `team_abbreviation` | `String` | No | — | Team abbreviation |
+| `team_name` | `String` | No | — | Team display name |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds value from the base defense-hub packet |
+| `season_type` | `String` | Yes | — | Season type used for the defense-hub request |
+
 ## `fact_draft`
 
 **Class**: `FactDraftSchema`
@@ -394,6 +765,108 @@ This tier contains 43 schema(s).
 | `period` | `Int64` | No | gt=0 | Period number (1-4 qtrs, 5+ OT) |
 | `pts` | `Int64` | Yes | — | Points scored in period |
 | `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
+
+## `fact_homepage_detail`
+
+**Class**: `FactHomepageDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `homepage_metric` | `String` | No | in=['pts', 'reb', 'ast', 'stl', 'fg_pct', 'ft_pct', 'fg3_pct', 'blk'] | Homepage leaderboard metric discriminator |
+| `rank` | `Int64` | Yes | gt=0 | Rank within the homepage leaderboard lane |
+| `team_id` | `Int64` | No | gt=0, FK→dim_team.team_id | Team identifier |
+| `team_abbreviation` | `String` | No | — | Team abbreviation |
+| `team_name` | `String` | No | — | Team display name |
+| `season_type` | `String` | Yes | — | Season type used for the leaderboard request |
+| `stat_value` | `Float64` | Yes | — | Metric value for the selected homepage leaderboard lane |
+
+## `fact_homepage_leaders_detail`
+
+**Class**: `FactHomepageLeadersDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `leader_variant` | `String` | No | in=['main', 'league_avg', 'league_max'] | Homepage leaders result-set variant |
+| `rank` | `Int64` | Yes | gt=0 | Rank within the primary homepage leaders packet |
+| `team_id` | `Int64` | Yes | gt=0, FK→dim_team.team_id | Team identifier when the variant is team-scoped |
+| `team_abbreviation` | `String` | Yes | — | Team abbreviation when present |
+| `team_name` | `String` | Yes | — | Team name when present |
+| `season_type` | `String` | Yes | — | Season type used for the leaders request |
+| `pts` | `Float64` | Yes | — | Points value for the variant |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage for the variant |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage for the variant |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage for the variant |
+| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage for the variant |
+| `ts_pct` | `Float64` | Yes | — | True shooting percentage for the variant |
+| `pts_per48` | `Float64` | Yes | — | Points per 48 minutes for the variant |
+
+## `fact_homepage_leaders`
+
+**Class**: `FactHomepageLeadersSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `leader_source` | `String` | No | in=['home_page', 'homepage'] | Alias source of the homepage leaders packet |
+| `rank` | `Int64` | Yes | gt=0 | Rank within the homepage leaders packet |
+| `team_id` | `Int64` | Yes | gt=0, FK→dim_team.team_id | Team identifier |
+| `team_name` | `String` | Yes | — | Team display name |
+| `team_abbreviation` | `String` | Yes | — | Team abbreviation |
+| `pts` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `efg_pct` | `Float64` | Yes | — |  |
+| `ts_pct` | `Float64` | Yes | — |  |
+| `pts_per48` | `Float64` | Yes | — |  |
+| `season_type` | `String` | Yes | — | Season type used for the leaders request |
+
+## `fact_homepage`
+
+**Class**: `FactHomepageSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `homepage_source` | `String` | No | in=['home_page', 'homepage'] | Alias source of the homepage packet |
+| `rank` | `Int64` | Yes | gt=0 | Rank within the homepage points packet |
+| `team_id` | `Int64` | No | gt=0, FK→dim_team.team_id | Team identifier |
+| `team_abbreviation` | `String` | No | — | Team abbreviation |
+| `team_name` | `String` | No | — | Team display name |
+| `pts` | `Float64` | Yes | — | Points value from the base homepage packet |
+| `season_type` | `String` | Yes | — | Season type used for the homepage request |
+
+## `fact_leaders_tiles_detail`
+
+**Class**: `FactLeadersTilesDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `tile_variant` | `String` | No | in=['all_time_high', 'last_season_high', 'main', 'low_season_high'] | Leaders tiles result-set variant |
+| `rank` | `Int64` | Yes | gt=0 | Rank when the tile variant is ranked |
+| `team_id` | `Int64` | No | gt=0, FK→dim_team.team_id | Team identifier |
+| `team_abbreviation` | `String` | No | — | Team abbreviation |
+| `team_name` | `String` | No | — | Team display name |
+| `season_year` | `String` | Yes | — | Season year attached to historical tile variants |
+| `season_type` | `String` | Yes | — | Season type used for the leaders tiles request |
+| `pts` | `Float64` | Yes | — | Points value surfaced by the tile variant |
+
+## `fact_leaders_tiles`
+
+**Class**: `FactLeadersTilesSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `team_id` | `Int64` | No | gt=0, FK→dim_team.team_id | Team identifier |
+| `team_abbreviation` | `String` | No | — | Team abbreviation |
+| `team_name` | `String` | No | — | Team display name |
+| `season_year` | `String` | Yes | — | Season year attached to the base leaders-tiles packet |
+| `pts` | `Float64` | Yes | — | Points value from the base leaders-tiles packet |
+| `season_type` | `String` | Yes | — | Season type used for the leaders-tiles request |
 
 ## `fact_league_lineup_viz`
 
@@ -533,6 +1006,490 @@ This tier contains 43 schema(s).
 | `subtype1` | `String` | Yes | — | Award subtype 1 |
 | `subtype2` | `String` | Yes | — | Award subtype 2 |
 | `subtype3` | `String` | Yes | — | Award subtype 3 |
+
+## `fact_player_dashboard_clutch_overall`
+
+**Class**: `FactPlayerDashboardClutchOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `fact_player_dashboard_game_splits_overall`
+
+**Class**: `FactPlayerDashboardGameSplitsOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `fact_player_dashboard_general_splits_overall`
+
+**Class**: `FactPlayerDashboardGeneralSplitsOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `fact_player_dashboard_last_n_overall`
+
+**Class**: `FactPlayerDashboardLastNOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `fact_player_dashboard_shooting_overall`
+
+**Class**: `FactPlayerDashboardShootingOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `efg_pct_rank` | `Int64` | Yes | — | Effective field goal percentage rank. |
+| `pct_ast_2pm_rank` | `Int64` | Yes | — | Assisted two-point make percentage rank. |
+| `pct_uast_2pm_rank` | `Int64` | Yes | — | Unassisted two-point make percentage rank. |
+| `pct_ast_3pm_rank` | `Int64` | Yes | — | Assisted three-point make percentage rank. |
+| `pct_uast_3pm_rank` | `Int64` | Yes | — | Unassisted three-point make percentage rank. |
+| `pct_ast_fgm_rank` | `Int64` | Yes | — | Assisted field goal make percentage rank. |
+| `pct_uast_fgm_rank` | `Int64` | Yes | — | Unassisted field goal make percentage rank. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage. |
+| `pct_ast_2pm` | `Float64` | Yes | — | Share of made twos that were assisted. |
+| `pct_uast_2pm` | `Float64` | Yes | — | Share of made twos that were unassisted. |
+| `pct_ast_3pm` | `Float64` | Yes | — | Share of made threes that were assisted. |
+| `pct_uast_3pm` | `Float64` | Yes | — | Share of made threes that were unassisted. |
+| `pct_ast_fgm` | `Float64` | Yes | — | Share of made field goals that were assisted. |
+| `pct_uast_fgm` | `Float64` | Yes | — | Share of made field goals that were unassisted. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `fact_player_dashboard_team_perf_overall`
+
+**Class**: `FactPlayerDashboardTeamPerfOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
+## `fact_player_dashboard_yoy_overall`
+
+**Class**: `FactPlayerDashboardYoyOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `team_id` | `Int64` | Yes | gt=0 | Team identifier for the season row. |
+| `team_abbreviation` | `String` | Yes | — | Team abbreviation. |
+| `max_game_date` | `String` | Yes | — | Most recent game date in the split. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
 
 ## `fact_player_estimated_metrics`
 
@@ -706,6 +1663,166 @@ This tier contains 43 schema(s).
 | `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
 | `start_position` | `String` | Yes | — | Starting position (F, C, G) |
 
+## `fact_player_matchups_detail`
+
+**Class**: `FactPlayerMatchupsDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `detail_source` | `String` | No | in=['player_compare', 'player_vs_player'] | Comparison endpoint family that produced the row |
+| `detail_variant` | `String` | No | in=['individual', 'overall_compare', 'on_off_court', 'overall'] | Result-set variant within the comparison family |
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+| `description` | `String` | Yes | — |  |
+| `player_id` | `Int64` | Yes | gt=0 |  |
+| `player_name` | `String` | Yes | — |  |
+| `vs_player_id` | `Int64` | Yes | gt=0 |  |
+| `vs_player_name` | `String` | Yes | — |  |
+| `court_status` | `String` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `ftm` | `Float64` | Yes | — |  |
+| `fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Float64` | Yes | — |  |
+| `dreb` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `tov` | `Float64` | Yes | — |  |
+| `stl` | `Float64` | Yes | — |  |
+| `blk` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+| `pf` | `Float64` | Yes | — |  |
+| `pfd` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+| `nba_fantasy_pts` | `Float64` | Yes | — |  |
+| `cfid` | `String` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+
+## `fact_player_matchups_shot_detail`
+
+**Class**: `FactPlayerMatchupsShotDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `split_family` | `String` | No | in=['shot_area', 'shot_distance'] | Shot split family for the matchup row |
+| `split_scope` | `String` | No | in=['off_court', 'on_court', 'overall'] | On/off/overall scope of the shot split |
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+| `player_id` | `Int64` | Yes | gt=0 |  |
+| `player_name` | `String` | Yes | — |  |
+| `vs_player_id` | `Int64` | Yes | gt=0 |  |
+| `vs_player_name` | `String` | Yes | — |  |
+| `court_status` | `String` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `cfid` | `String` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+
+## `fact_player_splits`
+
+**Class**: `FactPlayerSplitsSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `split_type` | `String` | No | — | Dashboard family represented by the union row. |
+| `cfid` | `Int64` | Yes | — | Context filter identifier returned by nba_api. |
+| `cfparams` | `String` | Yes | — | Serialized context filter parameters returned by nba_api. |
+| `efg_pct_rank` | `Int64` | Yes | — | Effective field goal percentage rank. |
+| `pct_ast_2pm_rank` | `Int64` | Yes | — | Assisted two-point make percentage rank. |
+| `pct_uast_2pm_rank` | `Int64` | Yes | — | Unassisted two-point make percentage rank. |
+| `pct_ast_3pm_rank` | `Int64` | Yes | — | Assisted three-point make percentage rank. |
+| `pct_uast_3pm_rank` | `Int64` | Yes | — | Unassisted three-point make percentage rank. |
+| `pct_ast_fgm_rank` | `Int64` | Yes | — | Assisted field goal make percentage rank. |
+| `pct_uast_fgm_rank` | `Int64` | Yes | — | Unassisted field goal make percentage rank. |
+| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage. |
+| `pct_ast_2pm` | `Float64` | Yes | — | Share of made twos that were assisted. |
+| `pct_uast_2pm` | `Float64` | Yes | — | Share of made twos that were unassisted. |
+| `pct_ast_3pm` | `Float64` | Yes | — | Share of made threes that were assisted. |
+| `pct_uast_3pm` | `Float64` | Yes | — | Share of made threes that were unassisted. |
+| `pct_ast_fgm` | `Float64` | Yes | — | Share of made field goals that were assisted. |
+| `pct_uast_fgm` | `Float64` | Yes | — | Share of made field goals that were unassisted. |
+| `fgm_rank` | `Int64` | Yes | — | Field goals made rank. |
+| `fga_rank` | `Int64` | Yes | — | Field goals attempted rank. |
+| `fg_pct_rank` | `Int64` | Yes | — | Field goal percentage rank. |
+| `fg3m_rank` | `Int64` | Yes | — | Three-pointers made rank. |
+| `fg3a_rank` | `Int64` | Yes | — | Three-pointers attempted rank. |
+| `fg3_pct_rank` | `Int64` | Yes | — | Three-point percentage rank. |
+| `blka_rank` | `Int64` | Yes | — | Blocked attempts rank. |
+| `gp_rank` | `Int64` | Yes | — | Games played rank. |
+| `w_rank` | `Int64` | Yes | — | Wins rank. |
+| `l_rank` | `Int64` | Yes | — | Losses rank. |
+| `w_pct_rank` | `Int64` | Yes | — | Win percentage rank. |
+| `min_rank` | `Int64` | Yes | — | Minutes played rank. |
+| `ftm_rank` | `Int64` | Yes | — | Free throws made rank. |
+| `fta_rank` | `Int64` | Yes | — | Free throws attempted rank. |
+| `ft_pct_rank` | `Int64` | Yes | — | Free throw percentage rank. |
+| `oreb_rank` | `Int64` | Yes | — | Offensive rebounds rank. |
+| `dreb_rank` | `Int64` | Yes | — | Defensive rebounds rank. |
+| `reb_rank` | `Int64` | Yes | — | Rebounds rank. |
+| `ast_rank` | `Int64` | Yes | — | Assists rank. |
+| `tov_rank` | `Int64` | Yes | — | Turnovers rank. |
+| `stl_rank` | `Int64` | Yes | — | Steals rank. |
+| `blk_rank` | `Int64` | Yes | — | Blocks rank. |
+| `pf_rank` | `Int64` | Yes | — | Personal fouls rank. |
+| `pfd_rank` | `Int64` | Yes | — | Personal fouls drawn rank. |
+| `pts_rank` | `Int64` | Yes | — | Points rank. |
+| `plus_minus_rank` | `Int64` | Yes | — | Plus-minus rank. |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — | NBA fantasy points rank. |
+| `dd2_rank` | `Int64` | Yes | — | Double-doubles rank. |
+| `td3_rank` | `Int64` | Yes | — | Triple-doubles rank. |
+| `fgm` | `Float64` | Yes | — | Field goals made. |
+| `fga` | `Float64` | Yes | — | Field goals attempted. |
+| `fg_pct` | `Float64` | Yes | — | Field goal percentage. |
+| `fg3m` | `Float64` | Yes | — | Three-pointers made. |
+| `fg3a` | `Float64` | Yes | — | Three-pointers attempted. |
+| `fg3_pct` | `Float64` | Yes | — | Three-point percentage. |
+| `blka` | `Float64` | Yes | — | Blocked attempts. |
+| `gp` | `Int64` | Yes | — | Games played. |
+| `w` | `Int64` | Yes | — | Wins. |
+| `l` | `Int64` | Yes | — | Losses. |
+| `w_pct` | `Float64` | Yes | — | Win percentage. |
+| `min` | `Float64` | Yes | — | Minutes played. |
+| `ftm` | `Float64` | Yes | — | Free throws made. |
+| `fta` | `Float64` | Yes | — | Free throws attempted. |
+| `ft_pct` | `Float64` | Yes | — | Free throw percentage. |
+| `oreb` | `Float64` | Yes | — | Offensive rebounds. |
+| `dreb` | `Float64` | Yes | — | Defensive rebounds. |
+| `reb` | `Float64` | Yes | — | Total rebounds. |
+| `ast` | `Float64` | Yes | — | Assists. |
+| `tov` | `Float64` | Yes | — | Turnovers. |
+| `stl` | `Float64` | Yes | — | Steals. |
+| `blk` | `Float64` | Yes | — | Blocks. |
+| `pf` | `Float64` | Yes | — | Personal fouls. |
+| `pfd` | `Float64` | Yes | — | Personal fouls drawn. |
+| `pts` | `Float64` | Yes | — | Points scored. |
+| `plus_minus` | `Float64` | Yes | — | Plus-minus differential. |
+| `nba_fantasy_pts` | `Float64` | Yes | — | NBA fantasy points. |
+| `dd2` | `Float64` | Yes | — | Double-doubles. |
+| `td3` | `Float64` | Yes | — | Triple-doubles. |
+| `team_id` | `Int64` | Yes | gt=0 | Team identifier for the season row. |
+| `team_abbreviation` | `String` | Yes | — | Team abbreviation. |
+| `max_game_date` | `String` | Yes | — | Most recent game date in the split. |
+| `group_set` | `String` | Yes | — | Grouping set returned by the player dashboard endpoint. |
+| `group_value` | `String` | Yes | — | Grouping value returned by the player dashboard endpoint. |
+| `player_id` | `Int64` | No | gt=0 | Queried player identifier. |
+| `season_year` | `String` | No | — | Queried season year. |
+| `season_type` | `String` | No | — | Queried season type. |
+
 ## `fact_rotation`
 
 **Class**: `FactRotationSchema`
@@ -722,6 +1839,22 @@ This tier contains 43 schema(s).
 | `pts_diff` | `Int64` | Yes | — | Point differential during stint |
 | `usg_pct` | `Float64` | Yes | — | Usage percentage during stint |
 | `side` | `String` | No | in=['home', 'away'] | Home or away designation |
+
+## `fact_shot_chart_league_averages`
+
+**Class**: `FactShotChartLeagueAveragesSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `average_source` | `String` | No | in=['shot_chart_detail', 'shot_chart_lineup_detail'] | Shot-chart request family that produced the league-average row |
+| `grid_type` | `String` | Yes | — |  |
+| `zone_basic` | `String` | Yes | — |  |
+| `zone_area` | `String` | Yes | — |  |
+| `zone_range` | `String` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
 
 ## `fact_shot_chart`
 
@@ -800,6 +1933,152 @@ This tier contains 43 schema(s).
 | `percentile` | `Float64` | Yes | — | League percentile ranking |
 | `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
 
+## `fact_team_awards_conf`
+
+**Class**: `FactTeamAwardsConfSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `yearawarded` | `String` | Yes | — |  |
+| `oppositeteam` | `String` | Yes | — |  |
+
+## `fact_team_awards_div`
+
+**Class**: `FactTeamAwardsDivSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `yearawarded` | `String` | Yes | — |  |
+| `oppositeteam` | `String` | Yes | — |  |
+
+## `fact_team_background`
+
+**Class**: `FactTeamBackgroundSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `team_id` | `Int64` | No | gt=0 |  |
+| `abbreviation` | `String` | No | — |  |
+| `nickname` | `String` | No | — |  |
+| `yearfounded` | `Int64` | Yes | gt=1900 |  |
+| `city` | `String` | Yes | — |  |
+| `arena` | `String` | Yes | — |  |
+| `arenacapacity` | `Int64` | Yes | gt=0 |  |
+| `owner` | `String` | Yes | — |  |
+| `generalmanager` | `String` | Yes | — |  |
+| `headcoach` | `String` | Yes | — |  |
+| `dleagueaffiliation` | `String` | Yes | — |  |
+
+## `fact_team_dashboard_general_overall`
+
+**Class**: `FactTeamDashboardGeneralOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+| `gp_rank` | `Int64` | Yes | — |  |
+| `w_rank` | `Int64` | Yes | — |  |
+| `l_rank` | `Int64` | Yes | — |  |
+| `w_pct_rank` | `Int64` | Yes | — |  |
+| `min_rank` | `Int64` | Yes | — |  |
+| `ftm_rank` | `Int64` | Yes | — |  |
+| `fta_rank` | `Int64` | Yes | — |  |
+| `ft_pct_rank` | `Int64` | Yes | — |  |
+| `oreb_rank` | `Int64` | Yes | — |  |
+| `dreb_rank` | `Int64` | Yes | — |  |
+| `reb_rank` | `Int64` | Yes | — |  |
+| `ast_rank` | `Int64` | Yes | — |  |
+| `tov_rank` | `Int64` | Yes | — |  |
+| `stl_rank` | `Int64` | Yes | — |  |
+| `blk_rank` | `Int64` | Yes | — |  |
+| `pf_rank` | `Int64` | Yes | — |  |
+| `pfd_rank` | `Int64` | Yes | — |  |
+| `pts_rank` | `Int64` | Yes | — |  |
+| `plus_minus_rank` | `Int64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `ftm` | `Float64` | Yes | — |  |
+| `fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Float64` | Yes | — |  |
+| `dreb` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `tov` | `Float64` | Yes | — |  |
+| `stl` | `Float64` | Yes | — |  |
+| `blk` | `Float64` | Yes | — |  |
+| `pf` | `Float64` | Yes | — |  |
+| `pfd` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+| `season_type` | `String` | No | — |  |
+| `season_year` | `String` | No | — |  |
+
+## `fact_team_dashboard_shooting_overall`
+
+**Class**: `FactTeamDashboardShootingOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+| `efg_pct_rank` | `Int64` | Yes | — |  |
+| `pct_ast_2pm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_2pm_rank` | `Int64` | Yes | — |  |
+| `pct_ast_3pm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_3pm_rank` | `Int64` | Yes | — |  |
+| `pct_ast_fgm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_fgm_rank` | `Int64` | Yes | — |  |
+| `efg_pct` | `Float64` | Yes | — |  |
+| `pct_ast_2pm` | `Float64` | Yes | — |  |
+| `pct_uast_2pm` | `Float64` | Yes | — |  |
+| `pct_ast_3pm` | `Float64` | Yes | — |  |
+| `pct_uast_3pm` | `Float64` | Yes | — |  |
+| `pct_ast_fgm` | `Float64` | Yes | — |  |
+| `pct_uast_fgm` | `Float64` | Yes | — |  |
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+| `season_type` | `String` | No | — |  |
+
 ## `fact_team_estimated_metrics`
 
 **Class**: `FactTeamEstimatedMetricsSchema`
@@ -822,6 +2101,46 @@ This tier contains 43 schema(s).
 | `e_reb_pct` | `Float64` | Yes | — | Estimated total rebound pct |
 | `e_tov_pct` | `Float64` | Yes | — | Estimated turnover percentage |
 | `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
+
+## `fact_team_game_log`
+
+**Class**: `FactTeamGameLogSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `season_id` | `String` | Yes | — |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `team_abbreviation` | `String` | Yes | — |  |
+| `team_name` | `String` | Yes | — |  |
+| `game_id` | `String` | No | — |  |
+| `game_date` | `String` | Yes | — |  |
+| `matchup` | `String` | Yes | — |  |
+| `wl` | `String` | Yes | in=['W', 'L'] |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `ftm` | `Float64` | Yes | — |  |
+| `fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Float64` | Yes | — |  |
+| `dreb` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `stl` | `Float64` | Yes | — |  |
+| `blk` | `Float64` | Yes | — |  |
+| `tov` | `Float64` | Yes | — |  |
+| `pf` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+| `video_available` | `Int64` | Yes | — |  |
 
 ## `fact_team_game`
 
@@ -855,6 +2174,485 @@ This tier contains 43 schema(s).
 | `pts_qtr3` | `Int64` | Yes | — | Team third quarter points |
 | `pts_qtr4` | `Int64` | Yes | — | Team fourth quarter points |
 | `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
+
+## `fact_team_hof`
+
+**Class**: `FactTeamHofSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `playerid` | `Int64` | Yes | gt=0 |  |
+| `player` | `String` | Yes | — |  |
+| `position` | `String` | Yes | — |  |
+| `jersey` | `String` | Yes | — |  |
+| `seasonswithteam` | `String` | Yes | — |  |
+| `year` | `String` | Yes | — |  |
+
+## `fact_team_lineups_overall`
+
+**Class**: `FactTeamLineupsOverallSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `group_set` | `String` | No | — |  |
+| `group_id` | `String` | No | — |  |
+| `group_name` | `String` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `fgm` | `Int64` | Yes | — |  |
+| `fga` | `Int64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Int64` | Yes | — |  |
+| `fg3a` | `Int64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `ftm` | `Int64` | Yes | — |  |
+| `fta` | `Int64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Int64` | Yes | — |  |
+| `dreb` | `Int64` | Yes | — |  |
+| `reb` | `Int64` | Yes | — |  |
+| `ast` | `Int64` | Yes | — |  |
+| `tov` | `Int64` | Yes | — |  |
+| `stl` | `Int64` | Yes | — |  |
+| `blk` | `Int64` | Yes | — |  |
+| `blka` | `Int64` | Yes | — |  |
+| `pf` | `Int64` | Yes | — |  |
+| `pfd` | `Int64` | Yes | — |  |
+| `pts` | `Int64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+| `gp_rank` | `Int64` | Yes | — |  |
+| `w_rank` | `Int64` | Yes | — |  |
+| `l_rank` | `Int64` | Yes | — |  |
+| `w_pct_rank` | `Int64` | Yes | — |  |
+| `min_rank` | `Int64` | Yes | — |  |
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `ftm_rank` | `Int64` | Yes | — |  |
+| `fta_rank` | `Int64` | Yes | — |  |
+| `ft_pct_rank` | `Int64` | Yes | — |  |
+| `oreb_rank` | `Int64` | Yes | — |  |
+| `dreb_rank` | `Int64` | Yes | — |  |
+| `reb_rank` | `Int64` | Yes | — |  |
+| `ast_rank` | `Int64` | Yes | — |  |
+| `tov_rank` | `Int64` | Yes | — |  |
+| `stl_rank` | `Int64` | Yes | — |  |
+| `blk_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+| `pf_rank` | `Int64` | Yes | — |  |
+| `pfd_rank` | `Int64` | Yes | — |  |
+| `pts_rank` | `Int64` | Yes | — |  |
+| `plus_minus_rank` | `Int64` | Yes | — |  |
+| `season_type` | `String` | No | — |  |
+
+## `fact_team_matchups_detail`
+
+**Class**: `FactTeamMatchupsDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `detail_source` | `String` | No | in=['team_vs_player', 'team_and_players_vs'] | Comparison endpoint family that produced the row |
+| `detail_variant` | `String` | No | in=['on_off_court', 'overall', 'vs_player_overall', 'players_vs_players', 'team_players_vs_players_off', 'team_players_vs_players_on', 'team_vs_players', 'team_vs_players_off'] | Result-set variant within the team comparison family |
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+| `title_description` | `String` | Yes | — |  |
+| `description` | `String` | Yes | — |  |
+| `team_id` | `Int64` | Yes | gt=0 |  |
+| `team_abbreviation` | `String` | Yes | — |  |
+| `team_name` | `String` | Yes | — |  |
+| `player_id` | `Int64` | Yes | gt=0 |  |
+| `player_name` | `String` | Yes | — |  |
+| `vs_player_id` | `Int64` | Yes | gt=0 |  |
+| `vs_player_name` | `String` | Yes | — |  |
+| `court_status` | `String` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `ftm` | `Float64` | Yes | — |  |
+| `fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Float64` | Yes | — |  |
+| `dreb` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `tov` | `Float64` | Yes | — |  |
+| `stl` | `Float64` | Yes | — |  |
+| `blk` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+| `pf` | `Float64` | Yes | — |  |
+| `pfd` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+| `nba_fantasy_pts` | `Float64` | Yes | — |  |
+| `dd2` | `Float64` | Yes | — |  |
+| `td3` | `Float64` | Yes | — |  |
+| `gp_rank` | `Int64` | Yes | — |  |
+| `w_rank` | `Int64` | Yes | — |  |
+| `l_rank` | `Int64` | Yes | — |  |
+| `w_pct_rank` | `Int64` | Yes | — |  |
+| `min_rank` | `Int64` | Yes | — |  |
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `ftm_rank` | `Int64` | Yes | — |  |
+| `fta_rank` | `Int64` | Yes | — |  |
+| `ft_pct_rank` | `Int64` | Yes | — |  |
+| `oreb_rank` | `Int64` | Yes | — |  |
+| `dreb_rank` | `Int64` | Yes | — |  |
+| `reb_rank` | `Int64` | Yes | — |  |
+| `ast_rank` | `Int64` | Yes | — |  |
+| `tov_rank` | `Int64` | Yes | — |  |
+| `stl_rank` | `Int64` | Yes | — |  |
+| `blk_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+| `pf_rank` | `Int64` | Yes | — |  |
+| `pfd_rank` | `Int64` | Yes | — |  |
+| `pts_rank` | `Int64` | Yes | — |  |
+| `plus_minus_rank` | `Int64` | Yes | — |  |
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — |  |
+| `dd2_rank` | `Int64` | Yes | — |  |
+| `td3_rank` | `Int64` | Yes | — |  |
+| `cfid` | `String` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+
+## `fact_team_matchups_shot_detail`
+
+**Class**: `FactTeamMatchupsShotDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `split_family` | `String` | No | in=['shot_area', 'shot_distance'] | Shot split family for the team matchup row |
+| `split_scope` | `String` | No | in=['off_court', 'on_court', 'overall'] | On/off/overall scope of the shot split |
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+| `team_id` | `Int64` | Yes | gt=0 |  |
+| `team_abbreviation` | `String` | Yes | — |  |
+| `team_name` | `String` | Yes | — |  |
+| `vs_player_id` | `Int64` | Yes | gt=0 |  |
+| `vs_player_name` | `String` | Yes | — |  |
+| `court_status` | `String` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `cfid` | `String` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+
+## `fact_team_player_dashboard`
+
+**Class**: `FactTeamPlayerDashboardSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — |  |
+| `dd2_rank` | `Int64` | Yes | — |  |
+| `td3_rank` | `Int64` | Yes | — |  |
+| `nba_fantasy_pts` | `Float64` | Yes | — |  |
+| `dd2` | `Float64` | Yes | — |  |
+| `td3` | `Float64` | Yes | — |  |
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+| `gp_rank` | `Int64` | Yes | — |  |
+| `w_rank` | `Int64` | Yes | — |  |
+| `l_rank` | `Int64` | Yes | — |  |
+| `w_pct_rank` | `Int64` | Yes | — |  |
+| `min_rank` | `Int64` | Yes | — |  |
+| `ftm_rank` | `Int64` | Yes | — |  |
+| `fta_rank` | `Int64` | Yes | — |  |
+| `ft_pct_rank` | `Int64` | Yes | — |  |
+| `oreb_rank` | `Int64` | Yes | — |  |
+| `dreb_rank` | `Int64` | Yes | — |  |
+| `reb_rank` | `Int64` | Yes | — |  |
+| `ast_rank` | `Int64` | Yes | — |  |
+| `tov_rank` | `Int64` | Yes | — |  |
+| `stl_rank` | `Int64` | Yes | — |  |
+| `blk_rank` | `Int64` | Yes | — |  |
+| `pf_rank` | `Int64` | Yes | — |  |
+| `pfd_rank` | `Int64` | Yes | — |  |
+| `pts_rank` | `Int64` | Yes | — |  |
+| `plus_minus_rank` | `Int64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `ftm` | `Float64` | Yes | — |  |
+| `fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Float64` | Yes | — |  |
+| `dreb` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `tov` | `Float64` | Yes | — |  |
+| `stl` | `Float64` | Yes | — |  |
+| `blk` | `Float64` | Yes | — |  |
+| `pf` | `Float64` | Yes | — |  |
+| `pfd` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+| `player_id` | `Int64` | No | gt=0 |  |
+| `player_name` | `String` | Yes | — |  |
+| `group_set` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
+
+## `fact_team_pt_reb_detail`
+
+**Class**: `FactTeamPtRebDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `team_id` | `Int64` | No | gt=0 |  |
+| `team_name` | `String` | Yes | — |  |
+| `sort_order` | `Int64` | Yes | — |  |
+| `g` | `Int64` | Yes | — |  |
+| `reb_num_contesting_range` | `String` | Yes | — |  |
+| `reb_frequency` | `Float64` | Yes | — |  |
+| `oreb` | `Int64` | Yes | — |  |
+| `dreb` | `Int64` | Yes | — |  |
+| `reb` | `Int64` | Yes | — |  |
+| `c_oreb` | `Int64` | Yes | — |  |
+| `c_dreb` | `Int64` | Yes | — |  |
+| `c_reb` | `Int64` | Yes | — |  |
+| `c_reb_pct` | `Float64` | Yes | — |  |
+| `uc_oreb` | `Int64` | Yes | — |  |
+| `uc_dreb` | `Int64` | Yes | — |  |
+| `uc_reb` | `Int64` | Yes | — |  |
+| `uc_reb_pct` | `Float64` | Yes | — |  |
+| `season_type` | `String` | No | — |  |
+
+## `fact_team_pt_shots_detail`
+
+**Class**: `FactTeamPtShotsDetailSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `team_id` | `Int64` | No | gt=0 |  |
+| `team_name` | `String` | Yes | — |  |
+| `sort_order` | `Int64` | Yes | — |  |
+| `g` | `Int64` | Yes | — |  |
+| `close_def_dist_range` | `String` | Yes | — |  |
+| `fga_frequency` | `Float64` | Yes | — |  |
+| `fgm` | `Int64` | Yes | — |  |
+| `fga` | `Int64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `efg_pct` | `Float64` | Yes | — |  |
+| `fg2a_frequency` | `Float64` | Yes | — |  |
+| `fg2m` | `Int64` | Yes | — |  |
+| `fg2a` | `Int64` | Yes | — |  |
+| `fg2_pct` | `Float64` | Yes | — |  |
+| `fg3a_frequency` | `Float64` | Yes | — |  |
+| `fg3m` | `Int64` | Yes | — |  |
+| `fg3a` | `Int64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `season_type` | `String` | No | — |  |
+
+## `fact_team_pt_tracking`
+
+**Class**: `FactTeamPtTrackingSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `tracking_type` | `String` | No | in=['pass', 'pass_received', 'rebound', 'shots'] |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `team_name` | `String` | Yes | — |  |
+| `pass_type` | `String` | Yes | — |  |
+| `g` | `Int64` | Yes | — |  |
+| `pass_from` | `String` | Yes | — |  |
+| `pass_to` | `String` | Yes | — |  |
+| `pass_teammate_player_id` | `Int64` | Yes | gt=0 |  |
+| `frequency` | `Float64` | Yes | — |  |
+| `pass` | `Int64` | Yes | — |  |
+| `ast` | `Int64` | Yes | — |  |
+| `fgm` | `Int64` | Yes | — |  |
+| `fga` | `Int64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg2m` | `Int64` | Yes | — |  |
+| `fg2a` | `Int64` | Yes | — |  |
+| `fg2_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Int64` | Yes | — |  |
+| `fg3a` | `Int64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `sort_order` | `Int64` | Yes | — |  |
+| `reb_num_contesting_range` | `String` | Yes | — |  |
+| `reb_frequency` | `Float64` | Yes | — |  |
+| `oreb` | `Int64` | Yes | — |  |
+| `dreb` | `Int64` | Yes | — |  |
+| `reb` | `Int64` | Yes | — |  |
+| `c_oreb` | `Int64` | Yes | — |  |
+| `c_dreb` | `Int64` | Yes | — |  |
+| `c_reb` | `Int64` | Yes | — |  |
+| `c_reb_pct` | `Float64` | Yes | — |  |
+| `uc_oreb` | `Int64` | Yes | — |  |
+| `uc_dreb` | `Int64` | Yes | — |  |
+| `uc_reb` | `Int64` | Yes | — |  |
+| `uc_reb_pct` | `Float64` | Yes | — |  |
+| `close_def_dist_range` | `String` | Yes | — |  |
+| `fga_frequency` | `Float64` | Yes | — |  |
+| `efg_pct` | `Float64` | Yes | — |  |
+| `fg2a_frequency` | `Float64` | Yes | — |  |
+| `fg3a_frequency` | `Float64` | Yes | — |  |
+| `season_type` | `String` | No | — |  |
+
+## `fact_team_retired`
+
+**Class**: `FactTeamRetiredSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `playerid` | `Int64` | Yes | gt=0 |  |
+| `player` | `String` | Yes | — |  |
+| `position` | `String` | Yes | — |  |
+| `jersey` | `String` | Yes | — |  |
+| `seasonswithteam` | `String` | Yes | — |  |
+| `year` | `String` | Yes | — |  |
+
+## `fact_team_season_ranks`
+
+**Class**: `FactTeamSeasonRanksSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `league_id` | `String` | Yes | — |  |
+| `season_id` | `String` | Yes | — |  |
+| `team_id` | `Int64` | No | gt=0 |  |
+| `pts_rank` | `Int64` | Yes | gt=0 |  |
+| `pts_pg` | `Float64` | Yes | — |  |
+| `reb_rank` | `Int64` | Yes | gt=0 |  |
+| `reb_pg` | `Float64` | Yes | — |  |
+| `ast_rank` | `Int64` | Yes | gt=0 |  |
+| `ast_pg` | `Float64` | Yes | — |  |
+| `opp_pts_rank` | `Int64` | Yes | gt=0 |  |
+| `opp_pts_pg` | `Float64` | Yes | — |  |
+| `season_type` | `String` | Yes | — |  |
+
+## `fact_team_social_sites`
+
+**Class**: `FactTeamSocialSitesSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `accounttype` | `String` | Yes | — |  |
+| `website_link` | `String` | Yes | — |  |
+
+## `fact_team_splits`
+
+**Class**: `FactTeamSplitsSchema`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+| `efg_pct_rank` | `Int64` | Yes | — |  |
+| `pct_ast_2pm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_2pm_rank` | `Int64` | Yes | — |  |
+| `pct_ast_3pm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_3pm_rank` | `Int64` | Yes | — |  |
+| `pct_ast_fgm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_fgm_rank` | `Int64` | Yes | — |  |
+| `efg_pct` | `Float64` | Yes | — |  |
+| `pct_ast_2pm` | `Float64` | Yes | — |  |
+| `pct_uast_2pm` | `Float64` | Yes | — |  |
+| `pct_ast_3pm` | `Float64` | Yes | — |  |
+| `pct_uast_3pm` | `Float64` | Yes | — |  |
+| `pct_ast_fgm` | `Float64` | Yes | — |  |
+| `pct_uast_fgm` | `Float64` | Yes | — |  |
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+| `gp_rank` | `Int64` | Yes | — |  |
+| `w_rank` | `Int64` | Yes | — |  |
+| `l_rank` | `Int64` | Yes | — |  |
+| `w_pct_rank` | `Int64` | Yes | — |  |
+| `min_rank` | `Int64` | Yes | — |  |
+| `ftm_rank` | `Int64` | Yes | — |  |
+| `fta_rank` | `Int64` | Yes | — |  |
+| `ft_pct_rank` | `Int64` | Yes | — |  |
+| `oreb_rank` | `Int64` | Yes | — |  |
+| `dreb_rank` | `Int64` | Yes | — |  |
+| `reb_rank` | `Int64` | Yes | — |  |
+| `ast_rank` | `Int64` | Yes | — |  |
+| `tov_rank` | `Int64` | Yes | — |  |
+| `stl_rank` | `Int64` | Yes | — |  |
+| `blk_rank` | `Int64` | Yes | — |  |
+| `pf_rank` | `Int64` | Yes | — |  |
+| `pfd_rank` | `Int64` | Yes | — |  |
+| `pts_rank` | `Int64` | Yes | — |  |
+| `plus_minus_rank` | `Int64` | Yes | — |  |
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `ftm` | `Float64` | Yes | — |  |
+| `fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Float64` | Yes | — |  |
+| `dreb` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `tov` | `Float64` | Yes | — |  |
+| `stl` | `Float64` | Yes | — |  |
+| `blk` | `Float64` | Yes | — |  |
+| `pf` | `Float64` | Yes | — |  |
+| `pfd` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+| `season_type` | `String` | No | — |  |
+| `season_year` | `String` | Yes | — |  |
+| `split_type` | `String` | No | in=['general', 'shooting'] |  |
 
 ## `fact_tracking_defense`
 
@@ -893,3 +2691,201 @@ This tier contains 43 schema(s).
 | `visitor_pts` | `Int64` | Yes | — | Visitor team points at event |
 | `home_score_margin` | `Int64` | Yes | — | Home team score margin |
 | `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
+
+## `__team_dashboard_fantasy_metrics_mixin`
+
+**Class**: `_TeamDashboardFantasyMetricsMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `nba_fantasy_pts` | `Float64` | Yes | — |  |
+| `dd2` | `Float64` | Yes | — |  |
+| `td3` | `Float64` | Yes | — |  |
+
+## `__team_dashboard_fantasy_ranks_mixin`
+
+**Class**: `_TeamDashboardFantasyRanksMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `nba_fantasy_pts_rank` | `Int64` | Yes | — |  |
+| `dd2_rank` | `Int64` | Yes | — |  |
+| `td3_rank` | `Int64` | Yes | — |  |
+
+## `__team_dashboard_field_goal_metrics_mixin`
+
+**Class**: `_TeamDashboardFieldGoalMetricsMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+
+## `__team_dashboard_field_goal_ranks_mixin`
+
+**Class**: `_TeamDashboardFieldGoalRanksMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+
+## `__team_dashboard_group_set_mixin`
+
+**Class**: `_TeamDashboardGroupSetMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `group_set` | `String` | No | — |  |
+
+## `__team_dashboard_grouping_mixin`
+
+**Class**: `_TeamDashboardGroupingMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `group_set` | `String` | No | — |  |
+| `group_value` | `String` | Yes | — |  |
+
+## `__team_dashboard_player_identity_mixin`
+
+**Class**: `_TeamDashboardPlayerIdentityMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `player_id` | `Int64` | No | gt=0 |  |
+| `player_name` | `String` | Yes | — |  |
+
+## `__team_dashboard_reference_mixin`
+
+**Class**: `_TeamDashboardReferenceMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `cfid` | `Int64` | Yes | — |  |
+| `cfparams` | `String` | Yes | — |  |
+
+## `__team_dashboard_season_type_mixin`
+
+**Class**: `_TeamDashboardSeasonTypeMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `season_type` | `String` | No | — |  |
+
+## `__team_dashboard_shooting_extension_ranks_mixin`
+
+**Class**: `_TeamDashboardShootingExtensionRanksMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `efg_pct_rank` | `Int64` | Yes | — |  |
+| `pct_ast_2pm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_2pm_rank` | `Int64` | Yes | — |  |
+| `pct_ast_3pm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_3pm_rank` | `Int64` | Yes | — |  |
+| `pct_ast_fgm_rank` | `Int64` | Yes | — |  |
+| `pct_uast_fgm_rank` | `Int64` | Yes | — |  |
+
+## `__team_dashboard_shooting_extensions_mixin`
+
+**Class**: `_TeamDashboardShootingExtensionsMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `efg_pct` | `Float64` | Yes | — |  |
+| `pct_ast_2pm` | `Float64` | Yes | — |  |
+| `pct_uast_2pm` | `Float64` | Yes | — |  |
+| `pct_ast_3pm` | `Float64` | Yes | — |  |
+| `pct_uast_3pm` | `Float64` | Yes | — |  |
+| `pct_ast_fgm` | `Float64` | Yes | — |  |
+| `pct_uast_fgm` | `Float64` | Yes | — |  |
+
+## `__team_dashboard_standard_metrics_mixin`
+
+**Class**: `_TeamDashboardStandardMetricsMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `fgm` | `Float64` | Yes | — |  |
+| `fga` | `Float64` | Yes | — |  |
+| `fg_pct` | `Float64` | Yes | — |  |
+| `fg3m` | `Float64` | Yes | — |  |
+| `fg3a` | `Float64` | Yes | — |  |
+| `fg3_pct` | `Float64` | Yes | — |  |
+| `blka` | `Float64` | Yes | — |  |
+| `gp` | `Int64` | Yes | — |  |
+| `w` | `Int64` | Yes | — |  |
+| `l` | `Int64` | Yes | — |  |
+| `w_pct` | `Float64` | Yes | — |  |
+| `min` | `Float64` | Yes | — |  |
+| `ftm` | `Float64` | Yes | — |  |
+| `fta` | `Float64` | Yes | — |  |
+| `ft_pct` | `Float64` | Yes | — |  |
+| `oreb` | `Float64` | Yes | — |  |
+| `dreb` | `Float64` | Yes | — |  |
+| `reb` | `Float64` | Yes | — |  |
+| `ast` | `Float64` | Yes | — |  |
+| `tov` | `Float64` | Yes | — |  |
+| `stl` | `Float64` | Yes | — |  |
+| `blk` | `Float64` | Yes | — |  |
+| `pf` | `Float64` | Yes | — |  |
+| `pfd` | `Float64` | Yes | — |  |
+| `pts` | `Float64` | Yes | — |  |
+| `plus_minus` | `Float64` | Yes | — |  |
+
+## `__team_dashboard_standard_ranks_mixin`
+
+**Class**: `_TeamDashboardStandardRanksMixin`
+**Coerce**: True | **Strict**: False
+
+| Column | Type | Nullable | Constraints | Description |
+|--------|------|----------|-------------|-------------|
+| `fgm_rank` | `Int64` | Yes | — |  |
+| `fga_rank` | `Int64` | Yes | — |  |
+| `fg_pct_rank` | `Int64` | Yes | — |  |
+| `fg3m_rank` | `Int64` | Yes | — |  |
+| `fg3a_rank` | `Int64` | Yes | — |  |
+| `fg3_pct_rank` | `Int64` | Yes | — |  |
+| `blka_rank` | `Int64` | Yes | — |  |
+| `gp_rank` | `Int64` | Yes | — |  |
+| `w_rank` | `Int64` | Yes | — |  |
+| `l_rank` | `Int64` | Yes | — |  |
+| `w_pct_rank` | `Int64` | Yes | — |  |
+| `min_rank` | `Int64` | Yes | — |  |
+| `ftm_rank` | `Int64` | Yes | — |  |
+| `fta_rank` | `Int64` | Yes | — |  |
+| `ft_pct_rank` | `Int64` | Yes | — |  |
+| `oreb_rank` | `Int64` | Yes | — |  |
+| `dreb_rank` | `Int64` | Yes | — |  |
+| `reb_rank` | `Int64` | Yes | — |  |
+| `ast_rank` | `Int64` | Yes | — |  |
+| `tov_rank` | `Int64` | Yes | — |  |
+| `stl_rank` | `Int64` | Yes | — |  |
+| `blk_rank` | `Int64` | Yes | — |  |
+| `pf_rank` | `Int64` | Yes | — |  |
+| `pfd_rank` | `Int64` | Yes | — |  |
+| `pts_rank` | `Int64` | Yes | — |  |
+| `plus_minus_rank` | `Int64` | Yes | — |  |

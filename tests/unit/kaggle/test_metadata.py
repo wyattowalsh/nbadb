@@ -38,12 +38,12 @@ class TestGenerateMetadata:
         assert len(data["licenses"]) == 1
         assert data["licenses"][0]["name"] == "CC-BY-SA-4.0"
 
-    def test_resources_count_is_55(self, tmp_path: Path, settings: NbaDbSettings) -> None:
+    def test_resources_count(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         output = tmp_path / "dataset-metadata.json"
         with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
             generate_metadata(output)
         data = json.loads(output.read_text(encoding="utf-8"))
-        assert len(data["resources"]) == 141
+        assert len(data["resources"]) == 161
 
     def test_no_pipeline_internal_tables_in_resources(
         self, tmp_path: Path, settings: NbaDbSettings
@@ -65,9 +65,9 @@ class TestGenerateMetadata:
 
 
 class TestBuildResources:
-    def test_returns_55_entries(self) -> None:
+    def test_returns_expected_entries(self) -> None:
         resources = _build_resources()
-        assert len(resources) == 141
+        assert len(resources) == 161
 
     def test_each_resource_has_path_and_description(self) -> None:
         for r in _build_resources():

@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
-from nbadb.transform.base import BaseTransformer
-
-if TYPE_CHECKING:
-    import polars as pl
+from nbadb.transform.base import SqlTransformer
 
 
-class DimTeamHistoryTransformer(BaseTransformer):
+class DimTeamHistoryTransformer(SqlTransformer):
     output_table: ClassVar[str] = "dim_team_history"
     depends_on: ClassVar[list[str]] = ["stg_team_info", "stg_franchise"]
 
-    _SCD2_SQL: ClassVar[str] = """
+    _SQL: ClassVar[str] = """
         WITH source AS (
             SELECT
                 ti.team_id,
@@ -56,6 +53,3 @@ class DimTeamHistoryTransformer(BaseTransformer):
         FROM changes
         ORDER BY team_history_sk
     """
-
-    def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
-        return self._conn.execute(self._SCD2_SQL).pl()

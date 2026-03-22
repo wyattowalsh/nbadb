@@ -39,7 +39,7 @@ def export(
         for table in tables:
             try:
                 df = conn.execute(
-                    f"SELECT * FROM {table}"  # noqa: S608
+                    f"SELECT * FROM {table}"
                 ).pl()
                 loader.load(table, df, mode="replace")
                 typer.echo(f"  {table}: {df.shape[0]:,} rows")
