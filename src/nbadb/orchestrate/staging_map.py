@@ -64,6 +64,7 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=0,
         use_multi=True,
+        min_season=2016,
     ),
     StagingEntry(
         "schedule_int",
@@ -71,6 +72,7 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=1,
         use_multi=True,
+        min_season=2016,
     ),
     # BroadcasterList (result_set_index=2) deferred — no consuming transform
     StagingEntry("league_standings", "stg_standings", "season"),

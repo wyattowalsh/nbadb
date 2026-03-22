@@ -209,7 +209,8 @@ jobs:
           else
             timeout 20400 uv run nbadb init \
               --season-start "$SEASON_START" \
-              --season-end "$SEASON_END"
+              --season-end "$SEASON_END" \
+              --verbose
           fi
           exit_code=$?
           set -e
