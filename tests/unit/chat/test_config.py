@@ -80,4 +80,4 @@ def test_duckdb_path_default():
     from apps.chat.server.config import ChatSettings
 
     settings = ChatSettings()
-    assert settings.duckdb_path == Path("~/.nbadb/data/nba.duckdb")
+    assert settings.duckdb_path == Path("~/.nbadb/data/nba.duckdb").expanduser().resolve()

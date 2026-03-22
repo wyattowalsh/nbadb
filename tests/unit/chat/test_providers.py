@@ -118,8 +118,9 @@ def test_factory_custom_with_base_url():
 )
 def test_factory_copilot():
     """Copilot provider creates CopilotChatModel."""
-    from apps.chat.server.config import ChatSettings
     from apps.chat.server.providers.copilot_adapter import CopilotChatModel
+
+    from apps.chat.server.config import ChatSettings
     from apps.chat.server.providers.factory import create_chat_model
 
     settings = ChatSettings(provider="copilot", model="gpt-4.1")

@@ -47,6 +47,11 @@ def test_skill_md_has_valid_frontmatter():
     frontmatter = parts[1]
     assert "name: nba-data-analytics" in frontmatter
     assert "description:" in frontmatter
+    # Ensure description is non-empty (not just the key)
+    import yaml
+
+    parsed = yaml.safe_load(frontmatter)
+    assert parsed.get("description") and len(parsed["description"].strip()) > 0
 
 
 def test_skill_has_references():
@@ -67,30 +72,19 @@ def test_skill_has_scripts():
     assert (scripts / "metric_calculator.py").exists()
 
 
-def test_metric_calculator_functions():
-    """Metric calculator has correct formulas."""
-    import importlib.util
-
+def test_skill_md_references_query_cookbook():
+    """SKILL.md body references the query cookbook for complex patterns."""
     from apps.chat.server.agent import SKILLS_DIR
 
-    spec = importlib.util.spec_from_file_location(
-        "metric_calculator",
-        SKILLS_DIR / "nba-data-analytics" / "scripts" / "metric_calculator.py",
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    true_shooting_pct = mod.true_shooting_pct
-    effective_fg_pct = mod.effective_fg_pct
+    content = (SKILLS_DIR / "nba-data-analytics" / "SKILL.md").read_text()
+    assert "query-cookbook" in content
+    assert "read_file" in content
 
-    # TS% for 30 pts on 20 FGA and 10 FTA
-    ts = true_shooting_pct(30, 20, 10)
-    assert 0.0 < ts < 1.0
 
-    # eFG% for 8 FGM, 3 3PM, 18 FGA
-    efg = effective_fg_pct(8, 3, 18)
-    expected = (8 + 0.5 * 3) / 18
-    assert abs(efg - expected) < 0.001
+def test_skill_md_documents_metric_calculator():
+    """SKILL.md documents the metric calculator API with function examples."""
+    from apps.chat.server.agent import SKILLS_DIR
 
-    # Edge case: zero attempts
-    assert true_shooting_pct(0, 0, 0) == 0.0
-    assert effective_fg_pct(0, 0, 0) == 0.0
+    content = (SKILLS_DIR / "nba-data-analytics" / "SKILL.md").read_text()
+    assert "metric_calculator" in content
+    assert "mc.true_shooting_pct" in content

@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING
 import duckdb
 import pytest
 
-from nbadb.agent.context import SchemaContext
-from nbadb.agent.safety import ReadOnlyGuard
+from apps.chat.server._safety import ReadOnlyGuard
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -106,18 +105,27 @@ def test_run_sql_blocks_file_access(sample_db):
 
 
 def test_list_tables(sample_db):
-    """SchemaContext.get_tables returns all table names."""
-    ctx = SchemaContext(sample_db)
-    tables = ctx.get_tables()
+    """List tables returns all table names."""
+    with duckdb.connect(str(sample_db), read_only=True) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT table_name FROM information_schema.columns "
+            "WHERE table_schema = 'main' ORDER BY table_name"
+        ).fetchall()
+    tables = [r[0] for r in rows]
     assert "dim_player" in tables
     assert "fact_player_game_log" in tables
 
 
 def test_describe_table(sample_db):
-    """SchemaContext.get_columns returns column names and types."""
-    ctx = SchemaContext(sample_db)
-    cols = ctx.get_columns("dim_player")
-    names = [name for name, _ in cols]
+    """Describe table returns column names and types."""
+    with duckdb.connect(str(sample_db), read_only=True) as conn:
+        rows = conn.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_schema = 'main' AND table_name = ? "
+            "ORDER BY ordinal_position",
+            ["dim_player"],
+        ).fetchall()
+    names = [name for name, _ in rows]
     assert "player_id" in names
     assert "full_name" in names
     assert "is_current" in names

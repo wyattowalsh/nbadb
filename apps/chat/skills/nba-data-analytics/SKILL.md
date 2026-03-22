@@ -1,97 +1,67 @@
 ---
 name: nba-data-analytics
 description: >-
-  Use when analyzing NBA basketball data, querying the nbadb DuckDB
-  database, creating visualizations, or calculating basketball metrics.
+  Use when NBA queries require multi-table star schema joins, SCD2 dimension
+  handling, advanced metric formulas (TS%, eFG%, usage rate), or Plotly
+  chart generation against the nbadb DuckDB database.
+allowed_tools:
+  - run_sql
+  - list_tables
+  - describe_table
+  - run_python
 ---
 
 # NBA Data Analytics Skill
 
-You have access to a comprehensive NBA database via the `run_sql` tool. The database follows a star schema with dimensions, facts, and pre-aggregated rollups.
+## Metric Calculator API
 
-## Database Schema
+The `run_python` tool pre-imports `metric_calculator as mc`. Call directly:
 
-### Naming Conventions
+| Function | Signature | Notes |
+|----------|-----------|-------|
+| `mc.true_shooting_pct` | `(pts, fga, fta)` | TS% = pts / (2 * (fga + 0.44 * fta)) |
+| `mc.effective_fg_pct` | `(fgm, fg3m, fga)` | eFG% = (fgm + 0.5 * fg3m) / fga |
+| `mc.usage_rate` | `(fga, fta, tov, min, team_fga, team_fta, team_tov, team_min)` | Requires both player and team stats |
+| `mc.pace` | `(team_poss, opp_poss, team_min)` | Possessions per 48 minutes |
+| `mc.offensive_rating` | `(pts, possessions)` | Points per 100 possessions |
+| `mc.defensive_rating` | `(opp_pts, possessions)` | Points allowed per 100 possessions |
+| `mc.net_rating` | `(off_rating, def_rating)` | ORtg - DRtg |
+| `mc.assist_to_turnover` | `(ast, tov)` | Returns None if tov=0 |
+| `mc.rebound_pct` | `(reb, min, team_reb, opp_reb, team_min)` | Player's share of available rebounds |
 
-- `dim_*` — 17 dimension tables (players, teams, seasons, arenas, coaches, etc.)
-- `fact_*` — 102 fact tables (box scores, player tracking, shot charts, matchups, etc.)
-- `agg_*` — 16 pre-aggregated rollups (player/team season summaries)
-- `analytics_*` — 4 wide analytics views for common queries
+All functions accept `None` (coerced to 0.0) and guard against division by zero.
 
-### Key Dimensions
+**PER / Win Shares**: NOT pre-computed. Require league averages not available in this database. Only compute approximations when the user understands the limitations.
 
-- `dim_player` — SCD Type 2 (has `is_current`, `valid_from`, `valid_to`). Always filter `WHERE is_current = TRUE` for current data.
-- `dim_team` — Team metadata (abbreviation, city, arena, conference, division)
-- `dim_season` — Season metadata (season_id, start/end dates)
+## Table Selection
 
-### Common Fact Tables
+1. **Simple player stats** → `agg_player_season` (pre-aggregated)
+2. **Game-by-game** → `fact_player_game_log` or `analytics_player_game_complete` (pre-joined)
+3. **Team season overview** → `analytics_team_season_summary` (pre-joined)
+4. **Shot locations** → `fact_shot_chart_detail` (x/y coordinates)
+5. **Clutch stats** → `analytics_clutch_performance` (pre-joined)
+6. **Head-to-head** → `analytics_head_to_head` (pre-joined)
+7. **Player tracking** → `fact_player_tracking_*` (speed, touches, passes)
+8. **Need specific columns** → `describe_table` first, then direct `fact_*` query
 
-- `fact_player_game_log` — Per-game player stats
-- `fact_box_score_*` — Team-level box scores (traditional, advanced, hustle, etc.)
-- `fact_player_career` — Career aggregates
-- `fact_standings` — Team standings
-- `fact_shot_chart_*` — Shot location data
+Always prefer `analytics_*` views — they pre-join dimensions and save query complexity.
 
-### Pre-Aggregated Tables
+## SCD2 Gotchas
 
-- `agg_player_season` — Player stats aggregated by season
-- `agg_team_season` — Team stats aggregated by season
+- `dim_player` has multiple rows per player (historical team changes). ALWAYS filter `is_current = TRUE` unless analyzing trade history.
+- `dim_team_history` is also SCD2. Use `is_current = TRUE` for current franchise info.
+- When counting distinct players, use `DISTINCT player_id` NOT `DISTINCT full_name` (name collisions exist).
 
-## Tools Available
+## Team Colors for Charts
 
-1. **`run_sql`** — Execute DuckDB SQL against the NBA database. Always use this for data queries.
-2. **`list_tables`** — List all tables in the database.
-3. **`describe_table`** — Get column names and types for a table.
-4. **`execute`** — Run Python code to create visualizations or compute metrics.
+The `run_python` tool can import `team_colors`:
 
-## DuckDB SQL Tips
+```python
+from team_colors import get_team_color, get_color_map
+color_map = get_color_map(["LAL", "BOS", "GSW"])
+fig = px.bar(..., color_discrete_map=color_map)
+```
 
-- Use `QUALIFY ROW_NUMBER() OVER (...)` for deduplication instead of subqueries
-- Use `IS DISTINCT FROM` for NULL-safe comparisons
-- JOINs: always join dimensions on their primary key (`player_id`, `team_id`, etc.)
-- For current player data: `JOIN dim_player p ON ... AND p.is_current = TRUE`
-- DuckDB supports `COLUMNS(regex)`, `EXCLUDE`, `REPLACE` for column selection
-- Use `ROUND(value, 1)` for display-friendly numbers
+## Complex Query Patterns
 
-## Visualization Guidelines
-
-When creating charts, use the `execute` tool to run Python with plotly:
-
-- **Bar chart**: comparisons (top scorers, team rankings, stat leaders)
-- **Line chart**: trends over time (career arcs, season averages, team performance)
-- **Scatter plot**: correlations (PER vs usage, TS% vs volume, off/def rating)
-- **Heatmap**: shot charts, game-by-game performance matrices
-
-Always:
-1. Import `plotly.express as px` or `plotly.graph_objects as go`
-2. Create the figure with clear titles, axis labels, and formatting
-3. Call `fig.to_json()` at the end and print the result
-4. Use team colors when applicable
-
-## Common NBA Metrics
-
-When users ask about advanced metrics, compute them correctly:
-
-- **PER** (Player Efficiency Rating): comprehensive per-minute rating
-- **TS%** (True Shooting): `pts / (2 * (fga + 0.44 * fta))`
-- **eFG%** (Effective FG%): `(fgm + 0.5 * fg3m) / fga`
-- **Usage Rate**: `100 * ((fga + 0.44 * fta + tov) * (team_min / 5)) / (min * (team_fga + 0.44 * team_fta + team_tov))`
-- **Pace**: possessions per 48 minutes
-- **Offensive/Defensive Rating**: points scored/allowed per 100 possessions
-- **Win Shares**: estimate of wins contributed
-
-## Example Workflows
-
-### "Who scored the most points last season?"
-1. `run_sql`: `SELECT p.full_name, s.total_pts FROM agg_player_season s JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE ORDER BY s.total_pts DESC LIMIT 10`
-2. Display results as a table
-
-### "Show me a chart of the top 10 scorers"
-1. Query the data with `run_sql`
-2. Use `execute` to create a Plotly bar chart
-3. Return the chart
-
-### "Compare LeBron and Curry's career trajectories"
-1. Query career stats by season for both players
-2. Use `execute` to create a multi-line Plotly chart
-3. Add annotations for key milestones
+For multi-season comparisons, rolling averages, pivot tables, head-to-head matchups, and efficiency queries, use `read_file` on `references/query-cookbook.md` in this skill directory.

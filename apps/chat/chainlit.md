@@ -1,21 +1,21 @@
-# Welcome to nbadb Chat
+# Welcome to nbadb
 
-Your AI-powered NBA data analytics assistant. Ask questions about basketball stats, create visualizations, and explore the comprehensive NBA database.
+Your AI-powered NBA data analytics assistant backed by **160+ tables** of historical and current basketball data.
 
-## Getting Started
+### What I can do
 
-Configure your LLM provider in the settings panel (gear icon), then try:
+| Capability | Examples |
+|---|---|
+| **Query** | Box scores, standings, player tracking, shot charts |
+| **Visualize** | Interactive Plotly charts, matplotlib court diagrams |
+| **Analyze** | TS%, eFG%, Usage Rate, Pace, Net Rating |
+| **Research** | Latest NBA news, injury reports, trade context |
+| **Compare** | Head-to-head matchups, career arcs, era analysis |
 
-- **"Who scored the most points last season?"** — query the database
-- **"Show me a bar chart of the top 10 scorers"** — interactive Plotly chart
-- **"Compare LeBron and Curry's career stats"** — multi-player analysis
-- **"What's the league average true shooting percentage?"** — advanced metrics
-- **"Which teams had the best defensive rating?"** — team analytics
+### Quick tips
 
-## Features
+- Use the **gear icon** to switch providers (OpenAI, Anthropic, Google, Ollama)
+- Pick a **profile** above for tailored analysis modes
+- Click **Copy SQL** or **Download CSV** on any query result
 
-- Natural language to SQL queries against 140+ NBA database tables
-- Interactive Plotly charts and data tables rendered in chat
-- Advanced NBA metric calculations (PER, TS%, eFG%, Usage Rate, etc.)
-- Web search for current NBA news and context
-- Supports OpenAI, Anthropic, Google, Ollama, LM Studio, and GitHub Copilot
+*Select a starter below or type your own question to begin.*

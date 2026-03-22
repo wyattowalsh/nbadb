@@ -1,10 +1,21 @@
+[meta]
+generated_by = "2.10.0"
+
 [project]
 enable_telemetry = false
+session_timeout = 7200
 
 [features]
 multi_modal = false
+unsafe_allow_html = false
+latex = true
+edit_message = true
 
 [UI]
-name = "nbadb Chat"
-description = "AI-powered NBA data analytics"
+name = "nbadb"
+description = "AI-powered NBA data analytics — query, visualize, and explore basketball stats"
 default_theme = "dark"
+layout = "wide"
+cot = "tool_call"
+custom_css = "/public/stylesheet.css"
+default_avatar_file_url = "/public/avatars/nbadb_assistant.png"

@@ -1,11 +1,18 @@
+"""Database utilities for the chat app.
+
+Inlines minimal logic from nbadb.kaggle.client and nbadb.agent.context
+to avoid pulling the full nbadb dependency chain (sqlalchemy, polars, etc.)
+which conflicts with chainlit's aiofiles version cap.
+"""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import shutil
+from functools import lru_cache
+from pathlib import Path
 
+import duckdb
 from loguru import logger
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def ensure_database(
@@ -19,9 +26,43 @@ def ensure_database(
     logger.info(f"DuckDB not found at {duckdb_path}, downloading from Kaggle...")
     duckdb_path.parent.mkdir(parents=True, exist_ok=True)
 
-    from nbadb.kaggle.client import KaggleClient
+    try:
+        import kagglehub
+    except ImportError:
+        msg = (
+            "kagglehub is required for first-run data download. "
+            "Install it with: pip install kagglehub"
+        )
+        raise ImportError(msg) from None
 
-    KaggleClient().download(target_dir=duckdb_path.parent)
+    download_path = kagglehub.dataset_download(kaggle_dataset)
+    download_dir = Path(download_path)
+
+    # Check for DuckDB file first
+    duckdb_files = list(download_dir.glob("*.duckdb"))
+    if duckdb_files:
+        shutil.copy2(duckdb_files[0], duckdb_path)
+        logger.info(f"Copied DuckDB to {duckdb_path}")
+        return duckdb_path
+
+    # Kaggle dataset is SQLite — convert to DuckDB
+    sqlite_files = list(download_dir.glob("*.sqlite"))
+    if not sqlite_files:
+        msg = f"No .duckdb or .sqlite file found in Kaggle download at {download_path}"
+        raise FileNotFoundError(msg)
+
+    sqlite_path = sqlite_files[0]
+    logger.info(f"Converting {sqlite_path.name} to DuckDB...")
+    with duckdb.connect(str(duckdb_path)) as conn:
+        conn.execute(f"ATTACH '{sqlite_path}' AS sqlite_db (TYPE sqlite)")
+        # Copy all tables from SQLite to DuckDB
+        tables = conn.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'sqlite_db'"
+        ).fetchall()
+        for (table_name,) in tables:
+            conn.execute(f'CREATE TABLE "{table_name}" AS SELECT * FROM sqlite_db."{table_name}"')
+        conn.execute("DETACH sqlite_db")
+    logger.info(f"Converted {len(tables)} tables to DuckDB at {duckdb_path}")
 
     if not duckdb_path.exists():
         msg = f"Failed to download DuckDB to {duckdb_path}"
@@ -30,8 +71,46 @@ def ensure_database(
     return duckdb_path
 
 
+@lru_cache(maxsize=4)
 def get_schema_context(duckdb_path: Path) -> str:
-    """Build schema context string for the agent's system prompt."""
-    from nbadb.agent.context import SchemaContext
+    """Build compact schema context for the agent's system prompt.
 
-    return SchemaContext(duckdb_path).build_prompt_context()
+    Full column details for analytics/agg/dim tables (commonly queried).
+    Names-only for fact tables (use describe_table for details).
+    """
+    lines = ["Available tables and columns:\n"]
+    with duckdb.connect(str(duckdb_path), read_only=True) as conn:
+        tables = conn.execute(
+            "SELECT DISTINCT table_name FROM information_schema.columns "
+            "WHERE table_schema = 'main' ORDER BY table_name"
+        ).fetchall()
+
+        # Group tables by prefix
+        detail_prefixes = ("analytics_", "agg_", "dim_")
+        detail_tables = []
+        summary_tables = []
+        for (name,) in tables:
+            if name.startswith(detail_prefixes):
+                detail_tables.append(name)
+            else:
+                summary_tables.append(name)
+
+        # Full column details for analytics/agg/dim
+        for table_name in detail_tables:
+            lines.append(f"\n{table_name}:")
+            columns = conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = 'main' AND table_name = ? "
+                "ORDER BY ordinal_position",
+                [table_name],
+            ).fetchall()
+            for col_name, data_type in columns:
+                lines.append(f"  - {col_name} ({data_type})")
+
+        # Names-only for fact/bridge tables (use describe_table for details)
+        if summary_tables:
+            lines.append("\n\nFact tables (use describe_table for columns):")
+            for name in summary_tables:
+                lines.append(f"  - {name}")
+
+    return "\n".join(lines)

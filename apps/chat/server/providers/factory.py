@@ -4,8 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
-
-    from apps.chat.server.config import ChatSettings
+    from server.config import ChatSettings
 
 
 def create_chat_model(settings: ChatSettings) -> BaseChatModel:
@@ -54,12 +53,10 @@ def create_chat_model(settings: ChatSettings) -> BaseChatModel:
                 temperature=settings.temperature,
             )
         case "copilot":
-            from apps.chat.server.providers.copilot_adapter import CopilotChatModel
-
-            return CopilotChatModel(
-                model_name=settings.model,
-                temperature=settings.temperature,
-            )
+            # Copilot uses the GitHub Copilot SDK runtime, not a LangChain model.
+            # Handled in agent.py before factory is called.
+            msg = "Copilot provider uses CopilotAgentWrapper, not a LangChain model"
+            raise ValueError(msg)
         case _:
             msg = f"Unknown provider: {settings.provider}"
             raise ValueError(msg)

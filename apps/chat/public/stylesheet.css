@@ -1,0 +1,98 @@
+/* nbadb Chat — Custom Styles */
+
+/* ── Tool Steps — glassmorphism card ────────────────────────────── */
+[id^="step-"] {
+  border-left: 3px solid hsl(var(--primary)) !important;
+  padding-left: 12px;
+  margin: 8px 0;
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+[id^="step-"]:hover {
+  background: hsl(var(--card) / 0.85);
+  box-shadow: 0 2px 12px hsl(var(--primary) / 0.1);
+}
+
+/* ── Code blocks ────────────────────────────────────────────────── */
+pre, code {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.875rem;
+}
+
+/* ── DataFrame tables ───────────────────────────────────────────── */
+.dataframe table {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  width: 100%;
+}
+.dataframe th {
+  background: hsl(var(--primary) / 0.1);
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid hsl(var(--primary) / 0.3);
+}
+.dataframe td {
+  padding: 6px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.dataframe tr:nth-child(even) td {
+  background: hsl(var(--muted) / 0.3);
+}
+.dataframe tr:hover td {
+  background: hsl(var(--primary) / 0.06);
+}
+
+/* ── Plotly charts ──────────────────────────────────────────────── */
+.inline-plotly {
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 8px 0;
+  box-shadow: 0 2px 16px hsl(var(--foreground) / 0.06);
+}
+
+/* ── Image charts (matplotlib) ──────────────────────────────────── */
+.inline-image img {
+  border-radius: var(--radius);
+  max-height: 500px;
+  object-fit: contain;
+}
+
+/* ── Starter cards — hover lift ─────────────────────────────────── */
+button[class*="starter"],
+[data-testid="starter"] {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+button[class*="starter"]:hover,
+[data-testid="starter"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.15);
+}
+
+/* ── Message appearance animation ───────────────────────────────── */
+[class*="message-content"],
+.message-content {
+  animation: fadeSlideIn 0.2s ease;
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Scrollbar styling ──────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}

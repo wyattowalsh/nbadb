@@ -7,8 +7,7 @@ name = "nbadb-chat"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "nbadb",
-    "chainlit>=3.0",
+    "chainlit>=2.10",
     "deepagents",
     "langchain-mcp-adapters",
     "langchain-core>=0.3",
@@ -16,7 +15,6 @@ dependencies = [
     "langchain-anthropic>=0.3",
     "langchain-google-genai>=2.0",
     "langchain-ollama>=0.3",
-    "github-copilot-sdk",
     "mcp[cli]",
     "pydantic-settings>=2.13",
     "plotly>=6.0",
@@ -26,7 +24,18 @@ dependencies = [
     "duckduckgo-search>=7.0",
     "trafilatura>=2.0",
     "httpx>=0.28",
+    "duckdb>=1.4",
+    "loguru>=0.7",
+    "kagglehub>=0.3",
 ]
 
 [project.optional-dependencies]
+copilot = ["github-copilot-sdk>=0.1"]
 e2b = ["e2b-code-interpreter>=1.0"]
+tracing = ["langfuse>=3.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["server", "mcp_servers", "skills"]
+
+# nbadb is imported via sys.path (avoids dep conflicts with chainlit's aiofiles cap).
+# The chat app only uses nbadb.agent.safety, nbadb.agent.context, nbadb.kaggle.client.

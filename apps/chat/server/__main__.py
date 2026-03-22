@@ -18,7 +18,7 @@ def main() -> None:
             "run",
             str(app_path),
             "--host",
-            "0.0.0.0",
+            "127.0.0.1",
             "--port",
             "8421",
         ],

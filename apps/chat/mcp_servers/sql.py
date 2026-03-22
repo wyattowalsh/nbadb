@@ -1,3 +1,5 @@
+"""DuckDB SQL MCP server — provides run_sql, list_tables, describe_table tools."""
+
 from __future__ import annotations
 
 import contextlib
@@ -8,16 +10,22 @@ from pathlib import Path
 import duckdb
 from mcp.server.fastmcp import FastMCP
 
-from nbadb.agent.context import SchemaContext
-from nbadb.agent.safety import ReadOnlyGuard
-
 # DuckDB path from CLI arg or default
 DUCKDB_PATH = (
     Path(sys.argv[1]) if len(sys.argv) > 1 else Path("~/.nbadb/data/nba.duckdb").expanduser()
 )
 
 mcp = FastMCP("nbadb-sql")
+
+# Import ReadOnlyGuard from the chat app's shared copy
+# (avoids importing full nbadb which has heavy deps)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
+from _safety import ReadOnlyGuard  # noqa: E402
+
 _guard = ReadOnlyGuard()
+
+
+# --- MCP Tools ----------------------------------------------------------------
 
 
 @mcp.tool()
@@ -55,16 +63,25 @@ def run_sql(query: str) -> str:
 @mcp.tool()
 def list_tables() -> str:
     """List all user tables in the NBA database."""
-    ctx = SchemaContext(DUCKDB_PATH)
-    return json.dumps(ctx.get_tables())
+    with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT table_name FROM information_schema.columns "
+            "WHERE table_schema = 'main' ORDER BY table_name"
+        ).fetchall()
+    return json.dumps([r[0] for r in rows])
 
 
 @mcp.tool()
 def describe_table(table_name: str) -> str:
     """Get column names and types for a specific table."""
-    ctx = SchemaContext(DUCKDB_PATH)
-    cols = ctx.get_columns(table_name)
-    return json.dumps([{"name": name, "type": dtype} for name, dtype in cols])
+    with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
+        rows = conn.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_schema = 'main' AND table_name = ? "
+            "ORDER BY ordinal_position",
+            [table_name],
+        ).fetchall()
+    return json.dumps([{"name": name, "type": dtype} for name, dtype in rows])
 
 
 if __name__ == "__main__":
