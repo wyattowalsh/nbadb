@@ -1,4 +1,5 @@
 """Shared utilities for nbadb companion notebooks."""
+
 from __future__ import annotations
 
 import atexit
@@ -85,9 +86,7 @@ def get_connection(read_only: bool = True) -> duckdb.DuckDBPyConnection:
     """
     db_path = next((p for p in DB_PATHS if p.exists()), None)
     if db_path is None:
-        raise FileNotFoundError(
-            f"NBA database not found. Searched: {[str(p) for p in DB_PATHS]}"
-        )
+        raise FileNotFoundError(f"NBA database not found. Searched: {[str(p) for p in DB_PATHS]}")
     conn = duckdb.connect(str(db_path), read_only=read_only)
     atexit.register(conn.close)
     print(f"Connected to {db_path}")
@@ -112,9 +111,7 @@ def takeaway(text: str) -> None:
 # ---------------------------------------------------------------------------
 # Court drawing — Plotly
 # ---------------------------------------------------------------------------
-def draw_court_plotly(
-    line_color: str = "#999999", line_width: int = 1
-) -> list[dict]:
+def draw_court_plotly(line_color: str = "#999999", line_width: int = 1) -> list[dict]:
     """Return Plotly shape dicts for an NBA half-court.
 
     Coordinate system: basket at (0, 0), court extends to y=422.5.
@@ -147,22 +144,14 @@ def draw_court_plotly(
     shapes.append(dict(type="path", path=path_ra, **common))
 
     # Corner three lines
-    shapes.append(
-        dict(type="line", x0=-220, y0=-47.5, x1=-220, y1=92.5, **common)
-    )
-    shapes.append(
-        dict(type="line", x0=220, y0=-47.5, x1=220, y1=92.5, **common)
-    )
+    shapes.append(dict(type="line", x0=-220, y0=-47.5, x1=-220, y1=92.5, **common))
+    shapes.append(dict(type="line", x0=220, y0=-47.5, x1=220, y1=92.5, **common))
 
     # Three-point arc (SVG path — radius 237.5)
-    three_arc_angle = np.linspace(
-        np.arccos(220 / 237.5), np.pi - np.arccos(220 / 237.5), 100
-    )
+    three_arc_angle = np.linspace(np.arccos(220 / 237.5), np.pi - np.arccos(220 / 237.5), 100)
     arc_x = 237.5 * np.cos(three_arc_angle)
     arc_y = 237.5 * np.sin(three_arc_angle)
-    path_3pt = "M " + " L ".join(
-        f"{x:.1f},{y:.1f}" for x, y in zip(arc_x, arc_y, strict=True)
-    )
+    path_3pt = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in zip(arc_x, arc_y, strict=True))
     shapes.append(dict(type="path", path=path_3pt, **common))
 
     return shapes
@@ -274,12 +263,8 @@ def draw_court_matplotlib(ax, line_color: str = "black", line_width: int = 1):
     ax.add_patch(three_arc)
 
     # Corner three lines
-    ax.plot(
-        [-220, -220], [-47.5, 92.5], color=line_color, linewidth=line_width, zorder=5
-    )
-    ax.plot(
-        [220, 220], [-47.5, 92.5], color=line_color, linewidth=line_width, zorder=5
-    )
+    ax.plot([-220, -220], [-47.5, 92.5], color=line_color, linewidth=line_width, zorder=5)
+    ax.plot([220, 220], [-47.5, 92.5], color=line_color, linewidth=line_width, zorder=5)
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +305,11 @@ NOTEBOOK_INDEX = [
         "nba_play_by_play_insights",
         "Play-by-Play: Win Probability, Runs & Clutch",
     ),
+    (
+        "Part 11",
+        "nba_chat_with_data",
+        "Chat with Data: AI-Powered NBA Analytics (Chainlit)",
+    ),
 ]
 
 
@@ -330,6 +320,4 @@ def render_cross_links(current: str) -> str:
         for part, nb, desc in NOTEBOOK_INDEX
         if nb != current
     )
-    return (
-        f"| Part | Notebook | Description |\n|---|---|---|\n{rows}"
-    )
+    return f"| Part | Notebook | Description |\n|---|---|---|\n{rows}"
