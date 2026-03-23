@@ -10,10 +10,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import os
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -81,8 +77,9 @@ def _build_tools(db_path: Path) -> list:
             with contextlib.suppress(duckdb.CatalogException):
                 conn.execute("SET statement_timeout = '30s'")
 
-            result = conn.execute(safe_query).fetchall()
-            columns = [desc[0] for desc in conn.description]
+            cursor = conn.execute(safe_query)
+            columns = [desc[0] for desc in cursor.description]
+            result = cursor.fetchall()
 
         return json.dumps(
             {
@@ -146,6 +143,7 @@ def _build_tools(db_path: Path) -> list:
         )
 
     from server._preamble import build_preamble
+    from server._sandbox_exec import check_code_safety, run_sandboxed
 
     preamble = build_preamble(
         db_path=str(db_path),
@@ -158,106 +156,17 @@ def _build_tools(db_path: Path) -> list:
         ),
     )
     def run_python(params: RunPythonParams) -> str:
-        # Check for dangerous patterns
-        _blocked = [
-            "subprocess",
-            "os.system",
-            "os.popen",
-            "os.exec",
-            "__import__('os')",
-            "importlib",
-            "shutil.rmtree",
-            "open('/etc",
-            "open('/proc",
-            "open('/sys",
-        ]
-        for pattern in _blocked:
-            if pattern in params.code:
-                return json.dumps({"error": f"Blocked: dangerous pattern '{pattern}'"})
+        safety_error = check_code_safety(params.code)
+        if safety_error:
+            return json.dumps({"error": safety_error})
 
         full_code = preamble + "\n" + params.code
-        script_path = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                suffix=".py",
-                mode="w",
-                delete=False,
-            ) as f:
-                f.write(full_code)
-                script_path = f.name
+        result = run_sandboxed(full_code, cwd=db_path.parent)
 
-            # Scrub sensitive environment variables from sandbox
-            clean_env = {
-                k: v
-                for k, v in os.environ.items()
-                if not any(
-                    s in k.upper()
-                    for s in (
-                        "API_KEY",
-                        "SECRET",
-                        "TOKEN",
-                        "PASSWORD",
-                        "LANGCHAIN_API",
-                        "LANGFUSE",
-                        "COPILOT",
-                    )
-                )
-            }
+        if "_raw" in result:
+            return result["_raw"]
 
-            result = subprocess.run(
-                [sys.executable, script_path],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=str(db_path.parent),
-                env=clean_env,
-                start_new_session=True,
-            )
-
-            stdout = result.stdout.strip()
-            stderr = result.stderr.strip()
-
-            if result.returncode != 0:
-                return json.dumps(
-                    {
-                        "error": stderr or "Script failed",
-                        "stdout": stdout,
-                    }
-                )
-
-            if stdout:
-                last_line = stdout.rstrip().rsplit("\n", 1)[-1]
-                try:
-                    parsed = json.loads(last_line)
-                    if isinstance(parsed, dict):
-                        # Matplotlib base64 PNG
-                        if "image_base64" in parsed and "format" in parsed:
-                            return last_line  # Return raw for Chainlit rendering
-                        if "data" in parsed and "layout" in parsed:
-                            return last_line
-                        if "columns" in parsed and "data" in parsed:
-                            return json.dumps(
-                                {
-                                    "columns": parsed["columns"],
-                                    "rows": parsed["data"],
-                                    "row_count": len(parsed["data"]),
-                                }
-                            )
-                except (json.JSONDecodeError, KeyError):
-                    pass
-
-            return json.dumps({"stdout": stdout, "stderr": stderr})
-
-        except subprocess.TimeoutExpired:
-            return json.dumps(
-                {
-                    "error": "Script timed out after 60 seconds",
-                }
-            )
-        finally:
-            if script_path:
-                with contextlib.suppress(OSError):
-                    os.unlink(script_path)
+        return json.dumps(result)
 
     return [run_sql, list_tables, describe_table, run_python]
 

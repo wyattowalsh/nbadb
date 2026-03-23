@@ -20,6 +20,9 @@ def setup_tracing(settings: ChatSettings) -> list[Any]:
     """
     match settings.tracing_provider:
         case "none":
+            # Ensure LangSmith env vars are cleared if previously set
+            os.environ.pop("LANGCHAIN_TRACING_V2", None)
+            os.environ.pop("LANGCHAIN_PROJECT", None)
             return []
 
         case "langsmith":
@@ -31,7 +34,7 @@ def setup_tracing(settings: ChatSettings) -> list[Any]:
                     "tracing_provider=langsmith but LANGCHAIN_API_KEY "
                     "is not set — traces will not be sent"
                 )
-            os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+            os.environ["LANGCHAIN_TRACING_V2"] = "true"
             os.environ.setdefault("LANGCHAIN_PROJECT", "nbadb-chat")
             return []
 
@@ -78,4 +81,6 @@ def setup_tracing(settings: ChatSettings) -> list[Any]:
             ]
 
         case _:
+            os.environ.pop("LANGCHAIN_TRACING_V2", None)
+            os.environ.pop("LANGCHAIN_PROJECT", None)
             return []

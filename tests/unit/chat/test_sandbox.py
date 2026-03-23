@@ -16,6 +16,9 @@ import pytest
 SANDBOX_MODULE = (
     Path(__file__).resolve().parents[3] / "apps" / "chat" / "mcp_servers" / "sandbox.py"
 )
+SANDBOX_EXEC_MODULE = (
+    Path(__file__).resolve().parents[3] / "apps" / "chat" / "server" / "_sandbox_exec.py"
+)
 PREAMBLE_MODULE = Path(__file__).resolve().parents[3] / "apps" / "chat" / "server" / "_preamble.py"
 
 
@@ -24,11 +27,24 @@ def test_sandbox_module_exists():
     assert SANDBOX_MODULE.exists()
 
 
+def test_sandbox_exec_module_exists():
+    """The shared sandbox execution module exists."""
+    assert SANDBOX_EXEC_MODULE.exists()
+
+
 def test_sandbox_has_run_python_tool():
     """The sandbox module defines a run_python function."""
     content = SANDBOX_MODULE.read_text()
     assert "def run_python" in content
     assert "@mcp.tool()" in content
+
+
+def test_sandbox_imports_shared_module():
+    """The sandbox module imports from the shared _sandbox_exec module."""
+    content = SANDBOX_MODULE.read_text()
+    assert "from _sandbox_exec import" in content
+    assert "check_code_safety" in content
+    assert "run_sandboxed" in content
 
 
 def test_sandbox_preamble_has_imports():
@@ -54,30 +70,45 @@ def test_sandbox_preamble_has_metric_calculator():
     assert "import metric_calculator as mc" in content
 
 
-def test_sandbox_has_timeout():
-    """The sandbox enforces a timeout on script execution."""
-    content = SANDBOX_MODULE.read_text()
+def test_sandbox_preamble_uses_safe_interpolation():
+    """The preamble uses repr() instead of str.format() to avoid injection."""
+    content = PREAMBLE_MODULE.read_text()
+    # The actual interpolation must use repr(), not .format(db_path=...)
+    assert ".format(db_path=" not in content
+    assert "repr(db_path)" in content
+    assert "repr(skills_dir)" in content
+
+
+def test_sandbox_exec_has_timeout():
+    """The shared execution module enforces a timeout."""
+    content = SANDBOX_EXEC_MODULE.read_text()
     assert "timeout=" in content
     assert "TimeoutExpired" in content
 
 
-def test_sandbox_detects_plotly_output():
-    """The sandbox detects plotly JSON in stdout."""
-    content = SANDBOX_MODULE.read_text()
+def test_sandbox_exec_detects_plotly_output():
+    """The shared module detects plotly JSON in stdout."""
+    content = SANDBOX_EXEC_MODULE.read_text()
     assert '"data" in parsed and "layout" in parsed' in content
 
 
-def test_sandbox_detects_dataframe_output():
-    """The sandbox detects DataFrame JSON (split orient) in stdout."""
-    content = SANDBOX_MODULE.read_text()
+def test_sandbox_exec_detects_dataframe_output():
+    """The shared module detects DataFrame JSON (split orient) in stdout."""
+    content = SANDBOX_EXEC_MODULE.read_text()
     assert '"columns" in parsed and "data" in parsed' in content
 
 
-def test_sandbox_cleans_up_temp_files():
-    """The sandbox removes temp script files after execution."""
-    content = SANDBOX_MODULE.read_text()
+def test_sandbox_exec_cleans_up_temp_files():
+    """The shared module removes temp script files after execution."""
+    content = SANDBOX_EXEC_MODULE.read_text()
     assert "os.unlink(script_path)" in content
     assert "contextlib.suppress(OSError)" in content
+
+
+def test_sandbox_exec_restricts_file_permissions():
+    """The shared module sets temp file permissions to 0o600."""
+    content = SANDBOX_EXEC_MODULE.read_text()
+    assert "os.chmod(script_path, 0o600)" in content
 
 
 class TestSandboxExecution:
@@ -171,66 +202,121 @@ class TestSandboxExecution:
         assert "data" in parsed
         assert "layout" in parsed
 
-    def test_blocked_code_returns_error(self):
-        """Code with blocked patterns should return an error without executing."""
-        # We can't import the MCP module, but we can test the pattern
-        content = SANDBOX_MODULE.read_text()
-        # Verify the check happens before subprocess.run
-        check_pos = content.find("_check_code_safety")
-        subprocess_pos = content.find("subprocess.run")
-        # The safety check should appear before subprocess execution
-        # (first occurrence after run_python definition)
-        assert check_pos < subprocess_pos
 
+class TestASTCodeSafety:
+    """Test the AST-based code safety checker in _sandbox_exec.py."""
 
-class TestCodeSafety:
-    """Test the sandbox code blocklist."""
+    @pytest.fixture(autouse=True)
+    def _load_checker(self):
+        """Import check_code_safety from the shared module."""
+        import importlib.util
 
-    def test_sandbox_has_code_safety_check(self):
-        """The sandbox module has a _check_code_safety function."""
-        content = SANDBOX_MODULE.read_text()
-        assert "_check_code_safety" in content
-        assert "_BLOCKED_PATTERNS" in content
+        spec = importlib.util.spec_from_file_location("_sandbox_exec", SANDBOX_EXEC_MODULE)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.check = mod.check_code_safety
 
-    def test_blocks_subprocess(self):
-        content = SANDBOX_MODULE.read_text()
-        assert '"subprocess"' in content or "'subprocess'" in content
+    def test_blocks_subprocess_import(self):
+        assert self.check("import subprocess") is not None
 
-    def test_blocks_os_system(self):
-        content = SANDBOX_MODULE.read_text()
-        assert "os.system" in content
+    def test_blocks_os_import(self):
+        assert self.check("import os") is not None
+
+    def test_blocks_os_submodule(self):
+        assert self.check("from os import path") is not None
+
+    def test_blocks_shutil_import(self):
+        assert self.check("import shutil") is not None
 
     def test_blocks_importlib(self):
-        content = SANDBOX_MODULE.read_text()
-        assert "importlib" in content
+        assert self.check("import importlib") is not None
 
-    def test_blocks_shutil_rmtree(self):
-        content = SANDBOX_MODULE.read_text()
-        assert "shutil.rmtree" in content
+    def test_blocks_exec_call(self):
+        assert self.check('exec("print(1)")') is not None
+
+    def test_blocks_eval_call(self):
+        assert self.check('eval("1+1")') is not None
+
+    def test_blocks_open_call(self):
+        assert self.check('open("/etc/passwd")') is not None
+
+    def test_blocks_dunder_import(self):
+        assert self.check('__import__("subprocess")') is not None
+
+    def test_blocks_getattr_call(self):
+        assert self.check('getattr(obj, "system")') is not None
+
+    def test_blocks_builtins_import(self):
+        assert self.check("import builtins") is not None
+
+    def test_allows_pandas(self):
+        assert self.check("import pandas as pd") is None
+
+    def test_allows_numpy(self):
+        assert self.check("import numpy as np") is None
+
+    def test_allows_plotly(self):
+        assert self.check("import plotly.express as px") is None
+
+    def test_allows_duckdb(self):
+        assert self.check("import duckdb") is None
+
+    def test_allows_print(self):
+        assert self.check('print("hello")') is None
+
+    def test_allows_json(self):
+        assert self.check("import json; json.dumps({})") is None
+
+    def test_allows_scipy(self):
+        assert self.check("import scipy.stats as stats") is None
+
+    def test_allows_matplotlib(self):
+        assert self.check("import matplotlib.pyplot as plt") is None
+
+    def test_blocks_exec_string_concat_bypass(self):
+        """exec() with string concatenation to bypass old blocklist."""
+        assert self.check('exec("import subp" + "rocess")') is not None
+
+    def test_blocks_double_quote_import(self):
+        """__import__ with double quotes (old blocklist only caught single quotes)."""
+        assert self.check('__import__("subprocess")') is not None
+
+    def test_reports_syntax_error(self):
+        result = self.check("def oops(")
+        assert result is not None
+        assert "Syntax error" in result
+
+    def test_allows_basic_computation(self):
+        code = "x = [1, 2, 3]\ny = sum(x)\nprint(y)"
+        assert self.check(code) is None
+
+    def test_allows_query_helper(self):
+        """query() is a preamble-defined helper, should be allowed."""
+        assert self.check('df = query("SELECT 1")') is None
 
 
 class TestEnvScrubbing:
-    """Test that sandbox scrubs sensitive env vars."""
+    """Test that the shared module scrubs sensitive env vars."""
 
-    def test_sandbox_scrubs_env_vars(self):
-        """The sandbox filters sensitive env vars from subprocess."""
-        content = SANDBOX_MODULE.read_text()
-        assert "clean_env" in content
+    def test_shared_module_scrubs_env_vars(self):
+        """The shared execution module filters sensitive env vars."""
+        content = SANDBOX_EXEC_MODULE.read_text()
+        assert "build_clean_env" in content
         assert "API_KEY" in content
         assert "SECRET" in content
         assert "TOKEN" in content
         assert "PASSWORD" in content
 
-    def test_sandbox_uses_clean_env(self):
-        """subprocess.run is called with env=clean_env."""
+    def test_sandbox_uses_shared_scrubbing(self):
+        """sandbox.py delegates to the shared module for execution."""
         content = SANDBOX_MODULE.read_text()
-        assert "env=clean_env" in content
+        assert "run_sandboxed" in content
 
 
 class TestProcessIsolation:
-    """Test that sandbox uses process group isolation."""
+    """Test that the shared module uses process group isolation."""
 
-    def test_sandbox_uses_new_session(self):
-        """subprocess.run uses start_new_session=True."""
-        content = SANDBOX_MODULE.read_text()
+    def test_shared_module_uses_new_session(self):
+        """The shared module uses start_new_session=True."""
+        content = SANDBOX_EXEC_MODULE.read_text()
         assert "start_new_session=True" in content

@@ -63,25 +63,31 @@ def run_sql(query: str) -> str:
 @mcp.tool()
 def list_tables() -> str:
     """List all user tables in the NBA database."""
-    with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT table_name FROM information_schema.columns "
-            "WHERE table_schema = 'main' ORDER BY table_name"
-        ).fetchall()
-    return json.dumps([r[0] for r in rows])
+    try:
+        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT table_name FROM information_schema.columns "
+                "WHERE table_schema = 'main' ORDER BY table_name"
+            ).fetchall()
+        return json.dumps([r[0] for r in rows])
+    except duckdb.Error as exc:
+        return json.dumps({"error": f"Failed to list tables: {type(exc).__name__}"})
 
 
 @mcp.tool()
 def describe_table(table_name: str) -> str:
     """Get column names and types for a specific table."""
-    with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-        rows = conn.execute(
-            "SELECT column_name, data_type FROM information_schema.columns "
-            "WHERE table_schema = 'main' AND table_name = ? "
-            "ORDER BY ordinal_position",
-            [table_name],
-        ).fetchall()
-    return json.dumps([{"name": name, "type": dtype} for name, dtype in rows])
+    try:
+        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
+            rows = conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = 'main' AND table_name = ? "
+                "ORDER BY ordinal_position",
+                [table_name],
+            ).fetchall()
+        return json.dumps([{"name": name, "type": dtype} for name, dtype in rows])
+    except duckdb.Error as exc:
+        return json.dumps({"error": f"Failed to describe table: {type(exc).__name__}"})
 
 
 if __name__ == "__main__":

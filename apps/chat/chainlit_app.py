@@ -103,13 +103,6 @@ _VISUALIZATION_STARTERS = [
     ),
 ]
 
-_PROFILE_STARTERS = {
-    "Quick Stats": _QUICK_STATS_STARTERS,
-    "Deep Analysis": _DEEP_ANALYSIS_STARTERS,
-    "Visualization": _VISUALIZATION_STARTERS,
-}
-
-
 # -- Chat profiles -------------------------------------------------------------
 
 
@@ -270,14 +263,23 @@ async def on_settings_update(settings_dict: dict) -> None:
     if current is None:
         current = ChatSettings()
 
-    # Update settings from the UI
+    # Update settings from the UI — handle api_key separately (HR-5)
     updates = {
         k: v
         for k, v in settings_dict.items()
-        if k in ("provider", "api_key", "base_url", "model", "temperature") and v is not None
+        if k in ("provider", "base_url", "model", "temperature") and v is not None
     }
+    # Only update api_key if the user actually entered a value
+    if settings_dict.get("api_key"):
+        updates["api_key"] = settings_dict["api_key"]
+
     if updates:
         current = current.model_copy(update=updates)
+
+    # Clean up old agent before creating a new one (HR-3)
+    old_agent = cl.user_session.get("agent")
+    if old_agent is not None and hasattr(old_agent, "cleanup"):
+        await old_agent.cleanup()
 
     agent = await create_nba_agent(current)
     callbacks = setup_tracing(current)
@@ -312,25 +314,34 @@ async def on_message(msg: cl.Message) -> None:
     response = cl.Message(content="")
     await response.send()
 
-    async for event in agent.astream(
-        {"messages": [HumanMessage(content=msg.content)]},
-        stream_mode="messages",
-        config=config,
-    ):
-        # astream with stream_mode="messages" yields (message, metadata) tuples
-        message, _metadata = event
+    try:
+        async for event in agent.astream(
+            {"messages": [HumanMessage(content=msg.content)]},
+            stream_mode="messages",
+            config=config,
+        ):
+            # Guard against non-tuple events from LangGraph state updates
+            if not isinstance(event, tuple) or len(event) != 2:
+                continue
 
-        if isinstance(message, AIMessage) and message.content:
-            if isinstance(message.content, str):
-                await response.stream_token(message.content)
+            message, _metadata = event
 
-        elif isinstance(message, ToolMessage):
-            tool_name = message.name or "tool"
-            async with cl.Step(name=tool_name, type="tool") as tool_step:
-                tool_step.input = _metadata.get("input", "") if isinstance(_metadata, dict) else ""
-                await _render_tool_result(message, tool_step)
+            if isinstance(message, AIMessage) and message.content:
+                if isinstance(message.content, str):
+                    await response.stream_token(message.content)
 
-    await response.update()
+            elif isinstance(message, ToolMessage):
+                tool_name = message.name or "tool"
+                async with cl.Step(name=tool_name, type="tool") as tool_step:
+                    tool_step.input = (
+                        _metadata.get("input", "") if isinstance(_metadata, dict) else ""
+                    )
+                    await _render_tool_result(message, tool_step)
+    except Exception as exc:
+        logger.exception("Agent streaming error")
+        response.content = f"**Error:** {exc}"
+    finally:
+        await response.update()
 
 
 # -- Tool result rendering ------------------------------------------------------
@@ -349,8 +360,12 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         step.output = content
         return
 
-    # Handle SQL query results
-    if isinstance(data, dict) and "columns" in data and "rows" in data:
+    if not isinstance(data, dict):
+        step.output = json.dumps(data, indent=2, default=str)
+        return
+
+    # SQL query results
+    if "columns" in data and "rows" in data:
         df = pd.DataFrame(data["rows"], columns=data["columns"])
         step.elements = [cl.Dataframe(name="query_result", data=df, display="inline")]
         sql = data.get("sql", "")
@@ -388,8 +403,8 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
             )
         return
 
-    # Handle error responses
-    if isinstance(data, dict) and "error" in data:
+    # Error responses
+    if "error" in data:
         error_msg = data["error"]
         stdout = data.get("stdout", "")
         output = f"**Error:** {error_msg}"
@@ -398,8 +413,8 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         step.output = output
         return
 
-    # Handle matplotlib base64 PNG images
-    if isinstance(data, dict) and "image_base64" in data:
+    # Matplotlib base64 PNG images
+    if "image_base64" in data:
         import base64
 
         img_bytes = base64.b64decode(data["image_base64"])
@@ -407,8 +422,8 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         step.output = "Chart"
         return
 
-    # Check if content looks like Plotly JSON (has "data" and "layout" keys)
-    if isinstance(data, dict) and "data" in data and "layout" in data:
+    # Plotly JSON (has "data" and "layout" keys)
+    if "data" in data and "layout" in data:
         import plotly.io as pio
 
         fig = pio.from_json(json.dumps(data))
@@ -416,8 +431,8 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         step.output = "Chart"
         return
 
-    # Handle sandbox stdout output
-    if isinstance(data, dict) and "stdout" in data:
+    # Sandbox stdout output
+    if "stdout" in data:
         stdout = data["stdout"]
         stderr = data.get("stderr", "")
         step.output = f"```\n{stdout}\n```" if stdout else ""

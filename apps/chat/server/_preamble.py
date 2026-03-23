@@ -16,15 +16,13 @@ import matplotlib.pyplot as plt
 import io as _io
 import base64 as _b64
 
-_original_show = plt.show
-
 def _patched_show(*args, **kwargs):
     buf = _io.BytesIO()
     plt.savefig(buf, format="png", dpi=120, bbox_inches="tight",
                 facecolor="#141a2e", edgecolor="none")
     buf.seek(0)
     img_b64 = _b64.b64encode(buf.read()).decode()
-    print(json.dumps({{"image_base64": img_b64, "format": "png"}}))
+    print(json.dumps({"image_base64": img_b64, "format": "png"}))
     plt.close("all")
 
 plt.show = _patched_show
@@ -41,10 +39,10 @@ except ImportError:
     pass
 
 # Read-only database connection
-conn = duckdb.connect("{db_path}", read_only=True)
+conn = duckdb.connect(__DB_PATH__, read_only=True)
 
 # NBA metric calculator and skill scripts
-sys.path.insert(0, "{skills_dir}")
+sys.path.insert(0, __SKILLS_DIR__)
 try:
     import metric_calculator as mc
     import team_colors
@@ -76,5 +74,11 @@ def show(data):
 
 
 def build_preamble(db_path: str, skills_dir: str) -> str:
-    """Build the Python sandbox preamble with the given DB path and skills dir."""
-    return _PREAMBLE_TEMPLATE.format(db_path=db_path, skills_dir=skills_dir)
+    """Build the Python sandbox preamble with the given DB path and skills dir.
+
+    Uses explicit string replacement instead of str.format() to avoid
+    injection if db_path or skills_dir contain curly braces.
+    """
+    return _PREAMBLE_TEMPLATE.replace("__DB_PATH__", repr(db_path)).replace(
+        "__SKILLS_DIR__", repr(skills_dir)
+    )
