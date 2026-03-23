@@ -158,6 +158,15 @@ async def on_copy_sql(action: cl.Action) -> None:
     await action.remove()
 
 
+@cl.action_callback("copy_code")
+async def on_copy_code(action: cl.Action) -> None:
+    """Show the code (SQL or Python) used in a step for easy copying."""
+    code = action.payload.get("code", "")
+    lang = action.payload.get("lang", "python")
+    await cl.Message(content=f"```{lang}\n{code}\n```").send()
+    await action.remove()
+
+
 @cl.action_callback("download_csv")
 async def on_download_csv(action: cl.Action) -> None:
     """Generate and send a CSV file from query results."""
@@ -170,6 +179,33 @@ async def on_download_csv(action: cl.Action) -> None:
     await action.remove()
 
 
+@cl.action_callback("download_xlsx")
+async def on_download_xlsx(action: cl.Action) -> None:
+    """Generate and send an XLSX file from query results."""
+    import io
+
+    raw = action.payload.get("data", "{}")
+    data = json.loads(raw) if isinstance(raw, str) else raw
+    df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
+    buf = io.BytesIO()
+    df.to_excel(buf, index=False, engine="openpyxl")
+    elements = [cl.File(name="query_result.xlsx", content=buf.getvalue(), display="inline")]
+    await cl.Message(content="", elements=elements).send()
+    await action.remove()
+
+
+@cl.action_callback("download_json")
+async def on_download_json(action: cl.Action) -> None:
+    """Generate and send a JSON file from query results."""
+    raw = action.payload.get("data", "{}")
+    data = json.loads(raw) if isinstance(raw, str) else raw
+    df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
+    json_bytes = df.to_json(orient="records", indent=2).encode()
+    elements = [cl.File(name="query_result.json", content=json_bytes, display="inline")]
+    await cl.Message(content="", elements=elements).send()
+    await action.remove()
+
+
 @cl.action_callback("refine_query")
 async def on_refine_query(action: cl.Action) -> None:
     """Prompt the user to refine their last query."""
@@ -177,6 +213,45 @@ async def on_refine_query(action: cl.Action) -> None:
     await cl.Message(
         content=f"What would you like to change about this query?\n```sql\n{sql}\n```",
     ).send()
+
+
+@cl.action_callback("export_session_code")
+async def on_export_session_code(action: cl.Action) -> None:
+    """Export all code from the session as a Python script."""
+    code_log: list[dict] = cl.user_session.get("code_log") or []
+    if not code_log:
+        await cl.Message(content="No code has been executed in this session yet.").send()
+        return
+
+    lines = [
+        '"""NBA Data Analytics — exported session code."""\n',
+        "import pandas as pd",
+        "import numpy as np",
+        "import duckdb",
+        "import plotly.express as px",
+        "import plotly.graph_objects as go",
+        "",
+        "# Connect to database (update path as needed)",
+        'conn = duckdb.connect("~/.nbadb/data/nba.duckdb", read_only=True)',
+        "",
+        "def query(sql: str) -> pd.DataFrame:",
+        '    """Run SQL and return a DataFrame."""',
+        "    return conn.execute(sql).fetchdf()",
+        "",
+    ]
+
+    for i, entry in enumerate(code_log, 1):
+        lines.append(f"# --- Step {i}: {entry['tool']} ---")
+        if entry["lang"] == "sql":
+            lines.append(f'df_{i} = query("""{entry["code"]}""")')
+            lines.append(f"print(df_{i})")
+        else:
+            lines.append(entry["code"])
+        lines.append("")
+
+    script = "\n".join(lines)
+    elements = [cl.File(name="session_code.py", content=script.encode(), display="inline")]
+    await cl.Message(content="Exported session code:", elements=elements).send()
 
 
 # -- Lifecycle hooks ------------------------------------------------------------
@@ -208,6 +283,7 @@ async def on_chat_start() -> None:
     cl.user_session.set("settings", settings)
     cl.user_session.set("callbacks", callbacks)
     cl.user_session.set("chat_profile_name", profile)
+    cl.user_session.set("code_log", [])  # Track code for session export
 
     # Present settings panel via gear icon
     await cl.ChatSettings(
@@ -364,6 +440,10 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         step.output = json.dumps(data, indent=2, default=str)
         return
 
+    # Extract code from step input for Copy Code / session tracking
+    step_input = step.input or ""
+    tool_name = message.name or "tool"
+
     # SQL query results
     if "columns" in data and "rows" in data:
         df = pd.DataFrame(data["rows"], columns=data["columns"])
@@ -374,33 +454,29 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
             caption += f"\n```sql\n{sql}\n```"
         step.output = caption
 
-        # Action buttons for SQL results
-        payload_rows = data["rows"][:100]  # Cap payload size
+        # Data payload for export buttons (capped at 100 rows)
+        payload_rows = data["rows"][:100]
+        data_payload = json.dumps({"columns": data["columns"], "rows": payload_rows}, default=str)
+
         step.actions = [
-            cl.Action(
-                name="copy_sql",
-                label="Copy SQL",
-                payload={"sql": sql},
-            ),
-            cl.Action(
-                name="download_csv",
-                label="Download CSV",
-                payload={
-                    "data": json.dumps(
-                        {"columns": data["columns"], "rows": payload_rows},
-                        default=str,
-                    )
-                },
-            ),
+            cl.Action(name="copy_sql", label="Copy SQL", payload={"sql": sql}),
+            cl.Action(name="download_csv", label="CSV", payload={"data": data_payload}),
+            cl.Action(name="download_xlsx", label="XLSX", payload={"data": data_payload}),
+            cl.Action(name="download_json", label="JSON", payload={"data": data_payload}),
         ]
         if sql:
             step.actions.append(
+                cl.Action(name="refine_query", label="Refine", payload={"sql": sql}),
+            )
+            step.actions.append(
                 cl.Action(
-                    name="refine_query",
-                    label="Refine",
-                    payload={"sql": sql},
+                    name="export_session_code",
+                    label="Export All Code",
+                    payload={},
                 ),
             )
+            # Track SQL in session code log
+            _track_code(sql, tool="run_sql", lang="sql")
         return
 
     # Error responses
@@ -413,6 +489,17 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         step.output = output
         return
 
+    # File export from sandbox helpers (to_csv, to_xlsx, to_json)
+    if "export_file" in data and "content" in data:
+        import base64 as _b64
+
+        file_bytes = _b64.b64decode(data["content"])
+        step.elements = [cl.File(name=data["export_file"], content=file_bytes, display="inline")]
+        step.output = f"Exported: **{data['export_file']}**"
+        if step_input:
+            _add_code_actions(step, step_input, tool_name)
+        return
+
     # Matplotlib base64 PNG images
     if "image_base64" in data:
         import base64
@@ -420,6 +507,9 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         img_bytes = base64.b64decode(data["image_base64"])
         step.elements = [cl.Image(name="chart", content=img_bytes, display="inline")]
         step.output = "Chart"
+        # Add copy code for the Python that generated the chart
+        if step_input:
+            _add_code_actions(step, step_input, tool_name)
         return
 
     # Plotly JSON (has "data" and "layout" keys)
@@ -429,6 +519,8 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         fig = pio.from_json(json.dumps(data))
         step.elements = [cl.Plotly(name="chart", figure=fig, display="inline")]
         step.output = "Chart"
+        if step_input:
+            _add_code_actions(step, step_input, tool_name)
         return
 
     # Sandbox stdout output
@@ -438,7 +530,38 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         step.output = f"```\n{stdout}\n```" if stdout else ""
         if stderr:
             step.output += f"\n**stderr:**\n```\n{stderr}\n```"
+        if step_input:
+            _add_code_actions(step, step_input, tool_name)
         return
 
     # Fallback: show as formatted JSON
     step.output = json.dumps(data, indent=2, default=str)
+
+
+def _add_code_actions(step: cl.Step, code: str, tool_name: str) -> None:
+    """Add Copy Code + Export Session actions to a step."""
+    lang = "sql" if tool_name in ("run_sql", "list_tables", "describe_table") else "python"
+    actions = step.actions or []
+    actions.extend(
+        [
+            cl.Action(
+                name="copy_code",
+                label="Copy Code",
+                payload={"code": code, "lang": lang},
+            ),
+            cl.Action(
+                name="export_session_code",
+                label="Export All Code",
+                payload={},
+            ),
+        ]
+    )
+    step.actions = actions
+    _track_code(code, tool=tool_name, lang=lang)
+
+
+def _track_code(code: str, tool: str, lang: str) -> None:
+    """Append code to the session-level code log for export."""
+    code_log: list[dict] = cl.user_session.get("code_log") or []
+    code_log.append({"code": code, "tool": tool, "lang": lang})
+    cl.user_session.set("code_log", code_log)

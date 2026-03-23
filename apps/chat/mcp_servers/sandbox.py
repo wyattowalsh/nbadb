@@ -36,6 +36,10 @@ def run_python(code: str) -> str:
     - `chart(fig)` — output a Plotly figure for display
     - `table(df)` — output a DataFrame for display
     - `show(data)` — auto-detect: Plotly figure → chart(), DataFrame → table(), else print()
+    - `to_csv(df, name)` — export DataFrame as downloadable CSV file
+    - `to_xlsx(df, name)` — export DataFrame as downloadable XLSX file
+    - `to_json(df, name)` — export DataFrame as downloadable JSON file
+    - `export(df, name, fmt)` — export in any format ("csv", "xlsx", "json")
     - `mc` — metric_calculator module (mc.true_shooting_pct, mc.usage_rate, etc.)
     """
     if not code or not code.strip():

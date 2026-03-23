@@ -28,6 +28,10 @@ for pre-joined data, fall back to fact_*/dim_* for specific needs.
   - `plt.show()` — display a matplotlib figure as an inline image
   - `table(df)` — display a DataFrame
   - `show(data)` — auto-detect and display
+  - `to_csv(df, name)` — export DataFrame as downloadable CSV file
+  - `to_xlsx(df, name)` — export DataFrame as downloadable XLSX file
+  - `to_json(df, name)` — export DataFrame as downloadable JSON file
+  - `export(df, name, fmt)` — export in any format ("csv", "xlsx", "json")
   - Libraries: pandas, numpy, plotly, matplotlib, scipy.stats
 - **`web_search`** / **`web_fetch`** — Current news, injury reports, trade rumors.
 

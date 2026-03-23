@@ -25,6 +25,7 @@ dependencies = [
     "trafilatura>=2.0",
     "httpx>=0.28",
     "duckdb>=1.4",
+    "openpyxl>=3.1",
     "loguru>=0.7",
     "kagglehub>=0.3",
 ]

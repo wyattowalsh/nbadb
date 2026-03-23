@@ -70,6 +70,31 @@ def show(data):
         table(data)
     else:
         print(data)
+
+# --- Export helpers -----------------------------------------------------------
+
+def to_csv(df, name="export"):
+    """Export DataFrame as CSV and output for download."""
+    csv_data = df.to_csv(index=False)
+    print(json.dumps({"export_file": name + ".csv", "format": "csv",
+                       "content": _b64.b64encode(csv_data.encode()).decode()}))
+
+def to_xlsx(df, name="export"):
+    """Export DataFrame as XLSX and output for download."""
+    buf = _io.BytesIO()
+    df.to_excel(buf, index=False, engine="openpyxl")
+    print(json.dumps({"export_file": name + ".xlsx", "format": "xlsx",
+                       "content": _b64.b64encode(buf.getvalue()).decode()}))
+
+def to_json(df, name="export"):
+    """Export DataFrame as JSON and output for download."""
+    json_data = df.to_json(orient="records", indent=2)
+    print(json.dumps({"export_file": name + ".json", "format": "json",
+                       "content": _b64.b64encode(json_data.encode()).decode()}))
+
+def export(df, name="export", fmt="csv"):
+    """Export DataFrame in any format. fmt: csv, xlsx, json."""
+    {"csv": to_csv, "xlsx": to_xlsx, "json": to_json}[fmt](df, name)
 '''
 
 
