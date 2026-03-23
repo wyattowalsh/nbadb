@@ -294,6 +294,53 @@ class TestASTCodeSafety:
         """query() is a preamble-defined helper, should be allowed."""
         assert self.check('df = query("SELECT 1")') is None
 
+    # --- Additional blocked modules (Wave 1 extensions) ---
+
+    def test_blocks_signal(self):
+        assert self.check("import signal") is not None
+
+    def test_blocks_multiprocessing(self):
+        assert self.check("import multiprocessing") is not None
+
+    def test_blocks_threading(self):
+        assert self.check("import threading") is not None
+
+    def test_blocks_ctypes(self):
+        assert self.check("import ctypes") is not None
+
+    def test_blocks_socket(self):
+        assert self.check("import socket") is not None
+
+    def test_blocks_http(self):
+        assert self.check("from http import client") is not None
+
+    def test_blocks_urllib(self):
+        assert self.check("import urllib.request") is not None
+
+    def test_allows_plotly_express(self):
+        assert self.check("import plotly.express as px") is None
+
+    def test_allows_plotly_go(self):
+        assert self.check("import plotly.graph_objects as go") is None
+
+    def test_blocks_compile_call(self):
+        assert self.check('compile("print(1)", "<>", "exec")') is not None
+
+    def test_blocks_breakpoint(self):
+        assert self.check("breakpoint()") is not None
+
+    def test_blocks_setattr(self):
+        assert self.check('setattr(obj, "attr", val)') is not None
+
+    def test_blocks_delattr(self):
+        assert self.check('delattr(obj, "attr")') is not None
+
+    def test_allows_list_comprehension(self):
+        assert self.check("[x*2 for x in range(10)]") is None
+
+    def test_allows_f_string(self):
+        assert self.check('name = "LeBron"; print(f"{name}")') is None
+
 
 class TestEnvScrubbing:
     """Test that the shared module scrubs sensitive env vars."""
