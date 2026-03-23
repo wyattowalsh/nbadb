@@ -537,9 +537,9 @@ class ExtractorRunner:
     def _is_retryable(exc: Exception) -> bool:
         """Return True if the exception is transient and worth retrying."""
         # Import-safe: check by name so we don't require requests at import time.
-        # KeyError / IndexError indicate structural response mismatches —
-        # not transient, so don't waste retries. Rate-limit errors surface
-        # as JSONDecodeError (HTML error pages) which IS retried above.
+        # KeyError can be transient (proxy returning garbage → nba_api can't
+        # find result set keys) or structural (endpoint lacks data).  Retrying
+        # is cheap since the circuit breaker caps repeated failures.
         return type(exc).__name__ in (
             "ReadTimeout",
             "ConnectTimeout",
@@ -550,6 +550,8 @@ class ExtractorRunner:
             "RemoteDisconnected",
             "ProxyError",
             "TypeError",
+            "KeyError",
+            "ArrowTypeError",
         )
 
     async def _run_with_journal(

@@ -526,14 +526,14 @@ class TestSyncExtractAll:
 class TestIsRetryable:
     @pytest.mark.parametrize(
         "exc_type",
-        [ConnectionError, ConnectionResetError, TypeError],
+        [ConnectionError, ConnectionResetError, TypeError, KeyError],
     )
     def test_retryable_exceptions(self, exc_type):
         assert ExtractorRunner._is_retryable(exc_type("msg")) is True
 
     @pytest.mark.parametrize(
         "exc_type",
-        [ValueError, KeyError, IndexError],
+        [ValueError, IndexError],
     )
     def test_non_retryable_exceptions(self, exc_type):
         assert ExtractorRunner._is_retryable(exc_type("msg")) is False

@@ -46,6 +46,22 @@ def _to_snake_case(name: str) -> str:
     return _CAMEL_RE.sub(r"\1_\2", name).lower()
 
 
+def _safe_from_pandas(pdf: Any) -> pl.DataFrame:
+    """Convert pandas DataFrame to Polars, handling mixed-type columns.
+
+    nba_api responses sometimes contain columns with mixed types (e.g.,
+    int and None/str) that crash Arrow conversion. Falls back to coercing
+    object-dtype columns to str.
+    """
+    try:
+        return pl.from_pandas(pdf, include_index=False)
+    except Exception:
+        for col in pdf.columns:
+            if pdf[col].dtype == object:
+                pdf[col] = pdf[col].astype(str)
+        return pl.from_pandas(pdf, include_index=False)
+
+
 class BaseExtractor(ABC):
     endpoint_name: ClassVar[str]
     category: ClassVar[str] = "default"
@@ -89,7 +105,7 @@ class BaseExtractor(ABC):
         if not dfs:
             logger.warning(f"{self.endpoint_name}: no data frames returned")
             return pl.DataFrame()
-        df = pl.from_pandas(dfs[0], include_index=False)
+        df = _safe_from_pandas(dfs[0])
         df = df.rename({c: _to_snake_case(c) for c in df.columns})
         if season_type and "season_type" not in df.columns:
             df = df.with_columns(pl.lit(season_type).alias("season_type"))
@@ -106,7 +122,7 @@ class BaseExtractor(ABC):
         dfs = result.get_data_frames()
         converted = []
         for pdf in dfs:
-            df = pl.from_pandas(pdf, include_index=False)
+            df = _safe_from_pandas(pdf)
             df = df.rename({c: _to_snake_case(c) for c in df.columns})
             if season_type and "season_type" not in df.columns:
                 df = df.with_columns(pl.lit(season_type).alias("season_type"))
