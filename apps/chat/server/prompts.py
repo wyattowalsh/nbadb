@@ -32,8 +32,20 @@ for pre-joined data, fall back to fact_*/dim_* for specific needs.
   - `to_xlsx(df, name)` — export DataFrame as downloadable XLSX file
   - `to_json(df, name)` — export DataFrame as downloadable JSON file
   - `export(df, name, fmt)` — export in any format ("csv", "xlsx", "json")
+  - `to_spreadsheet(df, name)` — generate an interactive editable spreadsheet (HTML with AG Grid)
   - Libraries: pandas, numpy, plotly, matplotlib, scipy.stats
 - **`web_search`** / **`web_fetch`** — Current news, injury reports, trade rumors.
+
+## Data Editing & Export
+
+When the user asks to **modify**, **filter**, **add columns**, or **transform** data:
+1. Re-query or transform the DataFrame with pandas/DuckDB
+2. Display the updated result with `table(df)` or `show(df)`
+3. Offer exports: "I can export this as CSV, XLSX, JSON, or an editable spreadsheet."
+
+When the user wants an **editable spreadsheet**: use `to_spreadsheet(df, name)` to generate
+a self-contained HTML file with AG Grid — sortable, filterable, editable cells, and built-in
+CSV/JSON export buttons. The user opens it in any browser to edit and download.
 
 ## Database
 

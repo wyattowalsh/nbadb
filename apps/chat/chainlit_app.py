@@ -206,6 +206,28 @@ async def on_download_json(action: cl.Action) -> None:
     await action.remove()
 
 
+@cl.action_callback("edit_spreadsheet")
+async def on_edit_spreadsheet(action: cl.Action) -> None:
+    """Generate an editable HTML spreadsheet from query results."""
+    raw = action.payload.get("data", "{}")
+    data = json.loads(raw) if isinstance(raw, str) else raw
+    df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
+
+    # Generate AG Grid HTML spreadsheet
+    columns_json = json.dumps(
+        [{"field": c, "editable": True, "sortable": True, "filter": True} for c in df.columns]
+    )
+    rows_json = df.to_json(orient="records")
+    name = "query_result"
+    html = _build_spreadsheet_html(name, columns_json, rows_json)
+    elements = [cl.File(name=f"{name}.html", content=html.encode(), display="inline")]
+    await cl.Message(
+        content="Open the HTML file in your browser to edit, sort, filter, and export.",
+        elements=elements,
+    ).send()
+    await action.remove()
+
+
 @cl.action_callback("refine_query")
 async def on_refine_query(action: cl.Action) -> None:
     """Prompt the user to refine their last query."""
@@ -463,6 +485,11 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
             cl.Action(name="download_csv", label="CSV", payload={"data": data_payload}),
             cl.Action(name="download_xlsx", label="XLSX", payload={"data": data_payload}),
             cl.Action(name="download_json", label="JSON", payload={"data": data_payload}),
+            cl.Action(
+                name="edit_spreadsheet",
+                label="Edit as Spreadsheet",
+                payload={"data": data_payload},
+            ),
         ]
         if sql:
             step.actions.append(
@@ -565,3 +592,79 @@ def _track_code(code: str, tool: str, lang: str) -> None:
     code_log: list[dict] = cl.user_session.get("code_log") or []
     code_log.append({"code": code, "tool": tool, "lang": lang})
     cl.user_session.set("code_log", code_log)
+
+
+def _build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str:
+    """Generate a self-contained HTML file with an AG Grid editable spreadsheet."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{name} — NBA Data Spreadsheet</title>
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
+<style>
+  body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
+         padding: 16px; background: #fafafa; }}
+  h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
+  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; }}
+  .toolbar button {{
+    padding: 6px 16px; border: 1px solid #ddd; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 0.875rem;
+  }}
+  .toolbar button:hover {{ background: #f0f0f0; }}
+  #grid {{ height: calc(100vh - 100px); width: 100%; }}
+  .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
+</style>
+</head>
+<body>
+<h1>{name}</h1>
+<div class="toolbar">
+  <button onclick="exportCSV()">Export CSV</button>
+  <button onclick="exportJSON()">Export JSON</button>
+  <button onclick="resetData()">Reset</button>
+  <span id="status" style="line-height:32px;color:#666;font-size:0.8rem;"></span>
+</div>
+<div id="grid" class="ag-theme-alpine"></div>
+<script>
+const originalData = {rows_json};
+const columnDefs = {columns_json};
+const gridOptions = {{
+  columnDefs: columnDefs,
+  rowData: JSON.parse(JSON.stringify(originalData)),
+  defaultColDef: {{ resizable: true, editable: true, sortable: true, filter: true }},
+  onCellValueChanged: () => document.getElementById("status").textContent = "Modified",
+}};
+const gridDiv = document.getElementById("grid");
+const api = agGrid.createGrid(gridDiv, gridOptions);
+
+function getRows() {{
+  const rows = [];
+  api.forEachNode(n => rows.push(n.data));
+  return rows;
+}}
+function exportCSV() {{
+  const rows = getRows();
+  const cols = columnDefs.map(c => c.field);
+  const hdr = cols.join(",");
+  const body = rows.map(r => cols.map(c =>
+    JSON.stringify(r[c] ?? "")).join(","));
+  const csv = [hdr, ...body].join("\\n");
+  download(csv, "{name}.csv", "text/csv");
+}}
+function exportJSON() {{
+  download(JSON.stringify(getRows(), null, 2), "{name}.json", "application/json");
+}}
+function resetData() {{
+  api.setGridOption("rowData", JSON.parse(JSON.stringify(originalData)));
+  document.getElementById("status").textContent = "Reset";
+}}
+function download(content, filename, type) {{
+  const blob = new Blob([content], {{ type }});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}}
+</script>
+</body>
+</html>"""

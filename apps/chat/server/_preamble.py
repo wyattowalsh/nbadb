@@ -95,6 +95,91 @@ def to_json(df, name="export"):
 def export(df, name="export", fmt="csv"):
     """Export DataFrame in any format. fmt: csv, xlsx, json."""
     {"csv": to_csv, "xlsx": to_xlsx, "json": to_json}[fmt](df, name)
+
+def to_spreadsheet(df, name="data"):
+    """Generate a self-contained HTML file with an editable spreadsheet.
+
+    The HTML file embeds AG Grid (community) for in-browser editing with
+    built-in sorting, filtering, and export buttons (CSV, XLSX).
+    Users download the HTML file and open it in any browser to edit.
+    """
+    columns_json = json.dumps([{"field": c, "editable": True, "sortable": True,
+                                 "filter": True} for c in df.columns])
+    rows_json = df.to_json(orient="records")
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{name} — NBA Data Spreadsheet</title>
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
+<style>
+  body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
+         padding: 16px; background: #fafafa; }}
+  h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
+  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; }}
+  .toolbar button {{
+    padding: 6px 16px; border: 1px solid #ddd; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 0.875rem;
+  }}
+  .toolbar button:hover {{ background: #f0f0f0; }}
+  #grid {{ height: calc(100vh - 100px); width: 100%; }}
+  .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
+</style>
+</head>
+<body>
+<h1>{name}</h1>
+<div class="toolbar">
+  <button onclick="exportCSV()">Export CSV</button>
+  <button onclick="exportJSON()">Export JSON</button>
+  <button onclick="resetData()">Reset</button>
+  <span id="status" style="line-height:32px;color:#666;font-size:0.8rem;"></span>
+</div>
+<div id="grid" class="ag-theme-alpine"></div>
+<script>
+const originalData = {rows_json};
+const columnDefs = {columns_json};
+const gridOptions = {{
+  columnDefs: columnDefs,
+  rowData: JSON.parse(JSON.stringify(originalData)),
+  defaultColDef: {{ resizable: true, editable: true, sortable: true, filter: true }},
+  onCellValueChanged: () => document.getElementById("status").textContent = "Modified",
+}};
+const gridDiv = document.getElementById("grid");
+const api = agGrid.createGrid(gridDiv, gridOptions);
+
+function getRows() {{
+  const rows = [];
+  api.forEachNode(n => rows.push(n.data));
+  return rows;
+}}
+function exportCSV() {{
+  const rows = getRows();
+  const cols = columnDefs.map(c => c.field);
+  const hdr = cols.join(",");
+  const body = rows.map(r => cols.map(c =>
+    JSON.stringify(r[c] ?? "")).join(","));
+  const csv = [hdr, ...body].join("\\n");
+  download(csv, "{name}.csv", "text/csv");
+}}
+function exportJSON() {{
+  download(JSON.stringify(getRows(), null, 2), "{name}.json", "application/json");
+}}
+function resetData() {{
+  api.setGridOption("rowData", JSON.parse(JSON.stringify(originalData)));
+  document.getElementById("status").textContent = "Reset";
+}}
+function download(content, filename, type) {{
+  const blob = new Blob([content], {{ type }});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}}
+</script>
+</body>
+</html>"""
+    print(json.dumps({{"export_file": name + ".html", "format": "spreadsheet",
+                       "content": _b64.b64encode(html.encode()).decode()}}))
 '''
 
 

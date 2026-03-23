@@ -40,6 +40,7 @@ def run_python(code: str) -> str:
     - `to_xlsx(df, name)` — export DataFrame as downloadable XLSX file
     - `to_json(df, name)` — export DataFrame as downloadable JSON file
     - `export(df, name, fmt)` — export in any format ("csv", "xlsx", "json")
+    - `to_spreadsheet(df, name)` — generate editable HTML spreadsheet (AG Grid)
     - `mc` — metric_calculator module (mc.true_shooting_pct, mc.usage_rate, etc.)
     """
     if not code or not code.strip():
