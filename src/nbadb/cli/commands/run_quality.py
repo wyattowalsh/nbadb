@@ -15,12 +15,20 @@ _REPORT_PATH_OPTION = typer.Option(
 )
 
 
-@app.command("run-quality")
+@app.command("run-quality", deprecated=True)
 def run_quality(
     data_dir: DataDirOption = None,
     report_path: str | None = _REPORT_PATH_OPTION,
 ) -> None:
-    """Run data quality checks on the existing DuckDB database."""
+    """Run data quality checks on the existing DuckDB database.
+
+    .. deprecated::
+        Use ``nbadb scan`` instead — it covers row counts and much more.
+    """
+    typer.echo(
+        "WARNING: 'run-quality' is deprecated — use 'nbadb scan' instead.",
+        err=True,
+    )
     settings = _build_settings(data_dir)
     db_path = settings.duckdb_path
 

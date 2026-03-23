@@ -93,6 +93,91 @@ class ScanReport:
             ],
         }
 
+    # ── CI output helpers ──────────────────────────────────────
+
+    _SEVERITY_ICONS: ClassVar[dict[str, str]] = {
+        "error": ":red_circle:",
+        "warning": ":yellow_circle:",
+        "info": ":blue_circle:",
+    }
+
+    _CATEGORY_LABELS: ClassVar[dict[str, str]] = {
+        "missing_table": "Missing / Empty Tables",
+        "cross_table": "Cross-Table Gaps",
+        "temporal": "Temporal Coverage",
+        "data_quality": "Data Quality",
+    }
+
+    _MAX_FINDINGS_PER_CATEGORY: ClassVar[int] = 50
+
+    def to_markdown(self) -> str:
+        """Render report as GitHub-flavored markdown for step summaries."""
+        s = self.summary()
+        if s["error"] == 0:
+            status = ":white_check_mark: **All clear**"
+        else:
+            status = f":x: **{s['error']} error(s)**"
+
+        lines = [
+            "## Data Scan Report",
+            "",
+            status,
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+            f"| Checks run | {s['checks_run']} |",
+            f"| Tables scanned | {s['tables_scanned']} |",
+            f"| Errors | {s['error']} |",
+            f"| Warnings | {s['warning']} |",
+            f"| Info | {s['info']} |",
+            f"| Duration | {self.duration_seconds:.1f}s |",
+            "",
+        ]
+
+        if not self.findings:
+            lines.append("No issues found.")
+            return "\n".join(lines)
+
+        # Group by category, render per-category tables
+        by_cat: dict[str, list[ScanFinding]] = {}
+        for f in self.findings:
+            by_cat.setdefault(f.category, []).append(f)
+
+        cat_order = ["missing_table", "cross_table", "temporal", "data_quality"]
+        for cat in cat_order:
+            cat_findings = by_cat.get(cat, [])
+            if not cat_findings:
+                continue
+            label = self._CATEGORY_LABELS.get(cat, cat)
+            lines.append(f"### {label} ({len(cat_findings)})")
+            lines.append("")
+            lines.append("| Severity | Table | Message |")
+            lines.append("|----------|-------|---------|")
+
+            shown = cat_findings[: self._MAX_FINDINGS_PER_CATEGORY]
+            for f in shown:
+                icon = self._SEVERITY_ICONS.get(f.severity, "")
+                # Escape pipe chars in message for markdown table safety
+                msg = f.message.replace("|", "\\|")
+                lines.append(f"| {icon} {f.severity} | `{f.table}` | {msg} |")
+
+            remaining = len(cat_findings) - len(shown)
+            if remaining > 0:
+                lines.append(f"| | | *... and {remaining} more* |")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def to_github_annotations(self) -> list[str]:
+        """Return ``::error::`` / ``::warning::`` lines for GitHub Actions."""
+        annotations: list[str] = []
+        for f in self.findings:
+            if f.severity == "error":
+                annotations.append(f"::error::{f.message}")
+            elif f.severity == "warning":
+                annotations.append(f"::warning::{f.message}")
+        return annotations
+
 
 class DataScanner:
     """Read-only scanner that analyzes DuckDB for missing or incomplete data.

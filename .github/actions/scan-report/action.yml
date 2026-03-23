@@ -1,0 +1,51 @@
+name: "Scan Data Quality"
+description: "Run nbadb scan and upload report artifact"
+
+inputs:
+  data-dir:
+    description: "Path to nbadb data directory"
+    required: false
+    default: ""
+  report-name:
+    description: "Artifact name for the scan report"
+    required: true
+  report-dir:
+    description: "Directory for report artifacts"
+    required: true
+    default: "artifacts/health"
+  fail-on:
+    description: "Severity threshold for exit code (error|warning|info)"
+    required: false
+    default: "error"
+  categories:
+    description: "Comma-separated scan categories (empty = all)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run data scan
+      shell: bash
+      run: |
+        mkdir -p "${{ inputs.report-dir }}"
+        ARGS="--output-format json"
+        ARGS="$ARGS --report-path ${{ inputs.report-dir }}/scan-report.json"
+        ARGS="$ARGS --ci"
+        if [ -n "${{ inputs.fail-on }}" ]; then
+          ARGS="$ARGS --fail-on ${{ inputs.fail-on }}"
+        fi
+        if [ -n "${{ inputs.data-dir }}" ]; then
+          ARGS="$ARGS --data-dir ${{ inputs.data-dir }}"
+        fi
+        if [ -n "${{ inputs.categories }}" ]; then
+          ARGS="$ARGS --category ${{ inputs.categories }}"
+        fi
+        uv run nbadb scan $ARGS
+
+    - name: Upload scan report
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+      with:
+        name: ${{ inputs.report-name }}
+        path: ${{ inputs.report-dir }}/scan-report.json

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -46,6 +48,29 @@ def scan(
         str,
         typer.Option("--output-format", "-f", help="Output format: text or json"),
     ] = "text",
+    fail_on: Annotated[
+        str | None,
+        typer.Option(
+            "--fail-on",
+            "-F",
+            help="Exit 1 if findings at or above this severity: error, warning, info",
+        ),
+    ] = None,
+    report_path: Annotated[
+        str | None,
+        typer.Option(
+            "--report-path",
+            "-r",
+            help="Write JSON report to this file path",
+        ),
+    ] = None,
+    ci: Annotated[
+        bool,
+        typer.Option(
+            "--ci",
+            help="Enable GitHub Actions integration (step summary + annotations)",
+        ),
+    ] = False,
 ) -> None:
     """Scan the database for missing data, gaps, and quality issues."""
     settings = _build_settings(data_dir)
@@ -53,6 +78,14 @@ def scan(
 
     if db_path is None or not db_path.exists():
         typer.echo("Database not found. Run 'nbadb init' first.", err=True)
+        raise typer.Exit(1)
+
+    # Validate --fail-on
+    if fail_on and fail_on not in _VALID_SEVERITIES:
+        typer.echo(
+            f"Invalid --fail-on severity: {fail_on}. Valid: {', '.join(sorted(_VALID_SEVERITIES))}",
+            err=True,
+        )
         raise typer.Exit(1)
 
     # Parse and validate category filter
@@ -88,6 +121,7 @@ def scan(
             max_level = _SEVERITY_ORDER.get(severity, 2)
             findings = [f for f in findings if _SEVERITY_ORDER.get(f.severity, 2) <= max_level]
 
+        # ── Output ──
         if output_format == "json":
             data = {
                 "summary": {
@@ -114,6 +148,35 @@ def scan(
             typer.echo(json.dumps(data, indent=2, default=str))
         else:
             _print_scan_report(report, findings)
+
+        # ── Write JSON report file ──
+        if report_path:
+            out = Path(report_path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(
+                json.dumps(report.to_dict(), indent=2, default=str),
+                encoding="utf-8",
+            )
+            typer.echo(f"Report written to {out}", err=True)
+
+        # ── GitHub Actions integration ──
+        if ci:
+            # Step summary
+            summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+            if summary_path:
+                with open(summary_path, "a", encoding="utf-8") as fh:
+                    fh.write(report.to_markdown())
+                    fh.write("\n")
+
+            # Annotations
+            for line in report.to_github_annotations():
+                typer.echo(line)
+
+        # ── Exit code ──
+        if fail_on:
+            threshold = _SEVERITY_ORDER[fail_on]
+            if any(_SEVERITY_ORDER.get(f.severity, 2) <= threshold for f in findings):
+                raise typer.Exit(1)
     finally:
         conn.close()
 

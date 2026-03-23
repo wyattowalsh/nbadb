@@ -65,7 +65,7 @@ class TestRunQualityChecks:
             _run_quality_checks(settings)
 
         calls = " ".join(str(c) for c in mock_echo.call_args_list)
-        assert "Quality:" in calls
+        assert "Scan:" in calls
 
     def test_quality_check_empty_table_reports_failure(self, tmp_path: Path) -> None:
         """Empty table triggers a warning in quality output."""
@@ -87,7 +87,7 @@ class TestRunQualityChecks:
         ):
             _run_quality_checks(settings)
 
-        assert any("Quality:" in m for m in messages)
+        assert any("Scan:" in m for m in messages)
 
 
 class TestQualityCheckFlag:

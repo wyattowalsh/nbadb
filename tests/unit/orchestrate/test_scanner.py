@@ -5,7 +5,13 @@ from unittest.mock import patch
 import duckdb
 import pytest
 
-from nbadb.orchestrate.scanner import DataScanner, ScanCategory, ScanReport, ScanSeverity
+from nbadb.orchestrate.scanner import (
+    DataScanner,
+    ScanCategory,
+    ScanFinding,
+    ScanReport,
+    ScanSeverity,
+)
 
 # ── fixtures ──────────────────────────────────────────────────────
 
@@ -537,3 +543,125 @@ class TestScanFiltering:
         assert report2.checks_run == checks1
         # Reports should be distinct objects
         assert report1 is not report2
+
+
+# ── to_markdown ─────────────────────────────────────────────
+
+
+class TestToMarkdown:
+    def test_empty_report(self):
+        report = ScanReport(checks_run=5, tables_scanned=3, duration_seconds=0.5)
+        md = report.to_markdown()
+        assert "Data Scan Report" in md
+        assert "All clear" in md
+        assert "No issues found" in md
+
+    def test_with_findings(self):
+        report = ScanReport(
+            findings=[
+                ScanFinding(
+                    category="data_quality",
+                    severity="error",
+                    table="fact_test",
+                    check="null_key_column",
+                    message="fact_test.game_id: 5/100 nulls",
+                ),
+                ScanFinding(
+                    category="cross_table",
+                    severity="warning",
+                    table="fact_box",
+                    check="game_coverage",
+                    message="fact_box: 10 games missing",
+                ),
+            ],
+            checks_run=10,
+            tables_scanned=5,
+            duration_seconds=1.2,
+        )
+        md = report.to_markdown()
+        assert "Data Scan Report" in md
+        assert "1 error(s)" in md
+        assert "Data Quality" in md
+        assert "Cross-Table Gaps" in md
+        assert "`fact_test`" in md
+        assert "`fact_box`" in md
+
+    def test_truncation(self):
+        """More than MAX findings per category are truncated."""
+        findings = [
+            ScanFinding(
+                category="data_quality",
+                severity="warning",
+                table=f"fact_{i}",
+                check="duplicate_keys",
+                message=f"fact_{i}: duplicates",
+            )
+            for i in range(100)
+        ]
+        report = ScanReport(
+            findings=findings,
+            checks_run=100,
+            tables_scanned=100,
+            duration_seconds=2.0,
+        )
+        md = report.to_markdown()
+        assert "and 50 more" in md
+
+    def test_pipe_in_message_escaped(self):
+        report = ScanReport(
+            findings=[
+                ScanFinding(
+                    category="data_quality",
+                    severity="info",
+                    table="fact_test",
+                    check="zero_stat_rows",
+                    message="fact_test: 10|20 rows",
+                ),
+            ],
+            checks_run=1,
+            tables_scanned=1,
+            duration_seconds=0.1,
+        )
+        md = report.to_markdown()
+        # Pipe should be escaped to not break markdown table
+        assert "10\\|20" in md
+
+
+# ── to_github_annotations ──────────────────────────────────
+
+
+class TestToGithubAnnotations:
+    def test_errors_and_warnings(self):
+        report = ScanReport(
+            findings=[
+                ScanFinding(
+                    category="data_quality",
+                    severity="error",
+                    table="t",
+                    check="c",
+                    message="err msg",
+                ),
+                ScanFinding(
+                    category="data_quality",
+                    severity="warning",
+                    table="t",
+                    check="c",
+                    message="warn msg",
+                ),
+                ScanFinding(
+                    category="data_quality",
+                    severity="info",
+                    table="t",
+                    check="c",
+                    message="info msg",
+                ),
+            ]
+        )
+        annotations = report.to_github_annotations()
+        assert len(annotations) == 2
+        assert annotations[0] == "::error::err msg"
+        assert annotations[1] == "::warning::warn msg"
+
+    def test_empty_report_no_annotations(self):
+        report = ScanReport()
+        assert report.to_github_annotations() == []

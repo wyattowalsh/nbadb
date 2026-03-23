@@ -284,6 +284,16 @@ jobs:
           echo "::notice::Full extraction complete on iteration $ITERATION!"
           ls -lh nbadb/ 2>/dev/null || true
 
+      - name: Scan data quality
+        id: scan
+        if: steps.extract.outputs.status == 'complete'
+        continue-on-error: true
+        uses: ./.github/actions/scan-report
+        with:
+          report-name: full-extraction-scan-report
+          report-dir: artifacts/health/full
+          fail-on: error
+
       - name: Export all formats
         if: steps.extract.outputs.status == 'complete'
         run: uv run nbadb export

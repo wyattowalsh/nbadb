@@ -91,9 +91,15 @@ jobs:
         id: daily
         continue-on-error: true
         run: uv run nbadb daily
-      - name: Run quality checks
+      - name: Scan data quality
+        id: scan
         if: always() && steps.daily.outcome != 'skipped'
-        run: uv run nbadb run-quality --report-path artifacts/health/daily/data-quality-report.json
+        continue-on-error: true
+        uses: ./.github/actions/scan-report
+        with:
+          report-name: daily-scan-report
+          report-dir: artifacts/health/daily
+          fail-on: error
       - name: Export data
         if: always() && steps.daily.outcome != 'skipped'
         run: uv run nbadb export
@@ -103,12 +109,6 @@ jobs:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: uv run nbadb upload
-      - name: Upload daily data quality artifact
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: daily-data-quality-report
-          path: artifacts/health/daily/data-quality-report.json
       - name: Stop proxy fleet
         if: always()
         run: docker compose -f docker-compose.proxy.yml down 2>/dev/null || true
