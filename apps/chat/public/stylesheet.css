@@ -82,7 +82,14 @@ button[class*="starter"]:hover,
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Scrollbar styling ──────────────────────────────────────────── */
+/* ── Action button grouping ─────────────────────────────────────── */
+[class*="actions"],
+.step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* ── Accessibility — respect motion preferences ────────────────── */
 @media (prefers-reduced-motion: reduce) {
   [class*="message-content"],

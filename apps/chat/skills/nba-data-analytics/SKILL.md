@@ -62,6 +62,35 @@ color_map = get_color_map(["LAL", "BOS", "GSW"])
 fig = px.bar(..., color_discrete_map=color_map)
 ```
 
+## Display & Export Helpers
+
+The `run_python` sandbox provides these additional helpers:
+
+| Helper | Purpose |
+|--------|---------|
+| `table(df)` | Display DataFrame (auto-saves as `last_result`) |
+| `chart(fig)` | Display Plotly figure |
+| `show(data)` | Auto-detect: Plotly → chart, DataFrame → table |
+| `annotated_chart(fig, df, col)` | Chart with average reference line |
+| `to_csv(df, name)` | Export as downloadable CSV |
+| `to_xlsx(df, name)` | Export as downloadable XLSX |
+| `to_json(df, name)` | Export as downloadable JSON |
+| `to_spreadsheet(df, name)` | Editable HTML spreadsheet (AG Grid) |
+| `to_embed(fig, title)` | Self-contained HTML for blog embedding |
+| `to_social(df, headline)` | 1200x630 branded PNG card |
+| `to_thread(insights)` | Numbered thread for social media |
+
+## Session State
+
+`last_result` holds the DataFrame from the previous tool call. Use it for iterative refinement:
+
+```python
+# After a query that returned player stats:
+df = last_result[last_result['age'] < 25]  # filter
+df['ts_pct'] = df.apply(lambda r: mc.true_shooting_pct(r['pts'], r['fga'], r['fta']), axis=1)
+table(df)  # display and save as new last_result
+```
+
 ## Complex Query Patterns
 
 For multi-season comparisons, rolling averages, pivot tables, head-to-head matchups, and efficiency queries, use `read_file` on `references/query-cookbook.md` in this skill directory.

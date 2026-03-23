@@ -60,6 +60,18 @@ _BLOCKED_BUILTINS: frozenset[str] = frozenset(
     }
 )
 
+_BLOCKED_ATTRS: frozenset[str] = frozenset(
+    {
+        "__class__",
+        "__subclasses__",
+        "__bases__",
+        "__mro__",
+        "__globals__",
+        "__code__",
+        "__builtins__",
+    }
+)
+
 
 def check_code_safety(code: str) -> str | None:
     """Validate Python code via AST analysis.
@@ -93,6 +105,10 @@ def check_code_safety(code: str) -> str | None:
                 return f"Blocked builtin call: {func.id}()"
             if isinstance(func, ast.Attribute) and func.attr in _BLOCKED_BUILTINS:
                 return f"Blocked attribute call: .{func.attr}()"
+
+        # Block dunder attribute access for class hierarchy traversal
+        elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_ATTRS:
+            return f"Blocked attribute access: .{node.attr}"
 
     return None
 

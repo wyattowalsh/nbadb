@@ -363,7 +363,7 @@ async def on_chat_start() -> None:
         settings = settings.model_copy(update={"temperature": 0.05})
 
     try:
-        agent = await create_nba_agent(settings)
+        agent = await create_nba_agent(settings, profile=profile)
     except Exception as e:
         await cl.Message(
             content=(

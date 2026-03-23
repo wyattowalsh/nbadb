@@ -55,6 +55,7 @@ class NbaAgentWrapper:
 
 async def create_nba_agent(
     settings: ChatSettings,
+    profile: str | None = None,
 ) -> NbaAgentWrapper:
     """Create an NBA data analytics agent.
 
@@ -66,7 +67,7 @@ async def create_nba_agent(
 
     db_path = ensure_database(settings.duckdb_path)
     schema_context = get_schema_context(db_path)
-    system_prompt = build_system_prompt(schema_context)
+    system_prompt = build_system_prompt(schema_context, profile=profile)
 
     if settings.provider == "copilot":
         return await _create_copilot_agent(settings, system_prompt, db_path)
