@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import chainlit as cl
 import pandas as pd
@@ -276,6 +277,78 @@ async def on_export_session_code(action: cl.Action) -> None:
     await cl.Message(content="Exported session code:", elements=elements).send()
 
 
+@cl.action_callback("save_template")
+async def on_save_template(action: cl.Action) -> None:
+    """Save the session code as a reusable analysis template."""
+    code_log: list[dict] = cl.user_session.get("code_log") or []
+    if not code_log:
+        await cl.Message(content="No code to save as a template.").send()
+        return
+
+    name = action.payload.get("name", "analysis")
+    template_dir = Path.home() / ".nbadb" / "templates"
+    template_dir.mkdir(parents=True, exist_ok=True)
+
+    script = _build_template_script(code_log, name)
+    path = template_dir / f"{name}.py"
+    path.write_text(script)
+
+    elements = [cl.File(name=f"{name}.py", content=script.encode(), display="inline")]
+    await cl.Message(
+        content=f'Template saved to `{path}`\nRe-run anytime: *"Run the {name} template"*',
+        elements=elements,
+    ).send()
+    await action.remove()
+
+
+@cl.action_callback("list_templates")
+async def on_list_templates(action: cl.Action) -> None:
+    """List all saved analysis templates."""
+    template_dir = Path.home() / ".nbadb" / "templates"
+    if not template_dir.exists():
+        await cl.Message(content="No templates saved yet.").send()
+        return
+    templates = sorted(template_dir.glob("*.py"))
+    if not templates:
+        await cl.Message(content="No templates saved yet.").send()
+        return
+    lines = [f"- **{t.stem}** ({t.stat().st_size} bytes)" for t in templates]
+    await cl.Message(content="Saved templates:\n" + "\n".join(lines)).send()
+
+
+def _build_template_script(code_log: list[dict], name: str) -> str:
+    """Build a parameterized template script from the session code log."""
+    lines = [
+        f'"""NBA Analysis Template: {name}"""',
+        "",
+        "import pandas as pd",
+        "import numpy as np",
+        "import duckdb",
+        "import plotly.express as px",
+        "import plotly.graph_objects as go",
+        "",
+        "# Parameters — edit these to reuse the template",
+        "# PARAMS = {}  # Add your parameters here",
+        "",
+        "# Connect to database (update path as needed)",
+        'conn = duckdb.connect("~/.nbadb/data/nba.duckdb", read_only=True)',
+        "",
+        "def query(sql: str) -> pd.DataFrame:",
+        '    """Run SQL and return a DataFrame."""',
+        "    return conn.execute(sql).fetchdf()",
+        "",
+    ]
+    for i, entry in enumerate(code_log, 1):
+        lines.append(f"# --- Step {i}: {entry['tool']} ---")
+        if entry["lang"] == "sql":
+            lines.append(f'df_{i} = query("""{entry["code"]}""")')
+            lines.append(f"print(df_{i})")
+        else:
+            lines.append(entry["code"])
+        lines.append("")
+    return "\n".join(lines)
+
+
 # -- Lifecycle hooks ------------------------------------------------------------
 
 
@@ -393,6 +466,12 @@ async def on_chat_end() -> None:
     agent = cl.user_session.get("agent")
     if agent is not None and hasattr(agent, "cleanup"):
         await agent.cleanup()
+    # Clear session-state files (last_result.parquet, etc.)
+    import shutil
+
+    session_dir = Path.home() / ".nbadb" / "session"
+    if session_dir.exists():
+        shutil.rmtree(session_dir, ignore_errors=True)
 
 
 # -- Message handling -----------------------------------------------------------
@@ -474,6 +553,22 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         caption = f"{data.get('row_count', len(df))} rows returned"
         if sql:
             caption += f"\n```sql\n{sql}\n```"
+        # Auto-annotations: basic stats for numeric columns
+        num_cols = df.select_dtypes(include="number")
+        if len(df) >= 5 and num_cols.shape[1] > 0:
+            stats_parts = []
+            for col in num_cols.columns[:3]:
+                vals = num_cols[col].dropna()
+                if len(vals) >= 3:
+                    stats_parts.append(
+                        f"**{col}**: mean={vals.mean():.1f}, "
+                        f"med={vals.median():.1f}, "
+                        f"range=[{vals.min():.1f}\u2013{vals.max():.1f}]"
+                    )
+            if stats_parts:
+                caption += "\n\n*Context:* " + " | ".join(stats_parts)
+        if 0 < len(df) < 20:
+            caption += f"\n*Note: {len(df)} rows \u2014 small sample.*"
         step.output = caption
 
         # Data payload for export buttons (capped at 100 rows)
@@ -495,12 +590,19 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
             step.actions.append(
                 cl.Action(name="refine_query", label="Refine", payload={"sql": sql}),
             )
-            step.actions.append(
-                cl.Action(
-                    name="export_session_code",
-                    label="Export All Code",
-                    payload={},
-                ),
+            step.actions.extend(
+                [
+                    cl.Action(
+                        name="export_session_code",
+                        label="Export Code",
+                        payload={},
+                    ),
+                    cl.Action(
+                        name="save_template",
+                        label="Save Template",
+                        payload={"name": "analysis"},
+                    ),
+                ]
             )
             # Track SQL in session code log
             _track_code(sql, tool="run_sql", lang="sql")

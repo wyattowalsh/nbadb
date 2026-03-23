@@ -54,12 +54,47 @@ def query(sql: str) -> pd.DataFrame:
     """Shorthand to run SQL and return a DataFrame."""
     return conn.execute(sql).fetchdf()
 
+# --- Session state (last_result persistence across tool calls) ---------------
+import pathlib as _pathlib
+
+_SESSION_DIR = _pathlib.Path.home() / ".nbadb" / "session"
+_SESSION_DIR.mkdir(parents=True, exist_ok=True)
+_LAST_RESULT_PATH = _SESSION_DIR / "last_result.parquet"
+
+try:
+    last_result = pd.read_parquet(_LAST_RESULT_PATH)
+except Exception:
+    last_result = pd.DataFrame()
+
+def _save_last_result(df):
+    """Persist DataFrame for next tool call."""
+    global last_result
+    last_result = df
+    try:
+        df.to_parquet(_LAST_RESULT_PATH, index=False)
+    except Exception:
+        pass
+
+# --- Display helpers ---------------------------------------------------------
+
 def chart(fig):
     """Output a Plotly figure for display in the chat."""
     print(fig.to_json())
 
+def annotated_chart(fig, df=None, metric_col=None):
+    """Output a Plotly chart with automatic reference annotations."""
+    if df is not None and metric_col and metric_col in df.columns:
+        vals = df[metric_col].dropna()
+        if len(vals) >= 3:
+            avg = float(vals.mean())
+            fig.add_hline(
+                y=avg, line_dash="dash", line_color="#999",
+                annotation_text=f"Avg: {avg:.1f}")
+    chart(fig)
+
 def table(df):
-    """Output a DataFrame for display in the chat."""
+    """Output a DataFrame for display and save as last_result."""
+    _save_last_result(df)
     print(df.to_json(orient="split"))
 
 def show(data):
@@ -95,6 +130,61 @@ def to_json(df, name="export"):
 def export(df, name="export", fmt="csv"):
     """Export DataFrame in any format. fmt: csv, xlsx, json."""
     {"csv": to_csv, "xlsx": to_xlsx, "json": to_json}[fmt](df, name)
+
+# --- Shareable output helpers ------------------------------------------------
+
+def to_embed(fig, title=""):
+    """Output a self-contained HTML snippet for blog/site embedding."""
+    import plotly.io as _pio
+    html = _pio.to_html(fig, full_html=False, include_plotlyjs="cdn")
+    if title:
+        html = f"<h3>{title}</h3>\\n" + html
+    full = f"<div class='nbadb-embed'>\\n{html}\\n</div>"
+    print(json.dumps({"export_file": (title or "chart") + ".html",
+                       "format": "embed",
+                       "content": _b64.b64encode(
+                           full.encode()).decode()}))
+
+def to_social(fig_or_df, headline, subtitle=""):
+    """Render a 1200x630 branded PNG card for social media."""
+    _fig, _ax = plt.subplots(figsize=(12, 6.3), dpi=100)
+    _fig.patch.set_facecolor("#1D428A")
+    _fig.text(0.05, 0.88, headline, fontsize=28,
+             fontweight="bold", color="white",
+             transform=_fig.transFigure)
+    if subtitle:
+        _fig.text(0.05, 0.80, subtitle, fontsize=16,
+                 color="#C8C8C8", transform=_fig.transFigure)
+    if isinstance(fig_or_df, pd.DataFrame):
+        text = fig_or_df.head(8).to_string(index=False)
+        _fig.text(0.05, 0.10, text, fontsize=11,
+                 fontfamily="monospace", color="white",
+                 transform=_fig.transFigure,
+                 verticalalignment="bottom")
+    _fig.text(0.95, 0.02, "nbadb", fontsize=10, color="#666",
+             ha="right", transform=_fig.transFigure)
+    _ax.axis("off")
+    buf = _io.BytesIO()
+    _fig.savefig(buf, format="png", bbox_inches="tight",
+                facecolor="#1D428A", edgecolor="none")
+    plt.close(_fig)
+    buf.seek(0)
+    print(json.dumps({"export_file": "social_card.png",
+                       "format": "social",
+                       "content": _b64.b64encode(
+                           buf.read()).decode()}))
+
+def to_thread(insights):
+    """Format insights as a numbered thread for social media."""
+    if isinstance(insights, str):
+        insights = [l.strip() for l in insights.strip().split("\\n")
+                    if l.strip()]
+    thread = "\\n".join(
+        f"{i}/ {s}" for i, s in enumerate(insights, 1))
+    print(json.dumps({"export_file": "thread.txt",
+                       "format": "thread",
+                       "content": _b64.b64encode(
+                           thread.encode()).decode()}))
 
 def to_spreadsheet(df, name="data"):
     """Generate a self-contained HTML file with an editable spreadsheet.

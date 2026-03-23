@@ -41,6 +41,11 @@ def run_python(code: str) -> str:
     - `to_json(df, name)` — export DataFrame as downloadable JSON file
     - `export(df, name, fmt)` — export in any format ("csv", "xlsx", "json")
     - `to_spreadsheet(df, name)` — generate editable HTML spreadsheet (AG Grid)
+    - `annotated_chart(fig, df, metric_col)` — Plotly chart with avg reference line
+    - `to_embed(fig, title)` — HTML snippet for embedding in blogs/sites
+    - `to_social(df_or_fig, headline, subtitle)` — 1200x630 branded PNG card
+    - `to_thread(insights_list)` — numbered thread for social media
+    - `last_result` — DataFrame from previous call (auto-persisted)
     - `mc` — metric_calculator module (mc.true_shooting_pct, mc.usage_rate, etc.)
     """
     if not code or not code.strip():
