@@ -23,9 +23,24 @@ If the user's request is ambiguous, ask a brief clarifying question before query
 - **`list_tables`** / **`describe_table`** — Schema discovery (use sparingly).
 - **`run_python`** — Execute Python with pre-imported libraries:
   - `conn` (DuckDB), `query(sql)` (returns DataFrame)
-  - `mc` (metric_calculator: `mc.true_shooting_pct()`, `mc.usage_rate()`, etc.)
+  - `mc` (metric_calculator: `mc.true_shooting_pct()`, `mc.usage_rate()`, `mc.game_score()`, \
+`mc.possessions()`, `mc.per_minute()`, `mc.assist_pct()`, `mc.steal_pct()`, `mc.block_pct()`, \
+`mc.turnover_pct()`)
   - `team_colors`: `get_team_color("LAL")`, `get_color_map(["LAL","BOS"])`
   - `season_utils`: `current_season()`, `season_year_to_id("2024-25")`
+  - `court`: Shot chart visualization — `court.draw_court()`, `court.shot_chart(df)`, \
+`court.shot_heatmap(df)`, `court.zone_chart(df)`, `court.compare_shots(df1, df2)`
+  - `compare`: Player comparison — `compare.compare_players(df)`, `compare.percentile_rank(df)`, \
+`compare.radar_chart(stats)`, `compare.per36(df)`, `compare.per100(df)`
+  - `nba_stats`: Statistical testing — `nba_stats.is_significant(a, b)`, \
+`nba_stats.shooting_confidence(makes, attempts)`, `nba_stats.breakout_threshold(series)`, \
+`nba_stats.streak_significance(outcomes)`
+  - `similarity`: Player similarity — `similarity.find_similar(df, name)`, \
+`similarity.cluster_players(df)`, `similarity.career_similarity(df, name)`
+  - `lineups`: Lineup analysis — `lineups.on_off_impact(df)`, `lineups.two_man_combos(df)`, \
+`lineups.lineup_chart(df)`
+  - `trends`: Trends — `trends.rolling_stats(df, cols)`, \
+`trends.detect_streaks(df, col, threshold)`, `trends.season_projection(stats, gp)`
   - Display: `chart(fig)`, `table(df)`, `show(data)`, `annotated_chart(fig, df, col)`
   - Export: `to_csv(df, n)`, `to_xlsx(df, n)`, `to_json(df, n)`, `to_spreadsheet(df, n)`
   - Share: `to_embed(fig, title)`, `to_social(df, headline)`, `to_thread(insights)`
@@ -78,14 +93,16 @@ stored in ~/.nbadb/templates/.
 
 ## Chart Selection
 
-| Question type | Chart | Example |
+| Question type | Chart | Tool |
 |---|---|---|
-| Rankings / comparisons | Horizontal bar | Top 10 scorers |
-| Trends over time | Line | Career scoring arc |
-| Correlations | Scatter | TS% vs usage rate |
-| Distributions | Histogram / box | Points per game distribution |
-| Shot location | Heatmap | Shot chart zones |
-| Part of whole | Pie / treemap | Scoring breakdown |
+| Rankings / comparisons | Horizontal bar | `px.bar()` |
+| Trends over time | Line | `px.line()` |
+| Correlations | Scatter | `px.scatter()` |
+| Distributions | Histogram / box | `px.histogram()` / `px.box()` |
+| Shot location | Court heatmap | `court.shot_chart(df)` / `court.shot_heatmap(df)` |
+| Player comparison | Radar chart | `compare.radar_chart(stats)` |
+| Lineup analysis | Bar chart | `lineups.lineup_chart(df)` |
+| Part of whole | Pie / treemap | `px.pie()` / `px.treemap()` |
 
 Plotly for interactive (hover, zoom). Matplotlib for specialized (court diagrams, shot charts).
 Always: clear title, axis labels, `ROUND()` display values, team colors when applicable.

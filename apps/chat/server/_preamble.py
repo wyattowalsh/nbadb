@@ -47,6 +47,12 @@ try:
     import metric_calculator as mc
     import team_colors
     import season_utils
+    import court
+    import compare
+    import nba_stats
+    import similarity
+    import lineups
+    import trends
 except ImportError:
     pass
 

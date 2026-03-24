@@ -31,6 +31,13 @@ defensive_rating = _mod.defensive_rating
 net_rating = _mod.net_rating
 assist_to_turnover = _mod.assist_to_turnover
 rebound_pct = _mod.rebound_pct
+game_score = _mod.game_score
+possessions_fn = _mod.possessions  # avoid shadowing builtins
+per_minute = _mod.per_minute
+assist_pct = _mod.assist_pct
+steal_pct = _mod.steal_pct
+block_pct = _mod.block_pct
+turnover_pct = _mod.turnover_pct
 
 
 # -- true_shooting_pct --------------------------------------------------------
@@ -197,3 +204,124 @@ class TestReboundPct:
 
     def test_none_inputs(self):
         assert rebound_pct(None, None, None, None, None) == 0.0
+
+
+# -- game_score ----------------------------------------------------------------
+
+
+class TestGameScore:
+    def test_typical_value(self):
+        # 30pts, 10fgm, 20fga, 8ftm, 10fta, 3oreb, 7dreb, 2stl, 5ast, 1blk, 3pf, 2tov
+        # = 30 + 0.4*10 - 0.7*20 - 0.4*(10-8) + 0.7*3 + 0.3*7 + 2 + 0.7*5 + 0.7*1 - 0.4*3 - 2
+        # = 30 + 4 - 14 - 0.8 + 2.1 + 2.1 + 2 + 3.5 + 0.7 - 1.2 - 2
+        # = 26.4
+        result = game_score(30, 10, 20, 8, 10, 3, 7, 2, 5, 1, 3, 2)
+        assert result == pytest.approx(26.4, abs=0.01)
+
+    def test_all_zeros(self):
+        assert game_score(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) == 0.0
+
+    def test_none_inputs(self):
+        result = game_score(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        assert result == 0.0
+
+
+# -- possessions ---------------------------------------------------------------
+
+
+class TestPossessions:
+    def test_typical_value(self):
+        # 85 FGA, 22 FTA, 10 OREB, 14 TOV → 85 - 10 + 14 + 0.44*22 = 98.68
+        result = possessions_fn(85, 22, 10, 14)
+        assert result == pytest.approx(98.68, abs=0.01)
+
+    def test_none_inputs(self):
+        assert possessions_fn(None, None, None, None) == 0.0
+
+
+# -- per_minute ----------------------------------------------------------------
+
+
+class TestPerMinute:
+    def test_per36(self):
+        # 20 pts in 30 min → 20*36/30 = 24.0
+        result = per_minute(20, 30)
+        assert result == pytest.approx(24.0)
+
+    def test_per48(self):
+        # 20 pts in 30 min, base=48 → 20*48/30 = 32.0
+        result = per_minute(20, 30, base=48)
+        assert result == pytest.approx(32.0)
+
+    def test_zero_minutes(self):
+        assert per_minute(20, 0) == 0.0
+
+
+# -- assist_pct ----------------------------------------------------------------
+
+
+class TestAssistPct:
+    def test_typical_value(self):
+        # 8 ast, 32 min, 40 team_fgm, 6 fgm, 240 team_min
+        # adj = (32 / 48) * 40 - 6 = 26.667 - 6 = 20.667
+        # = 100 * 8 / 20.667 ≈ 38.71
+        result = assist_pct(8, 32, 40, 6, 240)
+        assert 0.0 < result < 50.0
+
+    def test_zero_minutes(self):
+        assert assist_pct(8, 0, 40, 6, 240) == 0.0
+
+
+# -- steal_pct -----------------------------------------------------------------
+
+
+class TestStealPct:
+    def test_typical_value(self):
+        # 2 stl, 30 min, 100 poss, 240 team min
+        # = 100 * (2 * 48) / (30 * 100) = 100 * 96 / 3000 = 3.2
+        result = steal_pct(2, 30, 100, 240)
+        assert result == pytest.approx(3.2, abs=0.01)
+
+    def test_zero_minutes(self):
+        assert steal_pct(2, 0, 100, 240) == 0.0
+
+
+# -- block_pct -----------------------------------------------------------------
+
+
+class TestBlockPct:
+    def test_typical_value(self):
+        # 2 blk, 30 min, 80 opp_fga, 240 team min
+        # = 100 * (2 * 48) / (30 * 80) = 100 * 96 / 2400 = 4.0
+        result = block_pct(2, 30, 80, 240)
+        assert result == pytest.approx(4.0, abs=0.01)
+
+    def test_zero_minutes(self):
+        assert block_pct(2, 0, 80, 240) == 0.0
+
+
+# -- turnover_pct --------------------------------------------------------------
+
+
+class TestTurnoverPct:
+    def test_typical_value(self):
+        # 3 TOV, 18 FGA, 5 FTA → denom = 18 + 0.44*5 + 3 = 23.2
+        # = 100 * 3 / 23.2 ≈ 12.93
+        result = turnover_pct(3, 18, 5)
+        assert result == pytest.approx(12.93, abs=0.01)
+
+    def test_zero_denominator(self):
+        assert turnover_pct(0, 0, 0) == 0.0

@@ -95,3 +95,114 @@ def rebound_pct(
     if minutes == 0 or (team_reb + opp_reb) == 0:
         return 0.0
     return 100 * (reb * (team_minutes / 5)) / (minutes * (team_reb + opp_reb))
+
+
+def game_score(
+    pts: float | None,
+    fgm: float | None,
+    fga: float | None,
+    ftm: float | None,
+    fta: float | None,
+    oreb: float | None,
+    dreb: float | None,
+    stl: float | None,
+    ast: float | None,
+    blk: float | None,
+    pf: float | None,
+    tov: float | None,
+) -> float:
+    """John Hollinger's Game Score: single-number game performance summary."""
+    pts, fgm, fga = _f(pts), _f(fgm), _f(fga)
+    ftm, fta = _f(ftm), _f(fta)
+    oreb, dreb = _f(oreb), _f(dreb)
+    stl, ast, blk = _f(stl), _f(ast), _f(blk)
+    pf, tov = _f(pf), _f(tov)
+    return (
+        pts
+        + 0.4 * fgm
+        - 0.7 * fga
+        - 0.4 * (fta - ftm)
+        + 0.7 * oreb
+        + 0.3 * dreb
+        + stl
+        + 0.7 * ast
+        + 0.7 * blk
+        - 0.4 * pf
+        - tov
+    )
+
+
+def possessions(
+    fga: float | None,
+    fta: float | None,
+    oreb: float | None,
+    tov: float | None,
+) -> float:
+    """Estimate possessions from box score: FGA - OREB + TOV + 0.44 * FTA."""
+    return _f(fga) - _f(oreb) + _f(tov) + 0.44 * _f(fta)
+
+
+def per_minute(
+    stat: float | None,
+    minutes: float | None,
+    base: float = 36,
+) -> float:
+    """Per-minute normalization. base=36 for per-36, base=48 for per-48."""
+    stat, minutes = _f(stat), _f(minutes)
+    return stat * base / minutes if minutes > 0 else 0.0
+
+
+def assist_pct(
+    ast: float | None,
+    minutes: float | None,
+    team_fgm: float | None,
+    fgm: float | None,
+    team_minutes: float | None,
+) -> float:
+    """Percentage of teammate field goals a player assisted while on floor."""
+    ast, minutes = _f(ast), _f(minutes)
+    team_fgm, fgm, team_minutes = _f(team_fgm), _f(fgm), _f(team_minutes)
+    denom = (team_minutes / 5) * team_fgm
+    if minutes == 0 or denom == 0:
+        return 0.0
+    adj = (minutes / (team_minutes / 5)) * team_fgm - fgm
+    return 100 * ast / adj if adj > 0 else 0.0
+
+
+def steal_pct(
+    stl: float | None,
+    minutes: float | None,
+    team_poss: float | None,
+    team_minutes: float | None,
+) -> float:
+    """Percentage of opponent possessions ending with a steal while on floor."""
+    stl, minutes = _f(stl), _f(minutes)
+    team_poss, team_minutes = _f(team_poss), _f(team_minutes)
+    if minutes == 0 or team_poss == 0:
+        return 0.0
+    return 100 * (stl * (team_minutes / 5)) / (minutes * team_poss)
+
+
+def block_pct(
+    blk: float | None,
+    minutes: float | None,
+    opp_fga: float | None,
+    team_minutes: float | None,
+) -> float:
+    """Percentage of opponent 2-point FGA blocked while on floor."""
+    blk, minutes = _f(blk), _f(minutes)
+    opp_fga, team_minutes = _f(opp_fga), _f(team_minutes)
+    if minutes == 0 or opp_fga == 0:
+        return 0.0
+    return 100 * (blk * (team_minutes / 5)) / (minutes * opp_fga)
+
+
+def turnover_pct(
+    tov: float | None,
+    fga: float | None,
+    fta: float | None,
+) -> float:
+    """Turnover percentage: turnovers per play."""
+    tov, fga, fta = _f(tov), _f(fga), _f(fta)
+    denom = fga + 0.44 * fta + tov
+    return 100 * tov / denom if denom > 0 else 0.0

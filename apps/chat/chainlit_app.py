@@ -49,15 +49,23 @@ _DEEP_ANALYSIS_STARTERS = [
     cl.Starter(
         label="Player comparison",
         message=(
-            "Compare LeBron James and Stephen Curry's career stats "
-            "side by side with a visualization."
+            "Compare LeBron James and Stephen Curry's career stats side by side with a radar chart."
         ),
         icon="/public/icons/versus.svg",
     ),
     cl.Starter(
-        label="Shooting efficiency",
+        label="Similar players",
         message=(
-            "Who are the most efficient scorers? Calculate TS% for players averaging 20+ PPG."
+            "Which players are statistically most similar to Shai Gilgeous-Alexander "
+            "this season? Show a comparison table."
+        ),
+        icon="/public/icons/stats.svg",
+    ),
+    cl.Starter(
+        label="Significance test",
+        message=(
+            "Is Jayson Tatum's 3-point shooting this season significantly "
+            "different from last season? Run a statistical test."
         ),
         icon="/public/icons/target.svg",
     ),
@@ -68,14 +76,14 @@ _DEEP_ANALYSIS_STARTERS = [
         ),
         icon="/public/icons/trophy.svg",
     ),
-    cl.Starter(
-        label="Offense vs defense",
-        message=("Break down the Lakers' offensive and defensive ratings over the last 5 seasons."),
-        icon="/public/icons/stats.svg",
-    ),
 ]
 
 _VISUALIZATION_STARTERS = [
+    cl.Starter(
+        label="Shot chart heatmap",
+        message=("Show me Stephen Curry's shot chart this season as a heatmap on a court diagram."),
+        icon="/public/icons/target.svg",
+    ),
     cl.Starter(
         label="TS% vs usage scatter",
         message=(
@@ -85,22 +93,17 @@ _VISUALIZATION_STARTERS = [
         icon="/public/icons/chart.svg",
     ),
     cl.Starter(
-        label="Win trend line chart",
+        label="Compare shooting zones",
         message=(
-            "Show me a line chart of the Warriors' win percentage "
-            "trend by season over the last 10 years."
+            "Compare the shooting zones of Jayson Tatum vs Devin Booker "
+            "with side-by-side court diagrams."
         ),
+        icon="/public/icons/versus.svg",
+    ),
+    cl.Starter(
+        label="Hot streak finder",
+        message=("Find the longest scoring streaks of 30+ points this season."),
         icon="/public/icons/trend.svg",
-    ),
-    cl.Starter(
-        label="Scoring distribution",
-        message=("Visualize the points-per-game distribution across all NBA teams as a box plot."),
-        icon="/public/icons/chart.svg",
-    ),
-    cl.Starter(
-        label="Triple-double leaders",
-        message=("Plot a bar chart of the top 10 triple-double leaders over the last 5 seasons."),
-        icon="/public/icons/trophy.svg",
     ),
 ]
 

@@ -183,3 +183,75 @@ fig = px.scatter(
 fig.update_traces(textposition="top center", textfont_size=8)
 show(fig)
 ```
+
+## Shot Chart Data Pull
+
+Query shot chart data for visualization with `court.*` functions.
+
+```sql
+SELECT
+    p.full_name,
+    s.loc_x,
+    s.loc_y,
+    s.shot_made_flag,
+    s.shot_type,
+    s.zone_basic,
+    s.zone_area,
+    s.zone_range,
+    s.shot_distance
+FROM fact_shot_chart_detail s
+JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE
+WHERE p.full_name = 'Stephen Curry'
+  AND s.season_year = (SELECT MAX(season_year) FROM fact_shot_chart_detail)
+```
+
+Then in `run_python`:
+
+```python
+df = query("""<the SQL above>""")
+court.shot_heatmap(df, title="Stephen Curry Shot Chart 2025-26")
+```
+
+## Lineup Efficiency
+
+Top 5-man lineups by net rating from `agg_lineup_efficiency`.
+
+```sql
+SELECT
+    group_id,
+    avg_net_rating,
+    min,
+    gp
+FROM agg_lineup_efficiency
+WHERE team_id = (SELECT team_id FROM dim_team WHERE abbreviation = 'BOS')
+  AND gp >= 10
+ORDER BY avg_net_rating DESC
+LIMIT 20
+```
+
+## On/Off Impact
+
+Player on/off court impact from `agg_on_off_splits`.
+
+```sql
+SELECT
+    p.full_name,
+    s.on_off,
+    s.off_rating,
+    s.def_rating,
+    s.net_rating,
+    s.min
+FROM agg_on_off_splits s
+JOIN dim_player p ON s.entity_id = p.player_id AND p.is_current = TRUE
+WHERE s.team_id = (SELECT team_id FROM dim_team WHERE abbreviation = 'BOS')
+ORDER BY p.full_name, s.on_off
+```
+
+Then in `run_python`:
+
+```python
+df = query("""<the SQL above>""")
+impact = lineups.on_off_impact(df, entity_col='full_name', on_off_col='on_off',
+                                rating_cols=['net_rating'])
+table(impact.sort_values('net_rating_delta', ascending=False))
+```
