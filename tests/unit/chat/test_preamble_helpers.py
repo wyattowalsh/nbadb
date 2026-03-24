@@ -23,7 +23,7 @@ def built_preamble():
     spec = importlib.util.spec_from_file_location("_preamble", PREAMBLE_MODULE)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.build_preamble("/tmp/test.duckdb", "/tmp/skills")
+    return mod.build_preamble("/tmp/test.duckdb", "/tmp/skills", "/tmp/session/test")
 
 
 class TestSessionState:
@@ -36,13 +36,13 @@ class TestSessionState:
         assert "last_result = pd.DataFrame()" in preamble_content
 
     def test_save_last_result_function(self, preamble_content):
-        assert "def _save_last_result(df)" in preamble_content
+        assert "def _save_last_result(df, _last_result_path=_LAST_RESULT_PATH)" in preamble_content
 
     def test_table_saves_last_result(self, preamble_content):
         assert "_save_last_result(df)" in preamble_content
 
     def test_session_dir_creation(self, preamble_content):
-        assert "_SESSION_DIR.mkdir(parents=True" in preamble_content
+        assert "_LAST_RESULT_PATH.parent.mkdir(parents=True" in preamble_content
 
 
 class TestDisplayHelpers:
@@ -108,9 +108,17 @@ class TestBuildPreamble:
     def test_substitutes_skills_dir(self, built_preamble):
         assert "/tmp/skills" in built_preamble
 
+    def test_substitutes_session_dir(self, built_preamble):
+        assert "/tmp/session/test" in built_preamble
+
+    def test_uses_private_duckdb_import(self, built_preamble):
+        assert "import duckdb as _duckdb" in built_preamble
+        assert "del _duckdb" in built_preamble
+
     def test_no_raw_placeholders(self, built_preamble):
         assert "__DB_PATH__" not in built_preamble
         assert "__SKILLS_DIR__" not in built_preamble
+        assert "__SESSION_DIR__" not in built_preamble
 
     def test_braces_in_path_safe(self):
         """Paths with curly braces don't crash build_preamble."""
@@ -120,5 +128,10 @@ class TestBuildPreamble:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         # This would crash with str.format()
-        result = mod.build_preamble("/tmp/{weird}/db.duckdb", "/skills/{odd}")
+        result = mod.build_preamble(
+            "/tmp/{weird}/db.duckdb",
+            "/skills/{odd}",
+            "/session/{safe}",
+        )
         assert "{weird}" in result  # Braces preserved, not interpreted
+        assert "{safe}" in result

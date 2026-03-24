@@ -11,6 +11,7 @@ import pandas as pd
 from chainlit.input_widget import Select, Slider, TextInput
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from loguru import logger
+from pydantic import SecretStr
 from server.agent import create_nba_agent
 from server.config import ChatSettings
 from server.tracing import setup_tracing
@@ -18,6 +19,13 @@ from server.tracing import setup_tracing
 # Configure loguru — compact format, INFO level
 logger.remove()
 logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
+
+_KEY_REQUIRED_PROVIDERS = frozenset({"openai", "anthropic", "google", "custom", "copilot"})
+_PUBLIC_DEMO_SETUP_MESSAGE = (
+    "**Public demo: bring your own API key.**\n\n"
+    "This anonymous URL exposes the full open-source app. Open the gear icon, "
+    "choose a provider and model, and enter your own API key before chatting."
+)
 
 
 # -- Profile-specific starters ------------------------------------------------
@@ -352,38 +360,45 @@ def _build_template_script(code_log: list[dict], name: str) -> str:
     return "\n".join(lines)
 
 
-# -- Lifecycle hooks ------------------------------------------------------------
+def _build_updated_settings(
+    current: ChatSettings,
+    settings_dict: dict[str, object],
+) -> ChatSettings:
+    """Validate a full settings snapshot before committing it to session state."""
+    updates = {
+        k: v
+        for k, v in settings_dict.items()
+        if k in ("provider", "base_url", "model", "temperature") and v is not None
+    }
+    api_key = settings_dict.get("api_key")
+    if api_key:
+        updates["api_key"] = SecretStr(str(api_key))
+
+    merged_settings = current.model_dump(mode="python")
+    merged_settings.update(updates)
+    return ChatSettings(**merged_settings)
 
 
-@cl.on_chat_start
-async def on_chat_start() -> None:
-    """Initialize the agent when a new chat session starts."""
-    settings = ChatSettings()
-
-    # Adjust settings based on selected profile
-    profile = cl.user_session.get("chat_profile")
+def _prepare_session_settings(
+    settings: ChatSettings,
+    profile: str | None,
+) -> ChatSettings:
+    """Apply per-session adjustments before attempting agent creation."""
+    next_settings = settings
+    if settings.public_demo_mode:
+        next_settings = next_settings.model_copy(update={"api_key": None})
     if profile == "Quick Stats":
-        settings = settings.model_copy(update={"temperature": 0.05})
+        next_settings = next_settings.model_copy(update={"temperature": 0.05})
+    return next_settings
 
-    try:
-        agent = await create_nba_agent(settings, profile=profile)
-    except Exception as e:
-        await cl.Message(
-            content=(
-                f"**Failed to initialize agent:** {e}\n\n"
-                "Please check your configuration and refresh."
-            )
-        ).send()
-        return
 
-    callbacks = setup_tracing(settings)
-    cl.user_session.set("agent", agent)
-    cl.user_session.set("settings", settings)
-    cl.user_session.set("callbacks", callbacks)
-    cl.user_session.set("chat_profile_name", profile)
-    cl.user_session.set("code_log", [])  # Track code for session export
+def _settings_can_create_agent(settings: ChatSettings) -> bool:
+    """Return whether the current settings are sufficient to create an agent."""
+    return not (settings.provider in _KEY_REQUIRED_PROVIDERS and settings.api_key is None)
 
-    # Present settings panel via gear icon
+
+async def _send_settings_panel(settings: ChatSettings) -> None:
+    """Render the provider settings panel."""
     await cl.ChatSettings(
         [
             Select(
@@ -404,13 +419,13 @@ async def on_chat_start() -> None:
                 id="model",
                 label="Model",
                 initial=settings.model,
-                placeholder="gpt-4o, claude-sonnet-4-20250514, gemini-2.0-flash...",
+                placeholder="Provider model ID, for example gpt-4.1 or gemini-2.5-flash",
             ),
             TextInput(
                 id="api_key",
                 label="API Key",
                 initial="",
-                placeholder="sk-... (leave empty to use env var)",
+                placeholder="Enter your own provider key for this session",
             ),
             Slider(
                 id="temperature",
@@ -430,51 +445,130 @@ async def on_chat_start() -> None:
     ).send()
 
 
+def _cleanup_session_state(
+    session_id: str | None = None,
+    session_root: Path | None = None,
+) -> None:
+    """Remove only the current session's persisted state directory."""
+    import shutil
+
+    resolved_session_id = (
+        session_id or cl.user_session.get("session_id") or cl.user_session.get("id")
+    )
+    if not resolved_session_id:
+        return
+
+    resolved_session_root = session_root or (Path.home() / ".nbadb" / "session")
+    session_dir = resolved_session_root / str(resolved_session_id)
+    if session_dir.exists():
+        shutil.rmtree(session_dir, ignore_errors=True)
+
+
+# -- Lifecycle hooks ------------------------------------------------------------
+
+
+@cl.on_chat_start
+async def on_chat_start() -> None:
+    """Initialize the agent when a new chat session starts."""
+    session_id = str(cl.user_session.get("id") or "default")
+    cl.user_session.set("session_id", session_id)
+
+    # Adjust settings based on selected profile
+    profile = cl.user_session.get("chat_profile")
+    settings = _prepare_session_settings(ChatSettings(), profile)
+
+    cl.user_session.set("agent", None)
+    cl.user_session.set("settings", settings)
+    cl.user_session.set("callbacks", [])
+    cl.user_session.set("chat_profile_name", profile)
+    cl.user_session.set("code_log", [])  # Track code for session export
+
+    await _send_settings_panel(settings)
+
+    if settings.public_demo_mode and not _settings_can_create_agent(settings):
+        await cl.Message(content=_PUBLIC_DEMO_SETUP_MESSAGE).send()
+        return
+
+    try:
+        agent = await create_nba_agent(settings, profile=profile, session_id=session_id)
+    except Exception as e:
+        await cl.Message(
+            content=(
+                f"**Failed to initialize agent:** {e}\n\n"
+                "Please check your configuration and refresh."
+            )
+        ).send()
+        return
+
+    callbacks = setup_tracing(settings)
+    cl.user_session.set("agent", agent)
+    cl.user_session.set("callbacks", callbacks)
+
+
 @cl.on_settings_update
 async def on_settings_update(settings_dict: dict) -> None:
     """Recreate the agent when provider settings change."""
     current = cl.user_session.get("settings")
     if current is None:
-        current = ChatSettings()
+        current = _prepare_session_settings(ChatSettings(), None)
 
-    # Update settings from the UI — handle api_key separately (HR-5)
-    updates = {
-        k: v
-        for k, v in settings_dict.items()
-        if k in ("provider", "base_url", "model", "temperature") and v is not None
-    }
-    # Only update api_key if the user actually entered a value
-    if settings_dict.get("api_key"):
-        updates["api_key"] = settings_dict["api_key"]
-
-    if updates:
-        current = current.model_copy(update=updates)
-
-    # Clean up old agent before creating a new one (HR-3)
+    profile = cl.user_session.get("chat_profile") or cl.user_session.get("chat_profile_name")
+    session_id = str(cl.user_session.get("session_id") or cl.user_session.get("id") or "default")
     old_agent = cl.user_session.get("agent")
-    if old_agent is not None and hasattr(old_agent, "cleanup"):
-        await old_agent.cleanup()
+    agent = None
+    try:
+        next_settings = _build_updated_settings(current, settings_dict)
+        if next_settings.public_demo_mode and not _settings_can_create_agent(next_settings):
+            if old_agent is None:
+                cl.user_session.set("agent", None)
+                cl.user_session.set("settings", next_settings)
+                cl.user_session.set("callbacks", [])
+                cl.user_session.set("chat_profile_name", profile)
+                await cl.Message(content=_PUBLIC_DEMO_SETUP_MESSAGE).send()
+                return
+            await cl.Message(
+                content=(
+                    "**Configuration incomplete.**\n\n"
+                    "Your previous agent is still available. Enter a valid provider key to switch."
+                )
+            ).send()
+            return
+        agent = await create_nba_agent(next_settings, profile=profile, session_id=session_id)
+        callbacks = setup_tracing(next_settings)
+    except Exception as e:
+        if agent is not None and hasattr(agent, "cleanup"):
+            await agent.cleanup()
+        logger.exception("Failed to rebuild agent after settings update")
+        await cl.Message(
+            content=(
+                f"**Failed to update settings:** {e}\n\n"
+                "Your previous agent is still available. "
+                "Please check your configuration and try again."
+            )
+        ).send()
+        return
 
-    agent = await create_nba_agent(current)
-    callbacks = setup_tracing(current)
     cl.user_session.set("agent", agent)
-    cl.user_session.set("settings", current)
+    cl.user_session.set("settings", next_settings)
     cl.user_session.set("callbacks", callbacks)
+    cl.user_session.set("chat_profile_name", profile)
+    if old_agent is not None and old_agent is not agent and hasattr(old_agent, "cleanup"):
+        try:
+            await old_agent.cleanup()
+        except Exception:
+            logger.exception("Failed to clean up previous agent after settings update")
     await cl.Message(content="Settings updated. Agent reconfigured.").send()
 
 
 @cl.on_chat_end
 async def on_chat_end() -> None:
     """Clean up resources when the chat session ends."""
-    agent = cl.user_session.get("agent")
-    if agent is not None and hasattr(agent, "cleanup"):
-        await agent.cleanup()
-    # Clear session-state files (last_result.parquet, etc.)
-    import shutil
-
-    session_dir = Path.home() / ".nbadb" / "session"
-    if session_dir.exists():
-        shutil.rmtree(session_dir, ignore_errors=True)
+    try:
+        agent = cl.user_session.get("agent")
+        if agent is not None and hasattr(agent, "cleanup"):
+            await agent.cleanup()
+    finally:
+        _cleanup_session_state()
 
 
 # -- Message handling -----------------------------------------------------------
@@ -485,7 +579,11 @@ async def on_message(msg: cl.Message) -> None:
     """Handle incoming user messages."""
     agent = cl.user_session.get("agent")
     if agent is None:
-        await cl.Message(content="Agent not initialized. Please refresh.").send()
+        settings = cl.user_session.get("settings")
+        if settings is not None and getattr(settings, "public_demo_mode", False):
+            await cl.Message(content=_PUBLIC_DEMO_SETUP_MESSAGE).send()
+        else:
+            await cl.Message(content="Agent not initialized. Please refresh.").send()
         return
 
     callbacks = cl.user_session.get("callbacks") or []

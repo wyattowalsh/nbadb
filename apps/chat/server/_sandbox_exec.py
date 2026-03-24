@@ -40,6 +40,10 @@ _BLOCKED_MODULES: frozenset[str] = frozenset(
         "signal",
         "multiprocessing",
         "threading",
+        "sys",
+        "pathlib",
+        "io",
+        "duckdb",
     }
 )
 
@@ -60,6 +64,64 @@ _BLOCKED_BUILTINS: frozenset[str] = frozenset(
     }
 )
 
+_BLOCKED_ATTRIBUTE_CALLS: frozenset[str] = frozenset(
+    {
+        "read_csv",
+        "read_table",
+        "read_parquet",
+        "read_json",
+        "read_excel",
+        "read_feather",
+        "read_hdf",
+        "read_html",
+        "read_xml",
+        "read_pickle",
+        "read_fwf",
+        "read_spss",
+        "read_sas",
+        "read_stata",
+        "read_text",
+        "read_bytes",
+        "write_text",
+        "write_bytes",
+        "to_csv",
+        "to_parquet",
+        "to_excel",
+        "to_feather",
+        "to_hdf",
+        "to_pickle",
+        "to_sql",
+        "to_xml",
+        "open",
+        "mkdir",
+        "rmdir",
+        "unlink",
+        "touch",
+        "glob",
+        "rglob",
+        "iterdir",
+        "connect",
+    }
+)
+
+_BLOCKED_ATTRIBUTE_CHAINS: frozenset[str] = frozenset(
+    {
+        "duckdb.sql",
+        "duckdb.execute",
+        "duckdb.query",
+        "duckdb.table",
+        "duckdb.from_query",
+        "duckdb.read_csv",
+        "duckdb.read_parquet",
+        "duckdb.read_json",
+        "duckdb.read_json_auto",
+        "duckdb.read_text",
+        "duckdb.read_blob",
+        "duckdb.read_xlsx",
+        "duckdb.from_csv_auto",
+    }
+)
+
 _BLOCKED_ATTRS: frozenset[str] = frozenset(
     {
         "__class__",
@@ -69,8 +131,21 @@ _BLOCKED_ATTRS: frozenset[str] = frozenset(
         "__globals__",
         "__code__",
         "__builtins__",
+        "savefig",
     }
 )
+
+
+def _attribute_chain(node: ast.AST) -> tuple[str, ...]:
+    """Return the dotted attribute chain for *node* if possible."""
+    parts: list[str] = []
+    current = node
+    while isinstance(current, ast.Attribute):
+        parts.append(current.attr)
+        current = current.value
+    if isinstance(current, ast.Name):
+        parts.append(current.id)
+    return tuple(reversed(parts))
 
 
 def check_code_safety(code: str) -> str | None:
@@ -103,8 +178,15 @@ def check_code_safety(code: str) -> str | None:
             func = node.func
             if isinstance(func, ast.Name) and func.id in _BLOCKED_BUILTINS:
                 return f"Blocked builtin call: {func.id}()"
-            if isinstance(func, ast.Attribute) and func.attr in _BLOCKED_BUILTINS:
-                return f"Blocked attribute call: .{func.attr}()"
+            if isinstance(func, ast.Attribute):
+                chain = ".".join(_attribute_chain(func))
+                if chain in _BLOCKED_ATTRIBUTE_CHAINS:
+                    return f"Blocked DuckDB access call: {chain}()"
+                if func.attr in _BLOCKED_BUILTINS:
+                    return f"Blocked attribute call: .{func.attr}()"
+                if func.attr in _BLOCKED_ATTRIBUTE_CALLS:
+                    call_name = chain or func.attr
+                    return f"Blocked file or network access call: {call_name}()"
 
         # Block dunder attribute access for class hierarchy traversal
         elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_ATTRS:

@@ -31,7 +31,9 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import duckdb
+import duckdb as _duckdb
+import re as _re
+import unicodedata as _unicodedata
 
 try:
     import scipy.stats as stats
@@ -39,7 +41,71 @@ except ImportError:
     pass
 
 # Read-only database connection
-conn = duckdb.connect(__DB_PATH__, read_only=True)
+_db_conn = _duckdb.connect(__DB_PATH__, read_only=True)
+_db_conn.execute("SET enable_external_access = false")
+del _duckdb
+
+_READ_ONLY_WRITE_KEYWORDS = {
+    "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE",
+    "TRUNCATE", "REPLACE", "MERGE", "UPSERT", "GRANT",
+    "REVOKE", "ATTACH", "DETACH", "COPY", "EXPORT", "IMPORT",
+    "LOAD", "INSTALL", "PRAGMA", "SET", "CALL", "EXECUTE",
+}
+_READ_ONLY_WRITE_PATTERN = _re.compile(
+    r"\\b(" + "|".join(_READ_ONLY_WRITE_KEYWORDS) + r")\\b",
+    _re.IGNORECASE,
+)
+_READ_ONLY_DANGEROUS_FUNCS = _re.compile(
+    r"\\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|"
+    r"read_xlsx|glob|read_csv_auto|read_ndjson|http_get|"
+    r"scan_csv|scan_csv_auto|scan_parquet|scan_json|"
+    r"getenv|current_setting|query_table)\\s*\\(",
+    _re.IGNORECASE,
+)
+_READ_ONLY_BLOCK_COMMENT = _re.compile(r"/\\*.*?\\*/", _re.DOTALL)
+_READ_ONLY_LINE_COMMENT = _re.compile(r"--[^\\n]*")
+
+def _normalize_sql(sql: str) -> str:
+    normalized = _unicodedata.normalize("NFKC", sql)
+    normalized = _READ_ONLY_BLOCK_COMMENT.sub(" ", normalized)
+    normalized = _READ_ONLY_LINE_COMMENT.sub(" ", normalized)
+    return _re.sub(r"\\s+", " ", normalized).strip()
+
+def _validate_sql(sql: str) -> str:
+    stripped = sql.strip().rstrip(";").strip()
+    if not stripped:
+        raise ValueError("Empty query")
+
+    normalized = _normalize_sql(stripped)
+    if ";" in normalized:
+        raise ValueError("Multiple statements not allowed")
+    if _READ_ONLY_WRITE_PATTERN.search(normalized):
+        raise ValueError("Write operations are not allowed in Python SQL helpers")
+    if _READ_ONLY_DANGEROUS_FUNCS.search(normalized):
+        raise ValueError("File access functions are not allowed in Python SQL helpers")
+
+    upper = normalized.upper()
+    if not upper.startswith(("SELECT", "WITH")):
+        raise ValueError("Python SQL helpers only allow SELECT/WITH queries")
+
+    return stripped
+
+def _wrap_with_limit(sql: str, max_rows: int = 1000) -> str:
+    return f"SELECT * FROM ({sql.rstrip(';').strip()}) AS _limited LIMIT {max_rows}"
+
+class _SafeConn:
+    def __init__(self, raw_conn):
+        self._raw_conn = raw_conn
+
+    def execute(self, sql: str, *args, **kwargs):
+        validated = _validate_sql(sql)
+        return self._raw_conn.execute(_wrap_with_limit(validated), *args, **kwargs)
+
+    def sql(self, sql: str, *args, **kwargs):
+        validated = _validate_sql(sql)
+        return self._raw_conn.sql(_wrap_with_limit(validated), *args, **kwargs)
+
+conn = _SafeConn(_db_conn)
 
 # NBA metric calculator and skill scripts
 sys.path.insert(0, __SKILLS_DIR__)
@@ -61,25 +127,26 @@ def query(sql: str) -> pd.DataFrame:
     return conn.execute(sql).fetchdf()
 
 # --- Session state (last_result persistence across tool calls) ---------------
-import pathlib as _pathlib
+from pathlib import Path as _SessionPath
 
-_SESSION_DIR = _pathlib.Path.home() / ".nbadb" / "session"
-_SESSION_DIR.mkdir(parents=True, exist_ok=True)
-_LAST_RESULT_PATH = _SESSION_DIR / "last_result.parquet"
+_LAST_RESULT_PATH = _SessionPath(__SESSION_DIR__) / "last_result.parquet"
+_LAST_RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 try:
     last_result = pd.read_parquet(_LAST_RESULT_PATH)
 except Exception:
     last_result = pd.DataFrame()
 
-def _save_last_result(df):
+def _save_last_result(df, _last_result_path=_LAST_RESULT_PATH):
     """Persist DataFrame for next tool call."""
     global last_result
     last_result = df
     try:
-        df.to_parquet(_LAST_RESULT_PATH, index=False)
+        df.to_parquet(_last_result_path, index=False)
     except Exception:
         pass
+
+del _SessionPath
 
 # --- Display helpers ---------------------------------------------------------
 
@@ -279,12 +346,14 @@ function download(content, filename, type) {{
 '''
 
 
-def build_preamble(db_path: str, skills_dir: str) -> str:
+def build_preamble(db_path: str, skills_dir: str, session_dir: str) -> str:
     """Build the Python sandbox preamble with the given DB path and skills dir.
 
     Uses explicit string replacement instead of str.format() to avoid
-    injection if db_path or skills_dir contain curly braces.
+    injection if db_path, skills_dir, or session_dir contain curly braces.
     """
-    return _PREAMBLE_TEMPLATE.replace("__DB_PATH__", repr(db_path)).replace(
-        "__SKILLS_DIR__", repr(skills_dir)
+    return (
+        _PREAMBLE_TEMPLATE.replace("__DB_PATH__", repr(db_path))
+        .replace("__SKILLS_DIR__", repr(skills_dir))
+        .replace("__SESSION_DIR__", repr(session_dir))
     )

@@ -25,6 +25,7 @@ async def create_copilot_agent(
     settings: ChatSettings,
     system_prompt: str,
     db_path: Path,
+    session_id: str,
 ) -> CopilotAgentWrapper:
     """Create a Copilot SDK agent with NBA tools registered."""
     from copilot import CopilotClient
@@ -32,7 +33,7 @@ async def create_copilot_agent(
     client = CopilotClient()
     await client.start()
 
-    tools = _build_tools(db_path)
+    tools = _build_tools(db_path, session_id=session_id)
 
     return CopilotAgentWrapper(
         client=client,
@@ -42,7 +43,7 @@ async def create_copilot_agent(
     )
 
 
-def _build_tools(db_path: Path) -> list:
+def _build_tools(db_path: Path, session_id: str) -> list:
     """Build Copilot tools for NBA data analytics."""
     from copilot import define_tool
     from pydantic import BaseModel, Field
@@ -134,8 +135,8 @@ def _build_tools(db_path: Path) -> list:
         code: str = Field(
             description=(
                 "Python code to execute. Pre-imported: pandas (pd), "
-                "numpy (np), plotly (px/go), duckdb. "
-                "Pre-defined: conn (DuckDB), query(sql), "
+                "numpy (np), plotly (px/go). "
+                "Pre-defined: conn (safe DuckDB helper), query(sql), "
                 "mc (metric_calculator). "
                 "For charts: print(fig.to_json()). "
                 "For tables: print(df.to_json(orient='split'))."
@@ -148,6 +149,7 @@ def _build_tools(db_path: Path) -> list:
     preamble = build_preamble(
         db_path=str(db_path),
         skills_dir=str(skills_dir),
+        session_dir=str(Path("~/.nbadb/session").expanduser() / session_id),
     )
 
     @define_tool(

@@ -40,12 +40,18 @@ If the user's request is ambiguous, ask a brief clarifying question before query
   - `lineups`: Lineup analysis — `lineups.on_off_impact(df)`, `lineups.two_man_combos(df)`, \
 `lineups.lineup_chart(df)`
   - `trends`: Trends — `trends.rolling_stats(df, cols)`, \
-`trends.detect_streaks(df, col, threshold)`, `trends.season_projection(stats, gp)`
+`trends.detect_streaks(df, col, threshold)`, `trends.find_breakouts(df, col, sigma)`, \
+`trends.season_projection(stats, gp)`
+  - NOTE: `court.*` and `compare.radar_chart()` call `plt.show()` internally \
+(self-displaying). `lineups.lineup_chart()` returns a Plotly figure — wrap with \
+`chart()`.
   - Display: `chart(fig)`, `table(df)`, `show(data)`, `annotated_chart(fig, df, col)`
   - Export: `to_csv(df, n)`, `to_xlsx(df, n)`, `to_json(df, n)`, `to_spreadsheet(df, n)`
   - Share: `to_embed(fig, title)`, `to_social(df, headline)`, `to_thread(insights)`
   - Session: `last_result` — DataFrame from previous call (auto-persisted)
   - Libraries: pandas, numpy, plotly, matplotlib, scipy.stats
+  - SQL access: use `query(sql)` or `conn.execute(sql)` only; raw `duckdb`
+    module access is not available
 - **`web_search`** / **`web_fetch`** — Current news, injury reports, trade rumors.
 
 ## Iterative Refinement

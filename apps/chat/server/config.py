@@ -4,7 +4,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr, model_validator  # noqa: TC002 — needed at runtime by Pydantic
+from pydantic import (  # noqa: TC002 — needed at runtime by Pydantic
+    AliasChoices,
+    Field,
+    SecretStr,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, JsonConfigSettingsSource, SettingsConfigDict
 
 
@@ -13,6 +18,7 @@ class ChatSettings(BaseSettings):
         env_prefix="NBADB_CHAT_",
         json_file=Path("~/.nbadb/chat.json").expanduser(),
         json_file_encoding="utf-8",
+        populate_by_name=True,
         extra="ignore",
     )
 
@@ -21,8 +27,15 @@ class ChatSettings(BaseSettings):
     ] = "openai"
     api_key: SecretStr | None = None
     base_url: str | None = None
-    model: str = "gpt-4o"
+    model: str = "gpt-4.1"
     temperature: float = 0.1
+    public_demo_mode: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "NBADB_CHAT_PUBLIC_MODE",
+            "NBADB_CHAT_PUBLIC_DEMO_MODE",
+        ),
+    )
 
     duckdb_path: Path = Path("~/.nbadb/data/nba.duckdb")
 
@@ -34,7 +47,7 @@ class ChatSettings(BaseSettings):
     sandbox: Literal["local", "e2b"] = "local"
     e2b_api_key: SecretStr | None = None
 
-    extra_mcp_servers: dict[str, dict] = {}
+    extra_mcp_servers: dict[str, dict] = Field(default_factory=dict)
 
     @classmethod
     def settings_customise_sources(

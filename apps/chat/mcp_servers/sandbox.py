@@ -14,13 +14,19 @@ from _sandbox_exec import check_code_safety, run_sandboxed  # noqa: E402
 
 _DEFAULT_DB = Path("~/.nbadb/data/nba.duckdb").expanduser()
 DB_PATH = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 else _DEFAULT_DB
+SESSION_ID = sys.argv[2] if len(sys.argv) > 2 else "default"
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills" / "nba-data-analytics" / "scripts"
+SESSION_DIR = Path("~/.nbadb/session").expanduser() / SESSION_ID
 
 mcp = FastMCP("nbadb-sandbox")
 
 # Cache preamble at module level — DB_PATH and SKILLS_DIR are process-lifetime constants
-_PREAMBLE = build_preamble(db_path=str(DB_PATH), skills_dir=str(SKILLS_DIR))
+_PREAMBLE = build_preamble(
+    db_path=str(DB_PATH),
+    skills_dir=str(SKILLS_DIR),
+    session_dir=str(SESSION_DIR),
+)
 
 
 @mcp.tool()
@@ -28,10 +34,10 @@ def run_python(code: str) -> str:
     """Execute Python code with access to the NBA database and visualization libraries.
 
     Pre-imported libraries: pandas (pd), numpy (np), plotly.express (px),
-    plotly.graph_objects (go), matplotlib (plt), duckdb, scipy.stats (stats)
+    plotly.graph_objects (go), matplotlib (plt), scipy.stats (stats)
 
     Pre-defined helpers:
-    - `conn` — read-only DuckDB connection to the NBA database
+    - `conn` — read-only DuckDB helper with safe `execute(sql)` / `sql(sql)` methods
     - `query(sql)` — run SQL and return a DataFrame
     - `chart(fig)` — output a Plotly figure for display
     - `table(df)` — output a DataFrame for display

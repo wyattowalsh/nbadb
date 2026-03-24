@@ -15,7 +15,7 @@ def test_default_settings():
 
     settings = ChatSettings()
     assert settings.provider == "openai"
-    assert settings.model == "gpt-4o"
+    assert settings.model == "gpt-4.1"
     assert settings.temperature == 0.1
     assert settings.api_key is None
     assert settings.sandbox == "local"
@@ -37,6 +37,16 @@ def test_settings_from_env(monkeypatch):
     assert isinstance(settings.api_key, SecretStr)
     assert settings.api_key.get_secret_value() == "sk-test-123"
     assert settings.temperature == 0.5
+
+
+def test_public_demo_mode_can_be_enabled_with_notebook_env_alias(monkeypatch):
+    """Notebook launcher env activates public-demo mode."""
+    from apps.chat.server.config import ChatSettings
+
+    monkeypatch.setenv("NBADB_CHAT_PUBLIC_MODE", "1")
+
+    settings = ChatSettings()
+    assert settings.public_demo_mode is True
 
 
 def test_settings_from_json(tmp_path, monkeypatch):
@@ -73,6 +83,16 @@ def test_secret_str_redaction():
     settings = ChatSettings(api_key="sk-secret-key")
     repr_str = repr(settings)
     assert "sk-secret-key" not in repr_str
+
+
+def test_extra_mcp_servers_default_isolation():
+    """Mutable defaults are isolated between ChatSettings instances."""
+    from apps.chat.server.config import ChatSettings
+
+    first = ChatSettings()
+    second = ChatSettings()
+    first.extra_mcp_servers["demo"] = {"transport": "stdio"}
+    assert second.extra_mcp_servers == {}
 
 
 def test_duckdb_path_default():

@@ -22,6 +22,16 @@ SANDBOX_EXEC_MODULE = (
 PREAMBLE_MODULE = Path(__file__).resolve().parents[3] / "apps" / "chat" / "server" / "_preamble.py"
 
 
+def _load_module(path: Path, module_name: str):
+    """Import a Python module from an explicit file path."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def test_sandbox_module_exists():
     """The sandbox MCP server module exists."""
     assert SANDBOX_MODULE.exists()
@@ -54,7 +64,8 @@ def test_sandbox_preamble_has_imports():
     assert "import numpy as np" in content
     assert "import plotly.express as px" in content
     assert "import plotly.graph_objects as go" in content
-    assert "import duckdb" in content
+    assert "import duckdb as _duckdb" in content
+    assert "del _duckdb" in content
 
 
 def test_sandbox_preamble_has_query_helper():
@@ -62,6 +73,13 @@ def test_sandbox_preamble_has_query_helper():
     content = PREAMBLE_MODULE.read_text()
     assert "def query(sql" in content
     assert "conn.execute(sql).fetchdf()" in content
+
+
+def test_sandbox_preamble_uses_safe_conn_wrapper():
+    """The preamble exposes a safe SQL wrapper instead of a raw connection."""
+    content = PREAMBLE_MODULE.read_text()
+    assert "class _SafeConn" in content
+    assert 'raise ValueError("Python SQL helpers only allow SELECT/WITH queries")' in content
 
 
 def test_sandbox_preamble_has_metric_calculator():
@@ -109,6 +127,67 @@ def test_sandbox_exec_restricts_file_permissions():
     """The shared module sets temp file permissions to 0o600."""
     content = SANDBOX_EXEC_MODULE.read_text()
     assert "os.chmod(script_path, 0o600)" in content
+
+
+def test_sandbox_exec_blocks_file_access_attributes():
+    """The shared module blocks library-mediated file access helpers."""
+    content = SANDBOX_EXEC_MODULE.read_text()
+    assert "_BLOCKED_ATTRIBUTE_CALLS" in content
+    assert "read_csv" in content
+    assert "write_text" in content
+
+
+class TestSandboxRuntimeIsolation:
+    """Runtime tests for sandbox namespace and DuckDB escape prevention."""
+
+    @pytest.fixture(autouse=True)
+    def _load_modules(self):
+        self.sandbox_exec = _load_module(SANDBOX_EXEC_MODULE, "_sandbox_exec_runtime")
+
+    def test_preamble_does_not_expose_raw_duckdb(self, tmp_path: Path):
+        db_path = tmp_path / "nba.duckdb"
+        __import__("duckdb").connect(str(db_path)).close()
+        full_code = textwrap.dedent(
+            f"""
+            import duckdb as _duckdb
+            _db_conn = _duckdb.connect({str(db_path)!r}, read_only=True)
+            _db_conn.execute("SET enable_external_access = false")
+            del _duckdb
+            print('duckdb' in globals())
+            """
+        )
+
+        result = self.sandbox_exec.run_sandboxed(full_code, cwd=tmp_path)
+
+        assert result["stdout"] == "False"
+
+    def test_duckdb_sql_payload_cannot_read_local_files(self, tmp_path: Path):
+        db_path = tmp_path / "nba.duckdb"
+        __import__("duckdb").connect(str(db_path)).close()
+        secret_path = tmp_path / "secret.csv"
+        secret_path.write_text("top_secret\nvery-secret-value\n")
+        full_code = textwrap.dedent(
+            f"""
+            import duckdb as _duckdb
+            _db_conn = _duckdb.connect({str(db_path)!r}, read_only=True)
+            _db_conn.execute("SET enable_external_access = false")
+            del _duckdb
+            try:
+                print(
+                    duckdb.sql(
+                        "select * from read_csv_auto('{secret_path.as_posix()}')"
+                    ).fetchall()
+                )
+            except Exception as exc:
+                print(type(exc).__name__)
+                print(str(exc))
+            """
+        )
+
+        result = self.sandbox_exec.run_sandboxed(full_code, cwd=tmp_path)
+
+        assert "NameError" in result["stdout"]
+        assert "very-secret-value" not in result["stdout"]
 
 
 class TestSandboxExecution:
@@ -209,11 +288,7 @@ class TestASTCodeSafety:
     @pytest.fixture(autouse=True)
     def _load_checker(self):
         """Import check_code_safety from the shared module."""
-        import importlib.util
-
-        spec = importlib.util.spec_from_file_location("_sandbox_exec", SANDBOX_EXEC_MODULE)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _load_module(SANDBOX_EXEC_MODULE, "_sandbox_exec_checker")
         self.check = mod.check_code_safety
 
     def test_blocks_subprocess_import(self):
@@ -258,8 +333,26 @@ class TestASTCodeSafety:
     def test_allows_plotly(self):
         assert self.check("import plotly.express as px") is None
 
-    def test_allows_duckdb(self):
-        assert self.check("import duckdb") is None
+    def test_blocks_pandas_read_csv_call(self):
+        assert self.check("pd.read_csv('/tmp/data.csv')") is not None
+
+    def test_blocks_path_read_text_call(self):
+        assert self.check("some_path.read_text()") is not None
+
+    def test_blocks_duckdb_connect_call(self):
+        assert self.check("duckdb.connect('/tmp/test.duckdb')") is not None
+
+    def test_blocks_duckdb_import(self):
+        assert self.check("import duckdb") is not None
+
+    def test_blocks_duckdb_sql_call(self):
+        assert self.check("duckdb.sql('select 1')") is not None
+
+    def test_blocks_duckdb_execute_call(self):
+        assert self.check("duckdb.execute('select 1')") is not None
+
+    def test_blocks_duckdb_query_call(self):
+        assert self.check("duckdb.query('select 1')") is not None
 
     def test_allows_print(self):
         assert self.check('print("hello")') is None
