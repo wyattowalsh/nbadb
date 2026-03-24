@@ -10,19 +10,11 @@ on:
       concurrency:
         description: "Max concurrent requests per category"
         type: choice
-        default: "moderate"
+        default: "aggressive"
         options:
           - conservative
           - moderate
           - aggressive
-      season_start:
-        description: "Start season year (e.g. 1946)"
-        type: string
-        default: "1946"
-      season_end:
-        description: "End season year (e.g. 2025)"
-        type: string
-        default: "2025"
       iteration:
         description: "Iteration number (auto-incremented on self-chain)"
         type: string
@@ -31,40 +23,79 @@ on:
         description: "Max self-chain iterations (safety limit)"
         type: string
         default: "8"
-      backfill_endpoints:
-        description: "Comma-separated endpoints to backfill (empty = full init)"
-        type: string
-        default: ""
-      backfill_patterns:
-        description: "Comma-separated patterns to backfill (empty = all)"
-        type: string
-        default: ""
       force_reextract:
         description: "Force re-extraction of done entries"
         type: boolean
         default: false
+      chain_id:
+        description: "Chain identifier (auto-set on first iteration)"
+        type: string
+        default: ""
 
 env:
   NBADB_DATA_DIR: nbadb
   NBADB_PBP_CHUNK_SIZE: "1000"
   NBADB_PROXY_TIMEOUT: "30"
-  # Shared cache key — persists across all iterations
   CACHE_KEY: full-extraction-state
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# ─────────────────────────────────────────────────────────────────
+#  4 parallel extraction shards → 1 merge + transform job
+# ─────────────────────────────────────────────────────────────────
 jobs:
   extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 350  # ~5h50m, leaves margin before 6hr hard limit
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Shards 0-2: season-scoped patterns only (skip player/team/static)
+          - shard: 0
+            season_start: "1946"
+            season_end: "1979"
+            name: "early"
+            patterns: "season,game,date,player_season,player_team_season,team_season"
+            vpn_services: "vpn-us-east vpn-us-south"
+            control_ports: "19001 19002"
+            http_ports: "18881 18882"
+          - shard: 1
+            season_start: "1980"
+            season_end: "1999"
+            name: "growth"
+            patterns: "season,game,date,player_season,player_team_season,team_season"
+            vpn_services: "vpn-us-central vpn-us-south2"
+            control_ports: "19003 19004"
+            http_ports: "18883 18884"
+          - shard: 2
+            season_start: "2000"
+            season_end: "2014"
+            name: "modern"
+            patterns: "season,game,date,player_season,player_team_season,team_season"
+            vpn_services: "vpn-us-west vpn-us-west2"
+            control_ports: "19005 19006"
+            http_ports: "18885 18886"
+          # Shard 3: ALL patterns (season-scoped for 2015-2025 + global player/team/static)
+          - shard: 3
+            season_start: "2015"
+            season_end: "2025"
+            name: "recent"
+            patterns: ""
+            vpn_services: "vpn-us-east vpn-us-central"
+            control_ports: "19001 19003"
+            http_ports: "18881 18883"
+
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
@@ -82,85 +113,122 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: nbadb/
-          key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}
+          key: ${{ env.CACHE_KEY }}-shard-${{ matrix.shard }}-${{ github.run_id }}-${{ inputs.iteration }}
           restore-keys: |
-            ${{ env.CACHE_KEY }}-
+            ${{ env.CACHE_KEY }}-shard-${{ matrix.shard }}-
 
-      - name: Show iteration info
+      - name: Show shard info
         env:
+          SHARD: ${{ matrix.shard }}
+          NAME: ${{ matrix.name }}
+          SEASON_START: ${{ matrix.season_start }}
+          SEASON_END: ${{ matrix.season_end }}
+          PATTERNS: ${{ matrix.patterns }}
           ITERATION: ${{ inputs.iteration }}
-          MAX_ITERATIONS: ${{ inputs.max_iterations }}
         run: |
-          echo "::notice::Iteration $ITERATION of max $MAX_ITERATIONS"
-          if [ -f nbadb/nba.sqlite ]; then
+          echo "::notice::Shard $SHARD ($NAME) — seasons $SEASON_START–$SEASON_END — iteration $ITERATION"
+          [ -n "$PATTERNS" ] && echo "::notice::Patterns: $PATTERNS" || echo "::notice::Patterns: all"
+          if [ -f nbadb/nba.duckdb ]; then
             echo "::notice::Resuming from cached state"
             ls -lh nbadb/ 2>/dev/null || true
           else
-            echo "::notice::Fresh start — no cached state found"
+            echo "::notice::Fresh start"
           fi
 
-      # ── Derive OpenVPN credentials from NordVPN token ──
-      - name: Derive NordVPN service credentials
+      # ── Set OpenVPN credentials ──
+      - name: Set OpenVPN credentials
         if: inputs.use_proxy
         env:
-          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
         run: |
-          creds=$(curl -sf -u "token:$NORDVPN_TOKEN" \
-            https://api.nordvpn.com/v1/users/services/credentials)
-          user=$(echo "$creds" | jq -r .username)
-          pass=$(echo "$creds" | jq -r .password)
-          if [ -z "$user" ] || [ "$user" = "null" ]; then
-            echo "::error::Failed to derive OpenVPN credentials from NORDVPN_TOKEN"
+          if [ -z "$OPENVPN_USER" ] || [ -z "$OPENVPN_PASSWORD" ]; then
+            echo "::error::OPENVPN_USER and OPENVPN_PASSWORD secrets must be set"
             exit 1
           fi
-          echo "::add-mask::$user"
-          echo "::add-mask::$pass"
-          echo "OPENVPN_USER=$user" >> $GITHUB_ENV
-          echo "OPENVPN_PASSWORD=$pass" >> $GITHUB_ENV
+          echo "::add-mask::$OPENVPN_USER"
+          echo "::add-mask::$OPENVPN_PASSWORD"
+          echo "OPENVPN_USER=$OPENVPN_USER" >> $GITHUB_ENV
+          echo "OPENVPN_PASSWORD=$OPENVPN_PASSWORD" >> $GITHUB_ENV
 
-      # ── Start gluetun proxy fleet (OpenVPN — works on GH Actions) ──
+      # ── Start shard-specific proxy fleet (2 of 6 VPN services) ──
       - name: Start proxy fleet
         if: inputs.use_proxy
+        env:
+          VPN_SERVICES: ${{ matrix.vpn_services }}
+          CONTROL_PORTS: ${{ matrix.control_ports }}
+          HTTP_PORTS: ${{ matrix.http_ports }}
         run: |
-          docker compose -f docker-compose.proxy.yml up -d
-          echo "Waiting for OpenVPN tunnels to establish..."
+          docker compose -f docker-compose.proxy.yml up -d $VPN_SERVICES
+          echo "Waiting for OpenVPN tunnels ($VPN_SERVICES)..."
 
-          # OpenVPN takes 30-60s per container; retry up to 3 min
-          for attempt in 1 2 3 4 5 6; do
+          # Phase 1: Wait for VPN tunnels (up to 5 min)
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
             sleep 30
             ok=0
-            for port in 19001 19002 19003 19004 19005 19006; do
+            for port in $CONTROL_PORTS; do
               ip=$(curl -sf http://localhost:$port/v1/publicip/ip 2>/dev/null | jq -r .public_ip 2>/dev/null)
               if [ -n "$ip" ] && [ "$ip" != "null" ]; then
-                echo "  ✓ :$port -> $ip"
+                echo "  ✓ tunnel :$port -> $ip"
                 ok=$((ok + 1))
               else
-                echo "  ✗ :$port not ready"
+                echo "  ✗ tunnel :$port not ready"
               fi
             done
-            echo "Attempt $attempt: $ok/6 tunnels active"
-            if [ "$ok" -ge 3 ]; then
+            echo "Attempt $attempt: $ok/2 tunnels active"
+            if [ "$ok" -ge 1 ]; then
               break
             fi
           done
 
           if [ "$ok" -eq 0 ]; then
-            echo "::error::No gluetun containers healthy after 180s"
-            docker compose -f docker-compose.proxy.yml logs --tail 30
+            echo "::error::No VPN tunnels healthy after 300s"
+            docker compose -f docker-compose.proxy.yml logs --tail 30 $VPN_SERVICES
             exit 1
           fi
-          echo "::notice::$ok/6 VPN tunnels active"
+          echo "::notice::$ok/2 VPN tunnels active"
+
+          # Phase 2: Warm-up
+          sleep 15
+
+          # Phase 3: Validate HTTP proxies
+          working=0
+          for port in $HTTP_PORTS; do
+            if curl -sf -x "http://localhost:$port" --max-time 15 https://httpbin.org/ip >/dev/null 2>&1; then
+              echo "  ✓ proxy :$port OK"
+              working=$((working + 1))
+            else
+              echo "  ✗ proxy :$port FAILED"
+            fi
+          done
+          echo "::notice::$working/2 HTTP proxies validated"
+          if [ "$working" -eq 0 ]; then
+            echo "::error::No HTTP proxies functional"
+            docker compose -f docker-compose.proxy.yml logs --tail 30 $VPN_SERVICES
+            exit 1
+          fi
 
       # ── Configure environment ──
       - name: Configure extraction environment
         env:
           USE_PROXY: ${{ inputs.use_proxy }}
           CONCURRENCY: ${{ inputs.concurrency }}
+          HTTP_PORTS: ${{ matrix.http_ports }}
         run: |
           if [ "$USE_PROXY" = "true" ]; then
+            # Build proxy URL list from shard-specific ports
+            proxy_urls="["
+            first=true
+            for port in $HTTP_PORTS; do
+              $first || proxy_urls="$proxy_urls,"
+              proxy_urls="$proxy_urls\"http://localhost:$port\""
+              first=false
+            done
+            proxy_urls="$proxy_urls]"
+
             echo 'NBADB_PROXY_ENABLED=true' >> $GITHUB_ENV
             echo 'NBADB_PROXY_BOOTSTRAP=false' >> $GITHUB_ENV
-            echo 'NBADB_PROXY_URLS=["http://localhost:18881","http://localhost:18882","http://localhost:18883","http://localhost:18884","http://localhost:18885","http://localhost:18886"]' >> $GITHUB_ENV
+            echo "NBADB_PROXY_URLS=$proxy_urls" >> $GITHUB_ENV
           else
             echo 'NBADB_PROXY_ENABLED=false' >> $GITHUB_ENV
           fi
@@ -180,42 +248,45 @@ jobs:
               ;;
           esac
 
-          # Scale concurrency for proxy fleet (6 proxies)
+          # Scale concurrency for proxy fleet (2 proxies per shard)
           if [ "$USE_PROXY" = "true" ]; then
-            echo 'NBADB_PROXY_SEMAPHORE_MULTIPLIER=3' >> $GITHUB_ENV
-            echo 'NBADB_THREAD_POOL_SIZE=64' >> $GITHUB_ENV
+            echo 'NBADB_PROXY_SEMAPHORE_MULTIPLIER=1.5' >> $GITHUB_ENV
+            echo 'NBADB_THREAD_POOL_SIZE=32' >> $GITHUB_ENV
             echo 'NBADB_PROXY_TIMEOUT=60' >> $GITHUB_ENV
           fi
 
-      # ── Run extraction with timeout guard ──
-      - name: Run full extraction
+      # ── Clean stale caches on first iteration ──
+      - name: Clean stale caches
+        if: inputs.iteration == '1' && matrix.shard == 0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Cleaning old extraction caches..."
+          gh cache list --key "${{ env.CACHE_KEY }}-" --json id,key --jq '.[].key' | while read key; do
+            echo "  Deleting: $key"
+            gh cache delete "$key" 2>/dev/null || true
+          done
+
+      # ── Run extraction ──
+      - name: Run extraction
         id: extract
         env:
-          SEASON_START: ${{ inputs.season_start }}
-          SEASON_END: ${{ inputs.season_end }}
-          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
-          BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
+          SEASON_START: ${{ matrix.season_start }}
+          SEASON_END: ${{ matrix.season_end }}
+          PATTERNS: ${{ matrix.patterns }}
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
         run: |
-          # Kill extraction 10 min before job timeout to allow save/chain
           set +e
+          CMD="uv run nbadb backfill run --seasons \"${SEASON_START}:${SEASON_END}\" --extract-only"
+          [ -n "$PATTERNS" ] && CMD="$CMD --pattern \"$PATTERNS\""
+          [ "$FORCE_REEXTRACT" = "true" ] && CMD="$CMD --force"
+          CMD="$CMD --verbose"
 
-          if [ -n "$BACKFILL_ENDPOINTS" ] || [ -n "$BACKFILL_PATTERNS" ]; then
-            CMD="uv run nbadb backfill run --seasons ${SEASON_START}:${SEASON_END}"
-            [ -n "$BACKFILL_ENDPOINTS" ] && CMD="$CMD --endpoint $BACKFILL_ENDPOINTS"
-            [ -n "$BACKFILL_PATTERNS" ] && CMD="$CMD --pattern $BACKFILL_PATTERNS"
-            [ "$FORCE_REEXTRACT" = "true" ] && CMD="$CMD --force"
-            timeout 20400 $CMD
-          else
-            timeout 20400 uv run nbadb init \
-              --season-start "$SEASON_START" \
-              --season-end "$SEASON_END" \
-              --verbose
-          fi
+          echo "::notice::Running: $CMD"
+          timeout 20400 bash -c "$CMD"
           exit_code=$?
           set -e
 
-          # timeout returns 124 on timeout, nbadb returns 1 on partial failure
           if [ "$exit_code" -eq 0 ]; then
             echo "status=complete" >> $GITHUB_OUTPUT
           else
@@ -223,20 +294,191 @@ jobs:
           fi
           exit 0
 
+      # ── Progress summary ──
+      - name: Shard progress
+        if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
+          NAME: ${{ matrix.name }}
+          ITERATION: ${{ inputs.iteration }}
+          STATUS: ${{ steps.extract.outputs.status }}
+        run: |
+          echo "## Shard $SHARD ($NAME) — Iteration $ITERATION" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** $STATUS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh nbadb/ 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No data directory" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
       # ── Save state ──
       - name: Save extraction state
         if: always()
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: nbadb/
-          key: ${{ env.CACHE_KEY }}-${{ inputs.iteration }}
+          key: ${{ env.CACHE_KEY }}-shard-${{ matrix.shard }}-${{ github.run_id }}-${{ inputs.iteration }}
 
-      # ── Upload artifacts every iteration ──
-      - name: Upload extraction artifacts
+      # ── Upload shard artifact ──
+      - name: Upload shard artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: nbadb-extraction-iter-${{ inputs.iteration }}
+          name: extraction-shard-${{ matrix.shard }}
+          path: nbadb/
+          retention-days: 7
+          compression-level: 6
+
+      # ── Cleanup ──
+      - name: Proxy fleet logs
+        if: failure() && inputs.use_proxy
+        env:
+          VPN_SERVICES: ${{ matrix.vpn_services }}
+        run: docker compose -f docker-compose.proxy.yml logs --tail 50 $VPN_SERVICES
+
+      - name: Stop proxy fleet
+        if: always() && inputs.use_proxy
+        run: docker compose -f docker-compose.proxy.yml down
+
+    outputs:
+      shard_status: ${{ steps.extract.outputs.status }}
+
+  # ─────────────────────────────────────────────────────────────
+  #  Merge shards → transform → export → upload
+  # ─────────────────────────────────────────────────────────────
+  merge:
+    needs: extract
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      # Download all shard artifacts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: extraction-shard-*
+          path: shards/
+
+      - name: List downloaded shards
+        run: |
+          echo "Downloaded shards:"
+          for d in shards/extraction-shard-*; do
+            echo "  $d:"
+            ls -lh "$d/" 2>/dev/null || echo "    (empty)"
+          done
+
+      # Use shard 3 as base (has global player/team/static data)
+      - name: Merge shard databases
+        run: |
+          if [ ! -d shards/extraction-shard-3 ]; then
+            echo "::error::Shard 3 artifact missing — cannot merge without global data"
+            exit 1
+          fi
+          cp -r shards/extraction-shard-3/. nbadb/
+
+          uv run python -c "
+          import duckdb, glob, os
+
+          target = duckdb.connect('nbadb/nba.duckdb')
+          merged_count = 0
+
+          for shard_dir in sorted(glob.glob('shards/extraction-shard-[0-2]')):
+              db_path = os.path.join(shard_dir, 'nba.duckdb')
+              if not os.path.exists(db_path):
+                  print(f'SKIP: {db_path} not found')
+                  continue
+              print(f'Merging {db_path}...')
+              target.execute(f\"ATTACH '{db_path}' AS src (READ_ONLY)\")
+              tables = [r[0] for r in target.execute(
+                  \"SELECT table_name FROM src.information_schema.tables \"
+                  \"WHERE table_schema = 'main' AND table_name LIKE 'stg_%'\"
+              ).fetchall()]
+              for t in tables:
+                  try:
+                      # Table exists in base — append rows
+                      target.execute(f'INSERT INTO main.{t} SELECT * FROM src.{t}')
+                      rows = target.execute(f'SELECT count(*) FROM src.{t}').fetchone()[0]
+                      print(f'  appended {t}: +{rows} rows')
+                  except duckdb.CatalogException:
+                      # Table only in this shard — create it
+                      target.execute(f'CREATE TABLE main.{t} AS SELECT * FROM src.{t}')
+                      rows = target.execute(f'SELECT count(*) FROM main.{t}').fetchone()[0]
+                      print(f'  created {t}: {rows} rows')
+                  merged_count += 1
+              target.execute('DETACH src')
+
+          # Also merge journal entries from shards 0-2
+          for shard_dir in sorted(glob.glob('shards/extraction-shard-[0-2]')):
+              db_path = os.path.join(shard_dir, 'nba.duckdb')
+              if not os.path.exists(db_path):
+                  continue
+              target.execute(f\"ATTACH '{db_path}' AS src (READ_ONLY)\")
+              try:
+                  target.execute(
+                      'INSERT INTO main.pipeline_journal '
+                      'SELECT * FROM src.pipeline_journal '
+                      'WHERE (endpoint_name, params_json) NOT IN '
+                      '(SELECT endpoint_name, params_json FROM main.pipeline_journal)'
+                  )
+                  print(f'  merged journal from {shard_dir}')
+              except Exception as e:
+                  print(f'  journal merge skipped for {shard_dir}: {e}')
+              target.execute('DETACH src')
+
+          target.close()
+          print(f'Merge complete: {merged_count} table operations')
+          "
+
+      # Transform from merged staging
+      - name: Transform and load
+        run: uv run nbadb backfill run --transform-only --verbose
+
+      - name: Merge summary
+        if: always()
+        run: |
+          echo "## Merge — Iteration ${{ inputs.iteration }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh nbadb/ 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No data directory" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # Scan, export, upload
+      - name: Scan data quality
+        id: scan
+        continue-on-error: true
+        uses: ./.github/actions/scan-report
+        with:
+          report-name: full-extraction-scan-report
+          report-dir: artifacts/health/full
+          fail-on: error
+
+      - name: Export all formats
+        run: uv run nbadb export
+
+      - name: Refresh checked-in metadata
+        uses: ./.github/actions/refresh-metadata
+
+      - name: Upload to Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: uv run nbadb upload --data-dir nbadb -m "Full extraction $(date +%Y-%m-%d)"
+
+      - name: Upload final database
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: nbadb-full-extraction
           path: |
             nbadb/*.duckdb
             nbadb/*.sqlite
@@ -245,17 +487,23 @@ jobs:
           retention-days: 30
           compression-level: 6
 
-      # ── Self-chain: trigger next iteration if incomplete ──
+  # ─────────────────────────────────────────────────────────────
+  #  Self-chain: re-trigger if any shard was incomplete
+  # ─────────────────────────────────────────────────────────────
+  chain:
+    needs: [extract, merge]
+    if: ${{ !cancelled() && needs.extract.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Chain next iteration
-        if: steps.extract.outputs.status == 'incomplete'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           USE_PROXY: ${{ inputs.use_proxy }}
           CONCURRENCY: ${{ inputs.concurrency }}
-          SEASON_START: ${{ inputs.season_start }}
-          SEASON_END: ${{ inputs.season_end }}
+          CHAIN_ID: ${{ inputs.chain_id || github.run_id }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -267,49 +515,10 @@ jobs:
             exit 0
           fi
 
-          echo "::notice::Extraction incomplete — triggering iteration $next/$max"
+          echo "::notice::Some shards incomplete — triggering iteration $next/$max (chain $CHAIN_ID)"
           gh workflow run full-extraction.yml \
             -f use_proxy="$USE_PROXY" \
             -f concurrency="$CONCURRENCY" \
-            -f season_start="$SEASON_START" \
-            -f season_end="$SEASON_END" \
             -f iteration="$next" \
-            -f max_iterations="$max"
-
-      - name: Extraction complete
-        if: steps.extract.outputs.status == 'complete'
-        env:
-          ITERATION: ${{ inputs.iteration }}
-        run: |
-          echo "::notice::Full extraction complete on iteration $ITERATION!"
-          ls -lh nbadb/ 2>/dev/null || true
-
-      - name: Scan data quality
-        id: scan
-        if: steps.extract.outputs.status == 'complete'
-        continue-on-error: true
-        uses: ./.github/actions/scan-report
-        with:
-          report-name: full-extraction-scan-report
-          report-dir: artifacts/health/full
-          fail-on: error
-
-      - name: Export all formats
-        if: steps.extract.outputs.status == 'complete'
-        run: uv run nbadb export
-
-      - name: Upload to Kaggle
-        if: steps.extract.outputs.status == 'complete'
-        env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: uv run nbadb upload --data-dir nbadb -m "Full extraction $(date +%Y-%m-%d)"
-
-      # ── Cleanup ──
-      - name: Proxy fleet logs
-        if: failure() && inputs.use_proxy
-        run: docker compose -f docker-compose.proxy.yml logs --tail 50
-
-      - name: Stop proxy fleet
-        if: always() && inputs.use_proxy
-        run: docker compose -f docker-compose.proxy.yml down
+            -f max_iterations="$max" \
+            -f chain_id="$CHAIN_ID"
