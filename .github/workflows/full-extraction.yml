@@ -401,8 +401,9 @@ jobs:
               print(f'Merging {db_path}...')
               target.execute(f\"ATTACH '{db_path}' AS src (READ_ONLY)\")
               tables = [r[0] for r in target.execute(
-                  \"SELECT table_name FROM src.information_schema.tables \"
-                  \"WHERE table_schema = 'main' AND table_name LIKE 'stg_%'\"
+                  \"SELECT table_name FROM duckdb_tables() \"
+                  \"WHERE database_name = 'src' AND schema_name = 'main' \"
+                  \"AND table_name LIKE 'stg_%'\"
               ).fetchall()]
               for t in tables:
                   try:
