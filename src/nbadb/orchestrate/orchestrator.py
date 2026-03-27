@@ -957,7 +957,19 @@ class Orchestrator:
             rows_total = 0
             failed_loads = 0
 
-            if not extract_only and raw:
+            if extract_only and raw:
+                # Persist staging tables to DuckDB so downstream merge jobs
+                # (or later --transform-only runs) can read them.
+                bound_log.info("extract-only: persisting {} staging tables to DuckDB", len(raw))
+                for key, df in raw.items():
+                    if not df.is_empty():
+                        db.duckdb.register("_staging_tmp", df)
+                        db.duckdb.execute(
+                            f'CREATE OR REPLACE TABLE "{key}" AS SELECT * FROM _staging_tmp'
+                        )
+                        db.duckdb.unregister("_staging_tmp")
+                bound_log.info("extract-only: staging tables persisted")
+            elif raw:
                 if pp is not None:
                     pp.start_phase("Transform & Load")
                     pp.update_phase_info(f"{len(raw)} staging tables")
