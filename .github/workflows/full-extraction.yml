@@ -23,6 +23,14 @@ on:
         description: "Max self-chain iterations (safety limit)"
         type: string
         default: "8"
+      backfill_endpoints:
+        description: "Comma-separated endpoints to backfill (empty = all)"
+        type: string
+        default: ""
+      backfill_patterns:
+        description: "Comma-separated patterns to override shard defaults (empty = use shard config)"
+        type: string
+        default: ""
       force_reextract:
         description: "Force re-extraction of done entries"
         type: boolean
@@ -39,8 +47,7 @@ env:
   CACHE_KEY: full-extraction-state
 
 permissions:
-  actions: write
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -53,6 +60,9 @@ jobs:
   extract:
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    permissions:
+      actions: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -255,30 +265,20 @@ jobs:
             echo 'NBADB_PROXY_TIMEOUT=60' >> $GITHUB_ENV
           fi
 
-      # ── Clean stale caches on first iteration ──
-      - name: Clean stale caches
-        if: inputs.iteration == '1' && matrix.shard == 0
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Cleaning old extraction caches..."
-          gh cache list --key "${{ env.CACHE_KEY }}-" --json id,key --jq '.[].key' | while read key; do
-            echo "  Deleting: $key"
-            gh cache delete "$key" 2>/dev/null || true
-          done
-
       # ── Run extraction ──
       - name: Run extraction
         id: extract
         env:
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
-          PATTERNS: ${{ matrix.patterns }}
+          PATTERNS: ${{ inputs.backfill_patterns || matrix.patterns }}
+          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
         run: |
           set +e
           CMD="uv run nbadb backfill run --seasons \"${SEASON_START}:${SEASON_END}\" --extract-only"
           [ -n "$PATTERNS" ] && CMD="$CMD --pattern \"$PATTERNS\""
+          [ -n "$BACKFILL_ENDPOINTS" ] && CMD="$CMD --endpoint \"$BACKFILL_ENDPOINTS\""
           [ "$FORCE_REEXTRACT" = "true" ] && CMD="$CMD --force"
           CMD="$CMD --verbose"
 
@@ -292,7 +292,9 @@ jobs:
           else
             echo "status=incomplete" >> $GITHUB_OUTPUT
           fi
-          exit 0
+          # Propagate exit code so the chain job can detect incomplete shards.
+          # fail-fast: false ensures other shards still complete.
+          exit $exit_code
 
       # ── Progress summary ──
       - name: Shard progress
@@ -338,9 +340,6 @@ jobs:
         if: always() && inputs.use_proxy
         run: docker compose -f docker-compose.proxy.yml down
 
-    outputs:
-      shard_status: ${{ steps.extract.outputs.status }}
-
   # ─────────────────────────────────────────────────────────────
   #  Merge shards → transform → export → upload
   # ─────────────────────────────────────────────────────────────
@@ -349,6 +348,9 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      actions: write
+      contents: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
@@ -376,6 +378,18 @@ jobs:
           for d in shards/extraction-shard-*; do
             echo "  $d:"
             ls -lh "$d/" 2>/dev/null || echo "    (empty)"
+          done
+
+      # Clean stale caches after all shards complete (avoids race with parallel restores)
+      - name: Clean stale caches
+        if: inputs.iteration == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Cleaning old extraction caches..."
+          gh cache list --key "${{ env.CACHE_KEY }}-" --json id,key --jq '.[].key' | while read key; do
+            echo "  Deleting: $key"
+            gh cache delete "$key" 2>/dev/null || true
           done
 
       # Use shard 3 as base (has global player/team/static data)
@@ -407,14 +421,14 @@ jobs:
               ).fetchall()]
               for t in tables:
                   try:
-                      # Table exists in base — append rows
-                      target.execute(f'INSERT INTO main.{t} SELECT * FROM src.{t}')
-                      rows = target.execute(f'SELECT count(*) FROM src.{t}').fetchone()[0]
+                      # Table exists in base — append new rows only (EXCEPT dedup)
+                      target.execute(f'INSERT INTO main.\"{t}\" SELECT * FROM src.\"{t}\" EXCEPT SELECT * FROM main.\"{t}\"')
+                      rows = target.execute(f'SELECT count(*) FROM src.\"{t}\"').fetchone()[0]
                       print(f'  appended {t}: +{rows} rows')
                   except duckdb.CatalogException:
                       # Table only in this shard — create it
-                      target.execute(f'CREATE TABLE main.{t} AS SELECT * FROM src.{t}')
-                      rows = target.execute(f'SELECT count(*) FROM main.{t}').fetchone()[0]
+                      target.execute(f'CREATE TABLE main.\"{t}\" AS SELECT * FROM src.\"{t}\"')
+                      rows = target.execute(f'SELECT count(*) FROM main.\"{t}\"').fetchone()[0]
                       print(f'  created {t}: {rows} rows')
                   merged_count += 1
               target.execute('DETACH src')
@@ -427,13 +441,13 @@ jobs:
               target.execute(f\"ATTACH '{db_path}' AS src (READ_ONLY)\")
               try:
                   target.execute(
-                      'INSERT INTO main.pipeline_journal '
-                      'SELECT * FROM src.pipeline_journal '
-                      'WHERE (endpoint_name, params_json) NOT IN '
-                      '(SELECT endpoint_name, params_json FROM main.pipeline_journal)'
+                      'INSERT INTO main._extraction_journal '
+                      'SELECT * FROM src._extraction_journal '
+                      'WHERE (endpoint, params) NOT IN '
+                      '(SELECT endpoint, params FROM main._extraction_journal)'
                   )
                   print(f'  merged journal from {shard_dir}')
-              except Exception as e:
+              except duckdb.CatalogException as e:
                   print(f'  journal merge skipped for {shard_dir}: {e}')
               target.execute('DETACH src')
 
@@ -496,6 +510,8 @@ jobs:
     if: ${{ !cancelled() && needs.extract.result != 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      actions: write
     steps:
       - name: Chain next iteration
         env:

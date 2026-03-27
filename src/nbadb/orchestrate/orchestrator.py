@@ -960,14 +960,19 @@ class Orchestrator:
             if extract_only and raw:
                 # Persist staging tables to DuckDB so downstream merge jobs
                 # (or later --transform-only runs) can read them.
+                from nbadb.core.types import validate_sql_identifier
+
                 bound_log.info("extract-only: persisting {} staging tables to DuckDB", len(raw))
                 for key, df in raw.items():
                     if not df.is_empty():
+                        safe_key = validate_sql_identifier(key)
                         db.duckdb.register("_staging_tmp", df)
-                        db.duckdb.execute(
-                            f'CREATE OR REPLACE TABLE "{key}" AS SELECT * FROM _staging_tmp'
-                        )
-                        db.duckdb.unregister("_staging_tmp")
+                        try:
+                            db.duckdb.execute(
+                                f"CREATE OR REPLACE TABLE {safe_key} AS SELECT * FROM _staging_tmp"
+                            )
+                        finally:
+                            db.duckdb.unregister("_staging_tmp")
                 bound_log.info("extract-only: staging tables persisted")
             elif raw:
                 if pp is not None:
