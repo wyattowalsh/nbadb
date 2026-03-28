@@ -93,3 +93,15 @@ class TestWrapWithLimit:
     def test_default_limit(self, guard):
         result = guard.wrap_with_limit("SELECT 1")
         assert "LIMIT" in result
+
+    def test_explain_passthrough(self, guard):
+        result = guard.wrap_with_limit("EXPLAIN SELECT 1", max_rows=50)
+        assert result == "EXPLAIN SELECT 1"
+
+    def test_show_passthrough(self, guard):
+        result = guard.wrap_with_limit("SHOW TABLES", max_rows=50)
+        assert result == "SHOW TABLES"
+
+    def test_describe_passthrough(self, guard):
+        result = guard.wrap_with_limit("DESCRIBE dim_player", max_rows=50)
+        assert result == "DESCRIBE dim_player"

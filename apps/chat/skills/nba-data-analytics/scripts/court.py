@@ -21,7 +21,7 @@ COURT_WIDTH = 500  # -250 to 250
 COURT_HEIGHT = 470  # -50 to 420
 HOOP_X, HOOP_Y = 0, 0
 THREE_PT_RADIUS = 237.5
-THREE_PT_CORNER_Y = 87.5  # where corner 3 meets arc
+THREE_PT_CORNER_Y = (THREE_PT_RADIUS**2 - 220**2) ** 0.5  # where corner 3 meets arc
 PAINT_WIDTH = 160
 PAINT_HEIGHT = 190
 FT_CIRCLE_RADIUS = 60
@@ -291,13 +291,14 @@ def shot_chart(
     if title:
         ax.set_title(title, fontsize=16, color="white", pad=10)
 
-    ax.legend(
-        loc="upper right",
-        fontsize=9,
-        facecolor=_BG_COLOR,
-        edgecolor="white",
-        labelcolor="white",
-    )
+    if len(df) > 0:
+        ax.legend(
+            loc="upper right",
+            fontsize=9,
+            facecolor=_BG_COLOR,
+            edgecolor="white",
+            labelcolor="white",
+        )
 
     plt.show()
     return fig
@@ -384,7 +385,7 @@ def zone_chart(
 
             colour = "#2ecc71" if fg_pct >= league_avg else "#e74c3c"
 
-            # Circle size proportional to attempts (if column present), else fixed
+            # Fixed-size circles; colour encodes relative efficiency.
             radius = 25
 
             circle = Circle(

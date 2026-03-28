@@ -112,12 +112,9 @@ class TestPercentileRank:
     def test_ascending_cols(self):
         df = _make_players_df()
         result = percentile_rank(df, metrics=["tov"], ascending_cols=["tov"])
-        # Bob has 2 tov (lowest) → ascending rank means lowest value gets lowest rank
-        # With ascending=True, rank(2) < rank(3) < rank(4) → Bob gets lowest pct
-        bob_pctile = result.loc[result["full_name"] == "Bob", "tov_pctile"].iloc[0]
-        carol_pctile = result.loc[result["full_name"] == "Carol", "tov_pctile"].iloc[0]
-        # ascending_cols uses ascending=True, so lower TOV → lower percentile
-        assert bob_pctile < carol_pctile
+        pctiles = result.set_index("full_name")["tov_pctile"]
+        # Lower-is-better metrics should invert the raw ordering: 2 TOV beats 3 beats 4.
+        assert pctiles["Bob"] > pctiles["Alice"] > pctiles["Carol"]
 
 
 # -- radar_chart ---------------------------------------------------------------

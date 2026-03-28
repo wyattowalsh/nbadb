@@ -117,16 +117,16 @@ def test_factory_custom_with_base_url():
     reason="github-copilot-sdk not installed",
 )
 def test_factory_copilot():
-    """Copilot provider creates CopilotChatModel."""
-    from apps.chat.server.providers.copilot_adapter import CopilotChatModel
-
+    """Copilot provider is handled outside the LangChain model factory."""
     from apps.chat.server.config import ChatSettings
     from apps.chat.server.providers.factory import create_chat_model
 
     settings = ChatSettings(provider="copilot", model="gpt-4.1")
-    model = create_chat_model(settings)
-
-    assert isinstance(model, CopilotChatModel)
+    with pytest.raises(
+        ValueError,
+        match="Copilot provider uses CopilotAgentWrapper, not a LangChain model",
+    ):
+        create_chat_model(settings)
 
 
 def test_factory_unknown_provider():

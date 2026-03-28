@@ -65,8 +65,12 @@ def is_significant(
     mean_a, mean_b = sum(a) / len(a), sum(b) / len(b)
     var_a = sum((x - mean_a) ** 2 for x in a) / max(len(a) - 1, 1)
     var_b = sum((x - mean_b) ** 2 for x in b) / max(len(b) - 1, 1)
-    pooled_std = math.sqrt((var_a + var_b) / 2) if (var_a + var_b) > 0 else 1.0
-    effect_size = abs(mean_a - mean_b) / pooled_std
+    pooled_df = (len(a) - 1) + (len(b) - 1)
+    pooled_variance = (
+        ((len(a) - 1) * var_a + (len(b) - 1) * var_b) / pooled_df if pooled_df > 0 else 0.0
+    )
+    pooled_std = math.sqrt(pooled_variance) if pooled_variance > 0 else 0.0
+    effect_size = abs(mean_a - mean_b) / pooled_std if pooled_std > 0 else 0.0
 
     if effect_size < 0.2:
         effect_label = "negligible"
@@ -147,6 +151,8 @@ def shooting_confidence(
 def breakout_threshold(series, sigma: float = 2.0) -> dict:
     """Identify outlier performances N standard deviations above the mean.
 
+    For DataFrame or game-log workflows, use trends.find_breakouts().
+
     Parameters
     ----------
     series : array-like of numeric values (e.g., points per game)
@@ -188,7 +194,13 @@ def streak_significance(outcomes, direction: str = "hot") -> dict:
 
     Returns
     -------
-    dict with longest streak, expected streak length, p-value (if scipy available)
+    dict with longest streak, expected streak length, p-value (if scipy available).
+
+    Note
+    ----
+    The runs-test p-value is omnibus/two-sided regardless of direction. The
+    direction only changes which outcome is counted for the longest and expected
+    streak metrics.
     """
     vals = [int(x) for x in _to_list(outcomes)]
     n = len(vals)

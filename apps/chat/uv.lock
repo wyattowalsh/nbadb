@@ -808,6 +808,15 @@ wheels = [
 ]
 
 [[package]]
+name = "et-xmlfile"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/38/af70d7ab1ae9d4da450eeec1fa3918940a5fafb9055e934af8d6eb0c2313/et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54", size = 17234, upload-time = "2024-10-25T17:25:40.039Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl", hash = "sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa", size = 18059, upload-time = "2024-10-25T17:25:39.051Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.135.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2126,7 +2135,6 @@ dependencies = [
     { name = "deepagents" },
     { name = "duckdb" },
     { name = "duckduckgo-search" },
-    { name = "github-copilot-sdk" },
     { name = "httpx" },
     { name = "kagglehub" },
     { name = "langchain-anthropic" },
@@ -2139,6 +2147,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "mcp", extra = ["cli"] },
     { name = "numpy" },
+    { name = "openpyxl" },
     { name = "pandas" },
     { name = "plotly" },
     { name = "pydantic-settings" },
@@ -2146,6 +2155,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+copilot = [
+    { name = "github-copilot-sdk" },
+]
 e2b = [
     { name = "e2b-code-interpreter" },
 ]
@@ -2160,7 +2172,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.4" },
     { name = "duckduckgo-search", specifier = ">=7.0" },
     { name = "e2b-code-interpreter", marker = "extra == 'e2b'", specifier = ">=1.0" },
-    { name = "github-copilot-sdk", specifier = ">=0.1" },
+    { name = "github-copilot-sdk", marker = "extra == 'copilot'", specifier = ">=0.1" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "kagglehub", specifier = ">=0.3" },
     { name = "langchain-anthropic", specifier = ">=0.3" },
@@ -2174,12 +2186,13 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10" },
     { name = "mcp", extras = ["cli"] },
     { name = "numpy", specifier = ">=2.0" },
+    { name = "openpyxl", specifier = ">=3.1" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "plotly", specifier = ">=6.0" },
     { name = "pydantic-settings", specifier = ">=2.13" },
     { name = "trafilatura", specifier = ">=2.0" },
 ]
-provides-extras = ["e2b", "tracing"]
+provides-extras = ["copilot", "e2b", "tracing"]
 
 [[package]]
 name = "nest-asyncio"
@@ -2281,6 +2294,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b4/15/203d537e58986b5673e7f232453a2a2f110f22757b15921cbdeea392e520/openai-2.29.0.tar.gz", hash = "sha256:32d09eb2f661b38d3edd7d7e1a2943d1633f572596febe64c0cd370c86d52bec", size = 671128, upload-time = "2026-03-17T17:53:49.599Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/b1/35b6f9c8cf9318e3dbb7146cc82dab4cf61182a8d5406fc9b50864362895/openai-2.29.0-py3-none-any.whl", hash = "sha256:b7c5de513c3286d17c5e29b92c4c98ceaf0d775244ac8159aeb1bddf840eb42a", size = 1141533, upload-time = "2026-03-17T17:53:47.348Z" },
+]
+
+[[package]]
+name = "openpyxl"
+version = "3.1.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "et-xmlfile" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/f9/88d94a75de065ea32619465d2f77b29a0469500e99012523b91cc4141cd1/openpyxl-3.1.5.tar.gz", hash = "sha256:cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050", size = 186464, upload-time = "2024-06-28T14:03:44.161Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl", hash = "sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2", size = 250910, upload-time = "2024-06-28T14:03:41.161Z" },
 ]
 
 [[package]]

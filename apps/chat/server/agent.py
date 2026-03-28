@@ -56,6 +56,7 @@ class NbaAgentWrapper:
 async def create_nba_agent(
     settings: ChatSettings,
     profile: str | None = None,
+    session_id: str = "default",
 ) -> NbaAgentWrapper:
     """Create an NBA data analytics agent.
 
@@ -70,20 +71,26 @@ async def create_nba_agent(
     system_prompt = build_system_prompt(schema_context, profile=profile)
 
     if settings.provider == "copilot":
-        return await _create_copilot_agent(settings, system_prompt, db_path)
+        return await _create_copilot_agent(settings, system_prompt, db_path, session_id=session_id)
 
-    return await _create_deepagents_agent(settings, system_prompt, db_path)
+    return await _create_deepagents_agent(
+        settings,
+        system_prompt,
+        db_path,
+        session_id=session_id,
+    )
 
 
 async def _create_copilot_agent(
     settings: ChatSettings,
     system_prompt: str,
     db_path: Path,
+    session_id: str,
 ) -> NbaAgentWrapper:
     """Create agent using the GitHub Copilot SDK runtime."""
     from server.copilot_backend import create_copilot_agent
 
-    agent = await create_copilot_agent(settings, system_prompt, db_path)
+    agent = await create_copilot_agent(settings, system_prompt, db_path, session_id=session_id)
     return NbaAgentWrapper(agent)
 
 
@@ -91,6 +98,7 @@ async def _create_deepagents_agent(
     settings: ChatSettings,
     system_prompt: str,
     db_path: Path,
+    session_id: str,
 ) -> NbaAgentWrapper:
     """Create agent using deepagents (LangChain)."""
     from deepagents import create_deep_agent
@@ -101,7 +109,7 @@ async def _create_deepagents_agent(
     from server.tools.web_search import web_search
 
     model: BaseChatModel = create_chat_model(settings)
-    mcp_tools, mcp_client = await setup_mcp_tools(settings)
+    mcp_tools, mcp_client = await setup_mcp_tools(settings, session_id=session_id)
 
     local_tools = [web_search, web_fetch]
 

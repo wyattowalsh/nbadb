@@ -12,6 +12,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+try:
+    from court import _BG_COLOR
+except ImportError:
+    _BG_COLOR = "#141a2e"
+
 if TYPE_CHECKING:
     import matplotlib.figure
 
@@ -58,7 +63,7 @@ def percentile_rank(
         if col not in df.columns:
             continue
         if col in ascending_cols:
-            result[col + "_pctile"] = df[col].rank(ascending=True, pct=True).mul(100).round(1)
+            result[col + "_pctile"] = df[col].rank(ascending=False, pct=True).mul(100).round(1)
         else:
             result[col + "_pctile"] = df[col].rank(ascending=True, pct=True).mul(100).round(1)
     return result
@@ -115,16 +120,8 @@ def radar_chart(
             max_values[cat] = max(vals) if vals and max(vals) > 0 else 1
 
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={"projection": "polar"})
-    fig.patch.set_facecolor("#141a2e")
-    ax.set_facecolor("#141a2e")
-
-    # Try to use team colors
-    try:
-        from team_colors import get_team_color  # noqa: F401
-
-        _has_colors = True
-    except ImportError:
-        _has_colors = False
+    fig.patch.set_facecolor(_BG_COLOR)
+    ax.set_facecolor(_BG_COLOR)
 
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 

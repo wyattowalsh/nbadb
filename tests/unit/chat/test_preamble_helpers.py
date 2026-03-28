@@ -96,7 +96,7 @@ class TestShareableOutput:
         assert "1D428A" in preamble_content  # NBA blue brand color
 
     def test_to_thread(self, preamble_content):
-        assert "def to_thread(insights)" in preamble_content
+        assert "def to_thread(insights" in preamble_content
 
 
 class TestBuildPreamble:
@@ -115,8 +115,30 @@ class TestBuildPreamble:
         assert "import duckdb as _duckdb" in built_preamble
         assert "del _duckdb" in built_preamble
 
+    def test_hides_internal_modules_from_user_namespace(self, preamble_content):
+        assert "del sys" in preamble_content
+        assert "del _io" in preamble_content
+        assert "del _b64" in preamble_content
+
+    def test_safe_connection_does_not_store_raw_handle_on_public_object(self, preamble_content):
+        assert "conn = _SafeConn()" in preamble_content
+        assert "self._raw_conn" not in preamble_content
+
+    def test_imports_shared_read_only_guard(self, preamble_content):
+        assert "from _safety import ReadOnlyGuard as _ReadOnlyGuard" in preamble_content
+        assert "_READ_ONLY_GUARD = _ReadOnlyGuard()" in preamble_content
+
+    def test_uses_shared_prepare_sql_helper(self, preamble_content):
+        assert "def _prepare_sql(sql: str) -> str:" in preamble_content
+        assert "_READ_ONLY_GUARD.validate(sql)" in preamble_content
+        assert (
+            "_READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)"
+            in preamble_content
+        )
+
     def test_no_raw_placeholders(self, built_preamble):
         assert "__DB_PATH__" not in built_preamble
+        assert "__SERVER_DIR__" not in built_preamble
         assert "__SKILLS_DIR__" not in built_preamble
         assert "__SESSION_DIR__" not in built_preamble
 

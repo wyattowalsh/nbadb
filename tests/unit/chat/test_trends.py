@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import math
 from pathlib import Path
 
 import numpy as np
@@ -155,11 +156,36 @@ class TestSeasonProjection:
         assert proj["projected_total"] == pytest.approx(2000.0, abs=0.5)
         assert proj["per_game"] == pytest.approx(24.39, abs=0.01)
 
-    def test_confidence_interval(self):
-        result = season_projection({"pts": 500}, games_played=20, total_games=82)
-        proj = result["projections"]["pts"]
-        assert proj["projected_low"] < proj["projected_total"]
-        assert proj["projected_total"] < proj["projected_high"]
+    def test_confidence_interval_scales_with_remaining_games(self):
+        early = season_projection({"pts": 500}, games_played=20, total_games=82)["projections"][
+            "pts"
+        ]
+        late = season_projection({"pts": 1500}, games_played=60, total_games=82)["projections"][
+            "pts"
+        ]
+
+        early_margin = round(1.96 * math.sqrt(25.0) * math.sqrt(82 - 20), 1)
+        late_margin = round(1.96 * math.sqrt(25.0) * math.sqrt(82 - 60), 1)
+
+        assert early["projected_total"] == pytest.approx(2050.0, abs=0.1)
+        assert late["projected_total"] == pytest.approx(2050.0, abs=0.1)
+        assert early["projected_total"] - early["projected_low"] == pytest.approx(
+            early_margin,
+            abs=0.1,
+        )
+        assert early["projected_high"] - early["projected_total"] == pytest.approx(
+            early_margin,
+            abs=0.1,
+        )
+        assert late["projected_total"] - late["projected_low"] == pytest.approx(
+            late_margin,
+            abs=0.1,
+        )
+        assert late["projected_high"] - late["projected_total"] == pytest.approx(
+            late_margin,
+            abs=0.1,
+        )
+        assert early_margin > late_margin > 0
 
     def test_zero_games(self):
         result = season_projection({"pts": 0}, games_played=0)

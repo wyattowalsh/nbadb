@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import importlib.util
 from pathlib import Path
 
@@ -165,6 +166,51 @@ class TestClusterPlayers:
         result = cluster_players(player_df, metrics=METRICS, n_clusters=4)
         assert "cluster" in result.columns
         assert len(result) == len(player_df)
+
+    def test_cluster_count_capped_by_player_count(self) -> None:
+        df = pd.DataFrame(
+            {
+                "full_name": ["Player_A", "Player_B", "Player_C"],
+                "pts": [10.0, 20.0, 30.0],
+                "reb": [4.0, 6.0, 8.0],
+                "ast": [2.0, 3.0, 4.0],
+            }
+        )
+        result = cluster_players(df, metrics=["pts", "reb", "ast"], n_clusters=10)
+        assert len(result) == len(df)
+        assert result["cluster"].nunique() == len(df)
+
+    def test_import_error_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        df = pd.DataFrame(
+            {
+                "full_name": ["Player_A", "Player_B", "Player_C", "Player_D"],
+                "pts": [10.0, 12.0, 25.0, 27.0],
+                "reb": [5.0, 5.5, 8.0, 8.5],
+            }
+        )
+        original_import = builtins.__import__
+
+        def _import_with_missing_scipy(
+            name,
+            globalns=None,
+            localns=None,
+            fromlist=(),
+            level=0,
+        ):
+            if name == "scipy.cluster.vq":
+                raise ImportError("scipy unavailable for test")
+            return original_import(name, globalns, localns, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", _import_with_missing_scipy)
+
+        result = cluster_players(df, metrics=["pts", "reb"], n_clusters=2)
+        clusters = result.set_index("full_name")["cluster"]
+
+        assert "cluster" in result.columns
+        assert len(result) == len(df)
+        assert clusters["Player_A"] == clusters["Player_B"]
+        assert clusters["Player_C"] == clusters["Player_D"]
+        assert clusters["Player_A"] != clusters["Player_C"]
 
 
 # ---------------------------------------------------------------------------

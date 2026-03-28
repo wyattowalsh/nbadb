@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 _PREAMBLE_TEMPLATE = '''\
 import sys
 import json
 import warnings
 warnings.filterwarnings("ignore")
+
+sys.path.insert(0, __SERVER_DIR__)
 
 import matplotlib
 matplotlib.use("Agg")
@@ -16,14 +20,14 @@ import matplotlib.pyplot as plt
 import io as _io
 import base64 as _b64
 
-def _patched_show(*args, **kwargs):
-    buf = _io.BytesIO()
-    plt.savefig(buf, format="png", dpi=120, bbox_inches="tight",
-                facecolor="#141a2e", edgecolor="none")
+def _patched_show(*args, _io_mod=_io, _b64_mod=_b64, _json=json, _plt=plt, **kwargs):
+    buf = _io_mod.BytesIO()
+    _plt.savefig(buf, format="png", dpi=120, bbox_inches="tight",
+                 facecolor="#141a2e", edgecolor="none")
     buf.seek(0)
-    img_b64 = _b64.b64encode(buf.read()).decode()
-    print(json.dumps({"image_base64": img_b64, "format": "png"}))
-    plt.close("all")
+    img_b64 = _b64_mod.b64encode(buf.read()).decode()
+    print(_json.dumps({"image_base64": img_b64, "format": "png"}))
+    _plt.close("all")
 
 plt.show = _patched_show
 
@@ -32,8 +36,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import duckdb as _duckdb
-import re as _re
-import unicodedata as _unicodedata
+from _safety import ReadOnlyGuard as _ReadOnlyGuard
 
 try:
     import scipy.stats as stats
@@ -41,71 +44,34 @@ except ImportError:
     pass
 
 # Read-only database connection
-_db_conn = _duckdb.connect(__DB_PATH__, read_only=True)
-_db_conn.execute("SET enable_external_access = false")
+_RAW_CONN = _duckdb.connect(__DB_PATH__, read_only=True)
+_RAW_CONN.execute("SET enable_external_access = false")
 del _duckdb
 
-_READ_ONLY_WRITE_KEYWORDS = {
-    "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE",
-    "TRUNCATE", "REPLACE", "MERGE", "UPSERT", "GRANT",
-    "REVOKE", "ATTACH", "DETACH", "COPY", "EXPORT", "IMPORT",
-    "LOAD", "INSTALL", "PRAGMA", "SET", "CALL", "EXECUTE",
-}
-_READ_ONLY_WRITE_PATTERN = _re.compile(
-    r"\\b(" + "|".join(_READ_ONLY_WRITE_KEYWORDS) + r")\\b",
-    _re.IGNORECASE,
-)
-_READ_ONLY_DANGEROUS_FUNCS = _re.compile(
-    r"\\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|"
-    r"read_xlsx|glob|read_csv_auto|read_ndjson|http_get|"
-    r"scan_csv|scan_csv_auto|scan_parquet|scan_json|"
-    r"getenv|current_setting|query_table)\\s*\\(",
-    _re.IGNORECASE,
-)
-_READ_ONLY_BLOCK_COMMENT = _re.compile(r"/\\*.*?\\*/", _re.DOTALL)
-_READ_ONLY_LINE_COMMENT = _re.compile(r"--[^\\n]*")
+_READ_ONLY_GUARD = _ReadOnlyGuard()
+_READ_ONLY_MAX_ROWS = 1000
 
-def _normalize_sql(sql: str) -> str:
-    normalized = _unicodedata.normalize("NFKC", sql)
-    normalized = _READ_ONLY_BLOCK_COMMENT.sub(" ", normalized)
-    normalized = _READ_ONLY_LINE_COMMENT.sub(" ", normalized)
-    return _re.sub(r"\\s+", " ", normalized).strip()
+def _prepare_sql(sql: str) -> str:
+    error = _READ_ONLY_GUARD.validate(sql)
+    if error:
+        raise ValueError(error)
+    return _READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)
 
-def _validate_sql(sql: str) -> str:
-    stripped = sql.strip().rstrip(";").strip()
-    if not stripped:
-        raise ValueError("Empty query")
+def _safe_execute(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
+    return _raw_conn.execute(_prepare_sql(sql), *args, **kwargs)
 
-    normalized = _normalize_sql(stripped)
-    if ";" in normalized:
-        raise ValueError("Multiple statements not allowed")
-    if _READ_ONLY_WRITE_PATTERN.search(normalized):
-        raise ValueError("Write operations are not allowed in Python SQL helpers")
-    if _READ_ONLY_DANGEROUS_FUNCS.search(normalized):
-        raise ValueError("File access functions are not allowed in Python SQL helpers")
-
-    upper = normalized.upper()
-    if not upper.startswith(("SELECT", "WITH")):
-        raise ValueError("Python SQL helpers only allow SELECT/WITH queries")
-
-    return stripped
-
-def _wrap_with_limit(sql: str, max_rows: int = 1000) -> str:
-    return f"SELECT * FROM ({sql.rstrip(';').strip()}) AS _limited LIMIT {max_rows}"
+def _safe_sql(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
+    return _raw_conn.sql(_prepare_sql(sql), *args, **kwargs)
 
 class _SafeConn:
-    def __init__(self, raw_conn):
-        self._raw_conn = raw_conn
+    def execute(self, sql: str, *args, _executor=_safe_execute, **kwargs):
+        return _executor(sql, *args, **kwargs)
 
-    def execute(self, sql: str, *args, **kwargs):
-        validated = _validate_sql(sql)
-        return self._raw_conn.execute(_wrap_with_limit(validated), *args, **kwargs)
+    def sql(self, sql: str, *args, _executor=_safe_sql, **kwargs):
+        return _executor(sql, *args, **kwargs)
 
-    def sql(self, sql: str, *args, **kwargs):
-        validated = _validate_sql(sql)
-        return self._raw_conn.sql(_wrap_with_limit(validated), *args, **kwargs)
-
-conn = _SafeConn(_db_conn)
+conn = _SafeConn()
+del _RAW_CONN
 
 # NBA metric calculator and skill scripts
 sys.path.insert(0, __SKILLS_DIR__)
@@ -181,24 +147,24 @@ def show(data):
 
 # --- Export helpers -----------------------------------------------------------
 
-def to_csv(df, name="export"):
+def to_csv(df, name="export", _json=json, _b64_mod=_b64):
     """Export DataFrame as CSV and output for download."""
     csv_data = df.to_csv(index=False)
-    print(json.dumps({"export_file": name + ".csv", "format": "csv",
-                       "content": _b64.b64encode(csv_data.encode()).decode()}))
+    print(_json.dumps({"export_file": name + ".csv", "format": "csv",
+                       "content": _b64_mod.b64encode(csv_data.encode()).decode()}))
 
-def to_xlsx(df, name="export"):
+def to_xlsx(df, name="export", _io_mod=_io, _json=json, _b64_mod=_b64):
     """Export DataFrame as XLSX and output for download."""
-    buf = _io.BytesIO()
+    buf = _io_mod.BytesIO()
     df.to_excel(buf, index=False, engine="openpyxl")
-    print(json.dumps({"export_file": name + ".xlsx", "format": "xlsx",
-                       "content": _b64.b64encode(buf.getvalue()).decode()}))
+    print(_json.dumps({"export_file": name + ".xlsx", "format": "xlsx",
+                       "content": _b64_mod.b64encode(buf.getvalue()).decode()}))
 
-def to_json(df, name="export"):
+def to_json(df, name="export", _json=json, _b64_mod=_b64):
     """Export DataFrame as JSON and output for download."""
     json_data = df.to_json(orient="records", indent=2)
-    print(json.dumps({"export_file": name + ".json", "format": "json",
-                       "content": _b64.b64encode(json_data.encode()).decode()}))
+    print(_json.dumps({"export_file": name + ".json", "format": "json",
+                       "content": _b64_mod.b64encode(json_data.encode()).decode()}))
 
 def export(df, name="export", fmt="csv"):
     """Export DataFrame in any format. fmt: csv, xlsx, json."""
@@ -206,21 +172,30 @@ def export(df, name="export", fmt="csv"):
 
 # --- Shareable output helpers ------------------------------------------------
 
-def to_embed(fig, title=""):
+def to_embed(fig, title="", _json=json, _b64_mod=_b64):
     """Output a self-contained HTML snippet for blog/site embedding."""
     import plotly.io as _pio
     html = _pio.to_html(fig, full_html=False, include_plotlyjs="cdn")
     if title:
         html = f"<h3>{title}</h3>\\n" + html
     full = f"<div class='nbadb-embed'>\\n{html}\\n</div>"
-    print(json.dumps({"export_file": (title or "chart") + ".html",
+    print(_json.dumps({"export_file": (title or "chart") + ".html",
                        "format": "embed",
-                       "content": _b64.b64encode(
+                       "content": _b64_mod.b64encode(
                            full.encode()).decode()}))
 
-def to_social(fig_or_df, headline, subtitle=""):
+def to_social(
+    fig_or_df,
+    headline,
+    subtitle="",
+    _plt=plt,
+    _pd=pd,
+    _io_mod=_io,
+    _json=json,
+    _b64_mod=_b64,
+):
     """Render a 1200x630 branded PNG card for social media."""
-    _fig, _ax = plt.subplots(figsize=(12, 6.3), dpi=100)
+    _fig, _ax = _plt.subplots(figsize=(12, 6.3), dpi=100)
     _fig.patch.set_facecolor("#1D428A")
     _fig.text(0.05, 0.88, headline, fontsize=28,
              fontweight="bold", color="white",
@@ -228,7 +203,7 @@ def to_social(fig_or_df, headline, subtitle=""):
     if subtitle:
         _fig.text(0.05, 0.80, subtitle, fontsize=16,
                  color="#C8C8C8", transform=_fig.transFigure)
-    if isinstance(fig_or_df, pd.DataFrame):
+    if isinstance(fig_or_df, _pd.DataFrame):
         text = fig_or_df.head(8).to_string(index=False)
         _fig.text(0.05, 0.10, text, fontsize=11,
                  fontfamily="monospace", color="white",
@@ -237,37 +212,37 @@ def to_social(fig_or_df, headline, subtitle=""):
     _fig.text(0.95, 0.02, "nbadb", fontsize=10, color="#666",
              ha="right", transform=_fig.transFigure)
     _ax.axis("off")
-    buf = _io.BytesIO()
+    buf = _io_mod.BytesIO()
     _fig.savefig(buf, format="png", bbox_inches="tight",
                 facecolor="#1D428A", edgecolor="none")
-    plt.close(_fig)
+    _plt.close(_fig)
     buf.seek(0)
-    print(json.dumps({"export_file": "social_card.png",
+    print(_json.dumps({"export_file": "social_card.png",
                        "format": "social",
-                       "content": _b64.b64encode(
+                       "content": _b64_mod.b64encode(
                            buf.read()).decode()}))
 
-def to_thread(insights):
+def to_thread(insights, _json=json, _b64_mod=_b64):
     """Format insights as a numbered thread for social media."""
     if isinstance(insights, str):
         insights = [l.strip() for l in insights.strip().split("\\n")
                     if l.strip()]
     thread = "\\n".join(
         f"{i}/ {s}" for i, s in enumerate(insights, 1))
-    print(json.dumps({"export_file": "thread.txt",
+    print(_json.dumps({"export_file": "thread.txt",
                        "format": "thread",
-                       "content": _b64.b64encode(
+                       "content": _b64_mod.b64encode(
                            thread.encode()).decode()}))
 
-def to_spreadsheet(df, name="data"):
+def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
     """Generate a self-contained HTML file with an editable spreadsheet.
 
     The HTML file embeds AG Grid (community) for in-browser editing with
     built-in sorting, filtering, and export buttons (CSV, XLSX).
     Users download the HTML file and open it in any browser to edit.
     """
-    columns_json = json.dumps([{"field": c, "editable": True, "sortable": True,
-                                 "filter": True} for c in df.columns])
+    columns_json = _json.dumps([{"field": c, "editable": True, "sortable": True,
+                                  "filter": True} for c in df.columns])
     rows_json = df.to_json(orient="records")
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -341,8 +316,23 @@ function download(content, filename, type) {{
 </script>
 </body>
 </html>"""
-    print(json.dumps({{"export_file": name + ".html", "format": "spreadsheet",
-                       "content": _b64.b64encode(html.encode()).decode()}}))
+    print(_json.dumps({{"export_file": name + ".html", "format": "spreadsheet",
+                        "content": _b64_mod.b64encode(html.encode()).decode()}}))
+
+# Reduce the executed namespace to intended analytics helpers only.
+del sys
+del warnings
+del _io
+del _b64
+del _ReadOnlyGuard
+del _READ_ONLY_GUARD
+del _READ_ONLY_MAX_ROWS
+del _prepare_sql
+del _safe_execute
+del _safe_sql
+del _SafeConn
+del _patched_show
+del _save_last_result
 '''
 
 
@@ -354,6 +344,7 @@ def build_preamble(db_path: str, skills_dir: str, session_dir: str) -> str:
     """
     return (
         _PREAMBLE_TEMPLATE.replace("__DB_PATH__", repr(db_path))
+        .replace("__SERVER_DIR__", repr(str(Path(__file__).resolve().parent)))
         .replace("__SKILLS_DIR__", repr(skills_dir))
         .replace("__SESSION_DIR__", repr(session_dir))
     )

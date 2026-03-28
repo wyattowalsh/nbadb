@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")
 
@@ -32,6 +33,17 @@ shot_chart = _mod.shot_chart
 shot_heatmap = _mod.shot_heatmap
 zone_chart = _mod.zone_chart
 compare_shots = _mod.compare_shots
+COURT_WIDTH = _mod.COURT_WIDTH
+COURT_HEIGHT = _mod.COURT_HEIGHT
+HOOP_X = _mod.HOOP_X
+HOOP_Y = _mod.HOOP_Y
+THREE_PT_RADIUS = _mod.THREE_PT_RADIUS
+THREE_PT_CORNER_Y = _mod.THREE_PT_CORNER_Y
+PAINT_WIDTH = _mod.PAINT_WIDTH
+PAINT_HEIGHT = _mod.PAINT_HEIGHT
+RESTRICTED_RADIUS = _mod.RESTRICTED_RADIUS
+BACKBOARD_WIDTH = _mod.BACKBOARD_WIDTH
+HOOP_RADIUS = _mod.HOOP_RADIUS
 
 
 # -- helpers -------------------------------------------------------------------
@@ -118,6 +130,18 @@ class TestDrawCourt:
         # set_aspect("equal") stores 1.0 internally
         assert ax.get_aspect() in ("equal", 1.0)
 
+    def test_geometry_constants(self) -> None:
+        assert COURT_WIDTH == 500
+        assert COURT_HEIGHT == 470
+        assert (HOOP_X, HOOP_Y) == (0, 0)
+        assert pytest.approx(237.5) == THREE_PT_RADIUS
+        assert pytest.approx((THREE_PT_RADIUS**2 - 220**2) ** 0.5) == THREE_PT_CORNER_Y
+        assert PAINT_WIDTH == 160
+        assert PAINT_HEIGHT == 190
+        assert RESTRICTED_RADIUS == 40
+        assert BACKBOARD_WIDTH == 60
+        assert pytest.approx(7.5) == HOOP_RADIUS
+
 
 # -- TestShotChart -------------------------------------------------------------
 
@@ -177,12 +201,24 @@ class TestShotHeatmap:
         assert len(poly_collections) >= 1
 
     def test_respects_bins_param(self) -> None:
-        df = _make_shot_df()
+        x_grid, y_grid = np.meshgrid(np.linspace(-220, 220, 25), np.linspace(0, 390, 20))
+        df = pd.DataFrame({"loc_x": x_grid.ravel(), "loc_y": y_grid.ravel()})
         fig1 = shot_heatmap(df, bins=10)
         fig2 = shot_heatmap(df, bins=40)
-        # Both should produce valid figures
+        poly1 = next(
+            collection
+            for collection in fig1.axes[0].collections
+            if isinstance(collection, matplotlib.collections.PolyCollection)
+        )
+        poly2 = next(
+            collection
+            for collection in fig2.axes[0].collections
+            if isinstance(collection, matplotlib.collections.PolyCollection)
+        )
+
         assert isinstance(fig1, plt.Figure)
         assert isinstance(fig2, plt.Figure)
+        assert len(poly2.get_offsets()) > len(poly1.get_offsets())
 
 
 # -- TestZoneChart -------------------------------------------------------------

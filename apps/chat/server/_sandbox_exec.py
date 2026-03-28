@@ -44,6 +44,13 @@ _BLOCKED_MODULES: frozenset[str] = frozenset(
         "pathlib",
         "io",
         "duckdb",
+        "ftplib",
+        "smtplib",
+        "xmlrpc",
+        "telnetlib",
+        "poplib",
+        "imaplib",
+        "asyncio",
     }
 )
 

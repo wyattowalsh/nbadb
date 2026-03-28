@@ -38,7 +38,7 @@ Additional metrics:
 | `mc.per_minute` | `(stat, minutes, base=36)` | Per-36 (or per-48) normalization |
 | `mc.assist_pct` | `(ast, min, team_fgm, fgm, team_min)` | % of teammate FG assisted |
 | `mc.steal_pct` | `(stl, min, team_poss, team_min)` | Steals per possession on floor |
-| `mc.block_pct` | `(blk, min, opp_fga, team_min)` | Blocks per opponent FGA on floor |
+| `mc.block_pct` | `(blk, min, opp_2pt_fga, team_min)` | Blocks per opponent FGA on floor |
 | `mc.turnover_pct` | `(tov, fga, fta)` | Turnovers per play |
 
 All functions accept `None` (coerced to 0.0) and guard against division by zero.

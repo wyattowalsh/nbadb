@@ -64,30 +64,38 @@ def find_similar(
     # Z-score normalize
     normed = normalize_stats(valid, metrics)
 
-    target_idx = normed[normed[player_col] == target_name].index[0]
-    target_vec = normed.loc[target_idx, metrics].values.astype(float)
+    data = normed[metrics].to_numpy(dtype=float)
+    names = normed[player_col].to_numpy()
+    target_pos = int(np.flatnonzero(names == target_name)[0])
+    target_vec = data[target_pos]
 
-    scores = []
-    for idx, row in normed.iterrows():
-        if idx == target_idx:
-            continue
-        vec = row[metrics].values.astype(float)
-        if method == "cosine":
-            dot = np.dot(target_vec, vec)
-            norm_t = np.linalg.norm(target_vec)
-            norm_v = np.linalg.norm(vec)
-            sim = dot / (norm_t * norm_v) if norm_t > 0 and norm_v > 0 else 0.0
-        else:  # euclidean
-            dist = np.linalg.norm(target_vec - vec)
-            sim = 1.0 / (1.0 + dist)  # convert distance to similarity
-        scores.append((valid.loc[idx, player_col], float(sim)))
+    other_mask = np.ones(len(normed), dtype=bool)
+    other_mask[target_pos] = False
+    other_vectors = data[other_mask]
 
-    scores.sort(key=lambda x: x[1], reverse=True)
-    top = scores[:n]
+    if method == "cosine":
+        target_norm = np.linalg.norm(target_vec)
+        other_norms = np.linalg.norm(other_vectors, axis=1)
+        denom = target_norm * other_norms
+        sims = np.divide(
+            other_vectors @ target_vec,
+            denom,
+            out=np.zeros(len(other_vectors), dtype=float),
+            where=denom > 0,
+        )
+    else:  # euclidean
+        dists = np.linalg.norm(other_vectors - target_vec, axis=1)
+        sims = 1.0 / (1.0 + dists)
 
-    result = pd.DataFrame(top, columns=[player_col, "similarity"])
+    result = (
+        pd.DataFrame({player_col: names[other_mask], "similarity": sims.astype(float)})
+        .sort_values("similarity", ascending=False)
+        .head(n)
+        .reset_index(drop=True)
+    )
     # Merge back original stats
-    result = result.merge(df[[player_col] + metrics], on=player_col, how="left")
+    metrics_source = df[[player_col] + metrics].drop_duplicates(subset=[player_col])
+    result = result.merge(metrics_source, on=player_col, how="left")
     return result
 
 
@@ -110,8 +118,12 @@ def cluster_players(
         ]
 
     valid = df.dropna(subset=metrics).copy()
-    normed = normalize_stats(valid, metrics)
-    data = normed[metrics].values.astype(float)
+    cluster_count = min(n_clusters, len(valid))
+    if cluster_count == 0:
+        valid["cluster"] = pd.Series(dtype=int)
+        return valid
+
+    data = valid[metrics].values.astype(float)
 
     try:
         from scipy.cluster.vq import kmeans2, whiten
@@ -120,14 +132,14 @@ def cluster_players(
         # Handle edge case where all values are zero (whiten returns nan)
         if np.any(np.isnan(whitened)):
             whitened = data
-        centroids, labels = kmeans2(whitened, n_clusters, minit="points")
+        centroids, labels = kmeans2(whitened, cluster_count, minit="points")
         valid = valid.copy()
         valid["cluster"] = labels
     except ImportError:
         # Fallback: simple quantile-based grouping on first metric
         valid = valid.copy()
         valid["cluster"] = pd.qcut(
-            valid[metrics[0]], q=min(n_clusters, len(valid)), labels=False, duplicates="drop"
+            valid[metrics[0]], q=cluster_count, labels=False, duplicates="drop"
         )
 
     return valid
@@ -161,6 +173,9 @@ def career_similarity(
         return pd.DataFrame({"error": [f"Player '{target_name}' not found"]})
 
     target_ages = set(target[age_col].values)
+    metric_stds = {
+        metric: df_seasons[metric].std() for metric in metrics if metric in df_seasons.columns
+    }
     scores = []
 
     for name, group in df_seasons.groupby(player_col):
@@ -178,11 +193,15 @@ def career_similarity(
         diffs = []
         for metric in metrics:
             if metric in t_data.columns and metric in p_data.columns:
+                scale = metric_stds.get(metric)
+                if scale is None or not np.isfinite(scale) or scale <= 0:
+                    continue
                 t_vals = t_data[metric].values.astype(float)
                 p_vals = p_data[metric].values.astype(float)
                 if len(t_vals) == len(p_vals):
                     diff = np.mean(np.abs(t_vals - p_vals))
-                    diffs.append(diff)
+                    if np.isfinite(diff):
+                        diffs.append(diff / float(scale))
 
         if diffs:
             avg_diff = np.mean(diffs)

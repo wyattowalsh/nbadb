@@ -91,6 +91,8 @@ def find_breakouts(
     """Identify outlier games N standard deviations above the season mean.
 
     Requires at least min_games for a stable baseline.
+
+    For scalar or list summaries, use nba_stats.breakout_threshold().
     """
     if len(df) < min_games:
         return pd.DataFrame({"error": [f"Need at least {min_games} games, got {len(df)}"]})
@@ -144,17 +146,17 @@ def season_projection(
         projected_total = per_game * total_games
         remaining = total_games - games_played
 
-        # Simple confidence interval based on binomial-like variance
-        # Wider CI with fewer games played
-        games_factor = math.sqrt(remaining / games_played) if games_played > 0 else 1
-        margin = per_game * games_factor * 1.96  # ~95% CI approximation
+        # Approximate per-game variability with a Poisson-style standard deviation
+        # and apply the projected margin once at the season-total level.
+        std_per_game = math.sqrt(per_game) if per_game > 0 else 0.0
+        margin = 1.96 * std_per_game * math.sqrt(remaining) if remaining > 0 else 0.0
 
         projections[stat] = {
             "current_total": round(total, 1),
             "per_game": round(per_game, 2),
             "projected_total": round(projected_total, 1),
-            "projected_low": round(projected_total - margin * remaining, 1),
-            "projected_high": round(projected_total + margin * remaining, 1),
+            "projected_low": round(projected_total - margin, 1),
+            "projected_high": round(projected_total + margin, 1),
         }
 
     result["projections"] = projections

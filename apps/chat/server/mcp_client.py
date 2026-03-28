@@ -10,7 +10,10 @@ if TYPE_CHECKING:
     from server.config import ChatSettings
 
 
-async def setup_mcp_tools(settings: ChatSettings) -> tuple[list[BaseTool], MultiServerMCPClient]:
+async def setup_mcp_tools(
+    settings: ChatSettings,
+    session_id: str,
+) -> tuple[list[BaseTool], MultiServerMCPClient]:
     """Set up MCP tool connections and return tools + client handle."""
     servers: dict[str, dict] = {
         "nbadb-sql": {
@@ -24,6 +27,7 @@ async def setup_mcp_tools(settings: ChatSettings) -> tuple[list[BaseTool], Multi
                 "-m",
                 "mcp_servers.sandbox",
                 str(settings.duckdb_path),
+                session_id,
             ],
             "transport": "stdio",
         },

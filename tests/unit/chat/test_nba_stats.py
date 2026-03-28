@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import json
 from pathlib import Path
@@ -26,6 +27,17 @@ is_significant = _mod.is_significant
 shooting_confidence = _mod.shooting_confidence
 breakout_threshold = _mod.breakout_threshold
 streak_significance = _mod.streak_significance
+
+
+def _block_scipy_imports(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_import = builtins.__import__
+
+    def _fake_import(name, globalns=None, localns=None, fromlist=(), level=0):
+        if name == "scipy" or name.startswith("scipy."):
+            raise ImportError("scipy not available")
+        return real_import(name, globalns, localns, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
 
 
 # -- is_significant ------------------------------------------------------------
@@ -65,6 +77,16 @@ class TestIsSignificant:
         assert result["test_used"] == "Mann-Whitney U"
         assert result["significant"] is True
 
+    def test_known_value_cohens_d(self):
+        result = is_significant([1, 2, 3], [4, 5, 6], test="ttest")
+        assert result["effect_size"] == pytest.approx(3.0, abs=0.001)
+        assert result["effect_label"] == "large"
+
+    def test_scipy_import_error_fallback(self, monkeypatch: pytest.MonkeyPatch):
+        _block_scipy_imports(monkeypatch)
+        result = is_significant([30, 31, 32], [10, 11, 12])
+        assert result == {"error": "scipy not available", "significant": None}
+
 
 # -- shooting_confidence -------------------------------------------------------
 
@@ -81,6 +103,18 @@ class TestShootingConfidence:
         assert result["pct"] == 1.0
         assert result["upper"] == 1.0
 
+    def test_normal_method(self):
+        result = shooting_confidence(50, 100, method="normal")
+        assert result["pct"] == pytest.approx(0.5, abs=0.0001)
+        assert result["lower"] == pytest.approx(0.402, abs=0.001)
+        assert result["upper"] == pytest.approx(0.598, abs=0.001)
+
+    def test_perfect_shooter_normal_method(self):
+        result = shooting_confidence(10, 10, method="normal")
+        assert result["pct"] == 1.0
+        assert result["lower"] == 1.0
+        assert result["upper"] == 1.0
+
     def test_zero_attempts(self):
         result = shooting_confidence(0, 0)
         assert result["pct"] == 0.0
@@ -94,6 +128,14 @@ class TestShootingConfidence:
         small_width = small["upper"] - small["lower"]
         large_width = large["upper"] - large["lower"]
         assert small_width > large_width
+
+    def test_wilson_falls_back_without_scipy(self, monkeypatch: pytest.MonkeyPatch):
+        _block_scipy_imports(monkeypatch)
+        result = shooting_confidence(50, 100, method="wilson")
+        assert result["pct"] == pytest.approx(0.5, abs=0.0001)
+        assert result["lower"] < 0.5
+        assert result["upper"] > 0.5
+        assert result["confidence"] == 0.95
 
 
 # -- breakout_threshold --------------------------------------------------------
@@ -153,3 +195,9 @@ class TestStreakSignificance:
         assert cold["direction"] == "cold"
         assert hot["longest_streak"] == 5
         assert cold["longest_streak"] == 5
+
+    def test_runs_test_falls_back_without_scipy(self, monkeypatch: pytest.MonkeyPatch):
+        _block_scipy_imports(monkeypatch)
+        result = streak_significance([1, 0] * 10)
+        assert result["p_value"] is None
+        assert result["significant"] is None

@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+_HAS_PLOTLY = __import__("importlib").util.find_spec("plotly") is not None
+
 # We can't import the MCP server directly (requires mcp package),
 # so we test the core execution logic by reimplementing the key parts.
 
@@ -79,7 +81,8 @@ def test_sandbox_preamble_uses_safe_conn_wrapper():
     """The preamble exposes a safe SQL wrapper instead of a raw connection."""
     content = PREAMBLE_MODULE.read_text()
     assert "class _SafeConn" in content
-    assert 'raise ValueError("Python SQL helpers only allow SELECT/WITH queries")' in content
+    assert "from _safety import ReadOnlyGuard as _ReadOnlyGuard" in content
+    assert "_READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)" in content
 
 
 def test_sandbox_preamble_has_metric_calculator():
@@ -143,6 +146,73 @@ class TestSandboxRuntimeIsolation:
     @pytest.fixture(autouse=True)
     def _load_modules(self):
         self.sandbox_exec = _load_module(SANDBOX_EXEC_MODULE, "_sandbox_exec_runtime")
+        self.preamble_mod = _load_module(PREAMBLE_MODULE, "_preamble_runtime")
+
+    def _run_with_preamble(self, tmp_path: Path, code: str) -> dict:
+        db_path = tmp_path / "nba.duckdb"
+        __import__("duckdb").connect(str(db_path)).close()
+        skills_dir = (
+            Path(__file__).resolve().parents[3]
+            / "apps"
+            / "chat"
+            / "skills"
+            / "nba-data-analytics"
+            / "scripts"
+        )
+        session_dir = tmp_path / "session" / "sandbox-test"
+        preamble = self.preamble_mod.build_preamble(
+            str(db_path),
+            str(skills_dir),
+            str(session_dir),
+        )
+        return self.sandbox_exec.run_sandboxed(preamble + "\n" + code, cwd=tmp_path)
+
+    def test_preamble_hides_internal_modules_and_raw_connection(self, tmp_path: Path):
+        if not _HAS_PLOTLY:
+            pytest.skip("plotly not installed")
+        result = self._run_with_preamble(
+            tmp_path,
+            textwrap.dedent(
+                """
+                hidden = sorted(
+                    name
+                    for name in ("sys", "_io", "_b64", "_db_conn", "_RAW_CONN")
+                    if name in globals()
+                )
+                print(json.dumps(hidden))
+                """
+            ),
+        )
+
+        assert result["stdout"] == "[]"
+
+    def test_query_helper_still_works_after_namespace_cleanup(self, tmp_path: Path):
+        if not _HAS_PLOTLY:
+            pytest.skip("plotly not installed")
+        result = self._run_with_preamble(
+            tmp_path,
+            textwrap.dedent(
+                """
+                print(query("SELECT 1 AS value").iloc[0, 0])
+                """
+            ),
+        )
+
+        assert result["stdout"] == "1"
+
+    def test_query_helper_supports_explain_after_shared_guard_wrap_fix(self, tmp_path: Path):
+        if not _HAS_PLOTLY:
+            pytest.skip("plotly not installed")
+        result = self._run_with_preamble(
+            tmp_path,
+            textwrap.dedent(
+                """
+                print(query("EXPLAIN SELECT 1").shape[0])
+                """
+            ),
+        )
+
+        assert result["stdout"] == "1"
 
     def test_preamble_does_not_expose_raw_duckdb(self, tmp_path: Path):
         db_path = tmp_path / "nba.duckdb"

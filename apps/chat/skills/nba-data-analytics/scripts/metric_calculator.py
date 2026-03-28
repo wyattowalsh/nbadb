@@ -186,15 +186,15 @@ def steal_pct(
 def block_pct(
     blk: float | None,
     minutes: float | None,
-    opp_fga: float | None,
+    opp_2pt_fga: float | None,
     team_minutes: float | None,
 ) -> float:
     """Percentage of opponent 2-point FGA blocked while on floor."""
     blk, minutes = _f(blk), _f(minutes)
-    opp_fga, team_minutes = _f(opp_fga), _f(team_minutes)
-    if minutes == 0 or opp_fga == 0:
+    opp_2pt_fga, team_minutes = _f(opp_2pt_fga), _f(team_minutes)
+    if minutes == 0 or opp_2pt_fga == 0:
         return 0.0
-    return 100 * (blk * (team_minutes / 5)) / (minutes * opp_fga)
+    return 100 * (blk * (team_minutes / 5)) / (minutes * opp_2pt_fga)
 
 
 def turnover_pct(
