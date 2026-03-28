@@ -12,8 +12,8 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 <StatGrid columns={4}>
   <StatPill
     label="CLI commands"
-    value="18"
-    note="14 top-level + 4 backfill subcommands"
+    value="19"
+    note="15 top-level + 4 backfill subcommands"
   />
   <StatPill
     label="Pipeline run modes"
@@ -81,7 +81,7 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 | “How do I build or refresh data?”                           | [Pipeline commands](#pipeline-commands)                                   | `init`, `daily`, `monthly`, `full`                                                |
 | “How do I fill gaps or re-extract specific data?”           | [Backfill commands](#backfill-commands)                                   | `backfill run`, `backfill gaps`, `backfill completeness`, `backfill journal`      |
 | “How do I inspect, validate, or debug what already exists?” | [Inspection and quality commands](#inspection-and-quality-commands)       | `schema`, `status`, `run-quality`, `ask`                                          |
-| “How do I move artifacts in or out?”                        | [Distribution and artifact commands](#distribution-and-artifact-commands) | `export`, `download`, `upload`, `docs-autogen`, `extract-completeness`, `migrate` |
+| “How do I move artifacts in or out?”                        | [Distribution and artifact commands](#distribution-and-artifact-commands) | `export`, `download`, `upload`, `docs-autogen`, `extract-completeness`, `audit-models`, `migrate` |
 | “What are the exact current signatures?”                    | [Exact signatures](#exact-signatures)                                     | Grouped tables for every current command                                          |
 
 <CourtDivider label="Command modules" />
@@ -239,6 +239,7 @@ Use `--output-format json` for scripts and CI. The JSON payload contains three t
 | `nbadb upload`               | Publish the data directory to Kaggle                             | Ensures `dataset-metadata.json` exists first                                 |
 | `nbadb docs-autogen`         | Regenerate generated docs artifacts                              | Defaults `--docs-root` to `docs/content/docs`                                |
 | `nbadb extract-completeness` | Generate endpoint coverage artifacts                             | Supports `--output-dir/-o`, `--require-full`, and `--require-model-contract` |
+| `nbadb audit-models`         | Generate end-to-end model audit artifacts                        | Supports `--mode`, `--strictness`, `--output-dir/-o`, and `--baseline`       |
 | `nbadb migrate`              | Create or migrate pipeline tables                                | Usually a setup or recovery command                                          |
 
 ### `nbadb extract-completeness`
@@ -261,6 +262,35 @@ Use `--require-full` in CI to fail when any of these source-coverage gaps remain
 Use `--require-model-contract` to fail when a staged stats surface has neither downstream transform ownership nor an explicit exclusion decision. The command summary also prints model-ownership counts so you can distinguish owned, excluded, and still-unowned surfaces.
 
 That endpoint-level contract is intentionally separate from the output-schema audit. The same summary now prints **star schema coverage** counts for transform outputs so you can see, independently, how many tables have a schema-backed final-tier contract versus how many still bypass star-schema validation.
+
+### `nbadb audit-models`
+
+Use this when you need the end-to-end model contract, not just endpoint completeness:
+
+```bash
+uv run nbadb audit-models --mode inventory --strictness consistency
+```
+
+The command writes model-audit artifacts under `artifacts/model-audit/` by default:
+
+- `inventory.json`
+- `matrix.json`
+- `report.md`
+
+`probe`, `build`, and `full` modes also emit:
+
+- `live-probes.json`
+- `build-validation.json`
+
+When `--baseline` is provided, the command also writes `baseline-comparison.json` and enables `no-regressions` or `zero-gaps` enforcement.
+
+Use the strictness levels progressively:
+
+- `consistency` fails on discovery and audit-contract inconsistencies
+- `no-regressions` compares the current inventory summary against a committed baseline
+- `zero-gaps` requires both a baseline and zero remaining audit problems
+
+For CI canaries, keep `--mode probe` and use the repository’s configured canary profile so PRs exercise each source kind and parameter pattern without running the full live matrix.
 
 ### `nbadb docs-autogen`
 
@@ -362,6 +392,7 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 | `nbadb migrate`              | Create or migrate pipeline tables                                | —               | `--data-dir/-d`                                                 |
 | `nbadb docs-autogen`         | Regenerate generated docs artifacts under the docs content tree  | —               | `--docs-root` (default: `docs/content/docs`)                    |
 | `nbadb extract-completeness` | Generate endpoint coverage artifacts                             | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract` |
+| `nbadb audit-models`         | Generate end-to-end model audit artifacts                        | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`       |
 
 ## Related guides
 

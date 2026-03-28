@@ -50,6 +50,33 @@
       ]
     }
   },
+  "agg_game_totals": {
+    "sql_lineage": {
+      "class_name": "AggGameTotalsTransformer",
+      "columns": [
+        "game_id",
+        "game_date",
+        "season_year",
+        "season_type",
+        "home_team_id",
+        "away_team_id",
+        "home_pts",
+        "away_pts",
+        "total_pts",
+        "home_reb",
+        "away_reb",
+        "home_ast",
+        "away_ast",
+        "home_fg_pct",
+        "away_fg_pct"
+      ],
+      "source_tables": [
+        "bridge_game_team",
+        "dim_game",
+        "fact_team_game"
+      ]
+    }
+  },
   "agg_league_leaders": {
     "sql_lineage": {
       "class_name": "AggLeagueLeadersTransformer",
@@ -187,6 +214,7 @@
       "columns": [
         "player_id",
         "team_id",
+        "team_abbreviation",
         "season_year",
         "season_type",
         "gp",
@@ -222,8 +250,39 @@
       ],
       "source_tables": [
         "dim_game",
+        "dim_team",
         "fact_player_game_advanced",
         "fact_player_game_traditional"
+      ]
+    }
+  },
+  "agg_player_season_advanced": {
+    "sql_lineage": {
+      "class_name": "AggPlayerSeasonAdvancedTransformer",
+      "columns": [
+        "player_id",
+        "team_id",
+        "season_year",
+        "season_type",
+        "gp",
+        "avg_off_rating",
+        "avg_def_rating",
+        "avg_net_rating",
+        "avg_ts_pct",
+        "avg_usg_pct",
+        "avg_efg_pct",
+        "avg_ast_pct",
+        "avg_ast_ratio",
+        "avg_oreb_pct",
+        "avg_dreb_pct",
+        "avg_reb_pct",
+        "avg_tov_pct",
+        "avg_pace",
+        "avg_pie"
+      ],
+      "source_tables": [
+        "dim_game",
+        "fact_player_game_advanced"
       ]
     }
   },
@@ -300,6 +359,34 @@
       "source_tables": [
         "dim_game",
         "fact_shot_chart"
+      ]
+    }
+  },
+  "agg_team_defense": {
+    "sql_lineage": {
+      "class_name": "AggTeamDefenseTransformer",
+      "columns": [
+        "team_id",
+        "season_year",
+        "season_type",
+        "gp",
+        "avg_def_rating",
+        "avg_net_rating",
+        "avg_opp_efg_pct",
+        "avg_opp_fta_rate",
+        "avg_opp_tov_pct",
+        "avg_opp_oreb_pct",
+        "avg_contested_shots",
+        "avg_deflections",
+        "avg_loose_balls_recovered",
+        "avg_charges_drawn",
+        "avg_screen_assists"
+      ],
+      "source_tables": [
+        "dim_game",
+        "fact_box_score_advanced_team",
+        "fact_box_score_four_factors_team",
+        "fact_team_game_hustle"
       ]
     }
   },
@@ -1480,6 +1567,20 @@
       ],
       "source_tables": [
         "stg_player_info"
+      ]
+    }
+  },
+  "dim_schedule_int": {
+    "sql_lineage": {
+      "class_name": "DimScheduleIntTransformer",
+      "columns": [
+        "*",
+        "week_start_date",
+        "week_end_date"
+      ],
+      "source_tables": [
+        "stg_schedule_int",
+        "stg_schedule_int_weeks"
       ]
     }
   },
@@ -3588,6 +3689,17 @@
       ]
     }
   },
+  "fact_play_by_play_video": {
+    "sql_lineage": {
+      "class_name": "FactPlayByPlayVideoTransformer",
+      "columns": [
+        "video_available"
+      ],
+      "source_tables": [
+        "stg_play_by_play_video_available"
+      ]
+    }
+  },
   "fact_player_available_seasons": {
     "sql_lineage": {
       "class_name": "FactPlayerAvailableSeasonsTransformer",
@@ -4024,6 +4136,7 @@
         "player_id",
         "team_id",
         "min",
+        "season_year",
         "off_rating",
         "def_rating",
         "net_rating",
@@ -4047,6 +4160,7 @@
         "e_pace"
       ],
       "source_tables": [
+        "dim_game",
         "stg_box_score_advanced"
       ]
     }
@@ -4132,6 +4246,7 @@
         "player_id",
         "team_id",
         "min",
+        "season_year",
         "contested_shots",
         "contested_shots_2pt",
         "contested_shots_3pt",
@@ -4143,6 +4258,7 @@
         "box_outs"
       ],
       "source_tables": [
+        "dim_game",
         "stg_box_score_hustle"
       ]
     }
@@ -4300,6 +4416,7 @@
         "game_id",
         "player_id",
         "team_id",
+        "season_year",
         "pts_off_tov",
         "second_chance_pts",
         "fbps",
@@ -4340,6 +4457,7 @@
         "pct_pts"
       ],
       "source_tables": [
+        "dim_game",
         "stg_box_score_misc",
         "stg_box_score_scoring",
         "stg_box_score_usage"
@@ -4498,6 +4616,7 @@
         "player_id",
         "team_id",
         "min",
+        "season_year",
         "spd",
         "dist",
         "orbc",
@@ -4525,6 +4644,7 @@
         "def_matchup_fg_pct"
       ],
       "source_tables": [
+        "dim_game",
         "stg_box_score_defensive",
         "stg_box_score_player_track"
       ]
@@ -5218,6 +5338,7 @@
         "game_id",
         "player_id",
         "team_id",
+        "season_year",
         "period",
         "minutes_remaining",
         "seconds_remaining",
@@ -5232,6 +5353,7 @@
         "shot_made_flag"
       ],
       "source_tables": [
+        "dim_game",
         "stg_shot_chart"
       ]
     }
@@ -5858,12 +5980,14 @@
       "class_name": "FactTeamGameTransformer",
       "columns": [
         "*",
+        "season_year",
         "pts_qtr1",
         "pts_qtr2",
         "pts_qtr3",
         "pts_qtr4"
       ],
       "source_tables": [
+        "dim_game",
         "stg_box_score_traditional",
         "stg_line_score"
       ]
@@ -6216,6 +6340,31 @@
       ],
       "source_tables": [
         "stg_tracking_defense"
+      ]
+    }
+  },
+  "fact_win_prob_pbp": {
+    "sql_lineage": {
+      "class_name": "FactWinProbPbpTransformer",
+      "columns": [
+        "game_id",
+        "event_num",
+        "home_pct",
+        "visitor_pct",
+        "home_pts",
+        "visitor_pts",
+        "home_score_margin",
+        "period",
+        "seconds_remaining",
+        "home_poss_ind",
+        "home_g",
+        "description",
+        "location",
+        "pctimestring",
+        "isvisible"
+      ],
+      "source_tables": [
+        "stg_win_prob_pbp"
       ]
     }
   },

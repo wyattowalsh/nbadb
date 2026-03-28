@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { TOCItemType } from "fumadocs-core/toc";
 import {
@@ -12,7 +13,6 @@ import {
   getDocsContextRail,
   getGeneratedPageFrame,
   getSectionMeta,
-  type SectionId,
 } from "@/lib/site-config";
 import { getDocBreadcrumbs, humanizeSlug } from "@/lib/utils";
 
@@ -23,10 +23,23 @@ type DocsChromeProps = {
   tocCount?: number;
 };
 
+type DocsChromeSlugProps = {
+  slug?: string[];
+};
 
-export function DocsNavBadge() {
+
+export function DocsNavBadge({ slug }: DocsChromeSlugProps) {
+  const section = getSectionMeta(slug);
+
   return (
     <div className="hidden items-center gap-2 md:flex">
+      <Link href={section.hubHref} className="nba-nav-route">
+        <span className="nba-nav-route-section">{section.label}</span>
+        <span aria-hidden="true" className="text-muted-foreground/50">
+          /
+        </span>
+        <span className="nba-nav-route-cue">{section.cue}</span>
+      </Link>
       <div className="nba-nav-command">
         <Command className="size-3.5" />
         <span>Search</span>
@@ -36,39 +49,101 @@ export function DocsNavBadge() {
   );
 }
 
-export function DocsSidebarBanner() {
+export function DocsSidebarBanner({ slug }: DocsChromeSlugProps) {
+  const section = getSectionMeta(slug);
+  const currentPath = slug?.length ? `/docs/${slug.join("/")}` : "/docs";
+  const quickLinks = section.quickLinks
+    .filter((link) => link.href !== currentPath)
+    .slice(0, 2);
+
   return (
-    <div className="border border-border bg-card p-3">
+    <div className="nba-sidebar-banner border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <span className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <Image src="/logo.png" alt="" width={16} height={16} className="h-4 w-auto" />
           nbadb
         </span>
-        <Badge variant="default">141 tables</Badge>
+        <Badge variant="default">{section.cue}</Badge>
       </div>
-      <div className="mt-3 grid gap-1.5">
+      <div className="mt-3 space-y-3">
+        <div>
+          <p className="nba-kicker">{section.eyebrow}</p>
+          <h2 className="mt-2 text-base font-semibold tracking-tight text-foreground">
+            {section.label}
+          </h2>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {section.blurb}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {section.stats.slice(0, 2).map((stat) => (
+            <div key={stat.label} className="nba-sidebar-stat">
+              <span className="nba-sidebar-stat-value">{stat.value}</span>
+              <span className="nba-sidebar-stat-label">{stat.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
         <Button asChild size="sm" className="justify-between">
-          <Link href="/docs/guides/analytics-quickstart">
-            Quickstart
+          <Link href={section.hubHref}>
+            {section.id === "core" ? "Docs front door" : "Section hub"}
             <ArrowRight className="size-3.5" />
           </Link>
         </Button>
-        <Button asChild variant="outline" size="sm" className="justify-between">
-          <Link href="/docs/schema">
-            Schema
-            <ArrowRight className="size-3.5" />
+
+        {quickLinks.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="nba-sidebar-route-link"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="nba-sidebar-route-eyebrow">Quick route</div>
+                <div className="mt-1 text-sm font-semibold text-foreground">
+                  {link.title}
+                </div>
+              </div>
+              <ArrowRight className="mt-0.5 size-3.5 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              {link.description}
+            </p>
           </Link>
-        </Button>
+        ))}
       </div>
     </div>
   );
 }
 
-export function DocsSidebarFooter() {
+export function DocsSidebarFooter({ slug }: DocsChromeSlugProps) {
+  const section = getSectionMeta(slug);
+  const searchPrompt = section.prompts[0];
+
   return (
-    <div className="space-y-2 text-xs">
+    <div className="nba-sidebar-footer space-y-2 text-xs">
       <div className="flex flex-wrap gap-2">
-        <Badge variant="default">131 endpoints</Badge>
-        <Badge variant="default">47 pages</Badge>
+        <Badge variant="default">{section.label}</Badge>
+        <Badge variant="muted">{section.cue}</Badge>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <a href="https://github.com/wyattowalsh/nba-db" target="_blank" rel="noopener noreferrer">
+          <img src="https://img.shields.io/github/stars/wyattowalsh/nba-db?style=flat-square&label=stars&color=orange" alt="GitHub stars" className="h-5" loading="lazy" />
+        </a>
+        <a href="https://pypi.org/project/nbadb/" target="_blank" rel="noopener noreferrer">
+          <img src="https://img.shields.io/pypi/v/nbadb?style=flat-square&label=pypi" alt="PyPI version" className="h-5" loading="lazy" />
+        </a>
+      </div>
+      <div className="nba-sidebar-prompt">
+        <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-primary">
+          Try in search
+        </div>
+        <div className="mt-1 font-mono text-[0.78rem] text-foreground">
+          {searchPrompt.query}
+        </div>
       </div>
       <p className="text-muted-foreground">
         <kbd>⌘K</kbd> to search tables, endpoints, guides, and diagrams.
@@ -85,53 +160,108 @@ export function DocsPageHero({
 }: DocsChromeProps) {
   const section = getSectionMeta(slug);
   const breadcrumbs = getDocBreadcrumbs(slug);
+  const currentPath = slug?.length ? `/docs/${slug.join("/")}` : "/docs";
   const currentLabel = slug?.length
     ? humanizeSlug(slug[slug.length - 1])
     : "Index";
+  const leadLink =
+    currentPath === section.hubHref
+      ? section.quickLinks[0]
+      : {
+          title: section.id === "core" ? "Docs front door" : "Section hub",
+          href: section.hubHref,
+          description: section.blurb,
+        };
+  const relatedLinks = section.quickLinks
+    .filter((link) => link.href !== currentPath && link.href !== leadLink?.href)
+    .slice(0, 2);
 
   return (
     <section className="nba-page-hero @container">
-      <nav aria-label="Breadcrumb">
-        <ol className="flex list-none flex-wrap items-center gap-2 p-0">
-          {breadcrumbs.map((crumb, index) => {
-            const isCurrent = index === breadcrumbs.length - 1;
+      <div className="nba-page-hero-shell">
+        <div>
+          <nav aria-label="Breadcrumb">
+            <ol className="flex list-none flex-wrap items-center gap-2 p-0">
+              {breadcrumbs.map((crumb, index) => {
+                const isCurrent = index === breadcrumbs.length - 1;
 
-            return (
-              <li key={crumb.href} className="flex items-center gap-2">
-                {isCurrent ? (
-                  <span aria-current="page" className="nba-crumb-current">
-                    {crumb.label}
-                  </span>
-                ) : (
-                  <Link href={crumb.href} className="nba-crumb-link">
-                    {crumb.label}
+                return (
+                  <li key={crumb.href} className="flex items-center gap-2">
+                    {isCurrent ? (
+                      <span aria-current="page" className="nba-crumb-current">
+                        {crumb.label}
+                      </span>
+                    ) : (
+                      <Link href={crumb.href} className="nba-crumb-link">
+                        {crumb.label}
+                      </Link>
+                    )}
+                    {index < breadcrumbs.length - 1 ? (
+                      <span aria-hidden="true" className="text-muted-foreground/60">
+                        /
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="primary">{section.label}</Badge>
+              <Badge variant="default">{section.cue}</Badge>
+              {tocCount > 0 ? <Badge variant="muted">{tocCount} guideposts</Badge> : null}
+            </div>
+
+            <div>
+              <p className="nba-kicker">{section.eyebrow}</p>
+              <h1 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+                {title}
+              </h1>
+            </div>
+            {description ? (
+              <p className="max-w-3xl text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+                {description}
+              </p>
+            ) : null}
+
+            <div className="nba-page-hero-actions">
+              {leadLink ? (
+                <Button asChild size="sm">
+                  <Link href={leadLink.href}>
+                    {leadLink.title}
+                    <ArrowRight className="size-3.5" />
                   </Link>
-                )}
-                {index < breadcrumbs.length - 1 ? (
-                  <span aria-hidden="true" className="text-muted-foreground/60">
-                    /
-                  </span>
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+                </Button>
+              ) : null}
 
-      <div className="mt-4 space-y-4">
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="primary">{section.label}</Badge>
-          <Badge variant="default">{currentLabel}</Badge>
+              {relatedLinks.map((link) => (
+                <Link key={link.href} href={link.href} className="nba-page-hero-link">
+                  <span>{link.title}</span>
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              ))}
+            </div>
+
+            <div className="nba-page-hero-stats">
+              {section.stats.map((stat) => (
+                <div key={stat.label} className="nba-page-hero-stat-card">
+                  <span className="nba-page-hero-stat-value">{stat.value}</span>
+                  <span className="nba-page-hero-stat-label">{stat.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-          {title}
-        </h1>
-        {description ? (
-          <p className="max-w-3xl text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
-            {description}
-          </p>
-        ) : null}
+        <div className="nba-page-hero-mark" aria-hidden="true">
+          <Image src="/logo-600.png" alt="" width={600} height={600} className="h-auto w-full" priority />
+          <div className="nba-page-hero-stat">
+            <span className="nba-kicker">{section.cue}</span>
+            <span>{currentLabel}</span>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -644,7 +774,7 @@ export function DocsGeneratedModules({ slug }: { slug?: string[] }) {
           <Link
             key={module.href}
             href={module.href}
-            className="group border border-border bg-card p-4 transition-colors hover:bg-muted"
+            className="nba-related-card group border border-border bg-card p-4 transition-colors hover:bg-muted"
           >
             <div className="flex items-center justify-between gap-3">
               <Badge variant="outline">{module.label}</Badge>
@@ -706,7 +836,7 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
             <Link
               key={link.href}
               href={link.href}
-              className="group border border-border bg-card p-4 transition-colors hover:bg-muted"
+              className="nba-related-card group border border-border bg-card p-4 transition-colors hover:bg-muted"
             >
               <div className="flex items-center justify-between gap-3">
                 <Badge variant="outline">{getLinkBadge(link.href)}</Badge>
@@ -722,7 +852,7 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
           ))}
         </div>
 
-        <aside className="border border-border bg-card p-4">
+        <aside className="nba-discovery-panel border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="nba-kicker">Search and discovery</p>
@@ -736,7 +866,7 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
             {contextRail.prompts.map((prompt) => (
               <div
                 key={prompt.query}
-                className="border border-border bg-muted px-3 py-2"
+                className="nba-discovery-prompt border border-border bg-muted px-3 py-2"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">

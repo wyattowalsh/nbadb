@@ -7,7 +7,7 @@ description: Column-level lineage from star schema to source endpoints
 
 ## Table-Level Lineage
 
-Generated from Pandera schema metadata and SQLGlot analysis of 158 SQL transforms.
+Generated from Pandera schema metadata and SQLGlot analysis of 164 SQL transforms.
 
 ```mermaid
 flowchart LR
@@ -171,6 +171,7 @@ flowchart LR
     stg_on_off_summary_overall[stg_on_off_summary_overall]:::staging
     stg_other_stats[stg_other_stats]:::staging
     stg_play_by_play[stg_play_by_play]:::staging
+    stg_play_by_play_video_available[stg_play_by_play_video_available]:::staging
     stg_player_available_seasons[stg_player_available_seasons]:::staging
     stg_player_awards[stg_player_awards]:::staging
     stg_player_career_allstar[stg_player_career_allstar]:::staging
@@ -293,6 +294,8 @@ flowchart LR
     stg_playoff_picture_west_standings[stg_playoff_picture_west_standings]:::staging
     stg_rotation_away[stg_rotation_away]:::staging
     stg_rotation_home[stg_rotation_home]:::staging
+    stg_schedule_int[stg_schedule_int]:::staging
+    stg_schedule_int_weeks[stg_schedule_int_weeks]:::staging
     stg_schedule_weeks[stg_schedule_weeks]:::staging
     stg_scoreboard[stg_scoreboard]:::staging
     stg_scoreboard_east_conf[stg_scoreboard_east_conf]:::staging
@@ -386,9 +389,11 @@ flowchart LR
     stg_team_year_by_year_stats[stg_team_year_by_year_stats]:::staging
     stg_team_years[stg_team_years]:::staging
     stg_tracking_defense[stg_tracking_defense]:::staging
+    stg_win_prob_pbp[stg_win_prob_pbp]:::staging
     stg_win_probability[stg_win_probability]:::staging
     agg_all_time_leaders[(agg_all_time_leaders)]:::other
     agg_clutch_stats[(agg_clutch_stats)]:::other
+    agg_game_totals[(agg_game_totals)]:::other
     agg_league_leaders[(agg_league_leaders)]:::other
     agg_lineup_efficiency[(agg_lineup_efficiency)]:::other
     agg_on_off_splits[(agg_on_off_splits)]:::other
@@ -396,10 +401,12 @@ flowchart LR
     agg_player_career[(agg_player_career)]:::other
     agg_player_rolling[(agg_player_rolling)]:::other
     agg_player_season[(agg_player_season)]:::other
+    agg_player_season_advanced[(agg_player_season_advanced)]:::other
     agg_player_season_per36[(agg_player_season_per36)]:::other
     agg_player_season_per48[(agg_player_season_per48)]:::other
     agg_shot_location_season[(agg_shot_location_season)]:::other
     agg_shot_zones[(agg_shot_zones)]:::other
+    agg_team_defense[(agg_team_defense)]:::other
     agg_team_franchise[(agg_team_franchise)]:::other
     agg_team_pace_and_efficiency[(agg_team_pace_and_efficiency)]:::other
     agg_team_season[(agg_team_season)]:::other
@@ -430,6 +437,7 @@ flowchart LR
     dim_official[(dim_official)]:::dim
     dim_play_event_type[(dim_play_event_type)]:::dim
     dim_player[(dim_player)]:::dim
+    dim_schedule_int[(dim_schedule_int)]:::dim
     dim_season[(dim_season)]:::dim
     dim_season_phase[(dim_season_phase)]:::dim
     dim_season_week[(dim_season_week)]:::dim
@@ -486,6 +494,7 @@ flowchart LR
     fact_matchup[(fact_matchup)]:::fact
     fact_on_off_detail[(fact_on_off_detail)]:::fact
     fact_play_by_play[(fact_play_by_play)]:::fact
+    fact_play_by_play_video[(fact_play_by_play_video)]:::fact
     fact_player_available_seasons[(fact_player_available_seasons)]:::fact
     fact_player_awards[(fact_player_awards)]:::fact
     fact_player_career[(fact_player_career)]:::fact
@@ -564,6 +573,7 @@ flowchart LR
     fact_team_social_sites[(fact_team_social_sites)]:::fact
     fact_team_splits[(fact_team_splits)]:::fact
     fact_tracking_defense[(fact_tracking_defense)]:::fact
+    fact_win_prob_pbp[(fact_win_prob_pbp)]:::fact
     fact_win_probability[(fact_win_probability)]:::fact
     BoxScoreAdvancedV3 --> fact_player_game_advanced
     BoxScoreHustleV2 --> fact_player_game_hustle
@@ -630,10 +640,14 @@ flowchart LR
     agg_player_season_per48 --> analytics_player_season_complete
     agg_team_season --> analytics_league_benchmarks
     agg_team_season --> analytics_team_season_summary
+    bridge_game_team --> agg_game_totals
     bridge_game_team --> analytics_game_summary
+    dim_game --> agg_game_totals
     dim_game --> agg_player_rolling
     dim_game --> agg_player_season
+    dim_game --> agg_player_season_advanced
     dim_game --> agg_shot_zones
+    dim_game --> agg_team_defense
     dim_game --> agg_team_pace_and_efficiency
     dim_game --> agg_team_season
     dim_game --> analytics_game_summary
@@ -641,7 +655,13 @@ flowchart LR
     dim_game --> analytics_player_game_complete
     dim_game --> analytics_shooting_efficiency
     dim_game --> analytics_team_game_complete
+    dim_game --> fact_player_game_advanced
+    dim_game --> fact_player_game_hustle
+    dim_game --> fact_player_game_misc
+    dim_game --> fact_player_game_tracking
     dim_game --> fact_player_game_traditional
+    dim_game --> fact_shot_chart
+    dim_game --> fact_team_game
     dim_player --> analytics_clutch_performance
     dim_player --> analytics_draft_value
     dim_player --> analytics_player_game_complete
@@ -649,6 +669,7 @@ flowchart LR
     dim_player --> analytics_player_matchup
     dim_player --> analytics_player_season_complete
     dim_player --> analytics_shooting_efficiency
+    dim_team --> agg_player_season
     dim_team --> analytics_clutch_performance
     dim_team --> analytics_game_summary
     dim_team --> analytics_head_to_head
@@ -658,8 +679,10 @@ flowchart LR
     dim_team --> analytics_player_season_complete
     dim_team --> analytics_team_game_complete
     dim_team --> analytics_team_season_summary
+    fact_box_score_advanced_team --> agg_team_defense
     fact_box_score_advanced_team --> agg_team_pace_and_efficiency
     fact_box_score_advanced_team --> analytics_team_game_complete
+    fact_box_score_four_factors_team --> agg_team_defense
     fact_box_score_misc_team --> analytics_team_game_complete
     fact_box_score_player_track_team --> analytics_team_game_complete
     fact_draft --> analytics_draft_value
@@ -667,6 +690,7 @@ flowchart LR
     fact_lineup_stats --> agg_lineup_efficiency
     fact_player_clutch_detail --> analytics_clutch_performance
     fact_player_game_advanced --> agg_player_season
+    fact_player_game_advanced --> agg_player_season_advanced
     fact_player_game_advanced --> analytics_player_game_complete
     fact_player_game_hustle --> analytics_player_game_complete
     fact_player_game_misc --> analytics_player_game_complete
@@ -679,9 +703,11 @@ flowchart LR
     fact_shot_chart --> analytics_shooting_efficiency
     fact_shot_chart_league_averages --> analytics_shooting_efficiency
     fact_standings --> analytics_team_season_summary
+    fact_team_game --> agg_game_totals
     fact_team_game --> agg_team_season
     fact_team_game --> analytics_head_to_head
     fact_team_game --> analytics_team_game_complete
+    fact_team_game_hustle --> agg_team_defense
     fact_team_game_hustle --> analytics_team_game_complete
     stg_all_time --> agg_all_time_leaders
     stg_all_time_ast --> agg_all_time_leaders
@@ -809,6 +835,7 @@ flowchart LR
     stg_other_stats --> fact_game_context
     stg_play_by_play --> bridge_play_player
     stg_play_by_play --> fact_play_by_play
+    stg_play_by_play_video_available --> fact_play_by_play_video
     stg_player_available_seasons --> fact_player_available_seasons
     stg_player_awards --> fact_player_awards
     stg_player_career_allstar --> fact_player_career
@@ -935,6 +962,8 @@ flowchart LR
     stg_playoff_picture_west_standings --> fact_playoff_picture
     stg_rotation_away --> fact_rotation
     stg_rotation_home --> fact_rotation
+    stg_schedule_int --> dim_schedule_int
+    stg_schedule_int_weeks --> dim_schedule_int
     stg_schedule_weeks --> dim_season_week
     stg_scoreboard --> fact_scoreboard_detail
     stg_scoreboard_east_conf --> fact_scoreboard_detail
@@ -1034,6 +1063,7 @@ flowchart LR
     stg_team_year_by_year_stats --> fact_team_historical
     stg_team_years --> dim_team_extended
     stg_tracking_defense --> fact_tracking_defense
+    stg_win_prob_pbp --> fact_win_prob_pbp
     stg_win_probability --> fact_win_probability
 ```
 

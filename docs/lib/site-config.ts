@@ -13,6 +13,8 @@ type SiteMetric = {
   note: string;
 };
 
+export type { SiteMetric };
+
 type HeroSignal = {
   label: string;
   title: string;
@@ -91,20 +93,14 @@ export type GeneratedPageFrameMeta = {
   modulesTitle: string;
   modulesDescription: string;
   modules: GeneratedPageGuideCard[];
+  links?: QuickLink[];
 };
 
-export const siteOrigin = "https://nbadb.dev";
+export const siteOrigin = "https://nbadb.w4w.dev";
 export const siteName = "nbadb";
 export const siteTitle = "nbadb — NBA Data Warehouse";
 export const siteDescription =
-  "141-table star schema for NBA data. DuckDB-first warehouse with 131 endpoint extractors, full lineage, and schema documentation.";
-
-export const siteMetrics: SiteMetric[] = [
-  { label: "Tables", value: "141", note: "17 dimensions · 102 facts" },
-  { label: "Endpoints", value: "131", note: "143 extractor wrappers" },
-  { label: "Docs Pages", value: "47", note: "7 navigation sections" },
-  { label: "Derived Models", value: "20", note: "16 aggs · 4 views" },
-];
+  "Star-schema NBA data warehouse. DuckDB-first with full endpoint coverage, lineage, and schema documentation.";
 
 export const heroSignals: HeroSignal[] = [
   {
@@ -163,10 +159,10 @@ export const audienceLanes: AudienceLane[] = [
   },
   {
     label: "Explorer",
-    title: "Understand the whole floor before zooming in",
-    href: "/docs/diagrams/er-diagram",
+    title: "Try live DuckDB in the browser",
+    href: "/docs/playground",
     description:
-      "Start with ER, endpoint, and lineage boards to build the mental model first.",
+      "Warm up with DuckDB-WASM, self-contained NBA-flavored sample queries, and a no-install route into the docs.",
   },
 ];
 
@@ -232,9 +228,9 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
       "Trace the warehouse shape: dimensions, facts, derived tables, analytics views, and structural relationships.",
     hubHref: "/docs/schema",
     stats: [
-      { label: "Warehouse Tables", value: "141" },
-      { label: "Dimensions", value: "17" },
-      { label: "Facts", value: "102" },
+      { label: "Layers", value: "5" },
+      { label: "Surface", value: "dims · facts · aggs" },
+      { label: "Best For", value: "Table selection" },
     ],
     quickLinks: [
       {
@@ -388,8 +384,8 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
       "Browse extractor families with stronger route cues, better grouping, and more basketball-native framing.",
     hubHref: "/docs/endpoints",
     stats: [
-      { label: "API Endpoints", value: "131" },
-      { label: "Extractors", value: "143" },
+      { label: "Coverage", value: "Full league" },
+      { label: "Scope", value: "stats.nba.com" },
       { label: "Best For", value: "Feed discovery" },
     ],
     quickLinks: [
@@ -504,33 +500,33 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
           "Land quick wins fast and move from setup to analysis with intent.",
       },
       {
-        title: "Shot Chart Analysis",
-        href: "/docs/guides/shot-chart-analysis",
+        title: "SQL Playground",
+        href: "/docs/playground",
         description:
-          "Lean into basketball-native visual storytelling on one of the best-fit pages.",
+          "Rehearse DuckDB syntax and query structure in the browser before touching the full warehouse.",
       },
       {
-        title: "Visual Asset Prompt Pack",
-        href: "/docs/guides/visual-asset-prompt-pack",
+        title: "DuckDB Query Examples",
+        href: "/docs/guides/duckdb-queries",
         description:
-          "Generate hero art, OG cards, icons, and texture systems without losing the docs identity.",
+          "Move from the browser sandbox into real warehouse query patterns and analyst-ready examples.",
       },
     ],
     prompts: [
       {
         label: "Quick wins",
-        query: "analytics quickstart duckdb queries",
+        query: "analytics quickstart sql playground duckdb queries",
         description: "Best path for a first working analysis.",
+      },
+      {
+        label: "Browser sandbox",
+        query: "sql playground duckdb wasm browser",
+        description: "Use when you want a live no-install SQL drill first.",
       },
       {
         label: "Operations",
         query: "daily updates troubleshooting playbook",
         description: "Use when you are on the hook for a healthy pipeline.",
-      },
-      {
-        label: "Art direction",
-        query: "visual asset prompt pack open graph icons basketball theme",
-        description: "Generate assets that match the court-first docs system.",
       },
     ],
     toneClass:

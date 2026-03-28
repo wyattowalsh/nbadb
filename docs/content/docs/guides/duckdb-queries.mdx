@@ -22,6 +22,10 @@ DuckDB provides the fastest analytical query experience for nbadb data. Treat th
 **Coaching note:** Keep `season_year`, `season_type`, and minimum-games filters explicit so analysts can rerun the same possession and reach the same conclusion.
 </Callout>
 
+<Callout>
+If you want to rehearse the SQL structure before you connect to a local `nba.duckdb` file, start with <a href="/docs/playground">SQL Playground</a>. That page runs DuckDB-WASM in the browser with self-contained NBA-flavored sample rows, then this guide shows the same style of reads against the real warehouse tables.
+</Callout>
+
 ## Setup
 
 ### Connect to DuckDB
@@ -267,6 +271,7 @@ LIMIT 20;
 
 | If this packet got you moving, next read… | Why |
 | ----------------------------------------- | --- |
+| [SQL Playground](/docs/playground) | Browser-only warm-up for DuckDB syntax, CTEs, and NBA-flavored sample queries |
 | [Analytics Quickstart](/docs/guides/analytics-quickstart) | Faster first-query route for new analysts |
 | [Shot Chart Analysis](/docs/guides/shot-chart-analysis) | Turns the shot-zone query into actual court maps |
 | [Player Comparison](/docs/guides/player-comparison) | Builds side-by-side player reads from similar building blocks |

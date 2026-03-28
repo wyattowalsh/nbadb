@@ -125,6 +125,7 @@
 /* ── Base ───────────────────────────────────────────── */
 html {
   color-scheme: light;
+  scroll-behavior: smooth;
 }
 
 html.dark {
@@ -132,7 +133,10 @@ html.dark {
 }
 
 body {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  background:
+    radial-gradient(circle at top, color-mix(in oklch, var(--primary) 14%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in oklch, var(--background) 92%, white), var(--background));
 }
 
 ::selection {
@@ -140,10 +144,40 @@ body {
   color: var(--foreground);
 }
 
+/* ── Scrollbar ─────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--foreground) 28%, transparent);
+}
+
 a,
 button,
 [role="button"] {
   transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 20%, transparent);
 }
 
 a {
@@ -185,6 +219,327 @@ kbd {
   isolation: isolate;
 }
 
+.nba-docs-layout::before,
+.nba-docs-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 11%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in oklch, var(--border) 18%, transparent) 1px, transparent 1px);
+  background-size: auto, 100% 2.75rem;
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.nba-home-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 24%, transparent) 0, transparent 34%),
+    radial-gradient(circle at top left, color-mix(in oklch, var(--accent) 18%, transparent) 0, transparent 42%),
+    linear-gradient(180deg, color-mix(in oklch, var(--primary) 4%, var(--background)) 0%, var(--background) 30%);
+  opacity: 0.95;
+  pointer-events: none;
+  z-index: -2;
+}
+
+.nba-home-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(90deg, color-mix(in oklch, var(--border) 65%, transparent) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 45%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.nba-hero-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.nba-court-panel,
+.nba-surface,
+.nba-page-hero,
+.nba-mdx-body,
+.nba-sidebar-banner,
+.nba-sidebar-footer,
+.nba-related-card,
+.nba-discovery-panel {
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--background) 75%, transparent) inset,
+    0 1.25rem 2.5rem color-mix(in oklch, var(--foreground) 5%, transparent);
+}
+
+@media (min-width: 960px) {
+  .nba-hero-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.95fr);
+    align-items: stretch;
+  }
+}
+
+.nba-hero-lede {
+  text-wrap: pretty;
+}
+
+.nba-hero-signal {
+  position: relative;
+  overflow: hidden;
+}
+
+.nba-hero-signal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--primary) 10%, transparent),
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.nba-court-panel {
+  position: relative;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-3xl);
+  min-height: 22rem;
+  background:
+    radial-gradient(circle at top, color-mix(in oklch, var(--chart-2) 26%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in oklch, var(--foreground) 4%, transparent), transparent),
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--primary) 14%, var(--background)) 0,
+      color-mix(in oklch, var(--primary) 14%, var(--background)) 2.25rem,
+      color-mix(in oklch, var(--primary) 10%, var(--background)) 2.25rem,
+      color-mix(in oklch, var(--primary) 10%, var(--background)) 4.5rem
+    );
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--background) 80%, transparent);
+}
+
+.nba-court-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--background), var(--background)) padding-box,
+    linear-gradient(135deg, var(--primary), oklch(0.75 0.18 55), color-mix(in oklch, var(--primary) 60%, transparent), var(--primary)) border-box;
+  background-size: 100% 100%, 300% 300%;
+  animation: nba-border-shift 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes nba-border-shift {
+  0%, 100% { background-position: 0 0, 0% 50%; }
+  50% { background-position: 0 0, 100% 50%; }
+}
+
+.nba-court-markings {
+  position: absolute;
+  inset: 1rem;
+  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border-radius: 1.25rem;
+}
+
+.nba-court-midline,
+.nba-court-circle,
+.nba-court-key,
+.nba-court-arc {
+  position: absolute;
+  border-color: color-mix(in oklch, var(--foreground) 18%, transparent);
+}
+
+.nba-court-midline {
+  top: -2px;
+  bottom: -2px;
+  left: 50%;
+  width: 0;
+  border-left: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  transform: translateX(-50%);
+}
+
+.nba-court-circle {
+  top: 50%;
+  left: 50%;
+  width: 8rem;
+  height: 8rem;
+  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.nba-court-key {
+  top: 50%;
+  width: 4.75rem;
+  height: 10rem;
+  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  transform: translateY(-50%);
+}
+
+.nba-court-key-left {
+  left: -2px;
+  border-left: 0;
+  border-radius: 0 1rem 1rem 0;
+}
+
+.nba-court-key-right {
+  right: -2px;
+  border-right: 0;
+  border-radius: 1rem 0 0 1rem;
+}
+
+.nba-court-arc {
+  top: 50%;
+  width: 11rem;
+  height: 11rem;
+  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+  transform: translateY(-50%);
+}
+
+.nba-court-arc-left {
+  left: -6.75rem;
+}
+
+.nba-court-arc-right {
+  right: -6.75rem;
+}
+
+.nba-court-markings {
+  animation: nba-court-pulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes nba-court-pulse {
+  from { border-color: color-mix(in oklch, var(--foreground) 14%, transparent); }
+  to { border-color: color-mix(in oklch, var(--foreground) 22%, transparent); }
+}
+
+.nba-court-midline,
+.nba-court-circle,
+.nba-court-key,
+.nba-court-arc {
+  animation: nba-court-pulse 4s ease-in-out infinite alternate;
+}
+
+.nba-hero-ball {
+  position: absolute;
+  right: 1.5rem;
+  top: 1.5rem;
+  width: 7.5rem;
+  height: 7.5rem;
+  filter: drop-shadow(0 0.9rem 1.5rem color-mix(in oklch, var(--foreground) 12%, transparent));
+  transform: rotate(-12deg);
+}
+
+.nba-ball-shell {
+  fill: color-mix(in oklch, var(--primary) 90%, #f97316);
+  stroke: color-mix(in oklch, var(--foreground) 26%, transparent);
+  stroke-width: 6;
+}
+
+.nba-ball-seam {
+  fill: none;
+  stroke: color-mix(in oklch, var(--foreground) 30%, transparent);
+  stroke-linecap: round;
+  stroke-width: 6;
+}
+
+.nba-hero-mark {
+  position: absolute;
+  right: clamp(1rem, 3vw, 1.5rem);
+  top: clamp(1.5rem, 10vw, 3rem);
+  width: min(24rem, 78%);
+  filter: drop-shadow(0 1.25rem 2rem color-mix(in oklch, var(--foreground) 18%, transparent));
+}
+
+.nba-hero-board {
+  position: absolute;
+  left: 1.25rem;
+  top: 1.25rem;
+  display: grid;
+  gap: 0.55rem;
+  max-width: min(12rem, 46%);
+}
+
+.nba-hero-board-chip {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in oklch, var(--background) 86%, transparent);
+  padding: 0.65rem 0.8rem;
+  backdrop-filter: blur(12px);
+}
+
+.nba-hero-board-chip span:last-child {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--foreground);
+}
+
+.nba-court-caption {
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+  border-radius: var(--radius-2xl);
+  background: color-mix(in oklch, var(--background) 88%, transparent);
+  padding: 0.9rem 1rem;
+  backdrop-filter: blur(10px);
+}
+
+.nba-court-caption p {
+  margin-top: 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+
+.nba-metric-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.nba-metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), color-mix(in oklch, var(--primary) 20%, transparent));
+}
+
+.nba-lane-card {
+  position: relative;
+}
+
+.nba-lane-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklch, var(--primary) 9%, transparent),
+    transparent 58%
+  );
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.nba-lane-card:hover::before {
+  opacity: 1;
+}
+
 /* ── Reveal animation ──────────────────────────────── */
 .nba-reveal {
   opacity: 0;
@@ -214,6 +569,30 @@ kbd {
   }
 }
 
+/* ── Hero glow ────────────────────────────────────── */
+.nba-hero-bg {
+  position: relative;
+}
+
+.nba-hero-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    color-mix(in oklch, var(--primary) 12%, transparent),
+    transparent
+  );
+  animation: nba-hero-glow 6s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes nba-hero-glow {
+  from { opacity: 0.6; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.05); }
+}
+
 /* ── Stat typography ───────────────────────────────── */
 .nba-scoreboard-value {
   font-family: var(--font-mono), monospace;
@@ -239,9 +618,28 @@ kbd {
 }
 
 .nba-display {
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
   letter-spacing: -0.02em;
   text-wrap: balance;
+}
+
+.nba-title-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    oklch(0.75 0.18 55),
+    var(--primary)
+  );
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: nba-gradient-shift 6s ease-in-out infinite;
+}
+
+@keyframes nba-gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 /* ── Stat surface ──────────────────────────────────── */
@@ -250,11 +648,144 @@ kbd {
   background: var(--card);
 }
 
+@media (max-width: 640px) {
+  .nba-court-panel {
+    min-height: 18rem;
+  }
+
+  .nba-hero-ball {
+    width: 6rem;
+    height: 6rem;
+  }
+
+  .nba-court-circle {
+    width: 6rem;
+    height: 6rem;
+  }
+
+  .nba-court-key {
+    height: 8rem;
+  }
+}
+
 /* ── Page hero (docs pages) ────────────────────────── */
 .nba-page-hero {
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 1.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-3xl);
+  background:
+    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 14%, transparent), transparent 30%),
+    linear-gradient(180deg, color-mix(in oklch, var(--background) 88%, var(--card)), var(--card));
+  padding: 1.25rem;
+}
+
+.nba-page-hero-shell {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 960px) {
+  .nba-page-hero-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(9rem, 14rem);
+    align-items: center;
+  }
+}
+
+.nba-page-hero-mark {
+  position: relative;
+  display: none;
+  justify-self: end;
+  width: min(14rem, 100%);
+}
+
+@media (min-width: 960px) {
+  .nba-page-hero-mark {
+    display: block;
+  }
+}
+
+.nba-page-hero-stat {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in oklch, var(--background) 86%, transparent);
+  padding: 0.65rem 0.75rem;
+  backdrop-filter: blur(10px);
+}
+
+.nba-page-hero-stat span:last-child {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.nba-page-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.nba-page-hero-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--background) 88%, var(--muted));
+  padding: 0.45rem 0.8rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.nba-page-hero-link:hover {
+  border-color: color-mix(in oklch, var(--primary) 40%, transparent);
+  color: var(--primary);
+}
+
+.nba-page-hero-stats {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 640px) {
+  .nba-page-hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.nba-page-hero-stat-card {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border-radius: var(--radius-2xl);
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  padding: 0.75rem 0.85rem;
+}
+
+.nba-page-hero-stat-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.nba-page-hero-stat-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
 }
 
 /* ── Breadcrumbs ───────────────────────────────────── */
@@ -286,7 +817,8 @@ kbd {
   align-items: center;
   gap: 0.4rem;
   border: 1px solid var(--border);
-  background: var(--muted);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--background) 84%, var(--muted));
   padding: 0.2rem 0.5rem 0.2rem 0.6rem;
   font-size: 0.65rem;
   font-weight: 600;
@@ -295,9 +827,47 @@ kbd {
   color: var(--muted-foreground);
 }
 
+.nba-nav-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--background) 84%, var(--card));
+  padding: 0.22rem 0.6rem;
+  text-decoration: none;
+}
+
+.nba-nav-route-section,
+.nba-nav-route-cue {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.nba-nav-route-section {
+  color: var(--foreground);
+}
+
+.nba-nav-route-cue {
+  color: var(--muted-foreground);
+}
+
+.nba-nav-route:hover .nba-nav-route-cue {
+  color: var(--primary);
+}
+
 /* ── Reading lane ──────────────────────────────────── */
 .nba-reading-lane {
   position: relative;
+}
+
+.nba-mdx-body {
+  border: 1px solid color-mix(in oklch, var(--border) 92%, transparent);
+  border-radius: var(--radius-3xl);
+  background: color-mix(in oklch, var(--card) 94%, transparent);
+  padding: clamp(1rem, 2vw, 1.5rem);
 }
 
 .nba-docs-page :where(article, .prose) {
@@ -315,7 +885,7 @@ kbd {
 
 /* ── Headings ──────────────────────────────────────── */
 .nba-docs-page :where(h1, h2, h3, h4) {
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
   letter-spacing: -0.02em;
   text-wrap: balance;
   scroll-margin-top: 6rem;
@@ -379,6 +949,7 @@ kbd {
   overflow-x: auto;
   border-collapse: collapse;
   border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
   font-variant-numeric: tabular-nums;
 }
 
@@ -402,8 +973,10 @@ kbd {
 
 /* ── Code blocks ───────────────────────────────────── */
 .nba-docs-page :where(pre, .shiki) {
-  border-radius: 0.375rem;
+  border-radius: var(--radius-2xl);
   border: 1px solid var(--border);
+  border-left: 3px solid oklch(0.66 0.2 45 / 0.15);
+  background: color-mix(in oklch, var(--card) 96%, transparent);
 }
 
 .nba-docs-page :where(pre) {
@@ -476,7 +1049,6 @@ kbd {
 .nba-mermaid-canvas {
   display: inline-block;
   transform-origin: 0 0;
-  will-change: transform;
 }
 
 .nba-mermaid-canvas > svg {
@@ -568,6 +1140,27 @@ kbd {
   user-select: none;
 }
 
+/* ── Counter shimmer ──────────────────────────────── */
+.nba-counter-shimmer {
+  display: inline-block;
+  min-width: 2ch;
+  height: 1em;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--foreground) 8%, transparent) 25%,
+    color-mix(in oklch, var(--foreground) 16%, transparent) 50%,
+    color-mix(in oklch, var(--foreground) 8%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: 0.2rem;
+  animation: nba-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes nba-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ── Responsive ────────────────────────────────────── */
 @media (max-width: 768px) {
   .nba-docs-page :where(p, li) {
@@ -584,6 +1177,165 @@ kbd {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── Enhanced tables ──────────────────────────────── */
+.nba-docs-page :where(thead) {
+  background: var(--background);
+}
+
+.nba-docs-page :where(tbody tr) {
+  transition: background-color 150ms ease;
+}
+
+.nba-docs-page :where(tbody tr):hover {
+  background: color-mix(in oklch, var(--primary) 6%, transparent);
+}
+
+/* ── Page entry (replays per docs route — Fumadocs remounts on slug change) ── */
+.nba-docs-page {
+  animation: nba-page-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes nba-page-in {
+  from { opacity: 0.85; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card hover accent ────────────────────────────── */
+.nba-home-shell a[class*="bg-card"] {
+  border-left: 3px solid transparent;
+  transition: border-color 200ms, background-color 200ms;
+}
+
+.nba-home-shell a[class*="bg-card"]:hover {
+  border-left-color: var(--primary);
+}
+
+/* ── Button glow ──────────────────────────────────── */
+.nba-home-shell button[class*="bg-primary"]:hover,
+.nba-home-shell a[class*="bg-primary"]:hover,
+.nba-page-hero-actions button[class*="bg-primary"]:hover,
+.nba-page-hero-actions a[class*="bg-primary"]:hover {
+  box-shadow:
+    0 0 0 1px var(--primary),
+    0 0 12px color-mix(in oklch, var(--primary) 35%, transparent),
+    0 4px 16px color-mix(in oklch, var(--primary) 20%, transparent);
+}
+
+/* ── Card lift ────────────────────────────────────── */
+.nba-home-shell .group[class*="bg-card"],
+.nba-related-card {
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease, background-color 200ms ease;
+}
+
+.nba-home-shell .group[class*="bg-card"]:hover,
+.nba-related-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--background) 75%, transparent) inset,
+    0 1.5rem 3rem color-mix(in oklch, var(--foreground) 8%, transparent);
+}
+
+.nba-nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.nba-nav-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in oklch, var(--background) 86%, var(--card));
+}
+
+.nba-sidebar-banner {
+  border-radius: var(--radius-2xl);
+  background:
+    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 12%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 98%, transparent), var(--card));
+}
+
+.nba-sidebar-stat {
+  display: inline-grid;
+  gap: 0.08rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  padding: 0.45rem 0.65rem;
+}
+
+.nba-sidebar-stat-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.nba-sidebar-stat-label {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.nba-sidebar-route-link {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  padding: 0.75rem 0.85rem;
+  text-decoration: none;
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.nba-sidebar-route-link:hover {
+  border-color: color-mix(in oklch, var(--primary) 40%, transparent);
+  background: color-mix(in oklch, var(--muted) 65%, var(--background));
+}
+
+.nba-sidebar-route-eyebrow {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.nba-sidebar-footer {
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, var(--card) 92%, transparent);
+  padding: 0.85rem;
+}
+
+.nba-sidebar-prompt {
+  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  padding: 0.65rem 0.75rem;
+}
+
+.nba-related-card {
+  border-radius: var(--radius-2xl);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 96%, transparent), var(--card));
+}
+
+.nba-discovery-panel {
+  border-radius: var(--radius-2xl);
+  background:
+    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 10%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 96%, transparent), var(--card));
+}
+
+.nba-discovery-prompt {
+  border-radius: var(--radius-xl);
 }
 
 @layer base {

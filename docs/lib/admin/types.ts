@@ -19,13 +19,59 @@ export type PipelineRun = {
   errors: string[];
 };
 
+export type PipelineDailyRollup = {
+  date: string;
+  label: string;
+  runCount: number;
+  tablesProcessed: number;
+  rowsExtracted: number;
+  errorCount: number;
+  durationMs: number;
+  avgDurationMs: number;
+  p95DurationMs: number;
+};
+
+export type PipelineEndpointTelemetry = {
+  endpoint: string;
+  runCount: number;
+  rowsExtracted: number;
+  errorCount: number;
+  errorRate: number;
+  avgDurationMs: number;
+  p95DurationMs: number;
+  maxDurationMs: number;
+  lastRun: string | null;
+};
+
+export type PipelineFailureHotspot = {
+  endpoint: string;
+  status: Extract<PipelineRunStatus, "failed" | "abandoned">;
+  count: number;
+  lastSeen: string | null;
+  sampleError: string | null;
+};
+
+export type PipelineWindowTotals = {
+  runs: number;
+  rowsExtracted: number;
+  errorCount: number;
+  avgDurationMs: number;
+  p95DurationMs: number;
+};
+
 export type PipelineSummary = {
+  generatedAt: string | null;
   lastRun: string | null;
   totalTables: number;
   stagingCoverage: number;
   runs: PipelineRun[];
   recentErrors: string[];
   counts: Record<PipelineRunStatus, number>;
+  windowDays: number;
+  daily: PipelineDailyRollup[];
+  slowEndpoints: PipelineEndpointTelemetry[];
+  failureHotspots: PipelineFailureHotspot[];
+  totals: PipelineWindowTotals;
 };
 
 export type UmamiStats = {

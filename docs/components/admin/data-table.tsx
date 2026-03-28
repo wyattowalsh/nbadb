@@ -13,14 +13,20 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DataTableProps<T> = {
-  data: T[];
-  columns: ColumnDef<T, any>[];
+type DataTableProps<TData> = {
+  data: TData[];
+  // TanStack column defs are invariant in TValue, so heterogeneous column arrays
+  // need an erased value type at this component boundary.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  columns: ColumnDef<TData, any>[];
   className?: string;
 };
 
-export function DataTable<T>({ data, columns, className }: DataTableProps<T>) {
+export function DataTable<TData>({
+  data,
+  columns,
+  className,
+}: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const table = useReactTable({

@@ -1,4 +1,4 @@
-import { getMDXComponents } from "@/components/mdx";
+import { MDXContent } from "@/components/mdx";
 import {
   DocsContextRail,
   DocsGeneratedEntrySurface,
@@ -70,7 +70,7 @@ export default async function Page(props: {
         <div className="nba-reading-lane">
           <DocsBody>
             <div className="nba-mdx-body">
-              <MDX components={getMDXComponents()} />
+              <MDXContent Body={MDX} />
             </div>
           </DocsBody>
         </div>

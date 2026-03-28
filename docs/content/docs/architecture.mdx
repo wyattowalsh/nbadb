@@ -10,48 +10,39 @@ import { Callout } from "fumadocs-ui/components/callout";
 Think of nbadb as an **arena control tower** for NBA data: extraction brings the game film in, DuckDB stages and validates it, transformers reshape it into analytics-ready tables, and export lanes package it for downstream use.
 
 <StatGrid columns={4}>
-  <StatPill label="Extractors" value="143" note="registered wrappers over the current nba_api runtime surface" />
-  <StatPill label="Public outputs" value="141" note="dimensions, facts, bridges, aggregates, and analytics surfaces" />
+  <StatPill label="Extractors" value="Full coverage" note="registered wrappers over the current nba_api runtime surface" />
+  <StatPill label="Public outputs" value="Star schema" note="dimensions, facts, bridges, aggregates, and analytics surfaces" />
   <StatPill label="Export formats" value="4" note="sqlite, duckdb, csv, and parquet" />
   <StatPill label="Internal state tables" value="8" note="watermarks, journals, checkpoints, metrics, and schema history" />
 </StatGrid>
 
-## Quick navigation
+## Navigate by decision
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-  <ScoutCard title="See the pipeline path" label="Entry surface">
-    Start with <a href="#the-short-version">The short version</a> for the raw → staging → star flow before you drop into details.
+  <ScoutCard title="See the pipeline path" label="Structure">
+    Start with <a href="#the-short-version">The short version</a> when the question is how the ball moves from source intake to exports.
   </ScoutCard>
-  <ScoutCard title="Map commands to run modes" label="Entry surface">
-    Jump to <a href="#command-intent-by-run-mode">Command intent by run mode</a> if your question is operational rather than structural.
+  <ScoutCard title="Pick the right run mode" label="Operations">
+    Jump to <a href="#which-run-mode-should-i-pick">Which run mode should I pick?</a> when the question is operational rather than structural.
   </ScoutCard>
-  <ScoutCard title="Understand public vs internal tables" label="Entry surface">
-    Use <a href="#validation-and-operational-state">Validation and operational state</a> when you need to know what is contract surface versus pipeline machinery.
+  <ScoutCard title="Separate public from internal tables" label="Boundary">
+    Use <a href="#public-surface-vs-internal-machinery">Public surface vs internal machinery</a> when you need to know which tables are contract surface versus pipeline state.
   </ScoutCard>
-  <ScoutCard title="Check generated-docs boundaries" label="Entry surface">
-    Go to <a href="#docs-boundary-what-is-generated-vs-curated">Docs boundary</a> if you are editing docs and need to know what is command-owned.
+  <ScoutCard title="Check docs ownership" label="Docs boundary">
+    Go to <a href="#docs-boundary-curated-vs-generated">Docs boundary</a> if you are editing docs and need to know what is command-owned.
   </ScoutCard>
 </div>
-
-## Use this page when…
-
-| If you need to answer… | Start here |
-| ---------------------- | ---------- |
-| “How does data move from the NBA API into the warehouse?” | [The short version](#the-short-version) |
-| “Which layer is public contract versus internal pipeline machinery?” | [Validation and operational state](#validation-and-operational-state) |
-| “What is actually different between `init`, `daily`, `monthly`, and `full`?” | [Command intent by run mode](#command-intent-by-run-mode) |
-| “Which docs are hand-written and which are command-owned?” | [Docs boundary: what is generated vs. curated](#docs-boundary-what-is-generated-vs-curated) |
 
 ```mermaid
 flowchart LR
     subgraph Tipoff["Tip-Off: source intake"]
-        API["nba_api runtime surface\n143 registered extractors"] --> RAW["Raw Polars frames"]
+        API["nba_api runtime surface\nregistered extractors"] --> RAW["Raw Polars frames"]
     end
     subgraph Tunnel["Tunnel: load + validate"]
         RAW --> STG["DuckDB staging\nnormalized operational layer"]
     end
     subgraph Scoreboard["Main floor: public model"]
-        STG --> STAR["141 public tables/views\nstar + analytics surface"]
+        STG --> STAR["Public tables/views\nstar + analytics surface"]
     end
     subgraph Exits["Outbound lanes"]
         STAR --> SQLITE["SQLite"]
@@ -114,33 +105,23 @@ raw -> staging -> star
 | Staging | After DuckDB load into normalized tables | Enforce warehouse-ready normalization | Naming, typing, nullability, and range issues after load |
 | Star | After transforms build the public model | Protect the reader-facing analytical contract | Public-surface contract problems before export and use |
 
-## Public model families
+## Which run mode should I pick?
 
-| Family | Count | Prefix | What it gives you |
-| ------ | ----: | ------ | ----------------- |
-| Dimensions | 17 | `dim_` | Core entities such as players, teams, games, and seasons |
-| Facts | 102 | `fact_` | Grain-specific measurements and events |
-| Bridges | 2 | `bridge_` | Join helpers for many-to-many relationships |
-| Aggregates | 16 | `agg_` | Reusable rollups for repeated analysis |
-| Analytics outputs | 4 | `analytics_` | Analysis-ready convenience surfaces |
+```mermaid
+flowchart TD
+  START["Need to run the pipeline"] --> HIST{"First build or new historical range?"}
+  HIST -- Yes --> INIT["nbadb init\nfull historical build"]
+  HIST -- No --> CURRENT{"Current-season refresh?"}
+  CURRENT -- Yes --> DAILY["nbadb daily\nrecent games + active surfaces"]
+  CURRENT -- No --> RECENT{"Need a broader recent-history sweep?"}
+  RECENT -- Yes --> MONTHLY["nbadb monthly\nlast 3 seasons"]
+  RECENT -- No --> GAP["nbadb full\nretry failed work + gap fill"]
 
-Most transforms are SQL-first and run in dependency order, which keeps the model readable and predictable for maintainers.
-
-## Directory map by responsibility
-
-| Area | What lives there | Why you would care |
-| ---- | ---------------- | ------------------ |
-| `src/nbadb/extract/` | Extractors wrapping stats and static NBA sources | Source-surface coverage and extraction behavior |
-| `src/nbadb/schemas/` | Raw, staging, and star Pandera schemas | Validation rules and warehouse contracts |
-| `src/nbadb/transform/` | Dimension, fact, bridge, aggregate, and analytics builders | The public model itself |
-| `src/nbadb/load/` | Export and load logic | How modeled data gets written back out |
-| `src/nbadb/orchestrate/` | Pipeline orchestration and staging map | Run ordering, checkpoints, and resume behavior |
-| `src/nbadb/cli/` | Typer CLI and Textual TUI surface | Current operator entry points |
-| `src/nbadb/docs_gen/` | Docs generators for schema, dictionary, ER, and lineage artifacts | Generator-owned docs boundaries |
-
-## Command intent by run mode
-
-This is the quickest way to understand how the pipeline behaves operationally.
+  style INIT fill:#e1f5fe
+  style DAILY fill:#e8f5e9
+  style MONTHLY fill:#fff3e0
+  style GAP fill:#fce4ec
+```
 
 | Command | Primary intent | Scope |
 | ------- | -------------- | ----- |
@@ -153,16 +134,43 @@ This is the quickest way to understand how the pipeline behaves operationally.
 One subtle but important behavior: `daily`, `monthly`, and `full` all finish by rebuilding downstream tables in <strong>replace</strong> mode. They are not row-level upsert commands against the public star surface.
 </Callout>
 
-## Validation and operational state
+## If the run goes sideways
 
-The repo maintains **8 underscore-prefixed internal DuckDB tables** for watermarks, journals, checkpoints, metrics, and schema history.
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <ScoutCard title="The run finished, but the output looks wrong" label="Debug lane">
+    Start with <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a>, then verify the public contract on <a href="/docs/schema">Schema Reference</a> or <a href="/docs/data-dictionary">Data Dictionary</a>.
+  </ScoutCard>
+  <ScoutCard title="You need a recurring operator route" label="Ops lane">
+    Keep <a href="/docs/guides/daily-updates">Daily Updates</a> open when the job is the same refresh, validation, or handoff every day.
+  </ScoutCard>
+  <ScoutCard title="You need to explain the system to someone new" label="Context lane">
+    Use <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a>, <a href="/docs/diagrams/er-diagram">ER Diagram</a>, and <a href="/docs/schema">Schema Reference</a> for the shortest explain-it-once route.
+  </ScoutCard>
+  <ScoutCard title="Contracts changed and docs drifted" label="Docs lane">
+    Regenerate command-owned docs with <code>uv run nbadb docs-autogen --docs-root docs/content/docs</code>, then verify the authored guidance still points at the right surfaces.
+  </ScoutCard>
+</div>
+
+## Public model families
+
+| Family | Count | Prefix | What it gives you |
+| ------ | ----: | ------ | ----------------- |
+| Dimensions | 17 | `dim_` | Core entities such as players, teams, games, and seasons |
+| Facts | 102 | `fact_` | Grain-specific measurements and events |
+| Bridges | 2 | `bridge_` | Join helpers for many-to-many relationships |
+| Aggregates | 16 | `agg_` | Reusable rollups for repeated analysis |
+| Analytics outputs | 4 | `analytics_` | Analysis-ready convenience surfaces |
+
+Most transforms are SQL-first and run in dependency order, which keeps the model readable and predictable for maintainers.
+
+## Public surface vs internal machinery
 
 <DataColumns>
-  <ScoutCard title="Public analytical contract" label="What most readers care about">
-    Treat dimensions, facts, bridges, aggregates, and analytics outputs as the reader-facing warehouse surface. That is the layer documented for analysts, downstream SQL, and exported datasets.
+  <ScoutCard title="Public analytical contract" label="Reader-facing">
+    Treat dimensions, facts, bridges, aggregates, and analytics outputs as the warehouse surface documented for analysts, downstream SQL, and exported datasets.
   </ScoutCard>
-  <ScoutCard title="Internal pipeline machinery" label="What operators care about">
-    Treat underscore-prefixed tables such as `_pipeline_watermarks`, `_extraction_journal`, `_pipeline_metadata`, and `_transform_checkpoints` as operational state unless a page explicitly calls them out for workflows like status inspection or resume behavior.
+  <ScoutCard title="Internal pipeline machinery" label="Operator-facing">
+    Treat underscore-prefixed tables such as `_pipeline_watermarks`, `_extraction_journal`, `_pipeline_metadata`, and `_transform_checkpoints` as operational state unless a page explicitly documents them for workflows like status inspection or resume behavior.
   </ScoutCard>
 </DataColumns>
 
@@ -178,6 +186,18 @@ The repo maintains **8 underscore-prefixed internal DuckDB tables** for watermar
 | `_transform_metrics` | Stores transform execution metrics |
 | `_schema_versions` | Snapshots column hashes for drift detection |
 | `_schema_version_history` | Keeps schema change history |
+
+## Directory map by responsibility
+
+| Area | What lives there | Why you would care |
+| ---- | ---------------- | ------------------ |
+| `src/nbadb/extract/` | Extractors wrapping stats and static NBA sources | Source-surface coverage and extraction behavior |
+| `src/nbadb/schemas/` | Raw, staging, and star Pandera schemas | Validation rules and warehouse contracts |
+| `src/nbadb/transform/` | Dimension, fact, bridge, aggregate, and analytics builders | The public model itself |
+| `src/nbadb/load/` | Export and load logic | How modeled data gets written back out |
+| `src/nbadb/orchestrate/` | Pipeline orchestration and staging map | Run ordering, checkpoints, and resume behavior |
+| `src/nbadb/cli/` | Typer CLI and Textual TUI surface | Current operator entry points |
+| `src/nbadb/docs_gen/` | Docs generators for schema, dictionary, ER, and lineage artifacts | Generator-owned docs boundaries |
 
 ## Key design decisions
 
@@ -202,7 +222,7 @@ The repo maintains **8 underscore-prefixed internal DuckDB tables** for watermar
   </InsightCard>
 </DataColumns>
 
-## Docs boundary: what is generated vs. curated
+## Docs boundary: curated vs generated
 
 Use this command when generator-owned docs drift from the code:
 
@@ -221,8 +241,6 @@ That command owns these outputs:
 - `diagrams/er-auto.mdx`
 - `lineage/lineage-auto.mdx`
 - `lineage/lineage.json`
-
-### Practical boundary
 
 | If the page is… | Treat it as… |
 | --------------- | ------------ |

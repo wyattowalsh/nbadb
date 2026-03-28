@@ -36,7 +36,6 @@ async function isValidSession(
   const timestamp = cookie.slice(0, dotIndex);
   const mac = cookie.slice(dotIndex + 1);
 
-  // Reject sessions older than 24h
   const age = Date.now() - Number(timestamp);
   if (Number.isNaN(age) || age < 0 || age > 86_400_000) return false;
 
@@ -47,12 +46,10 @@ async function isValidSession(
 export async function middleware(request: NextRequest) {
   const password = process.env.ADMIN_PASSWORD;
 
-  // No password configured → open access (local dev)
   if (!password) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
 
-  // Allow the login page and login/logout API routes through
   if (
     pathname === "/admin/login" ||
     pathname === "/api/admin/login" ||
@@ -67,12 +64,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // For API routes, return 401 instead of redirect
   if (pathname.startsWith("/api/admin")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Redirect to login page
   const loginUrl = request.nextUrl.clone();
   loginUrl.pathname = "/admin/login";
   return NextResponse.redirect(loginUrl);

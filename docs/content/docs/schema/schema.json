@@ -597,6 +597,11 @@
         },
         {
           "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "season_year",
           "type": "str"
         },

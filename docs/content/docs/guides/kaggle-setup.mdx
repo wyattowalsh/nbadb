@@ -134,9 +134,14 @@ nbadb upload
 nbadb upload --message "Post-trade-deadline refresh"
 ```
 
+```bash
+nbadb metadata --data-dir nbadb --output dataset-metadata.json
+```
+
 - The CLI default message is `"Automated update"`.
 - nbadb ensures `dataset-metadata.json` exists before upload.
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
+- Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
 
 ## Related routes
 

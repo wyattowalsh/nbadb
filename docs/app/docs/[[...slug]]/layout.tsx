@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
@@ -55,7 +56,15 @@ const links = [
   },
 ] satisfies LinkItemType[];
 
-export default function Layout({ children }: { children: ReactNode }) {
+export default async function Layout({
+  children,
+  params,
+}: {
+  children: ReactNode;
+  params: Promise<{ slug?: string[] }>;
+}) {
+  const resolvedParams = await params;
+
   return (
     <DocsLayout
       tree={source.pageTree}
@@ -63,17 +72,31 @@ export default function Layout({ children }: { children: ReactNode }) {
       links={links}
       nav={{
         title: (
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/logo-600.png" alt="nbadb" className="h-7 w-auto" />
-            <span className="nba-display text-lg font-bold tracking-tight">nbadb</span>
+          <Link href="/" className="nba-nav-brand">
+            <span className="nba-nav-brand-mark">
+              <Image
+                src="/logo-600.png"
+                alt="nbadb"
+                width={600}
+                height={600}
+                className="h-8 w-auto"
+                priority
+              />
+            </span>
+            <span className="flex flex-col leading-none">
+              <span className="nba-display text-base font-bold tracking-tight">nbadb</span>
+              <span className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                NBA warehouse docs
+              </span>
+            </span>
           </Link>
         ),
         transparentMode: "top",
-        children: <DocsNavBadge />,
+        children: <DocsNavBadge slug={resolvedParams.slug} />,
       }}
       sidebar={{
-        banner: <DocsSidebarBanner />,
-        footer: <DocsSidebarFooter />,
+        banner: <DocsSidebarBanner slug={resolvedParams.slug} />,
+        footer: <DocsSidebarFooter slug={resolvedParams.slug} />,
         defaultOpenLevel: 1,
       }}
       themeSwitch={{ mode: "light-dark-system" }}

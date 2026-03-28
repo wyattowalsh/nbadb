@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { siteMetrics } from "@/lib/site-metrics.generated";
 import { getSectionMeta, siteName } from "@/lib/site-config";
 import { source } from "@/lib/source";
 
@@ -105,7 +106,7 @@ export async function GET(
 
           {/* Footer stats */}
           <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-            {["141 tables", "131 endpoints", "DuckDB"].map((item) => (
+            {[...siteMetrics.slice(0, 2).map((m) => `${m.value} ${m.label.toLowerCase()}`), "DuckDB"].map((item) => (
               <div
                 key={item}
                 style={{

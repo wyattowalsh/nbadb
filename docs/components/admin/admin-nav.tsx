@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, FileText, Heart, LayoutDashboard } from "lucide-react";
+import { Activity, Database, FileText, Heart, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/content", label: "Content", icon: FileText },
   { href: "/admin/pipeline", label: "Pipeline", icon: Activity },
+  { href: "/admin/profiling", label: "Profiling", icon: Database },
   { href: "/admin/health", label: "Health", icon: Heart },
 ];
 

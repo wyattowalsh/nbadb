@@ -2,7 +2,7 @@ import "./global.css";
 import Script from "next/script";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { IBM_Plex_Mono, Inter, Noto_Sans, IBM_Plex_Sans } from "next/font/google";
+import { IBM_Plex_Mono, Noto_Sans, IBM_Plex_Sans } from "next/font/google";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import {
@@ -57,11 +57,20 @@ export const metadata: Metadata = {
     title: siteTitle,
     description: siteDescription,
     url: siteOrigin,
+    images: [
+      {
+        url: `${siteOrigin}/opengraph-image.png`,
+        width: 1200,
+        height: 630,
+        alt: `${siteName} documentation`,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
+    images: [`${siteOrigin}/opengraph-image.png`],
   },
 };
 
@@ -69,7 +78,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={cn(ibmPlexMono.variable, "font-sans", notoSans.variable, ibmPlexSansHeading.variable)}
+      className={cn(
+        ibmPlexMono.variable,
+        notoSans.variable,
+        ibmPlexSansHeading.variable,
+        "font-sans",
+      )}
       suppressHydrationWarning
     >
       <body className="flex min-h-screen flex-col bg-background text-foreground antialiased">

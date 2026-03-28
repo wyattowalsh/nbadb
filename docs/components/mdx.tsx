@@ -1,12 +1,32 @@
 import type { ComponentProps, ComponentType, ReactNode } from "react";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Mermaid } from "@/components/mdx/mermaid";
+import { SqlPlayground } from "@/components/mdx/sql-playground";
 import { Badge } from "@/components/ui/badge";
+import {
+  DistributionPlot,
+  GameFlow,
+  HeatmapGrid,
+  LineageExplorer,
+  ObservablePlot,
+  PlayerCompare,
+  SchemaExplorer,
+  SeasonTrend,
+  ShotChart,
+} from "@/components/mdx/dynamic-charts";
 
 type MDXComponentMap = Record<
   string,
   ComponentType<{ [key: string]: unknown }>
 >;
+
+function asMdxComponent<T extends object>(
+  Component: ComponentType<T>,
+) {
+  return function WrappedMdxComponent(props: T) {
+    return <Component {...props} />;
+  };
+}
 
 function TerminalQuote({ ...props }: ComponentProps<"blockquote">) {
   return (
@@ -42,7 +62,9 @@ function StatPill({
       <div className="nba-scoreboard-value mt-1 text-2xl text-foreground">
         {value}
       </div>
-      {note ? <div className="mt-1 text-xs text-muted-foreground">{note}</div> : null}
+      {note ? (
+        <div className="mt-1 text-xs text-muted-foreground">{note}</div>
+      ) : null}
     </div>
   );
 }
@@ -63,7 +85,9 @@ function StatGrid({
   }[columns];
 
   return (
-    <div className={`nba-stat-grid grid gap-px border border-border ${columnClass} ${className ?? ""}`}>
+    <div
+      className={`nba-stat-grid grid gap-px border border-border ${columnClass} ${className ?? ""}`}
+    >
       {children}
     </div>
   );
@@ -85,7 +109,7 @@ function NoteCard({
       <h3 className="mt-3 text-base font-bold tracking-tight text-foreground">
         {title}
       </h3>
-      <div className="mt-2 text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+      <div className="mt-2 text-sm leading-7 text-muted-foreground font-sans">
         {children}
       </div>
     </div>
@@ -108,37 +132,118 @@ function DataColumns({
   );
 }
 
-function InsightCard({
+function AlertCard({
   children,
-  title = "Note",
+  title,
+  variant = "note",
 }: {
   children: ReactNode;
-  className?: string;
   title?: string;
+  variant?: "note" | "warning";
 }) {
+  const isWarning = variant === "warning";
   return (
-    <aside className="border border-border border-l-3 border-l-primary bg-muted px-4 py-3">
-      <p className="nba-kicker">{title}</p>
-      <div className="mt-2 text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+    <aside
+      className={`border border-border border-l-3 bg-muted px-4 py-3 ${isWarning ? "border-l-destructive" : "border-l-primary"}`}
+    >
+      <p className={`nba-kicker ${isWarning ? "text-destructive" : ""}`}>
+        {title ?? (isWarning ? "Warning" : "Note")}
+      </p>
+      <div className="mt-2 text-sm leading-7 text-muted-foreground font-sans">
         {children}
       </div>
     </aside>
   );
 }
 
-export function getMDXComponents(
-  components?: MDXComponentMap,
-) {
+function CommandBlock({ command, label }: { command: string; label?: string }) {
+  return (
+    <div className="nba-surface my-4 overflow-hidden">
+      {label ? (
+        <div className="border-b border-border bg-muted px-3 py-1.5">
+          <span className="nba-metric-label">{label}</span>
+        </div>
+      ) : null}
+      <pre className="overflow-x-auto px-4 py-3 font-mono text-sm leading-relaxed text-foreground">
+        <code>
+          <span className="select-none text-muted-foreground">$ </span>
+          {command}
+        </code>
+      </pre>
+    </div>
+  );
+}
+
+function MetricRow({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`my-4 flex flex-wrap items-center gap-0 divide-x divide-border border border-border ${className ?? ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2 px-3 py-2">
+      <span className="nba-scoreboard-value text-lg text-foreground">
+        {value}
+      </span>
+      <span className="nba-metric-label">{label}</span>
+    </div>
+  );
+}
+
+const mdxComponents = {
+  ...defaultMdxComponents,
+  blockquote: TerminalQuote,
+  CourtDivider: SectionDivider,
+  DataColumns,
+  CommandBlock,
+  InsightCard: AlertCard,
+  DistributionPlot: asMdxComponent(DistributionPlot),
+  GameFlow: asMdxComponent(GameFlow),
+  HeatmapGrid: asMdxComponent(HeatmapGrid),
+  LineageExplorer: asMdxComponent(LineageExplorer),
+  Mermaid,
+  Metric,
+  MetricRow,
+  ObservablePlot: asMdxComponent(ObservablePlot),
+  PlayerCompare: asMdxComponent(PlayerCompare),
+  SchemaExplorer: asMdxComponent(SchemaExplorer),
+  SeasonTrend: asMdxComponent(SeasonTrend),
+  ShotChart: asMdxComponent(ShotChart),
+  SqlPlayground,
+  WarningCard: (props: ComponentProps<typeof AlertCard>) => (
+    <AlertCard variant="warning" {...props} />
+  ),
+  ScoutCard: NoteCard,
+  StatGrid,
+  StatPill,
+};
+
+/**
+ * Client wrapper that renders MDX content with the full component registry.
+ * Use this from server components instead of calling getMDXComponents() directly.
+ */
+export function MDXContent({
+  Body,
+}: {
+  Body: ComponentType<{ components?: typeof mdxComponents }>;
+}) {
+  return <Body components={mdxComponents} />;
+}
+
+export function getMDXComponents(components?: MDXComponentMap) {
   return {
-    ...defaultMdxComponents,
-    blockquote: TerminalQuote,
-    CourtDivider: SectionDivider,
-    DataColumns,
-    InsightCard,
-    Mermaid,
-    ScoutCard: NoteCard,
-    StatGrid,
-    StatPill,
+    ...mdxComponents,
     ...components,
   };
 }

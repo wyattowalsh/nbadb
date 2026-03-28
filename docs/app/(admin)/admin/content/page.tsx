@@ -12,12 +12,12 @@ export const metadata: Metadata = { title: "Content" };
 export default function ContentPage() {
   const audit = getContentAudit();
 
-  // For freshness, we'll use a placeholder since lastModified isn't reliably available
+  // Deterministic placeholder until git/file timestamps are wired into the audit.
   const freshnessData = audit.pages.map((p, i) => ({
     slug: p.slug,
     title: p.title,
     section: p.section,
-    daysOld: Math.floor(Math.random() * 120), // Placeholder — would use git blame or lastModified
+    daysOld: Math.min((p.slug.length + i + 1) * 3, 119),
   }));
 
   return (

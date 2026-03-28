@@ -1,0 +1,122 @@
+---
+title: SQL Playground
+description: Browser-first DuckDB-WASM sandbox for rehearsing nbadb query shapes without a local database.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+# SQL Playground
+
+Use this page when you want to rehearse a query shape, teach DuckDB syntax, or sanity-check a possession before you open a local `nba.duckdb` file. This is the **no-install warm-up lane** linked from the Guides hub and the Role-Based Onboarding Hub. Everything here runs in-browser with DuckDB-WASM, so the examples are fast, disposable, and safe to modify.
+
+<StatGrid columns={4}>
+  <StatPill
+    label="Runs in"
+    value="Browser tab"
+    note="DuckDB-WASM loads on demand and stays local to this session"
+  />
+  <StatPill
+    label="Best for"
+    value="Query rehearsal"
+    note="practice joins, CTEs, aggregates, and window functions before touching the warehouse"
+  />
+  <StatPill
+    label="Data mode"
+    value="Self-contained"
+    note="sample NBA-flavored rows are embedded directly in the example SQL"
+  />
+  <StatPill
+    label="Next move"
+    value="Live data"
+    note="jump to Analytics Quickstart or DuckDB Query Examples when you need the real nbadb surfaces"
+  />
+</StatGrid>
+
+<Callout type="info">
+  This sandbox does <strong>not</strong> mount your local nbadb warehouse automatically. Use it to lock in the SQL structure first, then move to <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>, <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a>, or <a href="/docs/guides/parquet-usage">Parquet Usage</a> when the question shifts to real data.
+</Callout>
+
+## Start with a live drill
+
+<SqlPlayground
+  defaultQuery={`WITH box_score AS (\n  SELECT *\n  FROM (\n    VALUES\n      ('Nikola Jokic', 'DEN', 29, 13, 11),\n      ('Shai Gilgeous-Alexander', 'OKC', 32, 5, 6),\n      ('Jayson Tatum', 'BOS', 27, 8, 5),\n      ('Luka Doncic', 'DAL', 34, 9, 10),\n      ('Giannis Antetokounmpo', 'MIL', 30, 11, 6)\n  ) AS t(player, team, pts, reb, ast)\n)\nSELECT\n  player,\n  team,\n  pts,\n  reb,\n  ast,\n  pts + reb + ast AS box_score_total\nFROM box_score\nORDER BY pts DESC;`}
+  examples={[
+    {
+      label: "Leaderboard",
+      description: "Practice a simple ranking query over NBA-flavored sample rows.",
+      sql: `WITH box_score AS (\n  SELECT *\n  FROM (\n    VALUES\n      ('Nikola Jokic', 'DEN', 29, 13, 11),\n      ('Shai Gilgeous-Alexander', 'OKC', 32, 5, 6),\n      ('Jayson Tatum', 'BOS', 27, 8, 5),\n      ('Luka Doncic', 'DAL', 34, 9, 10),\n      ('Giannis Antetokounmpo', 'MIL', 30, 11, 6)\n  ) AS t(player, team, pts, reb, ast)\n)\nSELECT\n  player,\n  team,\n  pts,\n  reb,\n  ast,\n  pts + reb + ast AS box_score_total\nFROM box_score\nORDER BY pts DESC;`,
+    },
+    {
+      label: "Shot zones",
+      description: "Practice grouped efficiency reads before moving into real shot-chart data.",
+      sql: `WITH shot_zones AS (\n  SELECT *\n  FROM (\n    VALUES\n      ('Restricted Area', 42, 31),\n      ('Paint', 28, 15),\n      ('Mid-Range', 18, 8),\n      ('Above the Break 3', 36, 14),\n      ('Corner 3', 12, 5)\n  ) AS t(zone, attempts, makes)\n)\nSELECT\n  zone,\n  attempts,\n  makes,\n  ROUND(100.0 * makes / attempts, 1) AS fg_pct\nFROM shot_zones\nORDER BY attempts DESC;`,
+    },
+    {
+      label: "Standings",
+      description: "Practice ranking and window functions with a compact conference snapshot.",
+      sql: `WITH standings AS (\n  SELECT *\n  FROM (\n    VALUES\n      ('East', 'Boston Celtics', 61, 21),\n      ('East', 'Milwaukee Bucks', 49, 33),\n      ('East', 'New York Knicks', 50, 32),\n      ('West', 'Oklahoma City Thunder', 57, 25),\n      ('West', 'Denver Nuggets', 57, 25),\n      ('West', 'Minnesota Timberwolves', 56, 26)\n  ) AS t(conference, team, wins, losses)\n)\nSELECT\n  conference,\n  team,\n  wins,\n  losses,\n  ROUND(wins * 1.0 / NULLIF(wins + losses, 0), 3) AS win_pct,\n  DENSE_RANK() OVER (PARTITION BY conference ORDER BY wins DESC, losses ASC) AS conference_seed\nFROM standings\nORDER BY conference, conference_seed, team;`,
+    },
+  ]}
+/>
+
+## Query real NBA data
+
+<Callout type="info">
+  This playground loads sample Parquet files from the published nbadb dataset directly into your browser. The first run downloads approximately 5 MB of data. After loading, you can run JOINs across tables and use the **Chart** toggle to visualize results.
+</Callout>
+
+<SqlPlayground
+  tables={[
+    { tableName: "dim_player", url: "https://github.com/wyattowalsh/nbadb/releases/download/docs-sample-data/dim_player_sample.parquet" },
+    { tableName: "dim_team", url: "https://github.com/wyattowalsh/nbadb/releases/download/docs-sample-data/dim_team_sample.parquet" },
+    { tableName: "agg_player_season", url: "https://github.com/wyattowalsh/nbadb/releases/download/docs-sample-data/agg_player_season_sample.parquet" },
+    { tableName: "fact_shot_chart", url: "https://github.com/wyattowalsh/nbadb/releases/download/docs-sample-data/fact_shot_chart_sample.parquet" },
+    { tableName: "fact_standings", url: "https://github.com/wyattowalsh/nbadb/releases/download/docs-sample-data/fact_standings_sample.parquet" },
+  ]}
+  defaultQuery={`SELECT\n  p.full_name,\n  s.pts,\n  s.reb,\n  s.ast,\n  s.pts + s.reb + s.ast AS fantasy_score\nFROM agg_player_season s\nJOIN dim_player p ON s.player_id = p.player_id\nWHERE s.season_year = (SELECT MAX(season_year) FROM agg_player_season)\nORDER BY fantasy_score DESC\nLIMIT 20;`}
+  examples={[
+    {
+      label: "Season leaders",
+      description: "Top 20 players by fantasy score from the latest season, joining player names.",
+      sql: `SELECT\n  p.full_name,\n  s.pts,\n  s.reb,\n  s.ast,\n  s.pts + s.reb + s.ast AS fantasy_score\nFROM agg_player_season s\nJOIN dim_player p ON s.player_id = p.player_id\nWHERE s.season_year = (SELECT MAX(season_year) FROM agg_player_season)\nORDER BY fantasy_score DESC\nLIMIT 20;`,
+    },
+    {
+      label: "Shot zones",
+      description: "Shot zone efficiency from the real shot chart data.",
+      sql: `SELECT\n  zone_basic AS zone,\n  COUNT(*) AS attempts,\n  SUM(CASE WHEN shot_made_flag = 1 THEN 1 ELSE 0 END) AS makes,\n  ROUND(100.0 * SUM(CASE WHEN shot_made_flag = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS fg_pct\nFROM fact_shot_chart\nGROUP BY zone_basic\nORDER BY attempts DESC;`,
+    },
+    {
+      label: "Standings",
+      description: "Conference standings with win percentage and seeding.",
+      sql: `SELECT\n  t.team_abbreviation,\n  s.wins,\n  s.losses,\n  ROUND(s.wins * 1.0 / NULLIF(s.wins + s.losses, 0), 3) AS win_pct,\n  s.conference_rank\nFROM fact_standings s\nJOIN dim_team t ON s.team_id = t.team_id\nWHERE s.season_year = (SELECT MAX(season_year) FROM fact_standings)\nORDER BY s.conference_rank\nLIMIT 15;`,
+    },
+  ]}
+/>
+
+## How to use this page well
+
+<DataColumns>
+  <InsightCard title="Practice the structure first">
+    Use this sandbox to get the SQL skeleton right: common table expressions, filters, aggregates, joins, and window functions. Once the structure works, port it to the real warehouse.
+  </InsightCard>
+  <InsightCard title="Stay honest about the data mode">
+    The example buttons load self-contained sample rows, not the full published dataset. That keeps the page fast and makes every query reproducible without a separate download step.
+  </InsightCard>
+  <InsightCard title="Upgrade the drill when ready">
+    Move to <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a> for a real local `nba.duckdb` connection, or <a href="/docs/guides/parquet-usage">Parquet Usage</a> if you want to point DuckDB at exported files.
+  </InsightCard>
+</DataColumns>
+
+## Pick the right next stop
+
+| If this page helped you… | Go here next | Why |
+| ------------------------ | ------------ | --- |
+| onboard a new analyst, contributor, or operator | [Role-Based Onboarding Hub](/docs/guides/role-based-onboarding-hub) | Pick the next page and first useful action by role instead of wandering the full docs tree |
+| rehearse query shapes without local setup | [DuckDB Query Examples](/docs/guides/duckdb-queries) | Copy the same patterns onto real nbadb tables and views |
+| prove you are ready for live warehouse reads | [Analytics Quickstart](/docs/guides/analytics-quickstart) | Connect to the published DuckDB file and run a first analyst workflow |
+| work directly from exported files | [Parquet Usage](/docs/guides/parquet-usage) | Point DuckDB or Polars at parquet artifacts instead of the bundled database |
+| pick the right table before writing SQL | [Schema Reference](/docs/schema) | Lock in the fact, dimension, or analytics surface before scaling the query up |
+
+<InsightCard title="How it works">
+  This page uses <a href="https://github.com/duckdb/duckdb-wasm">DuckDB-WASM</a> to run a real SQL engine in your browser. The engine loads on first run, stays inside your tab, and can also query tables registered from Parquet when a docs page provides one.
+</InsightCard>

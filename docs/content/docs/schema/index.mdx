@@ -7,30 +7,30 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 # Schema Reference
 
-The nbadb analytical surface currently exposes **141 public tables/views** across dimensions, facts, bridges, derived aggregations, and analytics views.
+The nbadb analytical surface exposes **public tables and views** across dimensions, facts, bridges, derived aggregations, and analytics views.
 
 Treat this section like the warehouse playbook: the curated pages explain how the lineup fits together, while the generated reference pages give you the box-score-exact schema contracts when you need to check a column, key, or constraint at 2am.
 
 <StatGrid columns={4}>
   <StatPill
     label="Public surface"
-    value="141"
+    value="Star schema"
     note="tables + views on the analytical floor"
   />
   <StatPill
     label="Dimensions"
-    value="17"
+    value="dim_*"
     note="identity, history, and lookup spacing"
   />
   <StatPill
     label="Facts + bridges"
-    value="104"
-    note="102 fact outputs plus 2 bridge connectors"
+    value="fact_* · bridge_*"
+    note="event and measurement tables plus bridge connectors"
   />
   <StatPill
     label="Shortcuts"
-    value="20"
-    note="16 agg_ tables plus 4 analytics_ views"
+    value="agg_* · analytics_*"
+    note="pre-aggregated rollups and analytics convenience views"
   />
 </StatGrid>
 
@@ -38,105 +38,106 @@ Treat this section like the warehouse playbook: the curated pages explain how th
 The curated pages explain <strong>how to use the model</strong>. The raw, staging, and star reference pages are <strong>generated, schema-backed artifacts</strong>: use them for exact contracts, and regenerate them instead of hand-editing when the code changes.
 </Callout>
 
-## How to work this section
+## Work the section in three possessions
 
-1. **Pick the right family first.** Use the curated pages to decide whether the question belongs in dimensions, facts, `agg_` rollups, or `analytics_` shortcuts.
-2. **Lock the join lane second.** Use [Relationships](/docs/schema/relationships) once you know the tables but need the safest path between them.
-3. **Confirm exact contracts last.** Finish on the generated [Raw Reference](/docs/schema/raw-reference), [Staging Reference](/docs/schema/staging-reference), or [Star Reference](/docs/schema/star-reference) when the question becomes "what are the exact columns and constraints?"
+1. **Choose the family.** Start on the curated guides when you still need judgment about grain, surface, or whether a shortcut already exists.
+2. **Lock the join lane.** Switch to [Relationships](/docs/schema/relationships) once you know the tables but want the cleanest path between them.
+3. **Verify the contract.** Finish on [Raw Reference](/docs/schema/raw-reference), [Staging Reference](/docs/schema/staging-reference), or [Star Reference](/docs/schema/star-reference) when the question turns into exact columns, types, or nullability.
 
-## Quick navigation
-
-<div className="grid gap-4 md:grid-cols-2">
-  <ScoutCard title="Find the right table family" label="Start here">
-    Use <a href="/docs/schema/dimensions">Dimensions</a>, <a href="/docs/schema/facts">Facts &amp; Bridges</a>, <a href="/docs/schema/derived">Derived Aggregations</a>, and <a href="/docs/schema/analytics-views">Analytics Views</a> when you are still deciding which surface actually answers the question.
+<div className="grid gap-4 md:grid-cols-3">
+  <ScoutCard title="Curated family guides" label="Start here">
+    Use <a href="/docs/schema/dimensions">Dimensions</a>, <a href="/docs/schema/facts">Facts &amp; Bridges</a>, <a href="/docs/schema/derived">Derived Aggregations</a>, and <a href="/docs/schema/analytics-views">Analytics Views</a> when you are still picking the right surface.
   </ScoutCard>
-  <ScoutCard title="Plan the join lane" label="Start here">
-    Jump to <a href="/docs/schema/relationships">Relationships</a> when you already know the tables involved but need the clean join path, common keys, or naming traps before you write SQL.
+  <ScoutCard title="Relationships" label="Second stop">
+    Use <a href="/docs/schema/relationships">Relationships</a> when the tables are known but the join lane is still muddy.
   </ScoutCard>
-  <ScoutCard title="Check the generated contract" label="Exact columns">
-    Go straight to <a href="/docs/schema/raw-reference">Raw Reference</a>, <a href="/docs/schema/staging-reference">Staging Reference</a>, or <a href="/docs/schema/star-reference">Star Reference</a> when the question is about exact fields, nullability, or schema-backed constraints.
-  </ScoutCard>
-  <ScoutCard title="Move from concept to query" label="Workflow">
-    Start on the curated page for judgment, then switch to the generated tier page for exactness once the table family and join lane are locked in.
+  <ScoutCard title="Generated tier references" label="Finish here">
+    Use the generated tier pages when you need schema-backed exactness rather than routing or join advice.
   </ScoutCard>
 </div>
 
-<CourtDivider label="Tipoff route" />
+## Choose the right route
 
-## Choose by working state
+| If your question is... | Go to... | Why this is the right lane |
+| ---------------------- | -------- | -------------------------- |
+| “Who or what is this row about?” | [Dimensions](/docs/schema/dimensions) | Identity, history, calendar, venue, and controlled-vocabulary context live there |
+| “Where do the measures actually live?” | [Facts & Bridges](/docs/schema/facts) | That scouting report groups the main measurement tables by grain and job |
+| “Is there already a reusable rollup for this?” | [Derived Aggregations](/docs/schema/derived) | `agg_*` surfaces answer recurring season-, career-, and summary-style asks |
+| “Can I skip some manual joins?” | [Analytics Views](/docs/schema/analytics-views) | `analytics_*` surfaces are the fast-break outlets for notebooks and dashboards |
+| “How do I join these safely?” | [Relationships](/docs/schema/relationships) | It is optimized for join judgment, key lanes, and duplicate-row avoidance |
+| “What are the exact fields and constraints?” | [Star Reference](/docs/schema/star-reference) or upstream [Staging Reference](/docs/schema/staging-reference) / [Raw Reference](/docs/schema/raw-reference) | Those generated pages are the contract layer |
 
-| If you are currently... | Best first page | Why |
-| ----------------------- | --------------- | --- |
-| deciding which table family probably owns the answer | [Dimensions](/docs/schema/dimensions), [Facts & Bridges](/docs/schema/facts), [Derived Aggregations](/docs/schema/derived), or [Analytics Views](/docs/schema/analytics-views) | The curated family pages optimize for judgment, not exhaustive column detail |
-| holding a known table but unsure how to join it safely | [Relationships](/docs/schema/relationships) | It maps the clean join lanes and common naming traps |
-| verifying exact field names, types, or nullability | [Star Reference](/docs/schema/star-reference) | The generated star page is the contract surface for public analytical objects |
-| tracing where a field looked the way it did before transformation | [Raw Reference](/docs/schema/raw-reference) or [Staging Reference](/docs/schema/staging-reference) | Those pages preserve the upstream and normalized tiers feeding the warehouse |
-| trying to move from a notebook question to a stable reusable query | Start on the curated family page, then end on the generated tier page | That sequence keeps discovery and exactness separate instead of forcing one page to do both |
+<CourtDivider label="Curated vs generated" />
 
-## Choose by question
+## Know which page owns which job
 
-| If you need to answer... | Start here | Why this page is the right first pass |
-| ------------------------ | ---------- | ------------------------------------- |
-| Who is this row about, and what entity context exists? | [Dimensions](/docs/schema/dimensions) | The dimension lineup card explains identity, calendar, venue, and vocabulary tables |
-| Where do the measures actually live? | [Facts & Bridges](/docs/schema/facts) | The fact scouting report groups the 102 fact outputs by grain and job |
-| How should I join these surfaces without duplicating rows? | [Relationships](/docs/schema/relationships) | The join playbook shows common lanes across player, team, game, and event analysis |
-| Is there already a rollup for this question? | [Derived Aggregations](/docs/schema/derived) | The second-unit tables precompute recurring player, team, and league summaries |
-| Can I skip manual joins for a common workflow? | [Analytics Views](/docs/schema/analytics-views) | The analytics views are the fast-break outlets for notebooks and dashboards |
-| What is the exact generated contract for a schema-backed tier? | [Raw Reference](/docs/schema/raw-reference), [Staging Reference](/docs/schema/staging-reference), or [Star Reference](/docs/schema/star-reference) | These dense pages are the source-of-truth reference sheets for generated schema docs |
+| Surface | Optimized for | Stop here when... | Maintenance path |
+| ------- | ------------- | ----------------- | ---------------- |
+| Curated family guides | Table-family choice, workflow advice, and first-pass judgment | You know the family and the likely grain | Hand-authored |
+| [Relationships](/docs/schema/relationships) | Join patterns, key lanes, and duplicate-row avoidance | The join path is clear and you only need exact column contracts | Hand-authored |
+| Generated tier references | Exact columns, types, nullability, and schema-backed constraints | You need narrative guidance or table-family choice again | Regenerate, do not hand-edit |
 
-## Entry routes by starting handle
+<InsightCard title="Default reading order">
+  Use curated pages for judgment and generated pages for verification. When a page starts trying to do both jobs, switch layers instead of forcing it.
+</InsightCard>
+
+## Choose your first pass
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-  <ScoutCard title="I have a player or team question" label="Entry surface">
-    Start with <a href="/docs/schema/facts">Facts &amp; Bridges</a> if the question is about stats, or <a href="/docs/schema/dimensions">Dimensions</a> if you need identity, franchise, or roster context first.
+  <ScoutCard title="Pick the family" label="Start here">
+    Use <a href="/docs/schema/dimensions">Dimensions</a>, <a href="/docs/schema/facts">Facts &amp; Bridges</a>, <a href="/docs/schema/derived">Derived Aggregations</a>, or <a href="/docs/schema/analytics-views">Analytics Views</a> when the first question is still "which surface actually answers this?"
   </ScoutCard>
-  <ScoutCard title="I have a game_id" label="Entry surface">
-    Start with <a href="/docs/schema/facts">Facts &amp; Bridges</a> for player-game, team-game, play-by-play, shot, or rotation grain. Then use <a href="/docs/schema/relationships">Relationships</a> to add both teams and supporting dimensions cleanly.
+  <ScoutCard title="Lock the join lane" label="Start here">
+    Jump to <a href="/docs/schema/relationships">Relationships</a> once you know the tables involved but need the safest path between them.
   </ScoutCard>
-  <ScoutCard title="I have a season-level reporting ask" label="Entry surface">
-    Start with <a href="/docs/schema/derived">Derived Aggregations</a> for reusable rollups, then fall back to <a href="/docs/schema/facts">Facts &amp; Bridges</a> only when the needed split or metric does not already exist.
+  <ScoutCard title="Use the shortcut on purpose" label="Start here">
+    Reach for <a href="/docs/schema/analytics-views">Analytics Views</a> or <a href="/docs/schema/derived">Derived Aggregations</a> when the job repeats and you do not want to rebuild the same joins every possession.
   </ScoutCard>
-  <ScoutCard title="I just need the exact schema" label="Entry surface">
-    Skip the curated guide layer and go straight to the generated <a href="/docs/schema/star-reference">Star Reference</a> or the upstream <a href="/docs/schema/raw-reference">Raw</a> / <a href="/docs/schema/staging-reference">Staging</a> references.
+  <ScoutCard title="Verify the exact contract" label="Exactness">
+    Go straight to <a href="/docs/schema/raw-reference">Raw Reference</a>, <a href="/docs/schema/staging-reference">Staging Reference</a>, or <a href="/docs/schema/star-reference">Star Reference</a> when exact columns, types, and nullability matter more than narrative guidance.
   </ScoutCard>
 </div>
 
-## Public categories
+If you only remember one decision tree, use this one.
 
-| Category | Count | Prefix | What it covers |
-| -------- | ----: | ------ | -------------- |
-| [Dimensions](/docs/schema/dimensions) | 17 | `dim_` | Conformed context such as players, teams, games, seasons, dates, arenas, and lookup vocabularies |
-| [Facts](/docs/schema/facts) | 102 | `fact_` | Event-, game-, season-, dashboard-, and specialty-grain measurements for analysis |
-| [Bridges](/docs/schema/facts) | 2 | `bridge_` | Many-to-many connectors used to fan out officials and play participants cleanly |
-| [Derived Aggregations](/docs/schema/derived) | 16 | `agg_` | Pre-aggregated rollups for repeat player, team, lineup, and league questions |
-| [Analytics Views](/docs/schema/analytics-views) | 4 | `analytics_` | Pre-joined analyst-friendly surfaces for first-pass reads |
+```mermaid
+flowchart TD
+    Start["Question in hand"] --> Family{"Still choosing the table family?"}
+    Family -- Yes --> Curated["Curated family pages"]
+    Family -- No --> Join{"Need the safest join lane?"}
+    Join -- Yes --> Relationships["Relationships"]
+    Join -- No --> Exact{"Need exact columns or nullability?"}
+    Exact -- Yes --> Generated["Raw / Staging / Star Reference"]
+    Exact -- No --> Curated
 
-<CourtDivider label="Tier reference lanes" />
-
-## Curated vs generated boundaries
-
-| Page type | What it is optimized for | What it is not trying to be |
-| --------- | ------------------------ | --------------------------- |
-| Curated schema guides | Table-family choice, join judgment, workflow advice, and "where should I start?" questions | Exhaustive field-by-field contracts |
-| Generated tier references | Exact columns, types, nullability, and schema-backed constraints | Narrative explanation of how an analyst should use the model |
-| Relationships page | Join patterns, key lanes, and duplicate-row avoidance | Full generated ER output or field dictionary detail |
-
-## Generated tier references
-
-Use these pages when the question is not conceptual but contractual.
-
-| Tier | Page | What it represents | Best for |
-| ---- | ---- | ------------------ | -------- |
-| Inbound feed contracts | [Raw Reference](/docs/schema/raw-reference) | Endpoint-shaped schemas closest to `nba_api` result sets | Tracing source naming, original payload fidelity, and extraction expectations |
-| Warehouse-ready normalization | [Staging Reference](/docs/schema/staging-reference) | Cleaned, typed staging schemas after normalization and key alignment | Understanding load-time cleanup and the shape feeding transforms |
-| Public schema-backed surface | [Star Reference](/docs/schema/star-reference) | Generated final-tier schemas for dimensions, facts, bridges, and selected public outputs | Verifying exact public columns, nullability, and constraints |
-| Join strategy | [Relationships](/docs/schema/relationships) | Curated join patterns across the star surface | Planning how those tiers come back together in SQL |
-
-Regenerate the command-owned reference pages with:
-
-```bash
-uv run nbadb docs-autogen --docs-root docs/content/docs
+    style Curated fill:#e8f5e9
+    style Relationships fill:#fff3e0
+    style Generated fill:#e1f5fe
 ```
+
+Text fallback: start on the curated family pages when you still need judgment, jump to Relationships when the join lane is the real question, and finish on the generated references when exact contracts matter.
+
+## Start by the handle you already have
+
+| If you already have... | Start here | Why this is the fastest lane |
+| ---------------------- | ---------- | ---------------------------- |
+| a player or team question | [Facts & Bridges](/docs/schema/facts) or [Dimensions](/docs/schema/dimensions) | facts answer the measurement question, dimensions answer the identity and context question |
+| a `game_id` | [Facts & Bridges](/docs/schema/facts) | that is the cleanest way to decide whether the grain is player-game, team-game, play-by-play, shot, or rotation |
+| a season-level reporting ask | [Derived Aggregations](/docs/schema/derived) | repeated rollups are often already built, which is faster than recreating them from the fact layer |
+| a dashboard or notebook use case | [Analytics Views](/docs/schema/analytics-views) | those outputs are the fast-break outlets for first-pass analysis |
+| a known table pair but an uncertain join | [Relationships](/docs/schema/relationships) | the join lane is the real blocker, not table-family choice |
+| an exact field, type, or nullability question | [Star Reference](/docs/schema/star-reference) or the upstream [Raw](/docs/schema/raw-reference) / [Staging](/docs/schema/staging-reference) references | generated pages are optimized for contract verification, not route selection |
+
+## Read the jersey prefix
+
+| Prefix | Read it as... | Usually start on... |
+| ------ | ------------- | ------------------- |
+| `dim_` | conformed context and identity | [Dimensions](/docs/schema/dimensions) |
+| `fact_` | measurable events or summaries at a defined grain | [Facts & Bridges](/docs/schema/facts) |
+| `bridge_` | many-to-many connector | [Facts & Bridges](/docs/schema/facts) or [Relationships](/docs/schema/relationships) |
+| `agg_` | reusable pre-aggregated rollup | [Derived Aggregations](/docs/schema/derived) |
+| `analytics_` | pre-joined convenience surface | [Analytics Views](/docs/schema/analytics-views) |
+| `stg_` / `raw_` | upstream reference tiers used to trace the ball back to extraction | [Staging Reference](/docs/schema/staging-reference) or [Raw Reference](/docs/schema/raw-reference) |
 
 ## Warehouse offensive system
 
@@ -144,27 +145,13 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 - **History where it matters**: `dim_player` and `dim_team_history` use SCD Type 2 semantics for time-aware identity tracking.
 - **Conformed anchors**: `player_id`, `team_id`, `game_id`, and `season_year` do most of the passing across the model.
 - **Smallest useful grain**: start at the narrowest fact that answers the question, then climb to `agg_` or `analytics_` only when the use case repeats.
-- **Generated pages for exactness, curated pages for judgment**: use both together rather than expecting one page to do every job.
 
-## Prefix quick read
+## Generated tier references
 
-| If the object starts with... | Read it as... | Usually start on... |
-| ---------------------------- | ------------- | ------------------- |
-| `dim_` | conformed context and identity | [Dimensions](/docs/schema/dimensions) |
-| `fact_` | measurable events or summaries at a defined grain | [Facts & Bridges](/docs/schema/facts) |
-| `bridge_` | many-to-many connector | [Facts & Bridges](/docs/schema/facts) or [Relationships](/docs/schema/relationships) |
-| `agg_` | reusable pre-aggregated rollup | [Derived Aggregations](/docs/schema/derived) |
-| `analytics_` | pre-joined convenience surface | [Analytics Views](/docs/schema/analytics-views) |
-| `stg_` / `raw_` | upstream non-public reference tiers | [Staging Reference](/docs/schema/staging-reference) or [Raw Reference](/docs/schema/raw-reference) |
+Regenerate the command-owned reference pages with:
 
-## Naming conventions
+```bash
+uv run nbadb docs-autogen --docs-root docs/content/docs
+```
 
-| Prefix | Meaning | Example |
-| ------ | ------- | ------- |
-| `dim_` | Dimension table | `dim_player` |
-| `fact_` | Fact table | `fact_player_game_traditional` |
-| `bridge_` | Bridge table | `bridge_game_official` |
-| `agg_` | Aggregate table | `agg_player_career` |
-| `analytics_` | Analytics view/table | `analytics_player_game_complete` |
-| `stg_` | Staging table | `stg_league_game_finder__by_team` |
-| `raw_` | Raw schema/reference object | `raw_boxscoretraditionalv3` |
+That command owns the raw, staging, and star reference artifacts. Keep this index, the family guides, and [Relationships](/docs/schema/relationships) curated.
