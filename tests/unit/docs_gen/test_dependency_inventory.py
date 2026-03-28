@@ -7,6 +7,7 @@ from nbadb.docs_gen.dependency_inventory import DependencyInventoryGenerator
 
 if TYPE_CHECKING:
     from pathlib import Path
+
     pass
 
 
@@ -232,8 +233,7 @@ class TestBuildInventoryMinimal:
     def test_with_minimal_pyproject(self, tmp_path: Path) -> None:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
-            '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-            'dependencies = ["requests>=2.0"]\n',
+            '[project]\nname = "test-proj"\nversion = "0.1.0"\ndependencies = ["requests>=2.0"]\n',
             encoding="utf-8",
         )
         gen = DependencyInventoryGenerator(project_root=tmp_path)
@@ -248,8 +248,8 @@ class TestBuildInventoryMinimal:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
             '[project]\nname = "test"\nversion = "0.1"\n'
-            'dependencies = []\n\n'
-            '[project.optional-dependencies]\n'
+            "dependencies = []\n\n"
+            "[project.optional-dependencies]\n"
             'dev = ["pytest>=7.0"]\n',
             encoding="utf-8",
         )

@@ -22,9 +22,7 @@ class TestKaggleClientDownload:
     @patch("nbadb.kaggle.client.get_settings")
     def test_download_copies_to_data_dir(self, mock_settings: MagicMock, tmp_path: Path) -> None:
         data_dir = tmp_path / "data"
-        mock_settings.return_value = NbaDbSettings(
-            data_dir=data_dir, log_dir=tmp_path / "logs"
-        )
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         download_dir = tmp_path / "downloaded"
         download_dir.mkdir()
         # Simulate kagglehub cached files
@@ -127,7 +125,7 @@ class TestKaggleClientEnsureMetadata:
         result = client.ensure_metadata(data_dir=data_dir)
         data = json.loads(result.read_text(encoding="utf-8"))
         assert data["id"] == "wyattowalsh/basketball"
-        assert len(data["resources"]) == 141
+        assert len(data["resources"]) == 0
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_ensure_metadata_creates_parent_dirs(

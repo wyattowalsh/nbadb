@@ -64,9 +64,7 @@ class DuckDBLoader(BaseLoader):
         else:
             self._conn.execute(f"INSERT INTO {table} SELECT * FROM _load_arrow")
         self._conn.unregister("_load_arrow")
-        logger.debug(
-            f"DuckDB (Arrow): wrote {df.shape[0]} rows to {table} (mode={mode})"
-        )
+        logger.debug(f"DuckDB (Arrow): wrote {df.shape[0]} rows to {table} (mode={mode})")
 
     def load_arrow(
         self,

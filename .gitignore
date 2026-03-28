@@ -46,12 +46,8 @@ docs/docs/
 # DuckDB
 *.duckdb.wal
 
-# Local exported datasets
-nbadb/nba.duckdb
-nbadb/nba.sqlite
-nbadb/csv/
-nbadb/parquet/
-nbadb/dataset-metadata.json
+# Local exported datasets / pipeline output
+/nbadb/
 
 # Misc
 *.bak
@@ -78,4 +74,5 @@ service-account*.json
 
 # Session transcripts and temp artifacts
 tmp-model-audit*/
+session*.txt
 scripts/

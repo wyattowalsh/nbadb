@@ -175,20 +175,12 @@ class TransformDependencyGraphGenerator:
 
         family_counts = Counter(node["table_family"] for node in transformer_nodes)
         roots = sorted(
-            node["output_table"]
-            for node in transformer_nodes
-            if not node["transform_dependencies"]
+            node["output_table"] for node in transformer_nodes if not node["transform_dependencies"]
         )
-        leaves = sorted(
-            node["output_table"]
-            for node in transformer_nodes
-            if not node["consumers"]
-        )
+        leaves = sorted(node["output_table"] for node in transformer_nodes if not node["consumers"])
         cycles = self._find_cycles(transform_adjacency)
         execution_order = (
-            []
-            if cycles
-            else self._topological_order(transform_adjacency, consumers_map)
+            [] if cycles else self._topological_order(transform_adjacency, consumers_map)
         )
 
         return {

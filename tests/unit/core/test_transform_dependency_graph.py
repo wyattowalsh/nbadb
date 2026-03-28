@@ -75,9 +75,7 @@ def test_build_graph_classifies_dependencies_and_consumers(tmp_path) -> None:
     assert nodes["fact_game"]["consumers"] == ["agg_game"]
     assert nodes["agg_game"]["transform_dependencies"] == ["fact_game"]
 
-    edges = {
-        (edge["from"], edge["to"], edge["dependency_kind"]) for edge in graph["edges"]
-    }
+    edges = {(edge["from"], edge["to"], edge["dependency_kind"]) for edge in graph["edges"]}
     assert ("dim_season", "fact_game", "transform_output") in edges
     assert ("stg_games", "fact_game", "staging") in edges
     assert ("ghost_dep", "fact_game", "unresolved") in edges
@@ -109,6 +107,4 @@ def test_write_creates_json_artifact(tmp_path) -> None:
     assert written == output_path
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["summary"]["transformer_count"] == 3
-    assert any(
-        node["output_table"] == "fact_game" for node in payload["transformers"]
-    )
+    assert any(node["output_table"] == "fact_game" for node in payload["transformers"])

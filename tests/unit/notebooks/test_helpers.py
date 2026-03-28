@@ -22,7 +22,11 @@ import pytest
 
 
 def gaussian_aging(
-    x: float | np.ndarray, a: float, peak: float, width: float, c: float,
+    x: float | np.ndarray,
+    a: float,
+    peak: float,
+    width: float,
+    c: float,
 ) -> float | np.ndarray:
     """Gaussian aging curve: performance peaks at *peak* and decays with *width*.
 
@@ -283,7 +287,7 @@ class TestGetConnection:
     @pytest.mark.skipif(not _UTILS_AVAILABLE, reason=_SKIP_REASON)
     def test_raises_when_no_db_found(self) -> None:
         with patch("nbadb_utils.Path.exists", return_value=False), pytest.raises(FileNotFoundError):
-                self.utils.get_connection()
+            self.utils.get_connection()
 
     @pytest.mark.skipif(not _UTILS_AVAILABLE, reason=_SKIP_REASON)
     def test_calls_duckdb_connect(self) -> None:
