@@ -47,6 +47,10 @@ dev = [
     "ruff>=0.9",
     "ty>=0.0.19",
 ]
+notebooks = [
+    "great-tables>=0.21.0",
+    "itables>=2.7.3",
+]
 
 [project.scripts]
 nbadb = "nbadb.cli.app:app"
@@ -108,3 +112,10 @@ addopts = "--cov=src/nbadb --cov-report=term-missing --import-mode=importlib"
 
 [tool.coverage.run]
 omit = ["src/nbadb/cli/tui.py"]
+
+[dependency-groups]
+dev = [
+    "sportypy>=1.0.0",
+    "sqlfluff>=4.0.4",
+    "sqlglot>=30.0.3",
+]

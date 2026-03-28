@@ -40,10 +40,18 @@ htmlcov/
 docs/.next/
 docs/node_modules/
 docs/out/
+docs/docs/
 *.tsbuildinfo
 
 # DuckDB
 *.duckdb.wal
+
+# Local exported datasets
+nbadb/nba.duckdb
+nbadb/nba.sqlite
+nbadb/csv/
+nbadb/parquet/
+nbadb/dataset-metadata.json
 
 # Misc
 *.bak
@@ -67,3 +75,7 @@ service-account*.json
 .gemini/
 .specify/
 ..bfg-report/
+
+# Session transcripts and temp artifacts
+tmp-model-audit*/
+scripts/
