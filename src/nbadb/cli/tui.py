@@ -20,6 +20,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from textual.visual import VisualType
+    from textual.widgets.data_table import RowKey
+
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
@@ -39,8 +42,12 @@ from textual.widgets import (
 from nbadb.cli._progress_common import (
     DONE_CHAR,
     SPINNER_FRAMES,
+    ETAEstimator,
     PatternState,
     PatternStatus,
+    RunSummary,
+    fmt_eta,
+    fmt_rows,
     fmt_time,
     gradient_bar,
     proportional_bar,
@@ -94,13 +101,39 @@ _LEVEL_STYLES: dict[str, str] = {
 class Scoreboard(Static):
     """NBA scoreboard header."""
 
-    def __init__(self, mode: str = "INIT", **kwargs: object) -> None:
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        mode: str = "INIT",
+        content: VisualType = "",
+        *,
+        expand: bool = False,
+        shrink: bool = False,
+        markup: bool = True,
+        name: str | None = None,
+        id: str | None = None,  # noqa: A002
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(
+            content,
+            expand=expand,
+            shrink=shrink,
+            markup=markup,
+            name=name,
+            id=id,
+            classes=classes,
+            disabled=disabled,
+        )
         self._mode = mode
         self._elapsed = 0.0
         self._ok = 0
         self._fail = 0
         self._phase = ""
+        self._eta_str = ""
+        self._resuming = False
+        self._current_rate = 0.0
+        self._base_rate = 0.0
+        self._tripped_count = 0
 
     def set_stats(self, elapsed: float, ok: int, fail: int, phase: str) -> None:
         self._elapsed = elapsed
@@ -109,16 +142,38 @@ class Scoreboard(Static):
         self._phase = phase
         self.refresh()
 
+    def set_eta(self, s: str) -> None:
+        self._eta_str = s
+
+    def set_resuming(self, v: bool) -> None:
+        self._resuming = v
+
+    def set_rate(self, current: float, base: float) -> None:
+        self._current_rate = current
+        self._base_rate = base
+
+    def set_breakers(self, tripped: list[str]) -> None:
+        self._tripped_count = len(tripped)
+
     def render(self) -> Text:
         t = Text()
         t.append(" 🏀 ", style="")
         t.append(" NBADB ", style=f"bold bright_white on {_NBA_RED}")
         t.append(f" {self._mode} ", style=f"bold bright_white on {_NBA_BLUE}")
+        if self._resuming:
+            t.append(" RESUME ", style="bold bright_white on green")
         t.append(f"  ⏱ {fmt_time(self._elapsed)} ", style="bold")
         total = self._ok + self._fail
         if self._elapsed > 1 and total > 0:
             rate = total / self._elapsed
             t.append(f" ⚡{rate:.1f}/s ", style=f"bold {_NBA_GOLD}")
+        if self._eta_str:
+            t.append(f" │ {self._eta_str}", style="dim")
+        if self._base_rate > 0 and self._current_rate < self._base_rate * 0.7:
+            rate_str = f" ⚡{self._current_rate:.1f}/{self._base_rate:.0f}"
+            t.append(rate_str, style=f"bold {_NBA_GOLD}")
+        if self._tripped_count > 0:
+            t.append(f" CB:{self._tripped_count}", style=f"bold {_NBA_RED}")
         if self._phase:
             t.append(f" │ {self._phase} ", style="italic dim")
         return t
@@ -127,8 +182,30 @@ class Scoreboard(Static):
 class StatCard(Static):
     """Single stat with big number + label."""
 
-    def __init__(self, label: str, icon: str = "📊", **kwargs: object) -> None:
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        label: str,
+        icon: str = "📊",
+        content: VisualType = "",
+        *,
+        expand: bool = False,
+        shrink: bool = False,
+        markup: bool = True,
+        name: str | None = None,
+        id: str | None = None,  # noqa: A002
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(
+            content,
+            expand=expand,
+            shrink=shrink,
+            markup=markup,
+            name=name,
+            id=id,
+            classes=classes,
+            disabled=disabled,
+        )
         self._label = label
         self._icon = icon
         self._value = 0
@@ -148,8 +225,28 @@ class StatCard(Static):
 class TotalsStrip(Static):
     """Color-proportional bar + stats."""
 
-    def __init__(self, **kwargs: object) -> None:
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        content: VisualType = "",
+        *,
+        expand: bool = False,
+        shrink: bool = False,
+        markup: bool = True,
+        name: str | None = None,
+        id: str | None = None,  # noqa: A002
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(
+            content,
+            expand=expand,
+            shrink=shrink,
+            markup=markup,
+            name=name,
+            id=id,
+            classes=classes,
+            disabled=disabled,
+        )
         self._ok = 0
         self._fail = 0
         self._skip = 0
@@ -354,12 +451,17 @@ class NbaDbDashboard(App):
         self._patterns: list[PatternState] = []
         self._current_pattern: PatternState | None = None
         self._tick = 0
-        self._row_keys: dict[str, object] = {}
+        self._row_keys: dict[str, RowKey] = {}
         self._pipeline_result: object = None
         self._pipeline_error: Exception | None = None
         self._rate_history: deque[float] = deque([0.0] * 60, maxlen=60)
         self._last_total = 0
         self._stat_cards: dict[str, StatCard] = {}
+        self._eta = ETAEstimator()
+        self._resuming = False
+        self._current_rate = 0.0
+        self._base_rate = 0.0
+        self._tripped: list[str] = []
         # Cached widget references — set in on_mount
         self._scoreboard: Scoreboard | None = None
         self._spark: Sparkline | None = None
@@ -375,16 +477,19 @@ class NbaDbDashboard(App):
             players_card = StatCard("players", "👤", id="stat-players", classes="stat-card")
             teams_card = StatCard("teams", "🏟️", id="stat-teams", classes="stat-card")
             dates_card = StatCard("dates", "📅", id="stat-dates", classes="stat-card")
+            rows_card = StatCard("rows", "📊", id="stat-rows", classes="stat-card")
             self._stat_cards = {
                 "games": games_card,
                 "players": players_card,
                 "teams": teams_card,
                 "dates": dates_card,
+                "rows": rows_card,
             }
             yield games_card
             yield players_card
             yield teams_card
             yield dates_card
+            yield rows_card
             yield Sparkline(list(self._rate_history), summary_function=max, id="throughput-spark")
 
         with Horizontal(id="main-split"):
@@ -481,9 +586,23 @@ class NbaDbDashboard(App):
             total += p.total
             skipped += p.skipped
 
+        # ETA estimation
+        eta_secs = self._eta.update(done, total) if total > 0 else None
+
+        # Total rows
+        total_rows = sum(p.rows_extracted for p in self._patterns)
+
         # Update scoreboard
         if self._scoreboard is not None:
             self._scoreboard.set_stats(elapsed, ok, fail, self._phase_detail or self._phase)
+            self._scoreboard.set_eta(fmt_eta(eta_secs))
+            self._scoreboard.set_rate(self._current_rate, self._base_rate)
+            self._scoreboard.set_breakers(self._tripped)
+
+        # Update rows stat card
+        rows_card = self._stat_cards.get("rows")
+        if rows_card is not None:
+            rows_card.set_value(total_rows)
 
         # Update throughput sparkline
         current_total = ok + fail
@@ -532,7 +651,10 @@ class NbaDbDashboard(App):
         if p.status == PatternStatus.DONE and p.end_time:
             elapsed_str = fmt_time(p.end_time - p.start_time)
         elif p.status == PatternStatus.RUNNING and p.start_time:
+            eta_secs = p.eta.update(p.completed, p.total)
             elapsed_str = fmt_time(time.monotonic() - p.start_time)
+            if eta_secs is not None:
+                elapsed_str += f" {fmt_eta(eta_secs)}"
 
         cells = (
             Text(icon, style=color),
@@ -578,17 +700,31 @@ class NbaDbDashboard(App):
     def start_phase(self, name: str, total: int = 0) -> None:
         self._phase = name
         self._phase_detail = ""
-        self.write_log(f"▶ {name}", f"bold {_NBA_BLUE}")
+        self.write_log("━" * 40, f"dim {_NBA_BLUE}")
+        self.write_log(f"🏀 {name.upper()}", f"bold {_NBA_BLUE}")
+        self.write_log("━" * 40, f"dim {_NBA_BLUE}")
 
     def update_phase_info(self, info: str) -> None:
         self._phase_detail = info
         self.write_log(f"  {info}", "dim")
+
+    def _celebrate_pattern(self, p: PatternState) -> None:
+        """Log a celebration message when a pattern finishes."""
+        label = p.label
+        if p.failed == 0:
+            self.write_log(f"✓ {label} PERFECT", "bold green")
+        elif p.total > 0 and p.failed / p.total > 0.05:
+            pct = p.failed / p.total * 100
+            self.write_log(f"⚠ {label} {pct:.1f}% turnover rate", _NBA_GOLD)
+        else:
+            self.write_log(f"✓ {label} complete ({p.failed} TO)", "green")
 
     def complete_phase(self) -> None:
         if self._current_pattern and self._current_pattern.status == PatternStatus.RUNNING:
             self._current_pattern.status = PatternStatus.DONE
             self._current_pattern.end_time = time.monotonic()
             self._update_pattern_row(self._current_pattern)
+            self._celebrate_pattern(self._current_pattern)
         phase = self._phase or "Phase"
         self._phase = ""
         self._phase_detail = ""
@@ -606,6 +742,7 @@ class NbaDbDashboard(App):
             self._current_pattern.status = PatternStatus.DONE
             self._current_pattern.end_time = time.monotonic()
             self._update_pattern_row(self._current_pattern)
+            self._celebrate_pattern(self._current_pattern)
 
         state = PatternState(
             label=pattern,
@@ -632,10 +769,11 @@ class NbaDbDashboard(App):
             self._row_keys[pattern] = row_key
         self.write_log(f"🏀 {pattern}: {total:,} tasks", "bold")
 
-    def advance_pattern(self, *, success: bool = True) -> None:
+    def advance_pattern(self, *, success: bool = True, rows: int = 0) -> None:
         if self._current_pattern is None:
             return
         self._current_pattern.completed += 1
+        self._current_pattern.rows_extracted += rows
         if success:
             self._current_pattern.succeeded += 1
         else:
@@ -660,6 +798,49 @@ class NbaDbDashboard(App):
         t = self._current_pattern.total
         if c % max(1, t // 100) == 0 or c == t:
             self._update_pattern_row(self._current_pattern)
+
+    def log_resume_context(self, done: int, failed: int, rows: int) -> None:
+        self._resuming = True
+        if self._scoreboard is not None:
+            self._scoreboard.set_resuming(True)
+        self.write_log(
+            f"🔄 RESUMING: {done:,} done, {failed:,} failed, "
+            f"{fmt_rows(rows)} rows already extracted",
+            "bold green",
+        )
+
+    def update_rate_info(self, current_rate: float, base_rate: float) -> None:
+        self._current_rate = current_rate
+        self._base_rate = base_rate
+
+    def update_circuit_breakers(self, tripped: list[str]) -> None:
+        if tripped and tripped != self._tripped:
+            self.write_log(f"⚡ Circuit breakers open: {', '.join(tripped)}", _NBA_RED)
+        self._tripped = tripped
+
+    def export_summary(self) -> RunSummary:
+        patterns = []
+        for p in self._patterns:
+            dur = (
+                (p.end_time - p.start_time)
+                if p.end_time
+                else (time.monotonic() - p.start_time if p.start_time else 0)
+            )
+            patterns.append({
+                "label": p.label, "total": p.total, "succeeded": p.succeeded,
+                "failed": p.failed, "skipped": p.skipped, "rows": p.rows_extracted,
+                "duration": dur,
+            })
+        ok = sum(p.succeeded for p in self._patterns)
+        fail = sum(p.failed for p in self._patterns)
+        skip = sum(p.skipped for p in self._patterns)
+        rows = sum(p.rows_extracted for p in self._patterns)
+        return RunSummary(
+            mode=self._mode, started_at="", duration_seconds=time.monotonic() - self._start_time,
+            discoveries=dict(self._discoveries), patterns=patterns,
+            totals={"ok": ok, "fail": fail, "skip": skip, "rows": rows},
+            errors=[],
+        )
 
 
 # ── loguru sink ────────────────────────────────────────────
@@ -693,10 +874,10 @@ def run_with_tui(
     run_fn: Callable[..., Awaitable[Any]],
     settings: Any,
     orchestrator_cls: type | None = None,
-) -> tuple[object, Exception | None]:
+) -> tuple[object, Exception | None, object]:
     """Run pipeline inside the Textual TUI.
 
-    Returns (result, error). The TUI app owns the event loop —
+    Returns (result, error, summary). The TUI app owns the event loop —
     the pipeline runs as an async worker inside it.
     """
     from loguru import logger
@@ -721,4 +902,8 @@ def run_with_tui(
     finally:
         logger.remove(sink_id)
 
-    return app.pipeline_result, app.pipeline_error
+    summary = None
+    with contextlib.suppress(Exception):
+        summary = app.export_summary()
+
+    return app.pipeline_result, app.pipeline_error, summary

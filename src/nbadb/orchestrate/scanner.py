@@ -109,6 +109,7 @@ class ScanReport:
     }
 
     _MAX_FINDINGS_PER_CATEGORY: ClassVar[int] = 50
+    _MAX_ANNOTATIONS: ClassVar[int] = 50
 
     def to_markdown(self) -> str:
         """Render report as GitHub-flavored markdown for step summaries."""
@@ -169,13 +170,22 @@ class ScanReport:
         return "\n".join(lines)
 
     def to_github_annotations(self) -> list[str]:
-        """Return ``::error::`` / ``::warning::`` lines for GitHub Actions."""
+        """Return ``::error::``, ``::warning::``, ``::notice::`` lines for GitHub Actions."""
         annotations: list[str] = []
         for f in self.findings:
             if f.severity == "error":
                 annotations.append(f"::error::{f.message}")
             elif f.severity == "warning":
                 annotations.append(f"::warning::{f.message}")
+            elif f.severity == "info":
+                annotations.append(f"::notice::{f.message}")
+        if len(annotations) > self._MAX_ANNOTATIONS:
+            total = len(annotations)
+            annotations = annotations[: self._MAX_ANNOTATIONS]
+            annotations.append(
+                f"::notice::... and {total - self._MAX_ANNOTATIONS} more findings"
+                " (see step summary)"
+            )
         return annotations
 
 

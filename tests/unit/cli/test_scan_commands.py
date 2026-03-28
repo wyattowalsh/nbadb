@@ -148,6 +148,39 @@ class TestFailOn:
 
         assert result.exit_code == 0
 
+    def test_fail_on_independent_of_severity_filter(self, tmp_path: Path) -> None:
+        """--fail-on checks ALL findings, even if --severity hides some."""
+        db_path = tmp_path / "nbadb" / "nba.duckdb"
+        _make_db(db_path)
+        report = _make_report(errors=1, warnings=2, infos=3)
+
+        with (
+            _patch_scanner(report),
+            patch("nbadb.cli.commands.scan._build_settings") as mock_settings,
+        ):
+            mock_settings.return_value.duckdb_path = db_path
+            # --severity info filters out nothing; --fail-on error should still catch errors
+            result = runner.invoke(app, ["scan", "--severity", "info", "--fail-on", "error"])
+
+        assert result.exit_code == 1
+
+    def test_fail_on_catches_hidden_warnings(self, tmp_path: Path) -> None:
+        """--severity error hides warnings, but --fail-on warning still catches them."""
+        db_path = tmp_path / "nbadb" / "nba.duckdb"
+        _make_db(db_path)
+        report = _make_report(warnings=2)
+
+        with (
+            _patch_scanner(report),
+            patch("nbadb.cli.commands.scan._build_settings") as mock_settings,
+        ):
+            mock_settings.return_value.duckdb_path = db_path
+            # --severity error hides warnings from display,
+            # but --fail-on warning should still exit 1
+            result = runner.invoke(app, ["scan", "--severity", "error", "--fail-on", "warning"])
+
+        assert result.exit_code == 1
+
     def test_invalid_fail_on_exits_1(self, tmp_path: Path) -> None:
         db_path = tmp_path / "nbadb" / "nba.duckdb"
         _make_db(db_path)

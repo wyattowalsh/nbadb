@@ -159,32 +159,23 @@ class PipelineJournal:
     def was_extracted_batch(self, items: list[tuple[str, str]]) -> set[tuple[str, str]]:
         """Return the subset of (endpoint, params) pairs already done.
 
-        Fetches all already-completed items in a single query instead
-        of one query per item (avoids the N+1 pattern).
+        Fetches all completed/abandoned/exhausted items from the journal
+        in a single scan, then intersects with the requested set in Python.
         """
         if not items:
             return set()
 
-        # Build parameterized placeholders: ($1, $2), ($3, $4), ...
-        n = len(items)
-        placeholders = ", ".join(f"(${i * 2 + 1}, ${i * 2 + 2})" for i in range(n))
-        retry_param_idx = n * 2 + 1
-        flat_params: list[str] = []
-        for endpoint, params in items:
-            flat_params.append(endpoint)
-            flat_params.append(params)
-        flat_params.append(self.MAX_RETRIES)
-
         rows = self._conn.execute(
-            f"""
+            """
             SELECT endpoint, params
             FROM _extraction_journal
-            WHERE (status IN ('done', 'abandoned') OR retry_count >= ${retry_param_idx})
-              AND (endpoint, params) IN ({placeholders})
+            WHERE status IN ('done', 'abandoned')
+               OR retry_count >= $1
             """,
-            flat_params,
+            [self.MAX_RETRIES],
         ).fetchall()
-        return {(r[0], r[1]) for r in rows}
+        all_done = {(r[0], r[1]) for r in rows}
+        return all_done & set(items)
 
     MAX_RETRIES = 5
 
@@ -237,8 +228,8 @@ class PipelineJournal:
             logger.info("reset {} stale running entries to failed", count)
         return count
 
-    def log_summary(self) -> None:
-        """Log a summary of extraction results at INFO level."""
+    def resume_summary(self) -> dict[str, int]:
+        """Return structured extraction summary for resume context display."""
         row = self._conn.execute(
             """
             SELECT
@@ -250,28 +241,42 @@ class PipelineJournal:
             FROM _extraction_journal
             """
         ).fetchone()
-        done, failed, running, abandoned, total_rows = row
+        return {
+            "done": row[0],
+            "failed": row[1],
+            "running": row[2],
+            "abandoned": row[3],
+            "total_rows": row[4],
+        }
+
+    def error_breakdown(self, limit: int = 10) -> list[tuple[str, int]]:
+        """Return top failure error messages with counts."""
+        rows = self._conn.execute(
+            """
+            SELECT error_message, COUNT(*) AS cnt
+            FROM _extraction_journal
+            WHERE status = 'failed'
+            GROUP BY error_message
+            ORDER BY cnt DESC
+            LIMIT $1
+            """,
+            [limit],
+        ).fetchall()
+        return [(r[0] or "Unknown", r[1]) for r in rows]
+
+    def log_summary(self) -> None:
+        """Log a summary of extraction results at INFO level."""
+        s = self.resume_summary()
         logger.info(
             "extraction journal summary: {} done ({} rows), {} failed, {} abandoned, {} running",
-            done,
-            total_rows,
-            failed,
-            abandoned,
-            running,
+            s["done"],
+            s["total_rows"],
+            s["failed"],
+            s["abandoned"],
+            s["running"],
         )
-        if failed > 0:
-            # Log top failure reasons
-            error_rows = self._conn.execute(
-                """
-                SELECT error_message, COUNT(*) AS cnt
-                FROM _extraction_journal
-                WHERE status = 'failed'
-                GROUP BY error_message
-                ORDER BY cnt DESC
-                LIMIT 10
-                """
-            ).fetchall()
-            for error_msg, cnt in error_rows:
+        if s["failed"] > 0:
+            for error_msg, cnt in self.error_breakdown():
                 logger.info("  failure: {} x{}", error_msg, cnt)
 
     def clear_journal(self) -> None:

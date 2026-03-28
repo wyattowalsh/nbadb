@@ -8,7 +8,7 @@ from nbadb.cli.options import DataDirOption, VerboseOption  # noqa: TC001
 from nbadb.orchestrate import Orchestrator
 
 
-@app.command()
+@app.command(deprecated=True)
 def full(
     data_dir: DataDirOption = None,
     verbose: VerboseOption = False,
@@ -16,11 +16,15 @@ def full(
         False, "--quality-check", help="Run quality checks after pipeline"
     ),
 ) -> None:
-    """Fill gaps and retry failed extractions."""
+    """Fill gaps and retry failed extractions.
+
+    .. deprecated::
+        Use ``nbadb backfill`` instead.
+    """
     settings = _build_settings(data_dir)
     _run_pipeline(
         "full",
-        lambda orch: orch.run_full(),
+        lambda orch: orch.run_retry(),
         settings,
         verbose,
         quality_check,

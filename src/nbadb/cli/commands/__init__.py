@@ -9,6 +9,7 @@ from nbadb.cli.commands import (  # noqa: F401
     extract_completeness,
     full,
     init,
+    lint_sql,
     monthly,
     schema,
     status,

@@ -20,6 +20,7 @@ from nbadb.cli.commands import (  # noqa: E402, F401
     extract_completeness,
     full,
     init,
+    lint_sql,
     metadata,
     migrate,
     monthly,

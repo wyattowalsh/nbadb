@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import duckdb
 import polars as pl
+import pytest
 
 from nbadb.core.config import NbaDbSettings
 from nbadb.load.csv_loader import CSVLoader
@@ -51,6 +52,46 @@ class TestMultiLoader:
         result = conn.execute("SELECT * FROM duck_tbl").fetchall()
         assert len(result) == 1
         conn.close()
+
+
+class TestMultiLoaderErrorHandling:
+    def test_single_loader_failure_raises_runtime_error(self) -> None:
+        """When one loader fails, MultiLoader raises RuntimeError with details."""
+        mock_ok = MagicMock()
+        mock_fail = MagicMock()
+        mock_fail.load.side_effect = ValueError("disk full")
+        loader = MultiLoader([mock_ok, mock_fail])
+        df = pl.DataFrame({"x": [1]})
+        with pytest.raises(RuntimeError, match="1 loader.*failed.*tbl"):
+            loader.load("tbl", df)
+        # The successful loader should still have been called
+        mock_ok.load.assert_called_once()
+
+    def test_multiple_loaders_failure_raises_with_all_names(self) -> None:
+        """When multiple loaders fail, the error message includes all failed names."""
+        mock1 = MagicMock()
+        mock1.load.side_effect = OSError("fail1")
+        mock2 = MagicMock()
+        mock2.load.side_effect = OSError("fail2")
+        loader = MultiLoader([mock1, mock2])
+        df = pl.DataFrame({"x": [1]})
+        with pytest.raises(RuntimeError, match="2 loader.*failed"):
+            loader.load("tbl", df)
+
+
+class TestCreateMultiLoaderSqliteValidation:
+    def test_sqlite_without_path_raises(self, tmp_path: Path) -> None:
+        """When sqlite format is requested but sqlite_path is None, raises ValueError."""
+        settings = NbaDbSettings(
+            data_dir=tmp_path / "data",
+            log_dir=tmp_path / "logs",
+            formats=["sqlite"],
+            sqlite_path=None,
+        )
+        # Force sqlite_path to None after validator sets it
+        settings.sqlite_path = None
+        with pytest.raises(ValueError, match="sqlite_path must be set"):
+            create_multi_loader(settings)
 
 
 class TestCreateMultiLoader:

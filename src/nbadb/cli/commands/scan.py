@@ -149,7 +149,7 @@ def scan(
         else:
             _print_scan_report(report, findings)
 
-        # ── Write JSON report file ──
+        # ── Write JSON report file (always unfiltered by --severity) ──
         if report_path:
             out = Path(report_path)
             out.parent.mkdir(parents=True, exist_ok=True)
@@ -172,10 +172,10 @@ def scan(
             for line in report.to_github_annotations():
                 typer.echo(line)
 
-        # ── Exit code ──
+        # ── Exit code (uses all findings, independent of --severity display filter) ──
         if fail_on:
             threshold = _SEVERITY_ORDER[fail_on]
-            if any(_SEVERITY_ORDER.get(f.severity, 2) <= threshold for f in findings):
+            if any(_SEVERITY_ORDER.get(f.severity, 2) <= threshold for f in report.findings):
                 raise typer.Exit(1)
     finally:
         conn.close()

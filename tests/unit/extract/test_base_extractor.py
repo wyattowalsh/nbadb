@@ -145,3 +145,72 @@ class TestExtractIsAbstract:
     def test_cannot_instantiate_base(self) -> None:
         with pytest.raises(TypeError):
             BaseExtractor()  # type: ignore[abstract]
+
+
+class TestSafeFromPandas:
+    def test_clean_conversion(self) -> None:
+        import pandas as pd
+
+        from nbadb.extract.base import _safe_from_pandas
+
+        pdf = pd.DataFrame({"A": [1, 2, 3], "B": ["x", "y", "z"]})
+        result = _safe_from_pandas(pdf)
+        assert isinstance(result, pl.DataFrame)
+        assert result.shape == (3, 2)
+
+    def test_mixed_type_fallback_numeric(self) -> None:
+        from unittest.mock import patch as _patch
+
+        import pandas as pd
+
+        from nbadb.extract.base import _safe_from_pandas
+
+        # Force the initial pl.from_pandas to fail, triggering the fallback
+        pdf = pd.DataFrame({"A": pd.array([1, 2, 3], dtype=object)})
+        orig_from_pandas = pl.from_pandas
+        call_count = 0
+
+        def _failing_from_pandas(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("simulated Arrow failure")
+            return orig_from_pandas(*args, **kwargs)
+
+        with _patch("nbadb.extract.base.pl.from_pandas", side_effect=_failing_from_pandas):
+            result = _safe_from_pandas(pdf)
+        assert isinstance(result, pl.DataFrame)
+        assert result.shape[0] == 3
+
+    def test_mixed_type_fallback_str(self) -> None:
+        from unittest.mock import patch as _patch
+
+        import pandas as pd
+
+        from nbadb.extract.base import _safe_from_pandas
+
+        # Force Arrow failure, then fallback tries pd.to_numeric which fails on "foo"
+        pdf = pd.DataFrame({"A": pd.array(["foo", None, "bar"], dtype=object)})
+        orig_from_pandas = pl.from_pandas
+        call_count = 0
+
+        def _failing_from_pandas(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("simulated Arrow failure")
+            return orig_from_pandas(*args, **kwargs)
+
+        with _patch("nbadb.extract.base.pl.from_pandas", side_effect=_failing_from_pandas):
+            result = _safe_from_pandas(pdf)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nan_to_null(self) -> None:
+        import numpy as np
+        import pandas as pd
+
+        from nbadb.extract.base import _safe_from_pandas
+
+        pdf = pd.DataFrame({"A": [1.0, np.nan, 3.0]})
+        result = _safe_from_pandas(pdf)
+        assert result["A"].null_count() == 1

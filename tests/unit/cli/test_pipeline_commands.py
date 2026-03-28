@@ -1,16 +1,10 @@
-"""Unit tests for NBA pipeline CLI commands (init, daily, monthly, full, run-quality)."""
+"""Unit tests for NBA pipeline CLI commands (init, daily, monthly, full)."""
 
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import duckdb
 from typer.testing import CliRunner
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 from nbadb.cli.app import app
 from nbadb.orchestrate.orchestrator import PipelineResult
@@ -174,7 +168,7 @@ def test_monthly_data_dir_option() -> None:
 
 def test_full_success() -> None:
     with patch(_FULL_PATH) as mock_cls:
-        mock_cls.return_value.run_full = AsyncMock(return_value=_make_result())
+        mock_cls.return_value.run_retry = AsyncMock(return_value=_make_result())
         result = runner.invoke(app, ["full"])
     assert result.exit_code == 0
     assert "full" in result.output
@@ -182,7 +176,7 @@ def test_full_success() -> None:
 
 def test_full_failure() -> None:
     with patch(_FULL_PATH) as mock_cls:
-        mock_cls.return_value.run_full = AsyncMock(side_effect=RuntimeError("boom"))
+        mock_cls.return_value.run_retry = AsyncMock(side_effect=RuntimeError("boom"))
         result = runner.invoke(app, ["full"])
     assert result.exit_code == 1
     assert "full failed" in result.output
@@ -190,110 +184,8 @@ def test_full_failure() -> None:
 
 def test_full_data_dir_option() -> None:
     with patch(_FULL_PATH) as mock_cls:
-        mock_cls.return_value.run_full = AsyncMock(return_value=_make_result())
+        mock_cls.return_value.run_retry = AsyncMock(return_value=_make_result())
         result = runner.invoke(app, ["full", "--data-dir", "/tmp/testdata"])
     assert result.exit_code == 0
 
 
-# ---------------------------------------------------------------------------
-# run-quality
-# ---------------------------------------------------------------------------
-
-_MONITOR_PATH = "nbadb.transform.quality.DataQualityMonitor"
-_DUCKDB_CONNECT_PATH = "nbadb.cli.commands.run_quality.duckdb"
-
-
-class TestRunQualityCommand:
-    def test_run_quality_invokes_monitor(self, tmp_path: Path) -> None:
-        """DataQualityMonitor is instantiated with the DuckDB connection, exit 0."""
-        db_file = tmp_path / "nba.duckdb"
-        real_conn = duckdb.connect(str(db_file))
-        real_conn.close()
-
-        mock_monitor = MagicMock()
-        mock_monitor.summary.return_value = {"passed": 1, "total": 1, "failed": 0}
-        mock_monitor.failed.return_value = []
-
-        with patch(_MONITOR_PATH, return_value=mock_monitor) as mock_cls:
-            result = runner.invoke(app, ["run-quality", "--data-dir", str(tmp_path)])
-
-        assert result.exit_code == 0, result.output
-        mock_cls.assert_called_once()
-        mock_monitor.log_summary.assert_called_once()
-
-    def test_run_quality_fails_when_no_checks_run(self, tmp_path: Path) -> None:
-        """When no checks are executed, run-quality exits with a non-zero code."""
-        db_file = tmp_path / "nba.duckdb"
-        real_conn = duckdb.connect(str(db_file))
-        real_conn.close()
-
-        mock_monitor = MagicMock()
-        mock_monitor.summary.return_value = {"passed": 0, "total": 0, "failed": 0}
-        mock_monitor.failed.return_value = []
-
-        with patch(_MONITOR_PATH, return_value=mock_monitor):
-            result = runner.invoke(app, ["run-quality", "--data-dir", str(tmp_path)])
-
-        assert result.exit_code == 1
-        assert "no checks were executed" in result.output.lower()
-
-    def test_run_quality_no_database(self, tmp_path: Path) -> None:
-        """When the DuckDB file does not exist, exit 1 with error message."""
-        missing_dir = tmp_path / "nonexistent_xyz"
-        result = runner.invoke(app, ["run-quality", "--data-dir", str(missing_dir)])
-        assert result.exit_code == 1
-        assert "Error" in result.output or "not found" in result.output
-
-    def test_run_quality_handles_monitor_failure(self, tmp_path: Path) -> None:
-        """When DataQualityMonitor raises, error appears in output, exit 1."""
-        db_file = tmp_path / "nba.duckdb"
-        real_conn = duckdb.connect(str(db_file))
-        real_conn.close()
-
-        with patch(_MONITOR_PATH, side_effect=RuntimeError("monitor exploded")):
-            result = runner.invoke(app, ["run-quality", "--data-dir", str(tmp_path)])
-
-        assert result.exit_code == 1
-        assert "Quality check failed" in result.output or "RuntimeError" in result.output
-
-    def test_run_quality_writes_report_json(self, tmp_path: Path) -> None:
-        """When --report-path is set, run-quality writes a JSON report artifact."""
-        db_file = tmp_path / "nba.duckdb"
-        real_conn = duckdb.connect(str(db_file))
-        real_conn.close()
-
-        mock_monitor = MagicMock()
-        mock_monitor.summary.return_value = {"passed": 1, "total": 1, "failed": 0}
-        mock_monitor.failed.return_value = []
-        mock_monitor.to_report.return_value = {
-            "summary": {"passed": 1, "total": 1, "failed": 0},
-            "summary_by_layer": {"structural": {"passed": 1, "total": 1, "failed": 0}},
-            "results": [
-                {
-                    "table": "dim_player",
-                    "check_type": "row_count",
-                    "layer": "structural",
-                    "passed": True,
-                    "message": "dim_player: 1 rows",
-                    "details": None,
-                }
-            ],
-        }
-        report_path = tmp_path / "quality-report.json"
-
-        with patch(_MONITOR_PATH, return_value=mock_monitor):
-            result = runner.invoke(
-                app,
-                [
-                    "run-quality",
-                    "--data-dir",
-                    str(tmp_path),
-                    "--report-path",
-                    str(report_path),
-                ],
-            )
-
-        assert result.exit_code == 0
-        assert report_path.exists()
-        report = json.loads(report_path.read_text(encoding="utf-8"))
-        assert report["summary"]["total"] == 1

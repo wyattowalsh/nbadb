@@ -484,17 +484,18 @@ def _journal_reset(
     if not yes:
         typer.confirm(f"Reset journal entries matching: {desc}?", abort=True)
 
-    total = 0
-    if seasons:
-        for season in seasons:
-            total += journal.reset_entries(
-                endpoint=endpoints, status_filter=status_filter, season_like=season
-            )
-    elif endpoints or status_filter:
-        total += journal.reset_entries(endpoint=endpoints, status_filter=status_filter)
-    else:
+    if not endpoints and not seasons and not status_filter:
         typer.echo("Provide at least one of --endpoint, --seasons, or --status", err=True)
         raise typer.Exit(1)
+
+    total = 0
+    for endpoint in endpoints or [None]:
+        for season in seasons or [None]:
+            total += journal.reset_entries(
+                endpoint=endpoint,
+                status_filter=status_filter,
+                season_like=season,
+            )
 
     typer.echo(f"Reset {total} journal entries.")
 
@@ -517,17 +518,18 @@ def _journal_clear(
             abort=True,
         )
 
-    total = 0
-    if seasons:
-        for season in seasons:
-            total += journal.clear_entries(
-                endpoint=endpoints, status_filter=status_filter, season_like=season
-            )
-    elif endpoints or status_filter:
-        total += journal.clear_entries(endpoint=endpoints, status_filter=status_filter)
-    else:
+    if not endpoints and not seasons and not status_filter:
         typer.echo("Provide at least one of --endpoint, --seasons, or --status", err=True)
         raise typer.Exit(1)
+
+    total = 0
+    for endpoint in endpoints or [None]:
+        for season in seasons or [None]:
+            total += journal.clear_entries(
+                endpoint=endpoint,
+                status_filter=status_filter,
+                season_like=season,
+            )
 
     typer.echo(f"Cleared {total} journal entries.")
 

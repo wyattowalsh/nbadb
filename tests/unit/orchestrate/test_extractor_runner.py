@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import polars as pl
 import pytest
 
 from nbadb.orchestrate.extractor_runner import ExtractorRunner, _AdaptiveThrottle, _assign_proxy
+from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
 from nbadb.orchestrate.staging_map import StagingEntry
 
 # ---------------------------------------------------------------------------
@@ -526,14 +527,14 @@ class TestSyncExtractAll:
 class TestIsRetryable:
     @pytest.mark.parametrize(
         "exc_type",
-        [ConnectionError, ConnectionResetError, TypeError, KeyError],
+        [ConnectionError, ConnectionResetError, KeyError],
     )
     def test_retryable_exceptions(self, exc_type):
         assert ExtractorRunner._is_retryable(exc_type("msg")) is True
 
     @pytest.mark.parametrize(
         "exc_type",
-        [ValueError, IndexError],
+        [ValueError, IndexError, TypeError],
     )
     def test_non_retryable_exceptions(self, exc_type):
         assert ExtractorRunner._is_retryable(exc_type("msg")) is False
@@ -577,24 +578,24 @@ class TestCollectResults:
         ExtractorRunner._collect_results([{"k": pl.DataFrame()}], accum, None)
         assert accum["k"] == []
 
-    def test_progress_called_on_exception(self):
+    def test_progress_not_called_on_exception(self):
         accum = {"k": []}
         progress = MagicMock()
         ExtractorRunner._collect_results([RuntimeError("boom")], accum, progress)
-        progress.advance_pattern.assert_called_once_with(success=False)
+        progress.advance_pattern.assert_not_called()
 
     def test_progress_called_on_success(self):
         df = pl.DataFrame({"a": [1]})
         accum = {"k": []}
         progress = MagicMock()
         ExtractorRunner._collect_results([{"k": df}], accum, progress)
-        progress.advance_pattern.assert_called_once_with(success=True)
+        progress.advance_pattern.assert_called_once_with(success=True, rows=1)
 
-    def test_progress_called_on_unexpected_type(self):
+    def test_progress_not_called_on_unexpected_type(self):
         accum = {"k": []}
         progress = MagicMock()
         ExtractorRunner._collect_results(["bad"], accum, progress)
-        progress.advance_pattern.assert_called_once_with(success=False)
+        progress.advance_pattern.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -623,3 +624,189 @@ class TestConcatAccum:
         df2 = pl.DataFrame({"a": [3], "c": [4]})
         result = ExtractorRunner._concat_accum({"k": [df1, df2]})
         assert set(result["k"].columns) == {"a", "b", "c"}
+
+
+# ---------------------------------------------------------------------------
+# _CircuitBreaker unit tests (HR-T-001)
+# ---------------------------------------------------------------------------
+
+
+class TestCircuitBreaker:
+    def test_trips_after_threshold(self):
+        cb = _CircuitBreaker(threshold=3, recovery_seconds=60.0)
+        cb.record_failure("ep1")
+        cb.record_failure("ep1")
+        assert cb.is_open("ep1") is False  # 2 < threshold
+        cb.record_failure("ep1")
+        assert cb.is_open("ep1") is True  # 3 >= threshold
+
+    def test_recovery_allows_probe(self):
+        cb = _CircuitBreaker(threshold=2, recovery_seconds=1.0)
+        cb.record_failure("ep1")
+        cb.record_failure("ep1")
+        assert cb.is_open("ep1") is True
+
+        # Simulate recovery window elapsed
+        with patch("nbadb.orchestrate.resilience.time") as mock_time:
+            # First call to is_open reads monotonic for the trip
+            # After recovery, monotonic should show elapsed time
+            mock_time.monotonic.return_value = 999999.0
+            assert cb.is_open("ep1") is False  # half-open: probe allowed
+
+    def test_half_open_blocks_second_probe(self):
+        cb = _CircuitBreaker(threshold=2, recovery_seconds=1.0)
+        cb.record_failure("ep1")
+        cb.record_failure("ep1")
+
+        with patch("nbadb.orchestrate.resilience.time") as mock_time:
+            mock_time.monotonic.return_value = 999999.0
+            # First probe allowed
+            assert cb.is_open("ep1") is False
+            # Second probe blocked (first still in flight)
+            assert cb.is_open("ep1") is True
+
+    def test_record_success_clears_probe(self):
+        cb = _CircuitBreaker(threshold=2, recovery_seconds=1.0)
+        cb.record_failure("ep1")
+        cb.record_failure("ep1")
+
+        with patch("nbadb.orchestrate.resilience.time") as mock_time:
+            mock_time.monotonic.return_value = 999999.0
+            cb.is_open("ep1")  # transition to half-open, adds to probing set
+
+        cb.record_success("ep1")
+        assert "ep1" not in cb._half_open_probing
+        assert cb.is_open("ep1") is False  # fully closed
+
+    def test_record_failure_retrips(self):
+        cb = _CircuitBreaker(threshold=2, recovery_seconds=1.0)
+        cb.record_failure("ep1")
+        cb.record_failure("ep1")
+
+        with patch("nbadb.orchestrate.resilience.time") as mock_time:
+            mock_time.monotonic.return_value = 999999.0
+            cb.is_open("ep1")  # half-open probe
+
+        # Probe fails → re-trip
+        cb.record_failure("ep1")
+        assert "ep1" not in cb._half_open_probing
+        assert cb.is_open("ep1") is True  # re-tripped
+
+
+# ---------------------------------------------------------------------------
+# deprecated_after enforcement (HR-T-003)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildChunkTasksDeprecated:
+    def test_deprecated_entry_is_skipped(self):
+        import asyncio
+
+        settings = _make_settings()
+        journal = _make_journal()
+        registry = MagicMock()
+        runner = ExtractorRunner(
+            registry=registry,
+            settings=settings,
+            journal=journal,
+            rate_limit=10.0,
+        )
+
+        deprecated_entry = StagingEntry(
+            "old_ep", "stg_old", "season", deprecated_after="2020-01-01"
+        )
+        active_entry = StagingEntry("new_ep", "stg_new", "season")
+
+        async def _run():
+            return runner._build_chunk_tasks(
+                single_entries=[deprecated_entry, active_entry],
+                multi_by_ep={},
+                chunk=[{"season": "2024-25"}],
+                already_done=set(),
+                on_progress=None,
+            )
+
+        tasks = asyncio.run(_run())
+
+        # Only the active entry should produce a task
+        assert len(tasks) == 1
+        assert runner.skipped >= 1
+
+    def test_non_deprecated_entry_proceeds(self):
+        import asyncio
+
+        settings = _make_settings()
+        journal = _make_journal()
+        registry = MagicMock()
+        runner = ExtractorRunner(
+            registry=registry,
+            settings=settings,
+            journal=journal,
+            rate_limit=10.0,
+        )
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+
+        async def _run():
+            return runner._build_chunk_tasks(
+                single_entries=[entry],
+                multi_by_ep={},
+                chunk=[{"season": "2024-25"}],
+                already_done=set(),
+                on_progress=None,
+            )
+
+        tasks = asyncio.run(_run())
+        assert len(tasks) == 1
+        assert runner.skipped == 0
+
+
+# ---------------------------------------------------------------------------
+# _LatencyTracker tests
+# ---------------------------------------------------------------------------
+
+
+class TestLatencyTracker:
+    def test_record_and_percentile(self):
+        lt = _LatencyTracker(window_size=10)
+        for i in range(1, 11):
+            lt.record("ep1", float(i))
+        p50 = lt.percentile("ep1", 50)
+        assert p50 is not None
+        assert 4.0 <= p50 <= 6.0
+
+    def test_percentile_empty_returns_none(self):
+        lt = _LatencyTracker()
+        assert lt.percentile("missing", 50) is None
+
+    def test_summary(self):
+        lt = _LatencyTracker(window_size=100)
+        for i in range(1, 51):
+            lt.record("ep1", float(i))
+        s = lt.summary("ep1")
+        assert s is not None
+        assert "p50" in s
+        assert "p95" in s
+        assert "p99" in s
+        assert s["count"] == 50.0
+
+    def test_summary_missing_returns_none(self):
+        lt = _LatencyTracker()
+        assert lt.summary("missing") is None
+
+    def test_all_summaries(self):
+        lt = _LatencyTracker()
+        lt.record("ep1", 1.0)
+        lt.record("ep2", 2.0)
+        sums = lt.all_summaries()
+        assert "ep1" in sums
+        assert "ep2" in sums
+
+    def test_deque_window_eviction(self):
+        lt = _LatencyTracker(window_size=3)
+        for v in [1.0, 2.0, 3.0, 4.0, 5.0]:
+            lt.record("ep1", v)
+        # Window of 3 → only last 3 values (3.0, 4.0, 5.0)
+        assert lt.summary("ep1")["count"] == 3.0
+        p50 = lt.percentile("ep1", 50)
+        assert p50 == 4.0

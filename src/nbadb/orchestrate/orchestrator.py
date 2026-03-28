@@ -30,6 +30,8 @@ from nbadb.orchestrate.transformers import (
 from nbadb.transform.pipeline import TransformPipeline
 
 if TYPE_CHECKING:
+    from concurrent.futures import ThreadPoolExecutor
+
     import polars as pl
 
 
@@ -59,16 +61,24 @@ class _ProgressReporter(Protocol):
 
     def start_pattern(self, pattern: str, total: int) -> None: ...
 
-    def advance_pattern(self, *, success: bool = True) -> None: ...
+    def advance_pattern(self, *, success: bool = True, rows: int = 0) -> None: ...
 
     def record_skip(self, n: int = 1) -> None: ...
+
+    def log_resume_context(self, done: int, failed: int, rows: int) -> None: ...
+
+    def update_rate_info(self, current_rate: float, base_rate: float) -> None: ...
+
+    def update_circuit_breakers(self, tripped: list[str]) -> None: ...
+
+    def export_summary(self) -> object: ...
 
 
 class Orchestrator:
     """Main orchestration engine.
 
     Coordinates extraction, transformation, and loading across
-    all pipeline run modes (init, daily, monthly, full).
+    all pipeline run modes (init, daily, monthly, retry).
 
     Resume logic is handled automatically via the extraction
     journal -- each call checks ``journal.was_extracted()``
@@ -120,13 +130,17 @@ class Orchestrator:
             journal=journal,
             proxy_pool=self._proxy_pool,
             rate_limit=self._settings.rate_limit,
+            progress=self._progress,
         )
 
-    def _build_discovery(self) -> EntityDiscovery:
+    def _build_discovery(
+        self, thread_pool: ThreadPoolExecutor | None = None
+    ) -> EntityDiscovery:
         """Create an EntityDiscovery wired to the global registry."""
         return EntityDiscovery(
             _global_registry,
             proxy_pool=self._proxy_pool,
+            thread_pool=thread_pool,
         )
 
     def _build_result(
@@ -165,6 +179,8 @@ class Orchestrator:
         The transform pipeline connection is always cleaned up via
         try/finally to prevent DuckDB connection leaks (QUAL-010).
         """
+        pp = self._progress
+
         # Build staging dict (LazyFrames)
         staging: dict[str, pl.LazyFrame] = {key: df.lazy() for key, df in raw.items()}
 
@@ -172,8 +188,13 @@ class Orchestrator:
         transformers = discover_all_transformers()
         pipeline = TransformPipeline(db.duckdb)
         pipeline.register_all(transformers)
+        n_transformers = len(transformers)
+        if pp is not None:
+            pp.start_pattern(f"Transform ({n_transformers})", total=n_transformers)
         try:
-            outputs = pipeline.run(staging, validate_input_schemas=True)
+            outputs = pipeline.run(
+                staging, validate_input_schemas=True, on_progress=pp,
+            )
         finally:
             # TransformPipeline.run() resets _conn in its own finally,
             # but we guard here as well for safety.
@@ -184,6 +205,9 @@ class Orchestrator:
         tables_updated = 0
         rows_total = 0
         failed_loads = 0
+        non_empty = {t: df for t, df in outputs.items() if not df.is_empty()}
+        if pp is not None:
+            pp.start_pattern(f"Load ({len(non_empty)})", total=len(non_empty))
 
         for table, df in outputs.items():
             if df.is_empty():
@@ -194,9 +218,13 @@ class Orchestrator:
                 rows = df.shape[0]
                 tables_updated += 1
                 rows_total += rows
+                if pp is not None:
+                    pp.advance_pattern(success=True, rows=rows)
             except Exception as exc:
                 failed_loads += 1
                 logger.error("load failed for {}: {}", table, type(exc).__name__)
+                if pp is not None:
+                    pp.advance_pattern(success=False)
                 continue  # skip watermark if load failed
 
             try:
@@ -409,13 +437,16 @@ class Orchestrator:
 
         db, journal = self._init_db()
         async with self._build_runner(journal) as runner:
+            pp = self._progress
             if journal.has_done_entries():
                 bound_log.info("init resume: prior completed entries found, will skip those")
+                if pp is not None:
+                    s = journal.resume_summary()
+                    pp.log_resume_context(s["done"], s["failed"], s["total_rows"])
 
             # -- 1. Entity discovery (parallel) --------------------
-            pp = self._progress
             seasons = season_range(start_season, end_season)
-            discovery = self._build_discovery()
+            discovery = self._build_discovery(thread_pool=runner._thread_pool)
 
             bound_log.info(
                 "init: discovering entities for {} seasons × {} season_types",
@@ -516,7 +547,7 @@ class Orchestrator:
 
         db, journal = self._init_db()
         async with self._build_runner(journal) as runner:
-            discovery = self._build_discovery()
+            discovery = self._build_discovery(thread_pool=runner._thread_pool)
 
             season = current_season()
             bound_log.info("daily: season={}", season)
@@ -616,7 +647,7 @@ class Orchestrator:
 
         db, journal = self._init_db()
         async with self._build_runner(journal) as runner:
-            discovery = self._build_discovery()
+            discovery = self._build_discovery(thread_pool=runner._thread_pool)
 
             seasons = recent_seasons(3)
             bound_log.info("monthly: seasons={}", seasons)
@@ -667,25 +698,28 @@ class Orchestrator:
         )
         return result
 
-    async def run_full(self) -> PipelineResult:
-        """Fill gaps and retry all failed extractions.
+    async def run_retry(self) -> PipelineResult:
+        """Retries previously failed extractions.
+
+        Does NOT discover new entities or fill gaps from newly played
+        games.  Use ``run_init`` for comprehensive coverage.
 
         1. Read journal for failed/incomplete extractions
         2. Retry those extractions
         3. Check watermarks for missing seasons
         4. Transform + load
         """
-        bound_log = logger.bind(run_mode="full")
+        bound_log = logger.bind(run_mode="retry")
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
         async with self._build_runner(journal) as runner:
-            discovery = self._build_discovery()
+            discovery = self._build_discovery(thread_pool=runner._thread_pool)
 
             # -- 1. Retry failed extractions ------------------------
             failed = journal.get_failed()
             bound_log.info(
-                "full: {} failed extractions to retry",
+                "retry: {} failed extractions to retry",
                 len(failed),
             )
 
@@ -698,7 +732,7 @@ class Orchestrator:
                     quarantine_error = f"invalid_params_json:{type(exc).__name__}"
                     journal.record_failure(endpoint, params_json, quarantine_error)
                     bound_log.warning(
-                        "full: skipping malformed failed params_json for {}: {} ({})",
+                        "retry: skipping malformed failed params_json for {}: {} ({})",
                         endpoint,
                         params_json,
                         quarantine_error,
@@ -708,7 +742,7 @@ class Orchestrator:
                     quarantine_error = f"invalid_params_json:{type(params).__name__}"
                     journal.record_failure(endpoint, params_json, quarantine_error)
                     bound_log.warning(
-                        "full: skipping non-object failed params_json for {}: {} ({})",
+                        "retry: skipping non-object failed params_json for {}: {} ({})",
                         endpoint,
                         params_json,
                         quarantine_error,
@@ -781,7 +815,7 @@ class Orchestrator:
             runner.log_latency_summary()
 
         bound_log.info(
-            "full complete: {} tables, {} rows, {:.1f}s, {} remaining failures",
+            "retry complete: {} tables, {} rows, {:.1f}s, {} remaining failures",
             result.tables_updated,
             result.rows_total,
             result.duration_seconds,
@@ -858,7 +892,7 @@ class Orchestrator:
 
         # ── extraction path ──
         async with self._build_runner(journal) as runner:
-            discovery = self._build_discovery()
+            discovery = self._build_discovery(thread_pool=runner._thread_pool)
             effective_seasons = seasons if seasons is not None else season_range()
 
             bound_log.info(

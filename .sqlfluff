@@ -1,0 +1,17 @@
+[sqlfluff]
+dialect = duckdb
+templater = raw
+max_line_length = 120
+
+# Rules tuned for SQL-in-Python ClassVar strings.
+# Disable formatting-only rules that conflict with inline SQL readability.
+exclude_rules = LT12, LT09
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.functions]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.types]
+capitalisation_policy = upper

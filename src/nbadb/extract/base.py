@@ -5,6 +5,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
+import pandas as pd
 import polars as pl
 from loguru import logger
 
@@ -51,23 +52,34 @@ def _safe_from_pandas(pdf: Any) -> pl.DataFrame:
 
     nba_api responses sometimes contain columns with mixed types (e.g.,
     int and None/str) that crash Arrow conversion. Falls back to coercing
-    object-dtype columns to str.
+    object-dtype columns to str, but logs which columns were affected.
     """
     try:
-        return pl.from_pandas(pdf, include_index=False)
+        return pl.from_pandas(pdf, nan_to_null=True, include_index=False)
     except Exception:
+        coerced: list[str] = []
         for col in pdf.columns:
             if pdf[col].dtype == object:
-                pdf[col] = pdf[col].astype(str)
-        return pl.from_pandas(pdf, include_index=False)
+                try:
+                    pdf[col] = pd.to_numeric(pdf[col], errors="coerce")
+                    coerced.append(col)
+                except (ValueError, TypeError):
+                    pdf[col] = pdf[col].astype(str)
+                    coerced.append(col)
+        if coerced:
+            logger.warning(
+                "mixed-type columns coerced during Arrow fallback: {}",
+                ", ".join(coerced),
+            )
+        return pl.from_pandas(pdf, nan_to_null=True, include_index=False)
 
 
 class BaseExtractor(ABC):
     endpoint_name: ClassVar[str]
     category: ClassVar[str] = "default"
 
-    # Set by ExtractorRunner / EntityDiscovery before calling extract()
-    _proxy_url: str | None = None
+    def __init__(self) -> None:
+        self._proxy_url: str | None = None
 
     @abstractmethod
     async def extract(self, **params: Any) -> pl.DataFrame: ...
@@ -91,30 +103,12 @@ class BaseExtractor(ABC):
             kwargs.setdefault("proxy", self._proxy_url)
             kwargs.setdefault("timeout", 60)
 
-    def _from_nba_api(self, endpoint_cls: type, **kwargs: Any) -> pl.DataFrame:
-        """Call nba_api endpoint and convert to Polars DataFrame.
+    def _call_nba_api(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
+        """Call nba_api endpoint and return all result sets as Polars DataFrames.
 
-        nba_api returns pandas DataFrames with UPPERCASE columns.
-        We lowercase all column names at this boundary and inject a
-        ``season_type`` column when the endpoint was queried with one.
-        """
-        season_type = _extract_season_type(kwargs)
-        self._inject_proxy(kwargs)
-        result = endpoint_cls(**kwargs)
-        dfs = result.get_data_frames()
-        if not dfs:
-            logger.warning(f"{self.endpoint_name}: no data frames returned")
-            return pl.DataFrame()
-        df = _safe_from_pandas(dfs[0])
-        df = df.rename({c: _to_snake_case(c) for c in df.columns})
-        if season_type and "season_type" not in df.columns:
-            df = df.with_columns(pl.lit(season_type).alias("season_type"))
-        return df
-
-    def _from_nba_api_multi(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
-        """Call nba_api endpoint returning multiple result sets.
-
-        Injects ``season_type`` column into each result set when applicable.
+        Handles proxy injection, column snake_case normalization, and
+        ``season_type`` column injection.  Shared by both single and
+        multi-result helpers.
         """
         season_type = _extract_season_type(kwargs)
         self._inject_proxy(kwargs)
@@ -128,6 +122,26 @@ class BaseExtractor(ABC):
                 df = df.with_columns(pl.lit(season_type).alias("season_type"))
             converted.append(df)
         return converted
+
+    def _from_nba_api(self, endpoint_cls: type, **kwargs: Any) -> pl.DataFrame:
+        """Call nba_api endpoint and convert to Polars DataFrame.
+
+        nba_api returns pandas DataFrames with UPPERCASE columns.
+        We lowercase all column names at this boundary and inject a
+        ``season_type`` column when the endpoint was queried with one.
+        """
+        converted = self._call_nba_api(endpoint_cls, **kwargs)
+        if not converted:
+            logger.warning(f"{self.endpoint_name}: no data frames returned")
+            return pl.DataFrame()
+        return converted[0]
+
+    def _from_nba_api_multi(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
+        """Call nba_api endpoint returning multiple result sets.
+
+        Injects ``season_type`` column into each result set when applicable.
+        """
+        return self._call_nba_api(endpoint_cls, **kwargs)
 
     @staticmethod
     def _live_payload_to_frame(payload: Any) -> pl.DataFrame:

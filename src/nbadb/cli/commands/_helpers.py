@@ -1,18 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import signal
 import sys
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 import typer
+from loguru import logger
+
+from nbadb.cli._progress_common import fmt_rows, fmt_time
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-    from pathlib import Path
+    from collections.abc import Callable, Coroutine, Mapping
 
     import duckdb as _duckdb_type
 
+    from nbadb.cli._progress_common import RunSummary
     from nbadb.core.config import NbaDbSettings
     from nbadb.orchestrate import PipelineResult
 
@@ -24,12 +30,14 @@ def _build_settings(
     """Build NbaDbSettings, overriding data_dir and formats if provided."""
     from nbadb.core.config import NbaDbSettings
 
-    kwargs: dict[str, object] = {}
-    if data_dir:
-        kwargs["data_dir"] = data_dir
-    if formats:
-        kwargs["formats"] = formats
-    return NbaDbSettings(**kwargs)
+    resolved_data_dir = Path(data_dir) if isinstance(data_dir, str) else data_dir
+    if resolved_data_dir is None:
+        if formats is None:
+            return NbaDbSettings()
+        return NbaDbSettings(formats=formats)
+    if formats is None:
+        return NbaDbSettings(data_dir=resolved_data_dir)
+    return NbaDbSettings(data_dir=resolved_data_dir, formats=formats)
 
 
 def _setup_logging(verbose: bool, *, tui: bool = False) -> None:
@@ -49,13 +57,96 @@ def _setup_logging(verbose: bool, *, tui: bool = False) -> None:
         logger.add(sys.stderr, level="WARNING")
 
 
-def _print_result(mode: str, result: PipelineResult) -> None:
+def _coerce_int(value: object) -> int:
+    """Convert loose summary values to integers for display."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _coerce_float(value: object) -> float:
+    """Convert loose summary values to floats for display."""
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
+def _summary_metric(values: Mapping[str, object], *keys: str) -> int:
+    """Read the first present numeric metric from a summary mapping."""
+    for key in keys:
+        if key in values:
+            return _coerce_int(values[key])
+    return 0
+
+
+def _summary_label(values: Mapping[str, object]) -> str:
+    """Read a human-friendly label from a summary mapping."""
+    label = values.get("label", "")
+    return label if isinstance(label, str) else str(label)
+
+
+def _pattern_duration(values: Mapping[str, object]) -> float:
+    """Read a pattern duration in seconds from a summary mapping."""
+    return _coerce_float(values.get("duration", 0.0))
+
+
+def _print_result(
+    mode: str,
+    result: PipelineResult,
+    summary: RunSummary | None = None,
+    settings: NbaDbSettings | None = None,
+) -> None:
     """Display a human-readable summary of a pipeline run."""
+    duration = fmt_time(result.duration_seconds)
     typer.echo(
-        f"{mode}: {result.tables_updated} tables, "
-        f"{result.rows_total:,} rows, "
-        f"{result.duration_seconds:.1f}s"
+        f"\n🏀 {mode} complete in {duration}\n"
+        f"  {result.tables_updated} tables | {result.rows_total:,} rows"
     )
+
+    # Extraction stats from summary
+    if summary and summary.totals:
+        ok = _summary_metric(summary.totals, "ok", "succeeded")
+        fail = _summary_metric(summary.totals, "fail", "failed")
+        skip = _summary_metric(summary.totals, "skip", "skipped")
+        total = ok + fail + skip
+        if total > 0:
+            fg_pct = ok / total * 100
+            typer.echo(
+                f"  {total:,} extractions: {ok:,} ok, {fail:,} failed, "
+                f"{skip:,} skipped (FG% {fg_pct:.1f})"
+            )
+
+        # Top 3 slowest patterns
+        if summary.patterns:
+            sorted_patterns = sorted(
+                summary.patterns,
+                key=_pattern_duration,
+                reverse=True,
+            )
+            top3 = [pattern for pattern in sorted_patterns if _pattern_duration(pattern) > 0][:3]
+            if top3:
+                parts = [
+                    f"{_summary_label(pattern)} ({fmt_time(_pattern_duration(pattern))})"
+                    for pattern in top3
+                ]
+                typer.echo(f"  Top 3 slowest: {', '.join(parts)}")
+
     if result.failed_extractions:
         typer.echo(
             f"  {result.failed_extractions} extractions failed",
@@ -66,8 +157,100 @@ def _print_result(mode: str, result: PipelineResult) -> None:
             f"  {result.failed_loads} loads failed",
             err=True,
         )
-    for e in result.errors:
+    for e in result.errors[:10]:
         typer.echo(f"  ERROR: {e}", err=True)
+    if len(result.errors) > 10:
+        typer.echo(f"  ... and {len(result.errors) - 10} more errors", err=True)
+
+    # Write JSON summary
+    if summary and settings:
+        try:
+            summary_path = settings.data_dir / "run_summary.json"
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            import dataclasses
+
+            summary_path.write_text(
+                json.dumps(dataclasses.asdict(summary), indent=2, default=str),
+                encoding="utf-8",
+            )
+            typer.echo(f"  Summary: {summary_path}")
+        except Exception as exc:
+            logger.debug("Failed to write run summary JSON: {}", exc)
+
+    # Write GH Step Summary
+    _write_gh_step_summary(mode, result, summary)
+
+
+def _write_gh_step_summary(
+    mode: str,
+    result: PipelineResult,
+    summary: RunSummary | None,
+) -> None:
+    """Write markdown extraction summary to $GITHUB_STEP_SUMMARY if available."""
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+
+    from datetime import datetime
+
+    lines: list[str] = []
+    lines.append(f"## 🏀 {mode.title()} Extraction — {datetime.now().strftime('%Y-%m-%d')}")
+    lines.append("")
+
+    duration = fmt_time(result.duration_seconds)
+    lines.append(
+        f"**{result.tables_updated} tables** | **{result.rows_total:,} rows** | **{duration}**"
+    )
+    lines.append("")
+
+    if summary and summary.patterns:
+        lines.append("| Pattern | Total | OK | Fail | Skip | Rows | Time | FG% |")
+        lines.append("|---------|------:|---:|-----:|-----:|-----:|------|----:|")
+        for pattern in summary.patterns:
+            total = _summary_metric(pattern, "total")
+            ok = _summary_metric(pattern, "ok", "succeeded")
+            fail = _summary_metric(pattern, "fail", "failed")
+            skip = _summary_metric(pattern, "skip", "skipped")
+            rows = _summary_metric(pattern, "rows", "rows_extracted")
+            dur = fmt_time(_pattern_duration(pattern))
+            fg = f"{ok / total * 100:.1f}%" if total > 0 else "-"
+            lines.append(
+                f"| {_summary_label(pattern)} | {total:,} | {ok:,} | {fail:,} | {skip:,} "
+                f"| {fmt_rows(rows)} | {dur} | {fg} |"
+            )
+
+        # Totals row
+        t = summary.totals
+        total_ok = _summary_metric(t, "ok", "succeeded")
+        total_fail = _summary_metric(t, "fail", "failed")
+        total_skip = _summary_metric(t, "skip", "skipped")
+        total_rows = _summary_metric(t, "rows", "rows_extracted")
+        total_all = total_ok + total_fail + total_skip
+        fg_all = f"{total_ok / total_all * 100:.1f}%" if total_all > 0 else "-"
+        lines.append(
+            f"| **Total** | **{total_all:,}** | **{total_ok:,}** | "
+            f"**{total_fail:,}** | **{total_skip:,}** | "
+            f"**{fmt_rows(total_rows)}** | **{duration}** | **{fg_all}** |"
+        )
+        lines.append("")
+
+    if result.errors:
+        lines.append(f"<details><summary>Errors ({len(result.errors)})</summary>")
+        lines.append("")
+        for e in result.errors[:20]:
+            lines.append(f"- `{e}`")
+        if len(result.errors) > 20:
+            lines.append(f"- ... and {len(result.errors) - 20} more")
+        lines.append("")
+        lines.append("</details>")
+        lines.append("")
+
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
+            fh.write("\n")
+    except Exception as exc:
+        logger.debug("Failed to write GitHub step summary: {}", exc)
 
 
 def _run_quality_checks(settings: NbaDbSettings) -> None:
@@ -79,7 +262,7 @@ def _run_quality_checks(settings: NbaDbSettings) -> None:
     import duckdb
 
     duckdb_path = settings.duckdb_path
-    if not duckdb_path.exists():
+    if duckdb_path is None or not duckdb_path.exists():
         typer.echo("  Quality check skipped: database not found", err=True)
         return
 
@@ -114,7 +297,7 @@ def _open_db_readonly(db_path: Path) -> _duckdb_type.DuckDBPyConnection:
 
 def _run_pipeline(
     mode: str,
-    run_fn: Callable[[object], object],
+    run_fn: Callable[[object], Coroutine[Any, Any, Any]],
     settings: NbaDbSettings,
     verbose: bool,
     quality_check: bool = False,
@@ -139,19 +322,23 @@ def _run_pipeline(
 
     # Use interactive Textual TUI when stdout is a terminal and not verbose
     use_tui = sys.stdout.isatty() and not verbose
+    progress = None
+    summary: RunSummary | None = None
 
     if use_tui:
         from nbadb.cli.tui import run_with_tui
 
-        result, error = run_with_tui(mode, run_fn, settings, orchestrator_cls)
+        result_obj, error, summary_obj = run_with_tui(mode, run_fn, settings, orchestrator_cls)
+        summary = cast("Any", summary_obj)
         if error is not None:
             typer.echo(f"{mode} failed: {type(error).__name__}", err=True)
             raise typer.Exit(1)
-        if result is None:
+        if result_obj is None:
             typer.echo(f"{mode}: stopped — progress saved in journal (resume-safe)", err=True)
             raise typer.Exit(0)
+        result = cast("Any", result_obj)
     else:
-        from nbadb.cli.progress import NoopProgress
+        from nbadb.cli.progress import CIProgress
 
         _setup_logging(verbose)
 
@@ -177,12 +364,12 @@ def _run_pipeline(
         prev_sigint = signal.signal(signal.SIGINT, _handle_signal)
         prev_sigterm = signal.signal(signal.SIGTERM, _handle_signal)
 
-        progress = NoopProgress()
+        progress = CIProgress(mode)
         try:
             with progress:
                 orch = orchestrator_cls(settings=settings, progress=progress)
                 try:
-                    result = asyncio.run(run_fn(orch))  # type: ignore[arg-type]
+                    result = asyncio.run(run_fn(orch))
                 except (asyncio.CancelledError, KeyboardInterrupt):
                     typer.echo(
                         f"\n{mode}: stopped — progress saved in journal (resume-safe)", err=True
@@ -195,8 +382,16 @@ def _run_pipeline(
             signal.signal(signal.SIGINT, prev_sigint)
             signal.signal(signal.SIGTERM, prev_sigterm)
 
-    _print_result(mode, result)  # type: ignore[arg-type]
-    if result.failed_extractions and result.tables_updated == 0 and result.rows_total == 0:  # type: ignore[union-attr]
+        # Export summary from progress tracker
+        summary = None
+        if progress is not None:
+            try:
+                summary = progress.export_summary()
+            except Exception as exc:
+                logger.debug("Failed to export progress summary: {}", exc)
+
+    _print_result(mode, result, summary=summary, settings=settings)
+    if result.failed_extractions and result.tables_updated == 0 and result.rows_total == 0:
         raise typer.Exit(1)  # Complete failure — nothing extracted
     # Partial failure — data was extracted, continue with warnings already printed
     if quality_check:

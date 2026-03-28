@@ -631,7 +631,7 @@ class TestToMarkdown:
 
 
 class TestToGithubAnnotations:
-    def test_errors_and_warnings(self):
+    def test_errors_warnings_and_notices(self):
         report = ScanReport(
             findings=[
                 ScanFinding(
@@ -658,10 +658,30 @@ class TestToGithubAnnotations:
             ]
         )
         annotations = report.to_github_annotations()
-        assert len(annotations) == 2
+        assert len(annotations) == 3
         assert annotations[0] == "::error::err msg"
         assert annotations[1] == "::warning::warn msg"
+        assert annotations[2] == "::notice::info msg"
 
     def test_empty_report_no_annotations(self):
         report = ScanReport()
         assert report.to_github_annotations() == []
+
+    def test_annotations_capped_at_max(self):
+        """More than _MAX_ANNOTATIONS findings are truncated with a summary notice."""
+        findings = [
+            ScanFinding(
+                category="data_quality",
+                severity="warning",
+                table=f"t_{i}",
+                check="c",
+                message=f"msg {i}",
+            )
+            for i in range(80)
+        ]
+        report = ScanReport(findings=findings)
+        annotations = report.to_github_annotations()
+        # 50 kept + 1 summary notice = 51
+        assert len(annotations) == 51
+        assert "30 more findings" in annotations[-1]
+        assert "::notice::" in annotations[-1]

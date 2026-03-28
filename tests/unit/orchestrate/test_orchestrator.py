@@ -479,7 +479,7 @@ class TestRunDaily:
 
 
 # ---------------------------------------------------------------------------
-# run_full tests
+# run_retry tests
 # ---------------------------------------------------------------------------
 
 
@@ -546,7 +546,7 @@ class TestRunMonthly:
 
 
 # ---------------------------------------------------------------------------
-# run_full tests
+# run_retry tests
 # ---------------------------------------------------------------------------
 
 
@@ -578,7 +578,7 @@ class TestRunFull:
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_transform_and_load", return_value=(0, 0, 0)),
         ):
-            result = asyncio.run(orch.run_full())
+            result = asyncio.run(orch.run_retry())
 
         assert isinstance(result, PipelineResult)
         assert result.failed_extractions == 0
@@ -610,7 +610,7 @@ class TestRunFull:
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_transform_and_load", return_value=(0, 0, 0)),
         ):
-            result = asyncio.run(orch.run_full())
+            result = asyncio.run(orch.run_retry())
 
         assert isinstance(result, PipelineResult)
         assert result.failed_extractions == 0

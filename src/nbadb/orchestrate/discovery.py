@@ -10,6 +10,7 @@ from nbadb.orchestrate.extractor_runner import _assign_proxy, _sync_extract
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from concurrent.futures import ThreadPoolExecutor
 
     import polars as pl
 
@@ -30,18 +31,25 @@ _DISCOVERY_CONCURRENCY = 10
 async def _extract_with_retry(
     extractor: object,
     label: str,
+    *,
+    thread_pool: ThreadPoolExecutor | None = None,
     **kwargs: object,
 ) -> pl.DataFrame:
     """Extract with retries and inter-call delay for rate limiting.
 
-    Uses ``asyncio.to_thread`` + ``_sync_extract`` so the synchronous
-    nba_api call does not block the event loop.
+    When *thread_pool* is provided the synchronous nba_api call is
+    dispatched to that pool via ``loop.run_in_executor``, reusing the
+    same ``ThreadPoolExecutor`` that :class:`ExtractorRunner` owns.
+    Falls back to ``asyncio.to_thread`` when no pool is given.
     """
     import polars as pl
 
     for attempt in range(1, _RETRY_ATTEMPTS + 1):
         try:
-            df: pl.DataFrame = await asyncio.to_thread(_sync_extract, extractor, **kwargs)
+            loop = asyncio.get_running_loop()
+            df: pl.DataFrame = await loop.run_in_executor(
+                thread_pool, lambda: _sync_extract(extractor, **kwargs)
+            )
             return df
         except Exception as exc:
             if attempt < _RETRY_ATTEMPTS:
@@ -73,9 +81,11 @@ class EntityDiscovery:
         self,
         registry: EndpointRegistry,
         proxy_pool: ProxyUrlProvider | None = None,
+        thread_pool: ThreadPoolExecutor | None = None,
     ) -> None:
         self._registry = registry
         self._proxy_pool = proxy_pool
+        self._thread_pool = thread_pool
 
     async def discover_game_ids(
         self,
@@ -119,6 +129,7 @@ class EntityDiscovery:
                     df = await _extract_with_retry(
                         extractor,
                         label,
+                        thread_pool=self._thread_pool,
                         season=season,
                         season_type=season_type,
                     )
@@ -177,7 +188,9 @@ class EntityDiscovery:
 
         try:
             _assign_proxy(extractor, self._proxy_pool)
-            df = await _extract_with_retry(extractor, staging_key, **params)
+            df = await _extract_with_retry(
+                extractor, staging_key, thread_pool=self._thread_pool, **params
+            )
         except Exception as exc:
             logger.error(
                 "failed to discover {} IDs: {}",
@@ -248,7 +261,9 @@ class EntityDiscovery:
                 extractor = extractor_cls()
                 try:
                     _assign_proxy(extractor, self._proxy_pool)
-                    df = await _extract_with_retry(extractor, label, season=season)
+                    df = await _extract_with_retry(
+                        extractor, label, thread_pool=self._thread_pool, season=season
+                    )
                 except Exception as exc:
                     logger.error(
                         "failed to discover player/team pairs for {}: {}",

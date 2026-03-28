@@ -217,6 +217,18 @@ class TestJournalBatch:
         ])
         assert result == {("ep1", "p1"), ("ep2", "p2")}
 
+    def test_was_extracted_batch_large(self, journal: PipelineJournal) -> None:
+        """Verify full-scan approach handles >1000 items correctly."""
+        done_items = [(f"ep{i}", f"p{i}") for i in range(5)]
+        for ep, p in done_items:
+            journal.record_start(ep, p)
+            journal.record_success(ep, p, 10)
+
+        # Build a query with 1500 items including the 5 done ones
+        all_items = [(f"ep{i}", f"p{i}") for i in range(1500)]
+        result = journal.was_extracted_batch(all_items)
+        assert result == set(done_items)
+
 
 # ---------------------------------------------------------------------------
 # log_summary

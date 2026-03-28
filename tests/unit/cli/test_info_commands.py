@@ -41,7 +41,18 @@ def _make_db_with_tables(path: object) -> None:
         "  completed_at TIMESTAMP,"
         "  rows_extracted BIGINT,"
         "  error_message VARCHAR,"
+        "  retry_count INTEGER DEFAULT 0,"
         "  PRIMARY KEY (endpoint, params)"
+        ")"
+    )
+    conn.execute(
+        "CREATE TABLE _pipeline_metrics ("
+        "  endpoint VARCHAR,"
+        "  run_timestamp TIMESTAMP,"
+        "  duration_seconds FLOAT,"
+        "  rows_extracted BIGINT,"
+        "  error_count INTEGER DEFAULT 0,"
+        "  PRIMARY KEY (endpoint, run_timestamp)"
         ")"
     )
     conn.execute(
@@ -160,6 +171,82 @@ class TestStatusCommand:
         assert entry["table"] == "dim_date"
         assert entry["value"] == "2025-26"
 
+    def test_journal_summary_json_output_structure(self, tmp_path: object) -> None:
+        """journal-summary JSON includes observability fields used by docs admin."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        result = runner.invoke(
+            app,
+            ["journal-summary", "--data-dir", str(tmp_path), "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "generatedAt" in data
+        assert "daily" in data
+        assert "slowEndpoints" in data
+        assert "failureHotspots" in data
+        assert "totals" in data
+
+    def test_journal_summary_populated_rollups(self, tmp_path: object) -> None:
+        """journal-summary aggregates metrics and current failures into telemetry."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        conn = duckdb.connect(str(db_path))
+        conn.execute(
+            "INSERT INTO _pipeline_metadata VALUES "
+            "('stg_game_log', '2026-03-20 00:00:00', 100, 'a'),"
+            "('dim_player', '2026-03-20 00:00:00', 50, 'b')"
+        )
+        conn.execute(
+            "INSERT INTO _pipeline_metrics VALUES "
+            "('boxscore', '2026-03-20 12:00:00', 1.25, 150, 0),"
+            "('playbyplay', '2026-03-20 13:00:00', 2.5, 90, 2),"
+            "('boxscore', '2026-03-21 09:30:00', 1.75, 180, 0)"
+        )
+        conn.execute(
+            "INSERT INTO _extraction_journal VALUES "
+            "('playbyplay', '{\"season\": \"2025-26\"}', 'failed', "
+            " '2026-03-21 09:00:00', '2026-03-21 09:01:00', 0, 'timeout', 2),"
+            "('boxscore', '{\"season\": \"2025-26\"}', 'done', "
+            " '2026-03-21 09:02:00', '2026-03-21 09:03:00', 180, NULL, 0)"
+        )
+        conn.close()
+
+        result = runner.invoke(
+            app,
+            ["journal-summary", "--data-dir", str(tmp_path), "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["totalTables"] == 2
+        assert data["stagingCoverage"] == 100
+        assert data["counts"]["failed"] == 1
+        assert len(data["daily"]) == 2
+        assert data["daily"][0]["rowsExtracted"] == 240
+        assert data["slowEndpoints"][0]["endpoint"] == "playbyplay"
+        assert data["failureHotspots"][0]["endpoint"] == "playbyplay"
+        assert any("timeout" in line for line in data["recentErrors"])
+
+    def test_journal_summary_writes_output_file(self, tmp_path: object) -> None:
+        """journal-summary can write the telemetry snapshot directly to disk."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db_with_tables(db_path)
+        output_path = tmp_path / "artifacts" / "pipeline-status.json"
+        result = runner.invoke(
+            app,
+            [
+                "journal-summary",
+                "--data-dir",
+                str(tmp_path),
+                "--output-path",
+                str(output_path),
+            ],
+        )
+        assert result.exit_code == 0
+        assert output_path.exists()
+        data = json.loads(output_path.read_text())
+        assert "generatedAt" in data
+
 
 # ---------------------------------------------------------------------------
 # schema command tests
@@ -276,3 +363,62 @@ class TestMigrateCommand:
         assert result1.exit_code == 0, result1.output
         assert result2.exit_code == 0, result2.output
         assert mock_db.init.call_count == 2
+
+    def test_migrate_no_sqlite_path_exits_1(self) -> None:
+        """When settings.sqlite_path is None, migrate exits 1."""
+        mock_settings = MagicMock()
+        mock_settings.sqlite_path = None
+        mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+        with patch("nbadb.cli.commands.migrate._build_settings", return_value=mock_settings):
+            result = runner.invoke(app, ["migrate"])
+        assert result.exit_code == 1
+        assert "sqlite_path" in result.output
+
+    def test_migrate_no_duckdb_path_exits_1(self) -> None:
+        """When settings.duckdb_path is None, migrate exits 1."""
+        mock_settings = MagicMock()
+        mock_settings.sqlite_path = Path("/tmp/test.sqlite")
+        mock_settings.duckdb_path = None
+        with patch("nbadb.cli.commands.migrate._build_settings", return_value=mock_settings):
+            result = runner.invoke(app, ["migrate"])
+        assert result.exit_code == 1
+        assert "duckdb_path" in result.output
+
+
+# ---------------------------------------------------------------------------
+# metadata command tests
+# ---------------------------------------------------------------------------
+
+_GENERATE_METADATA_PATH = "nbadb.kaggle.metadata.generate_metadata"
+
+
+class TestMetadataCommand:
+    def test_metadata_success(self, tmp_path: object) -> None:
+        """metadata command calls generate_metadata and exits 0."""
+        output = Path(str(tmp_path)) / "dataset-metadata.json"
+        with patch(_GENERATE_METADATA_PATH) as mock_gen:
+            result = runner.invoke(app, ["metadata", "--output", str(output)])
+        assert result.exit_code == 0, result.output
+        mock_gen.assert_called_once_with(output)
+        assert "Generated" in result.output
+
+    def test_metadata_passes_data_dir_when_provided(self, tmp_path: object) -> None:
+        """metadata forwards --data-dir only when explicitly set."""
+        output = Path(str(tmp_path)) / "dataset-metadata.json"
+        data_dir = Path(str(tmp_path)) / "export"
+        with patch(_GENERATE_METADATA_PATH) as mock_gen:
+            result = runner.invoke(
+                app,
+                ["metadata", "--output", str(output), "--data-dir", str(data_dir)],
+            )
+        assert result.exit_code == 0, result.output
+        mock_gen.assert_called_once_with(output, data_dir=data_dir)
+
+    def test_metadata_default_output(self) -> None:
+        """metadata command uses default output path when --output not given."""
+        with patch(_GENERATE_METADATA_PATH) as mock_gen:
+            result = runner.invoke(app, ["metadata"])
+        assert result.exit_code == 0, result.output
+        # Default is dataset-metadata.json
+        call_arg = mock_gen.call_args[0][0]
+        assert str(call_arg) == "dataset-metadata.json"
