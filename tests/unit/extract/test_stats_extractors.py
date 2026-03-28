@@ -811,9 +811,7 @@ class TestTeamTrackingExtractAllSeasonType:
             return [pl.DataFrame({"ok": [1]})]
 
         monkeypatch.setattr(ext, "_from_nba_api_multi", _fake_multi)
-        await ext.extract_all(
-            team_id=1610612744, season="2024-25", season_type="Playoffs"
-        )
+        await ext.extract_all(team_id=1610612744, season="2024-25", season_type="Playoffs")
         assert captured["season_type_all_star"] == "Playoffs"
 
 

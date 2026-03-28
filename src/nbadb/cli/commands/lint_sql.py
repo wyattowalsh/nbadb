@@ -141,8 +141,7 @@ def lint_sql(
 
     typer.echo(
         f"\nLinted {len(sql_transformers)} transforms: "
-        f"{total_violations} violation(s) found"
-        + (f", {total_fixed} auto-fixed" if fix else "")
+        f"{total_violations} violation(s) found" + (f", {total_fixed} auto-fixed" if fix else "")
     )
 
     if fail_on:

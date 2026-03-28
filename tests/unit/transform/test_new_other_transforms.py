@@ -114,10 +114,14 @@ class TestFactPlayerGameLog:
     def test_union_and_dedup(self) -> None:
         """Duplicate player_id+game_id rows across sources should be deduplicated."""
         staging = {
-            "stg_player_game_logs": pl.DataFrame({
-                "player_id": [1, 2], "game_id": ["G1", "G2"],
-                "season_year": ["2024-25", "2024-25"], "pts": [20, 30],
-            }).lazy(),
+            "stg_player_game_logs": pl.DataFrame(
+                {
+                    "player_id": [1, 2],
+                    "game_id": ["G1", "G2"],
+                    "season_year": ["2024-25", "2024-25"],
+                    "pts": [20, 30],
+                }
+            ).lazy(),
             "stg_player_game_log": pl.DataFrame(
                 {"player_id": [1], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [20]}
             ).lazy(),
@@ -181,10 +185,14 @@ class TestFactTeamGameLog:
     def test_union_and_dedup(self) -> None:
         """Duplicate team_id+game_id rows across sources should be deduplicated."""
         staging = {
-            "stg_team_game_logs_v2": pl.DataFrame({
-                "team_id": [10, 20], "game_id": ["G1", "G2"],
-                "season_year": ["2024-25", "2024-25"], "pts": [100, 110],
-            }).lazy(),
+            "stg_team_game_logs_v2": pl.DataFrame(
+                {
+                    "team_id": [10, 20],
+                    "game_id": ["G1", "G2"],
+                    "season_year": ["2024-25", "2024-25"],
+                    "pts": [100, 110],
+                }
+            ).lazy(),
             "stg_team_game_log": pl.DataFrame(
                 {"team_id": [10], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [100]}
             ).lazy(),

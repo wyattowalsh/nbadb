@@ -509,6 +509,7 @@ class TestTeamDashboardStarSchemas:
                 {
                     "team_id": 1610612738,
                     "season_year": "2024-25",
+                    "season_type": "Regular Season",
                     "on_off": "overall",
                     "gp": 82,
                     "min": 48.0,
@@ -525,6 +526,7 @@ class TestTeamDashboardStarSchemas:
                     "player_id": 1628369,
                     "team_id": 1610612738,
                     "season_year": "2024-25",
+                    "season_type": "Regular Season",
                     "on_off": "on",
                     "gp": 65,
                     "min": 35.1,
@@ -541,6 +543,7 @@ class TestTeamDashboardStarSchemas:
                     "player_id": 1627759,
                     "team_id": 1610612738,
                     "season_year": "2024-25",
+                    "season_type": "Regular Season",
                     "on_off": "off",
                     "gp": 60,
                     "min": 31.8,

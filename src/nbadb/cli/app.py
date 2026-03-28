@@ -11,6 +11,7 @@ app = typer.Typer(
 # Register command modules (each imports `app` and decorates with @app.command)
 from nbadb.cli.commands import (  # noqa: E402, F401
     ask,
+    audit_models,
     backfill,
     chat,
     daily,
@@ -24,7 +25,6 @@ from nbadb.cli.commands import (  # noqa: E402, F401
     metadata,
     migrate,
     monthly,
-    run_quality,
     scan,
     schema,
     status,

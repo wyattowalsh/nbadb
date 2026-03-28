@@ -19,6 +19,12 @@ def test_agg_player_season_has_dim_game_dependency():
     assert "dim_game" in AggPlayerSeasonTransformer.depends_on
 
 
+def test_agg_player_season_has_dim_team_dependency():
+    from nbadb.transform.derived.agg_player_season import AggPlayerSeasonTransformer
+
+    assert "dim_team" in AggPlayerSeasonTransformer.depends_on
+
+
 def test_agg_player_rolling_has_dim_game_dependency():
     from nbadb.transform.derived.agg_player_rolling import AggPlayerRollingTransformer
 
@@ -137,10 +143,25 @@ def test_agg_player_season_includes_team_id():
         }
     )
 
+    dim_team = pl.DataFrame(
+        {
+            "team_id": [1, 2],
+            "abbreviation": ["TST", "OPP"],
+            "full_name": ["Test Team", "Opponent Team"],
+            "city": ["Test City", "Opp City"],
+            "state": ["TS", "OP"],
+            "arena": ["Test Arena", "Opp Arena"],
+            "year_founded": [2000, 2000],
+            "conference": ["East", "West"],
+            "division": ["Atlantic", "Pacific"],
+        }
+    )
+
     staging = {
         "fact_player_game_traditional": fact_trad.lazy(),
         "fact_player_game_advanced": fact_adv.lazy(),
         "dim_game": dim_game.lazy(),
+        "dim_team": dim_team.lazy(),
     }
 
     conn = duckdb.connect()
@@ -151,6 +172,10 @@ def test_agg_player_season_includes_team_id():
     result = transformer.transform(staging)
 
     assert "team_id" in result.columns, f"team_id missing from output: {result.columns}"
+    assert "team_abbreviation" in result.columns, (
+        f"team_abbreviation missing from output: {result.columns}"
+    )
     assert result.shape[0] == 1  # grouped by player, team, season, type
     assert result["team_id"][0] == 1
+    assert result["team_abbreviation"][0] == "TST"
     conn.close()

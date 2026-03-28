@@ -165,9 +165,7 @@ def _get_journal_summary(conn: DuckDbConnection) -> dict[str, int] | None:
 def _get_total_tables(conn: DuckDbConnection) -> int:
     """Return total tables tracked in pipeline metadata."""
     try:
-        row = conn.execute(
-            "SELECT COUNT(*) FROM _pipeline_metadata"
-        ).fetchone()
+        row = conn.execute("SELECT COUNT(*) FROM _pipeline_metadata").fetchone()
         return int(row[0]) if row else 0
     except duckdb.Error:
         return 0
@@ -471,8 +469,7 @@ def _show_pipeline_telemetry_summary(summary: dict[str, Any]) -> None:
     typer.echo(f"  Tables:    {summary['totalTables']}")
     typer.echo(f"  Staging:   {summary['stagingCoverage']}% with metadata")
     typer.echo(
-        "  Statuses:  "
-        + ", ".join(f"{name}={count}" for name, count in summary["counts"].items())
+        "  Statuses:  " + ", ".join(f"{name}={count}" for name, count in summary["counts"].items())
     )
 
     totals = summary["totals"]
@@ -497,10 +494,7 @@ def _show_pipeline_telemetry_summary(summary: dict[str, Any]) -> None:
     typer.echo("\n--- Failure Hotspots ---")
     if summary["failureHotspots"]:
         for item in summary["failureHotspots"]:
-            typer.echo(
-                "  "
-                f"{item['endpoint']} [{item['status']}]: {item['count']} current failures"
-            )
+            typer.echo(f"  {item['endpoint']} [{item['status']}]: {item['count']} current failures")
     else:
         typer.echo("  (no failed or abandoned entries)")
 

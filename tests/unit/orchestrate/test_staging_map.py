@@ -277,8 +277,7 @@ class TestStagingMap:
 
     def test_no_extractor_only_endpoints_remain_after_mapping(self) -> None:
         extractor_only = sorted(
-            _extractor_endpoint_names()
-            - {e.endpoint_name for e in STAGING_MAP}
+            _extractor_endpoint_names() - {e.endpoint_name for e in STAGING_MAP}
         )
         assert extractor_only == []
 

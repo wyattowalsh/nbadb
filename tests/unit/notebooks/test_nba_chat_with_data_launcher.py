@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -14,7 +13,6 @@ import httpx
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 NOTEBOOK_PATH = PROJECT_ROOT / "notebooks" / "nba_chat_with_data.ipynb"
 CHAT_DIR = PROJECT_ROOT / "apps" / "chat"
-CURRENT_COMMIT = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
 
 def _code_cells() -> list[str]:
@@ -30,7 +28,7 @@ def _code_cells() -> list[str]:
 
 def _load_cell1_namespace() -> dict[str, object]:
     source = _code_cells()[0]
-    prelude = source.split("CHAT_DIR = _find_checked_out_chat_dir() or _clone_chat_repo()", 1)[0]
+    prelude = source.split("CHAT_DIR = _find_checked_out_chat_dir() or _clone_pinned_repo()", 1)[0]
     ns: dict[str, object] = {}
     exec(prelude, ns)  # noqa: S102
     return ns
@@ -38,7 +36,7 @@ def _load_cell1_namespace() -> dict[str, object]:
 
 def _load_cell5_namespace() -> dict[str, object]:
     source = _code_cells()[4]
-    prelude = source.split("# Start server and wait for the HTTP endpoint to answer.\n", 1)[0]
+    prelude = source.split("process = _run_chainlit()", 1)[0]
     prelude = prelude.replace("from IPython.display import HTML, display\n", "")
     ns: dict[str, object] = {
         "HTML": lambda content: content,
@@ -74,13 +72,14 @@ def test_clone_fallback_is_pinned_to_current_commit(monkeypatch, tmp_path: Path)
     ns["WORK_DIR"] = tmp_path
     monkeypatch.setattr(ns["subprocess"], "check_call", fake_check_call)
 
-    chat_dir = ns["_clone_chat_repo"]()
-    clone_dir = tmp_path / f"nbadb-{CURRENT_COMMIT[:8]}"
+    repo_ref = ns["REPO_REF"]
+    chat_dir = ns["_clone_pinned_repo"]()
+    clone_dir = tmp_path / f"nbadb-{repo_ref[:8]}"
 
     assert chat_dir == clone_dir / "apps" / "chat"
     assert commands == [
         ["git", "clone", ns["REPO_URL"], str(clone_dir)],
-        ["git", "-C", str(clone_dir), "checkout", "--detach", CURRENT_COMMIT],
+        ["git", "-C", str(clone_dir), "checkout", "--detach", repo_ref],
     ]
 
 
@@ -105,12 +104,12 @@ def test_dependency_installation_is_derived_from_chat_pyproject(monkeypatch) -> 
     expected_deps = list(project["dependencies"])
     for extra in project.get("optional-dependencies", {}).values():
         expected_deps.extend(extra)
-    expected_deps = list(dict.fromkeys([*expected_deps, "cloudflared"]))
+    expected_deps = list(dict.fromkeys(expected_deps))
 
     assert commands == [[sys.executable, "-m", "pip", "install", "-q", *expected_deps]]
 
 
-def test_public_demo_flag_is_exported_to_chainlit_process(monkeypatch) -> None:
+def test_chainlit_launched_in_chat_dir(monkeypatch) -> None:
     ns = _load_cell5_namespace()
     ns["CHAT_DIR"] = CHAT_DIR
     captured: dict[str, object] = {}
@@ -124,29 +123,7 @@ def test_public_demo_flag_is_exported_to_chainlit_process(monkeypatch) -> None:
 
     ns["_run_chainlit"]()
 
-    env = captured["kwargs"]["env"]
-    assert env["NBADB_CHAT_PUBLIC_MODE"] == "1"
     assert captured["kwargs"]["cwd"] == str(CHAT_DIR)
-
-
-def test_public_demo_setup_does_not_persist_api_key(monkeypatch, tmp_path: Path) -> None:
-    source = _code_cells()[1]
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("NBADB_CHAT_PUBLIC_MODE", "1")
-    monkeypatch.setattr(
-        "getpass.getpass",
-        lambda prompt: (_ for _ in ()).throw(AssertionError("public demo should not prompt")),
-    )
-
-    ns: dict[str, object] = {}
-    exec(source, ns)  # noqa: S102
-
-    chat_config = tmp_path / ".nbadb" / "chat.json"
-    payload = json.loads(chat_config.read_text())
-    assert payload == {"provider": "openai", "model": "gpt-4.1"}
-    assert "api_key" not in payload
-    assert ns["PUBLIC_DEMO"] is True
-    assert ns["API_KEY"] is None
 
 
 def test_wait_for_chainlit_polls_until_http_ready(monkeypatch) -> None:
@@ -200,10 +177,6 @@ def test_wait_for_chainlit_raises_if_process_exits(monkeypatch) -> None:
         raise AssertionError("expected launcher readiness check to fail fast on process exit")
 
 
-def test_notebook_copy_mentions_public_demo_risk() -> None:
+def test_notebook_copy_mentions_open_chat() -> None:
     content = NOTEBOOK_PATH.read_text()
     assert "Open NBA Chat" in content
-    assert "Public demo warning" in content
-    assert "anonymous URL" in content
-    assert "Bring your own API key in the settings panel" in content
-    assert "Your own API key from any supported provider" in content

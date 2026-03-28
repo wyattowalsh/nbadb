@@ -10,6 +10,7 @@ class FactTeamGameTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = [
         "stg_box_score_traditional",
         "stg_line_score",
+        "dim_game",
     ]
 
     _SQL: ClassVar[str] = """
@@ -33,8 +34,10 @@ class FactTeamGameTransformer(SqlTransformer):
         )
         SELECT
             t.*,
+            g.season_year,
             l.pts_qtr1, l.pts_qtr2, l.pts_qtr3, l.pts_qtr4
         FROM team_agg t
+        LEFT JOIN dim_game g ON t.game_id = g.game_id
         LEFT JOIN stg_line_score l
             ON t.game_id = l.game_id AND t.team_id = l.team_id
         QUALIFY ROW_NUMBER() OVER (PARTITION BY t.game_id, t.team_id ORDER BY t.game_id) = 1

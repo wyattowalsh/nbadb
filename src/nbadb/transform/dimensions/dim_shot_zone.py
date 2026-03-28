@@ -26,8 +26,7 @@ class DimShotZoneTransformer(BaseTransformer):
                 pl.concat_str(
                     ["shot_zone_basic", "shot_zone_area", "shot_zone_range"],
                     separator="|",
-                )
-                .hash()
+                ).hash()
                 % 2_147_483_647
                 + 1
             )
@@ -41,6 +40,5 @@ class DimShotZoneTransformer(BaseTransformer):
                 "shot_zone_basic",
                 "shot_zone_area",
                 "shot_zone_range",
-            )
-            .collect()  # ty: ignore[invalid-return-type]
+            ).collect()  # ty: ignore[invalid-return-type]
         )

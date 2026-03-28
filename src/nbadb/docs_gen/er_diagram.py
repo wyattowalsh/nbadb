@@ -152,11 +152,7 @@ class ERDiagramGenerator:
             family = self._family_from_table_name(table_name)
             if family == "other":
                 continue
-            columns = [
-                col
-                for col in self._extract_columns(schema_cls)
-                if col["name"] != "Config"
-            ]
+            columns = [col for col in self._extract_columns(schema_cls) if col["name"] != "Config"]
             raw_rels = self._extract_relationships(table_name, schema_cls)
             relationships = [
                 {

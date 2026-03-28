@@ -826,18 +826,27 @@ class NbaDbDashboard(App):
                 if p.end_time
                 else (time.monotonic() - p.start_time if p.start_time else 0)
             )
-            patterns.append({
-                "label": p.label, "total": p.total, "succeeded": p.succeeded,
-                "failed": p.failed, "skipped": p.skipped, "rows": p.rows_extracted,
-                "duration": dur,
-            })
+            patterns.append(
+                {
+                    "label": p.label,
+                    "total": p.total,
+                    "succeeded": p.succeeded,
+                    "failed": p.failed,
+                    "skipped": p.skipped,
+                    "rows": p.rows_extracted,
+                    "duration": dur,
+                }
+            )
         ok = sum(p.succeeded for p in self._patterns)
         fail = sum(p.failed for p in self._patterns)
         skip = sum(p.skipped for p in self._patterns)
         rows = sum(p.rows_extracted for p in self._patterns)
         return RunSummary(
-            mode=self._mode, started_at="", duration_seconds=time.monotonic() - self._start_time,
-            discoveries=dict(self._discoveries), patterns=patterns,
+            mode=self._mode,
+            started_at="",
+            duration_seconds=time.monotonic() - self._start_time,
+            discoveries=dict(self._discoveries),
+            patterns=patterns,
             totals={"ok": ok, "fail": fail, "skip": skip, "rows": rows},
             errors=[],
         )

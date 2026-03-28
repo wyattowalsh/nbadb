@@ -317,6 +317,7 @@ class TestAggPlayerSeasonSchema:
             {
                 "player_id": 2544,
                 "team_id": 1610612747,
+                "team_abbreviation": "LAL",
                 "season_year": "2024-25",
                 "season_type": "Regular Season",
                 "gp": 71,

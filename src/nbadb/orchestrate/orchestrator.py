@@ -133,9 +133,7 @@ class Orchestrator:
             progress=self._progress,
         )
 
-    def _build_discovery(
-        self, thread_pool: ThreadPoolExecutor | None = None
-    ) -> EntityDiscovery:
+    def _build_discovery(self, thread_pool: ThreadPoolExecutor | None = None) -> EntityDiscovery:
         """Create an EntityDiscovery wired to the global registry."""
         return EntityDiscovery(
             _global_registry,
@@ -193,7 +191,9 @@ class Orchestrator:
             pp.start_pattern(f"Transform ({n_transformers})", total=n_transformers)
         try:
             outputs = pipeline.run(
-                staging, validate_input_schemas=True, on_progress=pp,
+                staging,
+                validate_input_schemas=True,
+                on_progress=pp,
             )
         finally:
             # TransformPipeline.run() resets _conn in its own finally,

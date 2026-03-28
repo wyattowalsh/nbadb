@@ -42,12 +42,7 @@ class DimArenaTransformer(BaseTransformer):
         )
 
         arenas = arenas.with_columns(
-            (
-                pl.concat_str(["arena_name", "arena_city"], separator="|")
-                .hash()
-                % 2_147_483_647
-                + 1
-            )
+            (pl.concat_str(["arena_name", "arena_city"], separator="|").hash() % 2_147_483_647 + 1)
             .cast(pl.Int32)
             .alias("arena_id")
         )

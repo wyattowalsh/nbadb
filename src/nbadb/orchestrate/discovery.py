@@ -23,6 +23,7 @@ class _PatternProgress(Protocol):
 
     def advance_pattern(self, *, success: bool = True) -> None: ...
 
+
 _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
 _DISCOVERY_CONCURRENCY = 10

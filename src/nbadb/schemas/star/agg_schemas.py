@@ -140,6 +140,7 @@ class AggPlayerSeasonSchema(BaseSchema):
 
     player_id: int = pa.Field(gt=0)
     team_id: int = pa.Field(gt=0)
+    team_abbreviation: str | None = pa.Field(nullable=True)
     season_year: str = pa.Field()
     season_type: str = pa.Field()
     gp: int = pa.Field(ge=0)

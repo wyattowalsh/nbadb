@@ -161,25 +161,37 @@ class TestSchemaVersionTracker:
 class TestCompatibleChange:
     def test_additive_change_is_compatible(self) -> None:
         change = SchemaChange(
-            table_name="t", old_version=1, new_version=2,
-            added_columns=["c"], removed_columns=[],
-            old_hash="aaa", new_hash="bbb",
+            table_name="t",
+            old_version=1,
+            new_version=2,
+            added_columns=["c"],
+            removed_columns=[],
+            old_hash="aaa",
+            new_hash="bbb",
         )
         assert SchemaVersionTracker.compatible_change(change) is True
 
     def test_destructive_change_is_not_compatible(self) -> None:
         change = SchemaChange(
-            table_name="t", old_version=1, new_version=2,
-            added_columns=[], removed_columns=["c"],
-            old_hash="aaa", new_hash="bbb",
+            table_name="t",
+            old_version=1,
+            new_version=2,
+            added_columns=[],
+            removed_columns=["c"],
+            old_hash="aaa",
+            new_hash="bbb",
         )
         assert SchemaVersionTracker.compatible_change(change) is False
 
     def test_mixed_change_is_not_compatible(self) -> None:
         change = SchemaChange(
-            table_name="t", old_version=1, new_version=2,
-            added_columns=["d"], removed_columns=["c"],
-            old_hash="aaa", new_hash="bbb",
+            table_name="t",
+            old_version=1,
+            new_version=2,
+            added_columns=["d"],
+            removed_columns=["c"],
+            old_hash="aaa",
+            new_hash="bbb",
         )
         assert SchemaVersionTracker.compatible_change(change) is False
 
@@ -190,9 +202,13 @@ class TestGuardEvolution:
         tracker = SchemaVersionTracker(conn)
         changes = [
             SchemaChange(
-                table_name="t1", old_version=1, new_version=2,
-                added_columns=["c"], removed_columns=[],
-                old_hash="aaa", new_hash="bbb",
+                table_name="t1",
+                old_version=1,
+                new_version=2,
+                added_columns=["c"],
+                removed_columns=[],
+                old_hash="aaa",
+                new_hash="bbb",
             ),
         ]
         warnings = tracker.guard_evolution(changes)
@@ -205,9 +221,13 @@ class TestGuardEvolution:
         tracker = SchemaVersionTracker(conn)
         changes = [
             SchemaChange(
-                table_name="t1", old_version=1, new_version=2,
-                added_columns=[], removed_columns=["old_col"],
-                old_hash="aaa", new_hash="bbb",
+                table_name="t1",
+                old_version=1,
+                new_version=2,
+                added_columns=[],
+                removed_columns=["old_col"],
+                old_hash="aaa",
+                new_hash="bbb",
             ),
         ]
         with pytest.raises(SchemaEvolutionError, match="Destructive schema changes"):
@@ -219,9 +239,13 @@ class TestGuardEvolution:
         tracker = SchemaVersionTracker(conn)
         changes = [
             SchemaChange(
-                table_name="t1", old_version=1, new_version=2,
-                added_columns=[], removed_columns=["old_col"],
-                old_hash="aaa", new_hash="bbb",
+                table_name="t1",
+                old_version=1,
+                new_version=2,
+                added_columns=[],
+                removed_columns=["old_col"],
+                old_hash="aaa",
+                new_hash="bbb",
             ),
         ]
         warnings = tracker.guard_evolution(changes, allow_removals={"t1"})
@@ -233,14 +257,22 @@ class TestGuardEvolution:
         tracker = SchemaVersionTracker(conn)
         changes = [
             SchemaChange(
-                table_name="t_safe", old_version=1, new_version=2,
-                added_columns=[], removed_columns=["x"],
-                old_hash="a", new_hash="b",
+                table_name="t_safe",
+                old_version=1,
+                new_version=2,
+                added_columns=[],
+                removed_columns=["x"],
+                old_hash="a",
+                new_hash="b",
             ),
             SchemaChange(
-                table_name="t_unsafe", old_version=1, new_version=2,
-                added_columns=["new_col"], removed_columns=["old_col"],
-                old_hash="c", new_hash="d",
+                table_name="t_unsafe",
+                old_version=1,
+                new_version=2,
+                added_columns=["new_col"],
+                removed_columns=["old_col"],
+                old_hash="c",
+                new_hash="d",
             ),
         ]
         with pytest.raises(SchemaEvolutionError, match="t_unsafe"):

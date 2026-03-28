@@ -144,10 +144,6 @@ _MODEL_EXCLUDED_STAGING_KEYS: dict[str, str] = {
         "Reference-only season-availability list is retained for completeness; modeled team "
         "history and season facts already cover the analytical use cases."
     ),
-    "stg_win_prob_pbp": (
-        "Secondary win-probability packet is retained for landing completeness; the "
-        "analytical model uses the canonical stg_win_probability event timeline."
-    ),
 }
 
 

@@ -11,6 +11,7 @@ class FactPlayerGameMiscTransformer(SqlTransformer):
         "stg_box_score_misc",
         "stg_box_score_scoring",
         "stg_box_score_usage",
+        "dim_game",
     ]
 
     _SQL: ClassVar[str] = """
@@ -18,6 +19,7 @@ class FactPlayerGameMiscTransformer(SqlTransformer):
             m.game_id,
             m.player_id,
             m.team_id,
+            g.season_year,
             m.pts_off_tov,
             m.pts_2nd_chance AS second_chance_pts,
             m.pts_fb AS fbps,
@@ -57,6 +59,7 @@ class FactPlayerGameMiscTransformer(SqlTransformer):
             u.pct_blk,
             u.pct_pts
         FROM stg_box_score_misc m
+        LEFT JOIN dim_game g ON m.game_id = g.game_id
         LEFT JOIN stg_box_score_scoring s
             ON m.game_id = s.game_id AND m.player_id = s.player_id
         LEFT JOIN stg_box_score_usage u

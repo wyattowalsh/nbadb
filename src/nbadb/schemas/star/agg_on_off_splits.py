@@ -10,6 +10,7 @@ class AggOnOffSplitsSchema(BaseSchema):
     entity_id: int | None = pa.Field(nullable=True, gt=0)
     team_id: int = pa.Field(gt=0)
     season_year: str = pa.Field()
+    season_type: str = pa.Field()
     on_off: str = pa.Field()
     gp: int | None = pa.Field(nullable=True, ge=0)
     min: float | None = pa.Field(nullable=True, ge=0.0)

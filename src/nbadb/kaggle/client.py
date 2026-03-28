@@ -5,6 +5,7 @@ from pathlib import Path
 from loguru import logger
 
 from nbadb.core.config import get_settings
+from nbadb.core.types import validate_sql_identifier
 
 
 class KaggleClient:
@@ -70,12 +71,17 @@ class KaggleClient:
             ]
             total_rows = 0
             for table in tables:
+                validate_sql_identifier(table)
                 # Quote identifiers to prevent SQL injection from table names
                 quoted = f'"{table}"'
                 conn.execute(
                     f"CREATE TABLE IF NOT EXISTS {quoted} AS SELECT * FROM sqlite_db.{quoted}"
                 )
-                rows = conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()[0]
+                row_count = conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
+                if row_count is None:
+                    msg = f"Failed to read row count for table {table}"
+                    raise RuntimeError(msg)
+                rows = row_count[0]
                 total_rows += rows
                 logger.debug(f"  seeded {table}: {rows:,} rows")
             conn.execute("DETACH sqlite_db")
@@ -106,7 +112,8 @@ class KaggleClient:
         """Ensure dataset-metadata.json exists in data dir."""
         from nbadb.kaggle.metadata import generate_metadata
 
-        target = (data_dir or self._settings.data_dir) / "dataset-metadata.json"
+        resolved_data_dir = data_dir or self._settings.data_dir
+        target = resolved_data_dir / "dataset-metadata.json"
         target.parent.mkdir(parents=True, exist_ok=True)
-        generate_metadata(target)
+        generate_metadata(target, data_dir=resolved_data_dir)
         return target

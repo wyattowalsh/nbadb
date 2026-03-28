@@ -11,12 +11,14 @@ class AggPlayerSeasonTransformer(SqlTransformer):
         "fact_player_game_traditional",
         "fact_player_game_advanced",
         "dim_game",
+        "dim_team",
     ]
 
     _SQL: ClassVar[str] = """
         SELECT
             t.player_id,
             t.team_id,
+            tm.abbreviation AS team_abbreviation,
             g.season_year,
             g.season_type,
             COUNT(*) AS gp,
@@ -42,7 +44,8 @@ class AggPlayerSeasonTransformer(SqlTransformer):
             AVG(a.pie) AS avg_pie
         FROM fact_player_game_traditional t
         JOIN dim_game g ON t.game_id = g.game_id
+        LEFT JOIN dim_team tm ON t.team_id = tm.team_id
         LEFT JOIN fact_player_game_advanced a
             ON t.game_id = a.game_id AND t.player_id = a.player_id
-        GROUP BY t.player_id, t.team_id, g.season_year, g.season_type
+        GROUP BY t.player_id, t.team_id, tm.abbreviation, g.season_year, g.season_type
     """

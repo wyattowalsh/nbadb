@@ -84,7 +84,5 @@ class SynergyPlayTypesExtractor(BaseExtractor):
 
         total = len(_SYNERGY_PLAY_TYPES) * len(_SYNERGY_ENTITY_TYPES) * len(_SYNERGY_GROUPINGS)
         if not frames:
-            raise RuntimeError(
-                f"all {total} synergy combinations failed for {season}"
-            )
+            raise RuntimeError(f"all {total} synergy combinations failed for {season}")
         return pl.concat(frames, how="diagonal_relaxed")

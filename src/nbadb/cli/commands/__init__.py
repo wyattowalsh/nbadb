@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from nbadb.cli.commands import (  # noqa: F401
     ask,
+    audit_models,
+    backfill,
+    chat,
     daily,
     docs_autogen,
     download,
@@ -10,7 +13,10 @@ from nbadb.cli.commands import (  # noqa: F401
     full,
     init,
     lint_sql,
+    metadata,
+    migrate,
     monthly,
+    scan,
     schema,
     status,
     upload,

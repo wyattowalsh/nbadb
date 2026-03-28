@@ -262,9 +262,8 @@ class ExtractorRunner:
         for entry in single_entries:
             for params in chunk:
                 # Skip entries deprecated before today
-                if (
-                    entry.deprecated_after is not None
-                    and today > date.fromisoformat(entry.deprecated_after)
+                if entry.deprecated_after is not None and today > date.fromisoformat(
+                    entry.deprecated_after
                 ):
                     self.skipped += 1
                     if on_progress is not None:
@@ -508,7 +507,8 @@ class ExtractorRunner:
                     logger.info("adaptive rate: recovering to {:.1f} req/s", new_rate)
                     if self._progress is not None:
                         self._progress.update_rate_info(  # type: ignore[union-attr]
-                            self._adaptive.current_rate, self._adaptive._base_rate,
+                            self._adaptive.current_rate,
+                            self._adaptive._base_rate,
                         )
                 if attempt > 0:
                     logger.info(
@@ -535,7 +535,8 @@ class ExtractorRunner:
             logger.warning("adaptive rate: backing off to {:.1f} req/s", new_rate)
             if self._progress is not None:
                 self._progress.update_rate_info(  # type: ignore[union-attr]
-                    self._adaptive.current_rate, self._adaptive._base_rate,
+                    self._adaptive.current_rate,
+                    self._adaptive._base_rate,
                 )
         logger.error(
             "extract failed after {} attempts: {} [{}] -> {}",

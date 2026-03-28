@@ -272,9 +272,7 @@ class TestCrossValidate:
         # Column doesn't exist in the reference table
         conn.execute("CREATE TABLE ref_empty (other_col INT)")
         conn.execute("INSERT INTO ref_empty VALUES (1)")
-        result = monitor.cross_validate(
-            "test_facts", "ref_empty", ["nonexistent_col"]
-        )
+        result = monitor.cross_validate("test_facts", "ref_empty", ["nonexistent_col"])
         assert not result.passed
         conn.close()
 
@@ -283,9 +281,7 @@ class TestCrossValidate:
         conn.execute("CREATE TABLE ref_close (pts INT)")
         # Total pts in test_facts = 95. Insert something very close.
         conn.execute("INSERT INTO ref_close VALUES (95)")
-        result = monitor.cross_validate(
-            "test_facts", "ref_close", ["pts"], tolerance=1.0
-        )
+        result = monitor.cross_validate("test_facts", "ref_close", ["pts"], tolerance=1.0)
         assert result.passed
         conn.close()
 

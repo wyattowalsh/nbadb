@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 from nbadb.core.config import get_settings
 
 TABLE_DESCRIPTIONS: dict[str, str] = {
-    # --- Dimensions (17) ---
+    # --- Dimensions (18) ---
     "dim_all_players": "Master player directory with player IDs, names, and active status for every NBA player in history.",
     "dim_arena": "NBA arenas with name, city, state, country, and timezone. Surrogate key assigned.",
     "dim_coach": "Coaching staff by team and season, including head coaches and assistants.",
@@ -23,6 +23,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "dim_official": "NBA referees with official ID, name, and jersey number.",
     "dim_play_event_type": "Reference lookup for play-by-play event types (made_shot, rebound, foul, etc.).",
     "dim_player": "SCD Type 2 player dimension tracking team, position, and jersey changes across seasons.",
+    "dim_schedule_int": "International schedule dimension with game dates, arena details, and broadcast information.",
     "dim_season": "NBA seasons with start and end dates, derived from game log.",
     "dim_season_phase": "Reference lookup for season phases: Preseason, Regular, Play-In, Playoffs R1-R2, Conference Finals, Finals, All-Star.",
     "dim_season_week": "Schedule week boundaries by season from the NBA schedule endpoint.",
@@ -36,7 +37,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "bridge_lineup_player": "Exploded bridge linking lineup group IDs to individual players and lineup slot order.",
     "bridge_play_player": "Many-to-many bridge linking play-by-play events to involved players.",
     "bridge_player_team_season": "Bridge linking players to teams by season with jersey number and listed position.",
-    # --- Facts (127) ---
+    # --- Facts (129) ---
     "fact_box_score_advanced_team": "Team-level advanced box score stats per game: offensive/defensive rating, pace, eFG%, TS%, AST ratio.",
     "fact_box_score_defensive_team": "Team-level defensive box score stats per game.",
     "fact_box_score_four_factors": "Player-level Four Factors stats per game: eFG%, TOV%, OREB%, FT rate.",
@@ -85,6 +86,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_matchup": "Head-to-head matchup statistics between teams across seasons.",
     "fact_on_off_detail": "Detailed on/off court impact stats — team performance when a player is on vs. off the floor.",
     "fact_play_by_play": "Every play-by-play event with game clock, score, event type (made_shot, rebound, foul, etc.), and up to 3 involved players.",
+    "fact_play_by_play_video": "Play-by-play video availability flags per game.",
     "fact_player_available_seasons": "Seasons with available data for each player from CommonPlayerInfo.",
     "fact_player_awards": "Player awards and honors (MVP, All-Star, All-NBA, etc.) by season.",
     "fact_player_career": "Career-level player statistics and milestones.",
@@ -164,9 +166,11 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_team_splits": "Team stat splits by various dimensions (home/road, wins/losses, opponent).",
     "fact_tracking_defense": "Defensive player tracking: matchup stats, contested shots, FG% allowed.",
     "fact_win_probability": "Win probability by event for each game: home/visitor percentages, score, and margin at each play.",
-    # --- Derived Aggregations (16) ---
+    "fact_win_prob_pbp": "Detailed win probability per play with home/visitor percentages and score margins.",
+    # --- Derived Aggregations (19) ---
     "agg_all_time_leaders": "All-time NBA leaders across 20 statistical categories (PTS, REB, AST, STL, BLK, FG%, 3PT%, etc.).",
     "agg_clutch_stats": "Aggregated clutch performance stats across multiple time/score window definitions.",
+    "agg_game_totals": "Game-level aggregate with both teams' stats side-by-side: home/away points, rebounds, assists, and shooting percentages.",
     "agg_league_leaders": "Current season league leaders across statistical categories.",
     "agg_lineup_efficiency": "Lineup efficiency metrics: offensive/defensive rating, net rating by five-man unit.",
     "agg_on_off_splits": "Aggregated on/off court splits showing team performance impact by player.",
@@ -174,15 +178,18 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "agg_player_career": "Career totals and averages for every player: PTS, REB, AST, shooting splits.",
     "agg_player_rolling": "Rolling averages (e.g., last 5, 10, 15 games) for player stats.",
     "agg_player_season": "Player season aggregates: GP, totals, averages for traditional + advanced stats (OffRtg, DefRtg, TS%, USG%, PIE).",
+    "agg_player_season_advanced": "Per-season advanced stat aggregates for each player including efficiency metrics (TS%, eFG%, USG%), rebounding rates, and pace.",
     "agg_player_season_per36": "Player season stats normalized to per-36-minutes basis.",
     "agg_player_season_per48": "Player season stats normalized to per-48-minutes basis.",
     "agg_shot_location_season": "Season-level shooting aggregates by court location for each player.",
     "agg_shot_zones": "Shooting efficiency by zone per player per season: attempts, makes, FG%, average distance.",
+    "agg_team_defense": "Team defensive efficiency per season combining defensive rating, opponent shooting, and hustle metrics.",
     "agg_team_franchise": "Franchise-level all-time aggregates: total wins, losses, championships, playoff appearances.",
     "agg_team_pace_and_efficiency": "Team pace and efficiency metrics per season: possessions, offensive/defensive efficiency.",
     "agg_team_season": "Team season aggregates: GP, averages for PTS/REB/AST, and shooting percentages (FG/3PT/FT).",
-    # --- Analytics Views (11) ---
+    # --- Analytics Views (12) ---
     "analytics_draft_value": "Draft analytics joining pick position with player bio and career production for value comparisons.",
+    "analytics_game_summary": "Complete game-level summary joining scores, arena info, and team names for both home and away sides.",
     "analytics_clutch_performance": "Wide analytics view joining clutch detail with player names and team abbreviations across all clutch windows.",
     "analytics_head_to_head": "Team head-to-head analytics with historical matchup records and stats.",
     "analytics_league_benchmarks": "Season-level benchmark view with league-average player and team metrics for comparison workflows.",
@@ -207,6 +214,7 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
         "dim_official",
         "dim_play_event_type",
         "dim_player",
+        "dim_schedule_int",
         "dim_season",
         "dim_season_phase",
         "dim_season_week",
@@ -271,6 +279,7 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
         "fact_matchup",
         "fact_on_off_detail",
         "fact_play_by_play",
+        "fact_play_by_play_video",
         "fact_player_available_seasons",
         "fact_player_awards",
         "fact_player_career",
@@ -349,11 +358,13 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
         "fact_team_social_sites",
         "fact_team_splits",
         "fact_tracking_defense",
+        "fact_win_prob_pbp",
         "fact_win_probability",
     ],
     "derived": [
         "agg_all_time_leaders",
         "agg_clutch_stats",
+        "agg_game_totals",
         "agg_league_leaders",
         "agg_lineup_efficiency",
         "agg_on_off_splits",
@@ -361,17 +372,20 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
         "agg_player_career",
         "agg_player_rolling",
         "agg_player_season",
+        "agg_player_season_advanced",
         "agg_player_season_per36",
         "agg_player_season_per48",
         "agg_shot_location_season",
         "agg_shot_zones",
+        "agg_team_defense",
         "agg_team_franchise",
         "agg_team_pace_and_efficiency",
         "agg_team_season",
     ],
     "analytics": [
-        "analytics_draft_value",
         "analytics_clutch_performance",
+        "analytics_draft_value",
+        "analytics_game_summary",
         "analytics_head_to_head",
         "analytics_league_benchmarks",
         "analytics_player_game_complete",

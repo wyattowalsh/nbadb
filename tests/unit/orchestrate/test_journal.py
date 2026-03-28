@@ -209,12 +209,14 @@ class TestJournalBatch:
         journal.record_start("ep2", "p2")
         journal.record_success("ep2", "p2", 20)
         journal.record_start("ep3", "p3")
-        result = journal.was_extracted_batch([
-            ("ep1", "p1"),
-            ("ep2", "p2"),
-            ("ep3", "p3"),
-            ("ep4", "p4"),
-        ])
+        result = journal.was_extracted_batch(
+            [
+                ("ep1", "p1"),
+                ("ep2", "p2"),
+                ("ep3", "p3"),
+                ("ep4", "p4"),
+            ]
+        )
         assert result == {("ep1", "p1"), ("ep2", "p2")}
 
     def test_was_extracted_batch_large(self, journal: PipelineJournal) -> None:

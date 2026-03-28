@@ -319,23 +319,13 @@ class TestSeasonTypeJoin:
 
     def test_separate_on_off_per_season_type(self) -> None:
         """Regular Season and Playoffs rows get their own on/off splits."""
-        rs_splits = _make_agg_on_off_splits(
-            season_type="Regular Season", on_net=8.0, off_net=-3.0
-        )
-        po_splits = _make_agg_on_off_splits(
-            season_type="Playoffs", on_net=12.0, off_net=1.0
-        )
-        combined_splits = pl.concat(
-            [rs_splits.collect(), po_splits.collect()]
-        ).lazy()
+        rs_splits = _make_agg_on_off_splits(season_type="Regular Season", on_net=8.0, off_net=-3.0)
+        po_splits = _make_agg_on_off_splits(season_type="Playoffs", on_net=12.0, off_net=1.0)
+        combined_splits = pl.concat([rs_splits.collect(), po_splits.collect()]).lazy()
 
         rs_season = _make_agg_player_season()
-        po_season_data = rs_season.collect().with_columns(
-            pl.lit("Playoffs").alias("season_type")
-        )
-        combined_season = pl.concat(
-            [rs_season.collect(), po_season_data]
-        ).lazy()
+        po_season_data = rs_season.collect().with_columns(pl.lit("Playoffs").alias("season_type"))
+        combined_season = pl.concat([rs_season.collect(), po_season_data]).lazy()
 
         staging = _staging(
             agg_on_off_splits=combined_splits,
@@ -363,17 +353,11 @@ class TestSeasonTypeJoin:
 
     def test_no_cross_contamination_when_splits_missing_for_one_type(self) -> None:
         """Playoffs row gets NULL on/off when only Regular Season splits exist."""
-        rs_splits = _make_agg_on_off_splits(
-            season_type="Regular Season", on_net=8.0, off_net=-3.0
-        )
+        rs_splits = _make_agg_on_off_splits(season_type="Regular Season", on_net=8.0, off_net=-3.0)
 
         rs_season = _make_agg_player_season()
-        po_season_data = rs_season.collect().with_columns(
-            pl.lit("Playoffs").alias("season_type")
-        )
-        combined_season = pl.concat(
-            [rs_season.collect(), po_season_data]
-        ).lazy()
+        po_season_data = rs_season.collect().with_columns(pl.lit("Playoffs").alias("season_type"))
+        combined_season = pl.concat([rs_season.collect(), po_season_data]).lazy()
 
         staging = _staging(
             agg_on_off_splits=rs_splits,

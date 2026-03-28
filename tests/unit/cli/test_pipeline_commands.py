@@ -187,5 +187,3 @@ def test_full_data_dir_option() -> None:
         mock_cls.return_value.run_retry = AsyncMock(return_value=_make_result())
         result = runner.invoke(app, ["full", "--data-dir", "/tmp/testdata"])
     assert result.exit_code == 0
-
-
