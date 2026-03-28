@@ -2,6 +2,11 @@ name: Feature Request
 description: Suggest a new feature or improvement for nbadb
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Before filing, please [search existing issues](https://github.com/wyattowalsh/nba-db/issues) and check the [roadmap discussions](https://github.com/wyattowalsh/nba-db/discussions).
+
   - type: textarea
     id: description
     attributes:

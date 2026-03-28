@@ -27,19 +27,24 @@ runs:
   steps:
     - name: Run data scan
       shell: bash
+      env:
+        REPORT_DIR: ${{ inputs.report-dir }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        DATA_DIR: ${{ inputs.data-dir }}
+        CATEGORIES: ${{ inputs.categories }}
       run: |
-        mkdir -p "${{ inputs.report-dir }}"
+        mkdir -p "$REPORT_DIR"
         ARGS="--output-format json"
-        ARGS="$ARGS --report-path ${{ inputs.report-dir }}/scan-report.json"
+        ARGS="$ARGS --report-path $REPORT_DIR/scan-report.json"
         ARGS="$ARGS --ci"
-        if [ -n "${{ inputs.fail-on }}" ]; then
-          ARGS="$ARGS --fail-on ${{ inputs.fail-on }}"
+        if [ -n "$FAIL_ON" ]; then
+          ARGS="$ARGS --fail-on $FAIL_ON"
         fi
-        if [ -n "${{ inputs.data-dir }}" ]; then
-          ARGS="$ARGS --data-dir ${{ inputs.data-dir }}"
+        if [ -n "$DATA_DIR" ]; then
+          ARGS="$ARGS --data-dir $DATA_DIR"
         fi
-        if [ -n "${{ inputs.categories }}" ]; then
-          ARGS="$ARGS --category ${{ inputs.categories }}"
+        if [ -n "$CATEGORIES" ]; then
+          ARGS="$ARGS --category $CATEGORIES"
         fi
         uv run nbadb scan $ARGS
 

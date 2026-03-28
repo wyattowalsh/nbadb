@@ -6,28 +6,28 @@ changelog:
       - "dependabot"
       - "dependabot[bot]"
   categories:
-    - title: "New Features"
+    - title: "✨ New Features"
       labels:
         - "enhancement"
         - "feat"
-    - title: "Bug Fixes"
+    - title: "🐛 Bug Fixes"
       labels:
         - "bug"
         - "fix"
-    - title: "New Endpoints / Coverage"
+    - title: "📡 New Endpoints / Coverage"
       labels:
         - "endpoint-request"
-    - title: "Documentation"
+    - title: "📖 Documentation"
       labels:
         - "documentation"
         - "docs"
-    - title: "Dependencies"
+    - title: "📦 Dependencies"
       labels:
         - "dependencies"
-    - title: "CI / Infrastructure"
+    - title: "⚙️ CI / Infrastructure"
       labels:
         - "github-actions"
         - "ci"
-    - title: "Other Changes"
+    - title: "🔄 Other Changes"
       labels:
         - "*"

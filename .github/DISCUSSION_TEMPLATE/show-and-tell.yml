@@ -4,7 +4,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Built something with nbadb data? Share it here — analyses, visualizations, apps, notebooks, or research.
+        Built something with nbadb data? Share it here — analyses, visualizations, apps, notebooks, or research. We love seeing what the community creates!
+
+        Your project could be featured in the docs or shared with the community. Include as much detail as you like.
   - type: textarea
     id: project
     attributes:
@@ -12,10 +14,30 @@ body:
       description: Describe your project and how you used nbadb data.
     validations:
       required: true
+  - type: dropdown
+    id: project-type
+    attributes:
+      label: Project type
+      options:
+        - Data analysis / notebook
+        - Visualization / dashboard
+        - Application / tool
+        - Machine learning / modeling
+        - Research / academic
+        - Other
+    validations:
+      required: false
   - type: textarea
     id: links
     attributes:
       label: Links
       description: Links to your project, notebook, repo, or write-up.
+    validations:
+      required: false
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Media
+      description: Share screenshots, charts, or other visuals from your project.
     validations:
       required: false

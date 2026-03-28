@@ -2,6 +2,11 @@ name: Bug Report
 description: Report a bug in nbadb
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Before filing, please [search existing issues](https://github.com/wyattowalsh/nba-db/issues) and check the [troubleshooting guide](https://nbadb.w4w.dev/docs/guides/troubleshooting).
+
   - type: textarea
     id: description
     attributes:

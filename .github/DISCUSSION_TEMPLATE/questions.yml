@@ -4,7 +4,17 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for asking! Before posting, check the [documentation](https://nbadb.w4w.dev) and existing discussions.
+        Thanks for asking! Before posting, please check these resources:
+        - [Documentation](https://nbadb.w4w.dev) — guides, schema reference, and architecture docs
+        - [Data dictionary](https://nbadb.w4w.dev/docs/data-dictionary) — table and column definitions
+        - [Existing discussions](https://github.com/wyattowalsh/nba-db/discussions) — your question may already be answered
+  - type: checkboxes
+    id: pre-check
+    attributes:
+      label: Pre-check
+      options:
+        - label: I searched existing discussions and the documentation
+          required: true
   - type: textarea
     id: question
     attributes:

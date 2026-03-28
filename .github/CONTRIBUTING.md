@@ -2,6 +2,18 @@
 
 Thanks for your interest in contributing to nbadb! This guide covers everything you need to get started.
 
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| Lint | `uv run ruff check src/ tests/` |
+| Format | `uv run ruff format src/ tests/` |
+| Type check | `uv run ty check src/` |
+| Unit tests | `uv run pytest tests/unit` |
+| All tests | `uv run pytest tests/` |
+| Regen docs | `uv run nbadb docs-autogen --docs-root docs/content/docs` |
+| Docs dev | `cd docs && pnpm dev` |
+
 ## Prerequisites
 
 - Python 3.12+
@@ -33,7 +45,8 @@ uv run nbadb docs-autogen --docs-root docs/content/docs   # Regenerate auto-gene
 cd docs && pnpm dev                                        # Docs dev server
 ```
 
-> **Note:** pytest is configured with `--import-mode=importlib` in `pyproject.toml` because the `nbadb/` root directory shadows `src/nbadb/`.
+> [!NOTE]
+> pytest is configured with `--import-mode=importlib` in `pyproject.toml` because the `nbadb/` root directory shadows `src/nbadb/`.
 
 ## Code Guidelines
 
@@ -47,7 +60,8 @@ cd docs && pnpm dev                                        # Docs dev server
 
 ### Transform Conventions
 
-Most transforms extend the `SqlTransformer` base class — define a `_SQL` class variable with the DuckDB SQL query, no `transform()` override needed:
+> [!TIP]
+> Most transforms extend the `SqlTransformer` base class — define a `_SQL` class variable with the DuckDB SQL query, no `transform()` override needed:
 
 ```python
 class FactExample(SqlTransformer):
@@ -71,13 +85,15 @@ nbadb uses 3-tier Pandera validation: **raw → staging → star**. New tables n
 ### Docs Workflow
 
 - **Hand-edit** authored pages (guides, architecture, CLI reference)
-- **Do not hand-edit** auto-generated files — regenerate them instead:
-  - `docs/content/docs/schema/*-reference.mdx`
-  - `docs/content/docs/data-dictionary/*.mdx`
-  - `docs/content/docs/diagrams/er-auto.mdx`
-  - `docs/content/docs/lineage/lineage-auto.mdx`
 
-Regenerate with: `uv run nbadb docs-autogen --docs-root docs/content/docs`
+> [!IMPORTANT]
+> **Do not hand-edit** auto-generated files — regenerate them instead:
+> - `docs/content/docs/schema/*-reference.mdx`
+> - `docs/content/docs/data-dictionary/*.mdx`
+> - `docs/content/docs/diagrams/er-auto.mdx`
+> - `docs/content/docs/lineage/lineage-auto.mdx`
+>
+> Regenerate with: `uv run nbadb docs-autogen --docs-root docs/content/docs`
 
 ## Commit Conventions
 
@@ -92,7 +108,20 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 Include scope when useful: `feat(transform): add fact_player_clutch_detail`
 
+## Common Pitfalls
+
+> [!CAUTION]
+> **Do not** use pandas — all DataFrame operations use **Polars**.
+
+> [!CAUTION]
+> **Do not** use SQLAlchemy for DuckDB — use the native Python API only.
+
 ## Pull Request Process
+
+```mermaid
+flowchart LR
+    A["Fork"] --> B["Branch"] --> C["Code + Test"] --> D["Quality Suite"] --> E["Submit PR"] --> F["CI ✓"] --> G["Review"] --> H["Merge"]
+```
 
 1. Fork the repo and create a feature branch from `main`
 2. Make your changes with tests

@@ -4,7 +4,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Share your ideas for improving nbadb — new analytics views, schema changes, workflow improvements, or anything else.
+        Share your ideas for improving nbadb — new analytics views, schema changes, workflow improvements, or anything else. We'd love to hear from you!
+
+        Helpful references:
+        - [Schema & ER diagrams](https://nbadb.w4w.dev/docs/diagrams) — understand the current data model
+        - [Architecture guide](https://nbadb.w4w.dev/docs/architecture) — how the pipeline fits together
+        - [Contributing guide](https://github.com/wyattowalsh/nba-db/blob/main/.github/CONTRIBUTING.md) — conventions and workflow
   - type: textarea
     id: idea
     attributes:

@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        nbadb currently covers 125 of 139 nba_api endpoint classes (89.9%) with 143 extractors and 210 staging entries. Check the [coverage status](https://nbadb.w4w.dev/docs/data-dictionary/staging) before filing. The nba_api endpoint reference is at [swar/nba_api](https://github.com/swar/nba_api/tree/master/docs/nba_api/stats/endpoints).
+        Check the [coverage status](https://nbadb.w4w.dev/docs/data-dictionary/staging) before filing to see which endpoints are already covered. The nba_api endpoint reference is at [swar/nba_api](https://github.com/swar/nba_api/tree/master/docs/nba_api/stats/endpoints).
 
   - type: input
     id: endpoint-class
