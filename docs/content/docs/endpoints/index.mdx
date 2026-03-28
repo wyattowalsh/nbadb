@@ -133,8 +133,8 @@ Thirteen endpoints are deliberately excluded from the analytical model. They are
 
 | Endpoint | Reason |
 | -------- | ------ |
-| `LeagueStandingsV3` (duplicate) | One standings surface is already modeled via `league_standings`; a second extraction path would be redundant |
-| `PlayByPlayV2` (duplicate PBP) | Legacy play-by-play kept for compatibility; the canonical `play_by_play` surface uses V3 |
+| `LeagueStandingsV3` (duplicate path) | One standings extraction surface is already modeled via `league_standings`; a second extraction path would be redundant |
+| `PlayerDashPtDefend` | True duplicate of `PlayerDashPtShotDefend`; same nba_api class with identical result sets |
 
 <CourtDivider label="Keep the board moving" />
 
