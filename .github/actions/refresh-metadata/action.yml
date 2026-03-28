@@ -1,0 +1,39 @@
+name: Refresh Metadata
+description: Regenerate the root dataset-metadata.json and optionally commit it.
+
+inputs:
+  data-dir:
+    description: Optional export directory to inspect while generating metadata.
+    required: false
+    default: ""
+  commit:
+    description: Whether to commit and push a changed dataset-metadata.json.
+    required: false
+    default: "true"
+  commit-message:
+    description: Commit message to use when metadata changes.
+    required: false
+    default: "chore: regenerate dataset-metadata.json"
+
+runs:
+  using: composite
+  steps:
+    - name: Regenerate dataset metadata
+      shell: bash
+      run: |
+        args=()
+        if [ -n "${{ inputs.data-dir }}" ]; then
+          args+=(--data-dir "${{ inputs.data-dir }}")
+        fi
+        uv run nbadb metadata "${args[@]}"
+
+    - name: Commit refreshed metadata
+      if: ${{ inputs.commit == 'true' }}
+      shell: bash
+      run: |
+        git diff --quiet -- dataset-metadata.json && exit 0
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add dataset-metadata.json
+        git commit -m "${{ inputs.commit-message }}"
+        git push

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -29,9 +30,12 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "dim_team": "Current NBA teams with abbreviation, city, state, arena, conference, and division.",
     "dim_team_extended": "Extended team attributes joining team details, common info, and active years.",
     "dim_team_history": "SCD Type 2 team history tracking city, nickname, and abbreviation changes over time.",
-    # --- Bridges (2) ---
+    # --- Bridges (5) ---
     "bridge_game_official": "Many-to-many bridge linking games to their assigned officials.",
+    "bridge_game_team": "Bridge linking each game to both participating teams with home/away side and win-loss outcome.",
+    "bridge_lineup_player": "Exploded bridge linking lineup group IDs to individual players and lineup slot order.",
     "bridge_play_player": "Many-to-many bridge linking play-by-play events to involved players.",
+    "bridge_player_team_season": "Bridge linking players to teams by season with jersey number and listed position.",
     # --- Facts (127) ---
     "fact_box_score_advanced_team": "Team-level advanced box score stats per game: offensive/defensive rating, pace, eFG%, TS%, AST ratio.",
     "fact_box_score_defensive_team": "Team-level defensive box score stats per game.",
@@ -177,10 +181,13 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "agg_team_franchise": "Franchise-level all-time aggregates: total wins, losses, championships, playoff appearances.",
     "agg_team_pace_and_efficiency": "Team pace and efficiency metrics per season: possessions, offensive/defensive efficiency.",
     "agg_team_season": "Team season aggregates: GP, averages for PTS/REB/AST, and shooting percentages (FG/3PT/FT).",
-    # --- Analytics Views (8) ---
+    # --- Analytics Views (11) ---
+    "analytics_draft_value": "Draft analytics joining pick position with player bio and career production for value comparisons.",
     "analytics_clutch_performance": "Wide analytics view joining clutch detail with player names and team abbreviations across all clutch windows.",
     "analytics_head_to_head": "Team head-to-head analytics with historical matchup records and stats.",
+    "analytics_league_benchmarks": "Season-level benchmark view with league-average player and team metrics for comparison workflows.",
     "analytics_player_game_complete": "Denormalized player game view joining traditional, advanced, misc, hustle, and tracking stats with player/team/game dimensions.",
+    "analytics_player_impact": "Player impact analytics combining season averages with on/off splits and team context.",
     "analytics_player_matchup": "Player matchup analytics comparing head-to-head performance between players.",
     "analytics_player_season_complete": "Complete player season analytics combining all stat categories into a single wide table.",
     "analytics_shooting_efficiency": "Shot-level analytics enriched with league average FG% by zone for relative efficiency analysis.",
@@ -208,9 +215,14 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
         "dim_team_extended",
         "dim_team_history",
     ],
-    "facts": [
+    "bridges": [
         "bridge_game_official",
+        "bridge_game_team",
+        "bridge_lineup_player",
         "bridge_play_player",
+        "bridge_player_team_season",
+    ],
+    "facts": [
         "fact_box_score_advanced_team",
         "fact_box_score_defensive_team",
         "fact_box_score_four_factors",
@@ -358,9 +370,12 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
         "agg_team_season",
     ],
     "analytics": [
+        "analytics_draft_value",
         "analytics_clutch_performance",
         "analytics_head_to_head",
+        "analytics_league_benchmarks",
         "analytics_player_game_complete",
+        "analytics_player_impact",
         "analytics_player_matchup",
         "analytics_player_season_complete",
         "analytics_shooting_efficiency",
@@ -369,195 +384,308 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
     ],
 }
 
+CATEGORY_ORDER = ("dimensions", "bridges", "facts", "derived", "analytics")
 
-_DATASET_DESCRIPTION = """\
-# NBA Basketball Database
+CATEGORY_LABELS: dict[str, str] = {
+    "dimensions": "Dimensions",
+    "bridges": "Bridges",
+    "facts": "Facts",
+    "derived": "Aggregations",
+    "analytics": "Analytics Views",
+}
 
-The most comprehensive open NBA database available — \
-131 stats.nba.com endpoints extracted via \
-[nba_api](https://github.com/swar/nba_api), normalized into a \
-170-table star schema covering every season from 1946-47 to present.
+CATEGORY_SUMMARIES: dict[str, str] = {
+    "dimensions": "Players, teams, games, arenas, seasons, coaches, and officials.",
+    "bridges": "Explicit bridge tables for officials, game-team sides, lineup membership, and player/team-season links.",
+    "facts": "Box scores, play-by-play, shot charts, tracking, standings, matchups, and dashboards.",
+    "derived": "Season totals, career stats, all-time leaders, rolling windows, and rate-normalized rollups.",
+    "analytics": "Pre-joined wide tables for ML, BI, and notebook workflows.",
+}
 
-## Schema Overview
+FORMAT_SPECS: tuple[tuple[str, str, str], ...] = (
+    ("DuckDB", "nba.duckdb", "Fast analytical queries, joins across tables"),
+    ("SQLite", "nba.sqlite", "Portable SQL access with broad tool support"),
+    ("Parquet", "parquet/<table>/...", "Columnar analytics with pandas, polars, Arrow, and Spark"),
+    ("CSV", "csv/<table>.csv", "Universal compatibility and spreadsheet workflows"),
+)
 
-| Layer | Count | Description |
-|-------|------:|-------------|
-| Dimensions | 17 | Players, teams, games, arenas, seasons, coaches, officials |
-| Facts | 127 | Box scores, play-by-play, shot charts, tracking, standings, matchups |
-| Bridges | 2 | Game-official, play-player many-to-many links |
-| Aggregations | 16 | Season totals, career stats, all-time leaders, rolling averages |
-| Analytics | 8 | Denormalized wide tables for ML and analysis |
+DATASET_TITLE = "NBA Basketball Database"
+PROJECT_DOCS_URL = "https://nbadb.w4w.dev"
+PROJECT_REPO_URL = "https://github.com/wyattowalsh/nbadb"
 
-## Data Coverage
 
-- **Box Scores**: traditional, advanced, misc, hustle, four factors, \
-tracking, scoring, usage, starter/bench splits
-- **Play-by-Play**: every event with game clock, score, and involved players
-- **Shot Charts**: every FGA with court coordinates (x, y), zone, \
-distance, and make/miss
-- **Player Tracking**: speed, distance, touches, passes, contested shots, \
-rebounding breakdowns
-- **Rotations**: check-in/out times with points and usage per stint
-- **Win Probability**: real-time home/visitor win% at each play
-- **Lineups**: five-man unit stats (league-wide and per-team)
-- **Synergy Play Types**: PnR, isolation, transition, post-up, spot-up, \
-cut, off-screen efficiency
-- **Draft**: picks, combine measurements (height, weight, wingspan, \
-vertical leap, sprint, bench press)
-- **Awards**: MVP, All-Star, All-NBA, DPOY, ROY, and more
-- **Standings**: W-L, conference/division rank, home/road splits, streaks
-- **Clutch Stats**: 11 time/score window definitions
-- **Franchise History**: championships, conference/division titles, \
-all-time records
+@dataclass(frozen=True, slots=True)
+class ExportInventory:
+    duckdb_available: bool
+    sqlite_available: bool
+    csv_tables: int
+    parquet_tables: int
 
-## Available Formats
 
-| Format | File | Best For |
-|--------|------|----------|
-| DuckDB | `nba.duckdb` | Fast analytical queries, joins across tables |
-| SQLite | `nba.sqlite` | Portable SQL access, broad tool support |
-| Parquet | `parquet/*.parquet` | Columnar analytics, pandas/polars/Spark |
-| CSV | `csv/*.csv` | Universal compatibility, spreadsheets |
+def _iter_catalog_tables() -> list[str]:
+    return [table for category in CATEGORY_ORDER for table in TABLE_CATEGORIES[category]]
 
-DuckDB and Parquet files use zstd compression for efficient storage.
 
-## Getting Started
+def _total_table_count() -> int:
+    return len(_iter_catalog_tables())
 
-```python
-import duckdb
-con = duckdb.connect("nba.duckdb", read_only=True)
 
-# Player season averages
-con.sql("SELECT * FROM agg_player_season WHERE season_year = '2024-25' ORDER BY avg_pts DESC LIMIT 10")
+def _expected_inventory() -> ExportInventory:
+    total_tables = _total_table_count()
+    return ExportInventory(
+        duckdb_available=True,
+        sqlite_available=True,
+        csv_tables=total_tables,
+        parquet_tables=total_tables,
+    )
 
-# Shot chart for a player
-con.sql("SELECT loc_x, loc_y, shot_made_flag FROM fact_shot_chart WHERE player_id = 201939")
 
-# Team standings
-con.sql("SELECT * FROM fact_standings WHERE season_year = '2024-25' ORDER BY conference_rank")
-```
+def _resolve_export_inventory(data_dir: Path | None) -> ExportInventory:
+    if data_dir is None:
+        return _expected_inventory()
 
-## Key Relationships
+    if not data_dir.exists():
+        logger.warning(
+            "Metadata data_dir {} does not exist; falling back to catalog-only metadata.",
+            data_dir,
+        )
+        return _expected_inventory()
 
-The schema is designed as a star schema. Dimension tables provide \
-lookup attributes; fact tables contain measurable events. Key joins:
+    all_tables = _iter_catalog_tables()
+    csv_tables = sum(1 for table in all_tables if (data_dir / "csv" / f"{table}.csv").exists())
+    parquet_tables = sum(
+        1 for table in all_tables if _resolve_parquet_resource_path(table, data_dir)
+    )
+    return ExportInventory(
+        duckdb_available=(data_dir / "nba.duckdb").exists(),
+        sqlite_available=(data_dir / "nba.sqlite").exists(),
+        csv_tables=csv_tables,
+        parquet_tables=parquet_tables,
+    )
 
-- **player_id** — links facts to `dim_player` (use `is_current = TRUE` \
-for latest attributes)
-- **team_id** — links facts to `dim_team`
-- **game_id** — links facts to `dim_game` (which provides season, date, \
-home/visitor)
-- **season_year** — string key like `'2024-25'` present in most fact \
-and aggregation tables
 
-Analytics views are pre-joined wide tables — no joins needed for \
-common analysis patterns.
+def _available_format_specs(inventory: ExportInventory) -> list[tuple[str, str, str]]:
+    available: list[tuple[str, str, str]] = []
+    for label, path, description in FORMAT_SPECS:
+        if label == "DuckDB" and not inventory.duckdb_available:
+            continue
+        if label == "SQLite" and not inventory.sqlite_available:
+            continue
+        if label == "Parquet" and inventory.parquet_tables == 0:
+            continue
+        if label == "CSV" and inventory.csv_tables == 0:
+            continue
+        available.append((label, path, description))
+    return available
 
-## Table Catalog
 
-### Dimensions (17)
+def _human_join(items: list[str]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
 
-| Table | Description |
-|-------|-------------|
-| dim_all_players | Master player directory — IDs, names, active status |
-| dim_arena | Arenas with city, state, country, timezone |
-| dim_coach | Coaching staff by team and season |
-| dim_college | College/university lookup |
-| dim_date | Calendar from 1946 with NBA season mapping |
-| dim_defunct_team | Historical teams no longer active |
-| dim_game | Games with date, season, teams, arena |
-| dim_official | Referees with name and jersey |
-| dim_play_event_type | Play-by-play event type codes |
-| dim_player | SCD2 player history (team/position/jersey changes) |
-| dim_season | Season start and end dates |
-| dim_season_phase | Season phase reference (Regular, Playoffs, etc.) |
-| dim_season_week | Schedule week boundaries |
-| dim_shot_zone | Shot zone combinations (basic/area/range) |
-| dim_team | Current teams with conference and division |
-| dim_team_extended | Extended team attributes |
-| dim_team_history | SCD2 team history (city/name changes) |
 
-### Core Facts — Box Scores
+def _render_subtitle(inventory: ExportInventory) -> str:
+    total_tables = _total_table_count()
+    format_names = [label for label, _, _ in _available_format_specs(inventory)]
+    return (
+        f"Comprehensive NBA database: {total_tables}-table star schema (1946-present) "
+        f"with {_human_join(format_names)} exports"
+    )
 
-| Table | Description |
-|-------|-------------|
-| fact_player_game_traditional | Player box score: PTS, REB, AST, shooting |
-| fact_player_game_advanced | Player advanced: OffRtg, DefRtg, TS%, USG%, PIE |
-| fact_player_game_misc | Points off TOV, 2nd chance, fast break, PITP |
-| fact_player_game_hustle | Contested shots, deflections, loose balls |
-| fact_player_game_tracking | Distance, speed, touches, passes |
-| fact_box_score_team | Team traditional box score |
-| fact_box_score_advanced_team | Team advanced stats |
-| fact_box_score_four_factors | Four Factors (eFG%, TOV%, OREB%, FT rate) |
-| fact_box_score_starter_bench | Starter vs. bench splits |
 
-### Core Facts — Events & Spatial
+def _render_schema_overview() -> str:
+    rows = [
+        "## Schema Overview",
+        "",
+        "| Layer | Count | Description |",
+        "|-------|------:|-------------|",
+    ]
+    for category in CATEGORY_ORDER:
+        rows.append(
+            f"| {CATEGORY_LABELS[category]} | {len(TABLE_CATEGORIES[category])} | {CATEGORY_SUMMARIES[category]} |"
+        )
+    return "\n".join(rows)
 
-| Table | Description |
-|-------|-------------|
-| fact_play_by_play | Every play with clock, score, event type, players |
-| fact_shot_chart | Every FGA with (x, y) coordinates and zone |
-| fact_rotation | Player stints with check-in/out times |
-| fact_win_probability | Win probability at each event |
-| fact_synergy | Play type efficiency (PnR, ISO, transition, etc.) |
 
-### Core Facts — Season & Career
+def _render_source_and_provenance() -> str:
+    return "\n".join(
+        [
+            "## Source and Provenance",
+            "",
+            "- **Primary source**: `stats.nba.com` endpoints accessed via [`nba_api`](https://github.com/swar/nba_api).",
+            "- **Dataset identifier**: `wyattowalsh/basketball` on Kaggle.",
+            f"- **Documentation**: {PROJECT_DOCS_URL}",
+            f"- **Repository**: {PROJECT_REPO_URL}",
+            "- **Temporal coverage**: 1946-47 through the current NBA season, with daily in-season refreshes and monthly full rebuilds.",
+        ]
+    )
 
-| Table | Description |
-|-------|-------------|
-| fact_standings | W-L, conference/division rank, streaks |
-| fact_draft | Draft picks with combine measurements |
-| fact_player_awards | MVP, All-Star, All-NBA, DPOY, ROY |
-| fact_player_clutch_detail | Clutch stats across 11 time windows |
-| fact_franchise_detail | Championships, titles, historical records |
 
-### Aggregations (16)
+def _render_data_coverage() -> str:
+    return "\n".join(
+        [
+            "## Data Coverage",
+            "",
+            "- **Box Scores**: traditional, advanced, misc, hustle, four factors, tracking, scoring, usage, and starter/bench splits.",
+            "- **Play-by-Play**: every event with clock, score, event codes, and involved players.",
+            "- **Shot Charts**: every FGA with court coordinates, zone, distance, and make/miss outcome.",
+            "- **Player Tracking**: speed, distance, touches, passes, contested shots, and rebounding breakdowns.",
+            "- **Rotations**: check-in/check-out times with points and usage per stint.",
+            "- **Win Probability**: real-time home and visitor win probability at each play.",
+            "- **Lineups**: five-man unit performance from league-wide and team-specific lineup endpoints.",
+            "- **Synergy Play Types**: PnR, isolation, transition, post-up, spot-up, cut, and off-screen efficiency.",
+            "- **Draft**: picks plus combine measurements including height, weight, wingspan, vertical leap, sprint, and bench press.",
+            "- **Awards and Standings**: MVP, All-Star, All-NBA, DPOY, ROY, conference/division rankings, streaks, and playoff context.",
+        ]
+    )
 
-| Table | Description |
-|-------|-------------|
-| agg_player_season | Season totals and averages (traditional + advanced) |
-| agg_player_season_per36 | Per-36-minute normalized stats |
-| agg_player_season_per48 | Per-48-minute normalized stats |
-| agg_player_career | Career totals and averages |
-| agg_player_rolling | Rolling averages (last 5/10/15 games) |
-| agg_player_bio | Biographical aggregates |
-| agg_team_season | Team season averages and shooting splits |
-| agg_team_franchise | Franchise all-time records |
-| agg_team_pace_and_efficiency | Team pace and efficiency per season |
-| agg_all_time_leaders | All-time leaders across 20 stat categories |
-| agg_league_leaders | Current season leaders |
-| agg_clutch_stats | Clutch performance aggregates |
-| agg_lineup_efficiency | Five-man unit OffRtg/DefRtg/NetRtg |
-| agg_on_off_splits | On/off court impact splits |
-| agg_shot_zones | Shooting by zone per player per season |
-| agg_shot_location_season | Shooting by court location per season |
 
-### Analytics Views (8)
+def _render_available_formats(inventory: ExportInventory) -> str:
+    rows = [
+        "## Available Formats",
+        "",
+        "| Format | Path | Best For |",
+        "|--------|------|----------|",
+    ]
+    for label, path, description in _available_format_specs(inventory):
+        rows.append(f"| {label} | `{path}` | {description} |")
+    rows.extend(
+        [
+            "",
+            "DuckDB and Parquet exports use zstd compression for efficient storage.",
+        ]
+    )
+    return "\n".join(rows)
 
-Pre-joined wide tables ready for ML and analysis — no joins required.
 
-| Table | Description |
-|-------|-------------|
-| analytics_player_game_complete | Traditional + advanced + misc + hustle + tracking per game |
-| analytics_player_season_complete | All stat categories combined per season |
-| analytics_team_game_complete | All team box score categories per game |
-| analytics_team_season_summary | Season aggregates + standings + team info |
-| analytics_clutch_performance | Clutch detail + player/team names |
-| analytics_shooting_efficiency | Shot chart + league avg FG% by zone |
-| analytics_player_matchup | Player head-to-head comparisons |
-| analytics_head_to_head | Team historical matchup records |
+def _render_export_inventory(inventory: ExportInventory) -> str:
+    total_tables = _total_table_count()
+    databases: list[str] = []
+    if inventory.duckdb_available:
+        databases.append("DuckDB")
+    if inventory.sqlite_available:
+        databases.append("SQLite")
+    database_summary = _human_join(databases) or "none detected"
+    return "\n".join(
+        [
+            "## Export Inventory",
+            "",
+            f"- **Cataloged tables**: {total_tables}",
+            f"- **CSV exports available**: {inventory.csv_tables}/{total_tables}",
+            f"- **Parquet exports available**: {inventory.parquet_tables}/{total_tables}",
+            f"- **Database bundles available**: {database_summary}",
+        ]
+    )
 
-## Companion Notebooks
 
-10 Kaggle notebooks demonstrate analytics use cases including \
-MVP prediction, game outcome modeling, player clustering, \
-shot chart visualization, and lineup analysis.
+def _render_getting_started() -> str:
+    return "\n".join(
+        [
+            "## Getting Started",
+            "",
+            "```python",
+            "import duckdb",
+            'con = duckdb.connect("nba.duckdb", read_only=True)',
+            "",
+            "# Player season averages",
+            "con.sql(\"SELECT * FROM agg_player_season WHERE season_year = '2024-25' ORDER BY avg_pts DESC LIMIT 10\")",
+            "",
+            "# Shot chart for a player",
+            'con.sql("SELECT loc_x, loc_y, shot_made_flag FROM fact_shot_chart WHERE player_id = 201939")',
+            "",
+            "# Team standings",
+            "con.sql(\"SELECT * FROM fact_standings WHERE season_year = '2024-25' ORDER BY conference_rank\")",
+            "```",
+        ]
+    )
 
-## Update Schedule
 
-Updated daily during the NBA season via automated pipeline. \
-Full rebuild on the first week of each month.\
-"""
+def _render_key_relationships() -> str:
+    return "\n".join(
+        [
+            "## Key Relationships",
+            "",
+            "The warehouse follows a star schema: dimensions provide lookup context, while facts record measurable events and aggregates.",
+            "",
+            "- **player_id** links facts to `dim_player` (use `is_current = TRUE` for the latest SCD2 attributes).",
+            "- **team_id** links facts and bridges to `dim_team`.",
+            "- **game_id** links event and box-score facts to `dim_game`, which provides season, date, and home/visitor context.",
+            "- **season_year** is the common grain for seasonal facts and aggregate rollups.",
+            "",
+            "Analytics views are pre-joined wide tables for common notebook and BI workflows.",
+        ]
+    )
+
+
+def _render_table_catalog() -> str:
+    sections = ["## Table Catalog", ""]
+    for category in CATEGORY_ORDER:
+        sections.extend(
+            [
+                f"### {CATEGORY_LABELS[category]} ({len(TABLE_CATEGORIES[category])})",
+                "",
+                "| Table | Description |",
+                "|-------|-------------|",
+            ]
+        )
+        sections.extend(
+            f"| {table} | {TABLE_DESCRIPTIONS[table]} |" for table in TABLE_CATEGORIES[category]
+        )
+        sections.append("")
+    return "\n".join(sections).rstrip()
+
+
+def _render_companion_notebooks() -> str:
+    return "\n".join(
+        [
+            "## Companion Notebooks",
+            "",
+            "10 Kaggle notebooks demonstrate MVP prediction, game-outcome modeling, player clustering, shot-chart visualization, and lineup analysis.",
+        ]
+    )
+
+
+def _render_update_schedule() -> str:
+    return "\n".join(
+        [
+            "## Update Schedule",
+            "",
+            "Updated daily during the NBA season via the automated pipeline. Full rebuilds run on the first week of each month.",
+        ]
+    )
+
+
+def _render_dataset_description(inventory: ExportInventory) -> str:
+    sections = [
+        "# NBA Basketball Database",
+        "",
+        "The most comprehensive open NBA database available — 137 stats.nba.com endpoint classes extracted via [nba_api](https://github.com/swar/nba_api), normalized into a star schema covering every season from 1946-47 to present.",
+        "",
+        _render_source_and_provenance(),
+        "",
+        _render_schema_overview(),
+        "",
+        _render_data_coverage(),
+        "",
+        _render_available_formats(inventory),
+        "",
+        _render_export_inventory(inventory),
+        "",
+        _render_getting_started(),
+        "",
+        _render_key_relationships(),
+        "",
+        _render_table_catalog(),
+        "",
+        _render_companion_notebooks(),
+        "",
+        _render_update_schedule(),
+    ]
+    return "\n".join(sections)
+
 
 _DTYPE_MAP: dict[str, str] = {
     "Int8": "integer",
@@ -578,15 +706,16 @@ _DTYPE_MAP: dict[str, str] = {
 }
 
 
-def generate_metadata(output_path: Path) -> None:
-    """Generate dataset-metadata.json from table catalog."""
+def generate_metadata(output_path: Path, data_dir: Path | None = None) -> None:
+    """Generate dataset-metadata.json from the table catalog and optional export data."""
     settings = get_settings()
+    inventory = _resolve_export_inventory(data_dir)
     metadata = {
         "id": settings.kaggle_dataset,
         "id_no": None,
-        "title": "Basketball",
-        "subtitle": "Comprehensive NBA database: 131 endpoints, 170-table star schema (1946\u2013present)",
-        "description": _DATASET_DESCRIPTION,
+        "title": DATASET_TITLE,
+        "subtitle": _render_subtitle(inventory),
+        "description": _render_dataset_description(inventory),
         "isPrivate": False,
         "licenses": [{"name": "CC-BY-SA-4.0"}],
         "keywords": [
@@ -612,13 +741,14 @@ def generate_metadata(output_path: Path) -> None:
         ],
         "collaborators": [],
         "data": [],
-        "resources": _build_resources(),
+        "resources": _build_resources(data_dir=data_dir),
     }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     logger.info(f"Generated metadata at {output_path}")
 
 
-def _schema_to_fields(schema_cls: type) -> list[dict]:
+def _schema_to_fields(schema_cls: Any) -> list[dict]:
     """Convert a pandera schema class to Kaggle-compatible field dicts."""
     schema_obj = schema_cls.to_schema()
     fields: list[dict] = []
@@ -680,50 +810,72 @@ def _table_display_name(table: str) -> str:
     return table.replace("_", " ").title()
 
 
-def _build_resources() -> list[dict]:
-    """Build resource entries for each exported table."""
+def _resolve_parquet_resource_path(table: str, data_dir: Path | None = None) -> str | None:
+    from nbadb.load.parquet_loader import PARTITIONED_TABLES
+
+    if data_dir is not None:
+        table_dir = data_dir / "parquet" / table
+        table_file = table_dir / f"{table}.parquet"
+        if table_file.exists():
+            return f"parquet/{table}/{table}.parquet"
+        if table_dir.exists():
+            return f"parquet/{table}"
+        return None
+
+    if table in PARTITIONED_TABLES:
+        return f"parquet/{table}"
+    return f"parquet/{table}/{table}.parquet"
+
+
+def _build_resources(data_dir: Path | None = None) -> list[dict]:
+    """Build resource entries for exported tables, filtering by data_dir when provided."""
     resources: list[dict] = []
+    total_tables = _total_table_count()
 
     # Database files
-    resources.append(
-        {
-            "path": "nba.duckdb",
-            "name": "DuckDB Database",
-            "description": "DuckDB database with all 170 tables. Best for fast analytical queries and cross-table joins.",
-        }
-    )
-    resources.append(
-        {
-            "path": "nba.sqlite",
-            "name": "SQLite Database",
-            "description": "SQLite database with all 170 tables. Portable SQL access with broad tool support.",
-        }
-    )
+    if data_dir is None or (data_dir / "nba.duckdb").exists():
+        resources.append(
+            {
+                "path": "nba.duckdb",
+                "name": "DuckDB Database",
+                "description": f"DuckDB database with all {total_tables} cataloged tables. Best for fast analytical queries and cross-table joins.",
+            }
+        )
+    if data_dir is None or (data_dir / "nba.sqlite").exists():
+        resources.append(
+            {
+                "path": "nba.sqlite",
+                "name": "SQLite Database",
+                "description": f"SQLite database with all {total_tables} cataloged tables. Portable SQL access with broad tool support.",
+            }
+        )
 
     # CSV and Parquet tables with optional column schemas
-    for tables in TABLE_CATEGORIES.values():
-        for table in tables:
-            description = TABLE_DESCRIPTIONS.get(table, table)
-            display_name = _table_display_name(table)
+    for table in _iter_catalog_tables():
+        description = TABLE_DESCRIPTIONS.get(table, table)
+        display_name = _table_display_name(table)
+        schema_fields = _extract_column_schema(table)
 
-            # CSV resource
+        csv_path = f"csv/{table}.csv"
+        if data_dir is None or (data_dir / csv_path).exists():
             csv_resource: dict = {
-                "path": f"csv/{table}.csv",
+                "path": csv_path,
                 "name": display_name,
                 "description": description,
             }
-            schema_fields = _extract_column_schema(table)
             if schema_fields:
                 csv_resource["schema"] = {"fields": schema_fields}
             resources.append(csv_resource)
 
-            # Parquet resource
-            resources.append(
-                {
-                    "path": f"parquet/{table}.parquet",
-                    "name": f"{display_name} (Parquet)",
-                    "description": description,
-                }
-            )
+        parquet_path = _resolve_parquet_resource_path(table, data_dir)
+        if parquet_path is not None:
+            parquet_resource: dict = {
+                "path": parquet_path,
+                "name": f"{display_name} (Parquet)",
+                "description": description,
+            }
+            if schema_fields:
+                parquet_resource["schema"] = {"fields": schema_fields}
+            resources.append(parquet_resource)
 
     return resources

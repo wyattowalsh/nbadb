@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -10,16 +11,19 @@ from nbadb.kaggle.metadata import (
     TABLE_DESCRIPTIONS,
     _build_resources,
     _extract_column_schema,
+    _resolve_parquet_resource_path,
     _table_display_name,
     generate_metadata,
 )
+from nbadb.load.parquet_loader import PARTITIONED_TABLES
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from nbadb.core.config import NbaDbSettings
 
-_TABLE_COUNT = 170
+_ALL_TABLES = [table for tables in TABLE_CATEGORIES.values() for table in tables]
+_TABLE_COUNT = len(_ALL_TABLES)
 
 
 class TestGenerateMetadata:
@@ -39,6 +43,15 @@ class TestGenerateMetadata:
             generate_metadata(output)
         data = json.loads(output.read_text(encoding="utf-8"))
         assert data["id"] == settings.kaggle_dataset
+
+    def test_title_is_specific_to_nba_dataset(
+        self, tmp_path: Path, settings: NbaDbSettings
+    ) -> None:
+        output = tmp_path / "dataset-metadata.json"
+        with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
+            generate_metadata(output)
+        data = json.loads(output.read_text(encoding="utf-8"))
+        assert data["title"] == "NBA Basketball Database"
 
     def test_license_is_cc_by_sa(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         output = tmp_path / "dataset-metadata.json"
@@ -64,8 +77,14 @@ class TestGenerateMetadata:
         with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
             generate_metadata(output)
         data = json.loads(output.read_text(encoding="utf-8"))
-        # 2 database files + 161 CSV + 161 Parquet = 324
         assert len(data["resources"]) == 2 + _TABLE_COUNT * 2
+
+    def test_subtitle_tracks_catalog_count(self, tmp_path: Path, settings: NbaDbSettings) -> None:
+        output = tmp_path / "dataset-metadata.json"
+        with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
+            generate_metadata(output)
+        data = json.loads(output.read_text(encoding="utf-8"))
+        assert f"{_TABLE_COUNT}-table star schema" in data["subtitle"]
 
     def test_no_pipeline_internal_tables_in_resources(
         self, tmp_path: Path, settings: NbaDbSettings
@@ -92,6 +111,7 @@ class TestGenerateMetadata:
         data = json.loads(output.read_text(encoding="utf-8"))
         desc = data["description"]
         assert "# NBA Basketball Database" in desc
+        assert "## Source and Provenance" in desc
         assert "## Schema Overview" in desc
         assert "## Getting Started" in desc
         assert "```python" in desc
@@ -100,7 +120,6 @@ class TestGenerateMetadata:
 class TestBuildResources:
     def test_returns_expected_entries(self) -> None:
         resources = _build_resources()
-        # 2 database files + 161 CSV + 161 Parquet
         assert len(resources) == 2 + _TABLE_COUNT * 2
 
     def test_each_resource_has_path_and_description(self) -> None:
@@ -111,23 +130,75 @@ class TestBuildResources:
     def test_csv_and_parquet_for_each_table(self) -> None:
         resources = _build_resources()
         paths = {r["path"] for r in resources}
-        all_tables = [t for tables in TABLE_CATEGORIES.values() for t in tables]
-        for table in all_tables:
+        for table in _ALL_TABLES:
             assert f"csv/{table}.csv" in paths, f"Missing CSV: {table}"
-            assert f"parquet/{table}.parquet" in paths, f"Missing Parquet: {table}"
+            assert any(
+                path == f"parquet/{table}" or path == f"parquet/{table}/{table}.parquet"
+                for path in paths
+            ), f"Missing Parquet: {table}"
 
     def test_database_files_first(self) -> None:
         resources = _build_resources()
         assert resources[0]["path"] == "nba.duckdb"
         assert resources[1]["path"] == "nba.sqlite"
 
-    def test_covers_all_four_categories(self) -> None:
-        assert set(TABLE_CATEGORIES.keys()) == {"dimensions", "facts", "derived", "analytics"}
+    def test_covers_all_five_categories(self) -> None:
+        assert set(TABLE_CATEGORIES.keys()) == {
+            "dimensions",
+            "bridges",
+            "facts",
+            "derived",
+            "analytics",
+        }
 
     def test_all_tables_have_descriptions(self) -> None:
-        all_tables = [t for tables in TABLE_CATEGORIES.values() for t in tables]
-        missing = [t for t in all_tables if t not in TABLE_DESCRIPTIONS]
+        missing = [table for table in _ALL_TABLES if table not in TABLE_DESCRIPTIONS]
         assert missing == [], f"Tables missing descriptions: {missing}"
+
+    def test_all_transforms_in_catalog(self) -> None:
+        from pathlib import Path
+
+        catalog = set(_ALL_TABLES)
+        tables: set[str] = set()
+        for path in Path("src/nbadb/transform").rglob("*.py"):
+            matches = re.findall(
+                r'output_table\s*:\s*ClassVar\[str\]\s*=\s*"([^"]+)"',
+                path.read_text(encoding="utf-8"),
+            )
+            tables.update(matches)
+        missing = sorted(tables - catalog)
+        assert missing == [], f"Transforms not in TABLE_CATEGORIES: {missing}"
+
+    def test_bridge_tables_present(self) -> None:
+        paths = {r["path"] for r in _build_resources()}
+        for table in TABLE_CATEGORIES["bridges"]:
+            assert f"csv/{table}.csv" in paths
+
+    def test_partitioned_parquet_tables_use_directory_paths(self) -> None:
+        catalog_partitioned = set(PARTITIONED_TABLES) & set(_ALL_TABLES)
+        for table in catalog_partitioned:
+            assert _resolve_parquet_resource_path(table) == f"parquet/{table}"
+
+    def test_non_partitioned_parquet_tables_use_file_paths(self) -> None:
+        assert (
+            _resolve_parquet_resource_path("dim_player") == "parquet/dim_player/dim_player.parquet"
+        )
+
+    def test_data_dir_filters_missing_resources(self, tmp_path: Path) -> None:
+        (tmp_path / "csv").mkdir()
+        (tmp_path / "parquet" / "dim_player").mkdir(parents=True)
+        (tmp_path / "csv" / "dim_player.csv").write_text("player_id\n1\n", encoding="utf-8")
+        (tmp_path / "parquet" / "dim_player" / "dim_player.parquet").write_bytes(b"")
+        (tmp_path / "nba.sqlite").write_bytes(b"")
+
+        resources = _build_resources(data_dir=tmp_path)
+        paths = {r["path"] for r in resources}
+
+        assert paths == {
+            "nba.sqlite",
+            "csv/dim_player.csv",
+            "parquet/dim_player/dim_player.parquet",
+        }
 
     def test_dim_tables_present(self) -> None:
         paths = {r["path"] for r in _build_resources()}
@@ -213,8 +284,14 @@ class TestColumnSchemas:
     def test_staging_fallback_coverage(self) -> None:
         resources = _build_resources()
         csv_with_schema = [r for r in resources if r["path"].startswith("csv/") and "schema" in r]
-        # 83 star schemas + 7 staging fallbacks = 90
         assert len(csv_with_schema) >= 90
+
+    def test_parquet_resources_include_schema_when_available(self) -> None:
+        resources = _build_resources()
+        parquet_with_schema = [
+            r for r in resources if r["path"].startswith("parquet/") and "schema" in r
+        ]
+        assert len(parquet_with_schema) >= 90
 
 
 class TestResourceNames:
@@ -250,8 +327,35 @@ class TestDescription:
         desc = data["description"]
         assert "## Table Catalog" in desc
         assert "### Dimensions" in desc
+        assert "### Bridges" in desc
         assert "### Aggregations" in desc
         assert "### Analytics Views" in desc
+
+    def test_has_export_inventory_section(self, tmp_path: Path, settings: NbaDbSettings) -> None:
+        output = tmp_path / "dataset-metadata.json"
+        with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
+            generate_metadata(output)
+        data = json.loads(output.read_text(encoding="utf-8"))
+        desc = data["description"]
+        assert "## Export Inventory" in desc
+        assert f"**CSV exports available**: {_TABLE_COUNT}/{_TABLE_COUNT}" in desc
+
+    def test_data_dir_inventory_is_rendered(self, tmp_path: Path, settings: NbaDbSettings) -> None:
+        output = tmp_path / "dataset-metadata.json"
+        (tmp_path / "csv").mkdir()
+        (tmp_path / "parquet" / "dim_player").mkdir(parents=True)
+        (tmp_path / "csv" / "dim_player.csv").write_text("player_id\n1\n", encoding="utf-8")
+        (tmp_path / "parquet" / "dim_player" / "dim_player.parquet").write_bytes(b"")
+        (tmp_path / "nba.duckdb").write_bytes(b"")
+
+        with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
+            generate_metadata(output, data_dir=tmp_path)
+
+        data = json.loads(output.read_text(encoding="utf-8"))
+        desc = data["description"]
+        assert f"**CSV exports available**: 1/{_TABLE_COUNT}" in desc
+        assert f"**Parquet exports available**: 1/{_TABLE_COUNT}" in desc
+        assert "**Database bundles available**: DuckDB" in desc
 
     def test_has_key_relationships(self, tmp_path: Path, settings: NbaDbSettings) -> None:
         output = tmp_path / "dataset-metadata.json"
@@ -270,3 +374,16 @@ class TestDescription:
             generate_metadata(output)
         data = json.loads(output.read_text(encoding="utf-8"))
         assert "## Update Schedule" in data["description"]
+
+    def test_has_source_and_provenance_section(
+        self, tmp_path: Path, settings: NbaDbSettings
+    ) -> None:
+        output = tmp_path / "dataset-metadata.json"
+        with patch("nbadb.kaggle.metadata.get_settings", return_value=settings):
+            generate_metadata(output)
+        data = json.loads(output.read_text(encoding="utf-8"))
+        desc = data["description"]
+        assert "## Source and Provenance" in desc
+        assert "wyattowalsh/basketball" in desc
+        assert "https://nbadb.w4w.dev" in desc
+        assert "https://github.com/wyattowalsh/nbadb" in desc

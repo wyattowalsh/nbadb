@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
@@ -91,6 +93,8 @@ jobs:
         id: monthly
         continue-on-error: true
         run: uv run nbadb monthly
+      # Scan is advisory — continue-on-error ensures export/upload proceeds.
+      # --fail-on error produces exit 1 for annotations; the step shows yellow on errors.
       - name: Scan data quality
         id: scan
         if: always() && steps.monthly.outcome != 'skipped'
@@ -103,6 +107,9 @@ jobs:
       - name: Export data
         if: always() && steps.monthly.outcome != 'skipped'
         run: uv run nbadb export
+      - name: Refresh checked-in metadata
+        if: always() && steps.monthly.outcome != 'skipped'
+        uses: ./.github/actions/refresh-metadata
       - name: Upload to Kaggle
         if: always() && steps.monthly.outcome != 'skipped'
         env:
