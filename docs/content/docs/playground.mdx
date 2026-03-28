@@ -59,11 +59,12 @@ Use this page when you want to rehearse a query shape, teach DuckDB syntax, or s
   ]}
 />
 
-## Query real NBA data
+{/* TODO: Re-enable "Query real NBA data" section once the `docs-sample-data`
+   GitHub release is created with Parquet sample files. The Parquet URLs below
+   currently 404 because the release does not exist yet. See parquet-catalog.ts
+   for the full URL inventory.
 
-<Callout type="info">
-  This playground loads sample Parquet files from the published nbadb dataset directly into your browser. The first run downloads approximately 5 MB of data. After loading, you can run JOINs across tables and use the **Chart** toggle to visualize results.
-</Callout>
+## Query real NBA data
 
 <SqlPlayground
   tables={[
@@ -73,25 +74,10 @@ Use this page when you want to rehearse a query shape, teach DuckDB syntax, or s
     { tableName: "fact_shot_chart", url: "https://github.com/wyattowalsh/nbadb/releases/download/docs-sample-data/fact_shot_chart_sample.parquet" },
     { tableName: "fact_standings", url: "https://github.com/wyattowalsh/nbadb/releases/download/docs-sample-data/fact_standings_sample.parquet" },
   ]}
-  defaultQuery={`SELECT\n  p.full_name,\n  s.pts,\n  s.reb,\n  s.ast,\n  s.pts + s.reb + s.ast AS fantasy_score\nFROM agg_player_season s\nJOIN dim_player p ON s.player_id = p.player_id\nWHERE s.season_year = (SELECT MAX(season_year) FROM agg_player_season)\nORDER BY fantasy_score DESC\nLIMIT 20;`}
-  examples={[
-    {
-      label: "Season leaders",
-      description: "Top 20 players by fantasy score from the latest season, joining player names.",
-      sql: `SELECT\n  p.full_name,\n  s.pts,\n  s.reb,\n  s.ast,\n  s.pts + s.reb + s.ast AS fantasy_score\nFROM agg_player_season s\nJOIN dim_player p ON s.player_id = p.player_id\nWHERE s.season_year = (SELECT MAX(season_year) FROM agg_player_season)\nORDER BY fantasy_score DESC\nLIMIT 20;`,
-    },
-    {
-      label: "Shot zones",
-      description: "Shot zone efficiency from the real shot chart data.",
-      sql: `SELECT\n  zone_basic AS zone,\n  COUNT(*) AS attempts,\n  SUM(CASE WHEN shot_made_flag = 1 THEN 1 ELSE 0 END) AS makes,\n  ROUND(100.0 * SUM(CASE WHEN shot_made_flag = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) AS fg_pct\nFROM fact_shot_chart\nGROUP BY zone_basic\nORDER BY attempts DESC;`,
-    },
-    {
-      label: "Standings",
-      description: "Conference standings with win percentage and seeding.",
-      sql: `SELECT\n  t.team_abbreviation,\n  s.wins,\n  s.losses,\n  ROUND(s.wins * 1.0 / NULLIF(s.wins + s.losses, 0), 3) AS win_pct,\n  s.conference_rank\nFROM fact_standings s\nJOIN dim_team t ON s.team_id = t.team_id\nWHERE s.season_year = (SELECT MAX(season_year) FROM fact_standings)\nORDER BY s.conference_rank\nLIMIT 15;`,
-    },
-  ]}
+  defaultQuery={...}
+  examples={[...]}
 />
+*/}
 
 ## How to use this page well
 

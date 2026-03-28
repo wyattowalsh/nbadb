@@ -12,12 +12,6 @@ type PipelineHistoryProps = {
     lastSuccess: string | null;
     hoursSinceSuccess: number | null;
   }>;
-  trends: Array<{
-    endpoint: string;
-    runDate: string;
-    avgDurationMs: number;
-    runCount: number;
-  }>;
   healthScores: Array<{
     endpoint: string;
     score: number;

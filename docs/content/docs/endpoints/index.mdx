@@ -27,8 +27,8 @@ nbadb extracts data from the **nba_api endpoint surface**, covering every major 
   />
   <StatPill
     label="Skipped endpoints"
-    value="8"
-    note="excluded for deprecation, auth walls, or redundancy"
+    value="13"
+    note="excluded for deprecation, redundancy, video-only, or auth walls"
   />
 </div>
 
@@ -106,7 +106,35 @@ All endpoint coverage flows through `nba_api`, with a few operational patterns t
 
 ## Skipped endpoints
 
-Eight endpoints are deliberately excluded because they are deprecated, redundant with better surfaces, or blocked behind authentication requirements.
+Thirteen endpoints are deliberately excluded from the analytical model. They are still extracted for landing completeness where possible, but no downstream transforms consume them.
+
+### V2 endpoints superseded by V3 (6)
+
+| Endpoint | Reason |
+| -------- | ------ |
+| `BoxScoreTraditionalV2` | No data for 2025-26 season; `BoxScoreTraditionalV3` is the canonical source |
+| `BoxScorePlayerTrackV2` | Removed in nba_api; use `BoxScorePlayerTrackV3` |
+| `BoxScoreSummaryV2` | Data issues after 2025-04-10; `BoxScoreSummaryV3` covers the same result sets |
+| `PlayByPlayV2` | Returns empty JSON for all queries; `PlayByPlayV3` is the canonical source |
+| `ScoreboardV2` | Empty line scores for 2025-26 season; `ScoreboardV3` is the canonical source |
+| `PlayerFantasyProfile` | Removed in nba_api v1.11.3 |
+
+### Video-only endpoints (5)
+
+| Endpoint | Reason |
+| -------- | ------ |
+| `VideoDetails` | Auxiliary video metadata; not promoted into the analytical model |
+| `VideoDetailsAsset` | Auxiliary video asset metadata; not promoted into the analytical model |
+| `VideoEvents` | Auxiliary video event data; retained as a landing surface only |
+| `VideoEventsAsset` | No `expected_data` structure in nba_api; cannot be reliably extracted |
+| `VideoStatus` | Auxiliary video status feed; retained as a landing surface only |
+
+### Duplicate or redundant (2)
+
+| Endpoint | Reason |
+| -------- | ------ |
+| `LeagueStandingsV3` (duplicate) | One standings surface is already modeled via `league_standings`; a second extraction path would be redundant |
+| `PlayByPlayV2` (duplicate PBP) | Legacy play-by-play kept for compatibility; the canonical `play_by_play` surface uses V3 |
 
 <CourtDivider label="Keep the board moving" />
 

@@ -12,8 +12,8 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 <StatGrid columns={4}>
   <StatPill
     label="CLI commands"
-    value="19"
-    note="15 top-level + 4 backfill subcommands"
+    value="24"
+    note="20 top-level + 4 backfill subcommands"
   />
   <StatPill
     label="Pipeline run modes"
@@ -44,7 +44,7 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
     <a href="#inspection-and-quality-commands">
       Inspection and quality commands
     </a>{" "}
-    for `schema`, `status`, and `run-quality`.
+    for `schema`, `status`, and `scan`.
   </ScoutCard>
   <ScoutCard title="Move data in or out" label="Entry surface">
     Use{" "}
@@ -66,22 +66,26 @@ Treat this page like the **sideline play sheet** for nbadb. It is the fastest ro
 | Build the full historical dataset             | `nbadb init`                      |
 | Refresh the current season after games settle | `nbadb daily`                     |
 | Sweep the last 3 seasons more broadly         | `nbadb monthly`                   |
-| Retry failures and fill historical gaps       | `nbadb full`                      |
 | Targeted backfill with gap detection           | `nbadb backfill run`              |
 | Detect missing data across seasons             | `nbadb backfill gaps`             |
 | Re-export from the existing DuckDB database   | `nbadb export`                    |
 | Inspect pipeline state                        | `nbadb status`                    |
 | Regenerate generated docs artifacts           | `nbadb docs-autogen`              |
 | Download or publish the Kaggle dataset        | `nbadb download` / `nbadb upload` |
+| Scan for data quality issues and gaps         | `nbadb scan`                      |
+| Lint SQL in transform definitions             | `nbadb lint-sql`                  |
+| Launch the analytics chat UI                  | `nbadb chat`                      |
+| Generate Kaggle dataset metadata              | `nbadb metadata`                  |
+| Export pipeline telemetry                     | `nbadb journal-summary`           |
 
 ## Choose the command family first
 
 | If your question is…                                        | Start here                                                                | Typical commands                                                                  |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| “How do I build or refresh data?”                           | [Pipeline commands](#pipeline-commands)                                   | `init`, `daily`, `monthly`, `full`                                                |
+| “How do I build or refresh data?”                           | [Pipeline commands](#pipeline-commands)                                   | `init`, `daily`, `monthly`                                                        |
 | “How do I fill gaps or re-extract specific data?”           | [Backfill commands](#backfill-commands)                                   | `backfill run`, `backfill gaps`, `backfill completeness`, `backfill journal`      |
-| “How do I inspect, validate, or debug what already exists?” | [Inspection and quality commands](#inspection-and-quality-commands)       | `schema`, `status`, `run-quality`, `ask`                                          |
-| “How do I move artifacts in or out?”                        | [Distribution and artifact commands](#distribution-and-artifact-commands) | `export`, `download`, `upload`, `docs-autogen`, `extract-completeness`, `audit-models`, `migrate` |
+| “How do I inspect, validate, or debug what already exists?” | [Inspection and quality commands](#inspection-and-quality-commands)       | `schema`, `status`, `scan`, `lint-sql`, `ask`, `chat`, `journal-summary`          |
+| “How do I move artifacts in or out?”                        | [Distribution and artifact commands](#distribution-and-artifact-commands) | `export`, `download`, `upload`, `docs-autogen`, `extract-completeness`, `audit-models`, `metadata`, `migrate` |
 | “What are the exact current signatures?”                    | [Exact signatures](#exact-signatures)                                     | Grouped tables for every current command                                          |
 
 <CourtDivider label="Command modules" />
@@ -105,9 +109,9 @@ These are the commands most operators touch first.
     Refreshes the last 3 seasons and then rebuilds downstream tables in replace
     mode.
   </ScoutCard>
-  <ScoutCard title="`nbadb full`" label="Recovery run">
-    Retries failed extractions first, then scans the full season range while
-    skipping work already recorded as extracted.
+  <ScoutCard title="`nbadb full`" label="Deprecated">
+    **Deprecated.** Use `nbadb backfill run` instead, which provides targeted
+    extraction with gap detection, `--dry-run`, and finer control.
   </ScoutCard>
 </div>
 
@@ -118,10 +122,14 @@ These are the commands most operators touch first.
 | `nbadb init`    | Full historical build                          | Historical seasons from `--season-start` through `--season-end`                                  |
 | `nbadb daily`   | Current-season refresh focused on recent games | Current season, recent games within `NBADB_DAILY_LOOKBACK_DAYS`, plus active player/team refresh |
 | `nbadb monthly` | Broader refresh of recent history              | The last 3 seasons                                                                               |
-| `nbadb full`    | Retry failures and fill historical gaps        | Failed journal entries first, then a resume-safe historical scan                                 |
+| ~~`nbadb full`~~ | ~~Retry failures and fill historical gaps~~ | **Deprecated.** Use `nbadb backfill run` instead |
+
+<Callout type="warn">
+  **Deprecated commands:** `nbadb full` is deprecated — use `nbadb backfill run` for targeted gap-fill. `nbadb run-quality` is deprecated and removed — use `nbadb scan` instead.
+</Callout>
 
 <Callout type="info">
-  `daily`, `monthly`, and `full` are not lightweight star-surface upsert
+  `daily` and `monthly` are not lightweight star-surface upsert
   commands. Their extraction scope differs, but each run ends by rebuilding
   downstream tables in <strong>replace</strong> mode.
 </Callout>
@@ -202,9 +210,10 @@ Destructive actions require at least one filter (`--endpoint`, `--seasons`, or `
     Shows pipeline watermarks, journal summary, and pipeline metadata. Use
     `--output-format json` for CI or scripts.
   </ScoutCard>
-  <ScoutCard title="`nbadb run-quality`" label="Quality checks">
-    Runs quality checks against the existing DuckDB database and can write a
-    JSON report with `--report-path`.
+  <ScoutCard title="`nbadb scan`" label="Quality and gap scanner">
+    Scans the database for missing data, gaps, and quality issues. Supports
+    `--category/-c`, `--table/-t`, `--severity/-s`, `--fail-on/-F`,
+    `--report-path/-r`, `--output-format/-f`, and `--ci`.
   </ScoutCard>
   <ScoutCard title="`nbadb ask QUESTION`" label="Local query agent">
     Sends a natural-language question to the local query agent with `--limit/-l`
@@ -224,11 +233,21 @@ Use `--output-format json` for scripts and CI. The JSON payload contains three t
 }
 ```
 
-### `nbadb run-quality`
+### `nbadb scan`
 
-- `--report-path` writes a machine-readable JSON report and creates parent directories as needed.
-- The command exits non-zero when the database is missing, when no checks ran, or when the command errors.
-- **Current limitation:** failed quality checks are reported, but they do not currently force a non-zero exit code once checks have executed. If CI must fail on bad results, parse the JSON report and gate on `summary.failed > 0`.
+The `scan` command replaces the deprecated `run-quality` with a broader quality and gap scanner:
+
+```bash
+nbadb scan --category data_quality,missing_table --severity warning --fail-on error
+```
+
+- `--category/-c` filters to specific check categories: `cross_table`, `temporal`, `missing_table`, `data_quality`
+- `--table/-t` filters by table name prefix (e.g. `fact_box_score`, `stg_`, `dim_`)
+- `--severity/-s` sets the minimum severity to display: `error`, `warning`, `info`
+- `--fail-on/-F` exits non-zero when findings meet or exceed a severity threshold
+- `--report-path/-r` writes the full JSON report to a file
+- `--output-format/-f` switches between `text` (default) and `json`
+- `--ci` enables GitHub Actions integration (step summary + annotations)
 
 ## Distribution and artifact commands
 
@@ -240,6 +259,7 @@ Use `--output-format json` for scripts and CI. The JSON payload contains three t
 | `nbadb docs-autogen`         | Regenerate generated docs artifacts                              | Defaults `--docs-root` to `docs/content/docs`                                |
 | `nbadb extract-completeness` | Generate endpoint coverage artifacts                             | Supports `--output-dir/-o`, `--require-full`, and `--require-model-contract` |
 | `nbadb audit-models`         | Generate end-to-end model audit artifacts                        | Supports `--mode`, `--strictness`, `--output-dir/-o`, and `--baseline`       |
+| `nbadb metadata`             | Generate Kaggle `dataset-metadata.json` from table catalog       | Supports `--output/-o` and `--data-dir/-d`                                   |
 | `nbadb migrate`              | Create or migrate pipeline tables                                | Usually a setup or recovery command                                          |
 
 ### `nbadb extract-completeness`
@@ -318,7 +338,7 @@ The command prints `updated:` or `unchanged:` for each artifact, then a final su
 
 ## Shared behavior for pipeline commands
 
-These notes apply to `nbadb init`, `daily`, `monthly`, and `full`.
+These notes apply to `nbadb init`, `daily`, and `monthly`.
 
 - `--data-dir` overrides the default data directory (`nbadb/`) and the `NBADB_DATA_DIR` setting.
 - `--quality-check` runs post-pipeline quality checks against the DuckDB file, but those checks are informational today: empty-table warnings are reported without failing the command.
@@ -338,7 +358,7 @@ daily: 12 tables, 245,901 rows, 38.4s
 | `--data-dir/-d`      | Most commands that read or write local data | Overrides the default `nbadb/` directory and the `NBADB_DATA_DIR` setting                         |
 | `--format/-f`        | `init` and `export`                         | Repeatable; defaults come from `NBADB_FORMATS` when omitted                                       |
 | `--verbose/-v`       | Pipeline commands and `ask`                 | On pipeline commands, it forces plain logs and DEBUG-level output instead of the TUI              |
-| `--quality-check`    | `init`, `daily`, `monthly`, `full`          | Runs informational post-pipeline quality checks without currently failing on empty-table warnings |
+| `--quality-check`    | `init`, `daily`, `monthly`                  | Runs informational post-pipeline quality checks without currently failing on empty-table warnings |
 | `--output-format/-f` | `status`                                    | `text` by default; use `json` for CI and scripts                                                  |
 
 ## Data and output defaults
@@ -362,7 +382,7 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 | `nbadb init`    | Full rebuild across historical seasons            | —               | `--data-dir/-d`, `--format/-f` (repeatable), `--season-start/-s` (default: `1946`), `--season-end/-e`, `--verbose/-v`, `--quality-check` |
 | `nbadb daily`   | Current-season refresh focused on recent games    | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
 | `nbadb monthly` | Refresh the last 3 seasons                        | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
-| `nbadb full`    | Retry failed extractions and fill historical gaps | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
+| ~~`nbadb full`~~ | ~~Retry failed extractions and fill historical gaps~~ (deprecated — use `backfill run`) | —               | `--data-dir/-d`, `--verbose/-v`, `--quality-check`                                                                                       |
 
 ### Backfill commands
 
@@ -379,8 +399,11 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 | ---------------------- | --------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------- |
 | `nbadb schema [TABLE]` | List all discovered output tables or show lineage for one table | optional `TABLE`    | —                                                                         |
 | `nbadb status`         | Show pipeline status, watermarks, and metadata                  | —                   | `--data-dir/-d`, `--output-format/-f` (default: `text`; `json` supported) |
-| `nbadb run-quality`    | Run quality checks against the existing DuckDB database         | —                   | `--data-dir/-d`, `--report-path`                                          |
+| `nbadb scan`           | Scan database for missing data, gaps, and quality issues        | —                   | `--data-dir/-d`, `--category/-c`, `--table/-t`, `--severity/-s`, `--fail-on/-F`, `--report-path/-r`, `--output-format/-f`, `--ci` |
+| `nbadb lint-sql`       | Lint SQL in SqlTransformer `_SQL` ClassVars using SQLFluff      | —                   | `--fix`, `--table/-t`, `--fail-on/-F`                                     |
 | `nbadb ask QUESTION`   | Ask the local query agent a natural-language question           | required `QUESTION` | `--limit/-l` (default: `10`), `--verbose/-v`                              |
+| `nbadb chat`           | Launch the AI-powered NBA data analytics chat UI                | —                   | `--port/-p` (default: `8421`), `--host` (default: `127.0.0.1`)           |
+| `nbadb journal-summary` | Export pipeline telemetry for the docs admin panel             | —                   | `--data-dir/-d`, `--output-format/-f`, `--json`, `--output-path/-o`, `--window-days`, `--limit` |
 
 ### Distribution and artifact commands
 
@@ -393,6 +416,7 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 | `nbadb docs-autogen`         | Regenerate generated docs artifacts under the docs content tree  | —               | `--docs-root` (default: `docs/content/docs`)                    |
 | `nbadb extract-completeness` | Generate endpoint coverage artifacts                             | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract` |
 | `nbadb audit-models`         | Generate end-to-end model audit artifacts                        | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`       |
+| `nbadb metadata`             | Generate Kaggle `dataset-metadata.json` from table catalog       | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d` |
 
 ## Related guides
 

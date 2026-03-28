@@ -68,6 +68,7 @@ export function useZoomPan() {
   const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
   const canvasElRef = useRef<HTMLElement | null>(null);
   const pointerRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  const touchRef = useRef<{ t1: Touch; t2: Touch; dist: number } | null>(null);
 
   // Imperative wheel handler — must be non-passive to preventDefault
   useEffect(() => {
@@ -83,6 +84,84 @@ export function useZoomPan() {
 
     viewportEl.addEventListener("wheel", onWheel, { passive: false });
     return () => viewportEl.removeEventListener("wheel", onWheel);
+  }, [viewportEl]);
+
+  // Touch pinch-to-zoom and two-finger pan
+  useEffect(() => {
+    if (!viewportEl) return;
+
+    function touchDist(a: Touch, b: Touch) {
+      const dx = a.clientX - b.clientX;
+      const dy = a.clientY - b.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function touchCenter(a: Touch, b: Touch, rect: DOMRect) {
+      return {
+        cx: (a.clientX + b.clientX) / 2 - rect.left,
+        cy: (a.clientY + b.clientY) / 2 - rect.top,
+      };
+    }
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        touchRef.current = { t1, t2, dist: touchDist(t1, t2) };
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (e.touches.length === 2 && touchRef.current) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const newDist = touchDist(t1, t2);
+        const oldDist = touchRef.current.dist;
+
+        if (oldDist > 0) {
+          const rect = viewportEl!.getBoundingClientRect();
+          const { cx, cy } = touchCenter(t1, t2, rect);
+
+          // Simulate zoom: negative delta zooms in (fingers apart), positive zooms out
+          const delta = oldDist > newDist ? 1 : -1;
+          const scaleFactor = Math.abs(newDist - oldDist) / oldDist;
+
+          // Only zoom if the pinch movement is significant enough
+          if (scaleFactor > 0.01) {
+            dispatch({ type: "ZOOM", cx, cy, delta });
+          }
+
+          // Two-finger pan: track midpoint movement
+          const oldCenter = touchCenter(touchRef.current.t1, touchRef.current.t2, rect);
+          const newCenter = touchCenter(t1, t2, rect);
+          const dx = newCenter.cx - oldCenter.cx;
+          const dy = newCenter.cy - oldCenter.cy;
+          if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            dispatch({ type: "PAN", dx, dy });
+          }
+        }
+
+        touchRef.current = { t1, t2, dist: newDist };
+      }
+    }
+
+    function onTouchEnd() {
+      touchRef.current = null;
+    }
+
+    viewportEl.addEventListener("touchstart", onTouchStart, { passive: false });
+    viewportEl.addEventListener("touchmove", onTouchMove, { passive: false });
+    viewportEl.addEventListener("touchend", onTouchEnd);
+    viewportEl.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      viewportEl.removeEventListener("touchstart", onTouchStart);
+      viewportEl.removeEventListener("touchmove", onTouchMove);
+      viewportEl.removeEventListener("touchend", onTouchEnd);
+      viewportEl.removeEventListener("touchcancel", onTouchEnd);
+    };
   }, [viewportEl]);
 
   const viewportRef: RefCallback<HTMLElement> = useCallback((node) => {
@@ -211,6 +290,9 @@ export function useZoomPan() {
     transform: `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`,
     transformOrigin: "0 0",
     willChange: "transform",
+    // Allow single-finger pan to scroll the page; two-finger gestures are
+    // handled by the imperative touch handlers for pinch-to-zoom.
+    touchAction: "pan-x pan-y",
   };
 
   const pct = Math.round(state.scale * 100);

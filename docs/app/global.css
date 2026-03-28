@@ -1177,6 +1177,14 @@ kbd {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+
+  .nba-reveal,
+  .nba-reveal.nba-delay-1,
+  .nba-reveal.nba-delay-2,
+  .nba-reveal.nba-delay-3 {
+    opacity: 1 !important;
+    animation: none !important;
+  }
 }
 
 /* ── Enhanced tables ──────────────────────────────── */

@@ -16,7 +16,37 @@ type ChartBarProps = {
   yKey: string;
   color?: string;
   height?: number;
+  /** Maximum character width for x-axis labels before ellipsis (default 20) */
+  xLabelMaxChars?: number;
 };
+
+function EllipsisTick({
+  x,
+  y,
+  payload,
+  maxChars,
+}: {
+  x: number;
+  y: number;
+  payload: { value: string };
+  maxChars: number;
+}) {
+  const label = String(payload.value ?? "");
+  const display =
+    label.length > maxChars ? `${label.slice(0, maxChars - 1)}...` : label;
+  return (
+    <text
+      x={x}
+      y={y + 10}
+      textAnchor="middle"
+      fill="var(--muted-foreground)"
+      fontSize={11}
+    >
+      <title>{label}</title>
+      {display}
+    </text>
+  );
+}
 
 export function ChartBar({
   data,
@@ -24,6 +54,7 @@ export function ChartBar({
   yKey,
   color = "var(--primary)",
   height = 240,
+  xLabelMaxChars = 20,
 }: ChartBarProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -36,7 +67,15 @@ export function ChartBar({
         />
         <XAxis
           dataKey={xKey}
-          tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          tick={(props: any) => (
+            <EllipsisTick
+              x={Number(props.x)}
+              y={Number(props.y)}
+              payload={props.payload}
+              maxChars={xLabelMaxChars}
+            />
+          )}
           axisLine={false}
           tickLine={false}
         />

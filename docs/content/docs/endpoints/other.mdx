@@ -31,12 +31,22 @@ Six specialty endpoints round out the game package.
 | `HustleStatsBoxScore` | `game_id` (required) | `PlayerStats`, `TeamStats` | Pull this when deflections, loose balls, or contested shots are central to the story |
 | `BoxScoreSummaryV2` | `game_id` (required) | `GameSummary`, `OtherStats`, `Officials`, `InactivePlayers`, `GameInfo`, `LineScore`, `LastMeeting`, `SeasonSeries`, `AvailableVideo` | Use when you need officials, inactive lists, or series context; officials feed `bridge_game_official` |
 
+**Lands in:**
+- `ShotChartDetail` &rarr; `stg_shot_chart` &rarr; `fact_shot_chart`, `fact_shot_chart_league_averages`
+- `GameRotation` &rarr; `stg_rotation_home`, `stg_rotation_away` &rarr; `fact_rotation`
+- `HustleStatsBoxScore` &rarr; `stg_box_score_hustle` &rarr; `fact_league_hustle`, `fact_team_game_hustle`
+- `BoxScoreSummaryV2` &rarr; `stg_game_summary`, `stg_officials`, `stg_line_score`, `stg_inactive_players`, etc. &rarr; `fact_game_result`, `bridge_game_official`, `dim_game`
+
 ## Season estimated-model shelf
 
 | Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
 | -------- | ---------- | ----------- | --------------------- | --------- |
 | `PlayerEstimatedMetrics` | `season` (required) | `PlayerEstimatedMetrics` | `e_off_rating`, `e_def_rating`, `e_net_rating`, `e_ast_ratio`, `e_oreb_pct`, `e_dreb_pct`, `e_reb_pct`, `e_tov_pct`, `e_usg_pct`, `e_pace` | Use when you need model-derived player rates without opening the full league dashboards |
 | `TeamEstimatedMetrics` | `season` (required) | `TeamEstimatedMetrics` | estimated team-level rating and pace fields | Use when the estimated-model question is about team profile rather than player profile |
+
+**Lands in:**
+- `PlayerEstimatedMetrics` &rarr; `stg_player_tracking` &rarr; `fact_estimated_metrics`
+- `TeamEstimatedMetrics` &rarr; `stg_team_dashboard_estimated` &rarr; `fact_estimated_metrics`
 
 ## Route cues
 

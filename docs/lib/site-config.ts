@@ -55,7 +55,6 @@ type SectionMeta = {
   stats: SectionStat[];
   quickLinks: QuickLink[];
   prompts: SearchPrompt[];
-  toneClass: string;
 };
 
 export type DocsContextRailMeta = {
@@ -216,8 +215,6 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
         description: "Build the mental model before reading table detail.",
       },
     ],
-    toneClass:
-      "from-primary/20 via-primary/8 to-accent/14 dark:from-primary/24 dark:via-primary/10 dark:to-accent/10",
   },
   schema: {
     id: "schema",
@@ -269,8 +266,6 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
         description: "Find rollups and consumer-friendly surfaces fast.",
       },
     ],
-    toneClass:
-      "from-primary/22 via-accent/10 to-secondary/14 dark:from-primary/20 dark:via-accent/10 dark:to-secondary/10",
   },
   "data-dictionary": {
     id: "data-dictionary",
@@ -320,8 +315,6 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
         description: "Stay in the analyst-facing layer.",
       },
     ],
-    toneClass:
-      "from-secondary/30 via-accent/12 to-primary/10 dark:from-secondary/18 dark:via-accent/12 dark:to-primary/12",
   },
   diagrams: {
     id: "diagrams",
@@ -372,8 +365,6 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
         description: "Scan the breadth of extractor coverage at a glance.",
       },
     ],
-    toneClass:
-      "from-accent/18 via-primary/10 to-secondary/16 dark:from-accent/16 dark:via-primary/10 dark:to-secondary/10",
   },
   endpoints: {
     id: "endpoints",
@@ -424,8 +415,6 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
         description: "Explore slower-changing league and prospect surfaces.",
       },
     ],
-    toneClass:
-      "from-primary/18 via-secondary/22 to-accent/12 dark:from-primary/20 dark:via-secondary/14 dark:to-accent/10",
   },
   lineage: {
     id: "lineage",
@@ -476,8 +465,6 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
         description: "Pair lineage views with operational reasoning.",
       },
     ],
-    toneClass:
-      "from-secondary/24 via-primary/12 to-accent/14 dark:from-secondary/16 dark:via-primary/12 dark:to-accent/8",
   },
   guides: {
     id: "guides",
@@ -529,8 +516,6 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
         description: "Use when you are on the hook for a healthy pipeline.",
       },
     ],
-    toneClass:
-      "from-accent/18 via-secondary/16 to-primary/14 dark:from-accent/12 dark:via-secondary/14 dark:to-primary/10",
   },
 };
 
@@ -1511,6 +1496,7 @@ export function getSectionId(slug?: string[]): SectionId {
     case "lineage":
       return "lineage";
     case "guides":
+    case "playground":
       return "guides";
     default:
       return "core";

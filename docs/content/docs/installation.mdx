@@ -64,6 +64,16 @@ Before you install:
 
 ## Install from PyPI
 
+<Callout type="info">
+**Virtual environment recommended.** Create and activate a virtual environment before installing to avoid dependency conflicts with other packages:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # macOS/Linux
+# .venv\Scripts\activate    # Windows
+```
+</Callout>
+
 ```bash
 pip install nbadb
 nbadb --help
@@ -164,7 +174,15 @@ Use this pairing when you want a quick “did install actually produce a usable 
 - `nbadb schema` lists discovered public tables.
 - `nbadb status` shows pipeline watermarks, journal summary, and table metadata.
 
-### 3. Run the standard refresh play
+### 3. Verify data quality
+
+```bash
+nbadb scan --severity warning
+```
+
+Use `scan` to verify the dataset has no missing tables, data gaps, or quality issues. This replaces the older `run-quality` command with broader coverage.
+
+### 4. Run the standard refresh play
 
 ```bash
 nbadb daily
@@ -217,19 +235,11 @@ By default, nbadb writes into `nbadb/`.
 
 | If you want to… | Go here |
 | --------------- | ------- |
-| Learn what `daily`, `monthly`, `full`, `status`, and `run-quality` actually do | [CLI Reference](/docs/cli-reference) |
+| Learn what `daily`, `monthly`, `status`, `scan`, and other commands do | [CLI Reference](/docs/cli-reference) |
 | Understand raw → staging → star and the public table families | [Architecture](/docs/architecture) |
 | Start querying with the easiest analysis-ready surface | [Analytics Quickstart](/docs/guides/analytics-quickstart) |
 | Download from or publish to Kaggle | [Kaggle Setup](/docs/guides/kaggle-setup) |
 
 ## Docs contributors: generated artifacts boundary
 
-The docs site mixes hand-written pages with generated reference artifacts. When generator-owned docs drift from the code, refresh them with:
-
-```bash
-uv run nbadb docs-autogen --docs-root docs/content/docs
-```
-
-<Callout>
-That command regenerates `schema/{raw,staging,star}-reference.mdx`, `data-dictionary/{raw,staging,star}.mdx`, `diagrams/er-auto.mdx`, `lineage/lineage-auto.mdx`, and `lineage/lineage.json`. Do not hand-edit those generated outputs.
-</Callout>
+The docs site mixes hand-written pages with generated reference artifacts. See the [Docs boundary](/docs/architecture#docs-boundary-curated-vs-generated) section on the Architecture page for the full list of generated artifacts and how to regenerate them.

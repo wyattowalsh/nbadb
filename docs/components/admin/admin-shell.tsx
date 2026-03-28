@@ -3,13 +3,65 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Gauge, LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { AdminNav } from "./admin-nav";
 import { cn } from "@/lib/utils";
+
+function useFocusTrap(active: boolean) {
+  const containerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!active || !containerRef.current) return;
+    const container = containerRef.current;
+    const focusable = container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    // Focus the first focusable element when the trap activates
+    first.focus();
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    container.addEventListener("keydown", handleKeyDown);
+    return () => container.removeEventListener("keydown", handleKeyDown);
+  }, [active]);
+
+  return containerRef;
+}
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mobileSidebarRef = useFocusTrap(sidebarOpen);
+
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+  // Close sidebar on Escape key
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") closeSidebar();
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [sidebarOpen, closeSidebar]);
 
   async function handleLogout() {
     await fetch("/api/admin/logout", { method: "POST" });
@@ -60,10 +112,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile sidebar */}
       <aside
+        ref={mobileSidebarRef}
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-60 border-r border-sidebar-border bg-sidebar transition-transform duration-300 lg:hidden",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
+        aria-label="Mobile navigation"
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-sidebar-border px-5 py-4">
@@ -74,7 +128,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </span>
             </div>
             <button
-              onClick={() => setSidebarOpen(false)}
+              onClick={closeSidebar}
+              aria-label="Close sidebar"
               className="rounded-lg p-1 text-sidebar-foreground/60 hover:text-foreground"
             >
               <X className="size-4" />

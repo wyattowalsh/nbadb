@@ -4,8 +4,10 @@ import { resolve } from "node:path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { KpiCard } from "@/components/admin/kpi-card";
+import { ProfilingLayerTable } from "./profiling-layer-table";
 
 export const metadata: Metadata = { title: "Profiling" };
+export const dynamic = "force-dynamic";
 
 type ColumnProfile = {
   name: string;
@@ -92,8 +94,12 @@ export default async function ProfilingPage() {
     "analytics",
     "other",
   ];
+  const layerRank = (layer: string) => {
+    const idx = layerOrder.indexOf(layer);
+    return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+  };
   const sortedLayers = [...grouped.entries()].sort(
-    (a, b) => layerOrder.indexOf(a[0]) - layerOrder.indexOf(b[0]),
+    (a, b) => layerRank(a[0]) - layerRank(b[0]),
   );
 
   return (
@@ -118,41 +124,7 @@ export default async function ProfilingPage() {
             <Badge variant="outline">{tables.length} tables</Badge>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-2xl border border-border/70">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border/60 bg-muted/30">
-                    <th className="px-4 py-3 text-left text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Table
-                    </th>
-                    <th className="px-4 py-3 text-right text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Rows
-                    </th>
-                    <th className="px-4 py-3 text-right text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Columns
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tables.map((t) => (
-                    <tr
-                      key={t.table}
-                      className="border-b border-border/40 transition-colors hover:bg-muted/20"
-                    >
-                      <td className="px-4 py-2.5 font-mono text-sm text-foreground">
-                        {t.table}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                        {t.rowCount.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                        {t.columnCount}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ProfilingLayerTable tables={tables} />
           </CardContent>
         </Card>
       ))}

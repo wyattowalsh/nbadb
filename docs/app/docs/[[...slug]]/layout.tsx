@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import type { LinkItemType } from "fumadocs-ui/layouts/shared";
@@ -72,7 +71,7 @@ export default async function Layout({
       links={links}
       nav={{
         title: (
-          <Link href="/" className="nba-nav-brand">
+          <span className="nba-nav-brand">
             <span className="nba-nav-brand-mark">
               <Image
                 src="/logo-600.png"
@@ -89,7 +88,7 @@ export default async function Layout({
                 NBA warehouse docs
               </span>
             </span>
-          </Link>
+          </span>
         ),
         transparentMode: "top",
         children: <DocsNavBadge slug={resolvedParams.slug} />,
@@ -97,7 +96,7 @@ export default async function Layout({
       sidebar={{
         banner: <DocsSidebarBanner slug={resolvedParams.slug} />,
         footer: <DocsSidebarFooter slug={resolvedParams.slug} />,
-        defaultOpenLevel: 1,
+        defaultOpenLevel: 2,
       }}
       themeSwitch={{ mode: "light-dark-system" }}
     >

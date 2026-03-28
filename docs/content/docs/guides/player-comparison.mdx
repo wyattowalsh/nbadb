@@ -29,7 +29,7 @@ Use nbadb to build comprehensive player comparisons across any statistical dimen
 import duckdb
 import polars as pl
 
-conn = duckdb.connect("nba.duckdb")
+conn = duckdb.connect("nbadb/nba.duckdb")
 
 players = ["LeBron James", "Kevin Durant", "Stephen Curry"]
 placeholders = ", ".join(f"'{p}'" for p in players)
@@ -53,7 +53,7 @@ comparison = conn.sql(f"""
         ROUND(AVG(b.blk), 1) AS bpg,
         ROUND(AVG(b.tov), 1) AS topg,
         ROUND(AVG(b.plus_minus), 1) AS plus_minus
-    FROM fact_box_score_player b
+    FROM fact_player_game_traditional b
     JOIN dim_player p ON b.player_id = p.player_id
     JOIN dim_game g ON b.game_id = g.game_id
     WHERE (p.first_name || ' ' || p.last_name) IN ({placeholders})
@@ -79,7 +79,7 @@ trends = conn.sql("""
         ROUND(AVG(b.pts), 1) AS ppg,
         ROUND(AVG(b.reb), 1) AS rpg,
         ROUND(AVG(b.ast), 1) AS apg
-    FROM fact_box_score_player b
+    FROM fact_player_game_traditional b
     JOIN dim_player p ON b.player_id = p.player_id
     JOIN dim_game g ON b.game_id = g.game_id
     WHERE p.last_name = 'James' AND p.first_name = 'LeBron'
@@ -105,7 +105,7 @@ shooting = conn.sql(f"""
         ROUND(AVG(b.ft_pct) * 100, 1) AS ft_pct,
         ROUND(SUM(b.pts) / NULLIF(2.0 * (SUM(b.fga) + 0.44 * SUM(b.fta)), 0) * 100, 1) AS ts_pct,
         ROUND(AVG(b.fg3a), 1) AS fg3a_pg
-    FROM fact_box_score_player b
+    FROM fact_player_game_traditional b
     JOIN dim_player p ON b.player_id = p.player_id
     JOIN dim_game g ON b.game_id = g.game_id
     WHERE (p.first_name || ' ' || p.last_name) IN ({placeholders})
@@ -126,14 +126,15 @@ clutch = conn.sql(f"""
     SELECT
         p.first_name || ' ' || p.last_name AS player,
         COUNT(*) AS clutch_shots,
-        SUM(CASE WHEN pbp.shot_result = 'Made' THEN 1 ELSE 0 END) AS makes,
-        ROUND(100.0 * SUM(CASE WHEN pbp.shot_result = 'Made' THEN 1 ELSE 0 END) / COUNT(*), 1) AS fg_pct
+        SUM(CASE WHEN pbp.event_type_name = 'made_shot' THEN 1 ELSE 0 END) AS makes,
+        ROUND(100.0 * SUM(CASE WHEN pbp.event_type_name = 'made_shot' THEN 1 ELSE 0 END)
+            / NULLIF(COUNT(*), 0), 1) AS fg_pct
     FROM fact_play_by_play pbp
-    JOIN dim_player p ON pbp.person_id = p.player_id
+    JOIN dim_player p ON pbp.player1_id = p.player_id
     JOIN dim_game g ON pbp.game_id = g.game_id
     WHERE (p.first_name || ' ' || p.last_name) IN ({placeholders})
       AND pbp.period >= 4
-      AND pbp.is_field_goal = 1
+      AND pbp.event_type_name IN ('made_shot', 'missed_shot')
       AND g.season_type = 'Regular Season'
     GROUP BY 1
     ORDER BY makes DESC

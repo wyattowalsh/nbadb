@@ -8,9 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { KpiCard } from "@/components/admin/kpi-card";
 import { TrackerBar } from "@/components/admin/tracker-bar";
-import { PipelineCharts } from "./pipeline-charts";
+import { PipelineTabs } from "./pipeline-tabs";
+import { formatLatency } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Pipeline" };
+export const dynamic = "force-dynamic";
 
 function formatDateTime(value: string | null): string {
   if (!value) return "Not available";
@@ -104,8 +106,8 @@ export default async function PipelinePage() {
           label={`Rows (${summary.windowDays}d)`}
           value={summary.totals.rowsExtracted.toLocaleString()}
         />
-        <KpiCard label="Avg latency" value={`${summary.totals.avgDurationMs}ms`} />
-        <KpiCard label="p95 latency" value={`${summary.totals.p95DurationMs}ms`} />
+        <KpiCard label="Avg latency" value={formatLatency(summary.totals.avgDurationMs)} />
+        <KpiCard label="p95 latency" value={formatLatency(summary.totals.p95DurationMs)} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.8fr)] nba-delay-2">
@@ -200,10 +202,12 @@ export default async function PipelinePage() {
 
       {hasTelemetry ? (
         <>
-          <PipelineCharts
-            daily={summary.daily}
-            counts={summary.counts}
-            slowEndpoints={summary.slowEndpoints}
+          <PipelineTabs
+            chartsProps={{
+              daily: summary.daily,
+              counts: summary.counts,
+              slowEndpoints: summary.slowEndpoints,
+            }}
           />
 
           <div className="grid gap-4 lg:grid-cols-2 nba-delay-3">

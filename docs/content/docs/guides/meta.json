@@ -8,13 +8,13 @@
     "duckdb-queries",
     "player-comparison",
     "shot-chart-analysis",
-    "visual-asset-prompt-pack",
     "parquet-usage",
     "---Game-Day Operations---",
     "kaggle-setup",
     "daily-updates",
     "---Film Room & Recovery---",
     "troubleshooting-playbook",
-    "strategic-shift-rollout"
+    "strategic-shift-rollout",
+    "visual-asset-prompt-pack"
   ]
 }

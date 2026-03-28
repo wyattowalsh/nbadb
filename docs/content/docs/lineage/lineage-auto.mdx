@@ -3,7 +3,23 @@ title: Data Lineage
 description: Column-level lineage from star schema to source endpoints
 ---
 
+import lineageData from "./lineage.json";
+
 # Data Lineage
+
+## How to read this diagram
+
+The lineage graph below shows the full dependency chain from source API endpoints through staging tables into the star schema. Nodes are color-coded by layer:
+
+- **Blue** (endpoint) -- NBA API endpoints that start each data chain
+- **Orange** (stg\_) -- staging tables that normalize names, types, and join keys
+- **Green** (dim\_) -- dimension tables providing reusable context (players, teams, dates)
+- **Red** (fact\_) -- fact tables recording game-level events and metrics
+- **Purple** (agg\_ / other) -- aggregates, bridges, and analytics views built on top of facts and dimensions
+
+Arrows flow left to right: an arrow from A to B means "B depends on A." To trace a value, start at the rightmost table and follow arrows upstream to the source endpoint. To check impact, start at a staging table and follow arrows downstream to see which star-schema tables would break if it changed.
+
+For an interactive version with search, filtering, and upstream/downstream inspection, see the [Lineage Explorer](#lineage-explorer) below.
 
 ## Table-Level Lineage
 
@@ -1066,6 +1082,12 @@ flowchart LR
     stg_win_prob_pbp --> fact_win_prob_pbp
     stg_win_probability --> fact_win_probability
 ```
+
+## Lineage Explorer
+
+Use the interactive explorer to search, filter by layer, and inspect upstream/downstream dependencies for any table. Click a table in the list to see its sources and consumers.
+
+<LineageExplorer data={lineageData} />
 
 ## Column-Level Lineage
 

@@ -115,7 +115,7 @@ flowchart TD
   CURRENT -- Yes --> DAILY["nbadb daily\nrecent games + active surfaces"]
   CURRENT -- No --> RECENT{"Need a broader recent-history sweep?"}
   RECENT -- Yes --> MONTHLY["nbadb monthly\nlast 3 seasons"]
-  RECENT -- No --> GAP["nbadb full\nretry failed work + gap fill"]
+  RECENT -- No --> GAP["nbadb backfill run\ntargeted gap fill"]
 
   style INIT fill:#e1f5fe
   style DAILY fill:#e8f5e9
@@ -128,10 +128,14 @@ flowchart TD
 | `nbadb init` | Full historical build | Historical seasons from `--season-start` through `--season-end` |
 | `nbadb daily` | Current-season refresh play | Current season, recent games within `NBADB_DAILY_LOOKBACK_DAYS`, plus active player/team refresh |
 | `nbadb monthly` | Broader roster-and-history sweep | The last 3 seasons |
-| `nbadb full` | Recovery and gap-fill run | Retries failed journal entries, then scans the full season range while skipping already-extracted work |
+| `nbadb backfill run` | Targeted gap fill | Extracts specific endpoints/seasons with filters, supports `--force`, `--extract-only`, and `--dry-run` |
+
+<Callout type="warn">
+**Deprecated commands:** `nbadb full` has been deprecated in favor of `nbadb backfill run`, which provides finer-grained control over gap detection and targeted re-extraction. `nbadb run-quality` has been deprecated in favor of `nbadb scan`.
+</Callout>
 
 <Callout type="info">
-One subtle but important behavior: `daily`, `monthly`, and `full` all finish by rebuilding downstream tables in <strong>replace</strong> mode. They are not row-level upsert commands against the public star surface.
+One subtle but important behavior: `daily` and `monthly` finish by rebuilding downstream tables in <strong>replace</strong> mode. They are not row-level upsert commands against the public star surface.
 </Callout>
 
 ## If the run goes sideways
@@ -155,11 +159,11 @@ One subtle but important behavior: `daily`, `monthly`, and `full` all finish by 
 
 | Family | Count | Prefix | What it gives you |
 | ------ | ----: | ------ | ----------------- |
-| Dimensions | 17 | `dim_` | Core entities such as players, teams, games, and seasons |
-| Facts | 102 | `fact_` | Grain-specific measurements and events |
-| Bridges | 2 | `bridge_` | Join helpers for many-to-many relationships |
-| Aggregates | 16 | `agg_` | Reusable rollups for repeated analysis |
-| Analytics outputs | 4 | `analytics_` | Analysis-ready convenience surfaces |
+| Dimensions | 18 | `dim_` | Core entities such as players, teams, games, and seasons |
+| Facts | 128 | `fact_` | Grain-specific measurements and events |
+| Bridges | 5 | `bridge_` | Join helpers for many-to-many relationships |
+| Aggregates | 19 | `agg_` | Reusable rollups for repeated analysis |
+| Analytics outputs | 12 | `analytics_` | Analysis-ready convenience surfaces |
 
 Most transforms are SQL-first and run in dependency order, which keeps the model readable and predictable for maintainers.
 

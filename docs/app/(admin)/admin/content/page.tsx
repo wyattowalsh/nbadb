@@ -5,19 +5,24 @@ import { Badge } from "@/components/ui/badge";
 import { BarList } from "@/components/admin/bar-list";
 import { ContentFreshness } from "@/components/admin/content-freshness";
 import { KpiCard } from "@/components/admin/kpi-card";
-import { ContentTable } from "./content-table";
+import { FilterableContentTable } from "./filterable-content-table";
 
 export const metadata: Metadata = { title: "Content" };
+
+function daysOldFromIso(iso: string | null): number {
+  if (!iso) return 999;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
 
 export default function ContentPage() {
   const audit = getContentAudit();
 
-  // Deterministic placeholder until git/file timestamps are wired into the audit.
-  const freshnessData = audit.pages.map((p, i) => ({
+  const freshnessData = audit.pages.map((p) => ({
     slug: p.slug,
     title: p.title,
     section: p.section,
-    daysOld: Math.min((p.slug.length + i + 1) * 3, 119),
+    daysOld: daysOldFromIso(p.lastModified),
   }));
 
   return (
@@ -49,7 +54,7 @@ export default function ContentPage() {
           <Badge variant="outline">{audit.totalPages} pages</Badge>
         </CardHeader>
         <CardContent>
-          <ContentTable pages={audit.pages} />
+          <FilterableContentTable pages={audit.pages} />
         </CardContent>
       </Card>
 

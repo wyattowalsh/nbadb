@@ -124,7 +124,7 @@ df = conn.sql("""
         COUNT(*) AS games,
         SUM(b.pts) AS total_points,
         ROUND(AVG(b.pts), 1) AS ppg
-    FROM fact_box_score_player b
+    FROM fact_player_game_traditional b
     JOIN dim_player p ON b.player_id = p.player_id
     JOIN dim_game g ON b.game_id = g.game_id
     WHERE g.season_type = 'Regular Season'
@@ -174,11 +174,11 @@ standings = conn.sql("""
         s.conference,
         s.wins, s.losses,
         ROUND(s.win_pct, 3) AS pct,
-        s.playoff_rank
+        s.conference_rank
     FROM fact_standings s
     JOIN dim_team t ON s.team_id = t.team_id
-    WHERE s.season_id = '2024-25'
-    ORDER BY s.conference, s.playoff_rank
+    WHERE s.season_year = '2024-25'
+    ORDER BY s.conference, s.conference_rank
 """).pl()
 
 print(standings)

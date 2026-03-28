@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { getContentPages } from "@/lib/admin/content-audit";
 import {
   getPipelineSummary,
@@ -11,6 +13,39 @@ import { StatusDot } from "@/components/admin/status-dot";
 import type { SubsystemStatus } from "@/lib/admin/types";
 
 export const metadata: Metadata = { title: "Health" };
+export const dynamic = "force-dynamic";
+
+function readPackageVersions(): Array<{ name: string; version: string }> {
+  try {
+    const raw = readFileSync(
+      resolve(process.cwd(), "package.json"),
+      "utf-8",
+    );
+    const pkg = JSON.parse(raw) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const keyPackages = [
+      "next",
+      "fumadocs-core",
+      "fumadocs-ui",
+      "react",
+      "tailwindcss",
+      "recharts",
+      "@tanstack/react-table",
+      "@orama/orama",
+    ];
+    return keyPackages.map((name) => ({
+      name,
+      version:
+        pkg.dependencies?.[name] ??
+        pkg.devDependencies?.[name] ??
+        "unknown",
+    }));
+  } catch {
+    return [];
+  }
+}
 
 function pipelineToHealth(status: string): SubsystemStatus {
   if (status === "done" || status === "running") return "healthy";
@@ -35,8 +70,8 @@ export default async function HealthPage() {
     },
     {
       key: "Search",
-      status: "healthy" as SubsystemStatus,
-      detail: "Orama search active",
+      status: "unknown" as SubsystemStatus,
+      detail: "Orama search — status not verified at build time",
     },
     {
       key: "Pipeline",
@@ -47,8 +82,8 @@ export default async function HealthPage() {
     },
     {
       key: "Build",
-      status: "healthy" as SubsystemStatus,
-      detail: `Next.js 16.2 + Fumadocs 16.6`,
+      status: "unknown" as SubsystemStatus,
+      detail: `Runtime build health not verified`,
     },
   ];
 
@@ -60,16 +95,7 @@ export default async function HealthPage() {
       ? "degraded"
       : "healthy";
 
-  const deps = [
-    { name: "next", version: "16.2.0" },
-    { name: "fumadocs-core", version: "16.6.17" },
-    { name: "fumadocs-ui", version: "16.6.17" },
-    { name: "react", version: "19.x" },
-    { name: "tailwindcss", version: "4.2.2" },
-    { name: "recharts", version: "3.8.0" },
-    { name: "@tanstack/react-table", version: "8.21.3" },
-    { name: "@orama/orama", version: "3.1.18" },
-  ];
+  const deps = readPackageVersions();
 
   return (
     <div className="space-y-6 nba-reveal">

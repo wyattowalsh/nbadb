@@ -5,33 +5,46 @@ import { TrackerBar } from "@/components/admin/tracker-bar";
 import { BarList } from "@/components/admin/bar-list";
 import { StatusDot } from "@/components/admin/status-dot";
 import { OverviewSparklines } from "./overview-sparklines";
-import type {
-  HealthCheck,
-  PipelineSummary,
-  UmamiStats,
-} from "@/lib/admin/types";
+import type { SubsystemStatus } from "@/lib/admin/types";
 import { getContentAudit } from "@/lib/admin/content-audit";
+import {
+  getPipelineSummary,
+  overallPipelineStatus,
+} from "@/lib/admin/pipeline";
 
-async function fetchJson<T>(path: string): Promise<T | null> {
-  try {
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-    const res = await fetch(`${base}${path}`, { next: { revalidate: 300 } });
-    if (!res.ok) return null;
-    return res.json() as Promise<T>;
-  } catch {
-    return null;
-  }
-}
+export const dynamic = "force-dynamic";
 
 export default async function AdminOverviewPage() {
   const audit = getContentAudit();
-  const [health, pipeline, stats] = await Promise.all([
-    fetchJson<HealthCheck>("/api/admin/health"),
-    fetchJson<PipelineSummary & { overallStatus: string }>(
-      "/api/admin/pipeline-status",
-    ),
-    fetchJson<UmamiStats>("/api/admin/umami?metric=stats&range=7d"),
-  ]);
+  const pipeline = await getPipelineSummary();
+  const pipelineStatus = overallPipelineStatus(pipeline);
+
+  const missingDesc = audit.missingDescription.length;
+  const health = {
+    overall: (pipeline.counts.failed > 0
+      ? "degraded"
+      : audit.totalPages > 0
+        ? "healthy"
+        : "unknown") as SubsystemStatus,
+    subsystems: {
+      content: {
+        status: (audit.totalPages > 0 ? "healthy" : "degraded") as SubsystemStatus,
+        detail: `${audit.totalPages} pages indexed, ${missingDesc} missing descriptions`,
+      },
+      pipeline: {
+        status: (pipelineStatus === "failed"
+          ? "degraded"
+          : pipelineStatus === "abandoned"
+            ? "unknown"
+            : "healthy") as SubsystemStatus,
+        detail: pipeline.lastRun
+          ? `Last run: ${pipeline.lastRun}`
+          : "No pipeline data",
+      },
+    },
+  };
+  // Umami stats require an external API call — show placeholder until wired
+  const stats = null as { visitors: number; pageviews: number } | null;
 
   return (
     <div className="space-y-6 nba-reveal">
@@ -97,7 +110,7 @@ export default async function AdminOverviewPage() {
           <CardHeader>
             <CardTitle>Pipeline Runs</CardTitle>
             {pipeline && (
-              <Badge variant="outline">{pipeline.overallStatus}</Badge>
+              <Badge variant="outline">{pipelineStatus}</Badge>
             )}
           </CardHeader>
           <CardContent>

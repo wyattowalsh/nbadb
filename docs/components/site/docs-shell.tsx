@@ -15,6 +15,7 @@ import {
   getSectionMeta,
 } from "@/lib/site-config";
 import { getDocBreadcrumbs, humanizeSlug } from "@/lib/utils";
+import { SearchTrigger } from "@/components/site/search-trigger";
 
 type DocsChromeProps = {
   slug?: string[];
@@ -32,19 +33,20 @@ export function DocsNavBadge({ slug }: DocsChromeSlugProps) {
   const section = getSectionMeta(slug);
 
   return (
-    <div className="hidden items-center gap-2 md:flex">
-      <Link href={section.hubHref} className="nba-nav-route">
+    <div className="flex items-center gap-2">
+      <Link href={section.hubHref} className="nba-nav-route hidden md:flex">
         <span className="nba-nav-route-section">{section.label}</span>
         <span aria-hidden="true" className="text-muted-foreground/50">
           /
         </span>
         <span className="nba-nav-route-cue">{section.cue}</span>
       </Link>
-      <div className="nba-nav-command">
-        <Command className="size-3.5" />
-        <span>Search</span>
-        <kbd>⌘K</kbd>
-      </div>
+      <SearchTrigger className="nba-nav-command" aria-label="Open search">
+        <Search className="size-3.5 md:hidden" />
+        <Command className="hidden size-3.5 md:block" />
+        <span className="hidden md:inline">Search</span>
+        <kbd className="hidden md:inline">&#8984;K</kbd>
+      </SearchTrigger>
     </div>
   );
 }
@@ -130,11 +132,11 @@ export function DocsSidebarFooter({ slug }: DocsChromeSlugProps) {
         <Badge variant="muted">{section.cue}</Badge>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <a href="https://github.com/wyattowalsh/nba-db" target="_blank" rel="noopener noreferrer">
-          <img src="https://img.shields.io/github/stars/wyattowalsh/nba-db?style=flat-square&label=stars&color=orange" alt="GitHub stars" className="h-5" loading="lazy" />
+        <a href="https://github.com/wyattowalsh/nbadb" target="_blank" rel="noopener noreferrer">
+          <img src="https://img.shields.io/github/stars/wyattowalsh/nbadb?style=flat-square&label=stars&color=orange" alt="GitHub stars" className="h-5" width={80} height={20} loading="lazy" />
         </a>
         <a href="https://pypi.org/project/nbadb/" target="_blank" rel="noopener noreferrer">
-          <img src="https://img.shields.io/pypi/v/nbadb?style=flat-square&label=pypi" alt="PyPI version" className="h-5" loading="lazy" />
+          <img src="https://img.shields.io/pypi/v/nbadb?style=flat-square&label=pypi" alt="PyPI version" className="h-5" width={80} height={20} loading="lazy" />
         </a>
       </div>
       <div className="nba-sidebar-prompt">
@@ -191,10 +193,14 @@ export function DocsPageHero({
                       <span aria-current="page" className="nba-crumb-current">
                         {crumb.label}
                       </span>
-                    ) : (
+                    ) : crumb.hasPage ? (
                       <Link href={crumb.href} className="nba-crumb-link">
                         {crumb.label}
                       </Link>
+                    ) : (
+                      <span className="nba-crumb-link text-muted-foreground/80 cursor-default">
+                        {crumb.label}
+                      </span>
                     )}
                     {index < breadcrumbs.length - 1 ? (
                       <span aria-hidden="true" className="text-muted-foreground/60">

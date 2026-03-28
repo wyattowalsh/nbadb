@@ -30,6 +30,10 @@ Seven endpoints build the player scouting report.
 | `CommonAllPlayers` | `CommonAllPlayers` | `person_id`, `display_first_last`, `roster_status`, `from_year`, `to_year`, `team_id` | Start here when you need the canonical player list or a fast ID lookup |
 | `PlayerIndex` | `PlayerIndex` | `person_id`, `player_first_name`, `player_last_name`, `position`, `height`, `weight`, `college`, `country`, `draft_year`, `draft_round`, `draft_number`, `pts`, `reb`, `ast` | Best first page when you want a searchable player directory with lightweight stat context |
 
+**Lands in:**
+- `CommonAllPlayers` &rarr; `stg_all_players` &rarr; `dim_all_players`
+- `PlayerIndex` &rarr; `stg_player_index` (model-excluded; `dim_player` is modeled from `CommonPlayerInfo`)
+
 ## Core player dossier
 
 | Endpoint | Parameters | Result sets | Route cue |
@@ -38,12 +42,21 @@ Seven endpoints build the player scouting report.
 | `PlayerCareerStats` | `player_id` (required) | `SeasonTotalsRegularSeason`, `SeasonTotalsPostSeason`, `SeasonTotalsAllStarSeason`, `CareerTotalsRegularSeason`, `CareerTotalsPostSeason` | Use when you need the actual season-by-season arc and career rollup |
 | `PlayerAwards` | `player_id` (required) | `PlayerAwards` | Add when awards, All-NBA history, or honors context matters |
 
+**Lands in:**
+- `CommonPlayerInfo` &rarr; `stg_player_info`, `stg_player_headline_stats`, `stg_player_available_seasons` &rarr; `dim_player`, `fact_player_headline_stats`, `fact_player_available_seasons`, `bridge_player_team_season`
+- `PlayerCareerStats` &rarr; `stg_player_career` &rarr; `fact_player_career`, `fact_player_profile`
+- `PlayerAwards` &rarr; `stg_player_awards` &rarr; `fact_player_awards`
+
 ## Dashboards and search tools
 
 | Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
 | -------- | ---------- | ----------- | --------------------- | --------- |
 | `PlayerDashboardByYearOverYear` | `player_id` (required), `season` (required) | `OverallPlayerDashboard`, `ByYearPlayerDashboard` | year-over-year comparison lanes for the selected season | Use when one season needs to be benchmarked against the player's nearby history |
 | `PlayerGameStreakFinder` | various filter criteria | `PlayerGameStreakFinderResults` | streak-criteria match output | Use when the prompt starts with thresholds, streak length, or repeating game patterns |
+
+**Lands in:**
+- `PlayerDashboardByYearOverYear` &rarr; `stg_player_dashboard_yoy` &rarr; `fact_player_dashboard_yoy_overall`, `fact_player_yoy_detail`
+- `PlayerGameStreakFinder` &rarr; `stg_streak_finder` &rarr; `fact_streak_finder`
 
 ## Route cues
 

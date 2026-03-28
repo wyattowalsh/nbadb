@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Loader2, Play, RotateCcw, Table2 } from "lucide-react";
+import { BarChart3, ClipboardCopy, Loader2, Play, RotateCcw, Table2 } from "lucide-react";
 import { type ChartInference, inferChart } from "@/lib/chart-inference";
 
 const DEFAULT_QUERY = `SELECT 42 AS answer, 'Hello from DuckDB-WASM!' AS message;`;
@@ -285,11 +285,28 @@ export function SqlPlayground({
         </div>
       ) : !error && !loading ? (
         <div className="border-t border-border bg-muted/40 px-4 py-4 text-sm text-muted-foreground">
-          Pick an example or write your own SQL, then press Run to initialize DuckDB-WASM in this tab.
+          <p>Pick an example or write your own SQL, then press Run to initialize DuckDB-WASM in this tab.</p>
+          {!ready ? (
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              First run downloads ~4 MB DuckDB engine (cached for future runs).
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>
   );
+}
+
+function toCsv(columns: string[], rows: Record<string, unknown>[]): string {
+  const escape = (v: unknown) => {
+    const s = String(v ?? "");
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  };
+  const header = columns.map(escape).join(",");
+  const body = rows.map((row) => columns.map((col) => escape(row[col])).join(","));
+  return [header, ...body].join("\n");
 }
 
 function ResultToolbar({
@@ -305,6 +322,15 @@ function ResultToolbar({
 }) {
   const inference = useMemo(() => inferChart(columns, rows), [columns, rows]);
   const canChart = inference.type !== "none";
+  const [copied, setCopied] = useState(false);
+
+  const copyAsCsv = useCallback(() => {
+    const csv = toCsv(columns, rows);
+    navigator.clipboard.writeText(csv).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [columns, rows]);
 
   return (
     <div className="flex items-center gap-1 border-b border-border bg-muted px-3 py-1">
@@ -334,6 +360,16 @@ function ResultToolbar({
           {inference.label}
         </button>
       ) : null}
+      <span className="mx-1 h-4 w-px bg-border" />
+      <button
+        type="button"
+        onClick={copyAsCsv}
+        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        title="Copy results as CSV to clipboard"
+      >
+        <ClipboardCopy className="size-3" />
+        {copied ? "Copied!" : "Copy CSV"}
+      </button>
     </div>
   );
 }

@@ -33,6 +33,12 @@ Ten endpoints make up the standard game package for a single NBA matchup.
 | `BoxScoreFourFactorsV3` | `PlayerStats`, `TeamStats` | `efg_pct`, `fta_rate`, `tm_tov_pct`, `oreb_pct` | Use when you want the fastest explanation for why one side won |
 | `BoxScoreMiscV3` | `PlayerStats`, `TeamStats` | `pts_off_tov`, `pts_2nd_chance`, `pts_fb`, `pts_paint` | Best for scoring-environment context that is not obvious from totals alone |
 
+**Lands in:**
+- `BoxScoreTraditionalV3` &rarr; `stg_box_score_traditional` &rarr; `fact_player_game_traditional`, `fact_box_score_starter_bench`, `fact_box_score_team`
+- `BoxScoreAdvancedV3` &rarr; `stg_box_score_advanced` &rarr; `fact_player_game_advanced`, `fact_box_score_advanced_team`
+- `BoxScoreFourFactorsV3` &rarr; `stg_box_score_four_factors_player` &rarr; `fact_box_score_four_factors`, `fact_box_score_four_factors_team`
+- `BoxScoreMiscV3` &rarr; `stg_box_score_misc` &rarr; `fact_player_game_misc`, `fact_box_score_misc_team`
+
 ## Shot mix, role, and tracking layers
 
 | Endpoint | Result sets | Key columns / signals | Route cue |
@@ -42,12 +48,22 @@ Ten endpoints make up the standard game package for a single NBA matchup.
 | `BoxScorePlayerTrackV3` | `PlayerStats`, `TeamStats` | `speed`, `distance`, `touches`, `passes`, `contested_shots_2pt`, `contested_shots_3pt` | Add when movement, touch count, or tracking-derived effort changes the read |
 | `BoxScoreHustleV2` | `PlayerStats`, `TeamStats` | `contested_shots`, `deflections`, `charges_drawn`, `loose_balls_recovered` | Pull this when the game turned on chaos, pressure, or extra possessions |
 
+**Lands in:**
+- `BoxScoreScoringV3` &rarr; `stg_box_score_scoring` &rarr; `fact_game_scoring`, `fact_box_score_scoring_team`
+- `BoxScoreUsageV3` &rarr; `stg_box_score_usage` &rarr; `fact_box_score_usage_team`
+- `BoxScorePlayerTrackV3` &rarr; `stg_box_score_player_track` &rarr; `fact_player_game_tracking`, `fact_box_score_player_track_team`
+- `BoxScoreHustleV2` &rarr; `stg_box_score_hustle` &rarr; `fact_player_game_hustle`, `fact_box_score_hustle_player`, `fact_team_game_hustle`
+
 ## Matchup-specific boards
 
 | Endpoint | Result sets | Key columns / signals | Route cue |
 | -------- | ----------- | --------------------- | --------- |
 | `BoxScoreDefensiveV2` | `PlayerStats` | `matchup_min`, `partial_poss`, `player_pts`, `def_player_id` | Use when you want defender-assignment context from the defensive side |
 | `BoxScoreMatchupsV3` | `PlayerStats` | `off_player_id`, `def_player_id`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga` | Use when the question is explicitly one player against another |
+
+**Lands in:**
+- `BoxScoreDefensiveV2` &rarr; `stg_box_score_defensive` &rarr; `fact_box_score_defensive_team`
+- `BoxScoreMatchupsV3` &rarr; `stg_matchup` &rarr; `fact_matchup`
 
 <CourtDivider label="Next possession" />
 

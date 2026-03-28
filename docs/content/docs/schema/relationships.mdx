@@ -17,8 +17,8 @@ This page is the passing diagram for the warehouse: it shows how dimensions, fac
   />
   <StatPill
     label="Bridge tables"
-    value="2"
-    note="official crews and play participants extend the lineup"
+    value="5"
+    note="official crews, play participants, game-team, lineup-player, and player-team-season connectors"
   />
   <StatPill
     label="Best habit"
@@ -35,7 +35,7 @@ Start from the fact grain, add only the dimensions the question needs, and let b
 
 1. **Choose the fact or view that already matches the final row grain.**
 2. **Add the smallest set of dimensions needed** for labels, filters, or grouping.
-3. **Use bridges for many-to-many edges** instead of flattening slot columns by hand.
+3. **Use bridges for many-to-many edges** instead of flattening slot columns by hand. Five bridges currently exist: `bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, and `bridge_player_team_season`.
 4. **Confirm exact columns in the generated [Star Reference](/docs/schema/star-reference)** once the lane is chosen.
 
 ## Quick navigation
@@ -78,7 +78,7 @@ Start from the fact grain, add only the dimensions the question needs, and let b
     Use `dim_game` as the anchor when both clubs belong on the same record. It already carries `home_team_id` and `visitor_team_id`, so you can add both sides cleanly.
   </ScoutCard>
   <ScoutCard title="Bridges absorb many-to-many edges" label="Join rule">
-    Let `bridge_game_official` and `bridge_play_player` handle crew and participant expansion instead of repeating columns or reverse-engineering slot logic from a fact table.
+    Let the five bridge tables (`bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season`) handle expansion instead of repeating columns or reverse-engineering slot logic from a fact table.
   </ScoutCard>
   <ScoutCard title="Discriminators are part of the grain" label="Join rule">
     Dashboard and event-style facts often need `split_type`, `detail_type`, `tracking_type`, or similar fields to stay logically unique. Treat those as grouping context, not decoration.
@@ -100,7 +100,7 @@ Start from the fact grain, add only the dimensions the question needs, and let b
 | 1 | Base grain | player-game, team-game, event, stint, shot, season summary |
 | 2 | Required entity context | `dim_player`, `dim_team`, `dim_game` |
 | 3 | Time/reporting context | `dim_date`, `dim_season`, `dim_season_phase`, `dim_season_week` |
-| 4 | Lookup labels or many-to-many expansion | `dim_play_event_type`, `dim_shot_zone`, `bridge_game_official`, `bridge_play_player` |
+| 4 | Lookup labels or many-to-many expansion | `dim_play_event_type`, `dim_shot_zone`, `bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season` |
 | 5 | Contract verification | generated [Star Reference](/docs/schema/star-reference) |
 
 ## Join play calls
@@ -182,6 +182,48 @@ JOIN dim_shot_zone sz ON sc.zone_id = sz.zone_id
 JOIN dim_game g ON sc.game_id = g.game_id;
 ```
 
+### Game with both teams via bridge
+
+```sql
+SELECT
+  g.game_date,
+  t.abbreviation,
+  bgt.side,
+  bgt.wl
+FROM bridge_game_team bgt
+JOIN dim_game g ON bgt.game_id = g.game_id
+JOIN dim_team t ON bgt.team_id = t.team_id
+WHERE bgt.season_year = '2024-25';
+```
+
+### Find all lineups containing a specific player
+
+```sql
+SELECT
+  blp.group_id,
+  blp.position_in_lineup,
+  t.abbreviation,
+  blp.season_year
+FROM bridge_lineup_player blp
+JOIN dim_team t ON blp.team_id = t.team_id
+WHERE blp.player_id = 203507;
+```
+
+### Player-team roster history
+
+```sql
+SELECT
+  p.full_name,
+  t.abbreviation,
+  bpts.season_year,
+  bpts.jersey_number,
+  bpts.position
+FROM bridge_player_team_season bpts
+JOIN dim_player p ON bpts.player_id = p.player_id
+JOIN dim_team t ON bpts.team_id = t.team_id
+ORDER BY bpts.season_year;
+```
+
 <CourtDivider label="Naming traps" />
 
 ## Column names to use carefully
@@ -207,3 +249,7 @@ JOIN dim_game g ON sc.game_id = g.game_id;
 2. **Filter early on `season_year`, `season_type`, or `game_date`** so DuckDB can trim the scan before wide joins.
 3. **Aggregate before joining** when the end result is already at season/team/player summary grain.
 4. **Use the generated star reference for exact contracts** whenever you are formalizing a query, downstream model, or test.
+
+---
+
+**See also:** [Data Dictionary Glossary](/docs/data-dictionary/glossary) for stat term definitions, [Field Reference](/docs/data-dictionary/field-reference) for column naming patterns.

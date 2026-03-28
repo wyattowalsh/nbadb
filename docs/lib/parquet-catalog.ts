@@ -1,3 +1,7 @@
+// TODO: These Parquet URLs reference a GitHub release (`docs-sample-data`)
+// that does not exist yet. Create the release and upload sample Parquet files
+// before enabling the "Query real NBA data" section in playground.mdx.
+
 export type ParquetTableEntry = {
   tableName: string;
   url: string;

@@ -1,6 +1,6 @@
 ---
 title: Analytics Views
-description: Playbook for the 4 analytics_ outputs that pre-join common analytical workflows
+description: Playbook for the 12 analytics_ outputs that pre-join common analytical workflows
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
@@ -12,7 +12,7 @@ Analytics views are the warehouse fast break: pre-joined `analytics_*` outputs t
 <StatGrid columns={3}>
   <StatPill
     label="analytics_ views"
-    value="4"
+    value="12"
     note="pre-joined surfaces for quick analyst reads"
   />
   <StatPill
@@ -56,25 +56,50 @@ Use analytics views when the question is familiar and speed matters more than re
 
 <CourtDivider label="Pick your outlet pass" />
 
-## Four views at a glance
+## All views at a glance
+
+### Core workflow views
 
 | View | Row grain | What it already packs together | Best first use |
 | ---- | --------- | ------------------------------ | -------------- |
 | `analytics_player_game_complete` | one player-game row | player-game stat families plus player, team, and game context | notebook exploration, player game logs, quick dashboards |
 | `analytics_player_season_complete` | one player-season row | season totals, averages, and per-minute normalizations | leaderboard work and player season comparison |
 | `analytics_team_season_summary` | one team-season row | team summary metrics, standings, and team context | season snapshots, standings overlays, team comparison |
+| `analytics_team_game_complete` | one team-game row | team-game traditional, advanced, misc, hustle, and tracking stats with team and game context | team game logs, club performance analysis |
 | `analytics_head_to_head` | one team-opponent summary row | opponent results and scoring margin context | rivalry, matchup prep, and opponent scouting |
+| `analytics_game_summary` | one game row with both teams | game result, team context, and bridge_game_team side information | game recap, schedule analysis, result dashboards |
+
+### Specialized analysis views
+
+| View | Row grain | What it already packs together | Best first use |
+| ---- | --------- | ------------------------------ | -------------- |
+| `analytics_clutch_performance` | one player-clutch-split row | clutch stat splits with player and team context | clutch-time analysis, pressure performance ranking |
+| `analytics_player_matchup` | one player-matchup row | player-vs-player matchup stats with player and team context | defensive matchup study, assignment analysis |
+| `analytics_shooting_efficiency` | one shot-chart row with league context | shot chart detail joined with league-average zones, player and game context | shot quality analysis, zone comparison to league baseline |
+| `analytics_player_impact` | one player-season impact row | on/off splits combined with season aggregates and player/team context | player value analysis, on-court impact measurement |
+| `analytics_draft_value` | one draft-pick row with career context | draft facts joined with career aggregates and player identity | draft class evaluation, pick value analysis |
+| `analytics_league_benchmarks` | one league-season benchmark row | player and team season aggregates for league-wide percentile context | league-wide comparison, percentile ranking, baseline setting |
 
 ## View chooser
 
 | If you want... | Start here | Why it clears space |
 | -------------- | ---------- | ------------------- |
 | Single-game player analysis | `analytics_player_game_complete` | Multiple player-game fact families plus player, team, and game context land in one row set |
+| Single-game team analysis | `analytics_team_game_complete` | Team-game stats across traditional, advanced, hustle, and tracking in one surface |
 | Season leaderboards and rate comparisons | `analytics_player_season_complete` | Totals, averages, and per-minute normalizations stay together |
 | Team snapshots with standings context | `analytics_team_season_summary` | Team rollups and standings move in the same possession |
+| Game recap with both teams | `analytics_game_summary` | Game result with both team sides already joined |
 | Rivalry or opponent scouting summaries | `analytics_head_to_head` | Team-vs-team results and scoring margins are already grouped for you |
+| Clutch-time performance | `analytics_clutch_performance` | Clutch splits with player and team context pre-joined |
+| Defensive matchup study | `analytics_player_matchup` | Player-vs-player matchup stats already shaped for comparison |
+| Shot quality vs league baseline | `analytics_shooting_efficiency` | Shot chart detail with league-average zone context pre-joined |
+| Player on-court impact | `analytics_player_impact` | On/off splits and season aggregates with player identity in one surface |
+| Draft class evaluation | `analytics_draft_value` | Draft facts joined with career outcomes for pick-value analysis |
+| League-wide percentile context | `analytics_league_benchmarks` | Season-level player and team aggregates for benchmarking |
 
 ## View scouting reports
+
+### Core workflow views
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="analytics_player_game_complete" label="View surface">
@@ -89,6 +114,12 @@ Use analytics views when the question is familiar and speed matters more than re
     <br />
     <strong>Best when:</strong> you are ranking players, building season dashboards, or comparing volume to rate stats.
   </ScoutCard>
+  <ScoutCard title="analytics_team_game_complete" label="View surface">
+    Team-game stats across traditional, advanced, misc, hustle, and tracking families joined with team and game context.
+    <br />
+    <br />
+    <strong>Best when:</strong> you want one team-game row with box-score families already packed together.
+  </ScoutCard>
   <ScoutCard title="analytics_team_season_summary" label="View surface">
     Team-season summary that layers season rollups with standings and team context.
     <br />
@@ -101,6 +132,53 @@ Use analytics views when the question is familiar and speed matters more than re
     <br />
     <strong>Best when:</strong> you want rivalry, matchup, or opponent-prep reporting without rebuilding the join yourself.
   </ScoutCard>
+  <ScoutCard title="analytics_game_summary" label="View surface">
+    Game recap surface with game result, both teams via bridge_game_team, and team context.
+    <br />
+    <br />
+    <strong>Best when:</strong> you need a schedule view, result dashboard, or quick game recap with both sides.
+  </ScoutCard>
+</div>
+
+### Specialized analysis views
+
+<div className="grid gap-4 md:grid-cols-2">
+  <ScoutCard title="analytics_clutch_performance" label="View surface">
+    Clutch stat splits joined with player and team context from fact_player_clutch_detail.
+    <br />
+    <br />
+    <strong>Best when:</strong> you are studying pressure-situation performance or ranking clutch-time contributors.
+  </ScoutCard>
+  <ScoutCard title="analytics_player_matchup" label="View surface">
+    Player-vs-player matchup data joined with player identity and team context.
+    <br />
+    <br />
+    <strong>Best when:</strong> you need defensive assignment analysis or head-to-head player comparison.
+  </ScoutCard>
+  <ScoutCard title="analytics_shooting_efficiency" label="View surface">
+    Shot chart detail with league-average zone baselines, player identity, and game context.
+    <br />
+    <br />
+    <strong>Best when:</strong> you want shot quality analysis relative to league expectations by zone.
+  </ScoutCard>
+  <ScoutCard title="analytics_player_impact" label="View surface">
+    On/off split data combined with season aggregates and player/team identity.
+    <br />
+    <br />
+    <strong>Best when:</strong> you are measuring a player's on-court impact via plus/minus and differential metrics.
+  </ScoutCard>
+  <ScoutCard title="analytics_draft_value" label="View surface">
+    Draft pick facts joined with career aggregate outcomes and player identity.
+    <br />
+    <br />
+    <strong>Best when:</strong> you are evaluating draft class performance, pick value, or prospect-to-career pipelines.
+  </ScoutCard>
+  <ScoutCard title="analytics_league_benchmarks" label="View surface">
+    Season-level player and team aggregates providing league-wide baselines and percentile context.
+    <br />
+    <br />
+    <strong>Best when:</strong> you need a benchmarking surface for league-wide comparison or percentile ranking.
+  </ScoutCard>
 </div>
 
 ## Common entry questions
@@ -108,9 +186,17 @@ Use analytics views when the question is familiar and speed matters more than re
 | If the analyst says... | Best opening move | Why |
 | ---------------------- | ----------------- | --- |
 | "Just give me the complete player game row." | `analytics_player_game_complete` | It eliminates most manual player/team/game joins on day one |
+| "Show me the team's box score for that game." | `analytics_team_game_complete` | Team-game stats across all families are already packed |
 | "I need a player season comparison table now." | `analytics_player_season_complete` | Totals, averages, and rate views are already aligned |
 | "Show me the team season picture with standings context." | `analytics_team_season_summary` | Summary and standings logic travel together |
+| "Give me a game recap with both teams." | `analytics_game_summary` | Game result and both-team context are already joined |
 | "How have these two teams played each other?" | `analytics_head_to_head` | Opponent-focused summary work is already shaped for that question |
+| "Who performs best in clutch time?" | `analytics_clutch_performance` | Clutch splits and player context are pre-joined |
+| "Who was guarding whom and how did it go?" | `analytics_player_matchup` | Matchup stats with player identity already assembled |
+| "Compare this player's shooting to league averages." | `analytics_shooting_efficiency` | Shot detail with zone-level league baselines already packed |
+| "What is this player's on-court impact?" | `analytics_player_impact` | On/off splits and season aggregates in one surface |
+| "How did that draft class turn out?" | `analytics_draft_value` | Draft picks joined with career outcomes |
+| "Where does this player rank league-wide?" | `analytics_league_benchmarks` | League-wide aggregates for percentile context |
 
 <CourtDivider label="Exit ramps" />
 
@@ -127,6 +213,18 @@ Use analytics views when the question is familiar and speed matters more than re
 | Starting view | Drop down when... | Likely next stop |
 | ------------- | ----------------- | ---------------- |
 | `analytics_player_game_complete` | you need a specific player-game stat family field or finer event detail | `fact_player_game_*`, `fact_play_by_play`, or `fact_shot_chart` |
+| `analytics_team_game_complete` | you need finer team-game detail or individual player breakdown | `fact_team_game`, team box-score variants, or player-game facts |
 | `analytics_player_season_complete` | you need custom split logic or a missing player summary component | player profile/splits facts or `agg_player_*` tables |
 | `analytics_team_season_summary` | you need a different team-season rollup or deeper game-level detail | `agg_team_*` tables or team-game facts |
+| `analytics_game_summary` | you need event-level detail or individual player lines | `fact_play_by_play`, `fact_player_game_traditional`, or `fact_rotation` |
 | `analytics_head_to_head` | you need atomic game rows behind the rivalry summary | `dim_game`, `fact_team_game`, and supporting dimensions |
+| `analytics_clutch_performance` | you need raw clutch splits or different clutch-window definitions | `fact_player_clutch_detail` |
+| `analytics_player_matchup` | you need shot-level detail on defensive matchups | `fact_player_matchups_detail` or `fact_player_matchups_shot_detail` |
+| `analytics_shooting_efficiency` | you need raw shot coordinates or custom zone logic | `fact_shot_chart`, `dim_shot_zone` |
+| `analytics_player_impact` | you need granular on/off splits or custom differential calculations | `agg_on_off_splits`, `agg_player_season` |
+| `analytics_draft_value` | you need combine data or per-season career breakdowns | `fact_draft`, `fact_draft_combine_detail`, `fact_player_career` |
+| `analytics_league_benchmarks` | you need player-level or team-level detail behind the benchmarks | `agg_player_season`, `agg_team_season` |
+
+---
+
+**See also:** [Data Dictionary Glossary](/docs/data-dictionary/glossary) for stat term definitions, [Field Reference](/docs/data-dictionary/field-reference) for column naming patterns.

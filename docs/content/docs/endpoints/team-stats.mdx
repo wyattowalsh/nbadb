@@ -29,6 +29,10 @@ Six endpoints assemble the franchise coverage board.
 | `CommonTeamYears` | none listed | `TeamYears` | Start here when you need the franchise directory or active-year bounds before choosing a team |
 | `TeamInfoCommon` | `team_id` (required) | `TeamInfoCommon`, `TeamSeasonRanks` | Default opener for one club's current-season identity, record, and ranking context |
 
+**Lands in:**
+- `CommonTeamYears` &rarr; `stg_team_years` &rarr; `dim_team`
+- `TeamInfoCommon` &rarr; `stg_team_info_common`, `stg_team_season_ranks` &rarr; `dim_team`, `fact_team_season_ranks`
+
 ## Organization and roster detail
 
 | Endpoint | Parameters | Result sets | Key columns / signals | Route cue |

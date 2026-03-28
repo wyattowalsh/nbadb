@@ -31,12 +31,14 @@ export function StatusDot({
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <span className="relative flex size-3">
-        <span
-          className={cn(
-            "absolute inline-flex size-full animate-ping rounded-full opacity-40",
-            dotColors[status],
-          )}
-        />
+        {status !== "healthy" && (
+          <span
+            className={cn(
+              "absolute inline-flex size-full animate-ping rounded-full opacity-40",
+              dotColors[status],
+            )}
+          />
+        )}
         <span
           className={cn(
             "relative inline-flex size-3 rounded-full",

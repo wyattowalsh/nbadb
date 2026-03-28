@@ -47,7 +47,7 @@ export default function HomePage() {
   return (
     <main className="nba-home-shell flex flex-1 flex-col">
       {/* ── Stat hero ────────────────────────────────── */}
-      <section className="nba-hero-bg mx-auto w-full max-w-5xl px-4 pb-10 pt-12 sm:px-6 lg:px-8">
+      <section id="scoreboard" className="nba-hero-bg mx-auto w-full max-w-5xl px-4 pb-10 pt-12 sm:px-6 lg:px-8">
         <div className="nba-hero-grid nba-reveal">
           <div>
             <span className="nba-kicker">NBA warehouse documentation</span>
@@ -60,15 +60,15 @@ export default function HomePage() {
                 className="h-10 w-auto sm:h-12"
                 priority
               />
-              <span className="nba-display nba-title-gradient text-2xl font-bold tracking-tight sm:text-3xl">
+              <h1 className="nba-display nba-title-gradient text-2xl font-bold tracking-tight sm:text-3xl">
                 nbadb
-              </span>
+              </h1>
               <Badge variant="primary">v4</Badge>
               <Badge variant="default">star schema</Badge>
               <Badge variant="default">DuckDB</Badge>
             </div>
 
-            <p className="nba-hero-lede mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+            <p className="nba-hero-lede mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               NBA warehouse docs with an actual court view: endpoint coverage,
               possession-level lineage, and analyst-ready tables laid out like a
               scouting board instead of a generic software landing page.
@@ -81,10 +81,7 @@ export default function HomePage() {
                   <div className="mt-2 text-sm font-semibold text-foreground">
                     {signal.title}
                   </div>
-                  <p
-                    className="mt-2 text-xs leading-5 text-muted-foreground"
-                    style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-                  >
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
                     {signal.description}
                   </p>
                 </div>
@@ -110,10 +107,7 @@ export default function HomePage() {
               </Button>
             </div>
 
-            <p
-              className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground nba-delay-2"
-              style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-            >
+            <p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground nba-delay-2">
               Pick the first route by job to be done: quick analyst reps, daily
               pipeline operations, table scouting, or a no-install DuckDB warmup.
             </p>
@@ -151,7 +145,7 @@ export default function HomePage() {
 
             <div className="nba-court-caption">
               <span className="nba-kicker">From tip-off to final horn</span>
-              <p style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+              <p>
                 Raw nba_api feeds staged in DuckDB, transformed into star-schema
                 tables, then routed into docs pages that explain where every play
                 and model came from.
@@ -161,11 +155,8 @@ export default function HomePage() {
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 nba-delay-2">
-          <span className="nba-kicker">Scoreboard</span>
-          <span
-            className="text-xs text-muted-foreground"
-            style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-          >
+          <h2 className="nba-kicker">Scoreboard</h2>
+          <span className="text-xs text-muted-foreground">
             Counts refreshed by docs-autogen from the current code snapshot.
           </span>
         </div>
@@ -194,14 +185,11 @@ export default function HomePage() {
       </section>
 
       {/* ── Section index ────────────────────────────── */}
-      <section className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-2">
+      <section id="sections" className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-2">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <span className="nba-kicker">Choose by question</span>
-            <p
-              className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground"
-              style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-            >
+            <h2 className="nba-kicker">Choose by question</h2>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
               Start with the warehouse shape, source feeds, dependency replay,
               or execution guides depending on what you need to answer next.
             </p>
@@ -227,7 +215,7 @@ export default function HomePage() {
                     <Badge variant="outline">{section.stats[2].value}</Badge>
                   ) : null}
                 </div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
                   {section.blurb}
                 </p>
               </div>
@@ -248,13 +236,10 @@ export default function HomePage() {
       </section>
 
       {/* ── Audience lanes ─────────────────────────── */}
-      <section className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-3">
+      <section id="lanes" className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-3">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <span className="nba-kicker">Choose your lane</span>
-          <p
-            className="max-w-2xl text-xs leading-5 text-muted-foreground"
-            style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-          >
+          <h2 className="nba-kicker">Choose your lane</h2>
+          <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
             Three clean entries depending on whether you are scouting the model,
             running the pipeline, or jumping straight into analysis.
           </p>
@@ -273,10 +258,7 @@ export default function HomePage() {
               <div className="mt-3 text-base font-semibold text-foreground">
                 {lane.title}
               </div>
-              <p
-                className="mt-2 text-xs leading-5 text-muted-foreground"
-                style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-              >
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 {lane.description}
               </p>
             </Link>
@@ -285,9 +267,9 @@ export default function HomePage() {
       </section>
 
       {/* ── Quick start ──────────────────────────────── */}
-      <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6 lg:px-8 nba-reveal nba-delay-3">
+      <section id="quickstart" className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6 lg:px-8 nba-reveal nba-delay-3">
         <div className="mb-4">
-          <span className="nba-kicker">Quick start</span>
+          <h2 className="nba-kicker">Quick start</h2>
         </div>
         <div className="divide-y divide-border border border-border">
           {quickStart.map((item) => (
@@ -302,7 +284,7 @@ export default function HomePage() {
               <span className="text-sm font-semibold text-foreground">
                 {item.label}
               </span>
-              <span className="hidden text-xs text-muted-foreground sm:inline" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+              <span className="hidden text-xs text-muted-foreground sm:inline">
                 {item.note}
               </span>
               <ArrowRight className="ml-auto size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
@@ -321,10 +303,7 @@ export default function HomePage() {
                 <span className="nba-display text-base font-bold tracking-tight text-foreground">nbadb</span>
                 <Badge variant="primary">v4</Badge>
               </div>
-              <p
-                className="mt-3 text-xs leading-5 text-muted-foreground"
-                style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-              >
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
                 Star-schema NBA data warehouse documentation. DuckDB-first with
                 full endpoint coverage, lineage, and schema docs.
               </p>
@@ -360,10 +339,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-8 border-t border-border pt-4">
-            <p
-              className="text-xs text-muted-foreground"
-              style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}
-            >
+            <p className="text-xs text-muted-foreground">
               Open-source NBA data warehouse documentation.
             </p>
           </div>

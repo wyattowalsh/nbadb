@@ -103,14 +103,19 @@ flowchart TD
         CSV --> Kaggle
     end
 
-    style Extract fill:#eff6ff,stroke:#60a5fa,color:#0f172a
-    style Validate1 fill:#f8fafc,stroke:#94a3b8,color:#0f172a
-    style Stage fill:#f5f3ff,stroke:#a78bfa,color:#0f172a
-    style Validate2 fill:#f8fafc,stroke:#94a3b8,color:#0f172a
-    style Transform fill:#fdf4ff,stroke:#d946ef,color:#0f172a
-    style Validate3 fill:#f8fafc,stroke:#94a3b8,color:#0f172a
-    style Export fill:#ecfdf5,stroke:#34d399,color:#0f172a
-    style Upload fill:#fff7ed,stroke:#fb923c,color:#0f172a
+    classDef extract fill:#eff6ff,stroke:#60a5fa
+    classDef validate fill:#f8fafc,stroke:#94a3b8
+    classDef stage fill:#f5f3ff,stroke:#a78bfa
+    classDef transform fill:#fdf4ff,stroke:#d946ef
+    classDef export fill:#ecfdf5,stroke:#34d399
+    classDef upload fill:#fff7ed,stroke:#fb923c
+
+    class Extract extract
+    class Validate1,Validate2,Validate3 validate
+    class Stage stage
+    class Transform transform
+    class Export export
+    class Upload upload
 ```
 
 <CourtDivider label="Call the stages" />

@@ -34,7 +34,7 @@ export function PipelineCharts({
   }));
 
   const latencyData = slowEndpoints.slice(0, 6).map((item) => ({
-    endpoint: item.endpoint.replace(/([A-Z])/g, " $1").trim().slice(0, 16),
+    endpoint: item.endpoint.replace(/([A-Z])/g, " $1").trim(),
     latency: item.p95DurationMs,
   }));
 

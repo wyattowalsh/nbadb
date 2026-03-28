@@ -1,6 +1,6 @@
 ---
 title: Facts & Bridges
-description: Scouting report for the 102 fact outputs and 2 bridge tables in the nbadb warehouse
+description: Scouting report for the 118+ fact outputs and 5 bridge tables in the nbadb warehouse
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
@@ -12,13 +12,13 @@ Facts hold the possessions: the measurable events, summaries, dashboards, and sp
 <StatGrid columns={3}>
   <StatPill
     label="Fact outputs"
-    value="102"
-    note="game, season, event, dashboard, and specialty measurements"
+    value="118+"
+    note="game, season, event, dashboard, and specialty measurements (128 transform files, some with multiple outputs)"
   />
   <StatPill
     label="Bridge tables"
-    value="2"
-    note="clean many-to-many connectors for crews and play participants"
+    value="5"
+    note="many-to-many connectors for crews, play participants, game-team, lineup-player, and player-team-season"
   />
   <StatPill
     label="Best habit"
@@ -123,12 +123,21 @@ This page is the scouting report, not the full scorebook. Use it to choose the r
 
 ## Current bridge tables
 
-<div className="grid gap-4 md:grid-cols-2">
+<div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="bridge_game_official" label="Bridge table">
     Use this bridge to attach officiating crews to a game without repeating referee columns across every game-level fact row.
   </ScoutCard>
   <ScoutCard title="bridge_play_player" label="Bridge table">
     Use this bridge when one play involves multiple players. It fans out participant slots from play-by-play into join-friendly rows instead of forcing you to decode player columns manually.
+  </ScoutCard>
+  <ScoutCard title="bridge_game_team" label="Bridge table">
+    Links each game to its two participating teams with a `side` discriminator (`home`/`away`) and win/loss outcome. Useful when you need both sides of a game as separate rows.
+  </ScoutCard>
+  <ScoutCard title="bridge_lineup_player" label="Bridge table">
+    Explodes opaque `group_id` strings from lineup stats into individual player rows, so you can query "find all lineups containing player X" without parsing IDs yourself.
+  </ScoutCard>
+  <ScoutCard title="bridge_player_team_season" label="Bridge table">
+    Links players to teams by season with jersey number and position. Answers roster-history questions like "which teams did this player play for?" across seasons.
   </ScoutCard>
 </div>
 
@@ -136,6 +145,9 @@ This page is the scouting report, not the full scorebook. Use it to choose the r
 | ------ | ------------ | ------------- |
 | `bridge_game_official` | `game_id` + `official_id` | Attaches officiating crews without repeating referee columns on every game-level row |
 | `bridge_play_player` | `game_id` + event key + participant slot/player context | Fans out play-by-play participant slots into join-friendly rows when one action involves multiple players |
+| `bridge_game_team` | `game_id` + `team_id` + `side` | Links games to participating teams with home/away discriminator and win/loss outcome |
+| `bridge_lineup_player` | `group_id` + `player_id` + `team_id` + `season_year` | Explodes lineup group IDs into individual player rows with positional ordering |
+| `bridge_player_team_season` | `player_id` + `team_id` + `season_year` | Tracks player-team associations by season with jersey number and position context |
 
 <Callout>
 Many dashboard-style facts rely on discriminator columns such as `detail_type`, `split_type`, `tracking_type`, `summary_type`, `context_source`, or `leader_type`. Treat those fields as part of the logical grain, not as optional decoration.
@@ -147,7 +159,7 @@ Many dashboard-style facts rely on discriminator columns such as `detail_type`, 
 | -------- | -------------- |
 | Similar names do not guarantee the same grain | `fact_player_game_*` and team box-score families can look parallel while representing different row ownership |
 | Dashboard facts often need discriminator columns | `split_type`, `detail_type`, or similar fields may be required to keep rows logically unique |
-| Bridges are not optional cleanup | `bridge_game_official` and `bridge_play_player` exist specifically to prevent repeated columns and awkward multi-slot joins |
+| Bridges are not optional cleanup | All five bridges (`bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season`) exist specifically to prevent repeated columns and awkward multi-slot joins |
 | A season question may already be answered above fact grain | Check [Derived Aggregations](/docs/schema/derived) or [Analytics Views](/docs/schema/analytics-views) before rebuilding a common summary yourself |
 
 ## Route guidance for dense reference tables
@@ -157,3 +169,7 @@ Many dashboard-style facts rely on discriminator columns such as `detail_type`, 
 - Use [Derived Aggregations](/docs/schema/derived) when the question repeats at season or league summary grain.
 - Use [Analytics Views](/docs/schema/analytics-views) when you want common joins already packed.
 - Use [Star Reference](/docs/schema/star-reference) when you need exact schema-backed columns.
+
+---
+
+**See also:** [Data Dictionary Glossary](/docs/data-dictionary/glossary) for stat term definitions, [Field Reference](/docs/data-dictionary/field-reference) for column naming patterns.

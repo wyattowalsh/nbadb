@@ -1,5 +1,26 @@
+import { statSync } from "node:fs";
+import { resolve } from "node:path";
 import { source } from "@/lib/source";
 import type { ContentPageMeta } from "./types";
+
+const CONTENT_DIR = resolve(process.cwd(), "content/docs");
+
+function getFileModifiedDate(slugParts: string[]): string | null {
+  // Try index file first (e.g. content/docs/guides/index.mdx), then leaf file
+  const candidates = [
+    resolve(CONTENT_DIR, ...slugParts, "index.mdx"),
+    resolve(CONTENT_DIR, `${slugParts.join("/")}.mdx`),
+  ];
+  for (const filePath of candidates) {
+    try {
+      const stat = statSync(filePath);
+      return stat.mtime.toISOString();
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
 
 export function getContentPages(): ContentPageMeta[] {
   const pages = source.getPages();
@@ -15,7 +36,7 @@ export function getContentPages(): ContentPageMeta[] {
       section,
       description: page.data.description ?? null,
       tocDepth: page.data.toc?.length ?? 0,
-      lastModified: null,
+      lastModified: getFileModifiedDate(slugParts),
     };
   });
 }

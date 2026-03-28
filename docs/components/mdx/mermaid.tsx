@@ -1,9 +1,63 @@
 "use client";
 
-import { Suspense, use, useCallback, useEffect, useId, useRef, useState } from "react";
+import { Component, Suspense, use, useCallback, useEffect, useId, useRef, useState } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { useTheme } from "next-themes";
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { useZoomPan } from "@/lib/use-zoom-pan";
+
+/* ── Render timeout ─────────────────────────────────── */
+
+const RENDER_TIMEOUT_MS = 10_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
+/* ── ErrorBoundary ──────────────────────────────────── */
+
+interface ErrorBoundaryProps {
+  chart: string;
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class MermaidErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[Mermaid] Render error:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <MermaidFallback
+          chart={this.props.chart}
+          detail={`Render failed: ${this.state.error?.message ?? "unknown error"}. Showing source instead.`}
+          status="Error"
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export function Mermaid({ chart }: { chart: string }) {
   const [mounted, setMounted] = useState(false);
@@ -24,17 +78,19 @@ export function Mermaid({ chart }: { chart: string }) {
   }
 
   return (
-    <Suspense
-      fallback={
-        <MermaidFallback
-          chart={normalizedChart}
-          detail="Client-side Mermaid render in progress."
-          status="Rendering board"
-        />
-      }
-    >
-      <MermaidContent chart={normalizedChart} />
-    </Suspense>
+    <MermaidErrorBoundary chart={normalizedChart}>
+      <Suspense
+        fallback={
+          <MermaidFallback
+            chart={normalizedChart}
+            detail="Client-side Mermaid render in progress."
+            status="Rendering board"
+          />
+        }
+      >
+        <MermaidContent chart={normalizedChart} />
+      </Suspense>
+    </MermaidErrorBoundary>
   );
 }
 
@@ -188,7 +244,11 @@ function MermaidContent({ chart }: { chart: string }) {
   const cacheKey = `${chart}-${resolvedTheme ?? "system"}`;
   const { svg, bindFunctions } = use(
     cachePromise(cacheKey, () => {
-      return mermaid.render(id, chart);
+      return withTimeout(
+        mermaid.render(id, chart),
+        RENDER_TIMEOUT_MS,
+        "Mermaid render",
+      );
     }),
   );
 
