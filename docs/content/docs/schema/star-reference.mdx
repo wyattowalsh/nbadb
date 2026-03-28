@@ -92,6 +92,7 @@ This tier contains 109 schema(s).
 | `entity_id` | `Int64` | Yes | gt=0 |  |
 | `team_id` | `Int64` | No | gt=0 |  |
 | `season_year` | `String` | No | — |  |
+| `season_type` | `String` | No | — |  |
 | `on_off` | `String` | No | — |  |
 | `gp` | `Int64` | Yes | — |  |
 | `min` | `Float64` | Yes | — |  |
@@ -280,9 +281,9 @@ This tier contains 109 schema(s).
 |--------|------|----------|-------------|-------------|
 | `player_id` | `Int64` | No | gt=0 |  |
 | `season_year` | `String` | No | — |  |
-| `zone_basic` | `String` | Yes | — |  |
-| `zone_area` | `String` | Yes | — |  |
-| `zone_range` | `String` | Yes | — |  |
+| `shot_zone_basic` | `String` | Yes | — |  |
+| `shot_zone_area` | `String` | Yes | — |  |
+| `shot_zone_range` | `String` | Yes | — |  |
 | `attempts` | `Int64` | Yes | — |  |
 | `makes` | `Int64` | Yes | — |  |
 | `fg_pct` | `Float64` | Yes | — |  |
@@ -467,7 +468,6 @@ This tier contains 109 schema(s).
 | `month_name` | `String` | No | — | Month name (January-December) |
 | `is_weekend` | `Boolean` | No | — | Whether date is Saturday/Sunday |
 | `nba_season` | `String` | Yes | — | NBA season (e.g. 2024-25) |
-| `nba_phase` | `String` | Yes | — | NBA season phase name |
 
 ## `dim_game`
 
@@ -571,9 +571,9 @@ This tier contains 109 schema(s).
 | Column | Type | Nullable | Constraints | Description |
 |--------|------|----------|-------------|-------------|
 | `zone_id` | `Int64` | No | gt=0 | Surrogate shot zone identifier |
-| `zone_basic` | `String` | No | — | Basic zone name |
-| `zone_area` | `String` | No | — | Zone area (e.g. Left Side) |
-| `zone_range` | `String` | No | — | Zone range (e.g. 16-24 ft.) |
+| `shot_zone_basic` | `String` | No | — | Basic zone name |
+| `shot_zone_area` | `String` | No | — | Zone area (e.g. Left Side) |
+| `shot_zone_range` | `String` | No | — | Zone range (e.g. 16-24 ft.) |
 
 ## `dim_team_history`
 
@@ -1661,6 +1661,7 @@ This tier contains 109 schema(s).
 | `dreb` | `Int64` | Yes | — | Defensive rebounds |
 | `plus_minus` | `Float64` | Yes | — | Plus-minus |
 | `season_year` | `String` | No | — | Season year (e.g. 2024-25) |
+| `comment` | `String` | Yes | — | Game comment (e.g., injury status) |
 | `start_position` | `String` | Yes | — | Starting position (F, C, G) |
 
 ## `fact_player_matchups_detail`
@@ -1849,9 +1850,9 @@ This tier contains 109 schema(s).
 |--------|------|----------|-------------|-------------|
 | `average_source` | `String` | No | in=['shot_chart_detail', 'shot_chart_lineup_detail'] | Shot-chart request family that produced the league-average row |
 | `grid_type` | `String` | Yes | — |  |
-| `zone_basic` | `String` | Yes | — |  |
-| `zone_area` | `String` | Yes | — |  |
-| `zone_range` | `String` | Yes | — |  |
+| `shot_zone_basic` | `String` | Yes | — |  |
+| `shot_zone_area` | `String` | Yes | — |  |
+| `shot_zone_range` | `String` | Yes | — |  |
 | `fga` | `Float64` | Yes | — |  |
 | `fgm` | `Float64` | Yes | — |  |
 | `fg_pct` | `Float64` | Yes | — |  |
@@ -1871,9 +1872,9 @@ This tier contains 109 schema(s).
 | `seconds_remaining` | `Int64` | Yes | — | Seconds remaining in period |
 | `action_type` | `String` | Yes | — | Shot action type description |
 | `shot_type` | `String` | Yes | — | Shot type (2PT or 3PT) |
-| `zone_basic` | `String` | Yes | — | Shot zone basic area |
-| `zone_area` | `String` | Yes | — | Shot zone directional area |
-| `zone_range` | `String` | Yes | — | Shot zone distance range |
+| `shot_zone_basic` | `String` | Yes | — | Shot zone basic area |
+| `shot_zone_area` | `String` | Yes | — | Shot zone directional area |
+| `shot_zone_range` | `String` | Yes | — | Shot zone distance range |
 | `shot_distance` | `Int64` | Yes | — | Shot distance in feet |
 | `loc_x` | `Int64` | Yes | — | Shot X-coordinate on court |
 | `loc_y` | `Int64` | Yes | — | Shot Y-coordinate on court |

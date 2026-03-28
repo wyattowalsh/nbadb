@@ -7,99 +7,564 @@ description: Column-level lineage from star schema to source endpoints
 
 ## Table-Level Lineage
 
+Generated from Pandera schema metadata and SQLGlot analysis of 158 SQL transforms.
+
 ```mermaid
 flowchart LR
-    BoxScoreAdvancedV3[BoxScoreAdvancedV3]
-    BoxScoreHustleV2[BoxScoreHustleV2]
-    BoxScoreMatchupsV3[BoxScoreMatchupsV3]
-    BoxScoreMiscV3[BoxScoreMiscV3]
-    BoxScorePlayerTrackV3[BoxScorePlayerTrackV3]
-    BoxScoreScoringV3[BoxScoreScoringV3]
-    BoxScoreSummaryV2[BoxScoreSummaryV2]
-    BoxScoreTraditionalV3[BoxScoreTraditionalV3]
-    CommonPlayerInfo[CommonPlayerInfo]
-    CommonTeamRoster[CommonTeamRoster]
-    CommonTeamYears[CommonTeamYears]
-    DefenseHub[DefenseHub]
-    DraftHistory[DraftHistory]
-    FranchiseHistory[FranchiseHistory]
-    GameRotation[GameRotation]
-    HomePageLeaders[HomePageLeaders]
-    HomePageV2[HomePageV2]
-    LeadersTiles[LeadersTiles]
-    LeagueDashLineups[LeagueDashLineups]
-    LeagueDashPtDefend[LeagueDashPtDefend]
-    LeagueGameLog[LeagueGameLog]
-    LeagueLineupViz[LeagueLineupViz]
-    LeagueStandingsV3[LeagueStandingsV3]
-    PlayByPlayV3[PlayByPlayV3]
-    PlayerAwards[PlayerAwards]
-    PlayerEstimatedMetrics[PlayerEstimatedMetrics]
-    Scoreboard[Scoreboard]
-    ScoreboardV2[ScoreboardV2]
-    ScoreboardV3[ScoreboardV3]
-    ShotChartDetail[ShotChartDetail]
-    SynergyPlayTypes[SynergyPlayTypes]
-    TeamDetails[TeamDetails]
-    TeamEstimatedMetrics[TeamEstimatedMetrics]
-    TeamInfoCommon[TeamInfoCommon]
-    WinProbabilityPBP[WinProbabilityPBP]
-    bridge_game_official[(bridge_game_official)]
-    bridge_game_team[(bridge_game_team)]
-    bridge_lineup_player[(bridge_lineup_player)]
-    bridge_play_player[(bridge_play_player)]
-    bridge_player_team_season[(bridge_player_team_season)]
-    dim_arena[(dim_arena)]
-    dim_coach[(dim_coach)]
-    dim_college[(dim_college)]
-    dim_date[(dim_date)]
-    dim_game[(dim_game)]
-    dim_official[(dim_official)]
-    dim_play_event_type[(dim_play_event_type)]
-    dim_player[(dim_player)]
-    dim_season[(dim_season)]
-    dim_season_phase[(dim_season_phase)]
-    dim_shot_zone[(dim_shot_zone)]
-    dim_team[(dim_team)]
-    dim_team_history[(dim_team_history)]
-    fact_box_score_four_factors[(fact_box_score_four_factors)]
-    fact_defense_hub[(fact_defense_hub)]
-    fact_defense_hub_detail[(fact_defense_hub_detail)]
-    fact_draft[(fact_draft)]
-    fact_estimated_metrics[(fact_estimated_metrics)]
-    fact_game_leaders[(fact_game_leaders)]
-    fact_game_result[(fact_game_result)]
-    fact_game_scoring[(fact_game_scoring)]
-    fact_homepage[(fact_homepage)]
-    fact_homepage_detail[(fact_homepage_detail)]
-    fact_homepage_leaders[(fact_homepage_leaders)]
-    fact_homepage_leaders_detail[(fact_homepage_leaders_detail)]
-    fact_leaders_tiles[(fact_leaders_tiles)]
-    fact_leaders_tiles_detail[(fact_leaders_tiles_detail)]
-    fact_league_lineup_viz[(fact_league_lineup_viz)]
-    fact_lineup_stats[(fact_lineup_stats)]
-    fact_matchup[(fact_matchup)]
-    fact_play_by_play[(fact_play_by_play)]
-    fact_player_awards[(fact_player_awards)]
-    fact_player_estimated_metrics[(fact_player_estimated_metrics)]
-    fact_player_game_advanced[(fact_player_game_advanced)]
-    fact_player_game_hustle[(fact_player_game_hustle)]
-    fact_player_game_misc[(fact_player_game_misc)]
-    fact_player_game_tracking[(fact_player_game_tracking)]
-    fact_player_game_traditional[(fact_player_game_traditional)]
-    fact_player_matchups_detail[(fact_player_matchups_detail)]
-    fact_player_matchups_shot_detail[(fact_player_matchups_shot_detail)]
-    fact_rotation[(fact_rotation)]
-    fact_shot_chart[(fact_shot_chart)]
-    fact_shot_chart_league_averages[(fact_shot_chart_league_averages)]
-    fact_standings[(fact_standings)]
-    fact_synergy[(fact_synergy)]
-    fact_team_estimated_metrics[(fact_team_estimated_metrics)]
-    fact_team_game[(fact_team_game)]
-    fact_team_matchups_detail[(fact_team_matchups_detail)]
-    fact_team_matchups_shot_detail[(fact_team_matchups_shot_detail)]
-    fact_tracking_defense[(fact_tracking_defense)]
-    fact_win_probability[(fact_win_probability)]
+    classDef endpoint fill:#e1f5fe,stroke:#0277bd
+    classDef staging fill:#fff3e0,stroke:#ef6c00
+    classDef dim fill:#e8f5e9,stroke:#2e7d32
+    classDef fact fill:#fce4ec,stroke:#c62828
+    classDef other fill:#f3e5f5,stroke:#6a1b9a
+    BoxScoreAdvancedV3[BoxScoreAdvancedV3]:::endpoint
+    BoxScoreHustleV2[BoxScoreHustleV2]:::endpoint
+    BoxScoreMatchupsV3[BoxScoreMatchupsV3]:::endpoint
+    BoxScoreMiscV3[BoxScoreMiscV3]:::endpoint
+    BoxScorePlayerTrackV3[BoxScorePlayerTrackV3]:::endpoint
+    BoxScoreScoringV3[BoxScoreScoringV3]:::endpoint
+    BoxScoreSummaryV2[BoxScoreSummaryV2]:::endpoint
+    BoxScoreTraditionalV3[BoxScoreTraditionalV3]:::endpoint
+    CommonPlayerInfo[CommonPlayerInfo]:::endpoint
+    CommonTeamRoster[CommonTeamRoster]:::endpoint
+    CommonTeamYears[CommonTeamYears]:::endpoint
+    DefenseHub[DefenseHub]:::endpoint
+    DraftHistory[DraftHistory]:::endpoint
+    FranchiseHistory[FranchiseHistory]:::endpoint
+    GameRotation[GameRotation]:::endpoint
+    HomePageLeaders[HomePageLeaders]:::endpoint
+    HomePageV2[HomePageV2]:::endpoint
+    LeadersTiles[LeadersTiles]:::endpoint
+    LeagueDashLineups[LeagueDashLineups]:::endpoint
+    LeagueDashPtDefend[LeagueDashPtDefend]:::endpoint
+    LeagueGameLog[LeagueGameLog]:::endpoint
+    LeagueLineupViz[LeagueLineupViz]:::endpoint
+    LeagueStandingsV3[LeagueStandingsV3]:::endpoint
+    PlayByPlayV3[PlayByPlayV3]:::endpoint
+    PlayerAwards[PlayerAwards]:::endpoint
+    PlayerEstimatedMetrics[PlayerEstimatedMetrics]:::endpoint
+    Scoreboard[Scoreboard]:::endpoint
+    ScoreboardV2[ScoreboardV2]:::endpoint
+    ScoreboardV3[ScoreboardV3]:::endpoint
+    ShotChartDetail[ShotChartDetail]:::endpoint
+    SynergyPlayTypes[SynergyPlayTypes]:::endpoint
+    TeamDetails[TeamDetails]:::endpoint
+    TeamEstimatedMetrics[TeamEstimatedMetrics]:::endpoint
+    TeamInfoCommon[TeamInfoCommon]:::endpoint
+    WinProbabilityPBP[WinProbabilityPBP]:::endpoint
+    stg_all_time[stg_all_time]:::staging
+    stg_all_time_ast[stg_all_time_ast]:::staging
+    stg_all_time_blk[stg_all_time_blk]:::staging
+    stg_all_time_dreb[stg_all_time_dreb]:::staging
+    stg_all_time_fg3_pct[stg_all_time_fg3_pct]:::staging
+    stg_all_time_fg3a[stg_all_time_fg3a]:::staging
+    stg_all_time_fg3m[stg_all_time_fg3m]:::staging
+    stg_all_time_fg_pct[stg_all_time_fg_pct]:::staging
+    stg_all_time_fga[stg_all_time_fga]:::staging
+    stg_all_time_fgm[stg_all_time_fgm]:::staging
+    stg_all_time_ft_pct[stg_all_time_ft_pct]:::staging
+    stg_all_time_fta[stg_all_time_fta]:::staging
+    stg_all_time_ftm[stg_all_time_ftm]:::staging
+    stg_all_time_gp[stg_all_time_gp]:::staging
+    stg_all_time_oreb[stg_all_time_oreb]:::staging
+    stg_all_time_pf[stg_all_time_pf]:::staging
+    stg_all_time_pts[stg_all_time_pts]:::staging
+    stg_all_time_reb[stg_all_time_reb]:::staging
+    stg_all_time_stl[stg_all_time_stl]:::staging
+    stg_all_time_tov[stg_all_time_tov]:::staging
+    stg_assist_leaders[stg_assist_leaders]:::staging
+    stg_assist_tracker[stg_assist_tracker]:::staging
+    stg_box_score_advanced[stg_box_score_advanced]:::staging
+    stg_box_score_advanced_team[stg_box_score_advanced_team]:::staging
+    stg_box_score_defensive[stg_box_score_defensive]:::staging
+    stg_box_score_defensive_team[stg_box_score_defensive_team]:::staging
+    stg_box_score_four_factors_player[stg_box_score_four_factors_player]:::staging
+    stg_box_score_four_factors_team[stg_box_score_four_factors_team]:::staging
+    stg_box_score_hustle[stg_box_score_hustle]:::staging
+    stg_box_score_hustle_box[stg_box_score_hustle_box]:::staging
+    stg_box_score_hustle_player[stg_box_score_hustle_player]:::staging
+    stg_box_score_hustle_team[stg_box_score_hustle_team]:::staging
+    stg_box_score_misc[stg_box_score_misc]:::staging
+    stg_box_score_misc_team[stg_box_score_misc_team]:::staging
+    stg_box_score_player_track[stg_box_score_player_track]:::staging
+    stg_box_score_player_track_team[stg_box_score_player_track_team]:::staging
+    stg_box_score_scoring[stg_box_score_scoring]:::staging
+    stg_box_score_scoring_team[stg_box_score_scoring_team]:::staging
+    stg_box_score_traditional[stg_box_score_traditional]:::staging
+    stg_box_score_traditional_starter_bench[stg_box_score_traditional_starter_bench]:::staging
+    stg_box_score_traditional_team[stg_box_score_traditional_team]:::staging
+    stg_box_score_usage[stg_box_score_usage]:::staging
+    stg_box_score_usage_team[stg_box_score_usage_team]:::staging
+    stg_coaches[stg_coaches]:::staging
+    stg_college_rollup_east[stg_college_rollup_east]:::staging
+    stg_college_rollup_midwest[stg_college_rollup_midwest]:::staging
+    stg_college_rollup_south[stg_college_rollup_south]:::staging
+    stg_college_rollup_west[stg_college_rollup_west]:::staging
+    stg_common_all_players[stg_common_all_players]:::staging
+    stg_common_playoff_series[stg_common_playoff_series]:::staging
+    stg_cume_player[stg_cume_player]:::staging
+    stg_cume_player_game_by_game[stg_cume_player_game_by_game]:::staging
+    stg_cume_player_games[stg_cume_player_games]:::staging
+    stg_cume_player_totals[stg_cume_player_totals]:::staging
+    stg_cume_team[stg_cume_team]:::staging
+    stg_cume_team_game_by_game[stg_cume_team_game_by_game]:::staging
+    stg_cume_team_games[stg_cume_team_games]:::staging
+    stg_cume_team_totals[stg_cume_team_totals]:::staging
+    stg_defense_hub_stat1[stg_defense_hub_stat1]:::staging
+    stg_defunct_teams[stg_defunct_teams]:::staging
+    stg_draft[stg_draft]:::staging
+    stg_draft_board[stg_draft_board]:::staging
+    stg_draft_combine[stg_draft_combine]:::staging
+    stg_draft_combine_anthro[stg_draft_combine_anthro]:::staging
+    stg_draft_combine_drills[stg_draft_combine_drills]:::staging
+    stg_draft_combine_nonstat_shooting[stg_draft_combine_nonstat_shooting]:::staging
+    stg_draft_combine_spot_shooting[stg_draft_combine_spot_shooting]:::staging
+    stg_dunk_score_leaders[stg_dunk_score_leaders]:::staging
+    stg_fanduel_player[stg_fanduel_player]:::staging
+    stg_fantasy_widget[stg_fantasy_widget]:::staging
+    stg_franchise[stg_franchise]:::staging
+    stg_franchise_leaders[stg_franchise_leaders]:::staging
+    stg_franchise_players[stg_franchise_players]:::staging
+    stg_game_info[stg_game_info]:::staging
+    stg_game_leaders[stg_game_leaders]:::staging
+    stg_game_summary[stg_game_summary]:::staging
+    stg_game_summary_available_video[stg_game_summary_available_video]:::staging
+    stg_gl_alum_box_score_similarity_score[stg_gl_alum_box_score_similarity_score]:::staging
+    stg_gravity_leaders[stg_gravity_leaders]:::staging
+    stg_home_page_leaders[stg_home_page_leaders]:::staging
+    stg_home_page_v2[stg_home_page_v2]:::staging
+    stg_homepage_leaders[stg_homepage_leaders]:::staging
+    stg_homepage_v2[stg_homepage_v2]:::staging
+    stg_hustle_stats_available[stg_hustle_stats_available]:::staging
+    stg_inactive_players[stg_inactive_players]:::staging
+    stg_ist_standings[stg_ist_standings]:::staging
+    stg_last_meeting[stg_last_meeting]:::staging
+    stg_leaders_tiles[stg_leaders_tiles]:::staging
+    stg_league_dash_player_bio_stats[stg_league_dash_player_bio_stats]:::staging
+    stg_league_dash_player_stats[stg_league_dash_player_stats]:::staging
+    stg_league_dash_team_stats[stg_league_dash_team_stats]:::staging
+    stg_league_game_finder[stg_league_game_finder]:::staging
+    stg_league_game_log[stg_league_game_log]:::staging
+    stg_league_hustle_player[stg_league_hustle_player]:::staging
+    stg_league_hustle_team[stg_league_hustle_team]:::staging
+    stg_league_leaders[stg_league_leaders]:::staging
+    stg_league_lineup_viz[stg_league_lineup_viz]:::staging
+    stg_league_opp_pt_shot[stg_league_opp_pt_shot]:::staging
+    stg_league_player_bio[stg_league_player_bio]:::staging
+    stg_league_player_clutch[stg_league_player_clutch]:::staging
+    stg_league_player_pt_shot[stg_league_player_pt_shot]:::staging
+    stg_league_pt_stats[stg_league_pt_stats]:::staging
+    stg_league_pt_team_defend[stg_league_pt_team_defend]:::staging
+    stg_league_team_clutch[stg_league_team_clutch]:::staging
+    stg_league_team_pt_shot[stg_league_team_pt_shot]:::staging
+    stg_league_team_shot_locations[stg_league_team_shot_locations]:::staging
+    stg_line_score[stg_line_score]:::staging
+    stg_lineup[stg_lineup]:::staging
+    stg_matchup[stg_matchup]:::staging
+    stg_matchups_rollup[stg_matchups_rollup]:::staging
+    stg_officials[stg_officials]:::staging
+    stg_on_off[stg_on_off]:::staging
+    stg_on_off_details_off_court[stg_on_off_details_off_court]:::staging
+    stg_on_off_details_on_court[stg_on_off_details_on_court]:::staging
+    stg_on_off_details_overall[stg_on_off_details_overall]:::staging
+    stg_on_off_summary_off_court[stg_on_off_summary_off_court]:::staging
+    stg_on_off_summary_on_court[stg_on_off_summary_on_court]:::staging
+    stg_on_off_summary_overall[stg_on_off_summary_overall]:::staging
+    stg_other_stats[stg_other_stats]:::staging
+    stg_play_by_play[stg_play_by_play]:::staging
+    stg_player_available_seasons[stg_player_available_seasons]:::staging
+    stg_player_awards[stg_player_awards]:::staging
+    stg_player_career_allstar[stg_player_career_allstar]:::staging
+    stg_player_career_by_college_rollup[stg_player_career_by_college_rollup]:::staging
+    stg_player_career_college[stg_player_career_college]:::staging
+    stg_player_career_postseason[stg_player_career_postseason]:::staging
+    stg_player_career_regular[stg_player_career_regular]:::staging
+    stg_player_career_total_allstar[stg_player_career_total_allstar]:::staging
+    stg_player_career_total_college[stg_player_career_total_college]:::staging
+    stg_player_career_total_postseason[stg_player_career_total_postseason]:::staging
+    stg_player_career_total_regular[stg_player_career_total_regular]:::staging
+    stg_player_clutch_last10sec_3pt[stg_player_clutch_last10sec_3pt]:::staging
+    stg_player_clutch_last10sec_3pt2[stg_player_clutch_last10sec_3pt2]:::staging
+    stg_player_clutch_last1min_5pt[stg_player_clutch_last1min_5pt]:::staging
+    stg_player_clutch_last1min_pm5[stg_player_clutch_last1min_pm5]:::staging
+    stg_player_clutch_last30sec_3pt[stg_player_clutch_last30sec_3pt]:::staging
+    stg_player_clutch_last30sec_3pt2[stg_player_clutch_last30sec_3pt2]:::staging
+    stg_player_clutch_last3min_5pt[stg_player_clutch_last3min_5pt]:::staging
+    stg_player_clutch_last3min_pm5[stg_player_clutch_last3min_pm5]:::staging
+    stg_player_clutch_last5min_5pt[stg_player_clutch_last5min_5pt]:::staging
+    stg_player_clutch_last5min_pm5[stg_player_clutch_last5min_pm5]:::staging
+    stg_player_clutch_overall[stg_player_clutch_overall]:::staging
+    stg_player_college_rollup[stg_player_college_rollup]:::staging
+    stg_player_compare[stg_player_compare]:::staging
+    stg_player_dash_game_splits[stg_player_dash_game_splits]:::staging
+    stg_player_dash_general_splits[stg_player_dash_general_splits]:::staging
+    stg_player_dash_last_n_games[stg_player_dash_last_n_games]:::staging
+    stg_player_dash_shooting_splits[stg_player_dash_shooting_splits]:::staging
+    stg_player_dash_team_perf[stg_player_dash_team_perf]:::staging
+    stg_player_dash_yoy[stg_player_dash_yoy]:::staging
+    stg_player_dashboard_clutch[stg_player_dashboard_clutch]:::staging
+    stg_player_dashboard_game_splits[stg_player_dashboard_game_splits]:::staging
+    stg_player_dashboard_general_splits[stg_player_dashboard_general_splits]:::staging
+    stg_player_dashboard_last_n_games[stg_player_dashboard_last_n_games]:::staging
+    stg_player_dashboard_shooting_splits[stg_player_dashboard_shooting_splits]:::staging
+    stg_player_dashboard_team_performance[stg_player_dashboard_team_performance]:::staging
+    stg_player_dashboard_year_over_year[stg_player_dashboard_year_over_year]:::staging
+    stg_player_fantasy_profile_last_five_games_avg[stg_player_fantasy_profile_last_five_games_avg]:::staging
+    stg_player_fantasy_profile_season_avg[stg_player_fantasy_profile_season_avg]:::staging
+    stg_player_game_log[stg_player_game_log]:::staging
+    stg_player_game_logs[stg_player_game_logs]:::staging
+    stg_player_game_logs_v2[stg_player_game_logs_v2]:::staging
+    stg_player_game_streak_finder[stg_player_game_streak_finder]:::staging
+    stg_player_headline_stats[stg_player_headline_stats]:::staging
+    stg_player_info[stg_player_info]:::staging
+    stg_player_lastn_game_number[stg_player_lastn_game_number]:::staging
+    stg_player_lastn_last10[stg_player_lastn_last10]:::staging
+    stg_player_lastn_last15[stg_player_lastn_last15]:::staging
+    stg_player_lastn_last20[stg_player_lastn_last20]:::staging
+    stg_player_lastn_last5[stg_player_lastn_last5]:::staging
+    stg_player_lastn_overall[stg_player_lastn_overall]:::staging
+    stg_player_next_games[stg_player_next_games]:::staging
+    stg_player_on_details[stg_player_on_details]:::staging
+    stg_player_perf_overall[stg_player_perf_overall]:::staging
+    stg_player_perf_pts_against[stg_player_perf_pts_against]:::staging
+    stg_player_perf_pts_scored[stg_player_perf_pts_scored]:::staging
+    stg_player_perf_score_diff[stg_player_perf_score_diff]:::staging
+    stg_player_profile_allstar[stg_player_profile_allstar]:::staging
+    stg_player_profile_career_highs[stg_player_profile_career_highs]:::staging
+    stg_player_profile_college[stg_player_profile_college]:::staging
+    stg_player_profile_next_game[stg_player_profile_next_game]:::staging
+    stg_player_profile_postseason[stg_player_profile_postseason]:::staging
+    stg_player_profile_preseason[stg_player_profile_preseason]:::staging
+    stg_player_profile_ranks_postseason[stg_player_profile_ranks_postseason]:::staging
+    stg_player_profile_ranks_regular[stg_player_profile_ranks_regular]:::staging
+    stg_player_profile_regular[stg_player_profile_regular]:::staging
+    stg_player_profile_season_highs[stg_player_profile_season_highs]:::staging
+    stg_player_profile_total_allstar[stg_player_profile_total_allstar]:::staging
+    stg_player_profile_total_college[stg_player_profile_total_college]:::staging
+    stg_player_profile_total_postseason[stg_player_profile_total_postseason]:::staging
+    stg_player_profile_total_preseason[stg_player_profile_total_preseason]:::staging
+    stg_player_profile_total_regular[stg_player_profile_total_regular]:::staging
+    stg_player_pt_pass[stg_player_pt_pass]:::staging
+    stg_player_pt_pass_received[stg_player_pt_pass_received]:::staging
+    stg_player_pt_reb[stg_player_pt_reb]:::staging
+    stg_player_pt_reb_distance[stg_player_pt_reb_distance]:::staging
+    stg_player_pt_reb_overall[stg_player_pt_reb_overall]:::staging
+    stg_player_pt_reb_shot_dist[stg_player_pt_reb_shot_dist]:::staging
+    stg_player_pt_reb_shot_type[stg_player_pt_reb_shot_type]:::staging
+    stg_player_pt_shot_defend[stg_player_pt_shot_defend]:::staging
+    stg_player_pt_shots[stg_player_pt_shots]:::staging
+    stg_player_pt_shots_closest_def[stg_player_pt_shots_closest_def]:::staging
+    stg_player_pt_shots_dribble[stg_player_pt_shots_dribble]:::staging
+    stg_player_pt_shots_general[stg_player_pt_shots_general]:::staging
+    stg_player_pt_shots_overall[stg_player_pt_shots_overall]:::staging
+    stg_player_pt_shots_shot_clock[stg_player_pt_shots_shot_clock]:::staging
+    stg_player_pt_shots_touch_time[stg_player_pt_shots_touch_time]:::staging
+    stg_player_season_ranks_postseason[stg_player_season_ranks_postseason]:::staging
+    stg_player_season_ranks_regular[stg_player_season_ranks_regular]:::staging
+    stg_player_shoot_5ft[stg_player_shoot_5ft]:::staging
+    stg_player_shoot_8ft[stg_player_shoot_8ft]:::staging
+    stg_player_shoot_area[stg_player_shoot_area]:::staging
+    stg_player_shoot_assisted_by[stg_player_shoot_assisted_by]:::staging
+    stg_player_shoot_assisted_shot[stg_player_shoot_assisted_shot]:::staging
+    stg_player_shoot_overall[stg_player_shoot_overall]:::staging
+    stg_player_shoot_type[stg_player_shoot_type]:::staging
+    stg_player_shoot_type_summary[stg_player_shoot_type_summary]:::staging
+    stg_player_split_actual_margin[stg_player_split_actual_margin]:::staging
+    stg_player_split_by_half[stg_player_split_by_half]:::staging
+    stg_player_split_by_period[stg_player_split_by_period]:::staging
+    stg_player_split_days_rest[stg_player_split_days_rest]:::staging
+    stg_player_split_game_overall[stg_player_split_game_overall]:::staging
+    stg_player_split_general_overall[stg_player_split_general_overall]:::staging
+    stg_player_split_location[stg_player_split_location]:::staging
+    stg_player_split_month[stg_player_split_month]:::staging
+    stg_player_split_pre_post_allstar[stg_player_split_pre_post_allstar]:::staging
+    stg_player_split_score_margin[stg_player_split_score_margin]:::staging
+    stg_player_split_starting_pos[stg_player_split_starting_pos]:::staging
+    stg_player_split_wins_losses[stg_player_split_wins_losses]:::staging
+    stg_player_streak_finder[stg_player_streak_finder]:::staging
+    stg_player_tracking[stg_player_tracking]:::staging
+    stg_player_vs_player[stg_player_vs_player]:::staging
+    stg_player_yoy_by_year[stg_player_yoy_by_year]:::staging
+    stg_player_yoy_overall[stg_player_yoy_overall]:::staging
+    stg_playoff_picture_east[stg_playoff_picture_east]:::staging
+    stg_playoff_picture_east_remaining[stg_playoff_picture_east_remaining]:::staging
+    stg_playoff_picture_east_standings[stg_playoff_picture_east_standings]:::staging
+    stg_playoff_picture_west[stg_playoff_picture_west]:::staging
+    stg_playoff_picture_west_remaining[stg_playoff_picture_west_remaining]:::staging
+    stg_playoff_picture_west_standings[stg_playoff_picture_west_standings]:::staging
+    stg_rotation_away[stg_rotation_away]:::staging
+    stg_rotation_home[stg_rotation_home]:::staging
+    stg_schedule_weeks[stg_schedule_weeks]:::staging
+    stg_scoreboard[stg_scoreboard]:::staging
+    stg_scoreboard_east_conf[stg_scoreboard_east_conf]:::staging
+    stg_scoreboard_last_meeting[stg_scoreboard_last_meeting]:::staging
+    stg_scoreboard_line_score[stg_scoreboard_line_score]:::staging
+    stg_scoreboard_series_standings[stg_scoreboard_series_standings]:::staging
+    stg_scoreboard_team_leaders[stg_scoreboard_team_leaders]:::staging
+    stg_scoreboard_ticket_links[stg_scoreboard_ticket_links]:::staging
+    stg_scoreboard_v2_series_standings[stg_scoreboard_v2_series_standings]:::staging
+    stg_scoreboard_v3_broadcaster[stg_scoreboard_v3_broadcaster]:::staging
+    stg_scoreboard_v3_line_score[stg_scoreboard_v3_line_score]:::staging
+    stg_scoreboard_v3_metadata[stg_scoreboard_v3_metadata]:::staging
+    stg_scoreboard_v3_summary[stg_scoreboard_v3_summary]:::staging
+    stg_scoreboard_v3_team_stats[stg_scoreboard_v3_team_stats]:::staging
+    stg_scoreboard_west_conf[stg_scoreboard_west_conf]:::staging
+    stg_scoreboard_win_probability[stg_scoreboard_win_probability]:::staging
+    stg_season_matchups[stg_season_matchups]:::staging
+    stg_season_series[stg_season_series]:::staging
+    stg_shot_chart[stg_shot_chart]:::staging
+    stg_shot_chart_league_averages[stg_shot_chart_league_averages]:::staging
+    stg_shot_chart_league_wide[stg_shot_chart_league_wide]:::staging
+    stg_shot_chart_lineup[stg_shot_chart_lineup]:::staging
+    stg_shot_chart_lineup_detail[stg_shot_chart_lineup_detail]:::staging
+    stg_shot_chart_lineup_league_avg[stg_shot_chart_lineup_league_avg]:::staging
+    stg_shot_locations[stg_shot_locations]:::staging
+    stg_standings[stg_standings]:::staging
+    stg_summary_v3_available_video[stg_summary_v3_available_video]:::staging
+    stg_summary_v3_game_info[stg_summary_v3_game_info]:::staging
+    stg_summary_v3_game_summary[stg_summary_v3_game_summary]:::staging
+    stg_summary_v3_inactive_players[stg_summary_v3_inactive_players]:::staging
+    stg_summary_v3_last_five_meetings[stg_summary_v3_last_five_meetings]:::staging
+    stg_summary_v3_line_score[stg_summary_v3_line_score]:::staging
+    stg_summary_v3_officials[stg_summary_v3_officials]:::staging
+    stg_summary_v3_other_stats[stg_summary_v3_other_stats]:::staging
+    stg_synergy[stg_synergy]:::staging
+    stg_team_and_players_vs[stg_team_and_players_vs]:::staging
+    stg_team_and_players_vs_players[stg_team_and_players_vs_players]:::staging
+    stg_team_available_seasons[stg_team_available_seasons]:::staging
+    stg_team_awards_conf[stg_team_awards_conf]:::staging
+    stg_team_awards_div[stg_team_awards_div]:::staging
+    stg_team_background[stg_team_background]:::staging
+    stg_team_dash_general_splits[stg_team_dash_general_splits]:::staging
+    stg_team_dash_shooting_splits[stg_team_dash_shooting_splits]:::staging
+    stg_team_dashboard_estimated[stg_team_dashboard_estimated]:::staging
+    stg_team_dashboard_on_off[stg_team_dashboard_on_off]:::staging
+    stg_team_details[stg_team_details]:::staging
+    stg_team_game_log[stg_team_game_log]:::staging
+    stg_team_game_logs_v2[stg_team_game_logs_v2]:::staging
+    stg_team_historical_leaders[stg_team_historical_leaders]:::staging
+    stg_team_history[stg_team_history]:::staging
+    stg_team_hof[stg_team_hof]:::staging
+    stg_team_info[stg_team_info]:::staging
+    stg_team_info_common[stg_team_info_common]:::staging
+    stg_team_lineups[stg_team_lineups]:::staging
+    stg_team_lineups_overall[stg_team_lineups_overall]:::staging
+    stg_team_player_dash_overall[stg_team_player_dash_overall]:::staging
+    stg_team_player_dash_players[stg_team_player_dash_players]:::staging
+    stg_team_player_dashboard[stg_team_player_dashboard]:::staging
+    stg_team_pt_pass[stg_team_pt_pass]:::staging
+    stg_team_pt_pass_received[stg_team_pt_pass_received]:::staging
+    stg_team_pt_reb[stg_team_pt_reb]:::staging
+    stg_team_pt_reb_distance[stg_team_pt_reb_distance]:::staging
+    stg_team_pt_reb_overall[stg_team_pt_reb_overall]:::staging
+    stg_team_pt_reb_shot_dist[stg_team_pt_reb_shot_dist]:::staging
+    stg_team_pt_reb_shot_type[stg_team_pt_reb_shot_type]:::staging
+    stg_team_pt_shots[stg_team_pt_shots]:::staging
+    stg_team_pt_shots_closest_def[stg_team_pt_shots_closest_def]:::staging
+    stg_team_pt_shots_dribble[stg_team_pt_shots_dribble]:::staging
+    stg_team_pt_shots_general[stg_team_pt_shots_general]:::staging
+    stg_team_pt_shots_shot_clock[stg_team_pt_shots_shot_clock]:::staging
+    stg_team_pt_shots_touch_time[stg_team_pt_shots_touch_time]:::staging
+    stg_team_retired[stg_team_retired]:::staging
+    stg_team_season_ranks[stg_team_season_ranks]:::staging
+    stg_team_shoot_5ft[stg_team_shoot_5ft]:::staging
+    stg_team_shoot_8ft[stg_team_shoot_8ft]:::staging
+    stg_team_shoot_area[stg_team_shoot_area]:::staging
+    stg_team_shoot_assisted_by[stg_team_shoot_assisted_by]:::staging
+    stg_team_shoot_assisted_shot[stg_team_shoot_assisted_shot]:::staging
+    stg_team_shoot_overall[stg_team_shoot_overall]:::staging
+    stg_team_shoot_type[stg_team_shoot_type]:::staging
+    stg_team_social_sites[stg_team_social_sites]:::staging
+    stg_team_split_days_rest[stg_team_split_days_rest]:::staging
+    stg_team_split_general_overall[stg_team_split_general_overall]:::staging
+    stg_team_split_location[stg_team_split_location]:::staging
+    stg_team_split_month[stg_team_split_month]:::staging
+    stg_team_split_pre_post_allstar[stg_team_split_pre_post_allstar]:::staging
+    stg_team_split_wins_losses[stg_team_split_wins_losses]:::staging
+    stg_team_streak_finder[stg_team_streak_finder]:::staging
+    stg_team_vs_player[stg_team_vs_player]:::staging
+    stg_team_year_by_year[stg_team_year_by_year]:::staging
+    stg_team_year_by_year_stats[stg_team_year_by_year_stats]:::staging
+    stg_team_years[stg_team_years]:::staging
+    stg_tracking_defense[stg_tracking_defense]:::staging
+    stg_win_probability[stg_win_probability]:::staging
+    agg_all_time_leaders[(agg_all_time_leaders)]:::other
+    agg_clutch_stats[(agg_clutch_stats)]:::other
+    agg_league_leaders[(agg_league_leaders)]:::other
+    agg_lineup_efficiency[(agg_lineup_efficiency)]:::other
+    agg_on_off_splits[(agg_on_off_splits)]:::other
+    agg_player_bio[(agg_player_bio)]:::other
+    agg_player_career[(agg_player_career)]:::other
+    agg_player_rolling[(agg_player_rolling)]:::other
+    agg_player_season[(agg_player_season)]:::other
+    agg_player_season_per36[(agg_player_season_per36)]:::other
+    agg_player_season_per48[(agg_player_season_per48)]:::other
+    agg_shot_location_season[(agg_shot_location_season)]:::other
+    agg_shot_zones[(agg_shot_zones)]:::other
+    agg_team_franchise[(agg_team_franchise)]:::other
+    agg_team_pace_and_efficiency[(agg_team_pace_and_efficiency)]:::other
+    agg_team_season[(agg_team_season)]:::other
+    analytics_clutch_performance[(analytics_clutch_performance)]:::other
+    analytics_draft_value[(analytics_draft_value)]:::other
+    analytics_game_summary[(analytics_game_summary)]:::other
+    analytics_head_to_head[(analytics_head_to_head)]:::other
+    analytics_league_benchmarks[(analytics_league_benchmarks)]:::other
+    analytics_player_game_complete[(analytics_player_game_complete)]:::other
+    analytics_player_impact[(analytics_player_impact)]:::other
+    analytics_player_matchup[(analytics_player_matchup)]:::other
+    analytics_player_season_complete[(analytics_player_season_complete)]:::other
+    analytics_shooting_efficiency[(analytics_shooting_efficiency)]:::other
+    analytics_team_game_complete[(analytics_team_game_complete)]:::other
+    analytics_team_season_summary[(analytics_team_season_summary)]:::other
+    bridge_game_official[(bridge_game_official)]:::other
+    bridge_game_team[(bridge_game_team)]:::other
+    bridge_lineup_player[(bridge_lineup_player)]:::other
+    bridge_play_player[(bridge_play_player)]:::other
+    bridge_player_team_season[(bridge_player_team_season)]:::other
+    dim_all_players[(dim_all_players)]:::dim
+    dim_arena[(dim_arena)]:::dim
+    dim_coach[(dim_coach)]:::dim
+    dim_college[(dim_college)]:::dim
+    dim_date[(dim_date)]:::dim
+    dim_defunct_team[(dim_defunct_team)]:::dim
+    dim_game[(dim_game)]:::dim
+    dim_official[(dim_official)]:::dim
+    dim_play_event_type[(dim_play_event_type)]:::dim
+    dim_player[(dim_player)]:::dim
+    dim_season[(dim_season)]:::dim
+    dim_season_phase[(dim_season_phase)]:::dim
+    dim_season_week[(dim_season_week)]:::dim
+    dim_shot_zone[(dim_shot_zone)]:::dim
+    dim_team[(dim_team)]:::dim
+    dim_team_extended[(dim_team_extended)]:::dim
+    dim_team_history[(dim_team_history)]:::dim
+    fact_box_score_advanced_team[(fact_box_score_advanced_team)]:::fact
+    fact_box_score_defensive_team[(fact_box_score_defensive_team)]:::fact
+    fact_box_score_four_factors[(fact_box_score_four_factors)]:::fact
+    fact_box_score_four_factors_team[(fact_box_score_four_factors_team)]:::fact
+    fact_box_score_hustle_player[(fact_box_score_hustle_player)]:::fact
+    fact_box_score_misc_team[(fact_box_score_misc_team)]:::fact
+    fact_box_score_player_track_team[(fact_box_score_player_track_team)]:::fact
+    fact_box_score_scoring_team[(fact_box_score_scoring_team)]:::fact
+    fact_box_score_starter_bench[(fact_box_score_starter_bench)]:::fact
+    fact_box_score_summary_v3[(fact_box_score_summary_v3)]:::fact
+    fact_box_score_team[(fact_box_score_team)]:::fact
+    fact_box_score_usage_team[(fact_box_score_usage_team)]:::fact
+    fact_college_rollup[(fact_college_rollup)]:::fact
+    fact_cumulative_stats[(fact_cumulative_stats)]:::fact
+    fact_cumulative_stats_detail[(fact_cumulative_stats_detail)]:::fact
+    fact_defense_hub[(fact_defense_hub)]:::fact
+    fact_defense_hub_detail[(fact_defense_hub_detail)]:::fact
+    fact_draft[(fact_draft)]:::fact
+    fact_draft_board[(fact_draft_board)]:::fact
+    fact_draft_combine_detail[(fact_draft_combine_detail)]:::fact
+    fact_estimated_metrics[(fact_estimated_metrics)]:::fact
+    fact_fantasy[(fact_fantasy)]:::fact
+    fact_franchise_detail[(fact_franchise_detail)]:::fact
+    fact_game_context[(fact_game_context)]:::fact
+    fact_game_leaders[(fact_game_leaders)]:::fact
+    fact_game_result[(fact_game_result)]:::fact
+    fact_game_scoring[(fact_game_scoring)]:::fact
+    fact_gl_alum_similarity[(fact_gl_alum_similarity)]:::fact
+    fact_homepage[(fact_homepage)]:::fact
+    fact_homepage_detail[(fact_homepage_detail)]:::fact
+    fact_homepage_leaders[(fact_homepage_leaders)]:::fact
+    fact_homepage_leaders_detail[(fact_homepage_leaders_detail)]:::fact
+    fact_hustle_availability[(fact_hustle_availability)]:::fact
+    fact_ist_standings[(fact_ist_standings)]:::fact
+    fact_leaders_tiles[(fact_leaders_tiles)]:::fact
+    fact_leaders_tiles_detail[(fact_leaders_tiles_detail)]:::fact
+    fact_league_dash_player_stats[(fact_league_dash_player_stats)]:::fact
+    fact_league_dash_team_stats[(fact_league_dash_team_stats)]:::fact
+    fact_league_game_finder[(fact_league_game_finder)]:::fact
+    fact_league_hustle[(fact_league_hustle)]:::fact
+    fact_league_leaders_detail[(fact_league_leaders_detail)]:::fact
+    fact_league_lineup_viz[(fact_league_lineup_viz)]:::fact
+    fact_league_pt_shots[(fact_league_pt_shots)]:::fact
+    fact_league_shot_locations[(fact_league_shot_locations)]:::fact
+    fact_league_team_clutch[(fact_league_team_clutch)]:::fact
+    fact_lineup_stats[(fact_lineup_stats)]:::fact
+    fact_matchup[(fact_matchup)]:::fact
+    fact_on_off_detail[(fact_on_off_detail)]:::fact
+    fact_play_by_play[(fact_play_by_play)]:::fact
+    fact_player_available_seasons[(fact_player_available_seasons)]:::fact
+    fact_player_awards[(fact_player_awards)]:::fact
+    fact_player_career[(fact_player_career)]:::fact
+    fact_player_clutch_detail[(fact_player_clutch_detail)]:::fact
+    fact_player_dashboard_clutch_overall[(fact_player_dashboard_clutch_overall)]:::fact
+    fact_player_dashboard_game_splits_overall[(fact_player_dashboard_game_splits_overall)]:::fact
+    fact_player_dashboard_general_splits_overall[(fact_player_dashboard_general_splits_overall)]:::fact
+    fact_player_dashboard_last_n_overall[(fact_player_dashboard_last_n_overall)]:::fact
+    fact_player_dashboard_shooting_overall[(fact_player_dashboard_shooting_overall)]:::fact
+    fact_player_dashboard_team_perf_overall[(fact_player_dashboard_team_perf_overall)]:::fact
+    fact_player_dashboard_yoy_overall[(fact_player_dashboard_yoy_overall)]:::fact
+    fact_player_estimated_metrics[(fact_player_estimated_metrics)]:::fact
+    fact_player_game_advanced[(fact_player_game_advanced)]:::fact
+    fact_player_game_hustle[(fact_player_game_hustle)]:::fact
+    fact_player_game_log[(fact_player_game_log)]:::fact
+    fact_player_game_misc[(fact_player_game_misc)]:::fact
+    fact_player_game_splits_detail[(fact_player_game_splits_detail)]:::fact
+    fact_player_game_tracking[(fact_player_game_tracking)]:::fact
+    fact_player_game_traditional[(fact_player_game_traditional)]:::fact
+    fact_player_general_splits_detail[(fact_player_general_splits_detail)]:::fact
+    fact_player_headline_stats[(fact_player_headline_stats)]:::fact
+    fact_player_last_n_detail[(fact_player_last_n_detail)]:::fact
+    fact_player_matchups[(fact_player_matchups)]:::fact
+    fact_player_matchups_detail[(fact_player_matchups_detail)]:::fact
+    fact_player_matchups_shot_detail[(fact_player_matchups_shot_detail)]:::fact
+    fact_player_next_games[(fact_player_next_games)]:::fact
+    fact_player_profile[(fact_player_profile)]:::fact
+    fact_player_pt_reb_detail[(fact_player_pt_reb_detail)]:::fact
+    fact_player_pt_shots_detail[(fact_player_pt_shots_detail)]:::fact
+    fact_player_pt_tracking[(fact_player_pt_tracking)]:::fact
+    fact_player_season_ranks[(fact_player_season_ranks)]:::fact
+    fact_player_shooting_splits_detail[(fact_player_shooting_splits_detail)]:::fact
+    fact_player_splits[(fact_player_splits)]:::fact
+    fact_player_team_perf_detail[(fact_player_team_perf_detail)]:::fact
+    fact_player_yoy_detail[(fact_player_yoy_detail)]:::fact
+    fact_playoff_picture[(fact_playoff_picture)]:::fact
+    fact_playoff_series[(fact_playoff_series)]:::fact
+    fact_rotation[(fact_rotation)]:::fact
+    fact_scoreboard_detail[(fact_scoreboard_detail)]:::fact
+    fact_scoreboard_v3[(fact_scoreboard_v3)]:::fact
+    fact_scoreboard_win_probability[(fact_scoreboard_win_probability)]:::fact
+    fact_season_matchups[(fact_season_matchups)]:::fact
+    fact_shot_chart[(fact_shot_chart)]:::fact
+    fact_shot_chart_league[(fact_shot_chart_league)]:::fact
+    fact_shot_chart_league_averages[(fact_shot_chart_league_averages)]:::fact
+    fact_shot_chart_lineup[(fact_shot_chart_lineup)]:::fact
+    fact_standings[(fact_standings)]:::fact
+    fact_streak_finder[(fact_streak_finder)]:::fact
+    fact_synergy[(fact_synergy)]:::fact
+    fact_team_available_seasons[(fact_team_available_seasons)]:::fact
+    fact_team_awards_conf[(fact_team_awards_conf)]:::fact
+    fact_team_awards_div[(fact_team_awards_div)]:::fact
+    fact_team_background[(fact_team_background)]:::fact
+    fact_team_dashboard_general_overall[(fact_team_dashboard_general_overall)]:::fact
+    fact_team_dashboard_shooting_overall[(fact_team_dashboard_shooting_overall)]:::fact
+    fact_team_estimated_metrics[(fact_team_estimated_metrics)]:::fact
+    fact_team_game[(fact_team_game)]:::fact
+    fact_team_game_hustle[(fact_team_game_hustle)]:::fact
+    fact_team_game_log[(fact_team_game_log)]:::fact
+    fact_team_general_splits_detail[(fact_team_general_splits_detail)]:::fact
+    fact_team_historical[(fact_team_historical)]:::fact
+    fact_team_history_detail[(fact_team_history_detail)]:::fact
+    fact_team_hof[(fact_team_hof)]:::fact
+    fact_team_lineups_detail[(fact_team_lineups_detail)]:::fact
+    fact_team_lineups_overall[(fact_team_lineups_overall)]:::fact
+    fact_team_matchups[(fact_team_matchups)]:::fact
+    fact_team_matchups_detail[(fact_team_matchups_detail)]:::fact
+    fact_team_matchups_shot_detail[(fact_team_matchups_shot_detail)]:::fact
+    fact_team_player_dashboard[(fact_team_player_dashboard)]:::fact
+    fact_team_pt_reb_detail[(fact_team_pt_reb_detail)]:::fact
+    fact_team_pt_shots_detail[(fact_team_pt_shots_detail)]:::fact
+    fact_team_pt_tracking[(fact_team_pt_tracking)]:::fact
+    fact_team_retired[(fact_team_retired)]:::fact
+    fact_team_season_ranks[(fact_team_season_ranks)]:::fact
+    fact_team_shooting_splits_detail[(fact_team_shooting_splits_detail)]:::fact
+    fact_team_social_sites[(fact_team_social_sites)]:::fact
+    fact_team_splits[(fact_team_splits)]:::fact
+    fact_tracking_defense[(fact_tracking_defense)]:::fact
+    fact_win_probability[(fact_win_probability)]:::fact
     BoxScoreAdvancedV3 --> fact_player_game_advanced
     BoxScoreHustleV2 --> fact_player_game_hustle
     BoxScoreMatchupsV3 --> fact_matchup
@@ -152,6 +617,424 @@ flowchart LR
     TeamEstimatedMetrics --> fact_team_estimated_metrics
     TeamInfoCommon --> dim_team_history
     WinProbabilityPBP --> fact_win_probability
+    agg_on_off_splits --> analytics_player_impact
+    agg_player_career --> analytics_draft_value
+    agg_player_season --> agg_league_leaders
+    agg_player_season --> agg_player_career
+    agg_player_season --> agg_player_season_per36
+    agg_player_season --> agg_player_season_per48
+    agg_player_season --> analytics_league_benchmarks
+    agg_player_season --> analytics_player_impact
+    agg_player_season --> analytics_player_season_complete
+    agg_player_season_per36 --> analytics_player_season_complete
+    agg_player_season_per48 --> analytics_player_season_complete
+    agg_team_season --> analytics_league_benchmarks
+    agg_team_season --> analytics_team_season_summary
+    bridge_game_team --> analytics_game_summary
+    dim_game --> agg_player_rolling
+    dim_game --> agg_player_season
+    dim_game --> agg_shot_zones
+    dim_game --> agg_team_pace_and_efficiency
+    dim_game --> agg_team_season
+    dim_game --> analytics_game_summary
+    dim_game --> analytics_head_to_head
+    dim_game --> analytics_player_game_complete
+    dim_game --> analytics_shooting_efficiency
+    dim_game --> analytics_team_game_complete
+    dim_game --> fact_player_game_traditional
+    dim_player --> analytics_clutch_performance
+    dim_player --> analytics_draft_value
+    dim_player --> analytics_player_game_complete
+    dim_player --> analytics_player_impact
+    dim_player --> analytics_player_matchup
+    dim_player --> analytics_player_season_complete
+    dim_player --> analytics_shooting_efficiency
+    dim_team --> analytics_clutch_performance
+    dim_team --> analytics_game_summary
+    dim_team --> analytics_head_to_head
+    dim_team --> analytics_player_game_complete
+    dim_team --> analytics_player_impact
+    dim_team --> analytics_player_matchup
+    dim_team --> analytics_player_season_complete
+    dim_team --> analytics_team_game_complete
+    dim_team --> analytics_team_season_summary
+    fact_box_score_advanced_team --> agg_team_pace_and_efficiency
+    fact_box_score_advanced_team --> analytics_team_game_complete
+    fact_box_score_misc_team --> analytics_team_game_complete
+    fact_box_score_player_track_team --> analytics_team_game_complete
+    fact_draft --> analytics_draft_value
+    fact_game_result --> analytics_game_summary
+    fact_lineup_stats --> agg_lineup_efficiency
+    fact_player_clutch_detail --> analytics_clutch_performance
+    fact_player_game_advanced --> agg_player_season
+    fact_player_game_advanced --> analytics_player_game_complete
+    fact_player_game_hustle --> analytics_player_game_complete
+    fact_player_game_misc --> analytics_player_game_complete
+    fact_player_game_tracking --> analytics_player_game_complete
+    fact_player_game_traditional --> agg_player_rolling
+    fact_player_game_traditional --> agg_player_season
+    fact_player_game_traditional --> analytics_player_game_complete
+    fact_player_matchups --> analytics_player_matchup
+    fact_shot_chart --> agg_shot_zones
+    fact_shot_chart --> analytics_shooting_efficiency
+    fact_shot_chart_league_averages --> analytics_shooting_efficiency
+    fact_standings --> analytics_team_season_summary
+    fact_team_game --> agg_team_season
+    fact_team_game --> analytics_head_to_head
+    fact_team_game --> analytics_team_game_complete
+    fact_team_game_hustle --> analytics_team_game_complete
+    stg_all_time --> agg_all_time_leaders
+    stg_all_time_ast --> agg_all_time_leaders
+    stg_all_time_blk --> agg_all_time_leaders
+    stg_all_time_dreb --> agg_all_time_leaders
+    stg_all_time_fg3_pct --> agg_all_time_leaders
+    stg_all_time_fg3a --> agg_all_time_leaders
+    stg_all_time_fg3m --> agg_all_time_leaders
+    stg_all_time_fg_pct --> agg_all_time_leaders
+    stg_all_time_fga --> agg_all_time_leaders
+    stg_all_time_fgm --> agg_all_time_leaders
+    stg_all_time_ft_pct --> agg_all_time_leaders
+    stg_all_time_fta --> agg_all_time_leaders
+    stg_all_time_ftm --> agg_all_time_leaders
+    stg_all_time_gp --> agg_all_time_leaders
+    stg_all_time_oreb --> agg_all_time_leaders
+    stg_all_time_pf --> agg_all_time_leaders
+    stg_all_time_pts --> agg_all_time_leaders
+    stg_all_time_reb --> agg_all_time_leaders
+    stg_all_time_stl --> agg_all_time_leaders
+    stg_all_time_tov --> agg_all_time_leaders
+    stg_assist_leaders --> fact_league_leaders_detail
+    stg_assist_tracker --> fact_league_leaders_detail
+    stg_box_score_advanced --> fact_player_game_advanced
+    stg_box_score_advanced_team --> fact_box_score_advanced_team
+    stg_box_score_defensive --> fact_player_game_tracking
+    stg_box_score_defensive_team --> fact_box_score_defensive_team
+    stg_box_score_four_factors_player --> fact_box_score_four_factors
+    stg_box_score_four_factors_team --> fact_box_score_four_factors_team
+    stg_box_score_hustle --> fact_player_game_hustle
+    stg_box_score_hustle_box --> fact_hustle_availability
+    stg_box_score_hustle_player --> fact_box_score_hustle_player
+    stg_box_score_hustle_team --> fact_team_game_hustle
+    stg_box_score_misc --> fact_player_game_misc
+    stg_box_score_misc_team --> fact_box_score_misc_team
+    stg_box_score_player_track --> fact_player_game_tracking
+    stg_box_score_player_track_team --> fact_box_score_player_track_team
+    stg_box_score_scoring --> fact_player_game_misc
+    stg_box_score_scoring_team --> fact_box_score_scoring_team
+    stg_box_score_traditional --> fact_player_game_traditional
+    stg_box_score_traditional --> fact_team_game
+    stg_box_score_traditional_starter_bench --> fact_box_score_starter_bench
+    stg_box_score_traditional_team --> fact_box_score_team
+    stg_box_score_usage --> fact_player_game_misc
+    stg_box_score_usage_team --> fact_box_score_usage_team
+    stg_coaches --> dim_coach
+    stg_college_rollup_east --> fact_college_rollup
+    stg_college_rollup_midwest --> fact_college_rollup
+    stg_college_rollup_south --> fact_college_rollup
+    stg_college_rollup_west --> fact_college_rollup
+    stg_common_all_players --> dim_all_players
+    stg_common_playoff_series --> fact_playoff_series
+    stg_cume_player --> fact_cumulative_stats
+    stg_cume_player_game_by_game --> fact_cumulative_stats_detail
+    stg_cume_player_games --> fact_cumulative_stats
+    stg_cume_player_totals --> fact_cumulative_stats_detail
+    stg_cume_team --> fact_cumulative_stats
+    stg_cume_team_game_by_game --> fact_cumulative_stats_detail
+    stg_cume_team_games --> fact_cumulative_stats
+    stg_cume_team_totals --> fact_cumulative_stats_detail
+    stg_defense_hub_stat1 --> fact_defense_hub
+    stg_defunct_teams --> dim_defunct_team
+    stg_draft --> fact_draft
+    stg_draft_board --> fact_draft_board
+    stg_draft_combine --> fact_draft
+    stg_draft_combine_anthro --> fact_draft_combine_detail
+    stg_draft_combine_drills --> fact_draft_combine_detail
+    stg_draft_combine_nonstat_shooting --> fact_draft_combine_detail
+    stg_draft_combine_spot_shooting --> fact_draft_combine_detail
+    stg_dunk_score_leaders --> fact_league_leaders_detail
+    stg_fanduel_player --> fact_fantasy
+    stg_fantasy_widget --> fact_fantasy
+    stg_franchise --> agg_team_franchise
+    stg_franchise --> dim_team_history
+    stg_franchise_leaders --> fact_franchise_detail
+    stg_franchise_players --> fact_franchise_detail
+    stg_game_info --> fact_game_context
+    stg_game_leaders --> fact_game_leaders
+    stg_game_summary --> fact_game_context
+    stg_game_summary_available_video --> fact_game_context
+    stg_gl_alum_box_score_similarity_score --> fact_gl_alum_similarity
+    stg_gravity_leaders --> fact_league_leaders_detail
+    stg_home_page_leaders --> fact_homepage_leaders
+    stg_home_page_v2 --> fact_homepage
+    stg_homepage_leaders --> fact_homepage_leaders
+    stg_homepage_v2 --> fact_homepage
+    stg_hustle_stats_available --> fact_hustle_availability
+    stg_inactive_players --> fact_game_context
+    stg_ist_standings --> fact_ist_standings
+    stg_last_meeting --> fact_game_context
+    stg_leaders_tiles --> fact_leaders_tiles
+    stg_league_dash_player_bio_stats --> fact_league_hustle
+    stg_league_dash_player_stats --> fact_league_dash_player_stats
+    stg_league_dash_team_stats --> fact_league_dash_team_stats
+    stg_league_game_finder --> fact_league_game_finder
+    stg_league_game_log --> bridge_game_team
+    stg_league_game_log --> fact_game_result
+    stg_league_hustle_player --> fact_league_hustle
+    stg_league_hustle_team --> fact_league_hustle
+    stg_league_leaders --> fact_league_leaders_detail
+    stg_league_lineup_viz --> fact_league_lineup_viz
+    stg_league_opp_pt_shot --> fact_league_pt_shots
+    stg_league_player_bio --> agg_player_bio
+    stg_league_player_clutch --> agg_clutch_stats
+    stg_league_player_pt_shot --> fact_league_pt_shots
+    stg_league_pt_stats --> fact_league_pt_shots
+    stg_league_pt_team_defend --> fact_league_pt_shots
+    stg_league_team_clutch --> fact_league_team_clutch
+    stg_league_team_pt_shot --> fact_league_pt_shots
+    stg_league_team_shot_locations --> fact_league_shot_locations
+    stg_line_score --> fact_game_result
+    stg_line_score --> fact_game_scoring
+    stg_line_score --> fact_team_game
+    stg_lineup --> fact_lineup_stats
+    stg_matchup --> fact_matchup
+    stg_matchups_rollup --> fact_season_matchups
+    stg_officials --> bridge_game_official
+    stg_on_off --> agg_on_off_splits
+    stg_on_off_details_off_court --> fact_on_off_detail
+    stg_on_off_details_on_court --> fact_on_off_detail
+    stg_on_off_details_overall --> fact_on_off_detail
+    stg_on_off_summary_off_court --> fact_on_off_detail
+    stg_on_off_summary_on_court --> fact_on_off_detail
+    stg_on_off_summary_overall --> fact_on_off_detail
+    stg_other_stats --> fact_game_context
+    stg_play_by_play --> bridge_play_player
+    stg_play_by_play --> fact_play_by_play
+    stg_player_available_seasons --> fact_player_available_seasons
+    stg_player_awards --> fact_player_awards
+    stg_player_career_allstar --> fact_player_career
+    stg_player_career_by_college_rollup --> fact_college_rollup
+    stg_player_career_college --> fact_player_career
+    stg_player_career_postseason --> fact_player_career
+    stg_player_career_regular --> fact_player_career
+    stg_player_career_total_allstar --> fact_player_career
+    stg_player_career_total_college --> fact_player_career
+    stg_player_career_total_postseason --> fact_player_career
+    stg_player_career_total_regular --> fact_player_career
+    stg_player_clutch_last10sec_3pt --> fact_player_clutch_detail
+    stg_player_clutch_last10sec_3pt2 --> fact_player_clutch_detail
+    stg_player_clutch_last1min_5pt --> fact_player_clutch_detail
+    stg_player_clutch_last1min_pm5 --> fact_player_clutch_detail
+    stg_player_clutch_last30sec_3pt --> fact_player_clutch_detail
+    stg_player_clutch_last30sec_3pt2 --> fact_player_clutch_detail
+    stg_player_clutch_last3min_5pt --> fact_player_clutch_detail
+    stg_player_clutch_last3min_pm5 --> fact_player_clutch_detail
+    stg_player_clutch_last5min_5pt --> fact_player_clutch_detail
+    stg_player_clutch_last5min_pm5 --> fact_player_clutch_detail
+    stg_player_clutch_overall --> fact_player_clutch_detail
+    stg_player_college_rollup --> fact_college_rollup
+    stg_player_compare --> fact_player_matchups
+    stg_player_dash_game_splits --> fact_player_splits
+    stg_player_dash_general_splits --> fact_player_splits
+    stg_player_dash_last_n_games --> fact_player_splits
+    stg_player_dash_shooting_splits --> fact_player_splits
+    stg_player_dash_team_perf --> fact_player_splits
+    stg_player_dash_yoy --> fact_player_splits
+    stg_player_dashboard_clutch --> agg_clutch_stats
+    stg_player_dashboard_clutch --> fact_player_dashboard_clutch_overall
+    stg_player_dashboard_game_splits --> fact_player_dashboard_game_splits_overall
+    stg_player_dashboard_general_splits --> fact_player_dashboard_general_splits_overall
+    stg_player_dashboard_last_n_games --> fact_player_dashboard_last_n_overall
+    stg_player_dashboard_shooting_splits --> fact_player_dashboard_shooting_overall
+    stg_player_dashboard_team_performance --> fact_player_dashboard_team_perf_overall
+    stg_player_dashboard_year_over_year --> fact_player_dashboard_yoy_overall
+    stg_player_fantasy_profile_last_five_games_avg --> fact_fantasy
+    stg_player_fantasy_profile_season_avg --> fact_fantasy
+    stg_player_game_log --> fact_player_game_log
+    stg_player_game_logs --> fact_player_game_log
+    stg_player_game_logs_v2 --> fact_player_game_log
+    stg_player_game_streak_finder --> fact_streak_finder
+    stg_player_headline_stats --> fact_player_headline_stats
+    stg_player_info --> bridge_player_team_season
+    stg_player_info --> dim_player
+    stg_player_lastn_game_number --> fact_player_last_n_detail
+    stg_player_lastn_last10 --> fact_player_last_n_detail
+    stg_player_lastn_last15 --> fact_player_last_n_detail
+    stg_player_lastn_last20 --> fact_player_last_n_detail
+    stg_player_lastn_last5 --> fact_player_last_n_detail
+    stg_player_lastn_overall --> fact_player_last_n_detail
+    stg_player_next_games --> fact_player_next_games
+    stg_player_on_details --> agg_on_off_splits
+    stg_player_perf_overall --> fact_player_team_perf_detail
+    stg_player_perf_pts_against --> fact_player_team_perf_detail
+    stg_player_perf_pts_scored --> fact_player_team_perf_detail
+    stg_player_perf_score_diff --> fact_player_team_perf_detail
+    stg_player_profile_allstar --> fact_player_profile
+    stg_player_profile_career_highs --> fact_player_profile
+    stg_player_profile_college --> fact_player_profile
+    stg_player_profile_next_game --> fact_player_profile
+    stg_player_profile_postseason --> fact_player_profile
+    stg_player_profile_preseason --> fact_player_profile
+    stg_player_profile_ranks_postseason --> fact_player_profile
+    stg_player_profile_ranks_regular --> fact_player_profile
+    stg_player_profile_regular --> fact_player_profile
+    stg_player_profile_season_highs --> fact_player_profile
+    stg_player_profile_total_allstar --> fact_player_profile
+    stg_player_profile_total_college --> fact_player_profile
+    stg_player_profile_total_postseason --> fact_player_profile
+    stg_player_profile_total_preseason --> fact_player_profile
+    stg_player_profile_total_regular --> fact_player_profile
+    stg_player_pt_pass --> fact_player_pt_tracking
+    stg_player_pt_pass_received --> fact_player_pt_tracking
+    stg_player_pt_reb --> fact_player_pt_reb_detail
+    stg_player_pt_reb --> fact_player_pt_tracking
+    stg_player_pt_reb_distance --> fact_player_pt_reb_detail
+    stg_player_pt_reb_overall --> fact_player_pt_reb_detail
+    stg_player_pt_reb_shot_dist --> fact_player_pt_reb_detail
+    stg_player_pt_reb_shot_type --> fact_player_pt_reb_detail
+    stg_player_pt_shot_defend --> fact_player_pt_tracking
+    stg_player_pt_shots --> fact_player_pt_shots_detail
+    stg_player_pt_shots --> fact_player_pt_tracking
+    stg_player_pt_shots_closest_def --> fact_player_pt_shots_detail
+    stg_player_pt_shots_dribble --> fact_player_pt_shots_detail
+    stg_player_pt_shots_general --> fact_player_pt_shots_detail
+    stg_player_pt_shots_overall --> fact_player_pt_shots_detail
+    stg_player_pt_shots_shot_clock --> fact_player_pt_shots_detail
+    stg_player_pt_shots_touch_time --> fact_player_pt_shots_detail
+    stg_player_season_ranks_postseason --> fact_player_season_ranks
+    stg_player_season_ranks_regular --> fact_player_season_ranks
+    stg_player_shoot_5ft --> fact_player_shooting_splits_detail
+    stg_player_shoot_8ft --> fact_player_shooting_splits_detail
+    stg_player_shoot_area --> fact_player_shooting_splits_detail
+    stg_player_shoot_assisted_by --> fact_player_shooting_splits_detail
+    stg_player_shoot_assisted_shot --> fact_player_shooting_splits_detail
+    stg_player_shoot_overall --> fact_player_shooting_splits_detail
+    stg_player_shoot_type --> fact_player_shooting_splits_detail
+    stg_player_shoot_type_summary --> fact_player_shooting_splits_detail
+    stg_player_split_actual_margin --> fact_player_game_splits_detail
+    stg_player_split_by_half --> fact_player_game_splits_detail
+    stg_player_split_by_period --> fact_player_game_splits_detail
+    stg_player_split_days_rest --> fact_player_general_splits_detail
+    stg_player_split_game_overall --> fact_player_game_splits_detail
+    stg_player_split_general_overall --> fact_player_general_splits_detail
+    stg_player_split_location --> fact_player_general_splits_detail
+    stg_player_split_month --> fact_player_general_splits_detail
+    stg_player_split_pre_post_allstar --> fact_player_general_splits_detail
+    stg_player_split_score_margin --> fact_player_game_splits_detail
+    stg_player_split_starting_pos --> fact_player_general_splits_detail
+    stg_player_split_wins_losses --> fact_player_general_splits_detail
+    stg_player_streak_finder --> fact_streak_finder
+    stg_player_tracking --> fact_player_estimated_metrics
+    stg_player_vs_player --> fact_player_matchups
+    stg_player_yoy_by_year --> fact_player_yoy_detail
+    stg_player_yoy_overall --> fact_player_yoy_detail
+    stg_playoff_picture_east --> fact_playoff_picture
+    stg_playoff_picture_east_remaining --> fact_playoff_picture
+    stg_playoff_picture_east_standings --> fact_playoff_picture
+    stg_playoff_picture_west --> fact_playoff_picture
+    stg_playoff_picture_west_remaining --> fact_playoff_picture
+    stg_playoff_picture_west_standings --> fact_playoff_picture
+    stg_rotation_away --> fact_rotation
+    stg_rotation_home --> fact_rotation
+    stg_schedule_weeks --> dim_season_week
+    stg_scoreboard --> fact_scoreboard_detail
+    stg_scoreboard_east_conf --> fact_scoreboard_detail
+    stg_scoreboard_last_meeting --> fact_scoreboard_detail
+    stg_scoreboard_line_score --> fact_scoreboard_detail
+    stg_scoreboard_series_standings --> fact_scoreboard_detail
+    stg_scoreboard_team_leaders --> fact_scoreboard_detail
+    stg_scoreboard_ticket_links --> fact_scoreboard_detail
+    stg_scoreboard_v2_series_standings --> fact_scoreboard_detail
+    stg_scoreboard_v3_broadcaster --> fact_scoreboard_v3
+    stg_scoreboard_v3_line_score --> fact_scoreboard_v3
+    stg_scoreboard_v3_metadata --> fact_scoreboard_v3
+    stg_scoreboard_v3_summary --> fact_scoreboard_v3
+    stg_scoreboard_v3_team_stats --> fact_scoreboard_v3
+    stg_scoreboard_west_conf --> fact_scoreboard_detail
+    stg_scoreboard_win_probability --> fact_scoreboard_win_probability
+    stg_season_matchups --> fact_season_matchups
+    stg_season_series --> fact_game_context
+    stg_shot_chart --> fact_shot_chart
+    stg_shot_chart_league_averages --> fact_shot_chart_league_averages
+    stg_shot_chart_league_wide --> fact_shot_chart_league
+    stg_shot_chart_lineup --> fact_shot_chart_lineup
+    stg_shot_chart_lineup_detail --> fact_shot_chart_lineup
+    stg_shot_chart_lineup_league_avg --> fact_shot_chart_league_averages
+    stg_shot_locations --> agg_shot_location_season
+    stg_standings --> fact_standings
+    stg_summary_v3_available_video --> fact_box_score_summary_v3
+    stg_summary_v3_game_info --> fact_box_score_summary_v3
+    stg_summary_v3_game_summary --> fact_box_score_summary_v3
+    stg_summary_v3_inactive_players --> fact_box_score_summary_v3
+    stg_summary_v3_last_five_meetings --> fact_box_score_summary_v3
+    stg_summary_v3_line_score --> fact_box_score_summary_v3
+    stg_summary_v3_officials --> fact_box_score_summary_v3
+    stg_summary_v3_other_stats --> fact_box_score_summary_v3
+    stg_synergy --> fact_synergy
+    stg_team_and_players_vs --> fact_team_matchups
+    stg_team_and_players_vs_players --> fact_team_matchups
+    stg_team_available_seasons --> fact_team_available_seasons
+    stg_team_awards_conf --> fact_team_awards_conf
+    stg_team_awards_div --> fact_team_awards_div
+    stg_team_background --> fact_team_background
+    stg_team_dash_general_splits --> fact_team_dashboard_general_overall
+    stg_team_dash_general_splits --> fact_team_splits
+    stg_team_dash_shooting_splits --> fact_team_dashboard_shooting_overall
+    stg_team_dash_shooting_splits --> fact_team_splits
+    stg_team_dashboard_estimated --> fact_team_estimated_metrics
+    stg_team_dashboard_on_off --> agg_on_off_splits
+    stg_team_details --> dim_team_extended
+    stg_team_game_log --> fact_team_game_log
+    stg_team_game_logs_v2 --> fact_team_game_log
+    stg_team_historical_leaders --> fact_team_historical
+    stg_team_history --> fact_team_history_detail
+    stg_team_hof --> fact_team_hof
+    stg_team_info --> dim_coach
+    stg_team_info --> dim_team_history
+    stg_team_info_common --> dim_team_extended
+    stg_team_lineups --> fact_lineup_stats
+    stg_team_lineups --> fact_team_lineups_overall
+    stg_team_lineups_overall --> fact_team_lineups_detail
+    stg_team_player_dash_overall --> fact_team_player_dashboard
+    stg_team_player_dash_players --> fact_team_player_dashboard
+    stg_team_player_dashboard --> fact_team_player_dashboard
+    stg_team_pt_pass --> fact_team_pt_tracking
+    stg_team_pt_pass_received --> fact_team_pt_tracking
+    stg_team_pt_reb --> fact_team_pt_reb_detail
+    stg_team_pt_reb --> fact_team_pt_tracking
+    stg_team_pt_reb_distance --> fact_team_pt_reb_detail
+    stg_team_pt_reb_overall --> fact_team_pt_reb_detail
+    stg_team_pt_reb_shot_dist --> fact_team_pt_reb_detail
+    stg_team_pt_reb_shot_type --> fact_team_pt_reb_detail
+    stg_team_pt_shots --> fact_team_pt_shots_detail
+    stg_team_pt_shots --> fact_team_pt_tracking
+    stg_team_pt_shots_closest_def --> fact_team_pt_shots_detail
+    stg_team_pt_shots_dribble --> fact_team_pt_shots_detail
+    stg_team_pt_shots_general --> fact_team_pt_shots_detail
+    stg_team_pt_shots_shot_clock --> fact_team_pt_shots_detail
+    stg_team_pt_shots_touch_time --> fact_team_pt_shots_detail
+    stg_team_retired --> fact_team_retired
+    stg_team_season_ranks --> fact_team_season_ranks
+    stg_team_shoot_5ft --> fact_team_shooting_splits_detail
+    stg_team_shoot_8ft --> fact_team_shooting_splits_detail
+    stg_team_shoot_area --> fact_team_shooting_splits_detail
+    stg_team_shoot_assisted_by --> fact_team_shooting_splits_detail
+    stg_team_shoot_assisted_shot --> fact_team_shooting_splits_detail
+    stg_team_shoot_overall --> fact_team_shooting_splits_detail
+    stg_team_shoot_type --> fact_team_shooting_splits_detail
+    stg_team_social_sites --> fact_team_social_sites
+    stg_team_split_days_rest --> fact_team_general_splits_detail
+    stg_team_split_general_overall --> fact_team_general_splits_detail
+    stg_team_split_location --> fact_team_general_splits_detail
+    stg_team_split_month --> fact_team_general_splits_detail
+    stg_team_split_pre_post_allstar --> fact_team_general_splits_detail
+    stg_team_split_wins_losses --> fact_team_general_splits_detail
+    stg_team_streak_finder --> fact_streak_finder
+    stg_team_vs_player --> fact_team_matchups
+    stg_team_year_by_year --> fact_team_historical
+    stg_team_year_by_year_stats --> fact_team_historical
+    stg_team_years --> dim_team_extended
+    stg_tracking_defense --> fact_tracking_defense
+    stg_win_probability --> fact_win_probability
 ```
 
 ## Column-Level Lineage

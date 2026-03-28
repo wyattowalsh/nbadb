@@ -200,6 +200,7 @@ erDiagram
         int entity_id PK
         int team_id PK
         str season_year
+        str season_type
         str on_off
         int gp
         float min
@@ -348,9 +349,9 @@ erDiagram
         type[pandera.api.polars.model_config.BaseConfig] Config
         int player_id PK
         str season_year
-        str zone_basic
-        str zone_area
-        str zone_range
+        str shot_zone_basic
+        str shot_zone_area
+        str shot_zone_range
         int attempts
         int makes
         float fg_pct
@@ -475,7 +476,6 @@ erDiagram
         str month_name
         bool is_weekend
         str nba_season
-        str nba_phase
     }
     dim_game {
         type[pandera.api.polars.model_config.BaseConfig] Config
@@ -544,9 +544,9 @@ erDiagram
     dim_shot_zone {
         type[pandera.api.polars.model_config.BaseConfig] Config
         int zone_id PK
-        str zone_basic
-        str zone_area
-        str zone_range
+        str shot_zone_basic
+        str shot_zone_area
+        str shot_zone_range
     }
     dim_team {
         type[pandera.api.polars.model_config.BaseConfig] Config
@@ -1464,6 +1464,7 @@ erDiagram
         int dreb
         float plus_minus
         str season_year
+        str comment
         str start_position
     }
     fact_player_matchups_detail {
@@ -1633,9 +1634,9 @@ erDiagram
         int seconds_remaining
         str action_type
         str shot_type
-        str zone_basic
-        str zone_area
-        str zone_range
+        str shot_zone_basic
+        str shot_zone_area
+        str shot_zone_range
         int shot_distance
         int loc_x
         int loc_y
@@ -1646,9 +1647,9 @@ erDiagram
         type[pandera.api.polars.model_config.BaseConfig] Config
         str average_source
         str grid_type
-        str zone_basic
-        str zone_area
-        str zone_range
+        str shot_zone_basic
+        str shot_zone_area
+        str shot_zone_range
         float fga
         float fgm
         float fg_pct

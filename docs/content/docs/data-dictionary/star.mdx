@@ -75,6 +75,7 @@ description: Field-level documentation for all star schema tables
 | `entity_id` | `Int64` | Yes |  | `` |
 | `team_id` | `Int64` | No |  | `` |
 | `season_year` | `String` | No |  | `` |
+| `season_type` | `String` | No |  | `` |
 | `on_off` | `String` | No |  | `` |
 | `gp` | `Int64` | Yes |  | `` |
 | `min` | `Float64` | Yes |  | `` |
@@ -239,9 +240,9 @@ description: Field-level documentation for all star schema tables
 |--------|------|----------|-------------|--------|
 | `player_id` | `Int64` | No |  | `` |
 | `season_year` | `String` | No |  | `` |
-| `zone_basic` | `String` | Yes |  | `` |
-| `zone_area` | `String` | Yes |  | `` |
-| `zone_range` | `String` | Yes |  | `` |
+| `shot_zone_basic` | `String` | Yes |  | `` |
+| `shot_zone_area` | `String` | Yes |  | `` |
+| `shot_zone_range` | `String` | Yes |  | `` |
 | `attempts` | `Int64` | Yes |  | `` |
 | `makes` | `Int64` | Yes |  | `` |
 | `fg_pct` | `Float64` | Yes |  | `` |
@@ -390,7 +391,6 @@ description: Field-level documentation for all star schema tables
 | `month_name` | `String` | No | Month name (January-December) | `derived.month_name` |
 | `is_weekend` | `Boolean` | No | Whether date is Saturday/Sunday | `derived.is_weekend` |
 | `nba_season` | `String` | Yes | NBA season (e.g. 2024-25) | `derived.nba_season` |
-| `nba_phase` | `String` | Yes | NBA season phase name | `derived.nba_phase` |
 
 ## dim_game
 
@@ -473,9 +473,9 @@ description: Field-level documentation for all star schema tables
 | Column | Type | Nullable | Description | Source |
 |--------|------|----------|-------------|--------|
 | `zone_id` | `Int64` | No | Surrogate shot zone identifier | `derived.zone_id` |
-| `zone_basic` | `String` | No | Basic zone name | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_BASIC` |
-| `zone_area` | `String` | No | Zone area (e.g. Left Side) | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_AREA` |
-| `zone_range` | `String` | No | Zone range (e.g. 16-24 ft.) | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_RANGE` |
+| `shot_zone_basic` | `String` | No | Basic zone name | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_BASIC` |
+| `shot_zone_area` | `String` | No | Zone area (e.g. Left Side) | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_AREA` |
+| `shot_zone_range` | `String` | No | Zone range (e.g. 16-24 ft.) | `ShotChartDetail.Shot_Chart_Detail.SHOT_ZONE_RANGE` |
 
 ## dim_team_history
 
@@ -1461,6 +1461,7 @@ description: Field-level documentation for all star schema tables
 | `dreb` | `Int64` | Yes | Defensive rebounds | `BoxScoreTraditionalV3.PlayerStats.DREB` |
 | `plus_minus` | `Float64` | Yes | Plus-minus | `BoxScoreTraditionalV3.PlayerStats.PLUS_MINUS` |
 | `season_year` | `String` | No | Season year (e.g. 2024-25) | `derived.season_year` |
+| `comment` | `String` | Yes | Game comment (e.g., injury status) | `BoxScoreTraditionalV3.PlayerStats.COMMENT` |
 | `start_position` | `String` | Yes | Starting position (F, C, G) | `BoxScoreTraditionalV3.PlayerStats.START_POSITION` |
 
 ## fact_player_matchups_detail
@@ -1634,9 +1635,9 @@ description: Field-level documentation for all star schema tables
 |--------|------|----------|-------------|--------|
 | `average_source` | `String` | No | Shot-chart request family that produced the league-average row | `derived.shot_chart_league_averages.average_source` |
 | `grid_type` | `String` | Yes |  | `` |
-| `zone_basic` | `String` | Yes |  | `` |
-| `zone_area` | `String` | Yes |  | `` |
-| `zone_range` | `String` | Yes |  | `` |
+| `shot_zone_basic` | `String` | Yes |  | `` |
+| `shot_zone_area` | `String` | Yes |  | `` |
+| `shot_zone_range` | `String` | Yes |  | `` |
 | `fga` | `Float64` | Yes |  | `` |
 | `fgm` | `Float64` | Yes |  | `` |
 | `fg_pct` | `Float64` | Yes |  | `` |
@@ -1653,9 +1654,9 @@ description: Field-level documentation for all star schema tables
 | `seconds_remaining` | `Int64` | Yes | Seconds remaining in period | `ShotChartDetail.ShotChartDetail.SECONDS_REMAINING` |
 | `action_type` | `String` | Yes | Shot action type description | `ShotChartDetail.ShotChartDetail.ACTION_TYPE` |
 | `shot_type` | `String` | Yes | Shot type (2PT or 3PT) | `ShotChartDetail.ShotChartDetail.SHOT_TYPE` |
-| `zone_basic` | `String` | Yes | Shot zone basic area | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_BASIC` |
-| `zone_area` | `String` | Yes | Shot zone directional area | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_AREA` |
-| `zone_range` | `String` | Yes | Shot zone distance range | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_RANGE` |
+| `shot_zone_basic` | `String` | Yes | Shot zone basic area | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_BASIC` |
+| `shot_zone_area` | `String` | Yes | Shot zone directional area | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_AREA` |
+| `shot_zone_range` | `String` | Yes | Shot zone distance range | `ShotChartDetail.ShotChartDetail.SHOT_ZONE_RANGE` |
 | `shot_distance` | `Int64` | Yes | Shot distance in feet | `ShotChartDetail.ShotChartDetail.SHOT_DISTANCE` |
 | `loc_x` | `Int64` | Yes | Shot X-coordinate on court | `ShotChartDetail.ShotChartDetail.LOC_X` |
 | `loc_y` | `Int64` | Yes | Shot Y-coordinate on court | `ShotChartDetail.ShotChartDetail.LOC_Y` |

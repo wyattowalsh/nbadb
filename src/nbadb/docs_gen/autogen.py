@@ -7,8 +7,14 @@ from nbadb.docs_gen.data_dictionary import DataDictionaryGenerator
 from nbadb.docs_gen.er_diagram import ERDiagramGenerator
 from nbadb.docs_gen.lineage import LineageGenerator
 from nbadb.docs_gen.schema_docs import SchemaDocsGenerator
+from nbadb.docs_gen.site_metrics import (
+    generate_site_metrics_module,
+    resolve_site_metrics_output_path,
+)
+from nbadb.docs_gen.table_profile import generate_table_profile_json
 
 DEFAULT_DOCS_ROOT = Path("docs/content/docs")
+DEFAULT_DB_PATH = Path("data/nba.duckdb")
 SCHEMA_TIERS = ("raw", "staging", "star")
 DATA_DICTIONARY_TIERS = ("raw", "staging", "star")
 
@@ -38,7 +44,17 @@ def _write_artifact(
         unchanged_paths.append(path)
 
 
-def generate_docs_artifacts(docs_root: Path = DEFAULT_DOCS_ROOT) -> tuple[list[Path], list[Path]]:
+def _resolve_table_profile_output_path(docs_root: Path) -> Path:
+    docs_root = docs_root.resolve()
+    if docs_root.name == "docs" and docs_root.parent.name == "content":
+        return docs_root.parent.parent / "table-profile.generated.json"
+    return docs_root / "_generated" / "table-profile.generated.json"
+
+
+def generate_docs_artifacts(
+    docs_root: Path = DEFAULT_DOCS_ROOT,
+    db_path: Path | None = None,
+) -> tuple[list[Path], list[Path]]:
     updated_paths: list[Path] = []
     unchanged_paths: list[Path] = []
 
@@ -67,6 +83,17 @@ def generate_docs_artifacts(docs_root: Path = DEFAULT_DOCS_ROOT) -> tuple[list[P
         updated_paths,
         unchanged_paths,
     )
+    schema_json = json.dumps(
+        er_gen.generate_json(),
+        indent=2,
+        sort_keys=True,
+    )
+    _write_artifact(
+        docs_root / "schema" / "schema.json",
+        schema_json,
+        updated_paths,
+        unchanged_paths,
+    )
 
     lineage_gen = LineageGenerator(output_dir=docs_root / "lineage")
     _write_artifact(
@@ -76,7 +103,7 @@ def generate_docs_artifacts(docs_root: Path = DEFAULT_DOCS_ROOT) -> tuple[list[P
         unchanged_paths,
     )
     lineage_json = json.dumps(
-        json.loads(lineage_gen.generate_json()),
+        lineage_gen.generate_dict(),
         indent=2,
         sort_keys=True,
     )
@@ -86,5 +113,21 @@ def generate_docs_artifacts(docs_root: Path = DEFAULT_DOCS_ROOT) -> tuple[list[P
         updated_paths,
         unchanged_paths,
     )
+
+    _write_artifact(
+        resolve_site_metrics_output_path(docs_root),
+        generate_site_metrics_module(docs_root),
+        updated_paths,
+        unchanged_paths,
+    )
+
+    resolved_db = db_path or DEFAULT_DB_PATH
+    if resolved_db.exists():
+        _write_artifact(
+            _resolve_table_profile_output_path(docs_root),
+            generate_table_profile_json(resolved_db),
+            updated_paths,
+            unchanged_paths,
+        )
 
     return updated_paths, unchanged_paths

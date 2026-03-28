@@ -113,6 +113,67 @@ class ERDiagramGenerator:
             cols.append({"name": field_name, "type": type_str, "key": key})
         return cols
 
+    def _family_from_table_name(self, table_name: str) -> str:
+        """Derive the schema family from a table name prefix."""
+        for prefix in ("analytics_", "bridge_", "agg_", "dim_", "fact_"):
+            if table_name.startswith(prefix):
+                return prefix.rstrip("_")
+        return "other"
+
+    def generate_json(self) -> dict[str, object]:
+        """Generate a JSON-serializable dict of all star-schema tables.
+
+        Returns a structure like::
+
+            {
+                "tables": {
+                    "dim_player": {
+                        "family": "dim",
+                        "columns": [
+                            {"name": "player_id", "type": "int", "key": "PK"},
+                            ...
+                        ],
+                        "relationships": [
+                            {"from_col": "team_id", "to_table": "dim_team", "to_col": "team_id"}
+                        ]
+                    },
+                    ...
+                }
+            }
+        """
+        schemas = self._discover_schemas()
+        tables: dict[str, dict[str, object]] = {}
+
+        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
+            table_name = self._table_name_from_class(class_name)
+            # Skip internal mixin/base classes
+            if table_name.startswith("__") or table_name.startswith("_"):
+                continue
+            family = self._family_from_table_name(table_name)
+            if family == "other":
+                continue
+            columns = [
+                col
+                for col in self._extract_columns(schema_cls)
+                if col["name"] != "Config"
+            ]
+            raw_rels = self._extract_relationships(table_name, schema_cls)
+            relationships = [
+                {
+                    "from_col": r["from_col"],
+                    "to_table": r["to_table"],
+                    "to_col": r["to_col"],
+                }
+                for r in raw_rels
+            ]
+            tables[table_name] = {
+                "family": family,
+                "columns": columns,
+                "relationships": relationships,
+            }
+
+        return {"tables": tables}
+
     def generate_mermaid(
         self,
         filter_prefix: str | None = None,

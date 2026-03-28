@@ -110,11 +110,18 @@ class TestGenerateJson:
         parsed = json.loads(result)
         assert isinstance(parsed, dict)
 
-    def test_json_matches_graph(self):
+    def test_json_contains_schema_lineage(self):
         gen = LineageGenerator()
-        graph = gen.build_lineage_graph()
         parsed = json.loads(gen.generate_json())
-        assert parsed == graph
+        # Combined JSON includes schema_lineage and/or sql_lineage per table
+        schema_tables = {k for k, v in parsed.items() if "schema_lineage" in v}
+        assert schema_tables, "Expected at least one table with schema_lineage"
+
+    def test_json_contains_sql_lineage(self):
+        gen = LineageGenerator()
+        parsed = json.loads(gen.generate_json())
+        sql_tables = {k for k, v in parsed.items() if "sql_lineage" in v}
+        assert sql_tables, "Expected at least one table with sql_lineage"
 
 
 # ---------------------------------------------------------------------------
