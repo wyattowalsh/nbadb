@@ -61,4 +61,5 @@ class FactPlayerGameMiscTransformer(SqlTransformer):
             ON m.game_id = s.game_id AND m.player_id = s.player_id
         LEFT JOIN stg_box_score_usage u
             ON m.game_id = u.game_id AND m.player_id = u.player_id
+        WHERE m.player_id IS NOT NULL
     """

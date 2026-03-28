@@ -27,5 +27,4 @@ class AggTeamSeasonTransformer(SqlTransformer):
         FROM fact_team_game t
         JOIN dim_game g ON t.game_id = g.game_id
         GROUP BY t.team_id, g.season_year, g.season_type
-        ORDER BY g.season_year, t.team_id
     """

@@ -38,9 +38,9 @@ class TestFactShotChartLeagueAverages:
             "stg_shot_chart_league_averages": pl.DataFrame(
                 {
                     "grid_type": ["Shot Chart Detail"],
-                    "zone_basic": ["Restricted Area"],
-                    "zone_area": ["Center(C)"],
-                    "zone_range": ["Less Than 8 ft."],
+                    "shot_zone_basic": ["Restricted Area"],
+                    "shot_zone_area": ["Center(C)"],
+                    "shot_zone_range": ["Less Than 8 ft."],
                     "fga": [120.0],
                     "fgm": [78.0],
                     "fg_pct": [0.65],
@@ -49,9 +49,9 @@ class TestFactShotChartLeagueAverages:
             "stg_shot_chart_lineup_league_avg": pl.DataFrame(
                 {
                     "grid_type": ["Shot Chart Lineup Detail"],
-                    "zone_basic": ["Above the Break 3"],
-                    "zone_area": ["Center(C)"],
-                    "zone_range": ["24+ ft."],
+                    "shot_zone_basic": ["Above the Break 3"],
+                    "shot_zone_area": ["Center(C)"],
+                    "shot_zone_range": ["24+ ft."],
                     "fga": [210.0],
                     "fgm": [76.0],
                     "fg_pct": [0.362],

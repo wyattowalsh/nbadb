@@ -19,5 +19,4 @@ class AggLineupEfficiencyTransformer(SqlTransformer):
             SUM(plus_minus) AS total_plus_minus
         FROM fact_lineup_stats
         GROUP BY group_id, team_id, season_year
-        ORDER BY season_year, avg_net_rating DESC
     """

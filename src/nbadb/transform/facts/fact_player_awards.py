@@ -12,5 +12,4 @@ class FactPlayerAwardsTransformer(SqlTransformer):
     _SQL: ClassVar[str] = """
         SELECT *
         FROM stg_player_awards
-        ORDER BY season_year, player_id
     """

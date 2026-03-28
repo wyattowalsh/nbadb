@@ -10,6 +10,6 @@ class DimDefunctTeamTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = ["stg_defunct_teams"]
 
     _SQL: ClassVar[str] = """
-        SELECT *
+        SELECT DISTINCT *
         FROM stg_defunct_teams
     """

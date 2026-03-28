@@ -114,14 +114,15 @@ class TestFactPlayerGameLog:
     def test_union_and_dedup(self) -> None:
         """Duplicate player_id+game_id rows across sources should be deduplicated."""
         staging = {
-            "stg_player_game_logs": pl.DataFrame(
-                {"player_id": [1, 2], "game_id": ["G1", "G2"], "pts": [20, 30]}
-            ).lazy(),
+            "stg_player_game_logs": pl.DataFrame({
+                "player_id": [1, 2], "game_id": ["G1", "G2"],
+                "season_year": ["2024-25", "2024-25"], "pts": [20, 30],
+            }).lazy(),
             "stg_player_game_log": pl.DataFrame(
-                {"player_id": [1], "game_id": ["G1"], "pts": [20]}
+                {"player_id": [1], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [20]}
             ).lazy(),
             "stg_player_game_logs_v2": pl.DataFrame(
-                {"player_id": [1], "game_id": ["G1"], "pts": [20]}
+                {"player_id": [1], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [20]}
             ).lazy(),
         }
         result = _run(FactPlayerGameLogTransformer(), staging)
@@ -134,13 +135,13 @@ class TestFactPlayerGameLog:
         """Rows that are unique across sources should all be preserved."""
         staging = {
             "stg_player_game_logs": pl.DataFrame(
-                {"player_id": [1], "game_id": ["G1"], "pts": [20]}
+                {"player_id": [1], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [20]}
             ).lazy(),
             "stg_player_game_log": pl.DataFrame(
-                {"player_id": [2], "game_id": ["G2"], "pts": [25]}
+                {"player_id": [2], "game_id": ["G2"], "season_year": ["2024-25"], "pts": [25]}
             ).lazy(),
             "stg_player_game_logs_v2": pl.DataFrame(
-                {"player_id": [3], "game_id": ["G3"], "pts": [30]}
+                {"player_id": [3], "game_id": ["G3"], "season_year": ["2024-25"], "pts": [30]}
             ).lazy(),
         }
         result = _run(FactPlayerGameLogTransformer(), staging)
@@ -150,13 +151,13 @@ class TestFactPlayerGameLog:
         """UNION ALL BY NAME fills missing columns with NULL."""
         staging = {
             "stg_player_game_logs": pl.DataFrame(
-                {"player_id": [1], "game_id": ["G1"], "pts": [20]}
+                {"player_id": [1], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [20]}
             ).lazy(),
             "stg_player_game_log": pl.DataFrame(
-                {"player_id": [2], "game_id": ["G2"], "reb": [10]}
+                {"player_id": [2], "game_id": ["G2"], "season_year": ["2024-25"], "reb": [10]}
             ).lazy(),
             "stg_player_game_logs_v2": pl.DataFrame(
-                {"player_id": [3], "game_id": ["G3"], "ast": [8]}
+                {"player_id": [3], "game_id": ["G3"], "season_year": ["2024-25"], "ast": [8]}
             ).lazy(),
         }
         result = _run(FactPlayerGameLogTransformer(), staging)
@@ -180,11 +181,12 @@ class TestFactTeamGameLog:
     def test_union_and_dedup(self) -> None:
         """Duplicate team_id+game_id rows across sources should be deduplicated."""
         staging = {
-            "stg_team_game_logs_v2": pl.DataFrame(
-                {"team_id": [10, 20], "game_id": ["G1", "G2"], "pts": [100, 110]}
-            ).lazy(),
+            "stg_team_game_logs_v2": pl.DataFrame({
+                "team_id": [10, 20], "game_id": ["G1", "G2"],
+                "season_year": ["2024-25", "2024-25"], "pts": [100, 110],
+            }).lazy(),
             "stg_team_game_log": pl.DataFrame(
-                {"team_id": [10], "game_id": ["G1"], "pts": [100]}
+                {"team_id": [10], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [100]}
             ).lazy(),
         }
         result = _run(FactTeamGameLogTransformer(), staging)
@@ -196,10 +198,10 @@ class TestFactTeamGameLog:
     def test_unique_rows_preserved(self) -> None:
         staging = {
             "stg_team_game_logs_v2": pl.DataFrame(
-                {"team_id": [10], "game_id": ["G1"], "pts": [100]}
+                {"team_id": [10], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [100]}
             ).lazy(),
             "stg_team_game_log": pl.DataFrame(
-                {"team_id": [20], "game_id": ["G2"], "pts": [95]}
+                {"team_id": [20], "game_id": ["G2"], "season_year": ["2024-25"], "pts": [95]}
             ).lazy(),
         }
         result = _run(FactTeamGameLogTransformer(), staging)
@@ -209,10 +211,10 @@ class TestFactTeamGameLog:
         """UNION ALL BY NAME fills missing columns with NULL."""
         staging = {
             "stg_team_game_logs_v2": pl.DataFrame(
-                {"team_id": [10], "game_id": ["G1"], "pts": [100]}
+                {"team_id": [10], "game_id": ["G1"], "season_year": ["2024-25"], "pts": [100]}
             ).lazy(),
             "stg_team_game_log": pl.DataFrame(
-                {"team_id": [20], "game_id": ["G2"], "fg_pct": [0.48]}
+                {"team_id": [20], "game_id": ["G2"], "season_year": ["2024-25"], "fg_pct": [0.48]}
             ).lazy(),
         }
         result = _run(FactTeamGameLogTransformer(), staging)

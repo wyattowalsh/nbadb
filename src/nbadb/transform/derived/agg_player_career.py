@@ -29,5 +29,4 @@ class AggPlayerCareerTransformer(SqlTransformer):
         FROM agg_player_season
         WHERE season_type = 'Regular Season'
         GROUP BY player_id
-        ORDER BY career_pts DESC
     """

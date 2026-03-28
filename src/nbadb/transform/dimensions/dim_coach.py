@@ -10,14 +10,21 @@ class DimCoachTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = ["stg_team_info", "stg_coaches"]
 
     _SQL: ClassVar[str] = """
-        SELECT
-            coach_id,
-            coach_name,
-            team_id,
-            season_year,
-            coach_type,
-        FROM stg_team_info
-        UNION ALL BY NAME
         SELECT *
-        FROM stg_coaches
+        FROM (
+            SELECT
+                coach_id,
+                coach_name,
+                team_id,
+                season_year,
+                coach_type,
+            FROM stg_team_info
+            UNION ALL BY NAME
+            SELECT *
+            FROM stg_coaches
+        )
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY coach_id, team_id, season_year
+            ORDER BY coach_type
+        ) = 1
     """

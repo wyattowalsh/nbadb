@@ -505,7 +505,9 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "team_player_on_off_summary", "stg_on_off", "team", result_set_index=0, use_multi=True
     ),
-    # ── Static (2) ────────────────────────────────────────────────
+    # ── Static (4) ────────────────────────────────────────────────
+    StagingEntry("static_players", "stg_static_players", "static"),
+    StagingEntry("static_teams", "stg_static_teams", "static"),
     StagingEntry(
         "franchise_history",
         "stg_franchise",
@@ -655,8 +657,8 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_draft_combine_spot_shooting",
         "season",
     ),
-    # Extractor-only aliases (season)
-    StagingEntry("common_all_players", "stg_common_all_players", "season"),
+    # Extractor-only aliases (static + season)
+    StagingEntry("common_all_players", "stg_common_all_players", "static"),
     StagingEntry(
         "home_page_leaders",
         "stg_home_page_leaders",
@@ -676,15 +678,9 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_league_dash_player_bio_stats",
         "season",
     ),
-    StagingEntry(
-        "league_hustle_stats_player",
-        "stg_league_hustle_stats_player",
-        "season",
-        min_season=2016,
-    ),
-    StagingEntry(
-        "league_hustle_stats_team", "stg_league_hustle_stats_team", "season", min_season=2016
-    ),
+    # league_hustle_stats_player / league_hustle_stats_team removed — true
+    # duplicates of league_hustle_player / league_hustle_team (same nba_api
+    # class and kwargs, causing redundant API calls).
     StagingEntry("player_game_logs", "stg_player_game_logs", "season"),
     StagingEntry("player_index", "stg_player_index", "season"),
     # Requires group_id (lineup ID) — not available in season-pattern sweep
@@ -1001,7 +997,8 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
     ),
-    StagingEntry("player_dash_pt_defend", "stg_player_dash_pt_defend", "player", min_season=2013),
+    # player_dash_pt_defend removed — true duplicate of player_dash_pt_shot_defend
+    # (same nba_api class PlayerDashPtShotDefend and identical kwargs).
     StagingEntry(
         "player_dashboard_game_splits",
         "stg_player_dashboard_game_splits",

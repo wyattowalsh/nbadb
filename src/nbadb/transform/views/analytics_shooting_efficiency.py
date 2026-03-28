@@ -38,7 +38,7 @@ class AnalyticsShootingEfficiencyTransformer(SqlTransformer):
             ON s.shot_zone_basic = la.shot_zone_basic
             AND s.shot_zone_area = la.shot_zone_area
             AND s.shot_zone_range = la.shot_zone_range
+        -- is_current=TRUE: player name from current record; team_id from fact table
         LEFT JOIN dim_player p ON s.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_game g ON s.game_id = g.game_id
-        ORDER BY g.game_date, s.player_id
     """

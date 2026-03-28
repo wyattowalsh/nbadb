@@ -13,6 +13,22 @@ class AggClutchStatsTransformer(SqlTransformer):
     ]
 
     _SQL: ClassVar[str] = """
+        WITH deduped_dashboard AS (
+            SELECT *
+            FROM stg_player_dashboard_clutch
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY player_id, season_year
+                ORDER BY gp DESC NULLS LAST
+            ) = 1
+        ),
+        deduped_league AS (
+            SELECT *
+            FROM stg_league_player_clutch
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY player_id, season_year
+                ORDER BY pts DESC NULLS LAST
+            ) = 1
+        )
         SELECT
             COALESCE(d.player_id, l.player_id) AS player_id,
             COALESCE(d.season_year, l.season_year) AS season_year,
@@ -23,9 +39,8 @@ class AggClutchStatsTransformer(SqlTransformer):
             d.ft_pct AS clutch_ft_pct,
             l.pts AS league_clutch_pts,
             l.fg_pct AS league_clutch_fg_pct
-        FROM stg_player_dashboard_clutch d
-        FULL OUTER JOIN stg_league_player_clutch l
+        FROM deduped_dashboard d
+        FULL OUTER JOIN deduped_league l
             ON d.player_id = l.player_id
             AND d.season_year = l.season_year
-        ORDER BY season_year, player_id
     """

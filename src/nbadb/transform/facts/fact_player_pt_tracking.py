@@ -13,7 +13,6 @@ class FactPlayerPtTrackingTransformer(SqlTransformer):
         "stg_player_pt_reb",
         "stg_player_pt_shots",
         "stg_player_pt_shot_defend",
-        "stg_player_dash_pt_defend",
     ]
 
     _SQL: ClassVar[str] = """
@@ -31,7 +30,4 @@ class FactPlayerPtTrackingTransformer(SqlTransformer):
         UNION ALL BY NAME
         SELECT *, 'shot_defend' AS tracking_type
         FROM stg_player_pt_shot_defend
-        UNION ALL BY NAME
-        SELECT *, 'defense' AS tracking_type
-        FROM stg_player_dash_pt_defend
     """

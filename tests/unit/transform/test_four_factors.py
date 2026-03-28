@@ -86,7 +86,7 @@ class TestFactBoxScoreFourFactorsTransformer:
         }
         assert set(result.columns) == expected_cols
 
-    def test_ordered_by_game_team_player(self) -> None:
+    def test_contains_all_rows(self) -> None:
         staging = {
             "stg_box_score_four_factors_player": pl.DataFrame(
                 {
@@ -108,4 +108,4 @@ class TestFactBoxScoreFourFactorsTransformer:
         }
         t = FactBoxScoreFourFactorsTransformer()
         result = _run_transform(t, staging)
-        assert result["game_id"].to_list() == ["0022300001", "0022300002"]
+        assert set(result["game_id"].to_list()) == {"0022300001", "0022300002"}

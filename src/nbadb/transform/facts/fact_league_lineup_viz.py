@@ -12,5 +12,4 @@ class FactLeagueLineupVizTransformer(SqlTransformer):
     _SQL: ClassVar[str] = """
         SELECT *
         FROM stg_league_lineup_viz
-        ORDER BY team_id, group_id
     """

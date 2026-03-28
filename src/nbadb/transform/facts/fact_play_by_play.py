@@ -43,5 +43,4 @@ class FactPlayByPlayTransformer(SqlTransformer):
                 ELSE 'unknown'
             END AS event_type_name
         FROM stg_play_by_play
-        ORDER BY game_id, event_num
     """

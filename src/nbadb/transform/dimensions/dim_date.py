@@ -49,5 +49,4 @@ class DimDateTransformer(BaseTransformer):
                 + (pl.col("date").dt.year() % 100).cast(pl.Utf8).str.zfill(2)
             )
             .alias("nba_season"),
-            pl.lit(None).cast(pl.Utf8).alias("nba_phase"),
         )

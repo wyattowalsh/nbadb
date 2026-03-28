@@ -191,6 +191,13 @@ class FactPlayerGameTraditionalSchema(BaseSchema):
             "description": ("Season year (e.g. 2024-25)"),
         },
     )
+    comment: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": "BoxScoreTraditionalV3.PlayerStats.COMMENT",
+            "description": "Game comment (e.g., injury status)",
+        },
+    )
     start_position: str | None = pa.Field(
         nullable=True,
         metadata={

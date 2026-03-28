@@ -31,4 +31,5 @@ class FactPlayerGameTrackingTransformer(SqlTransformer):
         FROM stg_box_score_player_track t
         LEFT JOIN stg_box_score_defensive d
             ON t.game_id = d.game_id AND t.player_id = d.player_id
+        WHERE t.player_id IS NOT NULL
     """

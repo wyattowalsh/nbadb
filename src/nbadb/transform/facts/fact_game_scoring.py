@@ -33,5 +33,4 @@ class FactGameScoringTransformer(SqlTransformer):
         SELECT * FROM home WHERE pts IS NOT NULL
         UNION ALL
         SELECT * FROM away WHERE pts IS NOT NULL
-        ORDER BY game_id, side, period
     """

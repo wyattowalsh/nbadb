@@ -10,6 +10,6 @@ class DimSeasonWeekTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = ["stg_schedule_weeks"]
 
     _SQL: ClassVar[str] = """
-        SELECT *
+        SELECT DISTINCT *
         FROM stg_schedule_weeks
     """

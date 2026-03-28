@@ -66,21 +66,21 @@ class FactShotChartSchema(BaseSchema):
             "description": ("Shot type (2PT or 3PT)"),
         },
     )
-    zone_basic: str | None = pa.Field(
+    shot_zone_basic: str | None = pa.Field(
         nullable=True,
         metadata={
             "source": ("ShotChartDetail.ShotChartDetail.SHOT_ZONE_BASIC"),
             "description": "Shot zone basic area",
         },
     )
-    zone_area: str | None = pa.Field(
+    shot_zone_area: str | None = pa.Field(
         nullable=True,
         metadata={
             "source": ("ShotChartDetail.ShotChartDetail.SHOT_ZONE_AREA"),
             "description": ("Shot zone directional area"),
         },
     )
-    zone_range: str | None = pa.Field(
+    shot_zone_range: str | None = pa.Field(
         nullable=True,
         metadata={
             "source": ("ShotChartDetail.ShotChartDetail.SHOT_ZONE_RANGE"),

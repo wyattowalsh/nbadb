@@ -44,5 +44,4 @@ class AnalyticsHeadToHeadTransformer(SqlTransformer):
         LEFT JOIN dim_team t2 ON m.opponent_team_id = t2.team_id
         GROUP BY m.team_id, m.opponent_team_id, m.season_year,
                  t1.abbreviation, t2.abbreviation
-        ORDER BY m.season_year, t1.abbreviation, wins DESC
     """

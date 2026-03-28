@@ -17,17 +17,30 @@ class DimShotZoneTransformer(BaseTransformer):
 
         sc = staging["stg_shot_chart"]
         zones = (
-            sc.select("zone_basic", "zone_area", "zone_range")
+            sc.select("shot_zone_basic", "shot_zone_area", "shot_zone_range")
             .unique()
-            .sort("zone_basic", "zone_area", "zone_range")
+            .sort("shot_zone_basic", "shot_zone_area", "shot_zone_range")
         )
+        zones = zones.with_columns(
+            (
+                pl.concat_str(
+                    ["shot_zone_basic", "shot_zone_area", "shot_zone_range"],
+                    separator="|",
+                )
+                .hash()
+                % 2_147_483_647
+                + 1
+            )
+            .cast(pl.Int32)
+            .alias("zone_id")
+        )
+
         return (
-            zones.with_row_index("zone_id", offset=1)
-            .select(
+            zones.select(
                 pl.col("zone_id").cast(pl.Int32),
-                "zone_basic",
-                "zone_area",
-                "zone_range",
+                "shot_zone_basic",
+                "shot_zone_area",
+                "shot_zone_range",
             )
             .collect()  # ty: ignore[invalid-return-type]
         )

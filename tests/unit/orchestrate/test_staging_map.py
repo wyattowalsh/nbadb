@@ -19,12 +19,9 @@ _AUDITED_MISSING_ENDPOINTS = {
     "home_page_leaders",
     "home_page_v2",
     "league_dash_player_bio_stats",
-    "league_hustle_stats_player",
-    "league_hustle_stats_team",
     "play_by_play_v2",
     "player_career_by_college_rollup",
     "player_compare",
-    "player_dash_pt_defend",
     "player_dashboard_game_splits",
     "player_dashboard_general_splits",
     "player_dashboard_last_n_games",
@@ -136,7 +133,7 @@ def _extractor_endpoint_metadata() -> dict[str, tuple[str, bool]]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        assert len(STAGING_MAP) == 403
+        assert len(STAGING_MAP) == 402
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -144,7 +141,7 @@ class TestStagingMap:
 
     def test_get_by_pattern_season(self) -> None:
         entries = get_by_pattern("season")
-        assert len(entries) == 89
+        assert len(entries) == 86
         assert all(e.param_pattern == "season" for e in entries)
 
     def test_get_by_pattern_game(self) -> None:
@@ -152,7 +149,7 @@ class TestStagingMap:
         assert len(entries) == 51
 
     def test_get_by_pattern_player(self) -> None:
-        assert len(get_by_pattern("player")) == 126
+        assert len(get_by_pattern("player")) == 125
 
     def test_get_by_pattern_team(self) -> None:
         assert len(get_by_pattern("team")) == 83
@@ -184,7 +181,7 @@ class TestStagingMap:
         assert "league_player_on_details" in names
 
     def test_get_by_pattern_static(self) -> None:
-        assert len(get_by_pattern("static")) == 29
+        assert len(get_by_pattern("static")) == 32
 
     def test_get_by_pattern_date(self) -> None:
         assert len(get_by_pattern("date")) == 17
@@ -280,7 +277,8 @@ class TestStagingMap:
 
     def test_no_extractor_only_endpoints_remain_after_mapping(self) -> None:
         extractor_only = sorted(
-            _extractor_endpoint_names() - {e.endpoint_name for e in STAGING_MAP}
+            _extractor_endpoint_names()
+            - {e.endpoint_name for e in STAGING_MAP}
         )
         assert extractor_only == []
 

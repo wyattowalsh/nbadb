@@ -16,5 +16,4 @@ class FactGameLeadersTransformer(SqlTransformer):
             jersey_num, position, team_tricode,
             points, rebounds, assists
         FROM stg_game_leaders
-        ORDER BY game_id, team_id
     """

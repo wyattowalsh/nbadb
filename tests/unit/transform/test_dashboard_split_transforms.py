@@ -4,6 +4,9 @@ import duckdb
 import polars as pl
 import pytest
 
+from nbadb.transform.facts._registry import (
+    FactPlayerYoyDetailTransformer,
+)
 from nbadb.transform.facts.fact_player_clutch_detail import (
     FactPlayerClutchDetailTransformer,
 )
@@ -21,9 +24,6 @@ from nbadb.transform.facts.fact_player_shooting_splits_detail import (
 )
 from nbadb.transform.facts.fact_player_team_perf_detail import (
     FactPlayerTeamPerfDetailTransformer,
-)
-from nbadb.transform.facts.fact_player_yoy_detail import (
-    FactPlayerYoyDetailTransformer,
 )
 from nbadb.transform.facts.fact_team_general_splits_detail import (
     FactTeamGeneralSplitsDetailTransformer,

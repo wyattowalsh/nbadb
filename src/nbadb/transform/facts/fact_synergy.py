@@ -20,5 +20,4 @@ class FactSynergyTransformer(SqlTransformer):
             sf_poss_pct, score_poss_pct,
             percentile
         FROM stg_synergy
-        ORDER BY season_year, entity_type, player_id, play_type
     """

@@ -14,6 +14,7 @@ class DimTeamExtendedTransformer(SqlTransformer):
     ]
 
     _SQL: ClassVar[str] = """
+        -- NOTE: SELECT * across JOINs; monitor for column collisions if staging schemas evolve
         SELECT d.*, c.* EXCLUDE (team_id), y.* EXCLUDE (team_id)
         FROM stg_team_details d
         JOIN stg_team_info_common c USING (team_id)

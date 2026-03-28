@@ -222,9 +222,9 @@ class AggShotZonesSchema(BaseSchema):
 
     player_id: int = pa.Field(gt=0)
     season_year: str = pa.Field()
-    zone_basic: str | None = pa.Field(nullable=True)
-    zone_area: str | None = pa.Field(nullable=True)
-    zone_range: str | None = pa.Field(nullable=True)
+    shot_zone_basic: str | None = pa.Field(nullable=True)
+    shot_zone_area: str | None = pa.Field(nullable=True)
+    shot_zone_range: str | None = pa.Field(nullable=True)
     attempts: int | None = pa.Field(nullable=True, ge=0)
     makes: int | None = pa.Field(nullable=True, ge=0)
     fg_pct: float | None = pa.Field(nullable=True)

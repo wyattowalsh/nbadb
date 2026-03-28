@@ -30,5 +30,8 @@ class FactGameResultTransformer(SqlTransformer):
             l.pts_ot1_away, l.pts_ot2_away
         FROM stg_league_game_log g
         LEFT JOIN stg_line_score l ON g.game_id = l.game_id
-        QUALIFY ROW_NUMBER() OVER (PARTITION BY g.game_id ORDER BY g.game_id) = 1
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY g.game_id
+            ORDER BY g.season_year DESC, g.game_date DESC
+        ) = 1
     """

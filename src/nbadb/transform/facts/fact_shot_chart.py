@@ -14,9 +14,8 @@ class FactShotChartTransformer(SqlTransformer):
             game_id, player_id, team_id,
             period, minutes_remaining, seconds_remaining,
             action_type, shot_type,
-            zone_basic, zone_area, zone_range,
+            shot_zone_basic, shot_zone_area, shot_zone_range,
             shot_distance, loc_x, loc_y,
             shot_made_flag
         FROM stg_shot_chart
-        ORDER BY game_id, period, minutes_remaining DESC, seconds_remaining DESC
     """

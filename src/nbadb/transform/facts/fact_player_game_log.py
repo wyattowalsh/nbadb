@@ -27,6 +27,6 @@ class FactPlayerGameLogTransformer(SqlTransformer):
         )
         QUALIFY ROW_NUMBER() OVER (
             PARTITION BY player_id, game_id
-            ORDER BY player_id
+            ORDER BY season_year DESC NULLS LAST
         ) = 1
     """

@@ -54,5 +54,4 @@ class AnalyticsTeamGameCompleteTransformer(SqlTransformer):
             ON t.team_id = k.team_id AND t.game_id = k.game_id
         LEFT JOIN dim_team tm ON t.team_id = tm.team_id
         LEFT JOIN dim_game g ON t.game_id = g.game_id
-        ORDER BY g.game_date, tm.abbreviation
     """

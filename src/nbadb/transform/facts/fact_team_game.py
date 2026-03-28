@@ -17,17 +17,11 @@ class FactTeamGameTransformer(SqlTransformer):
             SELECT
                 game_id, team_id,
                 SUM(fgm) AS fgm, SUM(fga) AS fga,
-                CASE WHEN SUM(fga) > 0
-                     THEN SUM(fgm)::FLOAT / SUM(fga)
-                     ELSE NULL END AS fg_pct,
+                SUM(fgm)::FLOAT / NULLIF(SUM(fga), 0) AS fg_pct,
                 SUM(fg3m) AS fg3m, SUM(fg3a) AS fg3a,
-                CASE WHEN SUM(fg3a) > 0
-                     THEN SUM(fg3m)::FLOAT / SUM(fg3a)
-                     ELSE NULL END AS fg3_pct,
+                SUM(fg3m)::FLOAT / NULLIF(SUM(fg3a), 0) AS fg3_pct,
                 SUM(ftm) AS ftm, SUM(fta) AS fta,
-                CASE WHEN SUM(fta) > 0
-                     THEN SUM(ftm)::FLOAT / SUM(fta)
-                     ELSE NULL END AS ft_pct,
+                SUM(ftm)::FLOAT / NULLIF(SUM(fta), 0) AS ft_pct,
                 SUM(oreb) AS oreb, SUM(dreb) AS dreb,
                 SUM(reb) AS reb,
                 SUM(ast) AS ast, SUM(stl) AS stl,
@@ -43,5 +37,5 @@ class FactTeamGameTransformer(SqlTransformer):
         FROM team_agg t
         LEFT JOIN stg_line_score l
             ON t.game_id = l.game_id AND t.team_id = l.team_id
-        ORDER BY t.game_id, t.team_id
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY t.game_id, t.team_id ORDER BY t.game_id) = 1
     """

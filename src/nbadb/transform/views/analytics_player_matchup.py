@@ -32,8 +32,8 @@ class AnalyticsPlayerMatchupTransformer(SqlTransformer):
             m.fgm, m.fga, m.fg_pct,
             m.fg3m, m.fg3a, m.fg3_pct
         FROM fact_player_matchups m
+        -- is_current=TRUE: player name from current record; team_id from fact table
         LEFT JOIN dim_player p1 ON m.player_id = p1.player_id AND p1.is_current = TRUE
         LEFT JOIN dim_player p2 ON m.vs_player_id = p2.player_id AND p2.is_current = TRUE
         LEFT JOIN dim_team tm ON m.team_id = tm.team_id
-        ORDER BY m.season_year, p1.full_name, m.matchup_min DESC NULLS LAST
     """

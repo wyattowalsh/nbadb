@@ -12,5 +12,4 @@ class FactTrackingDefenseTransformer(SqlTransformer):
     _SQL: ClassVar[str] = """
         SELECT *
         FROM stg_tracking_defense
-        ORDER BY season_year, player_id
     """

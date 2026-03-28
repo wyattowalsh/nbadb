@@ -26,5 +26,4 @@ class FactStandingsTransformer(SqlTransformer):
             last_ten,
             streak
         FROM stg_standings
-        ORDER BY season_year, season_type, conference_rank
     """

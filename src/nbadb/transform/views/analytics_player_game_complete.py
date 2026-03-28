@@ -57,8 +57,8 @@ class AnalyticsPlayerGameCompleteTransformer(SqlTransformer):
             ON t.player_id = h.player_id AND t.game_id = h.game_id
         LEFT JOIN fact_player_game_tracking k
             ON t.player_id = k.player_id AND t.game_id = k.game_id
+        -- is_current=TRUE: player name from current record; team_id from fact table
         LEFT JOIN dim_player p ON t.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_game g ON t.game_id = g.game_id
         LEFT JOIN dim_team tm ON t.team_id = tm.team_id
-        ORDER BY g.game_date, t.player_id
     """

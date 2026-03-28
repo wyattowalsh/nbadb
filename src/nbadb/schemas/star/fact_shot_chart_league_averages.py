@@ -14,9 +14,9 @@ class FactShotChartLeagueAveragesSchema(BaseSchema):
         },
     )
     grid_type: str | None = pa.Field(nullable=True)
-    zone_basic: str | None = pa.Field(nullable=True)
-    zone_area: str | None = pa.Field(nullable=True)
-    zone_range: str | None = pa.Field(nullable=True)
+    shot_zone_basic: str | None = pa.Field(nullable=True)
+    shot_zone_area: str | None = pa.Field(nullable=True)
+    shot_zone_range: str | None = pa.Field(nullable=True)
     fga: float | None = pa.Field(nullable=True, ge=0.0)
     fgm: float | None = pa.Field(nullable=True, ge=0.0)
     fg_pct: float | None = pa.Field(nullable=True, ge=0.0)

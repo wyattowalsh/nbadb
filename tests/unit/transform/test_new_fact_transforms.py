@@ -3,11 +3,14 @@ from __future__ import annotations
 import duckdb
 import polars as pl
 
+from nbadb.transform.facts._registry import (
+    FactFranchiseDetailTransformer,
+    FactPlayerSeasonRanksTransformer,
+)
 from nbadb.transform.facts.fact_cumulative_stats import FactCumulativeStatsTransformer
 from nbadb.transform.facts.fact_draft_board import FactDraftBoardTransformer
 from nbadb.transform.facts.fact_draft_combine_detail import FactDraftCombineDetailTransformer
 from nbadb.transform.facts.fact_fantasy import FactFantasyTransformer
-from nbadb.transform.facts.fact_franchise_detail import FactFranchiseDetailTransformer
 from nbadb.transform.facts.fact_game_context import FactGameContextTransformer
 from nbadb.transform.facts.fact_ist_standings import FactIstStandingsTransformer
 from nbadb.transform.facts.fact_league_hustle import FactLeagueHustleTransformer
@@ -17,7 +20,6 @@ from nbadb.transform.facts.fact_player_career import FactPlayerCareerTransformer
 from nbadb.transform.facts.fact_player_matchups import FactPlayerMatchupsTransformer
 from nbadb.transform.facts.fact_player_profile import FactPlayerProfileTransformer
 from nbadb.transform.facts.fact_player_pt_tracking import FactPlayerPtTrackingTransformer
-from nbadb.transform.facts.fact_player_season_ranks import FactPlayerSeasonRanksTransformer
 from nbadb.transform.facts.fact_player_splits import FactPlayerSplitsTransformer
 from nbadb.transform.facts.fact_playoff_picture import FactPlayoffPictureTransformer
 from nbadb.transform.facts.fact_playoff_series import FactPlayoffSeriesTransformer
@@ -338,7 +340,7 @@ class TestFactPlayerSplits:
 class TestFactPlayerPtTracking:
     def test_class_attrs(self) -> None:
         assert FactPlayerPtTrackingTransformer.output_table == "fact_player_pt_tracking"
-        assert len(FactPlayerPtTrackingTransformer.depends_on) == 6
+        assert len(FactPlayerPtTrackingTransformer.depends_on) == 5
 
     def test_union_with_tracking_type(self) -> None:
         staging = {
@@ -347,10 +349,9 @@ class TestFactPlayerPtTracking:
             "stg_player_pt_reb": pl.DataFrame({"player_id": [2], "val": [8]}).lazy(),
             "stg_player_pt_shots": pl.DataFrame({"player_id": [3], "val": [15]}).lazy(),
             "stg_player_pt_shot_defend": pl.DataFrame({"player_id": [4], "val": [6]}).lazy(),
-            "stg_player_dash_pt_defend": pl.DataFrame({"player_id": [6], "val": [7]}).lazy(),
         }
         result = _run(FactPlayerPtTrackingTransformer(), staging)
-        assert result.shape[0] == 6
+        assert result.shape[0] == 5
         assert "tracking_type" in result.columns
         assert set(result["tracking_type"].to_list()) == {
             "pass",
@@ -358,7 +359,6 @@ class TestFactPlayerPtTracking:
             "rebound",
             "shots",
             "shot_defend",
-            "defense",
         }
 
 
@@ -462,7 +462,7 @@ class TestFactFranchiseDetail:
 class TestFactLeagueHustle:
     def test_class_attrs(self) -> None:
         assert FactLeagueHustleTransformer.output_table == "fact_league_hustle"
-        assert len(FactLeagueHustleTransformer.depends_on) == 5
+        assert len(FactLeagueHustleTransformer.depends_on) == 3
 
     def test_union_with_entity_type(self) -> None:
         p = pl.DataFrame({"player_id": [1], "deflections": [5]}).lazy()
@@ -470,18 +470,14 @@ class TestFactLeagueHustle:
         staging = {
             "stg_league_hustle_player": p,
             "stg_league_hustle_team": t,
-            "stg_league_hustle_stats_player": p,
-            "stg_league_hustle_stats_team": t,
             "stg_league_dash_player_bio_stats": p,
         }
         result = _run(FactLeagueHustleTransformer(), staging)
-        assert result.shape[0] == 5
+        assert result.shape[0] == 3
         assert "entity_type" in result.columns
         expected = {
             "player",
             "team",
-            "hustle_stats_player",
-            "hustle_stats_team",
             "bio_stats",
         }
         assert set(result["entity_type"].to_list()) == expected

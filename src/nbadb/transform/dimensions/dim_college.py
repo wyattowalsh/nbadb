@@ -17,9 +17,19 @@ class DimCollegeTransformer(BaseTransformer):
 
         pc = staging["stg_player_college"]
         colleges = pc.select("college_name").unique().drop_nulls().sort("college_name")
+        colleges = colleges.with_columns(
+            (
+                pl.col("college_name")
+                .hash()
+                % 2_147_483_647
+                + 1
+            )
+            .cast(pl.Int32)
+            .alias("college_id")
+        )
+
         return (
-            colleges.with_row_index("college_id", offset=1)
-            .select(
+            colleges.select(
                 pl.col("college_id").cast(pl.Int32),
                 "college_name",
             )

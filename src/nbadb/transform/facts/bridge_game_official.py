@@ -12,5 +12,4 @@ class BridgeGameOfficialTransformer(SqlTransformer):
     _SQL: ClassVar[str] = """
         SELECT DISTINCT game_id, official_id
         FROM stg_officials
-        ORDER BY game_id, official_id
     """

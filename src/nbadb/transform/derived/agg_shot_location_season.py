@@ -17,5 +17,4 @@ class AggShotLocationSeasonTransformer(SqlTransformer):
                 ORDER BY fgm DESC NULLS LAST
             ) AS season_fgm_rank
         FROM stg_shot_locations
-        ORDER BY season_year, season_fgm_rank
     """

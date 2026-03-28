@@ -27,7 +27,7 @@ def discover_all_transformers() -> list[BaseTransformer]:
     """
     from nbadb.transform.base import BaseTransformer as BaseTF
 
-    transformers: list[BaseTransformer] = []
+    transformers_by_output: dict[str, BaseTransformer] = {}
     seen: set[type] = set()
 
     for package_name in _TRANSFORM_PACKAGES:
@@ -56,9 +56,19 @@ def discover_all_transformers() -> list[BaseTransformer]:
                     and hasattr(cls, "output_table")
                     and cls not in seen
                 ):
-                    transformers.append(cls())
+                    output_table = cls.output_table
+                    if not isinstance(output_table, str) or not output_table:
+                        continue
+                    candidate = cls()
+                    existing = transformers_by_output.get(output_table)
+                    if existing is None or (
+                        existing.__class__.__module__.endswith("._registry")
+                        and not cls.__module__.endswith("._registry")
+                    ):
+                        transformers_by_output[output_table] = candidate
                     seen.add(cls)
 
+    transformers = list(transformers_by_output.values())
     logger.info(
         "discovered {} transformers across {} packages",
         len(transformers),

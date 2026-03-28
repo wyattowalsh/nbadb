@@ -12,24 +12,11 @@ class AggPlayerSeasonPer48Transformer(SqlTransformer):
     _SQL: ClassVar[str] = """
         SELECT
             player_id, team_id, season_year, season_type, gp, avg_min,
-            CASE WHEN total_min > 0
-                 THEN total_pts * 48.0 / (total_min * 1.0)
-                 ELSE NULL END AS pts_per48,
-            CASE WHEN total_min > 0
-                 THEN total_reb * 48.0 / (total_min * 1.0)
-                 ELSE NULL END AS reb_per48,
-            CASE WHEN total_min > 0
-                 THEN total_ast * 48.0 / (total_min * 1.0)
-                 ELSE NULL END AS ast_per48,
-            CASE WHEN total_min > 0
-                 THEN total_stl * 48.0 / (total_min * 1.0)
-                 ELSE NULL END AS stl_per48,
-            CASE WHEN total_min > 0
-                 THEN total_blk * 48.0 / (total_min * 1.0)
-                 ELSE NULL END AS blk_per48,
-            CASE WHEN total_min > 0
-                 THEN total_tov * 48.0 / (total_min * 1.0)
-                 ELSE NULL END AS tov_per48
+            total_pts * 48.0 / NULLIF(total_min, 0) AS pts_per48,
+            total_reb * 48.0 / NULLIF(total_min, 0) AS reb_per48,
+            total_ast * 48.0 / NULLIF(total_min, 0) AS ast_per48,
+            total_stl * 48.0 / NULLIF(total_min, 0) AS stl_per48,
+            total_blk * 48.0 / NULLIF(total_min, 0) AS blk_per48,
+            total_tov * 48.0 / NULLIF(total_min, 0) AS tov_per48
         FROM agg_player_season
-        ORDER BY season_year, player_id
     """

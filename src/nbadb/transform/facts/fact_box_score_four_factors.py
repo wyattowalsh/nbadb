@@ -21,5 +21,4 @@ class FactBoxScoreFourFactorsTransformer(SqlTransformer):
             opp_team_turnover_percentage,
             opp_offensive_rebound_percentage
         FROM stg_box_score_four_factors_player
-        ORDER BY game_id, team_id, player_id
     """

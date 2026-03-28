@@ -11,7 +11,7 @@ class AggPlayerRollingTransformer(SqlTransformer):
 
     _SQL: ClassVar[str] = """
         SELECT
-            t.game_id, t.player_id, g.game_date,
+            t.game_id, t.player_id, g.season_year, g.game_date,
             AVG(t.pts) OVER w5 AS pts_roll5,
             AVG(t.reb) OVER w5 AS reb_roll5,
             AVG(t.ast) OVER w5 AS ast_roll5,
@@ -24,11 +24,10 @@ class AggPlayerRollingTransformer(SqlTransformer):
         FROM fact_player_game_traditional t
         JOIN dim_game g ON t.game_id = g.game_id
         WINDOW
-            w5 AS (PARTITION BY t.player_id ORDER BY g.game_date
+            w5 AS (PARTITION BY t.player_id, g.season_year ORDER BY g.game_date
                    ROWS BETWEEN 4 PRECEDING AND CURRENT ROW),
-            w10 AS (PARTITION BY t.player_id ORDER BY g.game_date
+            w10 AS (PARTITION BY t.player_id, g.season_year ORDER BY g.game_date
                     ROWS BETWEEN 9 PRECEDING AND CURRENT ROW),
-            w20 AS (PARTITION BY t.player_id ORDER BY g.game_date
+            w20 AS (PARTITION BY t.player_id, g.season_year ORDER BY g.game_date
                     ROWS BETWEEN 19 PRECEDING AND CURRENT ROW)
-        ORDER BY t.player_id, g.game_date
     """

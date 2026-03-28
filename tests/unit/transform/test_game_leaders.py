@@ -85,7 +85,7 @@ class TestFactGameLeadersTransformer:
         }
         assert set(result.columns) == expected_cols
 
-    def test_ordered_by_game_id_team_id(self) -> None:
+    def test_contains_all_rows(self) -> None:
         staging = {
             "stg_game_leaders": pl.DataFrame(
                 {
@@ -106,7 +106,7 @@ class TestFactGameLeadersTransformer:
         }
         t = FactGameLeadersTransformer()
         result = _run_transform(t, staging)
-        assert result["game_id"].to_list() == ["0022300001", "0022300002"]
+        assert set(result["game_id"].to_list()) == {"0022300001", "0022300002"}
 
     def test_extra_staging_columns_not_in_output(self) -> None:
         staging = {

@@ -41,7 +41,7 @@ class TestFactLeagueDashPlayerStatsTransformer:
         assert result.shape[0] == 2
         assert "player_id" in result.columns
 
-    def test_ordered_by_player_id(self) -> None:
+    def test_contains_all_rows(self) -> None:
         staging = {
             "stg_league_dash_player_stats": pl.DataFrame(
                 {
@@ -56,7 +56,7 @@ class TestFactLeagueDashPlayerStatsTransformer:
         }
         t = FactLeagueDashPlayerStatsTransformer()
         result = _run_transform(t, staging)
-        assert result["player_id"].to_list() == [201566, 203507]
+        assert set(result["player_id"].to_list()) == {201566, 203507}
 
     def test_select_star_preserves_all_columns(self) -> None:
         staging = {
@@ -99,7 +99,7 @@ class TestFactLeagueDashTeamStatsTransformer:
         assert result.shape[0] == 2
         assert "team_id" in result.columns
 
-    def test_ordered_by_team_id(self) -> None:
+    def test_contains_all_rows(self) -> None:
         staging = {
             "stg_league_dash_team_stats": pl.DataFrame(
                 {
@@ -112,7 +112,7 @@ class TestFactLeagueDashTeamStatsTransformer:
         }
         t = FactLeagueDashTeamStatsTransformer()
         result = _run_transform(t, staging)
-        assert result["team_id"].to_list() == [1610612737, 1610612738]
+        assert set(result["team_id"].to_list()) == {1610612737, 1610612738}
 
     def test_select_star_preserves_all_columns(self) -> None:
         staging = {

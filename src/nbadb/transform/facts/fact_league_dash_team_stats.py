@@ -12,5 +12,4 @@ class FactLeagueDashTeamStatsTransformer(SqlTransformer):
     _SQL: ClassVar[str] = """
         SELECT *
         FROM stg_league_dash_team_stats
-        ORDER BY team_id
     """

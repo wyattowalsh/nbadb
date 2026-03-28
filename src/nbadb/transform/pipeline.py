@@ -14,6 +14,7 @@ import pandera.polars as pa
 import polars as pl
 from loguru import logger
 
+from nbadb.transform.base import SqlTransformer
 from nbadb.transform.metrics import PipelineMetrics
 
 if TYPE_CHECKING:
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class PipelineResult:
+class TransformResult:
     """Captures pass/fail details from a pipeline run."""
 
     completed: list[str] = field(default_factory=list)
@@ -43,38 +44,6 @@ class PipelineResult:
     @property
     def failed_tables(self) -> list[str]:
         return [t for t, _ in self.failed]
-
-
-_INPUT_SCHEMA_ALIASES = {
-    "stg_schedule": "stg_schedule_league_v2",
-    "stg_standings": "stg_league_standings_v3",
-    "stg_draft": "stg_draft_history",
-    "stg_draft_combine": "stg_draft_combine_stats",
-    "stg_synergy": "stg_synergy_play_types",
-    "stg_box_score_traditional": "stg_box_score_traditional_player",
-    "stg_box_score_advanced": "stg_box_score_advanced_player",
-    "stg_box_score_hustle": "stg_box_score_hustle_player",
-    "stg_box_score_defensive": "stg_box_score_defensive_player",
-    "stg_play_by_play": "stg_play_by_play_v3",
-    "stg_matchup": "stg_box_score_matchups",
-    "stg_rotation_away": "stg_game_rotation",
-    "stg_rotation_home": "stg_game_rotation",
-    "stg_scoreboard": "stg_scoreboard_v2",
-    "stg_shot_chart": "stg_shot_chart_detail",
-    "stg_team_years": "stg_common_team_years",
-    "stg_player_info": "raw_common_player_info",
-    "stg_team_info": "raw_team_info_common",
-    "stg_coaches": "raw_common_team_roster_coaches",
-    "stg_franchise": "raw_franchise_history",
-    "stg_box_score_misc": "raw_box_score_misc_player",
-    "stg_box_score_scoring": "raw_box_score_scoring_player",
-    "stg_box_score_usage": "raw_box_score_usage_player",
-    "stg_playoff_picture_east": "raw_playoff_picture",
-    "stg_playoff_picture_west": "raw_playoff_picture",
-    "stg_draft_combine_drills": "raw_draft_combine_drill_results",
-    "stg_draft_combine_nonstat_shooting": "raw_draft_combine_non_stationary_shooting",
-    "stg_draft_combine_anthro": "raw_draft_combine_player_anthro",
-}
 
 
 def _table_name_from_schema_class(
@@ -135,41 +104,10 @@ def _star_schema_map() -> dict[str, type[pa.DataFrameModel]]:
     )
 
 
-@lru_cache(maxsize=1)
-def _staging_schema_map() -> dict[str, type[pa.DataFrameModel]]:
-    return _discover_schema_map(
-        "nbadb.schemas.staging",
-        class_prefix="Staging",
-        table_prefix="stg_",
-    )
-
-
-@lru_cache(maxsize=1)
-def _raw_schema_map() -> dict[str, type[pa.DataFrameModel]]:
-    return _discover_schema_map(
-        "nbadb.schemas.raw",
-        class_prefix="Raw",
-        table_prefix="raw_",
-    )
-
-
 def _input_schema_for(table: str) -> type[pa.DataFrameModel] | None:
-    if schema_cls := _staging_schema_map().get(table):
-        return schema_cls
+    from nbadb.schemas.registry import get_input_schema
 
-    alias = _INPUT_SCHEMA_ALIASES.get(table)
-    if alias is not None:
-        if schema_cls := _staging_schema_map().get(alias):
-            return schema_cls
-        if schema_cls := _raw_schema_map().get(alias):
-            return schema_cls
-
-    if table.startswith("stg_"):
-        raw_table = f"raw_{table.removeprefix('stg_')}"
-        if schema_cls := _raw_schema_map().get(raw_table):
-            return schema_cls
-
-    return None
+    return get_input_schema(table)
 
 
 class TransformPipeline:
@@ -183,11 +121,11 @@ class TransformPipeline:
         self._run_id = run_id or uuid.uuid4().hex
         self._transformers: list[BaseTransformer] = []
         self._outputs: dict[str, pl.DataFrame] = {}
-        self._last_result: PipelineResult | None = None
+        self._last_result: TransformResult | None = None
         self._metrics = PipelineMetrics(run_id=self._run_id)
 
     @property
-    def last_result(self) -> PipelineResult | None:
+    def last_result(self) -> TransformResult | None:
         """Access the pass/fail summary from the most recent run."""
         return self._last_result
 
@@ -308,6 +246,8 @@ class TransformPipeline:
 
     @staticmethod
     def _validate_output_schema(table: str, df: pl.DataFrame) -> pl.DataFrame:
+        # NOTE: ~99 transforms have no star schema definition; validation is
+        # silently skipped for those tables. See audit issue #10.
         schema_cls = _star_schema_map().get(table)
         if schema_cls is None:
             return df
@@ -327,11 +267,12 @@ class TransformPipeline:
         resume: bool = False,
         validate_input_schemas: bool = False,
         validate_output_schemas: bool = True,
+        on_progress: object | None = None,
     ) -> dict[str, pl.DataFrame]:
         ordered = self._topological_sort()
         logger.info(f"Pipeline: {len(ordered)} transformers in dependency order")
 
-        result = PipelineResult()
+        result = TransformResult()
         self._last_result = result
 
         # Load checkpoint data when resuming
@@ -368,6 +309,8 @@ class TransformPipeline:
                     logger.info(f"Skipping {table} (already completed)")
                     result.completed.append(table)
                     self._metrics.skip_transformer(table)
+                    if on_progress is not None:
+                        on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
                     continue
 
                 # Checkpoint resume: skip if table was checkpointed and exists in DuckDB
@@ -380,6 +323,8 @@ class TransformPipeline:
                         result.completed.append(table)
                         result.skipped.append(table)
                         self._metrics.skip_transformer(table)
+                        if on_progress is not None:
+                            on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
                         logger.info(f"Skipping {table} (loaded from checkpoint)")
                         continue
                     except Exception as exc:
@@ -392,11 +337,14 @@ class TransformPipeline:
                 self._metrics.start_transformer(table)
                 try:
                     transformer._conn = self._conn
-                    # Build combined view: original staging + accumulated outputs
-                    combined = {**prepared_staging}
-                    for name, out_df in self._outputs.items():
-                        combined[name] = out_df.lazy()
-                    df = transformer.run(combined)
+                    # SqlTransformers execute SQL directly via conn; skip dict construction
+                    if isinstance(transformer, SqlTransformer):
+                        df = transformer.run({})
+                    else:
+                        combined = {**prepared_staging}
+                        for name, out_df in self._outputs.items():
+                            combined[name] = out_df.lazy()
+                        df = transformer.run(combined)
                     if validate_output_schemas:
                         df = self._validate_output_schema(table, df)
                 except Exception as exc:
@@ -411,12 +359,16 @@ class TransformPipeline:
                         f"{error_msg}\n{tb}"
                     )
                     result.failed.append((table, error_msg))
+                    if on_progress is not None:
+                        on_progress.advance_pattern(success=False)  # type: ignore[union-attr]
                     continue
                 self._outputs[table] = df
                 self._metrics.complete_transformer(table, df.shape[0], df.shape[1])
                 # INFRA-006: Only register the NEW output from each completed transformer
                 self._conn.register(table, df)
                 result.completed.append(table)
+                if on_progress is not None:
+                    on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
                 self._save_checkpoint(table, df.shape[0])
                 logger.debug(f"Registered {table} in DuckDB ({df.shape[0]} rows)")
 
@@ -449,3 +401,8 @@ class TransformPipeline:
     @property
     def execution_order(self) -> list[str]:
         return [t.output_table for t in self._topological_sort()]
+
+
+# Backward-compat alias so existing ``from nbadb.transform.pipeline import PipelineResult``
+# continues to work.
+PipelineResult = TransformResult

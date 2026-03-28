@@ -4,14 +4,14 @@ import duckdb
 import polars as pl
 import pytest
 
+from nbadb.transform.facts._registry import (
+    FactHustleAvailabilityTransformer,
+)
 from nbadb.transform.facts.fact_cumulative_stats_detail import (
     FactCumulativeStatsDetailTransformer,
 )
 from nbadb.transform.facts.fact_gl_alum_similarity import (
     FactGlAlumSimilarityTransformer,
-)
-from nbadb.transform.facts.fact_hustle_availability import (
-    FactHustleAvailabilityTransformer,
 )
 from nbadb.transform.facts.fact_on_off_detail import FactOnOffDetailTransformer
 from nbadb.transform.facts.fact_scoreboard_win_probability import (

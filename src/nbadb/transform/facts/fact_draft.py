@@ -37,5 +37,4 @@ class FactDraftTransformer(SqlTransformer):
         FROM stg_draft d
         LEFT JOIN stg_draft_combine c
             ON d.person_id = c.player_id AND d.season = c.season
-        ORDER BY d.season, d.overall_pick
     """

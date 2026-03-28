@@ -10,6 +10,6 @@ class DimAllPlayersTransformer(SqlTransformer):
     depends_on: ClassVar[list[str]] = ["stg_common_all_players"]
 
     _SQL: ClassVar[str] = """
-        SELECT *
+        SELECT DISTINCT *
         FROM stg_common_all_players
     """

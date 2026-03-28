@@ -31,6 +31,7 @@ def _assert_schema_valid(table: str, df: pl.DataFrame) -> None:
 def _team_game_log_row() -> dict[str, object]:
     return {
         "season_id": "22024",
+        "season_year": "2024-25",
         "team_id": 1610612738,
         "team_abbreviation": "BOS",
         "team_name": "Boston Celtics",

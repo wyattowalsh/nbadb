@@ -29,7 +29,6 @@ class FactPlayerEstimatedMetricsTransformer(SqlTransformer):
             p.e_usg_pct,
             p.season_year
         FROM stg_player_tracking p
-        ORDER BY season_year, player_id
     """
 
 
@@ -55,5 +54,4 @@ class FactTeamEstimatedMetricsTransformer(SqlTransformer):
             t.e_tov_pct,
             t.season_year
         FROM stg_team_dashboard_estimated t
-        ORDER BY season_year, team_id
     """

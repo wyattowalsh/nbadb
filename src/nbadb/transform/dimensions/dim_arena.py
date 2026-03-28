@@ -41,9 +41,19 @@ class DimArenaTransformer(BaseTransformer):
             how="left",
         )
 
+        arenas = arenas.with_columns(
+            (
+                pl.concat_str(["arena_name", "arena_city"], separator="|")
+                .hash()
+                % 2_147_483_647
+                + 1
+            )
+            .cast(pl.Int32)
+            .alias("arena_id")
+        )
+
         return (
-            arenas.with_row_index("arena_id", offset=1)
-            .select(
+            arenas.select(
                 pl.col("arena_id").cast(pl.Int32),
                 "arena_name",
                 "arena_city",

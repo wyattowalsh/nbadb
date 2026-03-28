@@ -52,3 +52,51 @@ class SqlTransformer(BaseTransformer):
                 f"{type(self).__name__} must define a non-empty _SQL ClassVar"
             )
         return self.conn.execute(self._SQL).pl()
+
+
+def _validate_identifier(name: str) -> None:
+    """Validate that a name is a safe SQL identifier."""
+    from nbadb.core.types import validate_sql_identifier
+
+    validate_sql_identifier(name)
+
+
+def make_passthrough(output_table: str, source_table: str) -> type[SqlTransformer]:
+    """Create a SqlTransformer that passes through a staging table unchanged."""
+    _validate_identifier(output_table)
+    _validate_identifier(source_table)
+    return type(
+        f"{''.join(w.title() for w in output_table.split('_'))}Transformer",
+        (SqlTransformer,),
+        {
+            "output_table": output_table,
+            "depends_on": [source_table],
+            "_SQL": f"SELECT * FROM {source_table}",
+        },
+    )
+
+
+def make_union(
+    output_table: str,
+    discriminator: str,
+    branches: dict[str, str],
+) -> type[SqlTransformer]:
+    """Create a SqlTransformer that UNIONs staging tables with a discriminator column."""
+    _validate_identifier(output_table)
+    _validate_identifier(discriminator)
+    parts = []
+    depends = []
+    for label, stg_table in branches.items():
+        _validate_identifier(stg_table)
+        parts.append(f"SELECT *, '{label}' AS {discriminator} FROM {stg_table}")
+        depends.append(stg_table)
+    sql = "\nUNION ALL BY NAME\n".join(parts)
+    return type(
+        f"{''.join(w.title() for w in output_table.split('_'))}Transformer",
+        (SqlTransformer,),
+        {
+            "output_table": output_table,
+            "depends_on": depends,
+            "_SQL": sql,
+        },
+    )

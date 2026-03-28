@@ -13,9 +13,9 @@ class AggShotZonesTransformer(SqlTransformer):
         SELECT
             s.player_id,
             g.season_year,
-            s.zone_basic,
-            s.zone_area,
-            s.zone_range,
+            s.shot_zone_basic,
+            s.shot_zone_area,
+            s.shot_zone_range,
             COUNT(*) AS attempts,
             SUM(s.shot_made_flag) AS makes,
             SUM(s.shot_made_flag)::FLOAT / NULLIF(COUNT(*), 0) AS fg_pct,
@@ -23,6 +23,5 @@ class AggShotZonesTransformer(SqlTransformer):
         FROM fact_shot_chart s
         JOIN dim_game g ON s.game_id = g.game_id
         GROUP BY s.player_id, g.season_year,
-                 s.zone_basic, s.zone_area, s.zone_range
-        ORDER BY g.season_year, s.player_id, s.zone_basic
+                 s.shot_zone_basic, s.shot_zone_area, s.shot_zone_range
     """

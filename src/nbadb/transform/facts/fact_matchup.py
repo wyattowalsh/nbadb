@@ -18,5 +18,4 @@ class FactMatchupTransformer(SqlTransformer):
             player_pts,
             def_fgm, def_fga, def_fg_pct
         FROM stg_matchup
-        ORDER BY game_id, off_player_id, def_player_id
     """

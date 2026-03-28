@@ -108,9 +108,9 @@ class TestDimTeamHistory:
 
         # 2 versions for Nets + 1 for Lakers = 3
         assert result.shape[0] == 3
-        sks = result["team_history_sk"].to_list()
+        sks = sorted(result["team_history_sk"].to_list())
         assert len(set(sks)) == 3  # All unique
-        assert sks == sorted(sks)  # Sequential
+        assert sks == list(range(1, len(sks) + 1))  # Sequential
         conn.close()
 
     def test_scd2_detects_nickname_change(self) -> None:

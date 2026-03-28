@@ -51,5 +51,4 @@ class DimTeamHistoryTransformer(SqlTransformer):
                 PARTITION BY team_id ORDER BY season_year
             ) IS NULL THEN TRUE ELSE FALSE END AS is_current
         FROM changes
-        ORDER BY team_history_sk
     """

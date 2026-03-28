@@ -24,7 +24,7 @@ from nbadb.extract.stats.box_scores import (
     BoxScoreTraditionalExtractor,
     BoxScoreUsageExtractor,
 )
-from nbadb.extract.stats.box_summary import BoxScoreSummaryExtractor
+from nbadb.extract.stats.box_summary import BoxScoreSummaryExtractor, BoxScoreSummaryV3Extractor
 
 # ── draft ───────────────────────────────────────────────────────────────────
 from nbadb.extract.stats.draft import (
@@ -54,8 +54,8 @@ from nbadb.extract.stats.game_log import (
 # ── hustle ──────────────────────────────────────────────────────────────────
 from nbadb.extract.stats.hustle import (
     HustleStatsBoxScoreExtractor,
-    LeagueHustleStatsPlayerExtractor,
-    LeagueHustleStatsTeamExtractor,
+    LeagueHustlePlayerExtractor,
+    LeagueHustleTeamExtractor,
 )
 
 # ── leaders ─────────────────────────────────────────────────────────────────
@@ -158,7 +158,9 @@ from nbadb.extract.stats.player_dashboard import (
 # ── player_game_log ─────────────────────────────────────────────────────────
 from nbadb.extract.stats.player_game_log import (
     PlayerGameLogsExtractor,
+    PlayerGameLogsV2Extractor,
     PlayerGameStreakFinderExtractor,
+    PlayerStreakFinderExtractor,
 )
 
 # ── player_info ─────────────────────────────────────────────────────────────
@@ -173,7 +175,6 @@ from nbadb.extract.stats.player_info import (
 
 # ── player_tracking ─────────────────────────────────────────────────────────
 from nbadb.extract.stats.player_tracking import (
-    PlayerDashPtDefendExtractor,
     PlayerDashPtPassExtractor,
     PlayerDashPtRebExtractor,
     PlayerDashPtShotsExtractor,
@@ -305,9 +306,7 @@ _ALL_EXTRACTORS = [
     (SynergyPlayTypesExtractor, "synergy_play_types", "synergy"),
     # win_probability (1) -- category is "play_by_play"
     (WinProbabilityExtractor, "win_probability", "play_by_play"),
-    # hustle (3)
-    (LeagueHustleStatsPlayerExtractor, "league_hustle_stats_player", "hustle"),
-    (LeagueHustleStatsTeamExtractor, "league_hustle_stats_team", "hustle"),
+    # hustle (1)
     (HustleStatsBoxScoreExtractor, "hustle_stats_box_score", "hustle"),
     # tracking_defense (2)
     (LeagueDashPtDefendExtractor, "league_dash_pt_defend", "tracking"),
@@ -315,11 +314,10 @@ _ALL_EXTRACTORS = [
     # player_game_log (2)
     (PlayerGameLogsExtractor, "player_game_logs", "game_log"),
     (PlayerGameStreakFinderExtractor, "player_game_streak_finder", "player_info"),
-    # player_tracking (5)
+    # player_tracking (4)
     (PlayerDashPtShotsExtractor, "player_dash_pt_shots", "player_info"),
     (PlayerDashPtPassExtractor, "player_dash_pt_pass", "player_info"),
     (PlayerDashPtRebExtractor, "player_dash_pt_reb", "player_info"),
-    (PlayerDashPtDefendExtractor, "player_dash_pt_defend", "player_info"),
     (PlayerEstimatedMetricsExtractor, "player_estimated_metrics", "player_info"),
     # player_college (2)
     (PlayerCareerByCollegeExtractor, "player_career_by_college", "player_info"),
@@ -737,3 +735,227 @@ class TestExtractMethodCoverage:
         params = _get_params(endpoint_name, category)
         result = await ext.extract(**params)
         assert isinstance(result, pl.DataFrame)
+
+
+# ---------------------------------------------------------------------------
+# extract_all method coverage for extractors with multi-result endpoints
+# ---------------------------------------------------------------------------
+
+# (cls, endpoint_name, params_dict)
+_TEAM_PARAMS = {"team_id": 1610612744, "season": "2024-25"}
+_GAME_PARAMS = {"game_id": "0022400001"}
+
+_EXTRACT_ALL_CASES = [
+    # team_tracking: 3 extractors with extract_all
+    (TeamDashPtShotsExtractor, "team_dash_pt_shots_all", _TEAM_PARAMS),
+    (TeamDashPtPassExtractor, "team_dash_pt_pass_all", _TEAM_PARAMS),
+    (TeamDashPtRebExtractor, "team_dash_pt_reb_all", _TEAM_PARAMS),
+    # box_summary: 2 extractors with extract_all
+    (BoxScoreSummaryExtractor, "box_score_summary_all", _GAME_PARAMS),
+    (BoxScoreSummaryV3Extractor, "box_score_summary_v3_all", _GAME_PARAMS),
+    # hustle: HustleStatsBoxScore extract_all
+    (HustleStatsBoxScoreExtractor, "hustle_box_score_all", _GAME_PARAMS),
+]
+
+
+@pytest.mark.parametrize(
+    "cls, test_id, params",
+    _EXTRACT_ALL_CASES,
+    ids=[t[1] for t in _EXTRACT_ALL_CASES],
+)
+class TestExtractAllMethodCoverage:
+    """Verify extract_all() on extractors that support multi-result sets."""
+
+    @pytest.mark.asyncio
+    async def test_extract_all_returns_list(
+        self,
+        cls: type,
+        test_id: str,
+        params: dict,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = cls()
+        dummy_dfs = [
+            pl.DataFrame({"col": [1]}),
+            pl.DataFrame({"col": [2]}),
+        ]
+
+        def _fake_multi(endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
+            return dummy_dfs
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake_multi)
+        result = await ext.extract_all(**params)
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(df, pl.DataFrame) for df in result)
+
+
+# team_tracking: extract_all with explicit season_type param
+class TestTeamTrackingExtractAllSeasonType:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "cls",
+        [TeamDashPtShotsExtractor, TeamDashPtPassExtractor, TeamDashPtRebExtractor],
+        ids=["shots", "pass", "reb"],
+    )
+    async def test_extract_all_passes_season_type(
+        self,
+        cls: type,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = cls()
+        captured: dict[str, object] = {}
+
+        def _fake_multi(endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
+            captured.update(kwargs)
+            return [pl.DataFrame({"ok": [1]})]
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake_multi)
+        await ext.extract_all(
+            team_id=1610612744, season="2024-25", season_type="Playoffs"
+        )
+        assert captured["season_type_all_star"] == "Playoffs"
+
+
+# hustle: LeagueHustlePlayerExtractor and LeagueHustleTeamExtractor extract()
+class TestHustleExtractors:
+    @pytest.mark.asyncio
+    async def test_league_hustle_player_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = LeagueHustlePlayerExtractor()
+        dummy_df = pl.DataFrame({"col": [1]})
+        monkeypatch.setattr(ext, "_from_nba_api", lambda endpoint_cls, **kw: dummy_df)
+        result = await ext.extract(season="2024-25")
+        assert isinstance(result, pl.DataFrame)
+
+    @pytest.mark.asyncio
+    async def test_league_hustle_team_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = LeagueHustleTeamExtractor()
+        dummy_df = pl.DataFrame({"col": [1]})
+        monkeypatch.setattr(ext, "_from_nba_api", lambda endpoint_cls, **kw: dummy_df)
+        result = await ext.extract(season="2024-25")
+        assert isinstance(result, pl.DataFrame)
+
+    @pytest.mark.asyncio
+    async def test_league_hustle_player_extract_with_season_type(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ext = LeagueHustlePlayerExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
+            captured.update(kw)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(season="2024-25", season_type="Playoffs")
+        assert captured["season_type_all_star"] == "Playoffs"
+
+    @pytest.mark.asyncio
+    async def test_league_hustle_team_extract_with_season_type(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ext = LeagueHustleTeamExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
+            captured.update(kw)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(season="2024-25", season_type="Playoffs")
+        assert captured["season_type_all_star"] == "Playoffs"
+
+
+# player_game_log: PlayerGameLogsV2Extractor and PlayerStreakFinderExtractor extract()
+class TestPlayerGameLogV2Extractors:
+    @pytest.mark.asyncio
+    async def test_player_game_logs_v2_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = PlayerGameLogsV2Extractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
+            captured.update(kw)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        result = await ext.extract(player_id=2544, season="2024-25", season_type="Playoffs")
+        assert isinstance(result, pl.DataFrame)
+        assert captured["player_id_nullable"] == 2544
+        assert captured["season_nullable"] == "2024-25"
+        assert captured["season_type_nullable"] == "Playoffs"
+
+    @pytest.mark.asyncio
+    async def test_player_streak_finder_extract(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = PlayerStreakFinderExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
+            captured.update(kw)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        result = await ext.extract(player_id=2544, season="2024-25")
+        assert isinstance(result, pl.DataFrame)
+        assert captured["player_id_nullable"] == 2544
+        assert captured["season_nullable"] == "2024-25"
+
+
+# ---------------------------------------------------------------------------
+# SynergyPlayTypesExtractor — all-combination coverage (HR-T-002)
+# ---------------------------------------------------------------------------
+
+
+class TestSynergyPlayTypesExtractor:
+    @pytest.fixture
+    def synergy_ext(self):
+        from nbadb.extract.stats.synergy import SynergyPlayTypesExtractor
+
+        return SynergyPlayTypesExtractor()
+
+    @pytest.mark.asyncio
+    async def test_iterates_all_combinations(self, synergy_ext, monkeypatch):
+        calls: list[dict] = []
+
+        def _fake(endpoint_cls, **kw):
+            calls.append(kw)
+            return pl.DataFrame({"val": [1]})
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        # Disable the inter-call sleep for test speed
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+        result = await synergy_ext.extract(season="2024-25")
+
+        assert len(calls) == 44  # 11 play_types × 2 entity_types × 2 groupings
+        assert "play_type" in result.columns
+        assert "entity_type" in result.columns
+        assert "type_grouping" in result.columns
+        assert result.shape[0] == 44
+
+    @pytest.mark.asyncio
+    async def test_individual_failure_continues(self, synergy_ext, monkeypatch):
+        call_count = 0
+
+        def _fake(endpoint_cls, **kw):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 5:
+                raise ConnectionError("test failure")
+            return pl.DataFrame({"val": [1]})
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+        result = await synergy_ext.extract(season="2024-25")
+
+        assert result.shape[0] == 43  # 44 - 1 failure
+        assert call_count == 44  # all combinations still attempted
+
+    @pytest.mark.asyncio
+    async def test_all_failures_raises(self, synergy_ext, monkeypatch):
+        def _fake(endpoint_cls, **kw):
+            raise ConnectionError("all fail")
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+
+        with pytest.raises(RuntimeError, match="all 44 synergy combinations failed"):
+            await synergy_ext.extract(season="2024-25")

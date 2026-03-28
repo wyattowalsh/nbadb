@@ -32,7 +32,6 @@ class AnalyticsTeamSeasonSummaryTransformer(SqlTransformer):
         LEFT JOIN fact_standings st
             ON ts.team_id = st.team_id
             AND ts.season_year = st.season_year
+            AND ts.season_type = st.season_type
         LEFT JOIN dim_team tm ON ts.team_id = tm.team_id
-        ORDER BY ts.season_year, ts.season_type,
-                 st.win_pct DESC NULLS LAST
     """

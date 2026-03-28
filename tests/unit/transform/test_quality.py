@@ -314,3 +314,158 @@ class TestValueRangeMinViolation:
         result = monitor.check_value_range("test_facts", "pts")
         assert result.passed
         conn.close()
+
+
+class TestSchemaDriftWithTypes:
+    """Cover check_schema_drift when current_types is provided (lines 71-73)."""
+
+    def test_typed_hash_matches(self) -> None:
+        conn, monitor = _make_monitor()
+        cols = ["game_id", "player_id", "pts", "reb", "team_id"]
+        types = ["VARCHAR", "INT", "INT", "INT", "INT"]
+        # Build expected typed hash: sorted (col, type) pairs
+        pairs = sorted(zip(cols, types, strict=True))
+        raw = ",".join(f"{c}:{t}" for c, t in pairs)
+        expected = hashlib.sha256(raw.encode()).hexdigest()[:16]
+        result = monitor.check_schema_drift("test_facts", expected, cols, current_types=types)
+        assert result.passed
+        conn.close()
+
+    def test_typed_hash_differs_from_untyped(self) -> None:
+        conn, monitor = _make_monitor()
+        cols = ["game_id", "player_id", "pts", "reb", "team_id"]
+        types = ["VARCHAR", "INT", "INT", "INT", "INT"]
+        # Compute untyped hash
+        untyped_hash = hashlib.sha256(",".join(sorted(cols)).encode()).hexdigest()[:16]
+        # Using typed check with untyped expected hash should fail
+        result = monitor.check_schema_drift("test_facts", untyped_hash, cols, current_types=types)
+        assert not result.passed
+        conn.close()
+
+    def test_mismatched_types_length_falls_back_to_untyped(self) -> None:
+        conn, monitor = _make_monitor()
+        cols = ["game_id", "player_id", "pts", "reb", "team_id"]
+        types = ["VARCHAR", "INT"]  # wrong length
+        untyped_hash = hashlib.sha256(",".join(sorted(cols)).encode()).hexdigest()[:16]
+        result = monitor.check_schema_drift("test_facts", untyped_hash, cols, current_types=types)
+        assert result.passed
+        conn.close()
+
+
+def _make_staging_monitor(
+    stg_tables: dict[str, int],
+) -> tuple[duckdb.DuckDBPyConnection, DataQualityMonitor]:
+    """Create a DuckDB with stg_* tables having the given row counts."""
+    conn = duckdb.connect()
+    for name, row_count in stg_tables.items():
+        conn.execute(f"CREATE TABLE {name} (id INT)")
+        for i in range(row_count):
+            conn.execute(f"INSERT INTO {name} VALUES ({i})")
+    return conn, DataQualityMonitor(conn=conn)
+
+
+class TestStagingGate:
+    def test_passes_when_enough_tables_with_data(self) -> None:
+        tables = {f"stg_t{i}": 5 for i in range(12)}
+        conn, monitor = _make_staging_monitor(tables)
+        assert monitor.run_staging_gate(min_tables=10) is True
+        gate_results = [r for r in monitor.results if r.check_type == "staging_gate"]
+        assert len(gate_results) == 1
+        assert gate_results[0].passed
+        conn.close()
+
+    def test_fails_when_not_enough_tables(self) -> None:
+        tables = {f"stg_t{i}": 5 for i in range(3)}
+        conn, monitor = _make_staging_monitor(tables)
+        assert monitor.run_staging_gate(min_tables=10) is False
+        gate_results = [r for r in monitor.results if r.check_type == "staging_gate"]
+        assert len(gate_results) == 1
+        assert not gate_results[0].passed
+        assert "Only 3" in gate_results[0].message
+        conn.close()
+
+    def test_warns_on_empty_tables(self) -> None:
+        tables = {"stg_a": 5, "stg_b": 0, "stg_c": 3}
+        conn, monitor = _make_staging_monitor(tables)
+        assert monitor.run_staging_gate(min_tables=1, warn_empty=True) is True
+        empty_results = [r for r in monitor.results if r.check_type == "staging_empty"]
+        assert len(empty_results) == 1
+        assert empty_results[0].table == "stg_b"
+        assert empty_results[0].passed  # WARN, not FAIL
+        assert "WARN" in empty_results[0].message
+        conn.close()
+
+    def test_fails_on_empty_critical_table(self) -> None:
+        tables = {"stg_a": 5, "stg_critical": 0, "stg_c": 3}
+        conn, monitor = _make_staging_monitor(tables)
+        result = monitor.run_staging_gate(
+            min_tables=1,
+            fail_on_empty_critical=True,
+            critical_tables={"stg_critical"},
+        )
+        assert result is False
+        empty_results = [r for r in monitor.results if r.check_type == "staging_empty"]
+        assert len(empty_results) == 1
+        assert not empty_results[0].passed  # FAIL
+        assert "FAIL" in empty_results[0].message
+        conn.close()
+
+    def test_critical_but_not_fail_on_empty_is_warn(self) -> None:
+        tables = {"stg_a": 5, "stg_critical": 0}
+        conn, monitor = _make_staging_monitor(tables)
+        result = monitor.run_staging_gate(
+            min_tables=1,
+            fail_on_empty_critical=False,
+            critical_tables={"stg_critical"},
+        )
+        assert result is True
+        empty_results = [r for r in monitor.results if r.check_type == "staging_empty"]
+        assert len(empty_results) == 1
+        assert empty_results[0].passed  # WARN, not FAIL
+        conn.close()
+
+    def test_empty_non_critical_suppressed_when_warn_false(self) -> None:
+        tables = {"stg_a": 5, "stg_b": 0}
+        conn, monitor = _make_staging_monitor(tables)
+        result = monitor.run_staging_gate(min_tables=1, warn_empty=False)
+        assert result is True
+        empty_results = [r for r in monitor.results if r.check_type == "staging_empty"]
+        assert len(empty_results) == 0
+        conn.close()
+
+    def test_query_exception_returns_false(self) -> None:
+        conn = duckdb.connect()
+        # Close connection to cause execute to fail
+        conn.close()
+        monitor = DataQualityMonitor(conn=conn)
+        assert monitor.run_staging_gate() is False
+
+    def test_all_tables_have_data(self) -> None:
+        tables = {"stg_x": 10, "stg_y": 20, "stg_z": 30}
+        conn, monitor = _make_staging_monitor(tables)
+        assert monitor.run_staging_gate(min_tables=3) is True
+        empty_results = [r for r in monitor.results if r.check_type == "staging_empty"]
+        assert len(empty_results) == 0
+        gate_results = [r for r in monitor.results if r.check_type == "staging_gate"]
+        assert gate_results[0].passed
+        assert "PASS" in gate_results[0].message
+        conn.close()
+
+    def test_mixed_empty_and_critical(self) -> None:
+        """Multiple empty tables, one critical, one not."""
+        tables = {"stg_a": 5, "stg_b": 0, "stg_critical": 0, "stg_d": 10}
+        conn, monitor = _make_staging_monitor(tables)
+        result = monitor.run_staging_gate(
+            min_tables=1,
+            warn_empty=True,
+            fail_on_empty_critical=True,
+            critical_tables={"stg_critical"},
+        )
+        assert result is False
+        empty_results = [r for r in monitor.results if r.check_type == "staging_empty"]
+        assert len(empty_results) == 2
+        critical_result = [r for r in empty_results if r.table == "stg_critical"][0]
+        warn_result = [r for r in empty_results if r.table == "stg_b"][0]
+        assert not critical_result.passed
+        assert warn_result.passed
+        conn.close()

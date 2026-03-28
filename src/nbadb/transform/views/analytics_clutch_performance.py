@@ -30,7 +30,7 @@ class AnalyticsClutchPerformanceTransformer(SqlTransformer):
             c.pf, c.pts, c.plus_minus,
             c.net_rating, c.off_rating, c.def_rating
         FROM fact_player_clutch_detail c
+        -- is_current=TRUE: player name from current record; team_id from fact table
         LEFT JOIN dim_player p ON c.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_team tm ON c.team_id = tm.team_id
-        ORDER BY c.season_year, c.clutch_window, c.pts DESC NULLS LAST
     """

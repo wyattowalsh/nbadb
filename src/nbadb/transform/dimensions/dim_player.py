@@ -77,5 +77,4 @@ class DimPlayerTransformer(SqlTransformer):
                 PARTITION BY player_id ORDER BY valid_from
             ) IS NULL THEN TRUE ELSE FALSE END AS is_current
         FROM changes
-        ORDER BY player_sk
     """

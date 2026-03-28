@@ -18,5 +18,4 @@ class AggTeamFranchiseTransformer(SqlTransformer):
                  ELSE NULL
             END AS computed_win_pct
         FROM stg_franchise
-        ORDER BY franchise_age_years DESC NULLS LAST, team_id
     """

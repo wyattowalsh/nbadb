@@ -75,10 +75,3 @@ class DimDateSchema(BaseSchema):
             "description": ("NBA season (e.g. 2024-25)"),
         },
     )
-    nba_phase: str | None = pa.Field(
-        nullable=True,
-        metadata={
-            "source": "derived.nba_phase",
-            "description": ("NBA season phase name"),
-        },
-    )

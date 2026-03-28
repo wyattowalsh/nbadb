@@ -21,5 +21,4 @@ class BridgePlayPlayerTransformer(SqlTransformer):
         SELECT game_id, event_num, 3 AS slot, player3_id AS player_id,
                player3_team_id AS team_id
         FROM stg_play_by_play WHERE player3_id IS NOT NULL
-        ORDER BY game_id, event_num, slot
     """

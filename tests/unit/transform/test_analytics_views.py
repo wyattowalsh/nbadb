@@ -300,6 +300,7 @@ def test_analytics_player_season_complete():
     per36 = pl.DataFrame(
         {
             "player_id": [101],
+            "team_id": [1],
             "season_year": [2024],
             "season_type": ["Regular Season"],
             "gp": [82],
@@ -315,6 +316,7 @@ def test_analytics_player_season_complete():
     per48 = pl.DataFrame(
         {
             "player_id": [101],
+            "team_id": [1],
             "season_year": [2024],
             "season_type": ["Regular Season"],
             "gp": [82],
@@ -351,6 +353,116 @@ def test_analytics_player_season_complete():
     conn.close()
 
 
+def test_analytics_player_season_complete_traded_player_no_fanout():
+    """A traded player (2 team rows) must not fan out via per36/per48 joins."""
+    transformer = AnalyticsPlayerSeasonCompleteTransformer()
+
+    dim_player = _dim_player_df(player_id=101, team_id=1)
+    dim_team = pl.concat(
+        [
+            _dim_team_df(team_id=1, abbreviation="AAA", full_name="Alpha"),
+            _dim_team_df(team_id=2, abbreviation="BBB", full_name="Beta"),
+        ]
+    )
+
+    # Player played for 2 teams in the same season
+    agg_season = pl.DataFrame(
+        {
+            "player_id": [101, 101],
+            "team_id": [1, 2],
+            "season_year": [2024, 2024],
+            "season_type": ["Regular Season", "Regular Season"],
+            "gp": [40, 42],
+            "total_min": [1400.0, 1400.0],
+            "avg_min": [35.0, 33.3],
+            "total_pts": [1000, 1050],
+            "avg_pts": [25.0, 25.0],
+            "total_reb": [200, 210],
+            "avg_reb": [5.0, 5.0],
+            "total_ast": [280, 294],
+            "avg_ast": [7.0, 7.0],
+            "total_stl": [80, 84],
+            "avg_stl": [2.0, 2.0],
+            "total_blk": [40, 42],
+            "avg_blk": [1.0, 1.0],
+            "total_tov": [120, 126],
+            "avg_tov": [3.0, 3.0],
+            "total_fgm": [360, 378],
+            "total_fga": [720, 756],
+            "fg_pct": [0.5, 0.5],
+            "total_fg3m": [120, 126],
+            "total_fg3a": [280, 294],
+            "fg3_pct": [0.429, 0.429],
+            "total_ftm": [160, 168],
+            "total_fta": [200, 210],
+            "ft_pct": [0.8, 0.8],
+            "avg_off_rating": [115.0, 114.0],
+            "avg_def_rating": [105.0, 106.0],
+            "avg_net_rating": [10.0, 8.0],
+            "avg_ts_pct": [0.6, 0.59],
+            "avg_usg_pct": [0.28, 0.27],
+            "avg_pie": [0.15, 0.14],
+        }
+    )
+    per36 = pl.DataFrame(
+        {
+            "player_id": [101, 101],
+            "team_id": [1, 2],
+            "season_year": [2024, 2024],
+            "season_type": ["Regular Season", "Regular Season"],
+            "gp": [40, 42],
+            "avg_min": [35.0, 33.3],
+            "pts_per36": [25.7, 27.0],
+            "reb_per36": [5.1, 5.4],
+            "ast_per36": [7.2, 7.6],
+            "stl_per36": [2.1, 2.2],
+            "blk_per36": [1.0, 1.1],
+            "tov_per36": [3.1, 3.2],
+        }
+    )
+    per48 = pl.DataFrame(
+        {
+            "player_id": [101, 101],
+            "team_id": [1, 2],
+            "season_year": [2024, 2024],
+            "season_type": ["Regular Season", "Regular Season"],
+            "gp": [40, 42],
+            "avg_min": [35.0, 33.3],
+            "pts_per48": [34.3, 36.0],
+            "reb_per48": [6.9, 7.2],
+            "ast_per48": [9.6, 10.1],
+            "stl_per48": [2.7, 2.9],
+            "blk_per48": [1.4, 1.5],
+            "tov_per48": [4.1, 4.3],
+        }
+    )
+
+    staging = {
+        "agg_player_season": agg_season.lazy(),
+        "agg_player_season_per36": per36.lazy(),
+        "agg_player_season_per48": per48.lazy(),
+        "dim_player": dim_player.lazy(),
+        "dim_team": dim_team.lazy(),
+    }
+
+    conn = duckdb.connect()
+    for key, val in staging.items():
+        conn.register(key, val.collect())
+    transformer._conn = conn
+
+    result = transformer.transform(staging)
+
+    # Exactly 2 rows: one per team stint, no fan-out
+    assert result.shape[0] == 2, f"Expected 2 rows, got {result.shape[0]}"
+    # Verify each team stint has the correct per36 data
+    team1 = result.filter(pl.col("team_id") == 1)
+    team2 = result.filter(pl.col("team_id") == 2)
+    assert team1.shape[0] == 1
+    assert team2.shape[0] == 1
+    assert team1["pts_per36"][0] != team2["pts_per36"][0]
+    conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Test 3: analytics_team_season_summary
 # ---------------------------------------------------------------------------
@@ -383,6 +495,7 @@ def test_analytics_team_season_summary():
         {
             "team_id": [1],
             "season_year": [2024],
+            "season_type": ["Regular Season"],
             "conference": ["East"],
             "division": ["Atlantic"],
             "wins": [52],

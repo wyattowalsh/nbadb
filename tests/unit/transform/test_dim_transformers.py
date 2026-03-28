@@ -104,9 +104,9 @@ class TestDimShotZoneTransformer:
         staging = {
             "stg_shot_chart": pl.DataFrame(
                 {
-                    "zone_basic": ["Restricted Area", "Mid-Range", "Restricted Area"],
-                    "zone_area": ["Center(C)", "Left Side(L)", "Center(C)"],
-                    "zone_range": ["Less Than 8 ft.", "8-16 ft.", "Less Than 8 ft."],
+                    "shot_zone_basic": ["Restricted Area", "Mid-Range", "Restricted Area"],
+                    "shot_zone_area": ["Center(C)", "Left Side(L)", "Center(C)"],
+                    "shot_zone_range": ["Less Than 8 ft.", "8-16 ft.", "Less Than 8 ft."],
                 }
             ).lazy(),
         }
@@ -114,7 +114,7 @@ class TestDimShotZoneTransformer:
         result = t.transform(staging)
         assert result.shape[0] == 2  # two unique combinations
         assert "zone_id" in result.columns
-        assert "zone_basic" in result.columns
+        assert "shot_zone_basic" in result.columns
 
     def test_output_table_name(self) -> None:
         from nbadb.transform.dimensions.dim_shot_zone import DimShotZoneTransformer

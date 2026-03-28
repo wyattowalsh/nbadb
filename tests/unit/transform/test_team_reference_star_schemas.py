@@ -3,13 +3,15 @@ from __future__ import annotations
 import duckdb
 import polars as pl
 
-from nbadb.transform.facts.fact_team_awards_conf import FactTeamAwardsConfTransformer
-from nbadb.transform.facts.fact_team_awards_div import FactTeamAwardsDivTransformer
+from nbadb.transform.facts._registry import (
+    FactTeamAwardsConfTransformer,
+    FactTeamAwardsDivTransformer,
+    FactTeamHofTransformer,
+    FactTeamRetiredTransformer,
+    FactTeamSocialSitesTransformer,
+)
 from nbadb.transform.facts.fact_team_background import FactTeamBackgroundTransformer
-from nbadb.transform.facts.fact_team_hof import FactTeamHofTransformer
-from nbadb.transform.facts.fact_team_retired import FactTeamRetiredTransformer
 from nbadb.transform.facts.fact_team_season_ranks import FactTeamSeasonRanksTransformer
-from nbadb.transform.facts.fact_team_social_sites import FactTeamSocialSitesTransformer
 from nbadb.transform.pipeline import _star_schema_map
 
 

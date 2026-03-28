@@ -19,6 +19,7 @@ class AggOnOffSplitsTransformer(SqlTransformer):
             player_id AS entity_id,
             team_id,
             season_year,
+            season_type,
             on_off,
             gp, min, pts, reb, ast,
             off_rating, def_rating, net_rating
@@ -26,9 +27,10 @@ class AggOnOffSplitsTransformer(SqlTransformer):
         UNION ALL BY NAME
         SELECT
             'team' AS entity_type,
-            NULL AS entity_id,
+            team_id AS entity_id,
             team_id,
             season_year,
+            season_type,
             on_off,
             gp, min, pts, reb, ast,
             off_rating, def_rating, net_rating
@@ -39,9 +41,9 @@ class AggOnOffSplitsTransformer(SqlTransformer):
             player_id AS entity_id,
             team_id,
             season_year,
+            season_type,
             on_off,
             gp, min, pts, reb, ast,
             off_rating, def_rating, net_rating
         FROM stg_player_on_details
-        ORDER BY season_year, entity_type, entity_id
     """

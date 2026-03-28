@@ -17,5 +17,4 @@ class FactWinProbabilityTransformer(SqlTransformer):
             home_pts, visitor_pts,
             home_score_margin
         FROM stg_win_probability
-        ORDER BY game_id, event_num
     """

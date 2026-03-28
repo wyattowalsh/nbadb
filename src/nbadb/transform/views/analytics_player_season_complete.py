@@ -42,12 +42,14 @@ class AnalyticsPlayerSeasonCompleteTransformer(SqlTransformer):
             ON s.player_id = p36.player_id
             AND s.season_year = p36.season_year
             AND s.season_type = p36.season_type
+            AND s.team_id = p36.team_id
         LEFT JOIN agg_player_season_per48 p100
             ON s.player_id = p100.player_id
             AND s.season_year = p100.season_year
             AND s.season_type = p100.season_type
+            AND s.team_id = p100.team_id
+        -- is_current=TRUE: player name from current record; team_id from fact table
         LEFT JOIN dim_player p
             ON s.player_id = p.player_id AND p.is_current = TRUE
         LEFT JOIN dim_team tm ON s.team_id = tm.team_id
-        ORDER BY s.season_year, s.season_type, s.avg_pts DESC
     """

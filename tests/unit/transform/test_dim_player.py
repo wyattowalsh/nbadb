@@ -93,7 +93,7 @@ class TestDimPlayerTransformer:
         stg = _make_player_info()
         t = DimPlayerTransformer()
         result = _run_transform(t, {"stg_player_info": stg.lazy()})
-        sks = result["player_sk"].to_list()
+        sks = sorted(result["player_sk"].to_list())
         assert sks == list(range(1, len(sks) + 1))
 
     def test_single_team_player_has_one_row(self) -> None:
