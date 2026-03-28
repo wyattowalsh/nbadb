@@ -47,11 +47,19 @@ Eight endpoints stock the league desk with season-wide views.
 | `LeagueSeasonMatchups` | `season` (required), various player/team filters | `SeasonMatchups` | `off_player_id`, `def_player_id`, `gp`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga`, `matchup_fg_pct` | Use when the question is who guarded whom over a season |
 | `LeagueDashLineups` | `season` (required), `group_quantity` (2-5 players) | `Lineups` | `group_set`, `gp`, `min`, `plus_minus`, various per-mode stats | Use when the unit, not the player or team, is the thing you are studying |
 
+**Lands in:**
+- `SynergyPlayTypes` &rarr; `stg_synergy` &rarr; `fact_synergy`
+- `LeagueSeasonMatchups` &rarr; `stg_season_matchups` &rarr; `fact_season_matchups`
+- `LeagueDashLineups` &rarr; `stg_lineup` &rarr; `fact_lineup_stats`, `bridge_lineup_player`
+
 ## Historical leaders
 
 | Endpoint | Parameters | Result sets | Route cue |
 | -------- | ---------- | ----------- | --------- |
 | `AllTimeLeadersGrids` | none listed | multiple leader grids | Use when season filters are no longer enough and the question is all-time career or season placement |
+
+**Lands in:**
+- `AllTimeLeadersGrids` &rarr; `stg_all_time_leaders_*` (19 staging tables, one per stat category) &rarr; `agg_all_time_leaders`
 
 ## Route cues
 
