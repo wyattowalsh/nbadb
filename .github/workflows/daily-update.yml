@@ -111,7 +111,7 @@ jobs:
         if: always() && steps.daily.outcome != 'skipped'
         uses: ./.github/actions/refresh-metadata
         with:
-          data-dir: nbadb
+          data-dir: data/nbadb
       - name: Upload to Kaggle
         if: always() && steps.daily.outcome != 'skipped'
         env:

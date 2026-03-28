@@ -15,7 +15,7 @@ class NbaDbSettings(BaseSettings):
         extra="ignore",
     )
 
-    data_dir: Path = Path("nbadb")
+    data_dir: Path = Path("data/nbadb")
     log_dir: Path = Path("logs")
 
     formats: list[str] = ["sqlite", "duckdb", "csv", "parquet"]

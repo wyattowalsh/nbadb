@@ -47,7 +47,7 @@ docs/docs/
 *.duckdb.wal
 
 # Local exported datasets / pipeline output
-/nbadb/
+/data/nbadb/
 
 # Misc
 *.bak
