@@ -40,12 +40,20 @@ Six endpoints assemble the franchise coverage board.
 | `TeamDetails` | `team_id` (required) | `TeamBackground`, `TeamHistory`, `TeamSocialSites`, `TeamAwardsChampionships`, `TeamAwardsConf`, `TeamAwardsDiv`, `TeamHof`, `TeamRetired` | `abbreviation`, `nickname`, `yearfounded`, `city`, `arena`, `arenacapacity`, `owner`, `generalmanager`, `headcoach` | Use when the team file needs ownership, venue, honors, or retired-number context |
 | `CommonTeamRoster` | `team_id` (required), `season` (required) | `CommonTeamRoster`, `Coaches` | player roster rows plus coaching staff rows | Use when the question is about who was on the team in a specific season |
 
+**Lands in:**
+- `TeamDetails` &rarr; `stg_team_background`, `stg_team_history`, `stg_team_social_sites`, etc. &rarr; `fact_team_background`, `fact_team_history_detail`, `fact_team_social_sites`, `fact_team_awards_conf`, `fact_team_awards_div`, `fact_team_hof`, `fact_team_retired`
+- `CommonTeamRoster` &rarr; `stg_coaches`, `stg_team_info` &rarr; `dim_coach`, `dim_player`
+
 ## Franchise history lane
 
 | Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
 | -------- | ---------- | ----------- | --------------------- | --------- |
 | `FranchiseHistory` | none listed | `FranchiseHistory`, `DefunctTeams` | `team_id`, `team_city`, `team_name`, `start_year`, `end_year`, `years`, `games`, `wins`, `losses`, `win_pct`, `po_appearances`, `div_titles`, `conf_titles`, `league_titles` | Use when relocation, naming, or defunct-team lineage is part of the question |
 | `TeamYearByYearStats` | `team_id` (required) | `TeamStats` | year-by-year team statistical output | Use when you want the franchise trendline rather than one-season snapshot |
+
+**Lands in:**
+- `FranchiseHistory` &rarr; `stg_franchise_history`, `stg_defunct_teams` &rarr; `dim_team_history`, `dim_defunct_team`, `fact_franchise_detail`
+- `TeamYearByYearStats` &rarr; `stg_team_yby` &rarr; `fact_team_historical`
 
 ## Route cues
 

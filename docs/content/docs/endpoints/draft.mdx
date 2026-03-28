@@ -30,6 +30,10 @@ Seven endpoints build the draft room packet.
 | `DraftHistory` | none listed | `DraftHistory` | Use when the question spans multiple classes, historical picks, or franchise draft history |
 | `DraftBoard` | `season` (required) | `DraftBoard` | Use when you need one class in exact pick order, not the whole historical ledger |
 
+**Lands in:**
+- `DraftHistory` &rarr; `stg_draft` &rarr; `fact_draft`
+- `DraftBoard` &rarr; `stg_draft_board` &rarr; `fact_draft_board`
+
 ## Combine packet
 
 | Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
@@ -39,6 +43,13 @@ Seven endpoints build the draft room packet.
 | `DraftCombineSpotShooting` | `season` (required) | `Results` | spot-up shooting test output | Pull this when stationary jumper drills matter more than measurements |
 | `DraftCombineNonStationaryShooting` | `season` (required) | `Results` | off-the-dribble shooting test output | Use when movement shooting is the evaluation focus |
 | `DraftCombinePlayerAnthro` | `season` (required) | `Results` | `height_wo_shoes`, `height_w_shoes`, `weight`, `wingspan`, `standing_reach`, `body_fat_pct`, `hand_length`, `hand_width` | Best for measurement-only comparisons or size filters |
+
+**Lands in:**
+- `DraftCombineStats` &rarr; `stg_draft_combine` &rarr; `fact_draft_combine_detail`
+- `DraftCombineDrillResults` &rarr; `stg_draft_combine_drills` &rarr; `fact_draft_combine_detail`
+- `DraftCombineSpotShooting` &rarr; `stg_draft_combine_spot` &rarr; `fact_draft_combine_detail`
+- `DraftCombineNonStationaryShooting` &rarr; `stg_draft_combine_nonstationary` &rarr; `fact_draft_combine_detail`
+- `DraftCombinePlayerAnthro` &rarr; `stg_draft_combine_anthro` &rarr; `fact_draft_combine_detail`
 
 ## Route cues
 

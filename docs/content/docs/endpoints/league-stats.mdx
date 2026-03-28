@@ -33,6 +33,12 @@ Eight endpoints stock the league desk with season-wide views.
 | `LeagueStandingsV3` | `league_id`, `season`, `season_type` | `Standings` | Best first stop when rank, record, streak, and conference context matter |
 | `LeagueLeaders` | `season` (required), `stat_category`, `per_mode` | `LeagueLeaders` | Use when you want a clean stat-category leaderboard without the full dashboard surface |
 
+**Lands in:**
+- `LeagueDashPlayerStats` &rarr; `stg_league_dash_player_stats` &rarr; `fact_league_dash_player_stats`
+- `LeagueDashTeamStats` &rarr; `stg_league_dash_team_stats` &rarr; `fact_league_dash_team_stats`
+- `LeagueStandingsV3` &rarr; `stg_standings` &rarr; `fact_standings`
+- `LeagueLeaders` &rarr; `stg_league_leaders` &rarr; `fact_league_leaders_detail`
+
 ## Combinations and matchup scouting
 
 | Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
