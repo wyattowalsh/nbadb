@@ -20,9 +20,13 @@ class FactPlayerMatchupsDetailSchema(BaseSchema):
             "description": "Result-set variant within the comparison family",
         },
     )
-    group_set: str = pa.Field()
-    group_value: str | None = pa.Field(nullable=True)
-    description: str | None = pa.Field(nullable=True)
+    group_set: str = pa.Field(metadata={"description": "Matchup grouping set"})
+    group_value: str | None = pa.Field(
+        nullable=True, metadata={"description": "Matchup grouping value"}
+    )
+    description: str | None = pa.Field(
+        nullable=True, metadata={"description": "Matchup description"}
+    )
     player_id: int | None = pa.Field(nullable=True, gt=0)
     player_name: str | None = pa.Field(nullable=True)
     vs_player_id: int | None = pa.Field(nullable=True, gt=0)

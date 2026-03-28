@@ -17,8 +17,8 @@ class FactTeamAwardsDivSchema(BaseSchema):
 
 class FactTeamBackgroundSchema(BaseSchema):
     team_id: int = pa.Field(gt=0)
-    abbreviation: str = pa.Field()
-    nickname: str = pa.Field()
+    abbreviation: str = pa.Field(metadata={"description": "Team abbreviation code"})
+    nickname: str = pa.Field(metadata={"description": "Team nickname"})
     yearfounded: int | None = pa.Field(nullable=True, gt=1900)
     city: str | None = pa.Field(nullable=True)
     arena: str | None = pa.Field(nullable=True)

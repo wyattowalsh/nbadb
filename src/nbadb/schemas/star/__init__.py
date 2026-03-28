@@ -5,18 +5,22 @@ from nbadb.schemas.star.bridge_game_team import BridgeGameTeamSchema
 from nbadb.schemas.star.bridge_lineup_player import BridgeLineupPlayerSchema
 from nbadb.schemas.star.bridge_play_player import BridgePlayPlayerSchema
 from nbadb.schemas.star.bridge_player_team_season import BridgePlayerTeamSeasonSchema
+from nbadb.schemas.star.dim_all_players import DimAllPlayersSchema
 from nbadb.schemas.star.dim_arena import DimArenaSchema
 from nbadb.schemas.star.dim_coach import DimCoachSchema
 from nbadb.schemas.star.dim_college import DimCollegeSchema
 from nbadb.schemas.star.dim_date import DimDateSchema
+from nbadb.schemas.star.dim_defunct_team import DimDefunctTeamSchema
 from nbadb.schemas.star.dim_game import DimGameSchema
 from nbadb.schemas.star.dim_official import DimOfficialSchema
 from nbadb.schemas.star.dim_play_event_type import DimPlayEventTypeSchema
 from nbadb.schemas.star.dim_player import DimPlayerSchema
 from nbadb.schemas.star.dim_season import DimSeasonSchema
 from nbadb.schemas.star.dim_season_phase import DimSeasonPhaseSchema
+from nbadb.schemas.star.dim_season_week import DimSeasonWeekSchema
 from nbadb.schemas.star.dim_shot_zone import DimShotZoneSchema
 from nbadb.schemas.star.dim_team import DimTeamSchema
+from nbadb.schemas.star.dim_team_extended import DimTeamExtendedSchema
 from nbadb.schemas.star.dim_team_history import DimTeamHistorySchema
 from nbadb.schemas.star.fact_box_score_four_factors import FactBoxScoreFourFactorsSchema
 from nbadb.schemas.star.fact_draft import FactDraftSchema
@@ -51,18 +55,22 @@ __all__ = [
     "BridgeLineupPlayerSchema",
     "BridgePlayPlayerSchema",
     "BridgePlayerTeamSeasonSchema",
+    "DimAllPlayersSchema",
     "DimArenaSchema",
     "DimCoachSchema",
     "DimCollegeSchema",
     "DimDateSchema",
+    "DimDefunctTeamSchema",
     "DimGameSchema",
     "DimOfficialSchema",
     "DimPlayEventTypeSchema",
     "DimPlayerSchema",
     "DimSeasonSchema",
     "DimSeasonPhaseSchema",
+    "DimSeasonWeekSchema",
     "DimShotZoneSchema",
     "DimTeamSchema",
+    "DimTeamExtendedSchema",
     "DimTeamHistorySchema",
     "FactBoxScoreFourFactorsSchema",
     "FactDraftSchema",

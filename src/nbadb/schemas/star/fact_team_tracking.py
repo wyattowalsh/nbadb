@@ -6,8 +6,8 @@ from nbadb.schemas.base import BaseSchema
 
 
 class FactTeamLineupsOverallSchema(BaseSchema):
-    group_set: str = pa.Field()
-    group_id: str = pa.Field()
+    group_set: str = pa.Field(metadata={"description": "Lineup grouping set"})
+    group_id: str = pa.Field(metadata={"description": "Lineup group identifier"})
     group_name: str | None = pa.Field(nullable=True)
     gp: int | None = pa.Field(nullable=True, ge=0)
     w: int | None = pa.Field(nullable=True, ge=0)
@@ -61,7 +61,9 @@ class FactTeamLineupsOverallSchema(BaseSchema):
     pfd_rank: int | None = pa.Field(nullable=True, ge=0)
     pts_rank: int | None = pa.Field(nullable=True, ge=0)
     plus_minus_rank: int | None = pa.Field(nullable=True, ge=0)
-    season_type: str = pa.Field()
+    season_type: str = pa.Field(
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
+    )
 
 
 class FactTeamPtRebDetailSchema(BaseSchema):
@@ -82,7 +84,9 @@ class FactTeamPtRebDetailSchema(BaseSchema):
     uc_dreb: int | None = pa.Field(nullable=True, ge=0)
     uc_reb: int | None = pa.Field(nullable=True, ge=0)
     uc_reb_pct: float | None = pa.Field(nullable=True, ge=0.0)
-    season_type: str = pa.Field()
+    season_type: str = pa.Field(
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
+    )
 
 
 class FactTeamPtShotsDetailSchema(BaseSchema):
@@ -104,7 +108,9 @@ class FactTeamPtShotsDetailSchema(BaseSchema):
     fg3m: int | None = pa.Field(nullable=True, ge=0)
     fg3a: int | None = pa.Field(nullable=True, ge=0)
     fg3_pct: float | None = pa.Field(nullable=True, ge=0.0)
-    season_type: str = pa.Field()
+    season_type: str = pa.Field(
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
+    )
 
 
 class FactTeamPtTrackingSchema(BaseSchema):
@@ -147,4 +153,6 @@ class FactTeamPtTrackingSchema(BaseSchema):
     efg_pct: float | None = pa.Field(nullable=True, ge=0.0)
     fg2a_frequency: float | None = pa.Field(nullable=True, ge=0.0)
     fg3a_frequency: float | None = pa.Field(nullable=True, ge=0.0)
-    season_type: str = pa.Field()
+    season_type: str = pa.Field(
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
+    )

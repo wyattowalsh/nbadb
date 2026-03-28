@@ -20,8 +20,10 @@ class FactTeamMatchupsShotDetailSchema(BaseSchema):
             "description": "On/off/overall scope of the shot split",
         },
     )
-    group_set: str = pa.Field()
-    group_value: str | None = pa.Field(nullable=True)
+    group_set: str = pa.Field(metadata={"description": "Shot matchup grouping set"})
+    group_value: str | None = pa.Field(
+        nullable=True, metadata={"description": "Shot matchup grouping value"}
+    )
     team_id: int | None = pa.Field(nullable=True, gt=0)
     team_abbreviation: str | None = pa.Field(nullable=True)
     team_name: str | None = pa.Field(nullable=True)

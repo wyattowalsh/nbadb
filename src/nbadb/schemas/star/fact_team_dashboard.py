@@ -6,20 +6,26 @@ from nbadb.schemas.base import BaseSchema
 
 
 class _TeamDashboardSeasonTypeMixin(BaseSchema):
-    season_type: str = pa.Field()
+    season_type: str = pa.Field(
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
+    )
 
 
 class _TeamDashboardGroupSetMixin(BaseSchema):
-    group_set: str = pa.Field()
+    group_set: str = pa.Field(metadata={"description": "Dashboard grouping set"})
 
 
 class _TeamDashboardGroupingMixin(_TeamDashboardGroupSetMixin):
-    group_value: str | None = pa.Field(nullable=True)
+    group_value: str | None = pa.Field(
+        nullable=True, metadata={"description": "Dashboard grouping value"}
+    )
 
 
 class _TeamDashboardPlayerIdentityMixin(BaseSchema):
-    player_id: int = pa.Field(gt=0)
-    player_name: str | None = pa.Field(nullable=True)
+    player_id: int = pa.Field(gt=0, metadata={"description": "Player identifier"})
+    player_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player display name"}
+    )
 
 
 class _TeamDashboardReferenceMixin(BaseSchema):
@@ -131,7 +137,7 @@ class FactTeamDashboardGeneralOverallSchema(
     _TeamDashboardReferenceMixin,
     BaseSchema,
 ):
-    season_year: str = pa.Field()
+    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
 
 
 class FactTeamDashboardShootingOverallSchema(
@@ -170,5 +176,10 @@ class FactTeamSplitsSchema(
     _TeamDashboardReferenceMixin,
     BaseSchema,
 ):
-    season_year: str | None = pa.Field(nullable=True)
-    split_type: str = pa.Field(isin=["general", "shooting"])
+    season_year: str | None = pa.Field(
+        nullable=True, metadata={"description": "Season year (e.g. 2024-25)"}
+    )
+    split_type: str = pa.Field(
+        isin=["general", "shooting"],
+        metadata={"description": "Dashboard split family (general or shooting)"},
+    )

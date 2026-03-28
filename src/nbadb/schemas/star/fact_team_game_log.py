@@ -10,7 +10,7 @@ class FactTeamGameLogSchema(BaseSchema):
     team_id: int = pa.Field(gt=0)
     team_abbreviation: str | None = pa.Field(nullable=True)
     team_name: str | None = pa.Field(nullable=True)
-    game_id: str = pa.Field()
+    game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
     game_date: str | None = pa.Field(nullable=True)
     matchup: str | None = pa.Field(nullable=True)
     wl: str | None = pa.Field(nullable=True, isin=["W", "L"])

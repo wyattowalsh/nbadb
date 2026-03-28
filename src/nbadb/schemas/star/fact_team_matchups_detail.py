@@ -29,10 +29,16 @@ class FactTeamMatchupsDetailSchema(BaseSchema):
             "description": "Result-set variant within the team comparison family",
         },
     )
-    group_set: str = pa.Field()
-    group_value: str | None = pa.Field(nullable=True)
-    title_description: str | None = pa.Field(nullable=True)
-    description: str | None = pa.Field(nullable=True)
+    group_set: str = pa.Field(metadata={"description": "Matchup grouping set"})
+    group_value: str | None = pa.Field(
+        nullable=True, metadata={"description": "Matchup grouping value"}
+    )
+    title_description: str | None = pa.Field(
+        nullable=True, metadata={"description": "Title description for the matchup"}
+    )
+    description: str | None = pa.Field(
+        nullable=True, metadata={"description": "Matchup description"}
+    )
     team_id: int | None = pa.Field(nullable=True, gt=0)
     team_abbreviation: str | None = pa.Field(nullable=True)
     team_name: str | None = pa.Field(nullable=True)
