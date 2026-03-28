@@ -158,113 +158,130 @@ def draw_court_plotly(line_color: str = "#999999", line_width: int = 1) -> list[
 
 
 # ---------------------------------------------------------------------------
-# Court drawing — matplotlib
+# Court drawing — matplotlib (sportypy)
 # ---------------------------------------------------------------------------
-def draw_court_matplotlib(ax, line_color: str = "black", line_width: int = 1):
-    """Draw an NBA half-court on a matplotlib Axes.
+def nba_api_to_court_coords(loc_x: np.ndarray, loc_y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Convert nba_api shot coordinates to sportypy court coordinates.
 
-    Requires ``matplotlib`` to be importable.
+    nba_api uses 1/10th of a foot with basket at (0, 0).
+    sportypy uses feet with a 90° rotation.
+
+    Returns (x_court, y_court) in feet.
     """
-    import matplotlib.patches as patches
+    theta = 0.5 * np.pi
+    x_r = (loc_x * np.cos(theta)) - (loc_y * np.sin(theta))
+    y_r = (loc_x * np.sin(theta)) + (loc_y * np.cos(theta))
+    return x_r / 10.0, y_r / 10.0
+
+
+def draw_court_matplotlib(ax=None, display_range: str = "offense"):
+    """Draw an NBA court on a matplotlib Axes using sportypy.
+
+    Parameters
+    ----------
+    ax : matplotlib Axes, optional
+        Target axes; creates a new figure if not provided.
+    display_range : str
+        Portion of court to show (``'full'``, ``'offense'``, ``'in bounds only'``).
+
+    Returns
+    -------
+    matplotlib Axes with the court drawn.
+    """
+    from sportypy.surfaces.basketball import NBACourt
+
+    court = NBACourt(x_trans=-41.75)
+    return court.draw(ax=ax, display_range=display_range)
+
+
+def shot_heatmap(
+    loc_x: np.ndarray,
+    loc_y: np.ndarray,
+    values: np.ndarray | None = None,
+    ax=None,
+    display_range: str = "offense",
+    cmap: str = "hot",
+    alpha: float = 0.75,
+    **kwargs,
+):
+    """Plot a shot heatmap on an NBA court using sportypy.
+
+    Accepts raw nba_api coordinates (1/10th ft) — coordinate
+    conversion is handled automatically.
+
+    Parameters
+    ----------
+    loc_x, loc_y : array-like
+        Shot coordinates from nba_api (LOC_X, LOC_Y).
+    values : array-like, optional
+        Values for coloring (e.g., 1=made, 0=missed for FG%).
+    ax : matplotlib Axes, optional
+        Target axes.
+    display_range : str
+        Court display range.
+    cmap : str
+        Matplotlib colormap name.
+    alpha : float
+        Heatmap transparency.
+    **kwargs
+        Additional keyword arguments passed to ``NBACourt.heatmap()``.
+    """
     import matplotlib.pyplot as plt
-    from matplotlib.patches import Arc
+    from sportypy.surfaces.basketball import NBACourt
 
-    # Court outline
-    court = patches.Rectangle(
-        (-250, -47.5),
-        500,
-        470,
-        linewidth=line_width,
-        edgecolor=line_color,
-        facecolor="#f5f5f0",
-        zorder=0,
+    if ax is None:
+        _, ax = plt.subplots(1, 1, figsize=(12, 11))
+
+    court = NBACourt(x_trans=-41.75)
+    court.draw(ax=ax, display_range=display_range)
+
+    x_court, y_court = nba_api_to_court_coords(
+        np.asarray(loc_x, dtype=float),
+        np.asarray(loc_y, dtype=float),
     )
-    ax.add_patch(court)
 
-    # Hoop (circle, radius 7.5)
-    hoop = plt.Circle(
-        (0, 0),
-        7.5,
-        linewidth=line_width,
-        edgecolor="orange",
-        facecolor="none",
-        zorder=5,
+    court.heatmap(x_court, y_court, values=values, ax=ax, cmap=cmap, alpha=alpha, **kwargs)
+    return ax
+
+
+def shot_scatter(
+    loc_x: np.ndarray,
+    loc_y: np.ndarray,
+    ax=None,
+    display_range: str = "offense",
+    **kwargs,
+):
+    """Plot shot locations as a scatter plot on an NBA court using sportypy.
+
+    Accepts raw nba_api coordinates (1/10th ft).
+
+    Parameters
+    ----------
+    loc_x, loc_y : array-like
+        Shot coordinates from nba_api (LOC_X, LOC_Y).
+    ax : matplotlib Axes, optional
+        Target axes.
+    display_range : str
+        Court display range.
+    **kwargs
+        Additional keyword arguments passed to ``NBACourt.scatter()``.
+    """
+    import matplotlib.pyplot as plt
+    from sportypy.surfaces.basketball import NBACourt
+
+    if ax is None:
+        _, ax = plt.subplots(1, 1, figsize=(12, 11))
+
+    court = NBACourt(x_trans=-41.75)
+    court.draw(ax=ax, display_range=display_range)
+
+    x_court, y_court = nba_api_to_court_coords(
+        np.asarray(loc_x, dtype=float),
+        np.asarray(loc_y, dtype=float),
     )
-    ax.add_patch(hoop)
 
-    # Backboard
-    ax.plot([-30, 30], [-7.5, -7.5], color=line_color, linewidth=line_width, zorder=5)
-
-    # Paint rectangle
-    paint = patches.Rectangle(
-        (-80, -47.5),
-        160,
-        190,
-        linewidth=line_width,
-        edgecolor=line_color,
-        facecolor="none",
-        zorder=5,
-    )
-    ax.add_patch(paint)
-
-    # Free throw circle
-    ft_circle = Arc(
-        (0, 142.5),
-        120,
-        120,
-        angle=0,
-        theta1=0,
-        theta2=180,
-        linewidth=line_width,
-        edgecolor=line_color,
-        zorder=5,
-    )
-    ax.add_patch(ft_circle)
-    ft_circle_dash = Arc(
-        (0, 142.5),
-        120,
-        120,
-        angle=0,
-        theta1=180,
-        theta2=360,
-        linewidth=line_width,
-        edgecolor=line_color,
-        linestyle="dashed",
-        zorder=5,
-    )
-    ax.add_patch(ft_circle_dash)
-
-    # Restricted area arc (radius 40)
-    restricted = Arc(
-        (0, 0),
-        80,
-        80,
-        angle=0,
-        theta1=0,
-        theta2=180,
-        linewidth=line_width,
-        edgecolor=line_color,
-        zorder=5,
-    )
-    ax.add_patch(restricted)
-
-    # Three-point arc
-    three_arc = Arc(
-        (0, 0),
-        475,
-        475,
-        angle=0,
-        theta1=22,
-        theta2=158,
-        linewidth=line_width,
-        edgecolor=line_color,
-        zorder=5,
-    )
-    ax.add_patch(three_arc)
-
-    # Corner three lines
-    ax.plot([-220, -220], [-47.5, 92.5], color=line_color, linewidth=line_width, zorder=5)
-    ax.plot([220, 220], [-47.5, 92.5], color=line_color, linewidth=line_width, zorder=5)
+    court.scatter(x_court, y_court, ax=ax, **kwargs)
+    return ax
 
 
 # ---------------------------------------------------------------------------
@@ -321,3 +338,80 @@ def render_cross_links(current: str) -> str:
         if nb != current
     )
     return f"| Part | Notebook | Description |\n|---|---|---|\n{rows}"
+
+
+# ---------------------------------------------------------------------------
+# Great Tables — publication-quality styled tables
+# ---------------------------------------------------------------------------
+def styled_table(
+    df,
+    title: str = "",
+    subtitle: str = "",
+    source_note: str = "",
+):
+    """Create a publication-quality NBA-themed table with Great Tables.
+
+    Parameters
+    ----------
+    df : polars.DataFrame or pandas.DataFrame
+        Data to display.
+    title : str
+        Table title.
+    subtitle : str
+        Table subtitle.
+    source_note : str
+        Footnote/source attribution.
+
+    Returns
+    -------
+    great_tables.GT
+        Styled GT object (renders as HTML in Jupyter).
+    """
+    from great_tables import GT, loc, style
+
+    gt = GT(df)
+
+    if title:
+        gt = gt.tab_header(title=title, subtitle=subtitle or None)
+
+    if source_note:
+        gt = gt.tab_source_note(source_note)
+
+    gt = gt.tab_options(
+        heading_background_color=COLORS["secondary"],
+        heading_title_font_size="16px",
+        column_labels_background_color=COLORS["dark"],
+        column_labels_font_weight="bold",
+        table_font_names="Inter, system-ui, sans-serif",
+        table_font_size="13px",
+    ).tab_style(
+        style=style.text(color="white"),
+        locations=loc.column_labels(),
+    )
+
+    return gt
+
+
+# ---------------------------------------------------------------------------
+# itables — interactive DataTables in Jupyter
+# ---------------------------------------------------------------------------
+def interactive_table(df, page_length: int = 25, **kwargs):
+    """Display an interactive searchable/sortable table in Jupyter.
+
+    Parameters
+    ----------
+    df : polars.DataFrame or pandas.DataFrame
+        Data to display.
+    page_length : int
+        Rows per page (default 25).
+    **kwargs
+        Additional keyword arguments passed to ``itables.show()``.
+    """
+    import itables
+
+    itables.show(
+        df,
+        pageLength=page_length,
+        scrollX=True,
+        **kwargs,
+    )

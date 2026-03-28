@@ -43,18 +43,22 @@ Additional metrics:
 
 All functions accept `None` (coerced to 0.0) and guard against division by zero.
 
-**PER / Win Shares**: NOT pre-computed. Require league averages not available in this database. Only compute approximations when the user understands the limitations.
+**PER / Win Shares**: Use `analytics_league_benchmarks` for league-average baselines needed for PER/Win Shares approximations.
 
 ## Table Selection
 
 1. **Simple player stats** → `agg_player_season` (pre-aggregated)
 2. **Game-by-game** → `fact_player_game_log` or `analytics_player_game_complete` (pre-joined)
 3. **Team season overview** → `analytics_team_season_summary` (pre-joined)
-4. **Shot locations** → `fact_shot_chart_detail` (x/y coordinates)
+4. **Shot locations** → `fact_shot_chart` (x/y coordinates)
 5. **Clutch stats** → `analytics_clutch_performance` (pre-joined)
 6. **Head-to-head** → `analytics_head_to_head` (pre-joined)
-7. **Player tracking** → `fact_player_tracking_*` (speed, touches, passes)
+7. **Player tracking** → `fact_player_game_tracking` (speed, touches, passes)
 8. **Need specific columns** → `describe_table` first, then direct `fact_*` query
+9. **Game-level summaries** → `analytics_game_summary` (pre-joined)
+10. **Draft pick outcomes** → `analytics_draft_value` (draft pick career outcomes)
+11. **On/off court impact** → `analytics_player_impact` (on/off court impact analysis)
+12. **League-wide benchmarks** → `analytics_league_benchmarks` (league-wide averages and benchmarks)
 
 Always prefer `analytics_*` views — they pre-join dimensions and save query complexity.
 
@@ -113,7 +117,7 @@ table(df)  # display and save as new last_result
 | `court.zone_chart` | `(df, zone='zone_basic', area='zone_area', fg_pct='fg_pct')` | Zone FG% coloring |
 | `court.compare_shots` | `(df1, df2, name1, name2)` | Side-by-side court plots |
 
-Uses `fact_shot_chart_detail` which has `loc_x`, `loc_y`, `shot_made_flag`, `zone_basic`, `zone_area`.
+Uses `fact_shot_chart` which has `loc_x`, `loc_y`, `shot_made_flag`, `zone_basic`, `zone_area`.
 
 ## Player Comparison (`compare`)
 
