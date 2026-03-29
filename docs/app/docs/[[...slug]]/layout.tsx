@@ -67,8 +67,8 @@ export default async function Layout({
   return (
     <>
       <a
-        href="#fd-docs-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-background focus:text-foreground"
+        href="#nd-page"
+        className="absolute left-0 -translate-y-full z-50 p-4 bg-background text-foreground transition focus:translate-y-0"
       >
         Skip to content
       </a>

@@ -1,43 +1,32 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback } from "react";
 import * as Plot from "@observablehq/plot";
+import {
+  PlotMount,
+  type PlotOptions,
+  withDefaultPlotStyle,
+} from "@/components/mdx/plot-mount";
 import type { ChartInference } from "@/lib/chart-inference";
-
-const PLOT_STYLE = {
-  background: "transparent",
-  color: "currentColor",
-  fontFamily: "inherit",
-  fontSize: "12px",
-} as const;
 
 const PRIMARY = "var(--primary)";
 
 /**
  * Renders an Observable Plot chart inferred from DuckDB query results.
  *
- * Accepts raw columns/rows plus a ChartInference object that describes
- * the chart type and axis mappings. Renders nothing when type is "none".
+ * Accepts query rows plus a ChartInference object that describes the chart
+ * type and axis mappings. Renders nothing when type is "none".
  */
 export function PlotFromResult({
   rows,
   inference,
 }: {
-  columns: string[];
   rows: Record<string, unknown>[];
   inference: ChartInference;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current || inference.type === "none" || rows.length === 0)
-      return;
-
-    const plot = buildPlot(rows, inference);
-    if (!plot) return;
-
-    containerRef.current.append(plot);
-    return () => plot.remove();
+  const createPlot = useCallback(() => {
+    if (inference.type === "none" || rows.length === 0) return null;
+    return buildPlot(rows, inference);
   }, [rows, inference]);
 
   if (inference.type === "none") return null;
@@ -49,7 +38,7 @@ export function PlotFromResult({
           <p className="nba-kicker">{inference.label}</p>
         </div>
       </div>
-      <div ref={containerRef} className="overflow-x-auto px-2 py-3" />
+      <PlotMount createPlot={createPlot} className="overflow-x-auto px-2 py-3" />
     </div>
   );
 }
@@ -80,10 +69,13 @@ function buildPlot(
   }
 }
 
+function createStyledPlot(options: PlotOptions) {
+  return Plot.plot(withDefaultPlotStyle(options));
+}
+
 function buildBar(rows: Record<string, unknown>[], xCol: string, yCol: string) {
-  return Plot.plot({
+  return createStyledPlot({
     marginLeft: 120,
-    style: PLOT_STYLE,
     x: { label: yCol, grid: true },
     y: { label: xCol },
     marks: [
@@ -103,8 +95,7 @@ function buildLine(
   xCol: string,
   yCol: string,
 ) {
-  return Plot.plot({
-    style: PLOT_STYLE,
+  return createStyledPlot({
     x: { label: xCol },
     y: { label: yCol, grid: true },
     marks: [
@@ -125,8 +116,7 @@ function buildScatter(
   xCol: string,
   yCol: string,
 ) {
-  return Plot.plot({
-    style: PLOT_STYLE,
+  return createStyledPlot({
     x: { label: xCol },
     y: { label: yCol, grid: true },
     marks: [
@@ -156,8 +146,7 @@ function buildGroupedBar(
     })),
   );
 
-  return Plot.plot({
-    style: PLOT_STYLE,
+  return createStyledPlot({
     x: { label: xCol },
     y: { label: null, grid: true },
     color: { legend: true },
@@ -186,8 +175,7 @@ function buildMultiLine(
     })),
   );
 
-  return Plot.plot({
-    style: PLOT_STYLE,
+  return createStyledPlot({
     x: { label: xCol },
     y: { label: null, grid: true },
     color: { legend: true },

@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback } from "react";
 import * as Plot from "@observablehq/plot";
 import { CourtSvg } from "@/components/mdx/court-svg";
+import {
+  PlotMount,
+  type PlotOptions,
+  withDefaultPlotStyle,
+} from "@/components/mdx/plot-mount";
 
-export type PlotOptions = Parameters<typeof Plot.plot>[0];
+export type { PlotOptions } from "@/components/mdx/plot-mount";
 
 /**
  * Generic Observable Plot wrapper for MDX.
@@ -27,25 +32,10 @@ export function ObservablePlot({
   /** Additional CSS classes */
   className?: string;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current || !options) return;
-
-    const plot = Plot.plot({
-      ...options,
-      style: {
-        background: "transparent",
-        color: "currentColor",
-        fontFamily: "inherit",
-        fontSize: "12px",
-        ...(typeof options.style === "object" ? options.style : {}),
-      },
-    });
-
-    containerRef.current.append(plot);
-    return () => plot.remove();
-  }, [options]);
+  const createPlot = useCallback(
+    () => Plot.plot(withDefaultPlotStyle(options)),
+    [options],
+  );
 
   return (
     <div className={`nba-viz-shell ${className ?? ""}`}>
@@ -61,32 +51,19 @@ export function ObservablePlot({
           </div>
         </div>
       ) : null}
-      <div ref={containerRef} className="overflow-x-auto px-2 py-3" />
+      <PlotMount createPlot={createPlot} className="overflow-x-auto px-2 py-3" />
     </div>
   );
 }
 
 /** Bare plot renderer without the shell wrapper — used by ShotChart overlay. */
 function ObservablePlotInner({ options }: { options: PlotOptions }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const createPlot = useCallback(
+    () => Plot.plot(withDefaultPlotStyle(options)),
+    [options],
+  );
 
-  useEffect(() => {
-    if (!containerRef.current || !options) return;
-    const plot = Plot.plot({
-      ...options,
-      style: {
-        background: "transparent",
-        color: "currentColor",
-        fontFamily: "inherit",
-        fontSize: "12px",
-        ...(typeof options.style === "object" ? options.style : {}),
-      },
-    });
-    containerRef.current.append(plot);
-    return () => plot.remove();
-  }, [options]);
-
-  return <div ref={containerRef} className="size-full" />;
+  return <PlotMount createPlot={createPlot} className="size-full" />;
 }
 
 /**

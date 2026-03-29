@@ -228,7 +228,6 @@ kbd {
 /* ── Active nav link (stronger indicator) ─────────── */
 #nd-sidebar [data-active="true"] {
   background: color-mix(in oklch, var(--primary) 14%, transparent);
-  border-left: 3px solid var(--primary);
   font-weight: 600;
 }
 

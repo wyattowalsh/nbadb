@@ -93,6 +93,7 @@ export function SqlPlayground({
       }
       setReady(true);
     } catch (err) {
+      initRef.current = false;
       setError(
         err instanceof Error ? err.message : "Failed to initialize DuckDB",
       );
@@ -431,7 +432,6 @@ function ChartView({
   rows: Record<string, unknown>[];
 }) {
   const [PlotComponent, setPlotComponent] = useState<React.ComponentType<{
-    columns: string[];
     rows: Record<string, unknown>[];
     inference: ChartInference;
   }> | null>(null);
@@ -455,7 +455,7 @@ function ChartView({
 
   return (
     <ChartErrorBoundary>
-      <PlotComponent columns={columns} rows={rows} inference={inference} />
+      <PlotComponent rows={rows} inference={inference} />
     </ChartErrorBoundary>
   );
 }

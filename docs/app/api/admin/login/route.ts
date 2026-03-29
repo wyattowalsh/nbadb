@@ -5,29 +5,112 @@ const COOKIE_NAME = "nbadb-admin-session";
 /* ------------------------------------------------------------------ */
 /*  Rate limiter (in-memory, per-process)                             */
 /* ------------------------------------------------------------------ */
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
+const failedLoginAttempts = new Map<
+  string,
+  { failures: number; resetAt: number }
+>();
+const ALLOWED_FAILED_PASSWORDS_PER_WINDOW = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_TRACKED_KEYS = 10_000;
+const SHARED_RATE_LIMIT_BUCKET = "shared-process";
 
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
+function firstNonEmpty(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const normalized = value?.trim();
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+function firstForwardedIp(value: string | null) {
+  return firstNonEmpty(value?.split(",")[0]);
+}
+
+function getTrustedProxyIp(request: NextRequest) {
+  const headers = request.headers;
+
+  if (process.env.CF_PAGES === "1") {
+    return firstNonEmpty(
+      headers.get("cf-connecting-ip"),
+      headers.get("true-client-ip"),
+      headers.get("x-real-ip"),
+      firstForwardedIp(headers.get("x-forwarded-for")),
+    );
+  }
+
+  if (process.env.VERCEL === "1") {
+    return firstNonEmpty(
+      firstForwardedIp(headers.get("x-forwarded-for")),
+      headers.get("x-real-ip"),
+    );
+  }
+
+  if (process.env.FLY_APP_NAME) {
+    return firstNonEmpty(
+      headers.get("fly-client-ip"),
+      firstForwardedIp(headers.get("x-forwarded-for")),
+    );
+  }
+
+  return null;
+}
+
+function getRateLimitKey(request: NextRequest) {
+  const trustedIp = getTrustedProxyIp(request);
+
+  // If we cannot prove a trusted proxy supplied the address, use a shared
+  // per-process bucket instead of pretending spoofable client headers are safe.
+  return trustedIp ? `ip:${trustedIp}` : SHARED_RATE_LIMIT_BUCKET;
+}
+
+function pruneExpiredAttempts(now: number) {
+  if (failedLoginAttempts.size < MAX_TRACKED_KEYS) return;
 
   // Prune expired entries to prevent unbounded growth
-  if (loginAttempts.size > 10_000) {
-    for (const [key, val] of loginAttempts) {
-      if (now > val.resetAt) loginAttempts.delete(key);
-    }
+  for (const [key, value] of failedLoginAttempts) {
+    if (now >= value.resetAt) failedLoginAttempts.delete(key);
+  }
+}
+
+function getAttemptWindow(key: string, now = Date.now()) {
+  pruneExpiredAttempts(now);
+
+  const entry = failedLoginAttempts.get(key);
+  if (!entry) return null;
+  if (now >= entry.resetAt) {
+    failedLoginAttempts.delete(key);
+    return null;
   }
 
-  const entry = loginAttempts.get(ip);
+  return entry;
+}
 
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
+function getRateLimitStatus(key: string, now = Date.now()) {
+  const entry = getAttemptWindow(key, now);
+  // Allow up to 5 bad passwords in the current window; the next request is
+  // blocked until the window resets.
+  if (!entry || entry.failures < ALLOWED_FAILED_PASSWORDS_PER_WINDOW) {
+    return { limited: false, retryAfterSeconds: 0 };
   }
 
-  entry.count += 1;
-  return entry.count >= MAX_ATTEMPTS;
+  return {
+    limited: true,
+    retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+  };
+}
+
+function recordFailedAttempt(key: string, now = Date.now()) {
+  const entry = getAttemptWindow(key, now);
+  if (!entry) {
+    failedLoginAttempts.set(key, { failures: 1, resetAt: now + WINDOW_MS });
+    return;
+  }
+
+  entry.failures += 1;
+}
+
+function clearFailedAttempts(key: string) {
+  failedLoginAttempts.delete(key);
 }
 
 /* ------------------------------------------------------------------ */
@@ -38,10 +121,8 @@ async function timingSafePasswordEqual(
   expected: string,
 ): Promise<boolean> {
   const enc = new TextEncoder();
-  // Use a fixed key derived from the expected password itself — we only
-  // need the constant-time property of HMAC comparison, not secrecy of
-  // the key.  Both sides are HMACed with the same key so the digests
-  // match iff the inputs match, regardless of length.
+  // We only need equal-length digests for constant-time comparison here;
+  // the fixed HMAC key is not being used for secrecy.
   const key = await crypto.subtle.importKey(
     "raw",
     enc.encode("nbadb-password-compare"),
@@ -84,6 +165,12 @@ async function hmacSign(timestamp: string, secret: string): Promise<string> {
     .join("");
 }
 
+function jsonResponse(body: object, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
 /* ------------------------------------------------------------------ */
 /*  POST handler                                                      */
 /* ------------------------------------------------------------------ */
@@ -91,22 +178,22 @@ export async function POST(request: NextRequest) {
   const password = process.env.ADMIN_PASSWORD;
 
   if (!password) {
-    return NextResponse.json(
+    return jsonResponse(
       { error: "No admin password configured" },
       { status: 500 },
     );
   }
 
-  // Rate-limit by IP
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown";
+  const rateLimitKey = getRateLimitKey(request);
+  const { limited, retryAfterSeconds } = getRateLimitStatus(rateLimitKey);
 
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
+  if (limited) {
+    return jsonResponse(
       { error: "Too many login attempts. Try again later." },
-      { status: 429 },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSeconds) },
+      },
     );
   }
 
@@ -114,7 +201,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
+    return jsonResponse(
       { error: "Invalid request body" },
       { status: 400 },
     );
@@ -124,8 +211,11 @@ export async function POST(request: NextRequest) {
     typeof body.password !== "string" ||
     !(await timingSafePasswordEqual(body.password, password))
   ) {
-    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    recordFailedAttempt(rateLimitKey);
+    return jsonResponse({ error: "Invalid password" }, { status: 401 });
   }
+
+  clearFailedAttempts(rateLimitKey);
 
   const timestamp = String(Date.now());
   const mac = await hmacSign(timestamp, password);
@@ -133,7 +223,7 @@ export async function POST(request: NextRequest) {
 
   const isProduction = process.env.NODE_ENV === "production";
 
-  const response = NextResponse.json({ ok: true });
+  const response = jsonResponse({ ok: true });
   response.cookies.set(COOKIE_NAME, cookieValue, {
     httpOnly: true,
     sameSite: "lax",

@@ -11,7 +11,7 @@ export async function getDb(): Promise<duckdb.AsyncDuckDB> {
   if (dbInstance) return dbInstance;
   if (initPromise) return initPromise;
 
-  initPromise = (async () => {
+  const pendingInit = (async () => {
     const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
     const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
 
@@ -21,18 +21,39 @@ export async function getDb(): Promise<duckdb.AsyncDuckDB> {
       }),
     );
 
-    const worker = new Worker(workerUrl);
-    const logger = new duckdb.ConsoleLogger();
-    const db = new duckdb.AsyncDuckDB(logger, worker);
+    let worker: Worker | null = null;
+    let db: duckdb.AsyncDuckDB | null = null;
 
-    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-    URL.revokeObjectURL(workerUrl);
+    try {
+      worker = new Worker(workerUrl);
+      const logger = new duckdb.ConsoleLogger();
+      db = new duckdb.AsyncDuckDB(logger, worker);
 
-    dbInstance = db;
-    return db;
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+
+      dbInstance = db;
+      return db;
+    } catch (error) {
+      if (db) {
+        await db.terminate().catch(() => undefined);
+      } else {
+        worker?.terminate();
+      }
+      throw error;
+    } finally {
+      URL.revokeObjectURL(workerUrl);
+    }
   })();
 
-  return initPromise;
+  const sharedInit = pendingInit.catch((error) => {
+    if (initPromise === sharedInit) {
+      initPromise = null;
+    }
+    throw error;
+  });
+
+  initPromise = sharedInit;
+  return sharedInit;
 }
 
 /**
