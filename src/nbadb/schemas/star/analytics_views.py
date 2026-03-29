@@ -6,24 +6,22 @@ import pandera.polars as pa
 
 from nbadb.schemas.base import BaseSchema
 
+# ---------------------------------------------------------------------------
+# Private stat-field mixins (DRY helpers shared by multiple analytics views)
+# ---------------------------------------------------------------------------
 
-class AnalyticsClutchPerformanceSchema(BaseSchema):
-    """Clutch performance stats joined with player and team dimensions."""
 
-    player_id: int = pa.Field(metadata={"description": "Unique player identifier"})
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
-    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
-    clutch_window: str = pa.Field(metadata={"description": "Clutch window definition"})
-    player_name: str | None = pa.Field(
-        nullable=True, metadata={"description": "Player display name"}
-    )
-    team_abbreviation: str | None = pa.Field(
-        nullable=True, metadata={"description": "Team abbreviation code"}
-    )
-    gp: int | None = pa.Field(nullable=True, metadata={"description": "Games played"})
-    w: int | None = pa.Field(nullable=True, metadata={"description": "Wins"})
-    l: int | None = pa.Field(nullable=True, metadata={"description": "Losses"})  # noqa: E741
+class _TraditionalStatsMixin(BaseSchema):
+    """Traditional box-score stat fields common to multiple analytics views."""
+
     min: float | None = pa.Field(nullable=True, metadata={"description": "Minutes played"})
+    pts: float | None = pa.Field(nullable=True, metadata={"description": "Points scored"})
+    reb: float | None = pa.Field(nullable=True, metadata={"description": "Total rebounds"})
+    ast: float | None = pa.Field(nullable=True, metadata={"description": "Assists"})
+    stl: float | None = pa.Field(nullable=True, metadata={"description": "Steals"})
+    blk: float | None = pa.Field(nullable=True, metadata={"description": "Blocks"})
+    tov: float | None = pa.Field(nullable=True, metadata={"description": "Turnovers"})
+    pf: float | None = pa.Field(nullable=True, metadata={"description": "Personal fouls"})
     fgm: float | None = pa.Field(nullable=True, metadata={"description": "Field goals made"})
     fga: float | None = pa.Field(nullable=True, metadata={"description": "Field goals attempted"})
     fg_pct: float | None = pa.Field(
@@ -45,16 +43,98 @@ class AnalyticsClutchPerformanceSchema(BaseSchema):
     )
     oreb: float | None = pa.Field(nullable=True, metadata={"description": "Offensive rebounds"})
     dreb: float | None = pa.Field(nullable=True, metadata={"description": "Defensive rebounds"})
-    reb: float | None = pa.Field(nullable=True, metadata={"description": "Total rebounds"})
-    ast: float | None = pa.Field(nullable=True, metadata={"description": "Assists"})
-    tov: float | None = pa.Field(nullable=True, metadata={"description": "Turnovers"})
-    stl: float | None = pa.Field(nullable=True, metadata={"description": "Steals"})
-    blk: float | None = pa.Field(nullable=True, metadata={"description": "Blocks"})
-    pf: float | None = pa.Field(nullable=True, metadata={"description": "Personal fouls"})
-    pts: float | None = pa.Field(nullable=True, metadata={"description": "Points scored"})
     plus_minus: float | None = pa.Field(
         nullable=True, metadata={"description": "Plus-minus differential"}
     )
+
+
+class _AdvancedStatsMixin(BaseSchema):
+    """Advanced analytics fields common to multiple analytics views."""
+
+    off_rating: float | None = pa.Field(nullable=True, metadata={"description": "Offensive rating"})
+    def_rating: float | None = pa.Field(nullable=True, metadata={"description": "Defensive rating"})
+    net_rating: float | None = pa.Field(nullable=True, metadata={"description": "Net rating"})
+    efg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Effective field goal percentage"}
+    )
+    ts_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "True shooting percentage"}
+    )
+    pace: float | None = pa.Field(
+        nullable=True, metadata={"description": "Pace (possessions per 48 min)"}
+    )
+    pie: float | None = pa.Field(nullable=True, metadata={"description": "Player impact estimate"})
+    ast_pct: float | None = pa.Field(nullable=True, metadata={"description": "Assist percentage"})
+    reb_pct: float | None = pa.Field(nullable=True, metadata={"description": "Rebound percentage"})
+    oreb_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Offensive rebound percentage"}
+    )
+    dreb_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Defensive rebound percentage"}
+    )
+
+
+class _HustleStatsMixin(BaseSchema):
+    """Hustle stat fields common to multiple analytics views."""
+
+    contested_shots: float | None = pa.Field(
+        nullable=True, metadata={"description": "Contested shots"}
+    )
+    deflections: float | None = pa.Field(nullable=True, metadata={"description": "Deflections"})
+    loose_balls_recovered: float | None = pa.Field(
+        nullable=True, metadata={"description": "Loose balls recovered"}
+    )
+    charges_drawn: float | None = pa.Field(nullable=True, metadata={"description": "Charges drawn"})
+    screen_assists: float | None = pa.Field(
+        nullable=True, metadata={"description": "Screen assists"}
+    )
+
+
+class _MiscStatsMixin(BaseSchema):
+    """Miscellaneous stat fields common to multiple analytics views."""
+
+    pts_off_tov: float | None = pa.Field(
+        nullable=True, metadata={"description": "Points off turnovers"}
+    )
+    second_chance_pts: float | None = pa.Field(
+        nullable=True, metadata={"description": "Second chance points"}
+    )
+    fbps: float | None = pa.Field(nullable=True, metadata={"description": "Fast break points"})
+    pitp: float | None = pa.Field(nullable=True, metadata={"description": "Points in the paint"})
+
+
+class _TrackingStatsMixin(BaseSchema):
+    """Player/team tracking stat fields common to multiple analytics views."""
+
+    dist: float | None = pa.Field(
+        nullable=True, metadata={"description": "Distance traveled (miles)"}
+    )
+    spd: float | None = pa.Field(nullable=True, metadata={"description": "Average speed (mph)"})
+    tchs: float | None = pa.Field(nullable=True, metadata={"description": "Touches"})
+    passes: float | None = pa.Field(nullable=True, metadata={"description": "Passes made"})
+
+
+# ---------------------------------------------------------------------------
+# Analytics view schemas
+# ---------------------------------------------------------------------------
+
+
+class AnalyticsClutchPerformanceSchema(_TraditionalStatsMixin):
+    """Clutch performance stats joined with player and team dimensions."""
+
+    player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
+    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
+    clutch_window: str = pa.Field(metadata={"description": "Clutch window definition"})
+    player_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player display name"}
+    )
+    team_abbreviation: str | None = pa.Field(
+        nullable=True, metadata={"description": "Team abbreviation code"}
+    )
+    gp: int | None = pa.Field(nullable=True, metadata={"description": "Games played"})
+    w: int | None = pa.Field(nullable=True, metadata={"description": "Wins"})
+    l: int | None = pa.Field(nullable=True, metadata={"description": "Losses"})  # noqa: E741
     net_rating: float | None = pa.Field(nullable=True, metadata={"description": "Net rating"})
     off_rating: float | None = pa.Field(nullable=True, metadata={"description": "Offensive rating"})
     def_rating: float | None = pa.Field(nullable=True, metadata={"description": "Defensive rating"})
@@ -63,7 +143,7 @@ class AnalyticsClutchPerformanceSchema(BaseSchema):
 class AnalyticsDraftValueSchema(BaseSchema):
     """Draft picks enriched with career stats from agg_player_career."""
 
-    person_id: int = pa.Field(metadata={"description": "Drafted player identifier"})
+    person_id: int = pa.Field(gt=0, metadata={"description": "Drafted player identifier"})
     season: str = pa.Field(metadata={"description": "Draft season"})
     round_number: int | None = pa.Field(
         nullable=True, metadata={"description": "Draft round number"}
@@ -75,7 +155,7 @@ class AnalyticsDraftValueSchema(BaseSchema):
         nullable=True, metadata={"description": "Overall pick number"}
     )
     team_id: int | None = pa.Field(
-        nullable=True, metadata={"description": "Drafting team identifier"}
+        nullable=True, gt=0, metadata={"description": "Drafting team identifier"}
     )
     player_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Player display name"}
@@ -126,7 +206,7 @@ class AnalyticsGameSummarySchema(BaseSchema):
     )
     arena_name: str | None = pa.Field(nullable=True, metadata={"description": "Arena name"})
     home_team_id: int | None = pa.Field(
-        nullable=True, metadata={"description": "Home team identifier"}
+        nullable=True, gt=0, metadata={"description": "Home team identifier"}
     )
     home_team_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Home team full name"}
@@ -135,7 +215,7 @@ class AnalyticsGameSummarySchema(BaseSchema):
         nullable=True, metadata={"description": "Home team abbreviation"}
     )
     away_team_id: int | None = pa.Field(
-        nullable=True, metadata={"description": "Away team identifier"}
+        nullable=True, gt=0, metadata={"description": "Away team identifier"}
     )
     away_team_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Away team full name"}
@@ -196,8 +276,8 @@ class AnalyticsGameSummarySchema(BaseSchema):
 class AnalyticsHeadToHeadSchema(BaseSchema):
     """Team head-to-head matchup aggregates per season."""
 
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
-    opponent_team_id: int = pa.Field(metadata={"description": "Opponent team identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
+    opponent_team_id: int = pa.Field(gt=0, metadata={"description": "Opponent team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     team_abbr: str | None = pa.Field(nullable=True, metadata={"description": "Team abbreviation"})
     opponent_abbr: str | None = pa.Field(
@@ -275,12 +355,18 @@ class AnalyticsLeagueBenchmarksSchema(BaseSchema):
     )
 
 
-class AnalyticsPlayerGameCompleteSchema(BaseSchema):
+class AnalyticsPlayerGameCompleteSchema(
+    _TraditionalStatsMixin,
+    _AdvancedStatsMixin,
+    _MiscStatsMixin,
+    _HustleStatsMixin,
+    _TrackingStatsMixin,
+):
     """Complete player-game stats joining traditional, advanced, misc, hustle, tracking."""
 
-    player_id: int = pa.Field(metadata={"description": "Unique player identifier"})
+    player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     season_year: str | None = pa.Field(
         nullable=True, metadata={"description": "Season year (e.g. 2024-25)"}
     )
@@ -291,91 +377,8 @@ class AnalyticsPlayerGameCompleteSchema(BaseSchema):
     team_abbreviation: str | None = pa.Field(
         nullable=True, metadata={"description": "Team abbreviation code"}
     )
-    # traditional
-    min: float | None = pa.Field(nullable=True, metadata={"description": "Minutes played"})
-    pts: float | None = pa.Field(nullable=True, metadata={"description": "Points scored"})
-    reb: float | None = pa.Field(nullable=True, metadata={"description": "Total rebounds"})
-    ast: float | None = pa.Field(nullable=True, metadata={"description": "Assists"})
-    stl: float | None = pa.Field(nullable=True, metadata={"description": "Steals"})
-    blk: float | None = pa.Field(nullable=True, metadata={"description": "Blocks"})
-    tov: float | None = pa.Field(nullable=True, metadata={"description": "Turnovers"})
-    fgm: float | None = pa.Field(nullable=True, metadata={"description": "Field goals made"})
-    fga: float | None = pa.Field(nullable=True, metadata={"description": "Field goals attempted"})
-    fg_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Field goal percentage"}
-    )
-    fg3m: float | None = pa.Field(
-        nullable=True, metadata={"description": "Three-point field goals made"}
-    )
-    fg3a: float | None = pa.Field(
-        nullable=True, metadata={"description": "Three-point field goals attempted"}
-    )
-    fg3_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Three-point field goal percentage"}
-    )
-    ftm: float | None = pa.Field(nullable=True, metadata={"description": "Free throws made"})
-    fta: float | None = pa.Field(nullable=True, metadata={"description": "Free throws attempted"})
-    ft_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Free throw percentage"}
-    )
-    oreb: float | None = pa.Field(nullable=True, metadata={"description": "Offensive rebounds"})
-    dreb: float | None = pa.Field(nullable=True, metadata={"description": "Defensive rebounds"})
-    pf: float | None = pa.Field(nullable=True, metadata={"description": "Personal fouls"})
-    plus_minus: float | None = pa.Field(
-        nullable=True, metadata={"description": "Plus-minus differential"}
-    )
-    # advanced
-    off_rating: float | None = pa.Field(nullable=True, metadata={"description": "Offensive rating"})
-    def_rating: float | None = pa.Field(nullable=True, metadata={"description": "Defensive rating"})
-    net_rating: float | None = pa.Field(nullable=True, metadata={"description": "Net rating"})
-    ast_pct: float | None = pa.Field(nullable=True, metadata={"description": "Assist percentage"})
     ast_ratio: float | None = pa.Field(nullable=True, metadata={"description": "Assist ratio"})
-    reb_pct: float | None = pa.Field(nullable=True, metadata={"description": "Rebound percentage"})
-    oreb_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Offensive rebound percentage"}
-    )
-    dreb_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Defensive rebound percentage"}
-    )
-    efg_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Effective field goal percentage"}
-    )
-    ts_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "True shooting percentage"}
-    )
-    pace: float | None = pa.Field(
-        nullable=True, metadata={"description": "Pace (possessions per 48 min)"}
-    )
-    pie: float | None = pa.Field(nullable=True, metadata={"description": "Player impact estimate"})
-    # misc
-    pts_off_tov: float | None = pa.Field(
-        nullable=True, metadata={"description": "Points off turnovers"}
-    )
-    second_chance_pts: float | None = pa.Field(
-        nullable=True, metadata={"description": "Second chance points"}
-    )
-    fbps: float | None = pa.Field(nullable=True, metadata={"description": "Fast break points"})
-    pitp: float | None = pa.Field(nullable=True, metadata={"description": "Points in the paint"})
     usg_pct: float | None = pa.Field(nullable=True, metadata={"description": "Usage percentage"})
-    # hustle
-    contested_shots: float | None = pa.Field(
-        nullable=True, metadata={"description": "Contested shots"}
-    )
-    deflections: float | None = pa.Field(nullable=True, metadata={"description": "Deflections"})
-    loose_balls_recovered: float | None = pa.Field(
-        nullable=True, metadata={"description": "Loose balls recovered"}
-    )
-    charges_drawn: float | None = pa.Field(nullable=True, metadata={"description": "Charges drawn"})
-    screen_assists: float | None = pa.Field(
-        nullable=True, metadata={"description": "Screen assists"}
-    )
-    # tracking
-    dist: float | None = pa.Field(
-        nullable=True, metadata={"description": "Distance traveled (miles)"}
-    )
-    spd: float | None = pa.Field(nullable=True, metadata={"description": "Average speed (mph)"})
-    tchs: float | None = pa.Field(nullable=True, metadata={"description": "Touches"})
-    passes: float | None = pa.Field(nullable=True, metadata={"description": "Passes made"})
     dfg_pct: float | None = pa.Field(
         nullable=True, metadata={"description": "Defended field goal percentage"}
     )
@@ -384,8 +387,8 @@ class AnalyticsPlayerGameCompleteSchema(BaseSchema):
 class AnalyticsPlayerImpactSchema(BaseSchema):
     """Player impact combining season stats with on/off court splits."""
 
-    player_id: int = pa.Field(metadata={"description": "Unique player identifier"})
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
+    player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     season_type: str = pa.Field(metadata={"description": "Season type"})
     player_name: str | None = pa.Field(
@@ -470,9 +473,9 @@ class AnalyticsPlayerImpactSchema(BaseSchema):
 class AnalyticsPlayerMatchupSchema(BaseSchema):
     """Player-vs-player matchup stats enriched with dimension names."""
 
-    player_id: int = pa.Field(metadata={"description": "Player identifier"})
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
-    vs_player_id: int = pa.Field(metadata={"description": "Opposing player identifier"})
+    player_id: int = pa.Field(gt=0, metadata={"description": "Player identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
+    vs_player_id: int = pa.Field(gt=0, metadata={"description": "Opposing player identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     player_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Player display name"}
@@ -515,10 +518,10 @@ class AnalyticsPlayerMatchupSchema(BaseSchema):
 class AnalyticsPlayerSeasonCompleteSchema(BaseSchema):
     """Complete player-season stats with totals, per-36, and per-48 rates."""
 
-    player_id: int = pa.Field(metadata={"description": "Unique player identifier"})
+    player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     season_type: str = pa.Field(metadata={"description": "Season type"})
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     player_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Player display name"}
     )
@@ -610,9 +613,9 @@ class AnalyticsPlayerSeasonCompleteSchema(BaseSchema):
 class AnalyticsShootingEfficiencySchema(BaseSchema):
     """Shot chart data enriched with league averages by zone."""
 
-    player_id: int = pa.Field(metadata={"description": "Unique player identifier"})
+    player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     player_name: str | None = pa.Field(
         nullable=True, metadata={"description": "Player display name"}
     )
@@ -654,10 +657,16 @@ class AnalyticsShootingEfficiencySchema(BaseSchema):
     )
 
 
-class AnalyticsTeamGameCompleteSchema(BaseSchema):
+class AnalyticsTeamGameCompleteSchema(
+    _TraditionalStatsMixin,
+    _AdvancedStatsMixin,
+    _MiscStatsMixin,
+    _HustleStatsMixin,
+    _TrackingStatsMixin,
+):
     """Complete team-game stats joining traditional, advanced, misc, hustle, tracking."""
 
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
     season_year: str | None = pa.Field(
         nullable=True, metadata={"description": "Season year (e.g. 2024-25)"}
@@ -667,94 +676,12 @@ class AnalyticsTeamGameCompleteSchema(BaseSchema):
     team_abbreviation: str | None = pa.Field(
         nullable=True, metadata={"description": "Team abbreviation code"}
     )
-    # traditional
-    pts: float | None = pa.Field(nullable=True, metadata={"description": "Points scored"})
-    reb: float | None = pa.Field(nullable=True, metadata={"description": "Total rebounds"})
-    ast: float | None = pa.Field(nullable=True, metadata={"description": "Assists"})
-    stl: float | None = pa.Field(nullable=True, metadata={"description": "Steals"})
-    blk: float | None = pa.Field(nullable=True, metadata={"description": "Blocks"})
-    tov: float | None = pa.Field(nullable=True, metadata={"description": "Turnovers"})
-    fgm: float | None = pa.Field(nullable=True, metadata={"description": "Field goals made"})
-    fga: float | None = pa.Field(nullable=True, metadata={"description": "Field goals attempted"})
-    fg_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Field goal percentage"}
-    )
-    fg3m: float | None = pa.Field(
-        nullable=True, metadata={"description": "Three-point field goals made"}
-    )
-    fg3a: float | None = pa.Field(
-        nullable=True, metadata={"description": "Three-point field goals attempted"}
-    )
-    fg3_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Three-point field goal percentage"}
-    )
-    ftm: float | None = pa.Field(nullable=True, metadata={"description": "Free throws made"})
-    fta: float | None = pa.Field(nullable=True, metadata={"description": "Free throws attempted"})
-    ft_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Free throw percentage"}
-    )
-    oreb: float | None = pa.Field(nullable=True, metadata={"description": "Offensive rebounds"})
-    dreb: float | None = pa.Field(nullable=True, metadata={"description": "Defensive rebounds"})
-    pf: float | None = pa.Field(nullable=True, metadata={"description": "Personal fouls"})
-    plus_minus: float | None = pa.Field(
-        nullable=True, metadata={"description": "Plus-minus differential"}
-    )
-    # advanced
-    off_rating: float | None = pa.Field(nullable=True, metadata={"description": "Offensive rating"})
-    def_rating: float | None = pa.Field(nullable=True, metadata={"description": "Defensive rating"})
-    net_rating: float | None = pa.Field(nullable=True, metadata={"description": "Net rating"})
-    ast_pct: float | None = pa.Field(nullable=True, metadata={"description": "Assist percentage"})
-    reb_pct: float | None = pa.Field(nullable=True, metadata={"description": "Rebound percentage"})
-    oreb_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Offensive rebound percentage"}
-    )
-    dreb_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Defensive rebound percentage"}
-    )
-    efg_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "Effective field goal percentage"}
-    )
-    ts_pct: float | None = pa.Field(
-        nullable=True, metadata={"description": "True shooting percentage"}
-    )
-    pace: float | None = pa.Field(
-        nullable=True, metadata={"description": "Pace (possessions per 48 min)"}
-    )
-    pie: float | None = pa.Field(nullable=True, metadata={"description": "Player impact estimate"})
-    # misc
-    pts_off_tov: float | None = pa.Field(
-        nullable=True, metadata={"description": "Points off turnovers"}
-    )
-    second_chance_pts: float | None = pa.Field(
-        nullable=True, metadata={"description": "Second chance points"}
-    )
-    fbps: float | None = pa.Field(nullable=True, metadata={"description": "Fast break points"})
-    pitp: float | None = pa.Field(nullable=True, metadata={"description": "Points in the paint"})
-    # hustle
-    contested_shots: float | None = pa.Field(
-        nullable=True, metadata={"description": "Contested shots"}
-    )
-    deflections: float | None = pa.Field(nullable=True, metadata={"description": "Deflections"})
-    loose_balls_recovered: float | None = pa.Field(
-        nullable=True, metadata={"description": "Loose balls recovered"}
-    )
-    charges_drawn: float | None = pa.Field(nullable=True, metadata={"description": "Charges drawn"})
-    screen_assists: float | None = pa.Field(
-        nullable=True, metadata={"description": "Screen assists"}
-    )
-    # tracking
-    dist: float | None = pa.Field(
-        nullable=True, metadata={"description": "Distance traveled (miles)"}
-    )
-    spd: float | None = pa.Field(nullable=True, metadata={"description": "Average speed (mph)"})
-    tchs: float | None = pa.Field(nullable=True, metadata={"description": "Touches"})
-    passes: float | None = pa.Field(nullable=True, metadata={"description": "Passes made"})
 
 
 class AnalyticsTeamSeasonSummarySchema(BaseSchema):
     """Team season summary combining aggregates with standings."""
 
-    team_id: int = pa.Field(metadata={"description": "Team identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     season_type: str = pa.Field(metadata={"description": "Season type"})
     team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team full name"})
