@@ -12,1316 +12,1316 @@ This tier contains 43 schema(s).
 **Class**: `RawBoxScoreAdvancedPlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `e_off_rating` | `Float64` | Yes | — | Estimated offensive rating |
-| `off_rating` | `Float64` | Yes | — | Offensive rating |
-| `e_def_rating` | `Float64` | Yes | — | Estimated defensive rating |
-| `def_rating` | `Float64` | Yes | — | Defensive rating |
-| `e_net_rating` | `Float64` | Yes | — | Estimated net rating |
-| `net_rating` | `Float64` | Yes | — | Net rating |
-| `ast_pct` | `Float64` | Yes | — | Assist percentage |
-| `ast_tov` | `Float64` | Yes | — | Assist-to-turnover ratio |
-| `ast_ratio` | `Float64` | Yes | — | Assist ratio |
-| `oreb_pct` | `Float64` | Yes | — | Offensive rebound percentage |
-| `dreb_pct` | `Float64` | Yes | — | Defensive rebound percentage |
-| `reb_pct` | `Float64` | Yes | — | Total rebound percentage |
-| `tm_tov_pct` | `Float64` | Yes | — | Team turnover percentage |
-| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage |
-| `ts_pct` | `Float64` | Yes | — | True shooting percentage |
-| `usg_pct` | `Float64` | Yes | — | Usage percentage |
-| `e_usg_pct` | `Float64` | Yes | — | Estimated usage percentage |
-| `e_pace` | `Float64` | Yes | — | Estimated pace |
-| `pace` | `Float64` | Yes | — | Pace |
-| `pace_per40` | `Float64` | Yes | — | Pace per 40 minutes |
-| `poss` | `Float64` | Yes | — | Possessions |
-| `pie` | `Float64` | Yes | — | Player impact estimate |
+| Column              | Type      | Nullable | Constraints | Description                     |
+| ------------------- | --------- | -------- | ----------- | ------------------------------- |
+| `game_id`           | `String`  | No       | —           | Unique game identifier          |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                 |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code          |
+| `team_city`         | `String`  | Yes      | —           | Team city name                  |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier        |
+| `player_name`       | `String`  | Yes      | —           | Player full name                |
+| `nickname`          | `String`  | Yes      | —           | Player nickname                 |
+| `start_position`    | `String`  | Yes      | —           | Starting position (F/C/G)       |
+| `comment`           | `String`  | Yes      | —           | Player status comment           |
+| `min`               | `String`  | Yes      | —           | Minutes played as string        |
+| `e_off_rating`      | `Float64` | Yes      | —           | Estimated offensive rating      |
+| `off_rating`        | `Float64` | Yes      | —           | Offensive rating                |
+| `e_def_rating`      | `Float64` | Yes      | —           | Estimated defensive rating      |
+| `def_rating`        | `Float64` | Yes      | —           | Defensive rating                |
+| `e_net_rating`      | `Float64` | Yes      | —           | Estimated net rating            |
+| `net_rating`        | `Float64` | Yes      | —           | Net rating                      |
+| `ast_pct`           | `Float64` | Yes      | —           | Assist percentage               |
+| `ast_tov`           | `Float64` | Yes      | —           | Assist-to-turnover ratio        |
+| `ast_ratio`         | `Float64` | Yes      | —           | Assist ratio                    |
+| `oreb_pct`          | `Float64` | Yes      | —           | Offensive rebound percentage    |
+| `dreb_pct`          | `Float64` | Yes      | —           | Defensive rebound percentage    |
+| `reb_pct`           | `Float64` | Yes      | —           | Total rebound percentage        |
+| `tm_tov_pct`        | `Float64` | Yes      | —           | Team turnover percentage        |
+| `efg_pct`           | `Float64` | Yes      | —           | Effective field goal percentage |
+| `ts_pct`            | `Float64` | Yes      | —           | True shooting percentage        |
+| `usg_pct`           | `Float64` | Yes      | —           | Usage percentage                |
+| `e_usg_pct`         | `Float64` | Yes      | —           | Estimated usage percentage      |
+| `e_pace`            | `Float64` | Yes      | —           | Estimated pace                  |
+| `pace`              | `Float64` | Yes      | —           | Pace                            |
+| `pace_per40`        | `Float64` | Yes      | —           | Pace per 40 minutes             |
+| `poss`              | `Float64` | Yes      | —           | Possessions                     |
+| `pie`               | `Float64` | Yes      | —           | Player impact estimate          |
 
 ## `raw_box_score_defensive_player`
 
 **Class**: `RawBoxScoreDefensivePlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `matchup_min` | `String` | Yes | — | Matchup minutes as string |
-| `player_pts` | `Float64` | Yes | — | Points scored by player |
-| `team_pts` | `Float64` | Yes | — | Points scored by team |
-| `matchup_pct` | `Float64` | Yes | — | Matchup time percentage |
-| `partial_poss` | `Float64` | Yes | — | Partial possessions |
-| `switches_on` | `Float64` | Yes | — | Switches drawn on defense |
-| `matchup_ast` | `Float64` | Yes | — | Assists allowed in matchup |
-| `matchup_tov` | `Float64` | Yes | — | Turnovers forced in matchup |
-| `stl` | `Float64` | Yes | — | Steals |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `matchup_fgm` | `Float64` | Yes | — | FG made allowed in matchup |
-| `matchup_fga` | `Float64` | Yes | — | FG attempted in matchup |
-| `matchup_fg_pct` | `Float64` | Yes | — | FG percentage in matchup |
-| `matchup_fg3m` | `Float64` | Yes | — | 3-point FG made in matchup |
-| `matchup_fg3a` | `Float64` | Yes | — | 3-point FG attempted in matchup |
-| `matchup_fg3_pct` | `Float64` | Yes | — | 3-point FG pct in matchup |
+| Column              | Type      | Nullable | Constraints | Description                     |
+| ------------------- | --------- | -------- | ----------- | ------------------------------- |
+| `game_id`           | `String`  | No       | —           | Unique game identifier          |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                 |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code          |
+| `team_city`         | `String`  | Yes      | —           | Team city name                  |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier        |
+| `player_name`       | `String`  | Yes      | —           | Player full name                |
+| `start_position`    | `String`  | Yes      | —           | Starting position (F/C/G)       |
+| `comment`           | `String`  | Yes      | —           | Player status comment           |
+| `min`               | `String`  | Yes      | —           | Minutes played as string        |
+| `matchup_min`       | `String`  | Yes      | —           | Matchup minutes as string       |
+| `player_pts`        | `Float64` | Yes      | —           | Points scored by player         |
+| `team_pts`          | `Float64` | Yes      | —           | Points scored by team           |
+| `matchup_pct`       | `Float64` | Yes      | —           | Matchup time percentage         |
+| `partial_poss`      | `Float64` | Yes      | —           | Partial possessions             |
+| `switches_on`       | `Float64` | Yes      | —           | Switches drawn on defense       |
+| `matchup_ast`       | `Float64` | Yes      | —           | Assists allowed in matchup      |
+| `matchup_tov`       | `Float64` | Yes      | —           | Turnovers forced in matchup     |
+| `stl`               | `Float64` | Yes      | —           | Steals                          |
+| `blk`               | `Float64` | Yes      | —           | Blocks                          |
+| `matchup_fgm`       | `Float64` | Yes      | —           | FG made allowed in matchup      |
+| `matchup_fga`       | `Float64` | Yes      | —           | FG attempted in matchup         |
+| `matchup_fg_pct`    | `Float64` | Yes      | —           | FG percentage in matchup        |
+| `matchup_fg3m`      | `Float64` | Yes      | —           | 3-point FG made in matchup      |
+| `matchup_fg3a`      | `Float64` | Yes      | —           | 3-point FG attempted in matchup |
+| `matchup_fg3_pct`   | `Float64` | Yes      | —           | 3-point FG pct in matchup       |
 
 ## `raw_box_score_four_factors_player`
 
 **Class**: `RawBoxScoreFourFactorsPlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage |
-| `fta_rate` | `Float64` | Yes | — | Free throw attempt rate |
-| `tm_tov_pct` | `Float64` | Yes | — | Team turnover percentage |
-| `oreb_pct` | `Float64` | Yes | — | Offensive rebound percentage |
-| `opp_efg_pct` | `Float64` | Yes | — | Opponent effective FG percentage |
-| `opp_fta_rate` | `Float64` | Yes | — | Opponent free throw attempt rate |
-| `opp_tov_pct` | `Float64` | Yes | — | Opponent turnover percentage |
-| `opp_oreb_pct` | `Float64` | Yes | — | Opponent offensive rebound pct |
+| Column              | Type      | Nullable | Constraints | Description                      |
+| ------------------- | --------- | -------- | ----------- | -------------------------------- |
+| `game_id`           | `String`  | No       | —           | Unique game identifier           |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                  |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code           |
+| `team_city`         | `String`  | Yes      | —           | Team city name                   |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier         |
+| `player_name`       | `String`  | Yes      | —           | Player full name                 |
+| `nickname`          | `String`  | Yes      | —           | Player nickname                  |
+| `start_position`    | `String`  | Yes      | —           | Starting position (F/C/G)        |
+| `comment`           | `String`  | Yes      | —           | Player status comment            |
+| `min`               | `String`  | Yes      | —           | Minutes played as string         |
+| `efg_pct`           | `Float64` | Yes      | —           | Effective field goal percentage  |
+| `fta_rate`          | `Float64` | Yes      | —           | Free throw attempt rate          |
+| `tm_tov_pct`        | `Float64` | Yes      | —           | Team turnover percentage         |
+| `oreb_pct`          | `Float64` | Yes      | —           | Offensive rebound percentage     |
+| `opp_efg_pct`       | `Float64` | Yes      | —           | Opponent effective FG percentage |
+| `opp_fta_rate`      | `Float64` | Yes      | —           | Opponent free throw attempt rate |
+| `opp_tov_pct`       | `Float64` | Yes      | —           | Opponent turnover percentage     |
+| `opp_oreb_pct`      | `Float64` | Yes      | —           | Opponent offensive rebound pct   |
 
 ## `raw_box_score_hustle_player`
 
 **Class**: `RawBoxScoreHustlePlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `contested_shots` | `Float64` | Yes | — | Total contested shots |
-| `contested_shots_2pt` | `Float64` | Yes | — | Contested 2-point shots |
-| `contested_shots_3pt` | `Float64` | Yes | — | Contested 3-point shots |
-| `deflections` | `Float64` | Yes | — | Deflections |
-| `charges_drawn` | `Float64` | Yes | — | Charges drawn |
-| `screen_assists` | `Float64` | Yes | — | Screen assists |
-| `screen_ast_pts` | `Float64` | Yes | — | Points from screen assists |
-| `loose_balls_recovered_off` | `Float64` | Yes | — | Offensive loose balls recovered |
-| `loose_balls_recovered_def` | `Float64` | Yes | — | Defensive loose balls recovered |
-| `loose_balls_recovered` | `Float64` | Yes | — | Total loose balls recovered |
-| `off_boxouts` | `Float64` | Yes | — | Offensive box outs |
-| `def_boxouts` | `Float64` | Yes | — | Defensive box outs |
-| `box_outs` | `Float64` | Yes | — | Total box outs |
+| Column                      | Type      | Nullable | Constraints | Description                     |
+| --------------------------- | --------- | -------- | ----------- | ------------------------------- |
+| `game_id`                   | `String`  | No       | —           | Unique game identifier          |
+| `team_id`                   | `Int64`   | No       | —           | Team identifier                 |
+| `team_abbreviation`         | `String`  | Yes      | —           | Team abbreviation code          |
+| `team_city`                 | `String`  | Yes      | —           | Team city name                  |
+| `player_id`                 | `Int64`   | No       | gt=0        | Unique player identifier        |
+| `player_name`               | `String`  | Yes      | —           | Player full name                |
+| `start_position`            | `String`  | Yes      | —           | Starting position (F/C/G)       |
+| `comment`                   | `String`  | Yes      | —           | Player status comment           |
+| `min`                       | `String`  | Yes      | —           | Minutes played as string        |
+| `contested_shots`           | `Float64` | Yes      | —           | Total contested shots           |
+| `contested_shots_2pt`       | `Float64` | Yes      | —           | Contested 2-point shots         |
+| `contested_shots_3pt`       | `Float64` | Yes      | —           | Contested 3-point shots         |
+| `deflections`               | `Float64` | Yes      | —           | Deflections                     |
+| `charges_drawn`             | `Float64` | Yes      | —           | Charges drawn                   |
+| `screen_assists`            | `Float64` | Yes      | —           | Screen assists                  |
+| `screen_ast_pts`            | `Float64` | Yes      | —           | Points from screen assists      |
+| `loose_balls_recovered_off` | `Float64` | Yes      | —           | Offensive loose balls recovered |
+| `loose_balls_recovered_def` | `Float64` | Yes      | —           | Defensive loose balls recovered |
+| `loose_balls_recovered`     | `Float64` | Yes      | —           | Total loose balls recovered     |
+| `off_boxouts`               | `Float64` | Yes      | —           | Offensive box outs              |
+| `def_boxouts`               | `Float64` | Yes      | —           | Defensive box outs              |
+| `box_outs`                  | `Float64` | Yes      | —           | Total box outs                  |
 
 ## `raw_box_score_matchups`
 
 **Class**: `RawBoxScoreMatchupsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `off_team_id` | `Int64` | Yes | — | Offensive team identifier |
-| `off_team_abbreviation` | `String` | Yes | — | Offensive team abbreviation |
-| `def_team_id` | `Int64` | Yes | — | Defensive team identifier |
-| `def_team_abbreviation` | `String` | Yes | — | Defensive team abbreviation |
-| `off_player_id` | `Int64` | Yes | — | Offensive player identifier |
-| `off_player_name` | `String` | Yes | — | Offensive player name |
-| `def_player_id` | `Int64` | Yes | — | Defensive player identifier |
-| `def_player_name` | `String` | Yes | — | Defensive player name |
-| `matchup_min` | `Float64` | Yes | — | Minutes in matchup |
-| `partial_poss` | `Float64` | Yes | — | Partial possessions in matchup |
-| `player_pts` | `Float64` | Yes | — | Player points in matchup |
-| `team_pts` | `Float64` | Yes | — | Team points in matchup |
-| `matchup_ast` | `Float64` | Yes | — | Assists in matchup |
-| `matchup_tov` | `Float64` | Yes | — | Turnovers in matchup |
-| `matchup_blk` | `Float64` | Yes | — | Blocks in matchup |
-| `matchup_fgm` | `Float64` | Yes | — | Field goals made in matchup |
-| `matchup_fga` | `Float64` | Yes | — | Field goals attempted in matchup |
-| `matchup_fg_pct` | `Float64` | Yes | — | Field goal pct in matchup |
-| `matchup_fg3m` | `Float64` | Yes | — | Three-pointers made in matchup |
-| `matchup_fg3a` | `Float64` | Yes | — | Three-pointers attempted |
-| `matchup_fg3_pct` | `Float64` | Yes | — | Three-point pct in matchup |
-| `help_blk` | `Float64` | Yes | — | Help blocks in matchup |
-| `help_fgm` | `Float64` | Yes | — | Help field goals made |
-| `help_fga` | `Float64` | Yes | — | Help field goals attempted |
-| `help_fg_pct` | `Float64` | Yes | — | Help field goal percentage |
-| `matchup_ftm` | `Float64` | Yes | — | Free throws made in matchup |
-| `matchup_fta` | `Float64` | Yes | — | Free throws attempted |
-| `switches_on` | `Float64` | Yes | — | Number of switches onto player |
+| Column                  | Type      | Nullable | Constraints | Description                      |
+| ----------------------- | --------- | -------- | ----------- | -------------------------------- |
+| `game_id`               | `String`  | No       | —           | Unique game identifier           |
+| `off_team_id`           | `Int64`   | Yes      | —           | Offensive team identifier        |
+| `off_team_abbreviation` | `String`  | Yes      | —           | Offensive team abbreviation      |
+| `def_team_id`           | `Int64`   | Yes      | —           | Defensive team identifier        |
+| `def_team_abbreviation` | `String`  | Yes      | —           | Defensive team abbreviation      |
+| `off_player_id`         | `Int64`   | Yes      | —           | Offensive player identifier      |
+| `off_player_name`       | `String`  | Yes      | —           | Offensive player name            |
+| `def_player_id`         | `Int64`   | Yes      | —           | Defensive player identifier      |
+| `def_player_name`       | `String`  | Yes      | —           | Defensive player name            |
+| `matchup_min`           | `Float64` | Yes      | —           | Minutes in matchup               |
+| `partial_poss`          | `Float64` | Yes      | —           | Partial possessions in matchup   |
+| `player_pts`            | `Float64` | Yes      | —           | Player points in matchup         |
+| `team_pts`              | `Float64` | Yes      | —           | Team points in matchup           |
+| `matchup_ast`           | `Float64` | Yes      | —           | Assists in matchup               |
+| `matchup_tov`           | `Float64` | Yes      | —           | Turnovers in matchup             |
+| `matchup_blk`           | `Float64` | Yes      | —           | Blocks in matchup                |
+| `matchup_fgm`           | `Float64` | Yes      | —           | Field goals made in matchup      |
+| `matchup_fga`           | `Float64` | Yes      | —           | Field goals attempted in matchup |
+| `matchup_fg_pct`        | `Float64` | Yes      | —           | Field goal pct in matchup        |
+| `matchup_fg3m`          | `Float64` | Yes      | —           | Three-pointers made in matchup   |
+| `matchup_fg3a`          | `Float64` | Yes      | —           | Three-pointers attempted         |
+| `matchup_fg3_pct`       | `Float64` | Yes      | —           | Three-point pct in matchup       |
+| `help_blk`              | `Float64` | Yes      | —           | Help blocks in matchup           |
+| `help_fgm`              | `Float64` | Yes      | —           | Help field goals made            |
+| `help_fga`              | `Float64` | Yes      | —           | Help field goals attempted       |
+| `help_fg_pct`           | `Float64` | Yes      | —           | Help field goal percentage       |
+| `matchup_ftm`           | `Float64` | Yes      | —           | Free throws made in matchup      |
+| `matchup_fta`           | `Float64` | Yes      | —           | Free throws attempted            |
+| `switches_on`           | `Float64` | Yes      | —           | Number of switches onto player   |
 
 ## `raw_box_score_misc_player`
 
 **Class**: `RawBoxScoreMiscPlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `pts_off_tov` | `Float64` | Yes | — | Points off turnovers |
-| `second_chance_pts` | `Float64` | Yes | — | Second chance points |
-| `fbps` | `Float64` | Yes | — | Fast break points |
-| `pitp` | `Float64` | Yes | — | Points in the paint |
-| `opp_pts_off_tov` | `Float64` | Yes | — | Opponent points off turnovers |
-| `opp_second_chance_pts` | `Float64` | Yes | — | Opponent second chance points |
-| `opp_fbps` | `Float64` | Yes | — | Opponent fast break points |
-| `opp_pitp` | `Float64` | Yes | — | Opponent points in the paint |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `blka` | `Float64` | Yes | — | Blocked shot attempts |
-| `pf` | `Float64` | Yes | — | Personal fouls |
-| `pfd` | `Float64` | Yes | — | Personal fouls drawn |
+| Column                  | Type      | Nullable | Constraints | Description                   |
+| ----------------------- | --------- | -------- | ----------- | ----------------------------- |
+| `game_id`               | `String`  | No       | —           | Unique game identifier        |
+| `team_id`               | `Int64`   | No       | —           | Team identifier               |
+| `team_abbreviation`     | `String`  | Yes      | —           | Team abbreviation code        |
+| `team_city`             | `String`  | Yes      | —           | Team city name                |
+| `player_id`             | `Int64`   | No       | gt=0        | Unique player identifier      |
+| `player_name`           | `String`  | Yes      | —           | Player full name              |
+| `nickname`              | `String`  | Yes      | —           | Player nickname               |
+| `start_position`        | `String`  | Yes      | —           | Starting position (F/C/G)     |
+| `comment`               | `String`  | Yes      | —           | Player status comment         |
+| `min`                   | `String`  | Yes      | —           | Minutes played as string      |
+| `pts_off_tov`           | `Float64` | Yes      | —           | Points off turnovers          |
+| `second_chance_pts`     | `Float64` | Yes      | —           | Second chance points          |
+| `fbps`                  | `Float64` | Yes      | —           | Fast break points             |
+| `pitp`                  | `Float64` | Yes      | —           | Points in the paint           |
+| `opp_pts_off_tov`       | `Float64` | Yes      | —           | Opponent points off turnovers |
+| `opp_second_chance_pts` | `Float64` | Yes      | —           | Opponent second chance points |
+| `opp_fbps`              | `Float64` | Yes      | —           | Opponent fast break points    |
+| `opp_pitp`              | `Float64` | Yes      | —           | Opponent points in the paint  |
+| `blk`                   | `Float64` | Yes      | —           | Blocks                        |
+| `blka`                  | `Float64` | Yes      | —           | Blocked shot attempts         |
+| `pf`                    | `Float64` | Yes      | —           | Personal fouls                |
+| `pfd`                   | `Float64` | Yes      | —           | Personal fouls drawn          |
 
 ## `raw_box_score_player_track`
 
 **Class**: `RawBoxScorePlayerTrackSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `spd` | `Float64` | Yes | — | Average speed |
-| `dist` | `Float64` | Yes | — | Distance covered |
-| `orbc` | `Float64` | Yes | — | Offensive rebound chances |
-| `drbc` | `Float64` | Yes | — | Defensive rebound chances |
-| `rbc` | `Float64` | Yes | — | Total rebound chances |
-| `tchs` | `Float64` | Yes | — | Touches |
-| `sast` | `Float64` | Yes | — | Secondary assists |
-| `ftast` | `Float64` | Yes | — | Free throw assists |
-| `pass_` | `Float64` | Yes | — | Passes made |
-| `ast` | `Float64` | Yes | — | Assists |
-| `cfgm` | `Float64` | Yes | — | Contested field goals made |
-| `cfga` | `Float64` | Yes | — | Contested field goals attempted |
-| `cfg_pct` | `Float64` | Yes | — | Contested field goal percentage |
-| `ufgm` | `Float64` | Yes | — | Uncontested field goals made |
-| `ufga` | `Float64` | Yes | — | Uncontested FG attempted |
-| `ufg_pct` | `Float64` | Yes | — | Uncontested field goal percentage |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `dfgm` | `Float64` | Yes | — | Defended field goals made |
-| `dfga` | `Float64` | Yes | — | Defended field goals attempted |
-| `dfg_pct` | `Float64` | Yes | — | Defended field goal percentage |
+| Column              | Type      | Nullable | Constraints | Description                       |
+| ------------------- | --------- | -------- | ----------- | --------------------------------- |
+| `game_id`           | `String`  | No       | —           | Unique game identifier            |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                   |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code            |
+| `team_city`         | `String`  | Yes      | —           | Team city name                    |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier          |
+| `player_name`       | `String`  | Yes      | —           | Player full name                  |
+| `nickname`          | `String`  | Yes      | —           | Player nickname                   |
+| `start_position`    | `String`  | Yes      | —           | Starting position (F/C/G)         |
+| `comment`           | `String`  | Yes      | —           | Player status comment             |
+| `min`               | `String`  | Yes      | —           | Minutes played as string          |
+| `spd`               | `Float64` | Yes      | —           | Average speed                     |
+| `dist`              | `Float64` | Yes      | —           | Distance covered                  |
+| `orbc`              | `Float64` | Yes      | —           | Offensive rebound chances         |
+| `drbc`              | `Float64` | Yes      | —           | Defensive rebound chances         |
+| `rbc`               | `Float64` | Yes      | —           | Total rebound chances             |
+| `tchs`              | `Float64` | Yes      | —           | Touches                           |
+| `sast`              | `Float64` | Yes      | —           | Secondary assists                 |
+| `ftast`             | `Float64` | Yes      | —           | Free throw assists                |
+| `pass_`             | `Float64` | Yes      | —           | Passes made                       |
+| `ast`               | `Float64` | Yes      | —           | Assists                           |
+| `cfgm`              | `Float64` | Yes      | —           | Contested field goals made        |
+| `cfga`              | `Float64` | Yes      | —           | Contested field goals attempted   |
+| `cfg_pct`           | `Float64` | Yes      | —           | Contested field goal percentage   |
+| `ufgm`              | `Float64` | Yes      | —           | Uncontested field goals made      |
+| `ufga`              | `Float64` | Yes      | —           | Uncontested FG attempted          |
+| `ufg_pct`           | `Float64` | Yes      | —           | Uncontested field goal percentage |
+| `fg_pct`            | `Float64` | Yes      | —           | Field goal percentage             |
+| `dfgm`              | `Float64` | Yes      | —           | Defended field goals made         |
+| `dfga`              | `Float64` | Yes      | —           | Defended field goals attempted    |
+| `dfg_pct`           | `Float64` | Yes      | —           | Defended field goal percentage    |
 
 ## `raw_box_score_scoring_player`
 
 **Class**: `RawBoxScoreScoringPlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `pct_fga_2pt` | `Float64` | Yes | — | Percent of FGA that are 2-pointers |
-| `pct_fga_3pt` | `Float64` | Yes | — | Percent of FGA that are 3-pointers |
-| `pct_pts_2pt` | `Float64` | Yes | — | Percent of points from 2-pointers |
-| `pct_pts_2pt_mr` | `Float64` | Yes | — | Percent of points from mid-range |
-| `pct_pts_3pt` | `Float64` | Yes | — | Percent of points from 3-pointers |
-| `pct_pts_fb` | `Float64` | Yes | — | Percent of points from fast breaks |
-| `pct_pts_ft` | `Float64` | Yes | — | Percent of points from free throws |
-| `pct_pts_off_tov` | `Float64` | Yes | — | Percent of points off turnovers |
-| `pct_pts_pitp` | `Float64` | Yes | — | Percent of points in the paint |
-| `pct_ast_2pm` | `Float64` | Yes | — | Percent of assisted 2-point makes |
-| `pct_uast_2pm` | `Float64` | Yes | — | Percent of unassisted 2-point makes |
-| `pct_ast_3pm` | `Float64` | Yes | — | Percent of assisted 3-point makes |
-| `pct_uast_3pm` | `Float64` | Yes | — | Percent of unassisted 3-point makes |
-| `pct_ast_fgm` | `Float64` | Yes | — | Percent of assisted field goal makes |
-| `pct_uast_fgm` | `Float64` | Yes | — | Percent of unassisted FG makes |
+| Column              | Type      | Nullable | Constraints | Description                          |
+| ------------------- | --------- | -------- | ----------- | ------------------------------------ |
+| `game_id`           | `String`  | No       | —           | Unique game identifier               |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                      |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code               |
+| `team_city`         | `String`  | Yes      | —           | Team city name                       |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier             |
+| `player_name`       | `String`  | Yes      | —           | Player full name                     |
+| `nickname`          | `String`  | Yes      | —           | Player nickname                      |
+| `start_position`    | `String`  | Yes      | —           | Starting position (F/C/G)            |
+| `comment`           | `String`  | Yes      | —           | Player status comment                |
+| `min`               | `String`  | Yes      | —           | Minutes played as string             |
+| `pct_fga_2pt`       | `Float64` | Yes      | —           | Percent of FGA that are 2-pointers   |
+| `pct_fga_3pt`       | `Float64` | Yes      | —           | Percent of FGA that are 3-pointers   |
+| `pct_pts_2pt`       | `Float64` | Yes      | —           | Percent of points from 2-pointers    |
+| `pct_pts_2pt_mr`    | `Float64` | Yes      | —           | Percent of points from mid-range     |
+| `pct_pts_3pt`       | `Float64` | Yes      | —           | Percent of points from 3-pointers    |
+| `pct_pts_fb`        | `Float64` | Yes      | —           | Percent of points from fast breaks   |
+| `pct_pts_ft`        | `Float64` | Yes      | —           | Percent of points from free throws   |
+| `pct_pts_off_tov`   | `Float64` | Yes      | —           | Percent of points off turnovers      |
+| `pct_pts_pitp`      | `Float64` | Yes      | —           | Percent of points in the paint       |
+| `pct_ast_2pm`       | `Float64` | Yes      | —           | Percent of assisted 2-point makes    |
+| `pct_uast_2pm`      | `Float64` | Yes      | —           | Percent of unassisted 2-point makes  |
+| `pct_ast_3pm`       | `Float64` | Yes      | —           | Percent of assisted 3-point makes    |
+| `pct_uast_3pm`      | `Float64` | Yes      | —           | Percent of unassisted 3-point makes  |
+| `pct_ast_fgm`       | `Float64` | Yes      | —           | Percent of assisted field goal makes |
+| `pct_uast_fgm`      | `Float64` | Yes      | —           | Percent of unassisted FG makes       |
 
 ## `raw_box_score_traditional_player`
 
 **Class**: `RawBoxScoreTraditionalPlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `fgm` | `Float64` | Yes | — | Field goals made |
-| `fga` | `Float64` | Yes | — | Field goals attempted |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `fg3m` | `Float64` | Yes | — | Three-point field goals made |
-| `fg3a` | `Float64` | Yes | — | Three-point field goals attempted |
-| `fg3_pct` | `Float64` | Yes | — | Three-point field goal percentage |
-| `ftm` | `Float64` | Yes | — | Free throws made |
-| `fta` | `Float64` | Yes | — | Free throws attempted |
-| `ft_pct` | `Float64` | Yes | — | Free throw percentage |
-| `oreb` | `Float64` | Yes | — | Offensive rebounds |
-| `dreb` | `Float64` | Yes | — | Defensive rebounds |
-| `reb` | `Float64` | Yes | — | Total rebounds |
-| `ast` | `Float64` | Yes | — | Assists |
-| `stl` | `Float64` | Yes | — | Steals |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `tov` | `Float64` | Yes | — | Turnovers (alias TO in some versions) |
-| `pf` | `Float64` | Yes | — | Personal fouls |
-| `pts` | `Float64` | Yes | — | Points scored |
-| `plus_minus` | `Float64` | Yes | — | Plus-minus differential |
+| Column              | Type      | Nullable | Constraints | Description                           |
+| ------------------- | --------- | -------- | ----------- | ------------------------------------- |
+| `game_id`           | `String`  | No       | —           | Unique game identifier                |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                       |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code                |
+| `team_city`         | `String`  | Yes      | —           | Team city name                        |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier              |
+| `player_name`       | `String`  | Yes      | —           | Player full name                      |
+| `nickname`          | `String`  | Yes      | —           | Player nickname                       |
+| `start_position`    | `String`  | Yes      | —           | Starting position (F/C/G)             |
+| `comment`           | `String`  | Yes      | —           | Player status comment                 |
+| `min`               | `String`  | Yes      | —           | Minutes played as string              |
+| `fgm`               | `Float64` | Yes      | —           | Field goals made                      |
+| `fga`               | `Float64` | Yes      | —           | Field goals attempted                 |
+| `fg_pct`            | `Float64` | Yes      | —           | Field goal percentage                 |
+| `fg3m`              | `Float64` | Yes      | —           | Three-point field goals made          |
+| `fg3a`              | `Float64` | Yes      | —           | Three-point field goals attempted     |
+| `fg3_pct`           | `Float64` | Yes      | —           | Three-point field goal percentage     |
+| `ftm`               | `Float64` | Yes      | —           | Free throws made                      |
+| `fta`               | `Float64` | Yes      | —           | Free throws attempted                 |
+| `ft_pct`            | `Float64` | Yes      | —           | Free throw percentage                 |
+| `oreb`              | `Float64` | Yes      | —           | Offensive rebounds                    |
+| `dreb`              | `Float64` | Yes      | —           | Defensive rebounds                    |
+| `reb`               | `Float64` | Yes      | —           | Total rebounds                        |
+| `ast`               | `Float64` | Yes      | —           | Assists                               |
+| `stl`               | `Float64` | Yes      | —           | Steals                                |
+| `blk`               | `Float64` | Yes      | —           | Blocks                                |
+| `tov`               | `Float64` | Yes      | —           | Turnovers (alias TO in some versions) |
+| `pf`                | `Float64` | Yes      | —           | Personal fouls                        |
+| `pts`               | `Float64` | Yes      | —           | Points scored                         |
+| `plus_minus`        | `Float64` | Yes      | —           | Plus-minus differential               |
 
 ## `raw_box_score_traditional_team`
 
 **Class**: `RawBoxScoreTraditionalTeamSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_name` | `String` | Yes | — | Team name |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `min` | `Float64` | Yes | — | Total team minutes played |
-| `fgm` | `Float64` | Yes | — | Field goals made |
-| `fga` | `Float64` | Yes | — | Field goals attempted |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `fg3m` | `Float64` | Yes | — | Three-point field goals made |
-| `fg3a` | `Float64` | Yes | — | Three-point field goals attempted |
-| `fg3_pct` | `Float64` | Yes | — | Three-point field goal percentage |
-| `ftm` | `Float64` | Yes | — | Free throws made |
-| `fta` | `Float64` | Yes | — | Free throws attempted |
-| `ft_pct` | `Float64` | Yes | — | Free throw percentage |
-| `oreb` | `Float64` | Yes | — | Offensive rebounds |
-| `dreb` | `Float64` | Yes | — | Defensive rebounds |
-| `reb` | `Float64` | Yes | — | Total rebounds |
-| `ast` | `Float64` | Yes | — | Assists |
-| `stl` | `Float64` | Yes | — | Steals |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `tov` | `Float64` | Yes | — | Turnovers |
-| `pf` | `Float64` | Yes | — | Personal fouls |
-| `pts` | `Float64` | Yes | — | Points scored |
-| `plus_minus` | `Float64` | Yes | — | Plus-minus differential |
+| Column              | Type      | Nullable | Constraints | Description                       |
+| ------------------- | --------- | -------- | ----------- | --------------------------------- |
+| `game_id`           | `String`  | No       | —           | Unique game identifier            |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                   |
+| `team_name`         | `String`  | Yes      | —           | Team name                         |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code            |
+| `team_city`         | `String`  | Yes      | —           | Team city name                    |
+| `min`               | `Float64` | Yes      | —           | Total team minutes played         |
+| `fgm`               | `Float64` | Yes      | —           | Field goals made                  |
+| `fga`               | `Float64` | Yes      | —           | Field goals attempted             |
+| `fg_pct`            | `Float64` | Yes      | —           | Field goal percentage             |
+| `fg3m`              | `Float64` | Yes      | —           | Three-point field goals made      |
+| `fg3a`              | `Float64` | Yes      | —           | Three-point field goals attempted |
+| `fg3_pct`           | `Float64` | Yes      | —           | Three-point field goal percentage |
+| `ftm`               | `Float64` | Yes      | —           | Free throws made                  |
+| `fta`               | `Float64` | Yes      | —           | Free throws attempted             |
+| `ft_pct`            | `Float64` | Yes      | —           | Free throw percentage             |
+| `oreb`              | `Float64` | Yes      | —           | Offensive rebounds                |
+| `dreb`              | `Float64` | Yes      | —           | Defensive rebounds                |
+| `reb`               | `Float64` | Yes      | —           | Total rebounds                    |
+| `ast`               | `Float64` | Yes      | —           | Assists                           |
+| `stl`               | `Float64` | Yes      | —           | Steals                            |
+| `blk`               | `Float64` | Yes      | —           | Blocks                            |
+| `tov`               | `Float64` | Yes      | —           | Turnovers                         |
+| `pf`                | `Float64` | Yes      | —           | Personal fouls                    |
+| `pts`               | `Float64` | Yes      | —           | Points scored                     |
+| `plus_minus`        | `Float64` | Yes      | —           | Plus-minus differential           |
 
 ## `raw_box_score_usage_player`
 
 **Class**: `RawBoxScoreUsagePlayerSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | No | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_city` | `String` | Yes | — | Team city name |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `start_position` | `String` | Yes | — | Starting position (F/C/G) |
-| `comment` | `String` | Yes | — | Player status comment |
-| `min` | `String` | Yes | — | Minutes played as string |
-| `usg_pct` | `Float64` | Yes | — | Usage percentage |
-| `pct_fgm` | `Float64` | Yes | — | Percent of team field goals made |
-| `pct_fga` | `Float64` | Yes | — | Percent of team FG attempted |
-| `pct_fg3m` | `Float64` | Yes | — | Percent of team 3-point FG made |
-| `pct_fg3a` | `Float64` | Yes | — | Percent of team 3-point FG attempted |
-| `pct_ftm` | `Float64` | Yes | — | Percent of team free throws made |
-| `pct_fta` | `Float64` | Yes | — | Percent of team FT attempted |
-| `pct_oreb` | `Float64` | Yes | — | Percent of team offensive rebounds |
-| `pct_dreb` | `Float64` | Yes | — | Percent of team defensive rebounds |
-| `pct_reb` | `Float64` | Yes | — | Percent of team total rebounds |
-| `pct_ast` | `Float64` | Yes | — | Percent of team assists |
-| `pct_tov` | `Float64` | Yes | — | Percent of team turnovers |
-| `pct_stl` | `Float64` | Yes | — | Percent of team steals |
-| `pct_blk` | `Float64` | Yes | — | Percent of team blocks |
-| `pct_blka` | `Float64` | Yes | — | Percent of team blocked attempts |
-| `pct_pf` | `Float64` | Yes | — | Percent of team personal fouls |
-| `pct_pfd` | `Float64` | Yes | — | Percent of team personal fouls drawn |
-| `pct_pts` | `Float64` | Yes | — | Percent of team points |
+| Column              | Type      | Nullable | Constraints | Description                          |
+| ------------------- | --------- | -------- | ----------- | ------------------------------------ |
+| `game_id`           | `String`  | No       | —           | Unique game identifier               |
+| `team_id`           | `Int64`   | No       | —           | Team identifier                      |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code               |
+| `team_city`         | `String`  | Yes      | —           | Team city name                       |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier             |
+| `player_name`       | `String`  | Yes      | —           | Player full name                     |
+| `nickname`          | `String`  | Yes      | —           | Player nickname                      |
+| `start_position`    | `String`  | Yes      | —           | Starting position (F/C/G)            |
+| `comment`           | `String`  | Yes      | —           | Player status comment                |
+| `min`               | `String`  | Yes      | —           | Minutes played as string             |
+| `usg_pct`           | `Float64` | Yes      | —           | Usage percentage                     |
+| `pct_fgm`           | `Float64` | Yes      | —           | Percent of team field goals made     |
+| `pct_fga`           | `Float64` | Yes      | —           | Percent of team FG attempted         |
+| `pct_fg3m`          | `Float64` | Yes      | —           | Percent of team 3-point FG made      |
+| `pct_fg3a`          | `Float64` | Yes      | —           | Percent of team 3-point FG attempted |
+| `pct_ftm`           | `Float64` | Yes      | —           | Percent of team free throws made     |
+| `pct_fta`           | `Float64` | Yes      | —           | Percent of team FT attempted         |
+| `pct_oreb`          | `Float64` | Yes      | —           | Percent of team offensive rebounds   |
+| `pct_dreb`          | `Float64` | Yes      | —           | Percent of team defensive rebounds   |
+| `pct_reb`           | `Float64` | Yes      | —           | Percent of team total rebounds       |
+| `pct_ast`           | `Float64` | Yes      | —           | Percent of team assists              |
+| `pct_tov`           | `Float64` | Yes      | —           | Percent of team turnovers            |
+| `pct_stl`           | `Float64` | Yes      | —           | Percent of team steals               |
+| `pct_blk`           | `Float64` | Yes      | —           | Percent of team blocks               |
+| `pct_blka`          | `Float64` | Yes      | —           | Percent of team blocked attempts     |
+| `pct_pf`            | `Float64` | Yes      | —           | Percent of team personal fouls       |
+| `pct_pfd`           | `Float64` | Yes      | —           | Percent of team personal fouls drawn |
+| `pct_pts`           | `Float64` | Yes      | —           | Percent of team points               |
 
 ## `raw_common_all_players`
 
 **Class**: `RawCommonAllPlayersSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `person_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `display_last_comma_first` | `String` | Yes | — | Player name as Last, First |
-| `display_first_last` | `String` | Yes | — | Player name as First Last |
-| `roster_status` | `Int64` | Yes | in=[0, 1] | Active roster flag (0 or 1) |
-| `from_year` | `String` | Yes | — | First year in the league |
-| `to_year` | `String` | Yes | — | Last year in the league |
-| `playercode` | `String` | Yes | — | Player code slug |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_city` | `String` | Yes | — | Team city name |
-| `team_name` | `String` | Yes | — | Team name |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_code` | `String` | Yes | — | Team code slug |
-| `games_played_flag` | `String` | Yes | — | Flag indicating games played |
+| Column                     | Type     | Nullable | Constraints | Description                  |
+| -------------------------- | -------- | -------- | ----------- | ---------------------------- |
+| `person_id`                | `Int64`  | No       | gt=0        | Unique player identifier     |
+| `display_last_comma_first` | `String` | Yes      | —           | Player name as Last, First   |
+| `display_first_last`       | `String` | Yes      | —           | Player name as First Last    |
+| `roster_status`            | `Int64`  | Yes      | in=[0, 1]   | Active roster flag (0 or 1)  |
+| `from_year`                | `String` | Yes      | —           | First year in the league     |
+| `to_year`                  | `String` | Yes      | —           | Last year in the league      |
+| `playercode`               | `String` | Yes      | —           | Player code slug             |
+| `team_id`                  | `Int64`  | Yes      | —           | Team identifier              |
+| `team_city`                | `String` | Yes      | —           | Team city name               |
+| `team_name`                | `String` | Yes      | —           | Team name                    |
+| `team_abbreviation`        | `String` | Yes      | —           | Team abbreviation code       |
+| `team_code`                | `String` | Yes      | —           | Team code slug               |
+| `games_played_flag`        | `String` | Yes      | —           | Flag indicating games played |
 
 ## `raw_common_player_info`
 
 **Class**: `RawCommonPlayerInfoSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `person_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `first_name` | `String` | Yes | — | Player first name |
-| `last_name` | `String` | Yes | — | Player last name |
-| `display_first_last` | `String` | Yes | — | Player name as First Last |
-| `display_last_comma_first` | `String` | Yes | — | Player name as Last, First |
-| `display_fi_last` | `String` | Yes | — | Player name as F. Last |
-| `player_slug` | `String` | Yes | — | URL-friendly player slug |
-| `birthdate` | `String` | Yes | — | Player date of birth |
-| `school` | `String` | Yes | — | School or college attended |
-| `country` | `String` | Yes | — | Country of origin |
-| `last_affiliation` | `String` | Yes | — | Last team or school affiliation |
-| `height` | `String` | Yes | — | Player height as string |
-| `weight` | `String` | Yes | — | Player weight as string |
-| `season_exp` | `Int64` | Yes | — | Years of NBA experience |
-| `jersey` | `String` | Yes | — | Jersey number as string |
-| `position` | `String` | Yes | — | Player position |
-| `roster_status` | `String` | Yes | — | Current roster status |
-| `games_played_current_season_flag` | `String` | Yes | — | Flag for games played this season |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_name` | `String` | Yes | — | Team name |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_code` | `String` | Yes | — | Team code slug |
-| `team_city` | `String` | Yes | — | Team city name |
-| `playercode` | `String` | Yes | — | Player code slug |
-| `from_year` | `Int64` | Yes | — | First year in the league |
-| `to_year` | `Int64` | Yes | — | Last year in the league |
-| `dleague_flag` | `String` | Yes | — | G-League eligibility flag |
-| `nba_flag` | `String` | Yes | — | NBA eligibility flag |
-| `games_played_flag` | `String` | Yes | — | Flag indicating games played |
-| `draft_year` | `String` | Yes | — | Year drafted |
-| `draft_round` | `String` | Yes | — | Round drafted |
-| `draft_number` | `String` | Yes | — | Overall draft pick number |
-| `greatest_75_flag` | `String` | Yes | — | NBA 75th anniversary team flag |
+| Column                             | Type     | Nullable | Constraints | Description                       |
+| ---------------------------------- | -------- | -------- | ----------- | --------------------------------- |
+| `person_id`                        | `Int64`  | No       | gt=0        | Unique player identifier          |
+| `first_name`                       | `String` | Yes      | —           | Player first name                 |
+| `last_name`                        | `String` | Yes      | —           | Player last name                  |
+| `display_first_last`               | `String` | Yes      | —           | Player name as First Last         |
+| `display_last_comma_first`         | `String` | Yes      | —           | Player name as Last, First        |
+| `display_fi_last`                  | `String` | Yes      | —           | Player name as F. Last            |
+| `player_slug`                      | `String` | Yes      | —           | URL-friendly player slug          |
+| `birthdate`                        | `String` | Yes      | —           | Player date of birth              |
+| `school`                           | `String` | Yes      | —           | School or college attended        |
+| `country`                          | `String` | Yes      | —           | Country of origin                 |
+| `last_affiliation`                 | `String` | Yes      | —           | Last team or school affiliation   |
+| `height`                           | `String` | Yes      | —           | Player height as string           |
+| `weight`                           | `String` | Yes      | —           | Player weight as string           |
+| `season_exp`                       | `Int64`  | Yes      | —           | Years of NBA experience           |
+| `jersey`                           | `String` | Yes      | —           | Jersey number as string           |
+| `position`                         | `String` | Yes      | —           | Player position                   |
+| `roster_status`                    | `String` | Yes      | —           | Current roster status             |
+| `games_played_current_season_flag` | `String` | Yes      | —           | Flag for games played this season |
+| `team_id`                          | `Int64`  | Yes      | —           | Team identifier                   |
+| `team_name`                        | `String` | Yes      | —           | Team name                         |
+| `team_abbreviation`                | `String` | Yes      | —           | Team abbreviation code            |
+| `team_code`                        | `String` | Yes      | —           | Team code slug                    |
+| `team_city`                        | `String` | Yes      | —           | Team city name                    |
+| `playercode`                       | `String` | Yes      | —           | Player code slug                  |
+| `from_year`                        | `Int64`  | Yes      | —           | First year in the league          |
+| `to_year`                          | `Int64`  | Yes      | —           | Last year in the league           |
+| `dleague_flag`                     | `String` | Yes      | —           | G-League eligibility flag         |
+| `nba_flag`                         | `String` | Yes      | —           | NBA eligibility flag              |
+| `games_played_flag`                | `String` | Yes      | —           | Flag indicating games played      |
+| `draft_year`                       | `String` | Yes      | —           | Year drafted                      |
+| `draft_round`                      | `String` | Yes      | —           | Round drafted                     |
+| `draft_number`                     | `String` | Yes      | —           | Overall draft pick number         |
+| `greatest_75_flag`                 | `String` | Yes      | —           | NBA 75th anniversary team flag    |
 
 ## `raw_common_team_roster_coaches`
 
 **Class**: `RawCommonTeamRosterCoachesSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `season` | `String` | Yes | — | Season string |
-| `coach_id` | `Int64` | Yes | — | Unique coach identifier |
-| `first_name` | `String` | Yes | — | Coach first name |
-| `last_name` | `String` | Yes | — | Coach last name |
-| `coach_name` | `String` | Yes | — | Coach full name |
-| `is_assistant` | `Int64` | Yes | — | Flag indicating assistant coach |
-| `coach_type` | `String` | Yes | — | Type of coaching role |
-| `sort_sequence` | `Int64` | Yes | — | Display sort order |
-| `sub_sort_sequence` | `Int64` | Yes | — | Secondary display sort order |
-| `school` | `String` | Yes | — | School or college attended |
+| Column              | Type     | Nullable | Constraints | Description                     |
+| ------------------- | -------- | -------- | ----------- | ------------------------------- |
+| `team_id`           | `Int64`  | No       | gt=0        | Unique team identifier          |
+| `season`            | `String` | Yes      | —           | Season string                   |
+| `coach_id`          | `Int64`  | Yes      | —           | Unique coach identifier         |
+| `first_name`        | `String` | Yes      | —           | Coach first name                |
+| `last_name`         | `String` | Yes      | —           | Coach last name                 |
+| `coach_name`        | `String` | Yes      | —           | Coach full name                 |
+| `is_assistant`      | `Int64`  | Yes      | —           | Flag indicating assistant coach |
+| `coach_type`        | `String` | Yes      | —           | Type of coaching role           |
+| `sort_sequence`     | `Int64`  | Yes      | —           | Display sort order              |
+| `sub_sort_sequence` | `Int64`  | Yes      | —           | Secondary display sort order    |
+| `school`            | `String` | Yes      | —           | School or college attended      |
 
 ## `raw_common_team_roster`
 
 **Class**: `RawCommonTeamRosterSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `teamid` | `Int64` | No | gt=0 | Unique team identifier |
-| `season` | `String` | Yes | — | Season string |
-| `leagueid` | `String` | Yes | — | League identifier |
-| `player` | `String` | Yes | — | Player full name |
-| `nickname` | `String` | Yes | — | Player nickname |
-| `player_slug` | `String` | Yes | — | URL-friendly player slug |
-| `num` | `String` | Yes | — | Jersey number as string |
-| `position` | `String` | Yes | — | Player position |
-| `height` | `String` | Yes | — | Player height as string |
-| `weight` | `String` | Yes | — | Player weight as string |
-| `birth_date` | `String` | Yes | — | Player date of birth |
-| `age` | `Float64` | Yes | — | Player age |
-| `exp` | `String` | Yes | — | Years of experience as string |
-| `school` | `String` | Yes | — | School or college attended |
-| `player_id` | `Int64` | Yes | — | Unique player identifier |
-| `how_acquired` | `String` | Yes | — | How the player was acquired |
+| Column         | Type      | Nullable | Constraints | Description                   |
+| -------------- | --------- | -------- | ----------- | ----------------------------- |
+| `teamid`       | `Int64`   | No       | gt=0        | Unique team identifier        |
+| `season`       | `String`  | Yes      | —           | Season string                 |
+| `leagueid`     | `String`  | Yes      | —           | League identifier             |
+| `player`       | `String`  | Yes      | —           | Player full name              |
+| `nickname`     | `String`  | Yes      | —           | Player nickname               |
+| `player_slug`  | `String`  | Yes      | —           | URL-friendly player slug      |
+| `num`          | `String`  | Yes      | —           | Jersey number as string       |
+| `position`     | `String`  | Yes      | —           | Player position               |
+| `height`       | `String`  | Yes      | —           | Player height as string       |
+| `weight`       | `String`  | Yes      | —           | Player weight as string       |
+| `birth_date`   | `String`  | Yes      | —           | Player date of birth          |
+| `age`          | `Float64` | Yes      | —           | Player age                    |
+| `exp`          | `String`  | Yes      | —           | Years of experience as string |
+| `school`       | `String`  | Yes      | —           | School or college attended    |
+| `player_id`    | `Int64`   | Yes      | —           | Unique player identifier      |
+| `how_acquired` | `String`  | Yes      | —           | How the player was acquired   |
 
 ## `raw_common_team_years`
 
 **Class**: `RawCommonTeamYearsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `league_id` | `String` | No | — | League identifier |
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `min_year` | `String` | Yes | — | First year of team activity |
-| `max_year` | `String` | Yes | — | Last year of team activity |
-| `abbreviation` | `String` | Yes | — | Team abbreviation code |
+| Column         | Type     | Nullable | Constraints | Description                 |
+| -------------- | -------- | -------- | ----------- | --------------------------- |
+| `league_id`    | `String` | No       | —           | League identifier           |
+| `team_id`      | `Int64`  | No       | gt=0        | Unique team identifier      |
+| `min_year`     | `String` | Yes      | —           | First year of team activity |
+| `max_year`     | `String` | Yes      | —           | Last year of team activity  |
+| `abbreviation` | `String` | Yes      | —           | Team abbreviation code      |
 
 ## `raw_draft_combine_drill_results`
 
 **Class**: `RawDraftCombineDrillResultsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season` | `String` | No | — | Combine season year |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `first_name` | `String` | Yes | — | Player first name |
-| `last_name` | `String` | Yes | — | Player last name |
-| `player_name` | `String` | Yes | — | Player full name |
-| `position` | `String` | Yes | — | Player position |
-| `standing_vertical_leap` | `Float64` | Yes | — | Standing vertical leap in inches |
-| `max_vertical_leap` | `Float64` | Yes | — | Maximum vertical leap in inches |
-| `lane_agility_time` | `Float64` | Yes | — | Lane agility drill time in seconds |
-| `modified_lane_agility_time` | `Float64` | Yes | — | Modified lane agility time in seconds |
-| `three_quarter_sprint` | `Float64` | Yes | — | Three-quarter court sprint time in seconds |
-| `bench_press` | `Float64` | Yes | — | Bench press repetitions |
+| Column                       | Type      | Nullable | Constraints | Description                                |
+| ---------------------------- | --------- | -------- | ----------- | ------------------------------------------ |
+| `season`                     | `String`  | No       | —           | Combine season year                        |
+| `player_id`                  | `Int64`   | No       | gt=0        | Unique player identifier                   |
+| `first_name`                 | `String`  | Yes      | —           | Player first name                          |
+| `last_name`                  | `String`  | Yes      | —           | Player last name                           |
+| `player_name`                | `String`  | Yes      | —           | Player full name                           |
+| `position`                   | `String`  | Yes      | —           | Player position                            |
+| `standing_vertical_leap`     | `Float64` | Yes      | —           | Standing vertical leap in inches           |
+| `max_vertical_leap`          | `Float64` | Yes      | —           | Maximum vertical leap in inches            |
+| `lane_agility_time`          | `Float64` | Yes      | —           | Lane agility drill time in seconds         |
+| `modified_lane_agility_time` | `Float64` | Yes      | —           | Modified lane agility time in seconds      |
+| `three_quarter_sprint`       | `Float64` | Yes      | —           | Three-quarter court sprint time in seconds |
+| `bench_press`                | `Float64` | Yes      | —           | Bench press repetitions                    |
 
 ## `raw_draft_combine_non_stationary_shooting`
 
 **Class**: `RawDraftCombineNonStationaryShootingSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season` | `String` | No | — | Combine season year |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `first_name` | `String` | Yes | — | Player first name |
-| `last_name` | `String` | Yes | — | Player last name |
-| `player_name` | `String` | Yes | — | Player full name |
-| `position` | `String` | Yes | — | Player position |
-| `off_drib_fifteen_break_left_made` | `Int64` | Yes | — | Off-dribble fifteen-foot break left shots made |
-| `off_drib_fifteen_break_left_attempt` | `Int64` | Yes | — | Off-dribble fifteen-foot break left shots attempted |
-| `off_drib_fifteen_break_left_pct` | `Float64` | Yes | — | Off-dribble fifteen-foot break left shooting percentage |
-| `off_drib_fifteen_top_key_made` | `Int64` | Yes | — | Off-dribble fifteen-foot top of key shots made |
-| `off_drib_fifteen_top_key_attempt` | `Int64` | Yes | — | Off-dribble fifteen-foot top of key shots attempted |
-| `off_drib_fifteen_top_key_pct` | `Float64` | Yes | — | Off-dribble fifteen-foot top of key shooting percentage |
-| `off_drib_college_break_left_made` | `Int64` | Yes | — | Off-dribble college break left shots made |
-| `off_drib_college_break_left_attempt` | `Int64` | Yes | — | Off-dribble college break left shots attempted |
-| `off_drib_college_break_left_pct` | `Float64` | Yes | — | Off-dribble college break left shooting percentage |
-| `off_drib_college_top_key_made` | `Int64` | Yes | — | Off-dribble college top of key shots made |
-| `off_drib_college_top_key_attempt` | `Int64` | Yes | — | Off-dribble college top of key shots attempted |
-| `off_drib_college_top_key_pct` | `Float64` | Yes | — | Off-dribble college top of key shooting percentage |
-| `on_move_fifteen_made` | `Int64` | Yes | — | On-move fifteen-foot shots made |
-| `on_move_fifteen_attempt` | `Int64` | Yes | — | On-move fifteen-foot shots attempted |
-| `on_move_fifteen_pct` | `Float64` | Yes | — | On-move fifteen-foot shooting percentage |
-| `on_move_college_made` | `Int64` | Yes | — | On-move college range shots made |
-| `on_move_college_attempt` | `Int64` | Yes | — | On-move college range shots attempted |
-| `on_move_college_pct` | `Float64` | Yes | — | On-move college range shooting percentage |
+| Column                                | Type      | Nullable | Constraints | Description                                             |
+| ------------------------------------- | --------- | -------- | ----------- | ------------------------------------------------------- |
+| `season`                              | `String`  | No       | —           | Combine season year                                     |
+| `player_id`                           | `Int64`   | No       | gt=0        | Unique player identifier                                |
+| `first_name`                          | `String`  | Yes      | —           | Player first name                                       |
+| `last_name`                           | `String`  | Yes      | —           | Player last name                                        |
+| `player_name`                         | `String`  | Yes      | —           | Player full name                                        |
+| `position`                            | `String`  | Yes      | —           | Player position                                         |
+| `off_drib_fifteen_break_left_made`    | `Int64`   | Yes      | —           | Off-dribble fifteen-foot break left shots made          |
+| `off_drib_fifteen_break_left_attempt` | `Int64`   | Yes      | —           | Off-dribble fifteen-foot break left shots attempted     |
+| `off_drib_fifteen_break_left_pct`     | `Float64` | Yes      | —           | Off-dribble fifteen-foot break left shooting percentage |
+| `off_drib_fifteen_top_key_made`       | `Int64`   | Yes      | —           | Off-dribble fifteen-foot top of key shots made          |
+| `off_drib_fifteen_top_key_attempt`    | `Int64`   | Yes      | —           | Off-dribble fifteen-foot top of key shots attempted     |
+| `off_drib_fifteen_top_key_pct`        | `Float64` | Yes      | —           | Off-dribble fifteen-foot top of key shooting percentage |
+| `off_drib_college_break_left_made`    | `Int64`   | Yes      | —           | Off-dribble college break left shots made               |
+| `off_drib_college_break_left_attempt` | `Int64`   | Yes      | —           | Off-dribble college break left shots attempted          |
+| `off_drib_college_break_left_pct`     | `Float64` | Yes      | —           | Off-dribble college break left shooting percentage      |
+| `off_drib_college_top_key_made`       | `Int64`   | Yes      | —           | Off-dribble college top of key shots made               |
+| `off_drib_college_top_key_attempt`    | `Int64`   | Yes      | —           | Off-dribble college top of key shots attempted          |
+| `off_drib_college_top_key_pct`        | `Float64` | Yes      | —           | Off-dribble college top of key shooting percentage      |
+| `on_move_fifteen_made`                | `Int64`   | Yes      | —           | On-move fifteen-foot shots made                         |
+| `on_move_fifteen_attempt`             | `Int64`   | Yes      | —           | On-move fifteen-foot shots attempted                    |
+| `on_move_fifteen_pct`                 | `Float64` | Yes      | —           | On-move fifteen-foot shooting percentage                |
+| `on_move_college_made`                | `Int64`   | Yes      | —           | On-move college range shots made                        |
+| `on_move_college_attempt`             | `Int64`   | Yes      | —           | On-move college range shots attempted                   |
+| `on_move_college_pct`                 | `Float64` | Yes      | —           | On-move college range shooting percentage               |
 
 ## `raw_draft_combine_player_anthro`
 
 **Class**: `RawDraftCombinePlayerAnthroSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season` | `String` | No | — | Combine season year |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `first_name` | `String` | Yes | — | Player first name |
-| `last_name` | `String` | Yes | — | Player last name |
-| `player_name` | `String` | Yes | — | Player full name |
-| `position` | `String` | Yes | — | Player position |
-| `height_wo_shoes` | `Float64` | Yes | — | Height without shoes in inches |
-| `height_wo_shoes_ft_in` | `String` | Yes | — | Height without shoes in feet-inches |
-| `height_w_shoes` | `Float64` | Yes | — | Height with shoes in inches |
-| `height_w_shoes_ft_in` | `String` | Yes | — | Height with shoes in feet-inches |
-| `weight` | `Float64` | Yes | — | Player weight in pounds |
-| `wingspan` | `Float64` | Yes | — | Wingspan in inches |
-| `wingspan_ft_in` | `String` | Yes | — | Wingspan in feet-inches |
-| `standing_reach` | `Float64` | Yes | — | Standing reach in inches |
-| `standing_reach_ft_in` | `String` | Yes | — | Standing reach in feet-inches |
-| `body_fat_pct` | `Float64` | Yes | — | Body fat percentage |
-| `hand_length` | `Float64` | Yes | — | Hand length in inches |
-| `hand_width` | `Float64` | Yes | — | Hand width in inches |
+| Column                  | Type      | Nullable | Constraints | Description                         |
+| ----------------------- | --------- | -------- | ----------- | ----------------------------------- |
+| `season`                | `String`  | No       | —           | Combine season year                 |
+| `player_id`             | `Int64`   | No       | gt=0        | Unique player identifier            |
+| `first_name`            | `String`  | Yes      | —           | Player first name                   |
+| `last_name`             | `String`  | Yes      | —           | Player last name                    |
+| `player_name`           | `String`  | Yes      | —           | Player full name                    |
+| `position`              | `String`  | Yes      | —           | Player position                     |
+| `height_wo_shoes`       | `Float64` | Yes      | —           | Height without shoes in inches      |
+| `height_wo_shoes_ft_in` | `String`  | Yes      | —           | Height without shoes in feet-inches |
+| `height_w_shoes`        | `Float64` | Yes      | —           | Height with shoes in inches         |
+| `height_w_shoes_ft_in`  | `String`  | Yes      | —           | Height with shoes in feet-inches    |
+| `weight`                | `Float64` | Yes      | —           | Player weight in pounds             |
+| `wingspan`              | `Float64` | Yes      | —           | Wingspan in inches                  |
+| `wingspan_ft_in`        | `String`  | Yes      | —           | Wingspan in feet-inches             |
+| `standing_reach`        | `Float64` | Yes      | —           | Standing reach in inches            |
+| `standing_reach_ft_in`  | `String`  | Yes      | —           | Standing reach in feet-inches       |
+| `body_fat_pct`          | `Float64` | Yes      | —           | Body fat percentage                 |
+| `hand_length`           | `Float64` | Yes      | —           | Hand length in inches               |
+| `hand_width`            | `Float64` | Yes      | —           | Hand width in inches                |
 
 ## `raw_draft_combine_spot_shooting`
 
 **Class**: `RawDraftCombineSpotShootingSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season` | `String` | No | — | Combine season year |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `first_name` | `String` | Yes | — | Player first name |
-| `last_name` | `String` | Yes | — | Player last name |
-| `player_name` | `String` | Yes | — | Player full name |
-| `position` | `String` | Yes | — | Player position |
-| `nba_break_left_made` | `Int64` | Yes | — | NBA break left shots made |
-| `nba_break_left_attempt` | `Int64` | Yes | — | NBA break left shots attempted |
-| `nba_break_left_pct` | `Float64` | Yes | — | NBA break left shooting percentage |
-| `nba_break_right_made` | `Int64` | Yes | — | NBA break right shots made |
-| `nba_break_right_attempt` | `Int64` | Yes | — | NBA break right shots attempted |
-| `nba_break_right_pct` | `Float64` | Yes | — | NBA break right shooting percentage |
-| `nba_corner_left_made` | `Int64` | Yes | — | NBA corner left shots made |
-| `nba_corner_left_attempt` | `Int64` | Yes | — | NBA corner left shots attempted |
-| `nba_corner_left_pct` | `Float64` | Yes | — | NBA corner left shooting percentage |
-| `nba_corner_right_made` | `Int64` | Yes | — | NBA corner right shots made |
-| `nba_corner_right_attempt` | `Int64` | Yes | — | NBA corner right shots attempted |
-| `nba_corner_right_pct` | `Float64` | Yes | — | NBA corner right shooting percentage |
-| `nba_top_key_made` | `Int64` | Yes | — | NBA top of key shots made |
-| `nba_top_key_attempt` | `Int64` | Yes | — | NBA top of key shots attempted |
-| `nba_top_key_pct` | `Float64` | Yes | — | NBA top of key shooting percentage |
-| `college_break_left_made` | `Int64` | Yes | — | College break left shots made |
-| `college_break_left_attempt` | `Int64` | Yes | — | College break left shots attempted |
-| `college_break_left_pct` | `Float64` | Yes | — | College break left shooting percentage |
-| `college_break_right_made` | `Int64` | Yes | — | College break right shots made |
-| `college_break_right_attempt` | `Int64` | Yes | — | College break right shots attempted |
-| `college_break_right_pct` | `Float64` | Yes | — | College break right shooting percentage |
-| `college_corner_left_made` | `Int64` | Yes | — | College corner left shots made |
-| `college_corner_left_attempt` | `Int64` | Yes | — | College corner left shots attempted |
-| `college_corner_left_pct` | `Float64` | Yes | — | College corner left shooting percentage |
-| `college_corner_right_made` | `Int64` | Yes | — | College corner right shots made |
-| `college_corner_right_attempt` | `Int64` | Yes | — | College corner right shots attempted |
-| `college_corner_right_pct` | `Float64` | Yes | — | College corner right shooting percentage |
-| `college_top_key_made` | `Int64` | Yes | — | College top of key shots made |
-| `college_top_key_attempt` | `Int64` | Yes | — | College top of key shots attempted |
-| `college_top_key_pct` | `Float64` | Yes | — | College top of key shooting percentage |
-| `fifteen_break_left_made` | `Int64` | Yes | — | Fifteen-foot break left shots made |
-| `fifteen_break_left_attempt` | `Int64` | Yes | — | Fifteen-foot break left shots attempted |
-| `fifteen_break_left_pct` | `Float64` | Yes | — | Fifteen-foot break left shooting percentage |
-| `fifteen_break_right_made` | `Int64` | Yes | — | Fifteen-foot break right shots made |
-| `fifteen_break_right_attempt` | `Int64` | Yes | — | Fifteen-foot break right shots attempted |
-| `fifteen_break_right_pct` | `Float64` | Yes | — | Fifteen-foot break right shooting percentage |
-| `fifteen_corner_left_made` | `Int64` | Yes | — | Fifteen-foot corner left shots made |
-| `fifteen_corner_left_attempt` | `Int64` | Yes | — | Fifteen-foot corner left shots attempted |
-| `fifteen_corner_left_pct` | `Float64` | Yes | — | Fifteen-foot corner left shooting percentage |
-| `fifteen_corner_right_made` | `Int64` | Yes | — | Fifteen-foot corner right shots made |
-| `fifteen_corner_right_attempt` | `Int64` | Yes | — | Fifteen-foot corner right shots attempted |
-| `fifteen_corner_right_pct` | `Float64` | Yes | — | Fifteen-foot corner right shooting percentage |
-| `fifteen_top_key_made` | `Int64` | Yes | — | Fifteen-foot top of key shots made |
-| `fifteen_top_key_attempt` | `Int64` | Yes | — | Fifteen-foot top of key shots attempted |
-| `fifteen_top_key_pct` | `Float64` | Yes | — | Fifteen-foot top of key shooting percentage |
+| Column                         | Type      | Nullable | Constraints | Description                                   |
+| ------------------------------ | --------- | -------- | ----------- | --------------------------------------------- |
+| `season`                       | `String`  | No       | —           | Combine season year                           |
+| `player_id`                    | `Int64`   | No       | gt=0        | Unique player identifier                      |
+| `first_name`                   | `String`  | Yes      | —           | Player first name                             |
+| `last_name`                    | `String`  | Yes      | —           | Player last name                              |
+| `player_name`                  | `String`  | Yes      | —           | Player full name                              |
+| `position`                     | `String`  | Yes      | —           | Player position                               |
+| `nba_break_left_made`          | `Int64`   | Yes      | —           | NBA break left shots made                     |
+| `nba_break_left_attempt`       | `Int64`   | Yes      | —           | NBA break left shots attempted                |
+| `nba_break_left_pct`           | `Float64` | Yes      | —           | NBA break left shooting percentage            |
+| `nba_break_right_made`         | `Int64`   | Yes      | —           | NBA break right shots made                    |
+| `nba_break_right_attempt`      | `Int64`   | Yes      | —           | NBA break right shots attempted               |
+| `nba_break_right_pct`          | `Float64` | Yes      | —           | NBA break right shooting percentage           |
+| `nba_corner_left_made`         | `Int64`   | Yes      | —           | NBA corner left shots made                    |
+| `nba_corner_left_attempt`      | `Int64`   | Yes      | —           | NBA corner left shots attempted               |
+| `nba_corner_left_pct`          | `Float64` | Yes      | —           | NBA corner left shooting percentage           |
+| `nba_corner_right_made`        | `Int64`   | Yes      | —           | NBA corner right shots made                   |
+| `nba_corner_right_attempt`     | `Int64`   | Yes      | —           | NBA corner right shots attempted              |
+| `nba_corner_right_pct`         | `Float64` | Yes      | —           | NBA corner right shooting percentage          |
+| `nba_top_key_made`             | `Int64`   | Yes      | —           | NBA top of key shots made                     |
+| `nba_top_key_attempt`          | `Int64`   | Yes      | —           | NBA top of key shots attempted                |
+| `nba_top_key_pct`              | `Float64` | Yes      | —           | NBA top of key shooting percentage            |
+| `college_break_left_made`      | `Int64`   | Yes      | —           | College break left shots made                 |
+| `college_break_left_attempt`   | `Int64`   | Yes      | —           | College break left shots attempted            |
+| `college_break_left_pct`       | `Float64` | Yes      | —           | College break left shooting percentage        |
+| `college_break_right_made`     | `Int64`   | Yes      | —           | College break right shots made                |
+| `college_break_right_attempt`  | `Int64`   | Yes      | —           | College break right shots attempted           |
+| `college_break_right_pct`      | `Float64` | Yes      | —           | College break right shooting percentage       |
+| `college_corner_left_made`     | `Int64`   | Yes      | —           | College corner left shots made                |
+| `college_corner_left_attempt`  | `Int64`   | Yes      | —           | College corner left shots attempted           |
+| `college_corner_left_pct`      | `Float64` | Yes      | —           | College corner left shooting percentage       |
+| `college_corner_right_made`    | `Int64`   | Yes      | —           | College corner right shots made               |
+| `college_corner_right_attempt` | `Int64`   | Yes      | —           | College corner right shots attempted          |
+| `college_corner_right_pct`     | `Float64` | Yes      | —           | College corner right shooting percentage      |
+| `college_top_key_made`         | `Int64`   | Yes      | —           | College top of key shots made                 |
+| `college_top_key_attempt`      | `Int64`   | Yes      | —           | College top of key shots attempted            |
+| `college_top_key_pct`          | `Float64` | Yes      | —           | College top of key shooting percentage        |
+| `fifteen_break_left_made`      | `Int64`   | Yes      | —           | Fifteen-foot break left shots made            |
+| `fifteen_break_left_attempt`   | `Int64`   | Yes      | —           | Fifteen-foot break left shots attempted       |
+| `fifteen_break_left_pct`       | `Float64` | Yes      | —           | Fifteen-foot break left shooting percentage   |
+| `fifteen_break_right_made`     | `Int64`   | Yes      | —           | Fifteen-foot break right shots made           |
+| `fifteen_break_right_attempt`  | `Int64`   | Yes      | —           | Fifteen-foot break right shots attempted      |
+| `fifteen_break_right_pct`      | `Float64` | Yes      | —           | Fifteen-foot break right shooting percentage  |
+| `fifteen_corner_left_made`     | `Int64`   | Yes      | —           | Fifteen-foot corner left shots made           |
+| `fifteen_corner_left_attempt`  | `Int64`   | Yes      | —           | Fifteen-foot corner left shots attempted      |
+| `fifteen_corner_left_pct`      | `Float64` | Yes      | —           | Fifteen-foot corner left shooting percentage  |
+| `fifteen_corner_right_made`    | `Int64`   | Yes      | —           | Fifteen-foot corner right shots made          |
+| `fifteen_corner_right_attempt` | `Int64`   | Yes      | —           | Fifteen-foot corner right shots attempted     |
+| `fifteen_corner_right_pct`     | `Float64` | Yes      | —           | Fifteen-foot corner right shooting percentage |
+| `fifteen_top_key_made`         | `Int64`   | Yes      | —           | Fifteen-foot top of key shots made            |
+| `fifteen_top_key_attempt`      | `Int64`   | Yes      | —           | Fifteen-foot top of key shots attempted       |
+| `fifteen_top_key_pct`          | `Float64` | Yes      | —           | Fifteen-foot top of key shooting percentage   |
 
 ## `raw_draft_combine_stats`
 
 **Class**: `RawDraftCombineStatsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season` | `String` | No | — | Combine season year |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `first_name` | `String` | Yes | — | Player first name |
-| `last_name` | `String` | Yes | — | Player last name |
-| `player_name` | `String` | Yes | — | Player full name |
-| `position` | `String` | Yes | — | Player position |
-| `height_wo_shoes` | `Float64` | Yes | — | Height without shoes in inches |
-| `height_wo_shoes_ft_in` | `String` | Yes | — | Height without shoes in feet-inches |
-| `height_w_shoes` | `Float64` | Yes | — | Height with shoes in inches |
-| `height_w_shoes_ft_in` | `String` | Yes | — | Height with shoes in feet-inches |
-| `weight` | `Float64` | Yes | — | Player weight in pounds |
-| `wingspan` | `Float64` | Yes | — | Wingspan in inches |
-| `wingspan_ft_in` | `String` | Yes | — | Wingspan in feet-inches |
-| `standing_reach` | `Float64` | Yes | — | Standing reach in inches |
-| `standing_reach_ft_in` | `String` | Yes | — | Standing reach in feet-inches |
-| `body_fat_pct` | `Float64` | Yes | — | Body fat percentage |
-| `hand_length` | `Float64` | Yes | — | Hand length in inches |
-| `hand_width` | `Float64` | Yes | — | Hand width in inches |
-| `standing_vertical_leap` | `Float64` | Yes | — | Standing vertical leap in inches |
-| `max_vertical_leap` | `Float64` | Yes | — | Maximum vertical leap in inches |
-| `lane_agility_time` | `Float64` | Yes | — | Lane agility drill time in seconds |
-| `modified_lane_agility_time` | `Float64` | Yes | — | Modified lane agility time in seconds |
-| `three_quarter_sprint` | `Float64` | Yes | — | Three-quarter court sprint time in seconds |
-| `bench_press` | `Float64` | Yes | — | Bench press repetitions |
+| Column                       | Type      | Nullable | Constraints | Description                                |
+| ---------------------------- | --------- | -------- | ----------- | ------------------------------------------ |
+| `season`                     | `String`  | No       | —           | Combine season year                        |
+| `player_id`                  | `Int64`   | No       | gt=0        | Unique player identifier                   |
+| `first_name`                 | `String`  | Yes      | —           | Player first name                          |
+| `last_name`                  | `String`  | Yes      | —           | Player last name                           |
+| `player_name`                | `String`  | Yes      | —           | Player full name                           |
+| `position`                   | `String`  | Yes      | —           | Player position                            |
+| `height_wo_shoes`            | `Float64` | Yes      | —           | Height without shoes in inches             |
+| `height_wo_shoes_ft_in`      | `String`  | Yes      | —           | Height without shoes in feet-inches        |
+| `height_w_shoes`             | `Float64` | Yes      | —           | Height with shoes in inches                |
+| `height_w_shoes_ft_in`       | `String`  | Yes      | —           | Height with shoes in feet-inches           |
+| `weight`                     | `Float64` | Yes      | —           | Player weight in pounds                    |
+| `wingspan`                   | `Float64` | Yes      | —           | Wingspan in inches                         |
+| `wingspan_ft_in`             | `String`  | Yes      | —           | Wingspan in feet-inches                    |
+| `standing_reach`             | `Float64` | Yes      | —           | Standing reach in inches                   |
+| `standing_reach_ft_in`       | `String`  | Yes      | —           | Standing reach in feet-inches              |
+| `body_fat_pct`               | `Float64` | Yes      | —           | Body fat percentage                        |
+| `hand_length`                | `Float64` | Yes      | —           | Hand length in inches                      |
+| `hand_width`                 | `Float64` | Yes      | —           | Hand width in inches                       |
+| `standing_vertical_leap`     | `Float64` | Yes      | —           | Standing vertical leap in inches           |
+| `max_vertical_leap`          | `Float64` | Yes      | —           | Maximum vertical leap in inches            |
+| `lane_agility_time`          | `Float64` | Yes      | —           | Lane agility drill time in seconds         |
+| `modified_lane_agility_time` | `Float64` | Yes      | —           | Modified lane agility time in seconds      |
+| `three_quarter_sprint`       | `Float64` | Yes      | —           | Three-quarter court sprint time in seconds |
+| `bench_press`                | `Float64` | Yes      | —           | Bench press repetitions                    |
 
 ## `raw_draft_history`
 
 **Class**: `RawDraftHistorySchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `person_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `season` | `String` | Yes | — | Draft season year |
-| `round_number` | `Int64` | Yes | — | Draft round number |
-| `round_pick` | `Int64` | Yes | — | Pick number within the round |
-| `overall_pick` | `Int64` | Yes | — | Overall draft pick number |
-| `draft_type` | `String` | Yes | — | Type of draft |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_city` | `String` | Yes | — | Team city name |
-| `team_name` | `String` | Yes | — | Team name |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `organization` | `String` | Yes | — | Pre-draft organization |
-| `organization_type` | `String` | Yes | — | Type of pre-draft organization |
-| `player_profile_flag` | `Int64` | Yes | — | Player profile availability flag |
+| Column                | Type     | Nullable | Constraints | Description                      |
+| --------------------- | -------- | -------- | ----------- | -------------------------------- |
+| `person_id`           | `Int64`  | No       | gt=0        | Unique player identifier         |
+| `player_name`         | `String` | Yes      | —           | Player full name                 |
+| `season`              | `String` | Yes      | —           | Draft season year                |
+| `round_number`        | `Int64`  | Yes      | —           | Draft round number               |
+| `round_pick`          | `Int64`  | Yes      | —           | Pick number within the round     |
+| `overall_pick`        | `Int64`  | Yes      | —           | Overall draft pick number        |
+| `draft_type`          | `String` | Yes      | —           | Type of draft                    |
+| `team_id`             | `Int64`  | Yes      | —           | Team identifier                  |
+| `team_city`           | `String` | Yes      | —           | Team city name                   |
+| `team_name`           | `String` | Yes      | —           | Team name                        |
+| `team_abbreviation`   | `String` | Yes      | —           | Team abbreviation code           |
+| `organization`        | `String` | Yes      | —           | Pre-draft organization           |
+| `organization_type`   | `String` | Yes      | —           | Type of pre-draft organization   |
+| `player_profile_flag` | `Int64`  | Yes      | —           | Player profile availability flag |
 
 ## `raw_franchise_history`
 
 **Class**: `RawFranchiseHistorySchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `league_id` | `String` | No | — | League identifier |
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `team_city` | `String` | Yes | — | Team city name |
-| `team_name` | `String` | Yes | — | Team name |
-| `start_year` | `String` | Yes | — | First year of franchise era |
-| `end_year` | `String` | Yes | — | Last year of franchise era |
-| `years` | `Int64` | Yes | — | Total years in franchise era |
-| `games` | `Int64` | Yes | — | Total games played |
-| `wins` | `Int64` | Yes | — | Total wins |
-| `losses` | `Int64` | Yes | — | Total losses |
-| `win_pct` | `Float64` | Yes | — | Win percentage |
-| `po_appearances` | `Int64` | Yes | — | Playoff appearances count |
-| `div_titles` | `Int64` | Yes | — | Division titles won |
-| `conf_titles` | `Int64` | Yes | — | Conference titles won |
-| `league_titles` | `Int64` | Yes | — | League championships won |
+| Column           | Type      | Nullable | Constraints | Description                  |
+| ---------------- | --------- | -------- | ----------- | ---------------------------- |
+| `league_id`      | `String`  | No       | —           | League identifier            |
+| `team_id`        | `Int64`   | No       | gt=0        | Unique team identifier       |
+| `team_city`      | `String`  | Yes      | —           | Team city name               |
+| `team_name`      | `String`  | Yes      | —           | Team name                    |
+| `start_year`     | `String`  | Yes      | —           | First year of franchise era  |
+| `end_year`       | `String`  | Yes      | —           | Last year of franchise era   |
+| `years`          | `Int64`   | Yes      | —           | Total years in franchise era |
+| `games`          | `Int64`   | Yes      | —           | Total games played           |
+| `wins`           | `Int64`   | Yes      | —           | Total wins                   |
+| `losses`         | `Int64`   | Yes      | —           | Total losses                 |
+| `win_pct`        | `Float64` | Yes      | —           | Win percentage               |
+| `po_appearances` | `Int64`   | Yes      | —           | Playoff appearances count    |
+| `div_titles`     | `Int64`   | Yes      | —           | Division titles won          |
+| `conf_titles`    | `Int64`   | Yes      | —           | Conference titles won        |
+| `league_titles`  | `Int64`   | Yes      | —           | League championships won     |
 
 ## `raw_game_rotation`
 
 **Class**: `RawGameRotationSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_city` | `String` | Yes | — | Team city name |
-| `team_name` | `String` | Yes | — | Team name |
-| `person_id` | `Int64` | Yes | — | Player person identifier |
-| `player_first` | `String` | Yes | — | Player first name |
-| `player_last` | `String` | Yes | — | Player last name |
-| `in_time_real` | `Float64` | Yes | — | Real time player entered game |
-| `out_time_real` | `Float64` | Yes | — | Real time player exited game |
-| `player_pts` | `Float64` | Yes | — | Points scored during stint |
-| `pt_diff` | `Float64` | Yes | — | Point differential during stint |
-| `usg_pct` | `Float64` | Yes | — | Usage percentage during stint |
+| Column          | Type      | Nullable | Constraints | Description                     |
+| --------------- | --------- | -------- | ----------- | ------------------------------- |
+| `game_id`       | `String`  | No       | —           | Unique game identifier          |
+| `team_id`       | `Int64`   | Yes      | —           | Team identifier                 |
+| `team_city`     | `String`  | Yes      | —           | Team city name                  |
+| `team_name`     | `String`  | Yes      | —           | Team name                       |
+| `person_id`     | `Int64`   | Yes      | —           | Player person identifier        |
+| `player_first`  | `String`  | Yes      | —           | Player first name               |
+| `player_last`   | `String`  | Yes      | —           | Player last name                |
+| `in_time_real`  | `Float64` | Yes      | —           | Real time player entered game   |
+| `out_time_real` | `Float64` | Yes      | —           | Real time player exited game    |
+| `player_pts`    | `Float64` | Yes      | —           | Points scored during stint      |
+| `pt_diff`       | `Float64` | Yes      | —           | Point differential during stint |
+| `usg_pct`       | `Float64` | Yes      | —           | Usage percentage during stint   |
 
 ## `raw_league_game_log`
 
 **Class**: `RawLeagueGameLogSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season_id` | `String` | No | — | Season identifier |
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `team_abbreviation` | `String` | No | — | Team abbreviation code |
-| `team_name` | `String` | No | — | Team name |
-| `game_id` | `String` | No | — | Unique game identifier |
-| `game_date` | `String` | No | — | Date of the game |
-| `matchup` | `String` | No | — | Matchup string (e.g. LAL vs. BOS) |
-| `wl` | `String` | Yes | — | Win or loss indicator |
-| `w` | `Int64` | Yes | — | Wins |
-| `l` | `Int64` | Yes | — | Losses |
-| `w_pct` | `Float64` | Yes | — | Win percentage |
-| `min` | `Float64` | Yes | — | Minutes played |
-| `fgm` | `Float64` | Yes | — | Field goals made |
-| `fga` | `Float64` | Yes | — | Field goals attempted |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `fg3m` | `Float64` | Yes | — | Three-point field goals made |
-| `fg3a` | `Float64` | Yes | — | Three-point field goals attempted |
-| `fg3_pct` | `Float64` | Yes | — | Three-point field goal percentage |
-| `ftm` | `Float64` | Yes | — | Free throws made |
-| `fta` | `Float64` | Yes | — | Free throws attempted |
-| `ft_pct` | `Float64` | Yes | — | Free throw percentage |
-| `oreb` | `Float64` | Yes | — | Offensive rebounds |
-| `dreb` | `Float64` | Yes | — | Defensive rebounds |
-| `reb` | `Float64` | Yes | — | Total rebounds |
-| `ast` | `Float64` | Yes | — | Assists |
-| `stl` | `Float64` | Yes | — | Steals |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `tov` | `Float64` | Yes | — | Turnovers |
-| `pf` | `Float64` | Yes | — | Personal fouls |
-| `pts` | `Float64` | Yes | — | Points scored |
-| `plus_minus` | `Float64` | Yes | — | Plus-minus differential |
-| `video_available` | `Int64` | Yes | — | Video availability flag |
+| Column              | Type      | Nullable | Constraints | Description                       |
+| ------------------- | --------- | -------- | ----------- | --------------------------------- |
+| `season_id`         | `String`  | No       | —           | Season identifier                 |
+| `team_id`           | `Int64`   | No       | gt=0        | Unique team identifier            |
+| `team_abbreviation` | `String`  | No       | —           | Team abbreviation code            |
+| `team_name`         | `String`  | No       | —           | Team name                         |
+| `game_id`           | `String`  | No       | —           | Unique game identifier            |
+| `game_date`         | `String`  | No       | —           | Date of the game                  |
+| `matchup`           | `String`  | No       | —           | Matchup string (e.g. LAL vs. BOS) |
+| `wl`                | `String`  | Yes      | —           | Win or loss indicator             |
+| `w`                 | `Int64`   | Yes      | —           | Wins                              |
+| `l`                 | `Int64`   | Yes      | —           | Losses                            |
+| `w_pct`             | `Float64` | Yes      | —           | Win percentage                    |
+| `min`               | `Float64` | Yes      | —           | Minutes played                    |
+| `fgm`               | `Float64` | Yes      | —           | Field goals made                  |
+| `fga`               | `Float64` | Yes      | —           | Field goals attempted             |
+| `fg_pct`            | `Float64` | Yes      | —           | Field goal percentage             |
+| `fg3m`              | `Float64` | Yes      | —           | Three-point field goals made      |
+| `fg3a`              | `Float64` | Yes      | —           | Three-point field goals attempted |
+| `fg3_pct`           | `Float64` | Yes      | —           | Three-point field goal percentage |
+| `ftm`               | `Float64` | Yes      | —           | Free throws made                  |
+| `fta`               | `Float64` | Yes      | —           | Free throws attempted             |
+| `ft_pct`            | `Float64` | Yes      | —           | Free throw percentage             |
+| `oreb`              | `Float64` | Yes      | —           | Offensive rebounds                |
+| `dreb`              | `Float64` | Yes      | —           | Defensive rebounds                |
+| `reb`               | `Float64` | Yes      | —           | Total rebounds                    |
+| `ast`               | `Float64` | Yes      | —           | Assists                           |
+| `stl`               | `Float64` | Yes      | —           | Steals                            |
+| `blk`               | `Float64` | Yes      | —           | Blocks                            |
+| `tov`               | `Float64` | Yes      | —           | Turnovers                         |
+| `pf`                | `Float64` | Yes      | —           | Personal fouls                    |
+| `pts`               | `Float64` | Yes      | —           | Points scored                     |
+| `plus_minus`        | `Float64` | Yes      | —           | Plus-minus differential           |
+| `video_available`   | `Int64`   | Yes      | —           | Video availability flag           |
 
 ## `raw_league_season_matchups`
 
 **Class**: `RawLeagueSeasonMatchupsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `off_player_id` | `Int64` | Yes | — | Offensive player identifier |
-| `off_player_name` | `String` | Yes | — | Offensive player name |
-| `def_player_id` | `Int64` | Yes | — | Defensive player identifier |
-| `def_player_name` | `String` | Yes | — | Defensive player name |
-| `gp` | `Int64` | Yes | — | Games played |
-| `matchup_min` | `Float64` | Yes | — | Minutes in matchup |
-| `partial_poss` | `Float64` | Yes | — | Partial possessions in matchup |
-| `player_pts` | `Float64` | Yes | — | Player points in matchup |
-| `team_pts` | `Float64` | Yes | — | Team points in matchup |
-| `matchup_ast` | `Float64` | Yes | — | Assists in matchup |
-| `matchup_tov` | `Float64` | Yes | — | Turnovers in matchup |
-| `matchup_blk` | `Float64` | Yes | — | Blocks in matchup |
-| `matchup_fgm` | `Float64` | Yes | — | Field goals made in matchup |
-| `matchup_fga` | `Float64` | Yes | — | Field goals attempted in matchup |
-| `matchup_fg_pct` | `Float64` | Yes | — | Field goal pct in matchup |
-| `matchup_fg3m` | `Float64` | Yes | — | Three-pointers made in matchup |
-| `matchup_fg3a` | `Float64` | Yes | — | Three-pointers attempted |
-| `matchup_fg3_pct` | `Float64` | Yes | — | Three-point pct in matchup |
-| `help_blk` | `Float64` | Yes | — | Help blocks in matchup |
-| `help_fgm` | `Float64` | Yes | — | Help field goals made |
-| `help_fga` | `Float64` | Yes | — | Help field goals attempted |
-| `help_fg_pct` | `Float64` | Yes | — | Help field goal percentage |
-| `matchup_ftm` | `Float64` | Yes | — | Free throws made in matchup |
-| `matchup_fta` | `Float64` | Yes | — | Free throws attempted |
-| `switches_on` | `Float64` | Yes | — | Number of switches onto player |
-| `pct_switched` | `Float64` | Yes | — | Percentage of possessions switched |
+| Column            | Type      | Nullable | Constraints | Description                        |
+| ----------------- | --------- | -------- | ----------- | ---------------------------------- |
+| `off_player_id`   | `Int64`   | Yes      | —           | Offensive player identifier        |
+| `off_player_name` | `String`  | Yes      | —           | Offensive player name              |
+| `def_player_id`   | `Int64`   | Yes      | —           | Defensive player identifier        |
+| `def_player_name` | `String`  | Yes      | —           | Defensive player name              |
+| `gp`              | `Int64`   | Yes      | —           | Games played                       |
+| `matchup_min`     | `Float64` | Yes      | —           | Minutes in matchup                 |
+| `partial_poss`    | `Float64` | Yes      | —           | Partial possessions in matchup     |
+| `player_pts`      | `Float64` | Yes      | —           | Player points in matchup           |
+| `team_pts`        | `Float64` | Yes      | —           | Team points in matchup             |
+| `matchup_ast`     | `Float64` | Yes      | —           | Assists in matchup                 |
+| `matchup_tov`     | `Float64` | Yes      | —           | Turnovers in matchup               |
+| `matchup_blk`     | `Float64` | Yes      | —           | Blocks in matchup                  |
+| `matchup_fgm`     | `Float64` | Yes      | —           | Field goals made in matchup        |
+| `matchup_fga`     | `Float64` | Yes      | —           | Field goals attempted in matchup   |
+| `matchup_fg_pct`  | `Float64` | Yes      | —           | Field goal pct in matchup          |
+| `matchup_fg3m`    | `Float64` | Yes      | —           | Three-pointers made in matchup     |
+| `matchup_fg3a`    | `Float64` | Yes      | —           | Three-pointers attempted           |
+| `matchup_fg3_pct` | `Float64` | Yes      | —           | Three-point pct in matchup         |
+| `help_blk`        | `Float64` | Yes      | —           | Help blocks in matchup             |
+| `help_fgm`        | `Float64` | Yes      | —           | Help field goals made              |
+| `help_fga`        | `Float64` | Yes      | —           | Help field goals attempted         |
+| `help_fg_pct`     | `Float64` | Yes      | —           | Help field goal percentage         |
+| `matchup_ftm`     | `Float64` | Yes      | —           | Free throws made in matchup        |
+| `matchup_fta`     | `Float64` | Yes      | —           | Free throws attempted              |
+| `switches_on`     | `Float64` | Yes      | —           | Number of switches onto player     |
+| `pct_switched`    | `Float64` | Yes      | —           | Percentage of possessions switched |
 
 ## `raw_league_standings_v3`
 
 **Class**: `RawLeagueStandingsV3Schema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `league_id` | `String` | No | — | League identifier |
-| `season_id` | `String` | Yes | — | Season identifier |
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `team_city` | `String` | Yes | — | Team city name |
-| `team_name` | `String` | Yes | — | Team name |
-| `team_slug` | `String` | Yes | — | URL-friendly team slug |
-| `conference` | `String` | Yes | — | Conference name |
-| `conference_record` | `String` | Yes | — | Win-loss record in conference |
-| `playoff_rank` | `Int64` | Yes | — | Playoff seeding rank |
-| `clinch_indicator` | `String` | Yes | — | Clinch status indicator |
-| `division` | `String` | Yes | — | Division name |
-| `division_record` | `String` | Yes | — | Win-loss record in division |
-| `division_rank` | `Int64` | Yes | — | Rank within division |
-| `wins` | `Int64` | Yes | — | Total wins |
-| `losses` | `Int64` | Yes | — | Total losses |
-| `win_pct` | `Float64` | Yes | — | Winning percentage |
-| `league_rank` | `Int64` | Yes | — | Overall league rank |
-| `record` | `String` | Yes | — | Overall win-loss record |
-| `home` | `String` | Yes | — | Home win-loss record |
-| `road` | `String` | Yes | — | Road win-loss record |
-| `l10` | `String` | Yes | — | Record in last 10 games |
-| `long_win_streak` | `Int64` | Yes | — | Longest winning streak |
-| `long_loss_streak` | `Int64` | Yes | — | Longest losing streak |
-| `current_streak` | `String` | Yes | — | Current win or loss streak |
-| `ot_record` | `String` | Yes | — | Overtime win-loss record |
-| `three_pts_or_less` | `String` | Yes | — | Record in games decided by 3 points or less |
-| `ten_pts_or_more` | `String` | Yes | — | Record in games decided by 10 points or more |
-| `conference_games_back` | `Float64` | Yes | — | Games behind conference leader |
-| `division_games_back` | `Float64` | Yes | — | Games behind division leader |
-| `clinched_conference_title` | `Int64` | Yes | — | Whether team clinched conference |
-| `clinched_division_title` | `Int64` | Yes | — | Whether team clinched division |
-| `clinched_playoff_birth` | `Int64` | Yes | — | Whether team clinched playoff berth |
-| `eliminated_conference` | `Int64` | Yes | — | Whether team eliminated from conference playoff contention |
-| `pts_pg` | `Float64` | Yes | — | Points per game |
-| `opp_pts_pg` | `Float64` | Yes | — | Opponent points per game |
-| `diff_pts_pg` | `Float64` | Yes | — | Point differential per game |
+| Column                      | Type      | Nullable | Constraints | Description                                                |
+| --------------------------- | --------- | -------- | ----------- | ---------------------------------------------------------- |
+| `league_id`                 | `String`  | No       | —           | League identifier                                          |
+| `season_id`                 | `String`  | Yes      | —           | Season identifier                                          |
+| `team_id`                   | `Int64`   | No       | gt=0        | Unique team identifier                                     |
+| `team_city`                 | `String`  | Yes      | —           | Team city name                                             |
+| `team_name`                 | `String`  | Yes      | —           | Team name                                                  |
+| `team_slug`                 | `String`  | Yes      | —           | URL-friendly team slug                                     |
+| `conference`                | `String`  | Yes      | —           | Conference name                                            |
+| `conference_record`         | `String`  | Yes      | —           | Win-loss record in conference                              |
+| `playoff_rank`              | `Int64`   | Yes      | —           | Playoff seeding rank                                       |
+| `clinch_indicator`          | `String`  | Yes      | —           | Clinch status indicator                                    |
+| `division`                  | `String`  | Yes      | —           | Division name                                              |
+| `division_record`           | `String`  | Yes      | —           | Win-loss record in division                                |
+| `division_rank`             | `Int64`   | Yes      | —           | Rank within division                                       |
+| `wins`                      | `Int64`   | Yes      | —           | Total wins                                                 |
+| `losses`                    | `Int64`   | Yes      | —           | Total losses                                               |
+| `win_pct`                   | `Float64` | Yes      | —           | Winning percentage                                         |
+| `league_rank`               | `Int64`   | Yes      | —           | Overall league rank                                        |
+| `record`                    | `String`  | Yes      | —           | Overall win-loss record                                    |
+| `home`                      | `String`  | Yes      | —           | Home win-loss record                                       |
+| `road`                      | `String`  | Yes      | —           | Road win-loss record                                       |
+| `l10`                       | `String`  | Yes      | —           | Record in last 10 games                                    |
+| `long_win_streak`           | `Int64`   | Yes      | —           | Longest winning streak                                     |
+| `long_loss_streak`          | `Int64`   | Yes      | —           | Longest losing streak                                      |
+| `current_streak`            | `String`  | Yes      | —           | Current win or loss streak                                 |
+| `ot_record`                 | `String`  | Yes      | —           | Overtime win-loss record                                   |
+| `three_pts_or_less`         | `String`  | Yes      | —           | Record in games decided by 3 points or less                |
+| `ten_pts_or_more`           | `String`  | Yes      | —           | Record in games decided by 10 points or more               |
+| `conference_games_back`     | `Float64` | Yes      | —           | Games behind conference leader                             |
+| `division_games_back`       | `Float64` | Yes      | —           | Games behind division leader                               |
+| `clinched_conference_title` | `Int64`   | Yes      | —           | Whether team clinched conference                           |
+| `clinched_division_title`   | `Int64`   | Yes      | —           | Whether team clinched division                             |
+| `clinched_playoff_birth`    | `Int64`   | Yes      | —           | Whether team clinched playoff berth                        |
+| `eliminated_conference`     | `Int64`   | Yes      | —           | Whether team eliminated from conference playoff contention |
+| `pts_pg`                    | `Float64` | Yes      | —           | Points per game                                            |
+| `opp_pts_pg`                | `Float64` | Yes      | —           | Opponent points per game                                   |
+| `diff_pts_pg`               | `Float64` | Yes      | —           | Point differential per game                                |
 
 ## `raw_play_by_play_v2`
 
 **Class**: `RawPlayByPlayV2Schema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `eventnum` | `Int64` | No | — | Event sequence number |
-| `eventmsgtype` | `Int64` | No | — | Event message type code |
-| `eventmsgactiontype` | `Int64` | No | — | Event message action type code |
-| `period` | `Int64` | No | — | Game period number |
-| `wctimestring` | `String` | Yes | — | Wall clock time string |
-| `pctimestring` | `String` | Yes | — | Period clock time string |
-| `homedescription` | `String` | Yes | — | Play description for home team |
-| `neutraldescription` | `String` | Yes | — | Neutral play description |
-| `visitordescription` | `String` | Yes | — | Play description for visitor team |
-| `score` | `String` | Yes | — | Current game score |
-| `scoremargin` | `String` | Yes | — | Score margin value |
-| `person1type` | `Int64` | Yes | — | Person 1 type identifier |
-| `player1_id` | `Int64` | Yes | — | Player 1 unique identifier |
-| `player1_name` | `String` | Yes | — | Player 1 full name |
-| `player1_team_id` | `Int64` | Yes | — | Player 1 team identifier |
-| `player1_team_city` | `String` | Yes | — | Player 1 team city |
-| `player1_team_nickname` | `String` | Yes | — | Player 1 team nickname |
-| `player1_team_abbreviation` | `String` | Yes | — | Player 1 team abbreviation |
-| `person2type` | `Int64` | Yes | — | Person 2 type identifier |
-| `player2_id` | `Int64` | Yes | — | Player 2 unique identifier |
-| `player2_name` | `String` | Yes | — | Player 2 full name |
-| `player2_team_id` | `Int64` | Yes | — | Player 2 team identifier |
-| `player2_team_city` | `String` | Yes | — | Player 2 team city |
-| `player2_team_nickname` | `String` | Yes | — | Player 2 team nickname |
-| `player2_team_abbreviation` | `String` | Yes | — | Player 2 team abbreviation |
-| `person3type` | `Int64` | Yes | — | Person 3 type identifier |
-| `player3_id` | `Int64` | Yes | — | Player 3 unique identifier |
-| `player3_name` | `String` | Yes | — | Player 3 full name |
-| `player3_team_id` | `Int64` | Yes | — | Player 3 team identifier |
-| `player3_team_city` | `String` | Yes | — | Player 3 team city |
-| `player3_team_nickname` | `String` | Yes | — | Player 3 team nickname |
-| `player3_team_abbreviation` | `String` | Yes | — | Player 3 team abbreviation |
-| `video_available_flag` | `Int64` | Yes | — | Video availability flag |
+| Column                      | Type     | Nullable | Constraints | Description                       |
+| --------------------------- | -------- | -------- | ----------- | --------------------------------- |
+| `game_id`                   | `String` | No       | —           | Unique game identifier            |
+| `eventnum`                  | `Int64`  | No       | —           | Event sequence number             |
+| `eventmsgtype`              | `Int64`  | No       | —           | Event message type code           |
+| `eventmsgactiontype`        | `Int64`  | No       | —           | Event message action type code    |
+| `period`                    | `Int64`  | No       | —           | Game period number                |
+| `wctimestring`              | `String` | Yes      | —           | Wall clock time string            |
+| `pctimestring`              | `String` | Yes      | —           | Period clock time string          |
+| `homedescription`           | `String` | Yes      | —           | Play description for home team    |
+| `neutraldescription`        | `String` | Yes      | —           | Neutral play description          |
+| `visitordescription`        | `String` | Yes      | —           | Play description for visitor team |
+| `score`                     | `String` | Yes      | —           | Current game score                |
+| `scoremargin`               | `String` | Yes      | —           | Score margin value                |
+| `person1type`               | `Int64`  | Yes      | —           | Person 1 type identifier          |
+| `player1_id`                | `Int64`  | Yes      | —           | Player 1 unique identifier        |
+| `player1_name`              | `String` | Yes      | —           | Player 1 full name                |
+| `player1_team_id`           | `Int64`  | Yes      | —           | Player 1 team identifier          |
+| `player1_team_city`         | `String` | Yes      | —           | Player 1 team city                |
+| `player1_team_nickname`     | `String` | Yes      | —           | Player 1 team nickname            |
+| `player1_team_abbreviation` | `String` | Yes      | —           | Player 1 team abbreviation        |
+| `person2type`               | `Int64`  | Yes      | —           | Person 2 type identifier          |
+| `player2_id`                | `Int64`  | Yes      | —           | Player 2 unique identifier        |
+| `player2_name`              | `String` | Yes      | —           | Player 2 full name                |
+| `player2_team_id`           | `Int64`  | Yes      | —           | Player 2 team identifier          |
+| `player2_team_city`         | `String` | Yes      | —           | Player 2 team city                |
+| `player2_team_nickname`     | `String` | Yes      | —           | Player 2 team nickname            |
+| `player2_team_abbreviation` | `String` | Yes      | —           | Player 2 team abbreviation        |
+| `person3type`               | `Int64`  | Yes      | —           | Person 3 type identifier          |
+| `player3_id`                | `Int64`  | Yes      | —           | Player 3 unique identifier        |
+| `player3_name`              | `String` | Yes      | —           | Player 3 full name                |
+| `player3_team_id`           | `Int64`  | Yes      | —           | Player 3 team identifier          |
+| `player3_team_city`         | `String` | Yes      | —           | Player 3 team city                |
+| `player3_team_nickname`     | `String` | Yes      | —           | Player 3 team nickname            |
+| `player3_team_abbreviation` | `String` | Yes      | —           | Player 3 team abbreviation        |
+| `video_available_flag`      | `Int64`  | Yes      | —           | Video availability flag           |
 
 ## `raw_play_by_play_v3`
 
 **Class**: `RawPlayByPlayV3Schema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `action_number` | `Int64` | No | — | Sequential action number within game |
-| `clock` | `String` | Yes | — | Game clock time string |
-| `period` | `Int64` | No | — | Game period number |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_tricode` | `String` | Yes | — | Three-letter team abbreviation code |
-| `person_id` | `Int64` | Yes | — | Person identifier |
-| `player_name` | `String` | Yes | — | Full player name |
-| `player_name_i` | `String` | Yes | — | Player name in initial format |
-| `x_legacy` | `Float64` | Yes | — | Legacy x-coordinate of action |
-| `y_legacy` | `Float64` | Yes | — | Legacy y-coordinate of action |
-| `shot_distance` | `Float64` | Yes | — | Distance of shot in feet |
-| `shot_result` | `String` | Yes | — | Result of shot attempt |
-| `is_field_goal` | `Int64` | Yes | — | Flag indicating if action is a field goal attempt |
-| `score_home` | `String` | Yes | — | Home team score |
-| `score_away` | `String` | Yes | — | Away team score |
-| `points_total` | `Int64` | Yes | — | Total points scored on the play |
-| `location` | `String` | Yes | — | Home or away location indicator |
-| `description` | `String` | Yes | — | Text description of the play |
-| `action_type` | `String` | Yes | — | Type of action performed |
-| `sub_type` | `String` | Yes | — | Sub-type of action performed |
-| `video_available` | `Int64` | Yes | — | Video availability flag |
-| `action_id` | `Int64` | Yes | — | Unique action identifier |
+| Column            | Type      | Nullable | Constraints | Description                                       |
+| ----------------- | --------- | -------- | ----------- | ------------------------------------------------- |
+| `game_id`         | `String`  | No       | —           | Unique game identifier                            |
+| `action_number`   | `Int64`   | No       | —           | Sequential action number within game              |
+| `clock`           | `String`  | Yes      | —           | Game clock time string                            |
+| `period`          | `Int64`   | No       | —           | Game period number                                |
+| `team_id`         | `Int64`   | Yes      | —           | Team identifier                                   |
+| `team_tricode`    | `String`  | Yes      | —           | Three-letter team abbreviation code               |
+| `person_id`       | `Int64`   | Yes      | —           | Person identifier                                 |
+| `player_name`     | `String`  | Yes      | —           | Full player name                                  |
+| `player_name_i`   | `String`  | Yes      | —           | Player name in initial format                     |
+| `x_legacy`        | `Float64` | Yes      | —           | Legacy x-coordinate of action                     |
+| `y_legacy`        | `Float64` | Yes      | —           | Legacy y-coordinate of action                     |
+| `shot_distance`   | `Float64` | Yes      | —           | Distance of shot in feet                          |
+| `shot_result`     | `String`  | Yes      | —           | Result of shot attempt                            |
+| `is_field_goal`   | `Int64`   | Yes      | —           | Flag indicating if action is a field goal attempt |
+| `score_home`      | `String`  | Yes      | —           | Home team score                                   |
+| `score_away`      | `String`  | Yes      | —           | Away team score                                   |
+| `points_total`    | `Int64`   | Yes      | —           | Total points scored on the play                   |
+| `location`        | `String`  | Yes      | —           | Home or away location indicator                   |
+| `description`     | `String`  | Yes      | —           | Text description of the play                      |
+| `action_type`     | `String`  | Yes      | —           | Type of action performed                          |
+| `sub_type`        | `String`  | Yes      | —           | Sub-type of action performed                      |
+| `video_available` | `Int64`   | Yes      | —           | Video availability flag                           |
+| `action_id`       | `Int64`   | Yes      | —           | Unique action identifier                          |
 
 ## `raw_player_awards`
 
 **Class**: `RawPlayerAwardsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `person_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `first_name` | `String` | Yes | — | Player first name |
-| `last_name` | `String` | Yes | — | Player last name |
-| `team` | `String` | Yes | — | Team name at time of award |
-| `description` | `String` | Yes | — | Award description |
-| `all_nba_team_number` | `Int64` | Yes | — | All-NBA team number selection |
-| `season` | `String` | Yes | — | Season of the award |
-| `month` | `String` | Yes | — | Month of the award if applicable |
-| `week` | `String` | Yes | — | Week of the award if applicable |
-| `conference` | `String` | Yes | — | Conference for the award |
-| `type` | `String` | Yes | — | Award type category |
-| `subtype1` | `String` | Yes | — | Award subtype level 1 |
-| `subtype2` | `String` | Yes | — | Award subtype level 2 |
-| `subtype3` | `String` | Yes | — | Award subtype level 3 |
+| Column                | Type     | Nullable | Constraints | Description                      |
+| --------------------- | -------- | -------- | ----------- | -------------------------------- |
+| `person_id`           | `Int64`  | No       | gt=0        | Unique player identifier         |
+| `first_name`          | `String` | Yes      | —           | Player first name                |
+| `last_name`           | `String` | Yes      | —           | Player last name                 |
+| `team`                | `String` | Yes      | —           | Team name at time of award       |
+| `description`         | `String` | Yes      | —           | Award description                |
+| `all_nba_team_number` | `Int64`  | Yes      | —           | All-NBA team number selection    |
+| `season`              | `String` | Yes      | —           | Season of the award              |
+| `month`               | `String` | Yes      | —           | Month of the award if applicable |
+| `week`                | `String` | Yes      | —           | Week of the award if applicable  |
+| `conference`          | `String` | Yes      | —           | Conference for the award         |
+| `type`                | `String` | Yes      | —           | Award type category              |
+| `subtype1`            | `String` | Yes      | —           | Award subtype level 1            |
+| `subtype2`            | `String` | Yes      | —           | Award subtype level 2            |
+| `subtype3`            | `String` | Yes      | —           | Award subtype level 3            |
 
 ## `raw_player_career_stats`
 
 **Class**: `RawPlayerCareerStatsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `season_id` | `String` | Yes | — | Season identifier string |
-| `league_id` | `String` | Yes | — | League identifier |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `player_age` | `Float64` | Yes | — | Player age during season |
-| `gp` | `Int64` | Yes | — | Games played |
-| `gs` | `Int64` | Yes | — | Games started |
-| `min` | `Float64` | Yes | — | Minutes played |
-| `fgm` | `Float64` | Yes | — | Field goals made |
-| `fga` | `Float64` | Yes | — | Field goals attempted |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `fg3m` | `Float64` | Yes | — | Three-point field goals made |
-| `fg3a` | `Float64` | Yes | — | Three-point field goals attempted |
-| `fg3_pct` | `Float64` | Yes | — | Three-point field goal percentage |
-| `ftm` | `Float64` | Yes | — | Free throws made |
-| `fta` | `Float64` | Yes | — | Free throws attempted |
-| `ft_pct` | `Float64` | Yes | — | Free throw percentage |
-| `oreb` | `Float64` | Yes | — | Offensive rebounds |
-| `dreb` | `Float64` | Yes | — | Defensive rebounds |
-| `reb` | `Float64` | Yes | — | Total rebounds |
-| `ast` | `Float64` | Yes | — | Assists |
-| `stl` | `Float64` | Yes | — | Steals |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `tov` | `Float64` | Yes | — | Turnovers |
-| `pf` | `Float64` | Yes | — | Personal fouls |
-| `pts` | `Float64` | Yes | — | Points scored |
+| Column              | Type      | Nullable | Constraints | Description                       |
+| ------------------- | --------- | -------- | ----------- | --------------------------------- |
+| `player_id`         | `Int64`   | No       | gt=0        | Unique player identifier          |
+| `season_id`         | `String`  | Yes      | —           | Season identifier string          |
+| `league_id`         | `String`  | Yes      | —           | League identifier                 |
+| `team_id`           | `Int64`   | Yes      | —           | Team identifier                   |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code            |
+| `player_age`        | `Float64` | Yes      | —           | Player age during season          |
+| `gp`                | `Int64`   | Yes      | —           | Games played                      |
+| `gs`                | `Int64`   | Yes      | —           | Games started                     |
+| `min`               | `Float64` | Yes      | —           | Minutes played                    |
+| `fgm`               | `Float64` | Yes      | —           | Field goals made                  |
+| `fga`               | `Float64` | Yes      | —           | Field goals attempted             |
+| `fg_pct`            | `Float64` | Yes      | —           | Field goal percentage             |
+| `fg3m`              | `Float64` | Yes      | —           | Three-point field goals made      |
+| `fg3a`              | `Float64` | Yes      | —           | Three-point field goals attempted |
+| `fg3_pct`           | `Float64` | Yes      | —           | Three-point field goal percentage |
+| `ftm`               | `Float64` | Yes      | —           | Free throws made                  |
+| `fta`               | `Float64` | Yes      | —           | Free throws attempted             |
+| `ft_pct`            | `Float64` | Yes      | —           | Free throw percentage             |
+| `oreb`              | `Float64` | Yes      | —           | Offensive rebounds                |
+| `dreb`              | `Float64` | Yes      | —           | Defensive rebounds                |
+| `reb`               | `Float64` | Yes      | —           | Total rebounds                    |
+| `ast`               | `Float64` | Yes      | —           | Assists                           |
+| `stl`               | `Float64` | Yes      | —           | Steals                            |
+| `blk`               | `Float64` | Yes      | —           | Blocks                            |
+| `tov`               | `Float64` | Yes      | —           | Turnovers                         |
+| `pf`                | `Float64` | Yes      | —           | Personal fouls                    |
+| `pts`               | `Float64` | Yes      | —           | Points scored                     |
 
 ## `raw_player_game_log`
 
 **Class**: `RawPlayerGameLogSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season_id` | `String` | No | — | Season identifier |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `game_id` | `String` | No | — | Unique game identifier |
-| `game_date` | `String` | No | — | Date of the game |
-| `matchup` | `String` | No | — | Matchup string (e.g. LAL vs. BOS) |
-| `wl` | `String` | Yes | — | Win or loss indicator |
-| `min` | `Float64` | Yes | — | Minutes played |
-| `fgm` | `Float64` | Yes | — | Field goals made |
-| `fga` | `Float64` | Yes | — | Field goals attempted |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `fg3m` | `Float64` | Yes | — | Three-point field goals made |
-| `fg3a` | `Float64` | Yes | — | Three-point field goals attempted |
-| `fg3_pct` | `Float64` | Yes | — | Three-point field goal percentage |
-| `ftm` | `Float64` | Yes | — | Free throws made |
-| `fta` | `Float64` | Yes | — | Free throws attempted |
-| `ft_pct` | `Float64` | Yes | — | Free throw percentage |
-| `oreb` | `Float64` | Yes | — | Offensive rebounds |
-| `dreb` | `Float64` | Yes | — | Defensive rebounds |
-| `reb` | `Float64` | Yes | — | Total rebounds |
-| `ast` | `Float64` | Yes | — | Assists |
-| `stl` | `Float64` | Yes | — | Steals |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `tov` | `Float64` | Yes | — | Turnovers |
-| `pf` | `Float64` | Yes | — | Personal fouls |
-| `pts` | `Float64` | Yes | — | Points scored |
-| `plus_minus` | `Float64` | Yes | — | Plus-minus differential |
+| Column       | Type      | Nullable | Constraints | Description                       |
+| ------------ | --------- | -------- | ----------- | --------------------------------- |
+| `season_id`  | `String`  | No       | —           | Season identifier                 |
+| `player_id`  | `Int64`   | No       | gt=0        | Unique player identifier          |
+| `game_id`    | `String`  | No       | —           | Unique game identifier            |
+| `game_date`  | `String`  | No       | —           | Date of the game                  |
+| `matchup`    | `String`  | No       | —           | Matchup string (e.g. LAL vs. BOS) |
+| `wl`         | `String`  | Yes      | —           | Win or loss indicator             |
+| `min`        | `Float64` | Yes      | —           | Minutes played                    |
+| `fgm`        | `Float64` | Yes      | —           | Field goals made                  |
+| `fga`        | `Float64` | Yes      | —           | Field goals attempted             |
+| `fg_pct`     | `Float64` | Yes      | —           | Field goal percentage             |
+| `fg3m`       | `Float64` | Yes      | —           | Three-point field goals made      |
+| `fg3a`       | `Float64` | Yes      | —           | Three-point field goals attempted |
+| `fg3_pct`    | `Float64` | Yes      | —           | Three-point field goal percentage |
+| `ftm`        | `Float64` | Yes      | —           | Free throws made                  |
+| `fta`        | `Float64` | Yes      | —           | Free throws attempted             |
+| `ft_pct`     | `Float64` | Yes      | —           | Free throw percentage             |
+| `oreb`       | `Float64` | Yes      | —           | Offensive rebounds                |
+| `dreb`       | `Float64` | Yes      | —           | Defensive rebounds                |
+| `reb`        | `Float64` | Yes      | —           | Total rebounds                    |
+| `ast`        | `Float64` | Yes      | —           | Assists                           |
+| `stl`        | `Float64` | Yes      | —           | Steals                            |
+| `blk`        | `Float64` | Yes      | —           | Blocks                            |
+| `tov`        | `Float64` | Yes      | —           | Turnovers                         |
+| `pf`         | `Float64` | Yes      | —           | Personal fouls                    |
+| `pts`        | `Float64` | Yes      | —           | Points scored                     |
+| `plus_minus` | `Float64` | Yes      | —           | Plus-minus differential           |
 
 ## `raw_player_index`
 
 **Class**: `RawPlayerIndexSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `person_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_last_name` | `String` | Yes | — | Player last name |
-| `player_first_name` | `String` | Yes | — | Player first name |
-| `player_slug` | `String` | Yes | — | URL-friendly player slug |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_slug` | `String` | Yes | — | URL-friendly team slug |
-| `is_defunct` | `Int64` | Yes | — | Whether team is defunct |
-| `team_city` | `String` | Yes | — | Team city name |
-| `team_name` | `String` | Yes | — | Team name |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `jersey_number` | `String` | Yes | — | Jersey number as string |
-| `position` | `String` | Yes | — | Player position |
-| `height` | `String` | Yes | — | Player height as string |
-| `weight` | `String` | Yes | — | Player weight as string |
-| `college` | `String` | Yes | — | College attended |
-| `country` | `String` | Yes | — | Country of origin |
-| `draft_year` | `Int64` | Yes | — | Year drafted |
-| `draft_round` | `Int64` | Yes | — | Round drafted |
-| `draft_number` | `Int64` | Yes | — | Overall draft pick number |
-| `roster_status` | `Float64` | Yes | — | Active roster status |
-| `pts` | `Float64` | Yes | — | Points per game |
-| `reb` | `Float64` | Yes | — | Rebounds per game |
-| `ast` | `Float64` | Yes | — | Assists per game |
-| `stats_timeframe` | `String` | Yes | — | Timeframe for stats |
-| `from_year` | `String` | Yes | — | First year in the league |
-| `to_year` | `String` | Yes | — | Last year in the league |
+| Column              | Type      | Nullable | Constraints | Description               |
+| ------------------- | --------- | -------- | ----------- | ------------------------- |
+| `person_id`         | `Int64`   | No       | gt=0        | Unique player identifier  |
+| `player_last_name`  | `String`  | Yes      | —           | Player last name          |
+| `player_first_name` | `String`  | Yes      | —           | Player first name         |
+| `player_slug`       | `String`  | Yes      | —           | URL-friendly player slug  |
+| `team_id`           | `Int64`   | Yes      | —           | Team identifier           |
+| `team_slug`         | `String`  | Yes      | —           | URL-friendly team slug    |
+| `is_defunct`        | `Int64`   | Yes      | —           | Whether team is defunct   |
+| `team_city`         | `String`  | Yes      | —           | Team city name            |
+| `team_name`         | `String`  | Yes      | —           | Team name                 |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code    |
+| `jersey_number`     | `String`  | Yes      | —           | Jersey number as string   |
+| `position`          | `String`  | Yes      | —           | Player position           |
+| `height`            | `String`  | Yes      | —           | Player height as string   |
+| `weight`            | `String`  | Yes      | —           | Player weight as string   |
+| `college`           | `String`  | Yes      | —           | College attended          |
+| `country`           | `String`  | Yes      | —           | Country of origin         |
+| `draft_year`        | `Int64`   | Yes      | —           | Year drafted              |
+| `draft_round`       | `Int64`   | Yes      | —           | Round drafted             |
+| `draft_number`      | `Int64`   | Yes      | —           | Overall draft pick number |
+| `roster_status`     | `Float64` | Yes      | —           | Active roster status      |
+| `pts`               | `Float64` | Yes      | —           | Points per game           |
+| `reb`               | `Float64` | Yes      | —           | Rebounds per game         |
+| `ast`               | `Float64` | Yes      | —           | Assists per game          |
+| `stats_timeframe`   | `String`  | Yes      | —           | Timeframe for stats       |
+| `from_year`         | `String`  | Yes      | —           | First year in the league  |
+| `to_year`           | `String`  | Yes      | —           | Last year in the league   |
 
 ## `raw_playoff_picture`
 
 **Class**: `RawPlayoffPictureSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `conference` | `String` | No | — | Conference name |
-| `high_seed_rank` | `Int64` | Yes | — | Higher seed rank |
-| `high_seed_team` | `String` | Yes | — | Higher seed team name |
-| `high_seed_team_id` | `Int64` | Yes | — | Higher seed team identifier |
-| `low_seed_rank` | `Int64` | Yes | — | Lower seed rank |
-| `low_seed_team` | `String` | Yes | — | Lower seed team name |
-| `low_seed_team_id` | `Int64` | Yes | — | Lower seed team identifier |
-| `high_seed_series_w` | `Int64` | Yes | — | Higher seed series wins |
-| `high_seed_series_l` | `Int64` | Yes | — | Higher seed series losses |
-| `high_seed_series_remaining_g` | `Int64` | Yes | — | Remaining games in series |
-| `high_seed_series_remaining_home_g` | `Int64` | Yes | — | Remaining home games in series |
-| `high_seed_series_remaining_away_g` | `Int64` | Yes | — | Remaining away games in series |
+| Column                              | Type     | Nullable | Constraints | Description                    |
+| ----------------------------------- | -------- | -------- | ----------- | ------------------------------ |
+| `conference`                        | `String` | No       | —           | Conference name                |
+| `high_seed_rank`                    | `Int64`  | Yes      | —           | Higher seed rank               |
+| `high_seed_team`                    | `String` | Yes      | —           | Higher seed team name          |
+| `high_seed_team_id`                 | `Int64`  | Yes      | —           | Higher seed team identifier    |
+| `low_seed_rank`                     | `Int64`  | Yes      | —           | Lower seed rank                |
+| `low_seed_team`                     | `String` | Yes      | —           | Lower seed team name           |
+| `low_seed_team_id`                  | `Int64`  | Yes      | —           | Lower seed team identifier     |
+| `high_seed_series_w`                | `Int64`  | Yes      | —           | Higher seed series wins        |
+| `high_seed_series_l`                | `Int64`  | Yes      | —           | Higher seed series losses      |
+| `high_seed_series_remaining_g`      | `Int64`  | Yes      | —           | Remaining games in series      |
+| `high_seed_series_remaining_home_g` | `Int64`  | Yes      | —           | Remaining home games in series |
+| `high_seed_series_remaining_away_g` | `Int64`  | Yes      | —           | Remaining away games in series |
 
 ## `raw_schedule_league_v2`
 
 **Class**: `RawScheduleLeagueV2Schema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_date` | `String` | No | — | Date of the game |
-| `game_id` | `String` | No | — | Unique game identifier |
-| `game_code` | `String` | Yes | — | Game code string |
-| `game_status` | `Int64` | Yes | — | Game status code |
-| `game_status_text` | `String` | Yes | — | Game status display text |
-| `game_sequence` | `Int64` | Yes | — | Game sequence number for the day |
-| `game_date_est` | `String` | Yes | — | Game date in Eastern time |
-| `game_time_est` | `String` | Yes | — | Game time in Eastern time |
-| `game_date_time_est` | `String` | Yes | — | Game date and time in Eastern time |
-| `game_date_utc` | `String` | Yes | — | Game date in UTC |
-| `game_time_utc` | `String` | Yes | — | Game time in UTC |
-| `game_date_time_utc` | `String` | Yes | — | Game date and time in UTC |
-| `away_team_id` | `Int64` | Yes | — | Away team identifier |
-| `away_team_name` | `String` | Yes | — | Away team name |
-| `away_team_city` | `String` | Yes | — | Away team city |
-| `away_team_tricode` | `String` | Yes | — | Away team three-letter code |
-| `away_team_slug` | `String` | Yes | — | Away team URL slug |
-| `away_team_wins` | `Int64` | Yes | — | Away team win count |
-| `away_team_losses` | `Int64` | Yes | — | Away team loss count |
-| `away_team_score` | `Int64` | Yes | — | Away team score |
-| `home_team_id` | `Int64` | Yes | — | Home team identifier |
-| `home_team_name` | `String` | Yes | — | Home team name |
-| `home_team_city` | `String` | Yes | — | Home team city |
-| `home_team_tricode` | `String` | Yes | — | Home team three-letter code |
-| `home_team_slug` | `String` | Yes | — | Home team URL slug |
-| `home_team_wins` | `Int64` | Yes | — | Home team win count |
-| `home_team_losses` | `Int64` | Yes | — | Home team loss count |
-| `home_team_score` | `Int64` | Yes | — | Home team score |
-| `arena_name` | `String` | Yes | — | Arena name |
-| `arena_city` | `String` | Yes | — | Arena city |
-| `arena_state` | `String` | Yes | — | Arena state |
-| `postponed_status` | `String` | Yes | — | Postponement status |
-| `branch_link` | `String` | Yes | — | Branch deep link URL |
-| `game_subtype` | `String` | Yes | — | Game subtype classification |
-| `series_conference` | `String` | Yes | — | Playoff series conference |
-| `series_text` | `String` | Yes | — | Playoff series status text |
-| `if_necessary` | `String` | Yes | — | If-necessary game indicator |
-| `series_game_number` | `String` | Yes | — | Game number in playoff series |
+| Column               | Type     | Nullable | Constraints | Description                        |
+| -------------------- | -------- | -------- | ----------- | ---------------------------------- |
+| `game_date`          | `String` | No       | —           | Date of the game                   |
+| `game_id`            | `String` | No       | —           | Unique game identifier             |
+| `game_code`          | `String` | Yes      | —           | Game code string                   |
+| `game_status`        | `Int64`  | Yes      | —           | Game status code                   |
+| `game_status_text`   | `String` | Yes      | —           | Game status display text           |
+| `game_sequence`      | `Int64`  | Yes      | —           | Game sequence number for the day   |
+| `game_date_est`      | `String` | Yes      | —           | Game date in Eastern time          |
+| `game_time_est`      | `String` | Yes      | —           | Game time in Eastern time          |
+| `game_date_time_est` | `String` | Yes      | —           | Game date and time in Eastern time |
+| `game_date_utc`      | `String` | Yes      | —           | Game date in UTC                   |
+| `game_time_utc`      | `String` | Yes      | —           | Game time in UTC                   |
+| `game_date_time_utc` | `String` | Yes      | —           | Game date and time in UTC          |
+| `away_team_id`       | `Int64`  | Yes      | —           | Away team identifier               |
+| `away_team_name`     | `String` | Yes      | —           | Away team name                     |
+| `away_team_city`     | `String` | Yes      | —           | Away team city                     |
+| `away_team_tricode`  | `String` | Yes      | —           | Away team three-letter code        |
+| `away_team_slug`     | `String` | Yes      | —           | Away team URL slug                 |
+| `away_team_wins`     | `Int64`  | Yes      | —           | Away team win count                |
+| `away_team_losses`   | `Int64`  | Yes      | —           | Away team loss count               |
+| `away_team_score`    | `Int64`  | Yes      | —           | Away team score                    |
+| `home_team_id`       | `Int64`  | Yes      | —           | Home team identifier               |
+| `home_team_name`     | `String` | Yes      | —           | Home team name                     |
+| `home_team_city`     | `String` | Yes      | —           | Home team city                     |
+| `home_team_tricode`  | `String` | Yes      | —           | Home team three-letter code        |
+| `home_team_slug`     | `String` | Yes      | —           | Home team URL slug                 |
+| `home_team_wins`     | `Int64`  | Yes      | —           | Home team win count                |
+| `home_team_losses`   | `Int64`  | Yes      | —           | Home team loss count               |
+| `home_team_score`    | `Int64`  | Yes      | —           | Home team score                    |
+| `arena_name`         | `String` | Yes      | —           | Arena name                         |
+| `arena_city`         | `String` | Yes      | —           | Arena city                         |
+| `arena_state`        | `String` | Yes      | —           | Arena state                        |
+| `postponed_status`   | `String` | Yes      | —           | Postponement status                |
+| `branch_link`        | `String` | Yes      | —           | Branch deep link URL               |
+| `game_subtype`       | `String` | Yes      | —           | Game subtype classification        |
+| `series_conference`  | `String` | Yes      | —           | Playoff series conference          |
+| `series_text`        | `String` | Yes      | —           | Playoff series status text         |
+| `if_necessary`       | `String` | Yes      | —           | If-necessary game indicator        |
+| `series_game_number` | `String` | Yes      | —           | Game number in playoff series      |
 
 ## `raw_scoreboard_v2`
 
 **Class**: `RawScoreboardV2Schema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_date_est` | `String` | No | — | Game date in Eastern time |
-| `game_sequence` | `Int64` | Yes | — | Game sequence number for the day |
-| `game_id` | `String` | No | — | Unique game identifier |
-| `game_status_id` | `Int64` | Yes | — | Game status identifier |
-| `game_status_text` | `String` | Yes | — | Game status display text |
-| `gamecode` | `String` | Yes | — | Game code string |
-| `home_team_id` | `Int64` | Yes | — | Home team identifier |
-| `visitor_team_id` | `Int64` | Yes | — | Visitor team identifier |
-| `season` | `String` | Yes | — | Season year string |
-| `live_period` | `Int64` | Yes | — | Current live period |
-| `live_pc_time` | `String` | Yes | — | Live game clock time |
-| `natl_tv_broadcaster_abbreviation` | `String` | Yes | — | National TV broadcaster abbreviation |
-| `home_tv_broadcaster_abbreviation` | `String` | Yes | — | Home TV broadcaster abbreviation |
-| `away_tv_broadcaster_abbreviation` | `String` | Yes | — | Away TV broadcaster abbreviation |
-| `live_period_time_bcast` | `String` | Yes | — | Live period time broadcast string |
-| `arena_name` | `String` | Yes | — | Arena name |
-| `wh_status` | `Int64` | Yes | — | Wagering hub status flag |
+| Column                             | Type     | Nullable | Constraints | Description                          |
+| ---------------------------------- | -------- | -------- | ----------- | ------------------------------------ |
+| `game_date_est`                    | `String` | No       | —           | Game date in Eastern time            |
+| `game_sequence`                    | `Int64`  | Yes      | —           | Game sequence number for the day     |
+| `game_id`                          | `String` | No       | —           | Unique game identifier               |
+| `game_status_id`                   | `Int64`  | Yes      | —           | Game status identifier               |
+| `game_status_text`                 | `String` | Yes      | —           | Game status display text             |
+| `gamecode`                         | `String` | Yes      | —           | Game code string                     |
+| `home_team_id`                     | `Int64`  | Yes      | —           | Home team identifier                 |
+| `visitor_team_id`                  | `Int64`  | Yes      | —           | Visitor team identifier              |
+| `season`                           | `String` | Yes      | —           | Season year string                   |
+| `live_period`                      | `Int64`  | Yes      | —           | Current live period                  |
+| `live_pc_time`                     | `String` | Yes      | —           | Live game clock time                 |
+| `natl_tv_broadcaster_abbreviation` | `String` | Yes      | —           | National TV broadcaster abbreviation |
+| `home_tv_broadcaster_abbreviation` | `String` | Yes      | —           | Home TV broadcaster abbreviation     |
+| `away_tv_broadcaster_abbreviation` | `String` | Yes      | —           | Away TV broadcaster abbreviation     |
+| `live_period_time_bcast`           | `String` | Yes      | —           | Live period time broadcast string    |
+| `arena_name`                       | `String` | Yes      | —           | Arena name                           |
+| `wh_status`                        | `Int64`  | Yes      | —           | Wagering hub status flag             |
 
 ## `raw_shot_chart_detail`
 
 **Class**: `RawShotChartDetailSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `grid_type` | `String` | Yes | — | Shot chart grid type |
-| `game_id` | `String` | No | — | Unique game identifier |
-| `game_event_id` | `Int64` | Yes | — | Event identifier within game |
-| `player_id` | `Int64` | No | gt=0 | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_name` | `String` | Yes | — | Team name |
-| `period` | `Int64` | Yes | — | Game period number |
-| `minutes_remaining` | `Int64` | Yes | — | Minutes remaining in period |
-| `seconds_remaining` | `Int64` | Yes | — | Seconds remaining in period |
-| `event_type` | `String` | Yes | — | Shot event type (Made/Missed) |
-| `action_type` | `String` | Yes | — | Specific shot action type |
-| `shot_type` | `String` | Yes | — | Shot type (2PT/3PT Field Goal) |
-| `shot_zone_basic` | `String` | Yes | — | Basic shot zone category |
-| `shot_zone_area` | `String` | Yes | — | Shot zone area on court |
-| `shot_zone_range` | `String` | Yes | — | Shot distance range bucket |
-| `shot_distance` | `Int64` | Yes | — | Shot distance in feet |
-| `loc_x` | `Int64` | Yes | — | Shot X coordinate on court |
-| `loc_y` | `Int64` | Yes | — | Shot Y coordinate on court |
-| `shot_attempted_flag` | `Int64` | Yes | — | Flag indicating shot was attempted |
-| `shot_made_flag` | `Int64` | Yes | — | Flag indicating shot was made |
-| `game_date` | `String` | Yes | — | Date of the game |
-| `htm` | `String` | Yes | — | Home team abbreviation |
-| `vtm` | `String` | Yes | — | Visitor team abbreviation |
+| Column                | Type     | Nullable | Constraints | Description                        |
+| --------------------- | -------- | -------- | ----------- | ---------------------------------- |
+| `grid_type`           | `String` | Yes      | —           | Shot chart grid type               |
+| `game_id`             | `String` | No       | —           | Unique game identifier             |
+| `game_event_id`       | `Int64`  | Yes      | —           | Event identifier within game       |
+| `player_id`           | `Int64`  | No       | gt=0        | Unique player identifier           |
+| `player_name`         | `String` | Yes      | —           | Player full name                   |
+| `team_id`             | `Int64`  | Yes      | —           | Team identifier                    |
+| `team_name`           | `String` | Yes      | —           | Team name                          |
+| `period`              | `Int64`  | Yes      | —           | Game period number                 |
+| `minutes_remaining`   | `Int64`  | Yes      | —           | Minutes remaining in period        |
+| `seconds_remaining`   | `Int64`  | Yes      | —           | Seconds remaining in period        |
+| `event_type`          | `String` | Yes      | —           | Shot event type (Made/Missed)      |
+| `action_type`         | `String` | Yes      | —           | Specific shot action type          |
+| `shot_type`           | `String` | Yes      | —           | Shot type (2PT/3PT Field Goal)     |
+| `shot_zone_basic`     | `String` | Yes      | —           | Basic shot zone category           |
+| `shot_zone_area`      | `String` | Yes      | —           | Shot zone area on court            |
+| `shot_zone_range`     | `String` | Yes      | —           | Shot distance range bucket         |
+| `shot_distance`       | `Int64`  | Yes      | —           | Shot distance in feet              |
+| `loc_x`               | `Int64`  | Yes      | —           | Shot X coordinate on court         |
+| `loc_y`               | `Int64`  | Yes      | —           | Shot Y coordinate on court         |
+| `shot_attempted_flag` | `Int64`  | Yes      | —           | Flag indicating shot was attempted |
+| `shot_made_flag`      | `Int64`  | Yes      | —           | Flag indicating shot was made      |
+| `game_date`           | `String` | Yes      | —           | Date of the game                   |
+| `htm`                 | `String` | Yes      | —           | Home team abbreviation             |
+| `vtm`                 | `String` | Yes      | —           | Visitor team abbreviation          |
 
 ## `raw_shot_chart_league_wide`
 
 **Class**: `RawShotChartLeagueWideSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `grid_type` | `String` | Yes | — | Shot chart grid type |
-| `shot_zone_basic` | `String` | Yes | — | Basic shot zone category |
-| `shot_zone_area` | `String` | Yes | — | Shot zone area on court |
-| `shot_zone_range` | `String` | Yes | — | Shot distance range bucket |
-| `fga` | `Int64` | Yes | — | Field goals attempted |
-| `fgm` | `Int64` | Yes | — | Field goals made |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
+| Column            | Type      | Nullable | Constraints | Description                |
+| ----------------- | --------- | -------- | ----------- | -------------------------- |
+| `grid_type`       | `String`  | Yes      | —           | Shot chart grid type       |
+| `shot_zone_basic` | `String`  | Yes      | —           | Basic shot zone category   |
+| `shot_zone_area`  | `String`  | Yes      | —           | Shot zone area on court    |
+| `shot_zone_range` | `String`  | Yes      | —           | Shot distance range bucket |
+| `fga`             | `Int64`   | Yes      | —           | Field goals attempted      |
+| `fgm`             | `Int64`   | Yes      | —           | Field goals made           |
+| `fg_pct`          | `Float64` | Yes      | —           | Field goal percentage      |
 
 ## `raw_synergy_play_types`
 
 **Class**: `RawSynergyPlayTypesSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season_id` | `String` | Yes | — | NBA season identifier |
-| `team_id` | `Int64` | Yes | — | Team identifier |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_name` | `String` | Yes | — | Team name |
-| `player_id` | `Int64` | Yes | — | Unique player identifier |
-| `player_name` | `String` | Yes | — | Player full name |
-| `play_type` | `String` | Yes | — | Synergy play type classification |
-| `type_grouping` | `String` | Yes | — | Offensive or defensive grouping |
-| `percentile` | `Float64` | Yes | — | Percentile rank for play type |
-| `gp` | `Int64` | Yes | — | Games played |
-| `poss_pct` | `Float64` | Yes | — | Percentage of possessions |
-| `ppp` | `Float64` | Yes | — | Points per possession |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `ft_pct_adjust` | `Float64` | Yes | — | Free throw percentage adjusted |
-| `to_pct` | `Float64` | Yes | — | Turnover percentage |
-| `sf_pct` | `Float64` | Yes | — | Shooting foul percentage |
-| `plusone_pct` | `Float64` | Yes | — | And-one conversion percentage |
-| `score_pct` | `Float64` | Yes | — | Scoring percentage |
-| `efg_pct` | `Float64` | Yes | — | Effective field goal percentage |
-| `poss` | `Int64` | Yes | — | Total possessions |
-| `pts` | `Float64` | Yes | — | Total points scored |
-| `fgm` | `Int64` | Yes | — | Field goals made |
-| `fga` | `Int64` | Yes | — | Field goals attempted |
-| `fgmx` | `Int64` | Yes | — | Field goals missed |
+| Column              | Type      | Nullable | Constraints | Description                      |
+| ------------------- | --------- | -------- | ----------- | -------------------------------- |
+| `season_id`         | `String`  | Yes      | —           | NBA season identifier            |
+| `team_id`           | `Int64`   | Yes      | —           | Team identifier                  |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code           |
+| `team_name`         | `String`  | Yes      | —           | Team name                        |
+| `player_id`         | `Int64`   | Yes      | —           | Unique player identifier         |
+| `player_name`       | `String`  | Yes      | —           | Player full name                 |
+| `play_type`         | `String`  | Yes      | —           | Synergy play type classification |
+| `type_grouping`     | `String`  | Yes      | —           | Offensive or defensive grouping  |
+| `percentile`        | `Float64` | Yes      | —           | Percentile rank for play type    |
+| `gp`                | `Int64`   | Yes      | —           | Games played                     |
+| `poss_pct`          | `Float64` | Yes      | —           | Percentage of possessions        |
+| `ppp`               | `Float64` | Yes      | —           | Points per possession            |
+| `fg_pct`            | `Float64` | Yes      | —           | Field goal percentage            |
+| `ft_pct_adjust`     | `Float64` | Yes      | —           | Free throw percentage adjusted   |
+| `to_pct`            | `Float64` | Yes      | —           | Turnover percentage              |
+| `sf_pct`            | `Float64` | Yes      | —           | Shooting foul percentage         |
+| `plusone_pct`       | `Float64` | Yes      | —           | And-one conversion percentage    |
+| `score_pct`         | `Float64` | Yes      | —           | Scoring percentage               |
+| `efg_pct`           | `Float64` | Yes      | —           | Effective field goal percentage  |
+| `poss`              | `Int64`   | Yes      | —           | Total possessions                |
+| `pts`               | `Float64` | Yes      | —           | Total points scored              |
+| `fgm`               | `Int64`   | Yes      | —           | Field goals made                 |
+| `fga`               | `Int64`   | Yes      | —           | Field goals attempted            |
+| `fgmx`              | `Int64`   | Yes      | —           | Field goals missed               |
 
 ## `raw_team_details`
 
 **Class**: `RawTeamDetailsSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `nickname` | `String` | Yes | — | Team nickname |
-| `yearfounded` | `Int64` | Yes | — | Year the team was founded |
-| `city` | `String` | Yes | — | Team city name |
-| `arena` | `String` | Yes | — | Home arena name |
-| `arenacapacity` | `Int64` | Yes | — | Arena seating capacity |
-| `owner` | `String` | Yes | — | Team owner name |
-| `generalmanager` | `String` | Yes | — | General manager name |
-| `headcoach` | `String` | Yes | — | Head coach name |
-| `dleagueaffiliation` | `String` | Yes | — | G-League affiliate team name |
+| Column               | Type     | Nullable | Constraints | Description                  |
+| -------------------- | -------- | -------- | ----------- | ---------------------------- |
+| `team_id`            | `Int64`  | No       | gt=0        | Unique team identifier       |
+| `abbreviation`       | `String` | Yes      | —           | Team abbreviation code       |
+| `nickname`           | `String` | Yes      | —           | Team nickname                |
+| `yearfounded`        | `Int64`  | Yes      | —           | Year the team was founded    |
+| `city`               | `String` | Yes      | —           | Team city name               |
+| `arena`              | `String` | Yes      | —           | Home arena name              |
+| `arenacapacity`      | `Int64`  | Yes      | —           | Arena seating capacity       |
+| `owner`              | `String` | Yes      | —           | Team owner name              |
+| `generalmanager`     | `String` | Yes      | —           | General manager name         |
+| `headcoach`          | `String` | Yes      | —           | Head coach name              |
+| `dleagueaffiliation` | `String` | Yes      | —           | G-League affiliate team name |
 
 ## `raw_team_game_log`
 
 **Class**: `RawTeamGameLogSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `season_id` | `String` | No | — | Season identifier |
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `team_abbreviation` | `String` | No | — | Team abbreviation code |
-| `team_name` | `String` | No | — | Team name |
-| `game_id` | `String` | No | — | Unique game identifier |
-| `game_date` | `String` | No | — | Date of the game |
-| `matchup` | `String` | No | — | Matchup string (e.g. LAL vs. BOS) |
-| `wl` | `String` | Yes | — | Win or loss indicator |
-| `w` | `Int64` | Yes | — | Wins |
-| `l` | `Int64` | Yes | — | Losses |
-| `w_pct` | `Float64` | Yes | — | Win percentage |
-| `min` | `Float64` | Yes | — | Minutes played |
-| `fgm` | `Float64` | Yes | — | Field goals made |
-| `fga` | `Float64` | Yes | — | Field goals attempted |
-| `fg_pct` | `Float64` | Yes | — | Field goal percentage |
-| `fg3m` | `Float64` | Yes | — | Three-point field goals made |
-| `fg3a` | `Float64` | Yes | — | Three-point field goals attempted |
-| `fg3_pct` | `Float64` | Yes | — | Three-point field goal percentage |
-| `ftm` | `Float64` | Yes | — | Free throws made |
-| `fta` | `Float64` | Yes | — | Free throws attempted |
-| `ft_pct` | `Float64` | Yes | — | Free throw percentage |
-| `oreb` | `Float64` | Yes | — | Offensive rebounds |
-| `dreb` | `Float64` | Yes | — | Defensive rebounds |
-| `reb` | `Float64` | Yes | — | Total rebounds |
-| `ast` | `Float64` | Yes | — | Assists |
-| `stl` | `Float64` | Yes | — | Steals |
-| `blk` | `Float64` | Yes | — | Blocks |
-| `tov` | `Float64` | Yes | — | Turnovers |
-| `pf` | `Float64` | Yes | — | Personal fouls |
-| `pts` | `Float64` | Yes | — | Points scored |
-| `plus_minus` | `Float64` | Yes | — | Plus-minus differential |
-| `video_available` | `Int64` | Yes | — | Video availability flag |
+| Column              | Type      | Nullable | Constraints | Description                       |
+| ------------------- | --------- | -------- | ----------- | --------------------------------- |
+| `season_id`         | `String`  | No       | —           | Season identifier                 |
+| `team_id`           | `Int64`   | No       | gt=0        | Unique team identifier            |
+| `team_abbreviation` | `String`  | No       | —           | Team abbreviation code            |
+| `team_name`         | `String`  | No       | —           | Team name                         |
+| `game_id`           | `String`  | No       | —           | Unique game identifier            |
+| `game_date`         | `String`  | No       | —           | Date of the game                  |
+| `matchup`           | `String`  | No       | —           | Matchup string (e.g. LAL vs. BOS) |
+| `wl`                | `String`  | Yes      | —           | Win or loss indicator             |
+| `w`                 | `Int64`   | Yes      | —           | Wins                              |
+| `l`                 | `Int64`   | Yes      | —           | Losses                            |
+| `w_pct`             | `Float64` | Yes      | —           | Win percentage                    |
+| `min`               | `Float64` | Yes      | —           | Minutes played                    |
+| `fgm`               | `Float64` | Yes      | —           | Field goals made                  |
+| `fga`               | `Float64` | Yes      | —           | Field goals attempted             |
+| `fg_pct`            | `Float64` | Yes      | —           | Field goal percentage             |
+| `fg3m`              | `Float64` | Yes      | —           | Three-point field goals made      |
+| `fg3a`              | `Float64` | Yes      | —           | Three-point field goals attempted |
+| `fg3_pct`           | `Float64` | Yes      | —           | Three-point field goal percentage |
+| `ftm`               | `Float64` | Yes      | —           | Free throws made                  |
+| `fta`               | `Float64` | Yes      | —           | Free throws attempted             |
+| `ft_pct`            | `Float64` | Yes      | —           | Free throw percentage             |
+| `oreb`              | `Float64` | Yes      | —           | Offensive rebounds                |
+| `dreb`              | `Float64` | Yes      | —           | Defensive rebounds                |
+| `reb`               | `Float64` | Yes      | —           | Total rebounds                    |
+| `ast`               | `Float64` | Yes      | —           | Assists                           |
+| `stl`               | `Float64` | Yes      | —           | Steals                            |
+| `blk`               | `Float64` | Yes      | —           | Blocks                            |
+| `tov`               | `Float64` | Yes      | —           | Turnovers                         |
+| `pf`                | `Float64` | Yes      | —           | Personal fouls                    |
+| `pts`               | `Float64` | Yes      | —           | Points scored                     |
+| `plus_minus`        | `Float64` | Yes      | —           | Plus-minus differential           |
+| `video_available`   | `Int64`   | Yes      | —           | Video availability flag           |
 
 ## `raw_team_info_common`
 
 **Class**: `RawTeamInfoCommonSchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `team_id` | `Int64` | No | gt=0 | Unique team identifier |
-| `season_year` | `String` | Yes | — | Season year string |
-| `team_city` | `String` | Yes | — | Team city name |
-| `team_name` | `String` | Yes | — | Team name |
-| `team_abbreviation` | `String` | Yes | — | Team abbreviation code |
-| `team_conference` | `String` | Yes | — | Conference name |
-| `team_division` | `String` | Yes | — | Division name |
-| `team_code` | `String` | Yes | — | Team code slug |
-| `team_slug` | `String` | Yes | — | URL-friendly team slug |
-| `w` | `Int64` | Yes | — | Wins |
-| `l` | `Int64` | Yes | — | Losses |
-| `pct` | `Float64` | Yes | — | Win percentage |
-| `conf_rank` | `Int64` | Yes | — | Conference ranking |
-| `div_rank` | `Int64` | Yes | — | Division ranking |
-| `min_year` | `String` | Yes | — | First year of team activity |
-| `max_year` | `String` | Yes | — | Last year of team activity |
+| Column              | Type      | Nullable | Constraints | Description                 |
+| ------------------- | --------- | -------- | ----------- | --------------------------- |
+| `team_id`           | `Int64`   | No       | gt=0        | Unique team identifier      |
+| `season_year`       | `String`  | Yes      | —           | Season year string          |
+| `team_city`         | `String`  | Yes      | —           | Team city name              |
+| `team_name`         | `String`  | Yes      | —           | Team name                   |
+| `team_abbreviation` | `String`  | Yes      | —           | Team abbreviation code      |
+| `team_conference`   | `String`  | Yes      | —           | Conference name             |
+| `team_division`     | `String`  | Yes      | —           | Division name               |
+| `team_code`         | `String`  | Yes      | —           | Team code slug              |
+| `team_slug`         | `String`  | Yes      | —           | URL-friendly team slug      |
+| `w`                 | `Int64`   | Yes      | —           | Wins                        |
+| `l`                 | `Int64`   | Yes      | —           | Losses                      |
+| `pct`               | `Float64` | Yes      | —           | Win percentage              |
+| `conf_rank`         | `Int64`   | Yes      | —           | Conference ranking          |
+| `div_rank`          | `Int64`   | Yes      | —           | Division ranking            |
+| `min_year`          | `String`  | Yes      | —           | First year of team activity |
+| `max_year`          | `String`  | Yes      | —           | Last year of team activity  |
 
 ## `raw_win_probability`
 
 **Class**: `RawWinProbabilitySchema`
 **Coerce**: True | **Strict**: False
 
-| Column | Type | Nullable | Constraints | Description |
-|--------|------|----------|-------------|-------------|
-| `game_id` | `String` | No | — | Unique game identifier |
-| `event_num` | `Int64` | No | — | Event sequence number |
-| `home_pct` | `Float64` | Yes | — | Home team win probability |
-| `visitor_pct` | `Float64` | Yes | — | Visitor team win probability |
-| `home_pts` | `Int64` | Yes | — | Home team points |
-| `visitor_pts` | `Int64` | Yes | — | Visitor team points |
-| `home_score_margin` | `Int64` | Yes | — | Home team score margin |
-| `period` | `Int64` | Yes | — | Game period number |
-| `seconds_remaining` | `Float64` | Yes | — | Seconds remaining in period |
-| `home_team_id` | `Int64` | Yes | — | Home team identifier |
-| `home_team_abb` | `String` | Yes | — | Home team abbreviation code |
-| `visitor_team_id` | `Int64` | Yes | — | Visitor team identifier |
-| `visitor_team_abb` | `String` | Yes | — | Visitor team abbreviation code |
-| `description` | `String` | Yes | — | Text description of the play |
-| `location` | `String` | Yes | — | Home or away location indicator |
-| `pctimestring` | `String` | Yes | — | Period clock time string |
-| `is_score_change` | `Int64` | Yes | — | Flag indicating if score changed |
+| Column              | Type      | Nullable | Constraints | Description                      |
+| ------------------- | --------- | -------- | ----------- | -------------------------------- |
+| `game_id`           | `String`  | No       | —           | Unique game identifier           |
+| `event_num`         | `Int64`   | No       | —           | Event sequence number            |
+| `home_pct`          | `Float64` | Yes      | —           | Home team win probability        |
+| `visitor_pct`       | `Float64` | Yes      | —           | Visitor team win probability     |
+| `home_pts`          | `Int64`   | Yes      | —           | Home team points                 |
+| `visitor_pts`       | `Int64`   | Yes      | —           | Visitor team points              |
+| `home_score_margin` | `Int64`   | Yes      | —           | Home team score margin           |
+| `period`            | `Int64`   | Yes      | —           | Game period number               |
+| `seconds_remaining` | `Float64` | Yes      | —           | Seconds remaining in period      |
+| `home_team_id`      | `Int64`   | Yes      | —           | Home team identifier             |
+| `home_team_abb`     | `String`  | Yes      | —           | Home team abbreviation code      |
+| `visitor_team_id`   | `Int64`   | Yes      | —           | Visitor team identifier          |
+| `visitor_team_abb`  | `String`  | Yes      | —           | Visitor team abbreviation code   |
+| `description`       | `String`  | Yes      | —           | Text description of the play     |
+| `location`          | `String`  | Yes      | —           | Home or away location indicator  |
+| `pctimestring`      | `String`  | Yes      | —           | Period clock time string         |
+| `is_score_change`   | `Int64`   | Yes      | —           | Flag indicating if score changed |

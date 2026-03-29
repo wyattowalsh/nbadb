@@ -3,8 +3,12 @@
 import type { SiteMetric } from "@/lib/site-config";
 
 export const siteMetrics: SiteMetric[] = [
-  {"label": "Models", "value": "96", "note": "discovered star-schema models"},
-  {"label": "Extractors", "value": "151", "note": "registered extractor wrappers"},
-  {"label": "Docs Pages", "value": "49", "note": "authored + generated MDX routes"},
-  {"label": "Derived Models", "value": "31", "note": "agg_* and analytics_* outputs"}
+  { label: "Models", value: "118", note: "discovered star-schema models" },
+  { label: "Extractors", value: "151", note: "registered extractor wrappers" },
+  { label: "Docs Pages", value: "50", note: "authored + generated MDX routes" },
+  {
+    label: "Derived Models",
+    value: "31",
+    note: "agg_* and analytics_* outputs",
+  },
 ];
