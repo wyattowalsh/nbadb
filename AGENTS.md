@@ -3,13 +3,13 @@
 ## Project Overview
 
 nbadb is a comprehensive NBA database built around the current `nba_api` runtime surface
-(137 endpoint classes), 143 registered extractors, and 141 discovered transformer outputs.
+(147 endpoint classes), 151 registered extractors, and 118 star schema outputs.
 It follows an ELT pipeline: extract from NBA API → stage in DuckDB → transform into the
 analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 
 ## Tech Stack
 
-- Python 3.12, uv (package manager), hatchling (build)
+- Python 3.13, uv (package manager), hatchling (build)
 - Polars 1.38 (primary DataFrame engine)
 - DuckDB 1.4 (staging engine, zero-copy Arrow interchange)
 - Pandera[polars] 0.29 (3-tier schema validation: raw → staging → star)
@@ -22,18 +22,19 @@ analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 
 ```text
 src/nbadb/
-├── extract/          # 143 registered extractors wrapping nba_api endpoints
+├── extract/          # 151 registered extractors wrapping nba_api endpoints
 │   ├── stats/        # Statistical endpoint extractors
-│   └── static/       # Static data extractors (players, teams, arenas, awards)
+│   ├── static/       # Static data extractors (players, teams, arenas, awards)
+│   └── live/         # Live game data extractors
 ├── schemas/          # Pandera schema definitions
 │   ├── raw/          # Raw extraction schemas
 │   ├── staging/      # Staging schemas + STAGING_MAP-backed staging keys
 │   └── star/         # Output table schemas for final analytics model
-├── transform/        # 141 discovered transformer outputs
-│   ├── dimensions/   # 17 dimension builders (dim_*)
-│   ├── facts/        # 102 fact builders + 2 bridge builders
-│   ├── derived/      # 16 aggregate builders (agg_* outputs live here)
-│   └── views/        # 4 analytics_* builders
+├── transform/        # 118 star schema outputs
+│   ├── dimensions/   # 18 dimension builders (dim_*)
+│   ├── facts/        # 64 fact builders + 5 bridge builders
+│   ├── derived/      # 19 aggregate builders (agg_* outputs live here)
+│   └── views/        # 12 analytics_* builders
 ├── load/             # SQLite/DuckDB/Parquet/CSV loaders
 ├── orchestrate/      # Pipeline orchestration + staging map
 ├── cli/              # Typer CLI + Textual TUI surface
@@ -47,11 +48,11 @@ src/nbadb/
 
 ### Naming
 
-- `dim_*` — Dimension tables (17)
-- `fact_*` — Fact tables (102)
-- `bridge_*` — Bridge tables (2: `bridge_game_official`, `bridge_play_player`)
-- `agg_*` — Pre-aggregated rollups (16 current outputs; code lives under `transform/derived/`)
-- `analytics_*` — Analytics convenience tables/views (4)
+- `dim_*` — Dimension tables (18)
+- `fact_*` — Fact tables (64)
+- `bridge_*` — Bridge tables (5)
+- `agg_*` — Pre-aggregated rollups (19 current outputs; code lives under `transform/derived/`)
+- `analytics_*` — Analytics convenience tables/views (12)
 - `stg_*` — DuckDB staging tables generated from `STAGING_MAP`
 - `raw_*` — Raw extraction data
 
@@ -70,7 +71,7 @@ Most transformers (100+) extend `SqlTransformer(BaseTransformer)` — define `_S
 
 ### Test Patterns
 
-- 1564 tests collected in the current suite
+- 2113+ test functions collected across 144 test files
 - `conftest.py` autouse fixture calls `get_settings.cache_clear()` (settings use `@lru_cache`)
 - Use `--import-mode=importlib` — the `nbadb/` root dir shadows `src/nbadb/`
 
@@ -92,12 +93,21 @@ uv run pytest --import-mode=importlib tests/      # All tests
 uv run nbadb init --season-start 1946             # Full rebuild (resume-safe)
 uv run nbadb daily                                # Incremental update
 uv run nbadb monthly                              # Recent-season refresh
-uv run nbadb full                                 # Fill gaps / retry failed extractions
+uv run nbadb backfill                              # Targeted gap backfill
+uv run nbadb full                                 # Fill gaps (deprecated — use backfill)
 uv run nbadb status --output-format json          # Machine-readable pipeline status
 uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
 uv run nbadb export --format sqlite --format parquet
 uv run nbadb extract-completeness --require-full  # CI coverage gate
 uv run nbadb migrate                              # Create/migrate pipeline tables
+uv run nbadb scan                                 # Detect missing data and gaps
+uv run nbadb schema                               # Star schema info + lineage
+uv run nbadb ask "Who scored the most in 1996?"   # Natural-language query
+uv run nbadb chat                                 # AI chat UI
+uv run nbadb audit-models                          # nba_api endpoint coverage audit
+uv run nbadb lint-sql                              # SQLFluff lint on transformer SQL
+uv run nbadb metadata                              # Generate Kaggle metadata JSON
+uv run nbadb journal-summary                       # Pipeline telemetry for docs admin
 uv run nbadb download                             # Pull latest Kaggle dataset
 uv run nbadb upload -m "Automated update"         # Push dataset to Kaggle
 
@@ -149,4 +159,5 @@ These DuckDB tables track pipeline state — do not modify directly:
 - **fact_rotation**: Depends on `[stg_rotation_away, stg_rotation_home]` (UNION of both)
 - **Quality checks**: `--quality-check` on pipeline commands is informational; empty-table warnings do not fail the command
 - **run-quality exit semantics**: `nbadb run-quality` writes useful JSON/text output, but failed checks are currently reported without forcing a non-zero exit unless no checks ran or the command errors
+- **`full` deprecated**: use `backfill` for targeted gap-filling instead
 - **CI**: All GitHub Actions are SHA-pinned, all workflows have permissions blocks, timeout-minutes, and concurrency groups

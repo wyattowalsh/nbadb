@@ -115,6 +115,7 @@ omit = ["src/nbadb/cli/tui.py"]
 
 [dependency-groups]
 dev = [
+    "pytest-cov>=7.0.0",
     "sportypy>=1.0.0",
     "sqlfluff>=4.0.4",
     "sqlglot>=30.0.3",

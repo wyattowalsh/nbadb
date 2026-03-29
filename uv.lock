@@ -1722,6 +1722,7 @@ notebooks = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest-cov" },
     { name = "sportypy" },
     { name = "sqlfluff" },
     { name = "sqlglot" },
@@ -1757,6 +1758,7 @@ provides-extras = ["dev", "notebooks"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "sportypy", specifier = ">=1.0.0" },
     { name = "sqlfluff", specifier = ">=4.0.4" },
     { name = "sqlglot", specifier = ">=30.0.3" },
