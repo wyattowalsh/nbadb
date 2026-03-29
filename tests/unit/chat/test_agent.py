@@ -78,7 +78,7 @@ def test_skill_md_references_query_cookbook():
 
     content = (SKILLS_DIR / "nba-data-analytics" / "SKILL.md").read_text()
     assert "query-cookbook" in content
-    assert "read_file" in content
+    assert "read_text" in content
 
 
 def test_skill_md_documents_metric_calculator():

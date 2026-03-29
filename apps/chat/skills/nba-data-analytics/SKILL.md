@@ -21,13 +21,13 @@ The `run_python` tool pre-imports `metric_calculator as mc`. Call directly:
 |----------|-----------|-------|
 | `mc.true_shooting_pct` | `(pts, fga, fta)` | TS% = pts / (2 * (fga + 0.44 * fta)) |
 | `mc.effective_fg_pct` | `(fgm, fg3m, fga)` | eFG% = (fgm + 0.5 * fg3m) / fga |
-| `mc.usage_rate` | `(fga, fta, tov, min, team_fga, team_fta, team_tov, team_min)` | Requires both player and team stats |
-| `mc.pace` | `(team_poss, opp_poss, team_min)` | Possessions per 48 minutes |
+| `mc.usage_rate` | `(fga, fta, tov, minutes, team_fga, team_fta, team_tov, team_minutes)` | Requires both player and team stats |
+| `mc.pace` | `(team_poss, opp_poss, team_minutes)` | Possessions per 48 minutes |
 | `mc.offensive_rating` | `(pts, possessions)` | Points per 100 possessions |
 | `mc.defensive_rating` | `(opp_pts, possessions)` | Points allowed per 100 possessions |
 | `mc.net_rating` | `(off_rating, def_rating)` | ORtg - DRtg |
 | `mc.assist_to_turnover` | `(ast, tov)` | Returns None if tov=0 |
-| `mc.rebound_pct` | `(reb, min, team_reb, opp_reb, team_min)` | Player's share of available rebounds |
+| `mc.rebound_pct` | `(reb, minutes, team_reb, opp_reb, team_minutes)` | Player's share of available rebounds |
 
 Additional metrics:
 
@@ -36,9 +36,9 @@ Additional metrics:
 | `mc.game_score` | `(pts, fgm, fga, ftm, fta, oreb, dreb, stl, ast, blk, pf, tov)` | Hollinger's Game Score |
 | `mc.possessions` | `(fga, fta, oreb, tov)` | Estimated possessions from box score |
 | `mc.per_minute` | `(stat, minutes, base=36)` | Per-36 (or per-48) normalization |
-| `mc.assist_pct` | `(ast, min, team_fgm, fgm, team_min)` | % of teammate FG assisted |
-| `mc.steal_pct` | `(stl, min, team_poss, team_min)` | Steals per possession on floor |
-| `mc.block_pct` | `(blk, min, opp_2pt_fga, team_min)` | Blocks per opponent FGA on floor |
+| `mc.assist_pct` | `(ast, minutes, team_fgm, fgm, team_minutes)` | % of teammate FG assisted |
+| `mc.steal_pct` | `(stl, minutes, team_poss, team_minutes)` | Steals per possession on floor |
+| `mc.block_pct` | `(blk, minutes, opp_2pt_fga, team_minutes)` | Blocks per opponent FGA on floor |
 | `mc.turnover_pct` | `(tov, fga, fta)` | Turnovers per play |
 
 All functions accept `None` (coerced to 0.0) and guard against division by zero.
@@ -87,7 +87,7 @@ The `run_python` sandbox provides these additional helpers:
 | `table(df)` | Display DataFrame (auto-saves as `last_result`) |
 | `chart(fig)` | Display Plotly figure |
 | `show(data)` | Auto-detect: Plotly → chart, DataFrame → table |
-| `annotated_chart(fig, df, col)` | Chart with average reference line |
+| `annotated_chart(fig, df, metric_col)` | Chart with average reference line |
 | `to_csv(df, name)` | Export as downloadable CSV |
 | `to_xlsx(df, name)` | Export as downloadable XLSX |
 | `to_json(df, name)` | Export as downloadable JSON |
@@ -112,9 +112,9 @@ table(df)  # display and save as new last_result
 | Function | Signature | Notes |
 |----------|-----------|-------|
 | `court.draw_court` | `(ax=None, color='white', lw=1.5)` | Draw NBA half-court diagram |
-| `court.shot_chart` | `(df, x='loc_x', y='loc_y', made='shot_made_flag')` | Scatter plot on court |
-| `court.shot_heatmap` | `(df, x='loc_x', y='loc_y', bins=25)` | Hexbin heatmap on court |
-| `court.zone_chart` | `(df, zone='zone_basic', area='zone_area', fg_pct='fg_pct')` | Zone FG% coloring |
+| `court.shot_chart` | `(df, x_col='loc_x', y_col='loc_y', made_col='shot_made_flag')` | Scatter plot on court |
+| `court.shot_heatmap` | `(df, x_col='loc_x', y_col='loc_y', bins=25)` | Hexbin heatmap on court |
+| `court.zone_chart` | `(df, zone_col='zone_basic', area_col='zone_area', fg_pct_col='fg_pct')` | Zone FG% coloring |
 | `court.compare_shots` | `(df1, df2, name1, name2)` | Side-by-side court plots |
 
 Uses `fact_shot_chart` which has `loc_x`, `loc_y`, `shot_made_flag`, `zone_basic`, `zone_area`.
@@ -173,4 +173,9 @@ Works with `agg_lineup_efficiency` and `agg_on_off_splits` tables.
 
 ## Complex Query Patterns
 
-For multi-season comparisons, rolling averages, pivot tables, head-to-head matchups, and efficiency queries, use `read_file` on `references/query-cookbook.md` in this skill directory.
+For multi-season comparisons, rolling averages, pivot tables, head-to-head matchups, and efficiency queries, use `run_python` to read `references/query-cookbook.md`:
+
+```python
+from pathlib import Path
+print((Path(mc.__file__).parent.parent / "references" / "query-cookbook.md").read_text())
+```
