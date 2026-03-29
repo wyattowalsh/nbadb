@@ -36,6 +36,11 @@ def _validate(table: str, row: dict[str, object]) -> pl.DataFrame:
     return schema_cls.validate(_frame(row))
 
 
+def _schema_columns(table: str) -> set[str]:
+    schema = _star_schema_map()[table].to_schema()
+    return set(schema.columns)
+
+
 def _positive_int_id_fields(table: str) -> list[str]:
     schema = _star_schema_map()[table].to_schema()
     return [
@@ -805,6 +810,9 @@ class TestAnalyticsShootingEfficiencySchema:
 
 
 class TestAnalyticsTeamGameCompleteSchema:
+    def test_schema_does_not_expose_minutes_column(self) -> None:
+        assert "min" not in _schema_columns("analytics_team_game_complete")
+
     def test_valid_row(self) -> None:
         result = _validate(
             "analytics_team_game_complete",

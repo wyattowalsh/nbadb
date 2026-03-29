@@ -11,10 +11,15 @@ from nbadb.schemas.base import BaseSchema
 # ---------------------------------------------------------------------------
 
 
-class _TraditionalStatsMixin(BaseSchema):
-    """Traditional box-score stat fields common to multiple analytics views."""
+class _MinutesStatMixin(BaseSchema):
+    """Minute totals shared by player-level and clutch analytics views."""
 
     min: float | None = pa.Field(nullable=True, metadata={"description": "Minutes played"})
+
+
+class _TraditionalStatsMixin(BaseSchema):
+    """Traditional box-score stat fields common to analytics views."""
+
     pts: float | None = pa.Field(nullable=True, metadata={"description": "Points scored"})
     reb: float | None = pa.Field(nullable=True, metadata={"description": "Total rebounds"})
     ast: float | None = pa.Field(nullable=True, metadata={"description": "Assists"})
@@ -119,7 +124,7 @@ class _TrackingStatsMixin(BaseSchema):
 # ---------------------------------------------------------------------------
 
 
-class AnalyticsClutchPerformanceSchema(_TraditionalStatsMixin):
+class AnalyticsClutchPerformanceSchema(_MinutesStatMixin, _TraditionalStatsMixin):
     """Clutch performance stats joined with player and team dimensions."""
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
@@ -356,6 +361,7 @@ class AnalyticsLeagueBenchmarksSchema(BaseSchema):
 
 
 class AnalyticsPlayerGameCompleteSchema(
+    _MinutesStatMixin,
     _TraditionalStatsMixin,
     _AdvancedStatsMixin,
     _MiscStatsMixin,
