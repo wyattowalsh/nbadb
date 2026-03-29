@@ -22,6 +22,7 @@ _AGG_TABLES = [
     "agg_player_rolling",
     "agg_player_season",
     "agg_player_season_per36",
+    "agg_player_season_advanced",
     "agg_player_season_per48",
     "agg_shot_location_season",
     "agg_shot_zones",
@@ -469,6 +470,62 @@ class TestAggPlayerSeasonPer48Schema:
         assert isinstance(result, pl.DataFrame)
 
 
+class TestAggPlayerSeasonAdvancedSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "agg_player_season_advanced",
+            {
+                "player_id": 2544,
+                "team_id": 1610612747,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "gp": 71,
+                "avg_off_rating": 121.3,
+                "avg_def_rating": 110.5,
+                "avg_net_rating": 10.8,
+                "avg_ts_pct": 0.621,
+                "avg_usg_pct": 0.290,
+                "avg_efg_pct": 0.575,
+                "avg_ast_pct": 0.430,
+                "avg_ast_ratio": 0.350,
+                "avg_oreb_pct": 0.050,
+                "avg_dreb_pct": 0.190,
+                "avg_reb_pct": 0.120,
+                "avg_tov_pct": 0.130,
+                "avg_pace": 99.5,
+                "avg_pie": 0.168,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_fields(self) -> None:
+        result = _validate(
+            "agg_player_season_advanced",
+            {
+                "player_id": 201935,
+                "team_id": 1610612745,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "gp": 0,
+                "avg_off_rating": None,
+                "avg_def_rating": None,
+                "avg_net_rating": None,
+                "avg_ts_pct": None,
+                "avg_usg_pct": None,
+                "avg_efg_pct": None,
+                "avg_ast_pct": None,
+                "avg_ast_ratio": None,
+                "avg_oreb_pct": None,
+                "avg_dreb_pct": None,
+                "avg_reb_pct": None,
+                "avg_tov_pct": None,
+                "avg_pace": None,
+                "avg_pie": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+
 class TestAggShotLocationSeasonSchema:
     def test_valid_row(self) -> None:
         result = _validate(
@@ -791,6 +848,31 @@ class TestAggTeamSeasonSchema:
                 "blk_rank": 1,
             },
             "pts_rank must be >= 1",
+        ),
+        (
+            "agg_player_season_advanced",
+            {
+                "player_id": -1,
+                "team_id": 1610612747,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "gp": 71,
+                "avg_off_rating": None,
+                "avg_def_rating": None,
+                "avg_net_rating": None,
+                "avg_ts_pct": None,
+                "avg_usg_pct": None,
+                "avg_efg_pct": None,
+                "avg_ast_pct": None,
+                "avg_ast_ratio": None,
+                "avg_oreb_pct": None,
+                "avg_dreb_pct": None,
+                "avg_reb_pct": None,
+                "avg_tov_pct": None,
+                "avg_pace": None,
+                "avg_pie": None,
+            },
+            "agg_player_season_advanced player_id must be > 0",
         ),
         (
             "agg_game_totals",
