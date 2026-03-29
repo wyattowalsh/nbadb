@@ -47,7 +47,10 @@ export default function HomePage() {
   return (
     <main className="nba-home-shell flex flex-1 flex-col">
       {/* ── Stat hero ────────────────────────────────── */}
-      <section id="scoreboard" className="nba-hero-bg mx-auto w-full max-w-5xl px-4 pb-10 pt-12 sm:px-6 lg:px-8">
+      <section
+        id="scoreboard"
+        className="nba-hero-bg mx-auto w-full max-w-5xl px-4 pb-10 pt-12 sm:px-6 lg:px-8"
+      >
         <div className="nba-hero-grid nba-reveal">
           <div>
             <span className="nba-kicker">NBA warehouse documentation</span>
@@ -76,7 +79,10 @@ export default function HomePage() {
 
             <div className="mt-6 grid gap-px border border-border bg-border sm:grid-cols-3 nba-delay-1">
               {heroSignals.map((signal) => (
-                <div key={signal.label} className="nba-hero-signal bg-card px-4 py-4">
+                <div
+                  key={signal.label}
+                  className="nba-hero-signal bg-card px-4 py-4"
+                >
                   <div className="nba-kicker">{signal.label}</div>
                   <div className="mt-2 text-sm font-semibold text-foreground">
                     {signal.title}
@@ -109,7 +115,8 @@ export default function HomePage() {
 
             <p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground nba-delay-2">
               Pick the first route by job to be done: quick analyst reps, daily
-              pipeline operations, table scouting, or a no-install DuckDB warmup.
+              pipeline operations, table scouting, or a no-install DuckDB
+              warmup.
             </p>
           </div>
 
@@ -147,8 +154,8 @@ export default function HomePage() {
               <span className="nba-kicker">From tip-off to final horn</span>
               <p>
                 Raw nba_api feeds staged in DuckDB, transformed into star-schema
-                tables, then routed into docs pages that explain where every play
-                and model came from.
+                tables, then routed into docs pages that explain where every
+                play and model came from.
               </p>
             </div>
           </div>
@@ -163,29 +170,35 @@ export default function HomePage() {
 
         {/* Stat counters */}
         <div className="mt-3 grid grid-cols-2 gap-px border border-border sm:grid-cols-4 nba-delay-2">
-            {siteMetrics.map((metric) => (
-              <div
-                key={metric.label}
-                className="nba-metric-card bg-card px-4 py-4"
-              >
-                <div className="nba-scoreboard-value text-3xl font-bold text-foreground sm:text-4xl">
-                  {/^\d+$/.test(metric.value) ? (
-                    <Counter target={parseInt(metric.value, 10)} className="tabular-nums" />
-                  ) : (
-                    metric.value
-                  )}
-                </div>
-                <div className="nba-metric-label mt-1">{metric.label}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {metric.note}
-                </div>
+          {siteMetrics.map((metric) => (
+            <div
+              key={metric.label}
+              className="nba-metric-card bg-card px-4 py-4"
+            >
+              <div className="nba-scoreboard-value text-3xl font-bold text-foreground sm:text-4xl">
+                {/^\d+$/.test(metric.value) ? (
+                  <Counter
+                    target={parseInt(metric.value, 10)}
+                    className="tabular-nums"
+                  />
+                ) : (
+                  metric.value
+                )}
               </div>
-            ))}
-          </div>
+              <div className="nba-metric-label mt-1">{metric.label}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {metric.note}
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* ── Section index ────────────────────────────── */}
-      <section id="sections" className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-2">
+      <section
+        id="sections"
+        className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-2"
+      >
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="nba-kicker">Choose by question</h2>
@@ -225,7 +238,9 @@ export default function HomePage() {
                     key={stat.label}
                     className="text-xs text-muted-foreground"
                   >
-                    <span className="font-bold text-foreground">{stat.value}</span>{" "}
+                    <span className="font-bold text-foreground">
+                      {stat.value}
+                    </span>{" "}
                     {stat.label.toLowerCase()}
                   </span>
                 ))}
@@ -236,7 +251,10 @@ export default function HomePage() {
       </section>
 
       {/* ── Audience lanes ─────────────────────────── */}
-      <section id="lanes" className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-3">
+      <section
+        id="lanes"
+        className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-3"
+      >
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <h2 className="nba-kicker">Choose your lane</h2>
           <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
@@ -267,7 +285,10 @@ export default function HomePage() {
       </section>
 
       {/* ── Quick start ──────────────────────────────── */}
-      <section id="quickstart" className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6 lg:px-8 nba-reveal nba-delay-3">
+      <section
+        id="quickstart"
+        className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6 lg:px-8 nba-reveal nba-delay-3"
+      >
         <div className="mb-4">
           <h2 className="nba-kicker">Quick start</h2>
         </div>
@@ -284,9 +305,7 @@ export default function HomePage() {
               <span className="text-sm font-semibold text-foreground">
                 {item.label}
               </span>
-              <span className="hidden text-xs text-muted-foreground sm:inline">
-                {item.note}
-              </span>
+              <span className="text-xs text-muted-foreground">{item.note}</span>
               <ArrowRight className="ml-auto size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
             </Link>
           ))}
@@ -299,8 +318,16 @@ export default function HomePage() {
           <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-sm">
               <div className="flex items-center gap-2">
-                <Image src="/logo-600.png" alt="" width={600} height={600} className="h-6 w-auto" />
-                <span className="nba-display text-base font-bold tracking-tight text-foreground">nbadb</span>
+                <Image
+                  src="/logo-600.png"
+                  alt=""
+                  width={600}
+                  height={600}
+                  className="h-6 w-auto"
+                />
+                <span className="nba-display text-base font-bold tracking-tight text-foreground">
+                  nbadb
+                </span>
                 <Badge variant="primary">v4</Badge>
               </div>
               <p className="mt-3 text-xs leading-5 text-muted-foreground">
@@ -313,26 +340,88 @@ export default function HomePage() {
               <div className="space-y-2">
                 <span className="nba-kicker">Docs</span>
                 <div className="flex flex-col gap-1.5">
-                  <Link href="/docs/schema" className="text-muted-foreground hover:text-foreground transition-colors">Schema</Link>
-                  <Link href="/docs/endpoints" className="text-muted-foreground hover:text-foreground transition-colors">Endpoints</Link>
-                  <Link href="/docs/lineage" className="text-muted-foreground hover:text-foreground transition-colors">Lineage</Link>
-                  <Link href="/docs/guides" className="text-muted-foreground hover:text-foreground transition-colors">Guides</Link>
+                  <Link
+                    href="/docs/schema"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Schema
+                  </Link>
+                  <Link
+                    href="/docs/endpoints"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Endpoints
+                  </Link>
+                  <Link
+                    href="/docs/lineage"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Lineage
+                  </Link>
+                  <Link
+                    href="/docs/guides"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Guides
+                  </Link>
                 </div>
               </div>
               <div className="space-y-2">
                 <span className="nba-kicker">Resources</span>
                 <div className="flex flex-col gap-1.5">
-                  <a href="https://github.com/wyattowalsh/nba-db" className="text-muted-foreground hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">GitHub</a>
-                  <a href="https://www.kaggle.com/datasets/wyattowalsh/basketball" className="text-muted-foreground hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">Kaggle</a>
-                  <a href="https://pypi.org/project/nbadb/" className="text-muted-foreground hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">PyPI</a>
+                  <a
+                    href="https://github.com/wyattowalsh/nba-db"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    GitHub
+                  </a>
+                  <a
+                    href="https://www.kaggle.com/datasets/wyattowalsh/basketball"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Kaggle
+                  </a>
+                  <a
+                    href="https://pypi.org/project/nbadb/"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    PyPI
+                  </a>
                 </div>
               </div>
               <div className="space-y-2">
                 <span className="nba-kicker">Built with</span>
                 <div className="flex flex-col gap-1.5">
-                  <a href="https://duckdb.org" className="text-muted-foreground hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">DuckDB</a>
-                  <a href="https://pola.rs" className="text-muted-foreground hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">Polars</a>
-                  <a href="https://github.com/swar/nba_api" className="text-muted-foreground hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">nba_api</a>
+                  <a
+                    href="https://duckdb.org"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    DuckDB
+                  </a>
+                  <a
+                    href="https://pola.rs"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Polars
+                  </a>
+                  <a
+                    href="https://github.com/swar/nba_api"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    nba_api
+                  </a>
                 </div>
               </div>
             </div>

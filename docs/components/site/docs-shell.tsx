@@ -1,12 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { TOCItemType } from "fumadocs-core/toc";
-import {
-  ArrowRight,
-  Blocks,
-  Command,
-  Search,
-} from "lucide-react";
+import { ArrowRight, Blocks, Command, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +9,20 @@ import {
   getGeneratedPageFrame,
   getSectionMeta,
 } from "@/lib/site-config";
+import type { SectionId } from "@/lib/site-config";
 import { getDocBreadcrumbs, humanizeSlug } from "@/lib/utils";
 import { SearchTrigger } from "@/components/site/search-trigger";
+
+/** Per-section accent color used for the sidebar banner left-border indicator. */
+const sectionAccentColor: Record<SectionId, string> = {
+  core: "#1D428A",
+  schema: "#00A651",
+  "data-dictionary": "#FDB927",
+  diagrams: "#C8102E",
+  endpoints: "#552583",
+  lineage: "#006BB6",
+  guides: "#E56020",
+};
 
 type DocsChromeProps = {
   slug?: string[];
@@ -27,7 +34,6 @@ type DocsChromeProps = {
 type DocsChromeSlugProps = {
   slug?: string[];
 };
-
 
 export function DocsNavBadge({ slug }: DocsChromeSlugProps) {
   const section = getSectionMeta(slug);
@@ -58,11 +64,22 @@ export function DocsSidebarBanner({ slug }: DocsChromeSlugProps) {
     .filter((link) => link.href !== currentPath)
     .slice(0, 2);
 
+  const accentColor = sectionAccentColor[section.id] ?? sectionAccentColor.core;
+
   return (
-    <div className="nba-sidebar-banner border border-border bg-card p-3">
+    <div
+      className="nba-sidebar-banner border border-border bg-card p-3"
+      style={{ borderLeftWidth: 3, borderLeftColor: accentColor }}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          <Image src="/logo.png" alt="" width={16} height={16} className="h-4 w-auto" />
+          <Image
+            src="/logo.png"
+            alt=""
+            width={16}
+            height={16}
+            className="h-4 w-auto"
+          />
           nbadb
         </span>
         <Badge variant="default">{section.cue}</Badge>
@@ -132,21 +149,46 @@ export function DocsSidebarFooter({ slug }: DocsChromeSlugProps) {
         <Badge variant="muted">{section.cue}</Badge>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <a href="https://github.com/wyattowalsh/nbadb" target="_blank" rel="noopener noreferrer">
-          <img src="https://img.shields.io/github/stars/wyattowalsh/nbadb?style=flat-square&label=stars&color=orange" alt="GitHub stars" className="h-5" width={80} height={20} loading="lazy" />
+        <a
+          href="https://github.com/wyattowalsh/nbadb"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            src="https://img.shields.io/github/stars/wyattowalsh/nbadb?style=flat-square&label=stars&color=orange"
+            alt="GitHub stars"
+            className="h-5"
+            width={80}
+            height={20}
+            loading="lazy"
+          />
         </a>
-        <a href="https://pypi.org/project/nbadb/" target="_blank" rel="noopener noreferrer">
-          <img src="https://img.shields.io/pypi/v/nbadb?style=flat-square&label=pypi" alt="PyPI version" className="h-5" width={80} height={20} loading="lazy" />
+        <a
+          href="https://pypi.org/project/nbadb/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            src="https://img.shields.io/pypi/v/nbadb?style=flat-square&label=pypi"
+            alt="PyPI version"
+            className="h-5"
+            width={80}
+            height={20}
+            loading="lazy"
+          />
         </a>
       </div>
-      <div className="nba-sidebar-prompt">
+      <SearchTrigger
+        query={searchPrompt.query}
+        className="nba-sidebar-prompt w-full cursor-pointer text-left transition-colors hover:bg-muted"
+      >
         <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-primary">
           Try in search
         </div>
         <div className="mt-1 font-mono text-[0.78rem] text-foreground">
           {searchPrompt.query}
         </div>
-      </div>
+      </SearchTrigger>
       <p className="text-muted-foreground">
         <kbd>⌘K</kbd> to search tables, endpoints, guides, and diagrams.
       </p>
@@ -203,7 +245,10 @@ export function DocsPageHero({
                       </span>
                     )}
                     {index < breadcrumbs.length - 1 ? (
-                      <span aria-hidden="true" className="text-muted-foreground/60">
+                      <span
+                        aria-hidden="true"
+                        className="text-muted-foreground/60"
+                      >
                         /
                       </span>
                     ) : null}
@@ -217,7 +262,9 @@ export function DocsPageHero({
             <div className="flex flex-wrap gap-2">
               <Badge variant="primary">{section.label}</Badge>
               <Badge variant="default">{section.cue}</Badge>
-              {tocCount > 0 ? <Badge variant="muted">{tocCount} guideposts</Badge> : null}
+              {tocCount > 0 ? (
+                <Badge variant="muted">{tocCount} guideposts</Badge>
+              ) : null}
             </div>
 
             <div>
@@ -227,7 +274,12 @@ export function DocsPageHero({
               </h1>
             </div>
             {description ? (
-              <p className="max-w-3xl text-sm leading-7 text-muted-foreground" style={{ fontFamily: "var(--font-sans), system-ui, sans-serif" }}>
+              <p
+                className="max-w-3xl text-sm leading-7 text-muted-foreground"
+                style={{
+                  fontFamily: "var(--font-sans), system-ui, sans-serif",
+                }}
+              >
                 {description}
               </p>
             ) : null}
@@ -243,7 +295,11 @@ export function DocsPageHero({
               ) : null}
 
               {relatedLinks.map((link) => (
-                <Link key={link.href} href={link.href} className="nba-page-hero-link">
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="nba-page-hero-link"
+                >
                   <span>{link.title}</span>
                   <ArrowRight className="size-3.5" />
                 </Link>
@@ -262,7 +318,14 @@ export function DocsPageHero({
         </div>
 
         <div className="nba-page-hero-mark" aria-hidden="true">
-          <Image src="/logo-600.png" alt="" width={600} height={600} className="h-auto w-full" priority />
+          <Image
+            src="/logo-600.png"
+            alt=""
+            width={600}
+            height={600}
+            className="h-auto w-full"
+            priority
+          />
           <div className="nba-page-hero-stat">
             <span className="nba-kicker">{section.cue}</span>
             <span>{currentLabel}</span>
@@ -273,11 +336,7 @@ export function DocsPageHero({
   );
 }
 
-export function DocsGeneratedEntrySurface({
-  slug,
-}: {
-  slug?: string[];
-}) {
+export function DocsGeneratedEntrySurface({ slug }: { slug?: string[] }) {
   const frame = getGeneratedPageFrame(slug);
 
   if (!frame) {
@@ -505,7 +564,10 @@ const generatedManualScanClusters: Record<string, GeneratedScanCluster[]> = {
       items: [
         { title: "Column-level lineage", url: "#column-level-lineage" },
         { title: "Curated column replay", url: "/docs/lineage/column-lineage" },
-        { title: "Field Reference", url: "/docs/data-dictionary/field-reference" },
+        {
+          title: "Field Reference",
+          url: "/docs/data-dictionary/field-reference",
+        },
       ],
     },
   ],
@@ -542,7 +604,9 @@ function extractTocTitle(title: TOCItemType["title"]): string {
   }
 
   if (Array.isArray(title)) {
-    return title.map((item) => extractTocTitle(item as TOCItemType["title"])).join("");
+    return title
+      .map((item) => extractTocTitle(item as TOCItemType["title"]))
+      .join("");
   }
 
   if (title && typeof title === "object" && "props" in title) {
@@ -583,7 +647,8 @@ function buildLayerClusters(items: Array<{ title: string; url: string }>) {
     clusters.set(key, {
       key,
       label: humanizeIdentifier(key),
-      description: "Jump into the matching table family, then read the exact block.",
+      description:
+        "Jump into the matching table family, then read the exact block.",
       items: [item],
     });
   }
@@ -602,11 +667,12 @@ function buildStarClusters(items: Array<{ title: string; url: string }>) {
 
   for (const item of items) {
     const [family = "other"] = item.title.split("_");
-    const familyMeta =
-      tableFamilyMeta[family as keyof typeof tableFamilyMeta] ?? {
-        label: humanizeIdentifier(family),
-        description: "Generated public surfaces grouped by table family.",
-      };
+    const familyMeta = tableFamilyMeta[
+      family as keyof typeof tableFamilyMeta
+    ] ?? {
+      label: humanizeIdentifier(family),
+      description: "Generated public surfaces grouped by table family.",
+    };
     const existing = clusters.get(family);
 
     if (existing) {
@@ -662,7 +728,10 @@ function getGeneratedScanClusters(
     return [];
   }
 
-  if (pageKey === "data-dictionary/star" || pageKey === "schema/star-reference") {
+  if (
+    pageKey === "data-dictionary/star" ||
+    pageKey === "schema/star-reference"
+  ) {
     return buildStarClusters(items);
   }
 
@@ -690,7 +759,10 @@ export function DocsGeneratedScanSurface({
     return null;
   }
 
-  const totalItems = clusters.reduce((sum, cluster) => sum + cluster.items.length, 0);
+  const totalItems = clusters.reduce(
+    (sum, cluster) => sum + cluster.items.length,
+    0,
+  );
 
   return (
     <section className="mt-8 space-y-4">
@@ -705,18 +777,19 @@ export function DocsGeneratedScanSurface({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="primary">{totalItems} {meta.itemLabel}</Badge>
-          <Badge variant="default">{clusters.length} {meta.groupingLabel}</Badge>
+          <Badge variant="primary">
+            {totalItems} {meta.itemLabel}
+          </Badge>
+          <Badge variant="default">
+            {clusters.length} {meta.groupingLabel}
+          </Badge>
           <Badge variant="muted">{sourceLabel}</Badge>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {clusters.map((cluster) => (
-          <div
-            key={cluster.key}
-            className="border border-border bg-card p-4"
-          >
+          <div key={cluster.key} className="border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
@@ -746,7 +819,8 @@ export function DocsGeneratedScanSurface({
 
             {cluster.items.length > 6 ? (
               <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                +{cluster.items.length - 6} more in the page TOC and section list.
+                +{cluster.items.length - 6} more in the page TOC and section
+                list.
               </p>
             ) : null}
           </div>
@@ -870,9 +944,10 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
           </div>
           <div className="mt-4 space-y-3">
             {contextRail.prompts.map((prompt) => (
-              <div
+              <SearchTrigger
                 key={prompt.query}
-                className="nba-discovery-prompt border border-border bg-muted px-3 py-2"
+                query={prompt.query}
+                className="nba-discovery-prompt block w-full cursor-pointer border border-border bg-muted px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/80"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
@@ -888,7 +963,7 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {prompt.description}
                 </p>
-              </div>
+              </SearchTrigger>
             ))}
           </div>
         </aside>

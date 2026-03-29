@@ -20,9 +20,7 @@ type MDXComponentMap = Record<
   ComponentType<{ [key: string]: unknown }>
 >;
 
-function asMdxComponent<T extends object>(
-  Component: ComponentType<T>,
-) {
+function asMdxComponent<T extends object>(Component: ComponentType<T>) {
   return function WrappedMdxComponent(props: T) {
     return <Component {...props} />;
   };

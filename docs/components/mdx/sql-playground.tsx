@@ -1,7 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, ClipboardCopy, Loader2, Play, RotateCcw, Table2 } from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  BarChart3,
+  ClipboardCopy,
+  Loader2,
+  Play,
+  RotateCcw,
+  Table2,
+} from "lucide-react";
 import { type ChartInference, inferChart } from "@/lib/chart-inference";
 
 const DEFAULT_QUERY = `SELECT 42 AS answer, 'Hello from DuckDB-WASM!' AS message;`;
@@ -67,10 +80,14 @@ export function SqlPlayground({
       const duckdbLib = await import("@/lib/duckdb");
       await duckdbLib.getDb();
       if (tables?.length) {
-        await duckdbLib.registerMultipleParquet(tables, (loaded, total, name) => {
-          if (loaded < total) setLoadProgress(`Loading ${name} (${loaded + 1}/${total})...`);
-          else setLoadProgress("");
-        });
+        await duckdbLib.registerMultipleParquet(
+          tables,
+          (loaded, total, name) => {
+            if (loaded < total)
+              setLoadProgress(`Loading ${name} (${loaded + 1}/${total})...`);
+            else setLoadProgress("");
+          },
+        );
       } else if (parquetUrl && tableName) {
         await duckdbLib.registerParquet(tableName, parquetUrl);
       }
@@ -145,7 +162,8 @@ export function SqlPlayground({
           </p>
         </div>
         <div className="nba-viz-status max-sm:hidden">
-          {loadProgress || (ready ? "Engine loaded" : "Click Run to initialize")}
+          {loadProgress ||
+            (ready ? "Engine loaded" : "Click Run to initialize")}
         </div>
       </div>
 
@@ -163,6 +181,7 @@ export function SqlPlayground({
           spellCheck={false}
           className="w-full resize-y bg-card px-4 py-3 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-inset focus:ring-primary/40 transition-shadow duration-150"
           placeholder="Enter SQL query..."
+          aria-label="SQL query editor"
         />
         {examples && examples.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-border bg-card px-4 py-3">
@@ -285,7 +304,10 @@ export function SqlPlayground({
         </div>
       ) : !error && !loading ? (
         <div className="border-t border-border bg-muted/40 px-4 py-4 text-sm text-muted-foreground">
-          <p>Pick an example or write your own SQL, then press Run to initialize DuckDB-WASM in this tab.</p>
+          <p>
+            Pick an example or write your own SQL, then press Run to initialize
+            DuckDB-WASM in this tab.
+          </p>
           {!ready ? (
             <p className="mt-1 text-xs text-muted-foreground/70">
               First run downloads ~4 MB DuckDB engine (cached for future runs).
@@ -305,7 +327,9 @@ function toCsv(columns: string[], rows: Record<string, unknown>[]): string {
       : s;
   };
   const header = columns.map(escape).join(",");
-  const body = rows.map((row) => columns.map((col) => escape(row[col])).join(","));
+  const body = rows.map((row) =>
+    columns.map((col) => escape(row[col])).join(","),
+  );
   return [header, ...body].join("\n");
 }
 
@@ -374,6 +398,31 @@ function ResultToolbar({
   );
 }
 
+class ChartErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center py-12 text-sm text-destructive">
+          Chart rendering failed. Try a different query or switch to table view.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function ChartView({
   columns,
   rows,
@@ -404,5 +453,9 @@ function ChartView({
     );
   }
 
-  return <PlotComponent columns={columns} rows={rows} inference={inference} />;
+  return (
+    <ChartErrorBoundary>
+      <PlotComponent columns={columns} rows={rows} inference={inference} />
+    </ChartErrorBoundary>
+  );
 }

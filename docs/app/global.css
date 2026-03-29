@@ -32,6 +32,11 @@
   --sidebar-primary-foreground: oklch(0.987 0.022 95.277);
   --sidebar-ring: oklch(0.705 0.015 286.067);
   --radius: 0.625rem;
+  --focus-ring-color: var(--primary);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-shadow: 0 0 0 4px
+    color-mix(in oklch, var(--primary) 20%, transparent);
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --chart-1: oklch(0.837 0.128 66.29);
@@ -135,8 +140,16 @@ html.dark {
 body {
   font-family: var(--font-sans), system-ui, sans-serif;
   background:
-    radial-gradient(circle at top, color-mix(in oklch, var(--primary) 14%, transparent), transparent 28%),
-    linear-gradient(180deg, color-mix(in oklch, var(--background) 92%, white), var(--background));
+    radial-gradient(
+      circle at top,
+      color-mix(in oklch, var(--primary) 14%, transparent),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--background) 92%, white),
+      var(--background)
+    );
 }
 
 ::selection {
@@ -147,7 +160,8 @@ body {
 /* ── Scrollbar ─────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent)
+    transparent;
 }
 
 ::-webkit-scrollbar {
@@ -175,9 +189,9 @@ button,
 }
 
 :focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 20%, transparent);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 a {
@@ -211,6 +225,13 @@ kbd {
   backdrop-filter: blur(12px);
 }
 
+/* ── Active nav link (stronger indicator) ─────────── */
+#nd-sidebar [data-active="true"] {
+  background: color-mix(in oklch, var(--primary) 14%, transparent);
+  border-left: 3px solid var(--primary);
+  font-weight: 600;
+}
+
 /* ── Layout shells ─────────────────────────────────── */
 .nba-home-shell,
 .nba-docs-layout,
@@ -225,9 +246,19 @@ kbd {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 11%, transparent), transparent 28%),
-    linear-gradient(180deg, color-mix(in oklch, var(--border) 18%, transparent) 1px, transparent 1px);
-  background-size: auto, 100% 2.75rem;
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklch, var(--primary) 11%, transparent),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--border) 18%, transparent) 1px,
+      transparent 1px
+    );
+  background-size:
+    auto,
+    100% 2.75rem;
   opacity: 0.7;
   pointer-events: none;
   z-index: -1;
@@ -238,9 +269,21 @@ kbd {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 24%, transparent) 0, transparent 34%),
-    radial-gradient(circle at top left, color-mix(in oklch, var(--accent) 18%, transparent) 0, transparent 42%),
-    linear-gradient(180deg, color-mix(in oklch, var(--primary) 4%, var(--background)) 0%, var(--background) 30%);
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklch, var(--primary) 24%, transparent) 0,
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at top left,
+      color-mix(in oklch, var(--accent) 18%, transparent) 0,
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--primary) 4%, var(--background)) 0%,
+      var(--background) 30%
+    );
   opacity: 0.95;
   pointer-events: none;
   z-index: -2;
@@ -250,7 +293,11 @@ kbd {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(90deg, color-mix(in oklch, var(--border) 65%, transparent) 1px, transparent 1px);
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--border) 65%, transparent) 1px,
+    transparent 1px
+  );
   background-size: 96px 96px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 45%);
   pointer-events: none;
@@ -310,8 +357,16 @@ kbd {
   border-radius: var(--radius-3xl);
   min-height: 22rem;
   background:
-    radial-gradient(circle at top, color-mix(in oklch, var(--chart-2) 26%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in oklch, var(--foreground) 4%, transparent), transparent),
+    radial-gradient(
+      circle at top,
+      color-mix(in oklch, var(--chart-2) 26%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--foreground) 4%, transparent),
+      transparent
+    ),
     repeating-linear-gradient(
       90deg,
       color-mix(in oklch, var(--primary) 14%, var(--background)) 0,
@@ -319,7 +374,8 @@ kbd {
       color-mix(in oklch, var(--primary) 10%, var(--background)) 2.25rem,
       color-mix(in oklch, var(--primary) 10%, var(--background)) 4.5rem
     );
-  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--background) 80%, transparent);
+  box-shadow: inset 0 1px 0
+    color-mix(in oklch, var(--background) 80%, transparent);
 }
 
 .nba-court-panel::after {
@@ -330,16 +386,34 @@ kbd {
   border: 1.5px solid transparent;
   background:
     linear-gradient(var(--background), var(--background)) padding-box,
-    linear-gradient(135deg, var(--primary), oklch(0.75 0.18 55), color-mix(in oklch, var(--primary) 60%, transparent), var(--primary)) border-box;
-  background-size: 100% 100%, 300% 300%;
+    linear-gradient(
+        135deg,
+        var(--primary),
+        oklch(0.75 0.18 55),
+        color-mix(in oklch, var(--primary) 60%, transparent),
+        var(--primary)
+      )
+      border-box;
+  background-size:
+    100% 100%,
+    300% 300%;
   animation: nba-border-shift 8s ease-in-out infinite;
   pointer-events: none;
   z-index: 1;
 }
 
 @keyframes nba-border-shift {
-  0%, 100% { background-position: 0 0, 0% 50%; }
-  50% { background-position: 0 0, 100% 50%; }
+  0%,
+  100% {
+    background-position:
+      0 0,
+      0% 50%;
+  }
+  50% {
+    background-position:
+      0 0,
+      100% 50%;
+  }
 }
 
 .nba-court-markings {
@@ -418,8 +492,12 @@ kbd {
 }
 
 @keyframes nba-court-pulse {
-  from { border-color: color-mix(in oklch, var(--foreground) 14%, transparent); }
-  to { border-color: color-mix(in oklch, var(--foreground) 22%, transparent); }
+  from {
+    border-color: color-mix(in oklch, var(--foreground) 14%, transparent);
+  }
+  to {
+    border-color: color-mix(in oklch, var(--foreground) 22%, transparent);
+  }
 }
 
 .nba-court-midline,
@@ -435,7 +513,9 @@ kbd {
   top: 1.5rem;
   width: 7.5rem;
   height: 7.5rem;
-  filter: drop-shadow(0 0.9rem 1.5rem color-mix(in oklch, var(--foreground) 12%, transparent));
+  filter: drop-shadow(
+    0 0.9rem 1.5rem color-mix(in oklch, var(--foreground) 12%, transparent)
+  );
   transform: rotate(-12deg);
 }
 
@@ -457,7 +537,9 @@ kbd {
   right: clamp(1rem, 3vw, 1.5rem);
   top: clamp(1.5rem, 10vw, 3rem);
   width: min(24rem, 78%);
-  filter: drop-shadow(0 1.25rem 2rem color-mix(in oklch, var(--foreground) 18%, transparent));
+  filter: drop-shadow(
+    0 1.25rem 2rem color-mix(in oklch, var(--foreground) 18%, transparent)
+  );
 }
 
 .nba-hero-board {
@@ -515,7 +597,11 @@ kbd {
   inset: 0 auto auto 0;
   width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, var(--primary), color-mix(in oklch, var(--primary) 20%, transparent));
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in oklch, var(--primary) 20%, transparent)
+  );
 }
 
 .nba-lane-card {
@@ -589,8 +675,14 @@ kbd {
 }
 
 @keyframes nba-hero-glow {
-  from { opacity: 0.6; transform: scale(1); }
-  to { opacity: 1; transform: scale(1.05); }
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
 }
 
 /* ── Stat typography ───────────────────────────────── */
@@ -638,8 +730,13 @@ kbd {
 }
 
 @keyframes nba-gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 /* ── Stat surface ──────────────────────────────────── */
@@ -650,7 +747,7 @@ kbd {
 
 @media (max-width: 640px) {
   .nba-court-panel {
-    min-height: 18rem;
+    display: none;
   }
 
   .nba-hero-ball {
@@ -675,8 +772,16 @@ kbd {
   border: 1px solid var(--border);
   border-radius: var(--radius-3xl);
   background:
-    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 14%, transparent), transparent 30%),
-    linear-gradient(180deg, color-mix(in oklch, var(--background) 88%, var(--card)), var(--card));
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklch, var(--primary) 14%, transparent),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--background) 88%, var(--card)),
+      var(--card)
+    );
   padding: 1.25rem;
 }
 
@@ -883,6 +988,11 @@ kbd {
   display: none;
 }
 
+/* ── Anchor scroll offset (headings override with 6rem below) ── */
+[id] {
+  scroll-margin-top: 5rem;
+}
+
 /* ── Headings ──────────────────────────────────────── */
 .nba-docs-page :where(h1, h2, h3, h4) {
   font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
@@ -1042,8 +1152,9 @@ kbd {
 }
 
 .nba-mermaid-viewport:focus-visible {
-  outline: 2px solid var(--ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: -2px;
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .nba-mermaid-canvas {
@@ -1109,7 +1220,9 @@ kbd {
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background-color 150ms, color 150ms;
+  transition:
+    background-color 150ms,
+    color 150ms;
 }
 
 .nba-zoom-controls button:hover {
@@ -1118,8 +1231,9 @@ kbd {
 }
 
 .nba-zoom-controls button:focus-visible {
-  outline: 2px solid var(--ring);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: -2px;
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .nba-zoom-pct {
@@ -1157,8 +1271,12 @@ kbd {
 }
 
 @keyframes nba-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* ── Responsive ────────────────────────────────────── */
@@ -1206,14 +1324,22 @@ kbd {
 }
 
 @keyframes nba-page-in {
-  from { opacity: 0.85; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0.85;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Card hover accent ────────────────────────────── */
 .nba-home-shell a[class*="bg-card"] {
   border-left: 3px solid transparent;
-  transition: border-color 200ms, background-color 200ms;
+  transition:
+    border-color 200ms,
+    background-color 200ms;
 }
 
 .nba-home-shell a[class*="bg-card"]:hover {
@@ -1234,7 +1360,10 @@ kbd {
 /* ── Card lift ────────────────────────────────────── */
 .nba-home-shell .group[class*="bg-card"],
 .nba-related-card {
-  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease, background-color 200ms ease;
+  transition:
+    transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 200ms ease,
+    background-color 200ms ease;
 }
 
 .nba-home-shell .group[class*="bg-card"]:hover,
@@ -1265,8 +1394,16 @@ kbd {
 .nba-sidebar-banner {
   border-radius: var(--radius-2xl);
   background:
-    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 12%, transparent), transparent 38%),
-    linear-gradient(180deg, color-mix(in oklch, var(--card) 98%, transparent), var(--card));
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklch, var(--primary) 12%, transparent),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--card) 98%, transparent),
+      var(--card)
+    );
 }
 
 .nba-sidebar-stat {
@@ -1299,7 +1436,9 @@ kbd {
   background: color-mix(in oklch, var(--background) 82%, transparent);
   padding: 0.75rem 0.85rem;
   text-decoration: none;
-  transition: border-color 180ms ease, background-color 180ms ease;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
 }
 
 .nba-sidebar-route-link:hover {
@@ -1331,15 +1470,26 @@ kbd {
 
 .nba-related-card {
   border-radius: var(--radius-2xl);
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--card) 96%, transparent), var(--card));
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--card) 96%, transparent),
+    var(--card)
+  );
 }
 
 .nba-discovery-panel {
   border-radius: var(--radius-2xl);
   background:
-    radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 10%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in oklch, var(--card) 96%, transparent), var(--card));
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklch, var(--primary) 10%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--card) 96%, transparent),
+      var(--card)
+    );
 }
 
 .nba-discovery-prompt {

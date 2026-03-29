@@ -13,9 +13,12 @@ import {
 } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
-const ibmPlexSansHeading = IBM_Plex_Sans({subsets:['latin'],variable:'--font-heading'});
+const ibmPlexSansHeading = IBM_Plex_Sans({
+  subsets: ["latin"],
+  variable: "--font-heading",
+});
 
-const notoSans = Noto_Sans({subsets:['latin'],variable:'--font-sans'});
+const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
@@ -32,9 +35,7 @@ export const metadata: Metadata = {
   },
   description: siteDescription,
   icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-    ],
+    icon: [{ url: "/favicon.ico", sizes: "any" }],
     apple: "/apple-icon.png",
   },
   manifest: "/site.webmanifest",

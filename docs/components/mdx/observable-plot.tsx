@@ -320,14 +320,11 @@ export function DistributionPlot({
     marks: [
       Plot.rectY(
         data,
-        Plot.binX(
-          { y: "count" },
-          {
-            x: "value",
-            fill: hasGroup ? "group" : "#1D428A",
-            thresholds: bins,
-          } as Record<string, unknown>,
-        ),
+        Plot.binX({ y: "count" }, {
+          x: "value",
+          fill: hasGroup ? "group" : "#1D428A",
+          thresholds: bins,
+        } as Record<string, unknown>),
       ),
       Plot.ruleY([0]),
     ],

@@ -794,7 +794,8 @@ const generatedPageFrames: Record<string, GeneratedPageFrameMeta> = {
       "This page is for contract verification. It should feel dense because it is meant to answer exactness questions, not tell the whole story alone.",
     regenerateCommand: docsAutogenCommand,
     modulesEyebrow: "Companion cuts",
-    modulesTitle: "Use curated docs when the contract is clear but the context is not",
+    modulesTitle:
+      "Use curated docs when the contract is clear but the context is not",
     modulesDescription:
       "These pages help once you have confirmed the raw shape and need meaning, feed context, or pipeline placement.",
     modules: [

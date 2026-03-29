@@ -6,9 +6,9 @@ const docsRoot = fileURLToPath(new URL("./", import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const config = {
-	turbopack: {
-		root: docsRoot,
-	},
+  turbopack: {
+    root: docsRoot,
+  },
 };
 
 export default withMDX(config);

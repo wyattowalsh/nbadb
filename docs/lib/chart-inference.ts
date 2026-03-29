@@ -19,15 +19,19 @@ type ColumnKind = "categorical" | "temporal" | "quantitative";
 const TEMPORAL_NAME_PATTERNS =
   /(?:^|_)(date|year|season|month|quarter|week)(?:$|_)/i;
 
-const DATE_VALUE_PATTERN =
-  /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?$/;
+const DATE_VALUE_PATTERN = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?$/;
 
 /** Sample up to 20 rows, classify columns, pick a chart type. */
 export function inferChart(
   columns: string[],
   rows: Record<string, unknown>[],
 ): ChartInference {
-  const none: ChartInference = { type: "none", xColumn: "", yColumns: [], label: "" };
+  const none: ChartInference = {
+    type: "none",
+    xColumn: "",
+    yColumns: [],
+    label: "",
+  };
 
   if (rows.length < 2 || columns.length < 2) return none;
 
@@ -85,7 +89,11 @@ export function inferChart(
   }
 
   // 2 quantitative (no categorical / temporal) → scatter
-  if (quantitative.length >= 2 && categorical.length === 0 && temporal.length === 0) {
+  if (
+    quantitative.length >= 2 &&
+    categorical.length === 0 &&
+    temporal.length === 0
+  ) {
     return {
       type: "scatter",
       xColumn: quantitative[0],
@@ -115,12 +123,16 @@ function classifyColumn(
   if (values.length === 0) return "categorical";
 
   // If every non-null value matches a date/datetime pattern → temporal
-  if (values.every((v) => typeof v === "string" && DATE_VALUE_PATTERN.test(v))) {
+  if (
+    values.every((v) => typeof v === "string" && DATE_VALUE_PATTERN.test(v))
+  ) {
     return "temporal";
   }
 
   // Numeric check
-  const numericValues = values.filter((v) => typeof v === "number" || isFiniteNumber(v));
+  const numericValues = values.filter(
+    (v) => typeof v === "number" || isFiniteNumber(v),
+  );
 
   if (numericValues.length === values.length) {
     // All numeric — categorical if < 15 distinct, otherwise quantitative

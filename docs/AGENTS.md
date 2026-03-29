@@ -123,12 +123,12 @@ These are client-side components available in MDX content. All are registered in
 
 DuckDB-WASM sandbox. Lazy-initializes the WASM engine on first run. Defined in `components/mdx/sql-playground.tsx`.
 
-| Prop | Type | Description |
-| ---- | ---- | ----------- |
-| `defaultQuery` | `string` | Pre-filled SQL in the editor |
-| `parquetUrl` | `string` | URL to a remote Parquet file to load |
-| `tableName` | `string` | Table name for the loaded Parquet file |
-| `examples` | `{label, sql, description?}[]` | One-click example queries shown as buttons |
+| Prop           | Type                           | Description                                |
+| -------------- | ------------------------------ | ------------------------------------------ |
+| `defaultQuery` | `string`                       | Pre-filled SQL in the editor               |
+| `parquetUrl`   | `string`                       | URL to a remote Parquet file to load       |
+| `tableName`    | `string`                       | Table name for the loaded Parquet file     |
+| `examples`     | `{label, sql, description?}[]` | One-click example queries shown as buttons |
 
 The DuckDB-WASM singleton lives in `lib/duckdb.ts` — `getDb()` creates one shared instance, `runQuery()` executes SQL, and `registerParquet()` loads remote Parquet files into named tables with identifier validation.
 
@@ -184,18 +184,18 @@ Animated count-up with easeOutExpo curve, IntersectionObserver trigger (0.3 thre
 
 All registered in `components/mdx.tsx` via `getMDXComponents()`:
 
-| Component | Props | Description |
-| --------- | ----- | ----------- |
-| `<StatPill>` | `label, value, note?` | Single metric display in a bordered card |
-| `<StatGrid>` | `columns={2\|3\|4}` | Gap-separated grid wrapper for StatPills |
-| `<ScoutCard>` | `title, label?, children` | Note card with Badge header |
-| `<DataColumns>` | `children` | Two-column grid for side-by-side content |
-| `<CommandBlock>` | `command, label?` | Terminal-style command with `$` prefix |
-| `<MetricRow>` | `children` | Inline flex metric strip with divider borders |
-| `<Metric>` | `label, value` | Single inline metric (use inside MetricRow) |
-| `<InsightCard>` | `title?, children` | Note callout with primary left border |
-| `<WarningCard>` | `title?, children` | Warning callout with destructive left border |
-| `<CourtDivider>` | `label?` | Horizontal rule with centered Badge label |
+| Component        | Props                     | Description                                   |
+| ---------------- | ------------------------- | --------------------------------------------- |
+| `<StatPill>`     | `label, value, note?`     | Single metric display in a bordered card      |
+| `<StatGrid>`     | `columns={2\|3\|4}`       | Gap-separated grid wrapper for StatPills      |
+| `<ScoutCard>`    | `title, label?, children` | Note card with Badge header                   |
+| `<DataColumns>`  | `children`                | Two-column grid for side-by-side content      |
+| `<CommandBlock>` | `command, label?`         | Terminal-style command with `$` prefix        |
+| `<MetricRow>`    | `children`                | Inline flex metric strip with divider borders |
+| `<Metric>`       | `label, value`            | Single inline metric (use inside MetricRow)   |
+| `<InsightCard>`  | `title?, children`        | Note callout with primary left border         |
+| `<WarningCard>`  | `title?, children`        | Warning callout with destructive left border  |
+| `<CourtDivider>` | `label?`                  | Horizontal rule with centered Badge label     |
 
 Note: `blockquote` is globally overridden to `TerminalQuote` (primary left border, muted background).
 
@@ -205,14 +205,14 @@ Note: `blockquote` is globally overridden to `TerminalQuote` (primary left borde
 
 6 CVA variants:
 
-| Variant | Style |
-| ------- | ----- |
-| `default` | `border-border`, `text-muted-foreground` |
-| `primary` | `border-primary/30`, `text-primary` |
-| `accent` | `border-accent/30`, `text-accent` |
-| `stat` | `border-primary/40`, `bg-primary/10`, `text-primary` |
-| `outline` | `border-border`, `text-foreground` |
-| `muted` | `border-border`, `bg-muted`, `text-muted-foreground` |
+| Variant   | Style                                                |
+| --------- | ---------------------------------------------------- |
+| `default` | `border-border`, `text-muted-foreground`             |
+| `primary` | `border-primary/30`, `text-primary`                  |
+| `accent`  | `border-accent/30`, `text-accent`                    |
+| `stat`    | `border-primary/40`, `bg-primary/10`, `text-primary` |
+| `outline` | `border-border`, `text-foreground`                   |
+| `muted`   | `border-border`, `bg-muted`, `text-muted-foreground` |
 
 All badges are 0.65rem, font-semibold, uppercase, tracking-[0.2em].
 
@@ -234,16 +234,16 @@ All badges are 0.65rem, font-semibold, uppercase, tracking-[0.2em].
 
 Defined in `components/site/docs-shell.tsx` — context-aware UI chrome driven by `lib/site-config.ts`:
 
-| Component | Description |
-| --------- | ----------- |
-| `DocsPageHero` | Page hero with breadcrumbs, section badges, stats, lead CTA, logo mark. Rendered on every docs page. |
-| `DocsContextRail` | Related links grid + discovery panel with search prompts. Appended after MDX body. |
+| Component                   | Description                                                                                           |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `DocsPageHero`              | Page hero with breadcrumbs, section badges, stats, lead CTA, logo mark. Rendered on every docs page.  |
+| `DocsContextRail`           | Related links grid + discovery panel with search prompts. Appended after MDX body.                    |
 | `DocsGeneratedEntrySurface` | Entry surface for auto-generated pages. Shows generator info, stats, usage steps, and ownership note. |
-| `DocsGeneratedScanSurface` | TOC-driven scan surface that clusters h2 headings by table family. 8 page-key configs. |
-| `DocsGeneratedModules` | Module cards grid for generated page companions. |
-| `DocsNavBadge` | Section/cue route pill displayed in the top navbar. |
-| `DocsSidebarBanner` | Context-aware sidebar header with section info, stats, and quick links. |
-| `DocsSidebarFooter` | Sidebar footer with badges, GitHub/PyPI shields, and search prompt. |
+| `DocsGeneratedScanSurface`  | TOC-driven scan surface that clusters h2 headings by table family. 8 page-key configs.                |
+| `DocsGeneratedModules`      | Module cards grid for generated page companions.                                                      |
+| `DocsNavBadge`              | Section/cue route pill displayed in the top navbar.                                                   |
+| `DocsSidebarBanner`         | Context-aware sidebar header with section info, stats, and quick links.                               |
+| `DocsSidebarFooter`         | Sidebar footer with badges, GitHub/PyPI shields, and search prompt.                                   |
 
 All chrome components derive their content from `getSectionMeta(slug?)`, `getGeneratedPageFrame(slug?)`, and `getDocsContextRail(slug?)` in `lib/site-config.ts`.
 
@@ -254,8 +254,14 @@ All chrome components derive their content from `getSectionMeta(slug?)`, `getGen
 Central configuration for all docs chrome. Key types:
 
 ```typescript
-type SectionId = "core" | "schema" | "data-dictionary" | "diagrams"
-               | "endpoints" | "lineage" | "guides";
+type SectionId =
+  | "core"
+  | "schema"
+  | "data-dictionary"
+  | "diagrams"
+  | "endpoints"
+  | "lineage"
+  | "guides";
 
 type SectionMeta = {
   id: SectionId;
@@ -288,11 +294,11 @@ type GeneratedPageFrameMeta = {
 
 Helper functions:
 
-| Function | Returns | Description |
-| -------- | ------- | ----------- |
-| `getSectionMeta(slug?)` | `SectionMeta` | Resolves the current section from a docs slug |
-| `getGeneratedPageFrame(slug?)` | `GeneratedPageFrameMeta \| null` | Frame config for auto-generated pages |
-| `getDocsContextRail(slug?)` | `DocsContextRailMeta` | Related links and prompts for context rail |
+| Function                       | Returns                          | Description                                   |
+| ------------------------------ | -------------------------------- | --------------------------------------------- |
+| `getSectionMeta(slug?)`        | `SectionMeta`                    | Resolves the current section from a docs slug |
+| `getGeneratedPageFrame(slug?)` | `GeneratedPageFrameMeta \| null` | Frame config for auto-generated pages         |
+| `getDocsContextRail(slug?)`    | `DocsContextRailMeta`            | Related links and prompts for context rail    |
 
 Exported data objects: `heroSignals`, `searchPrompts`, `audienceLanes`, `docsSections`.
 
@@ -332,29 +338,29 @@ React hook for zoom/pan interactions on Mermaid diagrams. Returns transform stat
 
 ### Admin Pages
 
-| Page     | Description                                      |
-| -------- | ------------------------------------------------ |
-| Login    | Password-based login form                        |
+| Page     | Description                                        |
+| -------- | -------------------------------------------------- |
+| Login    | Password-based login form                          |
 | Pipeline | Pipeline monitoring dashboard with Recharts charts |
 
 ### Admin Components (12)
 
 Located in `components/admin/`:
 
-| Component | Description |
-| --------- | ----------- |
-| `admin-shell.tsx` | Admin page layout shell |
-| `admin-nav.tsx` | Admin navigation bar |
-| `kpi-card.tsx` | Key performance indicator card |
-| `sparkline-card.tsx` | Metric card with inline sparkline |
-| `tracker-bar.tsx` | Horizontal tracker/progress bar |
-| `chart-area.tsx` | Recharts area chart wrapper |
-| `chart-bar.tsx` | Recharts bar chart wrapper |
-| `chart-donut.tsx` | Recharts donut/pie chart wrapper |
-| `bar-list.tsx` | Horizontal bar list for ranked items |
-| `content-freshness.tsx` | Content age/freshness display |
-| `status-dot.tsx` | Colored status indicator dot |
-| `data-table.tsx` | TanStack React Table data grid |
+| Component               | Description                          |
+| ----------------------- | ------------------------------------ |
+| `admin-shell.tsx`       | Admin page layout shell              |
+| `admin-nav.tsx`         | Admin navigation bar                 |
+| `kpi-card.tsx`          | Key performance indicator card       |
+| `sparkline-card.tsx`    | Metric card with inline sparkline    |
+| `tracker-bar.tsx`       | Horizontal tracker/progress bar      |
+| `chart-area.tsx`        | Recharts area chart wrapper          |
+| `chart-bar.tsx`         | Recharts bar chart wrapper           |
+| `chart-donut.tsx`       | Recharts donut/pie chart wrapper     |
+| `bar-list.tsx`          | Horizontal bar list for ranked items |
+| `content-freshness.tsx` | Content age/freshness display        |
+| `status-dot.tsx`        | Colored status indicator dot         |
+| `data-table.tsx`        | TanStack React Table data grid       |
 
 ## 12. Design System — `nba-*` CSS Namespace
 
@@ -381,12 +387,12 @@ Decorative court illustration on the homepage hero:
 
 ### Typography
 
-| Class | Style |
-| ----- | ----- |
-| `nba-kicker` | 0.65rem, bold, uppercase, tracking-wide, primary color |
-| `nba-display` | Heading font (IBM Plex Sans), tight tracking, balanced wrap |
-| `nba-scoreboard-value` | Monospace, tabular-nums, tight line-height |
-| `nba-metric-label` | 0.65rem, bold, uppercase, muted-foreground |
+| Class                  | Style                                                       |
+| ---------------------- | ----------------------------------------------------------- |
+| `nba-kicker`           | 0.65rem, bold, uppercase, tracking-wide, primary color      |
+| `nba-display`          | Heading font (IBM Plex Sans), tight tracking, balanced wrap |
+| `nba-scoreboard-value` | Monospace, tabular-nums, tight line-height                  |
+| `nba-metric-label`     | 0.65rem, bold, uppercase, muted-foreground                  |
 
 ### Reveal System
 

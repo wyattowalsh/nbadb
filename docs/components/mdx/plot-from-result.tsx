@@ -30,7 +30,8 @@ export function PlotFromResult({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current || inference.type === "none" || rows.length === 0) return;
+    if (!containerRef.current || inference.type === "none" || rows.length === 0)
+      return;
 
     const plot = buildPlot(rows, inference);
     if (!plot) return;
@@ -79,11 +80,7 @@ function buildPlot(
   }
 }
 
-function buildBar(
-  rows: Record<string, unknown>[],
-  xCol: string,
-  yCol: string,
-) {
+function buildBar(rows: Record<string, unknown>[], xCol: string, yCol: string) {
   return Plot.plot({
     marginLeft: 120,
     style: PLOT_STYLE,

@@ -19,8 +19,7 @@ export function CourtSvg({
   /** Additional CSS classes on the root <svg>. */
   className?: string;
 }) {
-  const stroke =
-    color ?? "color-mix(in oklch, currentColor 20%, transparent)";
+  const stroke = color ?? "color-mix(in oklch, currentColor 20%, transparent)";
 
   return (
     <svg
@@ -46,10 +45,7 @@ export function CourtSvg({
         <path d="M -60,142.5 A 60,60 0 0,1 60,142.5" />
 
         {/* Free throw circle — lower half (dashed) */}
-        <path
-          d="M -60,142.5 A 60,60 0 0,0 60,142.5"
-          strokeDasharray="4 4"
-        />
+        <path d="M -60,142.5 A 60,60 0 0,0 60,142.5" strokeDasharray="4 4" />
 
         {/* Backboard */}
         <line x1={-30} y1={-7.5} x2={30} y2={-7.5} />

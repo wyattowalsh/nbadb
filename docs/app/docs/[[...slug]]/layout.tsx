@@ -65,42 +65,52 @@ export default async function Layout({
   const resolvedParams = await params;
 
   return (
-    <DocsLayout
-      tree={source.pageTree}
-      containerProps={{ className: "nba-docs-layout" }}
-      links={links}
-      nav={{
-        title: (
-          <span className="nba-nav-brand">
-            <span className="nba-nav-brand-mark">
-              <Image
-                src="/logo-600.png"
-                alt="nbadb"
-                width={600}
-                height={600}
-                className="h-8 w-auto"
-                priority
-              />
-            </span>
-            <span className="flex flex-col leading-none">
-              <span className="nba-display text-base font-bold tracking-tight">nbadb</span>
-              <span className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                NBA warehouse docs
+    <>
+      <a
+        href="#fd-docs-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-background focus:text-foreground"
+      >
+        Skip to content
+      </a>
+      <DocsLayout
+        tree={source.pageTree}
+        containerProps={{ className: "nba-docs-layout" }}
+        links={links}
+        nav={{
+          title: (
+            <span className="nba-nav-brand">
+              <span className="nba-nav-brand-mark">
+                <Image
+                  src="/logo-600.png"
+                  alt="nbadb"
+                  width={600}
+                  height={600}
+                  className="h-8 w-auto"
+                  priority
+                />
+              </span>
+              <span className="flex flex-col leading-none">
+                <span className="nba-display text-base font-bold tracking-tight">
+                  nbadb
+                </span>
+                <span className="text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  NBA warehouse docs
+                </span>
               </span>
             </span>
-          </span>
-        ),
-        transparentMode: "top",
-        children: <DocsNavBadge slug={resolvedParams.slug} />,
-      }}
-      sidebar={{
-        banner: <DocsSidebarBanner slug={resolvedParams.slug} />,
-        footer: <DocsSidebarFooter slug={resolvedParams.slug} />,
-        defaultOpenLevel: 2,
-      }}
-      themeSwitch={{ mode: "light-dark-system" }}
-    >
-      {children}
-    </DocsLayout>
+          ),
+          transparentMode: "top",
+          children: <DocsNavBadge slug={resolvedParams.slug} />,
+        }}
+        sidebar={{
+          banner: <DocsSidebarBanner slug={resolvedParams.slug} />,
+          footer: <DocsSidebarFooter slug={resolvedParams.slug} />,
+          defaultOpenLevel: 2,
+        }}
+        themeSwitch={{ mode: "light-dark-system" }}
+      >
+        {children}
+      </DocsLayout>
+    </>
   );
 }

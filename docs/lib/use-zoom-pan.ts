@@ -134,7 +134,11 @@ export function useZoomPan() {
           }
 
           // Two-finger pan: track midpoint movement
-          const oldCenter = touchCenter(touchRef.current.t1, touchRef.current.t2, rect);
+          const oldCenter = touchCenter(
+            touchRef.current.t1,
+            touchRef.current.t2,
+            rect,
+          );
           const newCenter = touchCenter(t1, t2, rect);
           const dx = newCenter.cx - oldCenter.cx;
           const dy = newCenter.cy - oldCenter.cy;
@@ -172,36 +176,27 @@ export function useZoomPan() {
     canvasElRef.current = node;
   }, []);
 
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0) return;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      pointerRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
-    },
-    [],
-  );
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    pointerRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  }, []);
 
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      const p = pointerRef.current;
-      if (!p || p.id !== e.pointerId) return;
-      const dx = e.clientX - p.x;
-      const dy = e.clientY - p.y;
-      p.x = e.clientX;
-      p.y = e.clientY;
-      dispatch({ type: "PAN", dx, dy });
-    },
-    [],
-  );
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const p = pointerRef.current;
+    if (!p || p.id !== e.pointerId) return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    dispatch({ type: "PAN", dx, dy });
+  }, []);
 
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      if (pointerRef.current?.id === e.pointerId) {
-        pointerRef.current = null;
-      }
-    },
-    [],
-  );
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    if (pointerRef.current?.id === e.pointerId) {
+      pointerRef.current = null;
+    }
+  }, []);
 
   const fitToView = useCallback(() => {
     const canvas = canvasElRef.current;

@@ -1,8 +1,8 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 export function humanizeSlug(segment: string): string {
@@ -11,11 +11,11 @@ export function humanizeSlug(segment: string): string {
     .filter(Boolean)
     .map((token) => {
       if (/^(api|cli|er|mdx|nba|pbp|sql)$/i.test(token)) {
-        return token.toUpperCase()
+        return token.toUpperCase();
       }
-      return token.charAt(0).toUpperCase() + token.slice(1)
+      return token.charAt(0).toUpperCase() + token.slice(1);
     })
-    .join(" ")
+    .join(" ");
 }
 
 /** Format milliseconds as human-readable latency (e.g., 1200 -> "1.2s") */
@@ -26,15 +26,15 @@ export function formatLatency(ms: number): string {
 }
 
 export function buildDocHref(parts: string[]): string {
-  return parts.length ? `/docs/${parts.join("/")}` : "/docs"
+  return parts.length ? `/docs/${parts.join("/")}` : "/docs";
 }
 
 export type DocBreadcrumb = {
-  label: string
-  href: string
+  label: string;
+  href: string;
   /** When false the segment has no backing page and should render as plain text. */
-  hasPage: boolean
-}
+  hasPage: boolean;
+};
 
 /**
  * Build breadcrumbs for a docs page.
@@ -52,24 +52,23 @@ export function getDocBreadcrumbs(
 ): DocBreadcrumb[] {
   const breadcrumbs: DocBreadcrumb[] = [
     { label: "Docs", href: "/docs", hasPage: true },
-  ]
+  ];
 
   if (!slug?.length) {
-    return breadcrumbs
+    return breadcrumbs;
   }
 
   slug.forEach((segment, index) => {
-    const href = buildDocHref(slug.slice(0, index + 1))
-    const isFinal = index === slug.length - 1
-    const hasPage =
-      isFinal || !validPaths ? true : validPaths.has(href)
+    const href = buildDocHref(slug.slice(0, index + 1));
+    const isFinal = index === slug.length - 1;
+    const hasPage = isFinal || !validPaths ? true : validPaths.has(href);
 
     breadcrumbs.push({
       label: humanizeSlug(segment),
       href,
       hasPage,
-    })
-  })
+    });
+  });
 
-  return breadcrumbs
+  return breadcrumbs;
 }

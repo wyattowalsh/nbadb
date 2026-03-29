@@ -34,12 +34,48 @@ const LAYERS: {
   color: string;
   border: string;
 }[] = [
-  { key: "stg", prefix: "stg_", label: "stg", color: "#fff3e0", border: "#ef6c00" },
-  { key: "dim", prefix: "dim_", label: "dim", color: "#e8f5e9", border: "#2e7d32" },
-  { key: "fact", prefix: "fact_", label: "fact", color: "#fce4ec", border: "#c62828" },
-  { key: "bridge", prefix: "bridge_", label: "bridge", color: "#e3f2fd", border: "#1565c0" },
-  { key: "agg", prefix: "agg_", label: "agg", color: "#f3e5f5", border: "#6a1b9a" },
-  { key: "analytics", prefix: "analytics_", label: "analytics", color: "#e0f7fa", border: "#00838f" },
+  {
+    key: "stg",
+    prefix: "stg_",
+    label: "stg",
+    color: "#fff3e0",
+    border: "#ef6c00",
+  },
+  {
+    key: "dim",
+    prefix: "dim_",
+    label: "dim",
+    color: "#e8f5e9",
+    border: "#2e7d32",
+  },
+  {
+    key: "fact",
+    prefix: "fact_",
+    label: "fact",
+    color: "#fce4ec",
+    border: "#c62828",
+  },
+  {
+    key: "bridge",
+    prefix: "bridge_",
+    label: "bridge",
+    color: "#e3f2fd",
+    border: "#1565c0",
+  },
+  {
+    key: "agg",
+    prefix: "agg_",
+    label: "agg",
+    color: "#f3e5f5",
+    border: "#6a1b9a",
+  },
+  {
+    key: "analytics",
+    prefix: "analytics_",
+    label: "analytics",
+    color: "#e0f7fa",
+    border: "#00838f",
+  },
 ];
 
 function classifyTable(name: string): LayerKey {
@@ -186,9 +222,7 @@ function ColumnList({ columns }: { columns: string[] }) {
 
   return (
     <div className="mt-3">
-      <p className="nba-metric-label mb-1">
-        Columns ({columns.length})
-      </p>
+      <p className="nba-metric-label mb-1">Columns ({columns.length})</p>
       <div className="flex flex-wrap gap-1">
         {shown.map((col) => (
           <span
@@ -251,12 +285,18 @@ export function LineageExplorer({ data }: { data: LineageData }) {
 
   /* Upstream / downstream */
   const upstream = useMemo(
-    () => (selectedTable ? bfs(selectedTable, reverse, maxDepth) : new Map<string, number>()),
+    () =>
+      selectedTable
+        ? bfs(selectedTable, reverse, maxDepth)
+        : new Map<string, number>(),
     [selectedTable, reverse, maxDepth],
   );
 
   const downstream = useMemo(
-    () => (selectedTable ? bfs(selectedTable, forward, maxDepth) : new Map<string, number>()),
+    () =>
+      selectedTable
+        ? bfs(selectedTable, forward, maxDepth)
+        : new Map<string, number>(),
     [selectedTable, forward, maxDepth],
   );
 
@@ -303,7 +343,8 @@ export function LineageExplorer({ data }: { data: LineageData }) {
         <div>
           <p className="nba-kicker">Lineage Explorer</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Click a table to inspect its upstream sources and downstream consumers.
+            Click a table to inspect its upstream sources and downstream
+            consumers.
           </p>
         </div>
         <div className="nba-viz-status max-sm:hidden">
@@ -341,8 +382,12 @@ export function LineageExplorer({ data }: { data: LineageData }) {
               onClick={() => setMaxDepth(opt.value)}
               className="px-2.5 py-1 transition-colors"
               style={{
-                background: maxDepth === opt.value ? "var(--primary)" : "transparent",
-                color: maxDepth === opt.value ? "var(--primary-foreground)" : "inherit",
+                background:
+                  maxDepth === opt.value ? "var(--primary)" : "transparent",
+                color:
+                  maxDepth === opt.value
+                    ? "var(--primary-foreground)"
+                    : "inherit",
               }}
               aria-pressed={maxDepth === opt.value}
             >
@@ -407,20 +452,28 @@ export function LineageExplorer({ data }: { data: LineageData }) {
                 </p>
                 {entry?.sql_lineage?.class_name && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Class: <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">{entry.sql_lineage.class_name}</code>
+                    Class:{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                      {entry.sql_lineage.class_name}
+                    </code>
                   </p>
                 )}
                 <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
                   <span>
-                    <strong className="text-foreground">{upstream.size}</strong> upstream
+                    <strong className="text-foreground">{upstream.size}</strong>{" "}
+                    upstream
                   </span>
                   <span>
-                    <strong className="text-foreground">{downstream.size}</strong> downstream
+                    <strong className="text-foreground">
+                      {downstream.size}
+                    </strong>{" "}
+                    downstream
                   </span>
                 </div>
-                {entry?.sql_lineage?.columns && entry.sql_lineage.columns.length > 0 && (
-                  <ColumnList columns={entry.sql_lineage.columns} />
-                )}
+                {entry?.sql_lineage?.columns &&
+                  entry.sql_lineage.columns.length > 0 && (
+                    <ColumnList columns={entry.sql_lineage.columns} />
+                  )}
               </>
             ) : (
               <p className="py-4 text-center text-xs text-muted-foreground">

@@ -98,3 +98,15 @@ export async function registerMultipleParquet(
   }
   onProgress?.(tables.length, tables.length, "");
 }
+
+/**
+ * Tear down the shared DuckDB-WASM instance.
+ * Call on page navigation to release the Web Worker and memory.
+ */
+export function destroyDb(): void {
+  if (dbInstance) {
+    dbInstance.terminate();
+    dbInstance = null;
+  }
+  initPromise = null;
+}

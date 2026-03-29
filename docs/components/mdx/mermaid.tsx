@@ -1,6 +1,15 @@
 "use client";
 
-import { Component, Suspense, use, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  Component,
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { useTheme } from "next-themes";
 import { Maximize2, Minus, Plus } from "lucide-react";
@@ -10,11 +19,18 @@ import { useZoomPan } from "@/lib/use-zoom-pan";
 
 const RENDER_TIMEOUT_MS = 10_000;
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+      setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms`)),
+        ms,
+      ),
     ),
   ]);
 }
@@ -31,7 +47,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class MermaidErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class MermaidErrorBoundary extends Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };

@@ -23,12 +23,35 @@ type SchemaData = { tables: Record<string, SchemaTable> };
 const FAMILIES = ["dim", "fact", "bridge", "agg", "analytics"] as const;
 type Family = (typeof FAMILIES)[number];
 
-const FAMILY_COLORS: Record<Family, { border: string; bg: string; text: string }> = {
-  dim: { border: "border-green-500", bg: "bg-green-500/10", text: "text-green-700 dark:text-green-400" },
-  fact: { border: "border-pink-500", bg: "bg-pink-500/10", text: "text-pink-700 dark:text-pink-400" },
-  bridge: { border: "border-blue-500", bg: "bg-blue-500/10", text: "text-blue-700 dark:text-blue-400" },
-  agg: { border: "border-purple-500", bg: "bg-purple-500/10", text: "text-purple-700 dark:text-purple-400" },
-  analytics: { border: "border-cyan-500", bg: "bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-400" },
+const FAMILY_COLORS: Record<
+  Family,
+  { border: string; bg: string; text: string }
+> = {
+  dim: {
+    border: "border-green-500",
+    bg: "bg-green-500/10",
+    text: "text-green-700 dark:text-green-400",
+  },
+  fact: {
+    border: "border-pink-500",
+    bg: "bg-pink-500/10",
+    text: "text-pink-700 dark:text-pink-400",
+  },
+  bridge: {
+    border: "border-blue-500",
+    bg: "bg-blue-500/10",
+    text: "text-blue-700 dark:text-blue-400",
+  },
+  agg: {
+    border: "border-purple-500",
+    bg: "bg-purple-500/10",
+    text: "text-purple-700 dark:text-purple-400",
+  },
+  analytics: {
+    border: "border-cyan-500",
+    bg: "bg-cyan-500/10",
+    text: "text-cyan-700 dark:text-cyan-400",
+  },
 };
 
 function familyColor(family: string) {
@@ -68,7 +91,8 @@ export function SchemaExplorer({ data }: { data: SchemaData }) {
     const entries = Object.entries(data.tables)
       .filter(([name, table]) => {
         if (lowerSearch && !name.includes(lowerSearch)) return false;
-        if (activeFilters.size > 0 && !activeFilters.has(table.family)) return false;
+        if (activeFilters.size > 0 && !activeFilters.has(table.family))
+          return false;
         return true;
       })
       .sort(([a], [b]) => a.localeCompare(b));
@@ -135,13 +159,17 @@ export function SchemaExplorer({ data }: { data: SchemaData }) {
         {/* left: table list */}
         <div className="overflow-y-auto border-r border-border max-h-[560px] max-sm:max-h-[240px] max-sm:border-r-0 max-sm:border-b">
           {Object.keys(grouped).length === 0 && (
-            <p className="p-4 text-xs text-muted-foreground">No tables match.</p>
+            <p className="p-4 text-xs text-muted-foreground">
+              No tables match.
+            </p>
           )}
           {FAMILIES.filter((f) => f in grouped).map((family) => {
             const c = familyColor(family);
             return (
               <div key={family}>
-                <div className={`sticky top-0 z-10 border-b border-border px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-widest ${c.bg} ${c.text}`}>
+                <div
+                  className={`sticky top-0 z-10 border-b border-border px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-widest ${c.bg} ${c.text}`}
+                >
                   {family}
                 </div>
                 {grouped[family]!.map((name) => (
@@ -199,7 +227,9 @@ function TableDetail({
     <div className="space-y-5">
       {/* header */}
       <div className="flex items-center gap-2">
-        <span className={`inline-block rounded-full border px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider ${c.border} ${c.bg} ${c.text}`}>
+        <span
+          className={`inline-block rounded-full border px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider ${c.border} ${c.bg} ${c.text}`}
+        >
           {table.family}
         </span>
         <h3 className="text-base font-semibold tracking-tight">{name}</h3>
@@ -221,9 +251,14 @@ function TableDetail({
             </thead>
             <tbody>
               {table.columns.map((col) => (
-                <tr key={col.name} className="border-b border-border last:border-0">
+                <tr
+                  key={col.name}
+                  className="border-b border-border last:border-0"
+                >
                   <td className="px-3 py-1.5 font-mono">{col.name}</td>
-                  <td className="px-3 py-1.5 text-muted-foreground">{col.type}</td>
+                  <td className="px-3 py-1.5 text-muted-foreground">
+                    {col.type}
+                  </td>
                   <td className="px-3 py-1.5">
                     <KeyBadge keyType={col.key} />
                   </td>
@@ -244,7 +279,10 @@ function TableDetail({
             {table.relationships.map((rel) => {
               const targetExists = rel.to_table in allTables;
               return (
-                <li key={`${rel.from_col}-${rel.to_table}`} className="flex items-center gap-1.5 text-xs">
+                <li
+                  key={`${rel.from_col}-${rel.to_table}`}
+                  className="flex items-center gap-1.5 text-xs"
+                >
                   <span className="font-mono">{rel.from_col}</span>
                   <span className="text-muted-foreground">&#8594;</span>
                   {targetExists ? (
