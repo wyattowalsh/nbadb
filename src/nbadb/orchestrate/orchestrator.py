@@ -17,7 +17,7 @@ from nbadb.load.multi import create_multi_loader
 from nbadb.orchestrate.discovery import EntityDiscovery
 from nbadb.orchestrate.extractor_runner import ExtractorRunner
 from nbadb.orchestrate.journal import PipelineJournal
-from nbadb.orchestrate.planning import build_extraction_plan
+from nbadb.orchestrate.planning import ExtractionPlanItem, build_extraction_plan
 from nbadb.orchestrate.seasons import (
     current_season,
     recent_seasons,
@@ -245,6 +245,39 @@ class Orchestrator:
 
         return tables_updated, rows_total, failed_loads
 
+    def _persist_staging_to_duckdb(
+        self,
+        db: DBManager,
+        raw: dict[str, pl.DataFrame],
+    ) -> None:
+        """Persist in-memory staging DataFrames to DuckDB tables.
+
+        Ensures staging data survives process crashes between extraction
+        and transform phases.  Uses CREATE OR REPLACE to be idempotent.
+        """
+        from nbadb.core.types import validate_sql_identifier
+
+        count = 0
+        for key, df in raw.items():
+            if not df.is_empty():
+                safe_key = validate_sql_identifier(key)
+                db.duckdb.register("_staging_tmp", df)
+                try:
+                    db.duckdb.execute(
+                        f"CREATE OR REPLACE TABLE {safe_key} AS SELECT * FROM _staging_tmp"
+                    )
+                    count += 1
+                finally:
+                    db.duckdb.unregister("_staging_tmp")
+        logger.info("persisted {} staging tables to DuckDB", count)
+
+    def close(self) -> None:
+        """Close DB connections. Safe to call multiple times."""
+        if self._db is not None:
+            self._db.close()
+            self._db = None
+            self._journal = None
+
     # ── shared discovery (QUAL-006) ───────────────────────────
 
     async def _discover_entities(
@@ -361,7 +394,7 @@ class Orchestrator:
         # Run a single pattern group
         async def _run_one(
             idx: int,
-            item: object,
+            item: ExtractionPlanItem,
         ) -> dict[str, pl.DataFrame]:
             label = item.label
             pattern = item.pattern
@@ -377,7 +410,7 @@ class Orchestrator:
         # Within each tier, patterns run concurrently.  This ensures
         # small/fast extractions complete before the massive game-level
         # extraction begins.
-        tier_groups: dict[int, list[tuple[int, object]]] = {}
+        tier_groups: dict[int, list[tuple[int, ExtractionPlanItem]]] = {}
         for i, item in enumerate(plan, 1):
             tier_groups.setdefault(item.priority, []).append((i, item))
 
@@ -490,6 +523,17 @@ class Orchestrator:
                 game_log_df=game_log_df,
                 season_types=season_types,
             )
+
+            # -- 2b. Persist staging (crash recovery) ------------------
+            bound_log.info("persisting {} staging tables to DuckDB", len(raw))
+            self._persist_staging_to_duckdb(db, raw)
+
+            # If extraction produced no new data (all skipped via journal),
+            # reload staging from DuckDB (recovery after prior crash).
+            if not raw or all(df.is_empty() for df in raw.values()):
+                bound_log.info("extraction produced no new data; loading staging from DuckDB")
+                raw = self._load_staging_from_duckdb(db)
+                bound_log.info("loaded {} staging tables from DuckDB", len(raw))
 
             # -- 3. Transform + Load --------------------------------
             if pp is not None:
@@ -610,6 +654,9 @@ class Orchestrator:
             if not game_log_df.is_empty():
                 raw.setdefault("stg_league_game_log", game_log_df)
 
+            # Persist staging before transform (crash recovery)
+            self._persist_staging_to_duckdb(db, raw)
+
             # -- 3. Transform + Load --------------------------------
             tables_updated, rows_total, failed_loads = self._transform_and_load(
                 db, raw, journal, mode="replace"
@@ -671,6 +718,9 @@ class Orchestrator:
                 game_log_df=game_log_df,
                 season_types=_monthly_st,
             )
+
+            # Persist staging before transform (crash recovery)
+            self._persist_staging_to_duckdb(db, raw)
 
             # -- 3. Transform + Load --------------------------------
             tables_updated, rows_total, failed_loads = self._transform_and_load(
@@ -794,6 +844,10 @@ class Orchestrator:
                 season_types=_full_st,
             )
             raw.update(gap_raw)
+
+            # Persist staging before transform (crash recovery)
+            if raw:
+                self._persist_staging_to_duckdb(db, raw)
 
             # -- 3. Transform + Load --------------------------------
             tables_updated = 0
@@ -992,23 +1046,12 @@ class Orchestrator:
             failed_loads = 0
 
             if extract_only and raw:
-                # Persist staging tables to DuckDB so downstream merge jobs
-                # (or later --transform-only runs) can read them.
-                from nbadb.core.types import validate_sql_identifier
-
                 bound_log.info("extract-only: persisting {} staging tables to DuckDB", len(raw))
-                for key, df in raw.items():
-                    if not df.is_empty():
-                        safe_key = validate_sql_identifier(key)
-                        db.duckdb.register("_staging_tmp", df)
-                        try:
-                            db.duckdb.execute(
-                                f"CREATE OR REPLACE TABLE {safe_key} AS SELECT * FROM _staging_tmp"
-                            )
-                        finally:
-                            db.duckdb.unregister("_staging_tmp")
+                self._persist_staging_to_duckdb(db, raw)
                 bound_log.info("extract-only: staging tables persisted")
             elif raw:
+                # Persist staging before transform (crash recovery)
+                self._persist_staging_to_duckdb(db, raw)
                 if pp is not None:
                     pp.start_phase("Transform & Load")
                     pp.update_phase_info(f"{len(raw)} staging tables")
@@ -1064,10 +1107,13 @@ class Orchestrator:
         else:
             keys = get_all_staging_keys()
 
+        from nbadb.core.types import validate_sql_identifier
+
         raw: dict[str, pl.DataFrame] = {}
         for key in keys:
             try:
-                df = db.duckdb.execute(f"SELECT * FROM {key}").pl()
+                safe_key = validate_sql_identifier(key)
+                df = db.duckdb.execute(f"SELECT * FROM {safe_key}").pl()
                 if not df.is_empty():
                     raw[key] = df
                     logger.debug("loaded staging {}: {} rows", key, df.shape[0])

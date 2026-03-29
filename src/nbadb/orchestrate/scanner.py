@@ -446,6 +446,8 @@ class DataScanner:
                             (SELECT COUNT(DISTINCT game_id) FROM dim_game) AS dim_count,
                             (SELECT COUNT(DISTINCT game_id) FROM "{fact_table}") AS fact_count
                     """).fetchone()
+                    if row is None:
+                        continue
                     dim_count, fact_count = row[0], row[1]
                     missing = dim_count - fact_count
                     if missing > 0:
@@ -679,6 +681,8 @@ class DataScanner:
                             COUNT(*) FILTER (WHERE "{critical}" IS NULL) AS nulls
                         FROM "{table}"
                     """).fetchone()
+                    if row is None:
+                        continue
                     total, nulls = row[0], row[1]
                     if nulls > 0 and total > 0:
                         pct = nulls / total * 100

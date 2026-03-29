@@ -22,22 +22,30 @@ class MultiLoader:
         df: pl.DataFrame,
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
-        errors: list[tuple[str, Exception]] = []
+        from nbadb.load.duckdb_loader import DuckDBLoader
+
+        secondary_errors: list[tuple[str, Exception]] = []
         for loader in self._loaders:
             try:
                 loader.load(table, df, mode)
             except Exception as e:
-                errors.append((type(loader).__name__, e))
-                logger.error(
-                    "MultiLoader: {} failed for {}: {}",
+                if isinstance(loader, DuckDBLoader):
+                    raise RuntimeError(f"MultiLoader: DuckDB loader failed for {table}: {e}") from e
+                secondary_errors.append((type(loader).__name__, e))
+                logger.warning(
+                    "MultiLoader: {} failed for {} (non-critical): {}",
                     type(loader).__name__,
                     table,
-                    type(e).__name__,
+                    e,
                 )
-        if errors:
-            failed = ", ".join(name for name, _ in errors)
-            raise RuntimeError(f"MultiLoader: {len(errors)} loader(s) failed for {table}: {failed}")
-        logger.info(f"MultiLoader: {table} → {len(self._loaders)} formats")
+        if secondary_errors:
+            failed = ", ".join(name for name, _ in secondary_errors)
+            logger.info(
+                f"MultiLoader: {table} → {len(self._loaders)} formats "
+                f"({len(secondary_errors)} secondary failed: {failed})"
+            )
+        else:
+            logger.info(f"MultiLoader: {table} → {len(self._loaders)} formats")
 
 
 def create_multi_loader(

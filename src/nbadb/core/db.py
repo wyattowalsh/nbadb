@@ -195,7 +195,7 @@ class DBManager:
         self.close()
 
 
-def get_user_tables(conn: object) -> list[str]:
+def get_user_tables(conn: duckdb.DuckDBPyConnection) -> list[str]:
     """Return sorted list of user-created table names in the main schema.
 
     Excludes internal pipeline tables (prefixed with underscore).

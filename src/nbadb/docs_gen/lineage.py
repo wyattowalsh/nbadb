@@ -43,7 +43,7 @@ class SqlLineageAnalyzer:
 
             try:
                 parsed = sqlglot.parse(t._SQL, read="duckdb")
-            except sqlglot.errors.ErrorLevel:
+            except sqlglot.errors.SqlglotError:
                 logger.debug(f"sqlglot could not parse SQL for {t.output_table}")
                 continue
 

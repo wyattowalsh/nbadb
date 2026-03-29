@@ -365,6 +365,7 @@ def _run_pipeline(
         prev_sigterm = signal.signal(signal.SIGTERM, _handle_signal)
 
         progress = CIProgress(mode)
+        orch = None
         try:
             with progress:
                 orch = orchestrator_cls(settings=settings, progress=progress)
@@ -379,6 +380,8 @@ def _run_pipeline(
                     typer.echo(f"{mode} failed: {type(exc).__name__}", err=True)
                     raise typer.Exit(1) from exc
         finally:
+            if orch is not None and hasattr(orch, "close"):
+                orch.close()
             signal.signal(signal.SIGINT, prev_sigint)
             signal.signal(signal.SIGTERM, prev_sigterm)
 

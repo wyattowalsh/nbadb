@@ -571,6 +571,8 @@ class NbaDbDashboard(App):
             self.write_log("", "")
             self.write_log("🏆 PERFECT GAME — Pipeline complete!", "bold green")
         finally:
+            if hasattr(orch, "close"):
+                orch.close()
             self.set_timer(3.0, self.exit)
 
     def _tick_clock(self) -> None:

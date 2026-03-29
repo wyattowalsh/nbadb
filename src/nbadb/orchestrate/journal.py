@@ -241,6 +241,8 @@ class PipelineJournal:
             FROM _extraction_journal
             """
         ).fetchone()
+        if row is None:
+            return {"done": 0, "failed": 0, "running": 0, "abandoned": 0, "total_rows": 0}
         return {
             "done": row[0],
             "failed": row[1],
@@ -334,7 +336,7 @@ class PipelineJournal:
     def reset_entries(
         self,
         *,
-        endpoint: str | None = None,
+        endpoint: str | list[str] | None = None,
         status_filter: str | None = None,
         season_like: str | None = None,
     ) -> int:

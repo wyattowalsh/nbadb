@@ -55,28 +55,40 @@ class TestMultiLoader:
 
 
 class TestMultiLoaderErrorHandling:
-    def test_single_loader_failure_raises_runtime_error(self) -> None:
-        """When one loader fails, MultiLoader raises RuntimeError with details."""
+    def test_secondary_loader_failure_does_not_raise(self) -> None:
+        """When a non-DuckDB loader fails, MultiLoader logs warning but continues."""
         mock_ok = MagicMock()
         mock_fail = MagicMock()
         mock_fail.load.side_effect = ValueError("disk full")
         loader = MultiLoader([mock_ok, mock_fail])
         df = pl.DataFrame({"x": [1]})
-        with pytest.raises(RuntimeError, match="1 loader.*failed.*tbl"):
-            loader.load("tbl", df)
-        # The successful loader should still have been called
+        # Should NOT raise — neither loader is a DuckDBLoader
+        loader.load("tbl", df)
         mock_ok.load.assert_called_once()
 
-    def test_multiple_loaders_failure_raises_with_all_names(self) -> None:
-        """When multiple loaders fail, the error message includes all failed names."""
+    def test_duckdb_loader_failure_raises_runtime_error(self) -> None:
+        """When the DuckDB loader fails, MultiLoader raises RuntimeError."""
+        conn = duckdb.connect()
+        duckdb_loader = DuckDBLoader(conn)
+        # Monkeypatch the load method to fail
+        duckdb_loader.load = MagicMock(side_effect=RuntimeError("duckdb broke"))  # type: ignore[method-assign]
+        mock_secondary = MagicMock()
+        loader = MultiLoader([duckdb_loader, mock_secondary])
+        df = pl.DataFrame({"x": [1]})
+        with pytest.raises(RuntimeError, match="duckdb broke"):
+            loader.load("tbl", df)
+        conn.close()
+
+    def test_multiple_secondary_failures_do_not_raise(self) -> None:
+        """When multiple non-DuckDB loaders fail, warnings are logged but no exception."""
         mock1 = MagicMock()
         mock1.load.side_effect = OSError("fail1")
         mock2 = MagicMock()
         mock2.load.side_effect = OSError("fail2")
         loader = MultiLoader([mock1, mock2])
         df = pl.DataFrame({"x": [1]})
-        with pytest.raises(RuntimeError, match="2 loader.*failed"):
-            loader.load("tbl", df)
+        # Should NOT raise — neither is a DuckDBLoader
+        loader.load("tbl", df)
 
 
 class TestCreateMultiLoaderSqliteValidation:

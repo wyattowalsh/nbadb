@@ -434,7 +434,7 @@ class ModelAuditEngine:
 
         return _InventoryContext(
             extractors=extractors,
-            runtime_classes=runtime_classes,
+            runtime_classes=sorted(runtime_classes),
             runtime_version=runtime_version,
             runtime_static_surfaces=runtime_static_surfaces,
             runtime_live_surfaces=runtime_live_surfaces,
@@ -646,7 +646,7 @@ class ModelAuditEngine:
     def _audit_staging_surfaces(self, inventory: _InventoryContext) -> list[AuditRecord]:
         staging_surface_records: list[AuditRecord] = []
 
-        def _sort_key(item: object) -> tuple[str, int]:
+        def _sort_key(item: StagingEntry) -> tuple[str, int]:
             return (item.staging_key, item.result_set_index)
 
         for entry in sorted(STAGING_MAP, key=_sort_key):
@@ -1527,7 +1527,7 @@ class ModelAuditEngine:
                         column_name,
                     )
                     continue
-                orphan_count = conn.execute(
+                row = conn.execute(
                     f"""
                     SELECT COUNT(*)
                     FROM "{table_name}" child
@@ -1536,7 +1536,8 @@ class ModelAuditEngine:
                     WHERE child."{column_name}" IS NOT NULL
                       AND parent."{ref_column}" IS NULL
                     """
-                ).fetchone()[0]
+                ).fetchone()
+                orphan_count = row[0] if row is not None else 0
                 decision = (
                     AuditDecision.MODELED.value
                     if orphan_count == 0
