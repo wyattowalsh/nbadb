@@ -13,7 +13,8 @@ class FactPlayerGameTraditionalTransformer(SqlTransformer):
         SELECT
             b.game_id, b.player_id, b.team_id,
             g.season_year,
-            b.start_position, b.comment, b.min,
+            b.start_position, b.comment,
+            TRY_CAST(b.min AS DOUBLE) AS min,
             b.fgm, b.fga, b.fg_pct,
             b.fg3m, b.fg3a, b.fg3_pct,
             b.ftm, b.fta, b.ft_pct,

@@ -173,6 +173,32 @@ class TestBridgeLineupPlayer:
             assert season_rows.shape[0] == 5
             assert sorted(season_rows["player_id"].to_list()) == [101, 102, 103, 104, 105]
 
+    def test_same_group_id_across_teams_not_dropped(self) -> None:
+        """Regression: same group_id for different teams must produce rows for each team."""
+        staging = {
+            "stg_lineup": pl.DataFrame(
+                {
+                    "group_id": [
+                        "101-102-103-104-105",
+                        "101-102-103-104-105",
+                    ],
+                    "team_id": [1, 2],
+                    "season_year": ["2024-25", "2024-25"],
+                }
+            ).lazy(),
+        }
+
+        t = BridgeLineupPlayerTransformer()
+        result = t.transform(staging)
+
+        # 5 players x 2 teams = 10 rows, NOT 5
+        assert result.shape[0] == 10
+
+        for tid in (1, 2):
+            team_rows = result.filter(pl.col("team_id") == tid)
+            assert team_rows.shape[0] == 5
+            assert sorted(team_rows["player_id"].to_list()) == [101, 102, 103, 104, 105]
+
     def test_output_sorted(self) -> None:
         staging = {
             "stg_lineup": pl.DataFrame(
