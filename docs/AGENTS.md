@@ -46,11 +46,11 @@ docs/
 │   │   ├── card.tsx
 │   │   ├── tabs.tsx
 │   │   └── skeleton.tsx
-│   └── admin/                       # 12 admin dashboard components
+│   └── admin/                       # 13 admin dashboard components
 │       ├── admin-shell.tsx, admin-nav.tsx
 │       ├── kpi-card.tsx, sparkline-card.tsx, tracker-bar.tsx
 │       ├── chart-area.tsx, chart-bar.tsx, chart-donut.tsx
-│       ├── bar-list.tsx, content-freshness.tsx
+│       ├── bar-list.tsx, content-freshness.tsx, freshness-heatmap.tsx
 │       ├── status-dot.tsx, data-table.tsx
 ├── content/docs/                    # MDX content (7 sections, 49 pages)
 │   ├── meta.json                    # Root nav ordering (Tip-Off / Scouting Reports / Practice)
@@ -343,7 +343,7 @@ React hook for zoom/pan interactions on Mermaid diagrams. Returns transform stat
 | Login    | Password-based login form                          |
 | Pipeline | Pipeline monitoring dashboard with Recharts charts |
 
-### Admin Components (12)
+### Admin Components (13)
 
 Located in `components/admin/`:
 
@@ -359,6 +359,7 @@ Located in `components/admin/`:
 | `chart-donut.tsx`       | Recharts donut/pie chart wrapper     |
 | `bar-list.tsx`          | Horizontal bar list for ranked items |
 | `content-freshness.tsx` | Content age/freshness display        |
+| `freshness-heatmap.tsx` | Calendar heatmap for content age     |
 | `status-dot.tsx`        | Colored status indicator dot         |
 | `data-table.tsx`        | TanStack React Table data grid       |
 
