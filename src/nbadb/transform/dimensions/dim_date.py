@@ -23,12 +23,10 @@ class DimDateTransformer(BaseTransformer):
         df = pl.DataFrame({"date": dates})
         return df.with_columns(
             (
-                pl.col("date").dt.year() * 10000
-                + pl.col("date").dt.month() * 100
-                + pl.col("date").dt.day()
-            )
-            .cast(pl.Int32)
-            .alias("date_key"),
+                pl.col("date").dt.year().cast(pl.Int32) * 10000
+                + pl.col("date").dt.month().cast(pl.Int32) * 100
+                + pl.col("date").dt.day().cast(pl.Int32)
+            ).alias("date_key"),
             pl.col("date").dt.strftime("%Y-%m-%d").alias("full_date"),
             pl.col("date").dt.year().alias("year"),
             pl.col("date").dt.month().alias("month"),
