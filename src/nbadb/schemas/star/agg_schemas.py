@@ -1,4 +1,4 @@
-"""Pandera star-schema contracts for all 16 agg_* aggregate output tables."""
+"""Pandera star-schema contracts for all agg_* aggregate output tables."""
 
 from __future__ import annotations
 
@@ -550,6 +550,52 @@ class AggShotZonesSchema(BaseSchema):
     )
     avg_distance: float | None = pa.Field(
         nullable=True, ge=0.0, metadata={"description": "Average shot distance in feet"}
+    )
+
+
+class AggTeamDefenseSchema(BaseSchema):
+    """Team defense aggregates from advanced stats, four factors, and hustle metrics."""
+
+    team_id: int = pa.Field(gt=0, metadata={"description": "Unique team identifier"})
+    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
+    season_type: str = pa.Field(
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
+    )
+    gp: int = pa.Field(ge=0, metadata={"description": "Games played"})
+    avg_def_rating: float | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Average defensive rating (points allowed per 100 possessions)"},
+    )
+    avg_net_rating: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average net rating"}
+    )
+    avg_opp_efg_pct: float | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Average opponent effective field goal percentage"},
+    )
+    avg_opp_fta_rate: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average opponent free throw attempt rate"}
+    )
+    avg_opp_tov_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average opponent team turnover percentage"}
+    )
+    avg_opp_oreb_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average opponent offensive rebound percentage"}
+    )
+    avg_contested_shots: float | None = pa.Field(
+        nullable=True, ge=0.0, metadata={"description": "Average contested shots per game"}
+    )
+    avg_deflections: float | None = pa.Field(
+        nullable=True, ge=0.0, metadata={"description": "Average deflections per game"}
+    )
+    avg_loose_balls_recovered: float | None = pa.Field(
+        nullable=True, ge=0.0, metadata={"description": "Average loose balls recovered per game"}
+    )
+    avg_charges_drawn: float | None = pa.Field(
+        nullable=True, ge=0.0, metadata={"description": "Average charges drawn per game"}
+    )
+    avg_screen_assists: float | None = pa.Field(
+        nullable=True, ge=0.0, metadata={"description": "Average screen assists per game"}
     )
 
 

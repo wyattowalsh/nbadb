@@ -1,4 +1,4 @@
-"""Tests for all 15 agg_* Pandera star-schema contracts."""
+"""Tests for all agg_* Pandera star-schema contracts."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from nbadb.transform.pipeline import _star_schema_map
 _AGG_TABLES = [
     "agg_all_time_leaders",
     "agg_clutch_stats",
+    "agg_game_totals",
     "agg_league_leaders",
     "agg_lineup_efficiency",
     "agg_player_bio",
@@ -24,6 +25,7 @@ _AGG_TABLES = [
     "agg_player_season_per48",
     "agg_shot_location_season",
     "agg_shot_zones",
+    "agg_team_defense",
     "agg_team_franchise",
     "agg_team_pace_and_efficiency",
     "agg_team_season",
@@ -44,7 +46,7 @@ def _validate(table: str, row: dict[str, object]) -> pl.DataFrame:
 # ---------------------------------------------------------------------------
 
 
-def test_all_15_agg_schemas_are_discovered() -> None:
+def test_all_agg_schemas_are_discovered() -> None:
     discovered = set(_star_schema_map().keys())
     missing = [t for t in _AGG_TABLES if t not in discovered]
     assert not missing, f"Missing from _star_schema_map: {missing}"
@@ -120,6 +122,54 @@ class TestAggClutchStatsSchema:
                 "clutch_ft_pct": None,
                 "league_clutch_pts": None,
                 "league_clutch_fg_pct": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+
+class TestAggGameTotalsSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "agg_game_totals",
+            {
+                "game_id": 1001,
+                "game_date": "2024-01-15",
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "home_team_id": 10,
+                "away_team_id": 20,
+                "home_pts": 110,
+                "away_pts": 102,
+                "total_pts": 212,
+                "home_reb": 40,
+                "away_reb": 38,
+                "home_ast": 25,
+                "away_ast": 22,
+                "home_fg_pct": 0.471,
+                "away_fg_pct": 0.438,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_stat_fields(self) -> None:
+        result = _validate(
+            "agg_game_totals",
+            {
+                "game_id": 1001,
+                "game_date": "2024-01-15",
+                "season_year": "2024-25",
+                "season_type": None,
+                "home_team_id": 10,
+                "away_team_id": 20,
+                "home_pts": None,
+                "away_pts": None,
+                "total_pts": None,
+                "home_reb": None,
+                "away_reb": None,
+                "home_ast": None,
+                "away_ast": None,
+                "home_fg_pct": None,
+                "away_fg_pct": None,
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -481,6 +531,54 @@ class TestAggShotZonesSchema:
         assert isinstance(result, pl.DataFrame)
 
 
+class TestAggTeamDefenseSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "agg_team_defense",
+            {
+                "team_id": 1610612738,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "gp": 82,
+                "avg_def_rating": 107.5,
+                "avg_net_rating": 4.2,
+                "avg_opp_efg_pct": 0.505,
+                "avg_opp_fta_rate": 0.242,
+                "avg_opp_tov_pct": 0.138,
+                "avg_opp_oreb_pct": 0.260,
+                "avg_contested_shots": 45.3,
+                "avg_deflections": 12.8,
+                "avg_loose_balls_recovered": 7.1,
+                "avg_charges_drawn": 1.9,
+                "avg_screen_assists": 9.4,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_hustle_fields(self) -> None:
+        result = _validate(
+            "agg_team_defense",
+            {
+                "team_id": 1610612762,
+                "season_year": "2015-16",
+                "season_type": "Playoffs",
+                "gp": 5,
+                "avg_def_rating": 108.0,
+                "avg_net_rating": None,
+                "avg_opp_efg_pct": None,
+                "avg_opp_fta_rate": None,
+                "avg_opp_tov_pct": None,
+                "avg_opp_oreb_pct": None,
+                "avg_contested_shots": None,
+                "avg_deflections": None,
+                "avg_loose_balls_recovered": None,
+                "avg_charges_drawn": None,
+                "avg_screen_assists": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+
 class TestAggTeamFranchiseSchema:
     def test_valid_row(self) -> None:
         result = _validate(
@@ -651,6 +749,27 @@ class TestAggTeamSeasonSchema:
             "team_id must be > 0",
         ),
         (
+            "agg_team_defense",
+            {
+                "team_id": 0,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "gp": 82,
+                "avg_def_rating": 107.5,
+                "avg_net_rating": None,
+                "avg_opp_efg_pct": None,
+                "avg_opp_fta_rate": None,
+                "avg_opp_tov_pct": None,
+                "avg_opp_oreb_pct": None,
+                "avg_contested_shots": None,
+                "avg_deflections": None,
+                "avg_loose_balls_recovered": None,
+                "avg_charges_drawn": None,
+                "avg_screen_assists": None,
+            },
+            "agg_team_defense team_id must be > 0",
+        ),
+        (
             "agg_league_leaders",
             {
                 "player_id": 2544,
@@ -672,6 +791,27 @@ class TestAggTeamSeasonSchema:
                 "blk_rank": 1,
             },
             "pts_rank must be >= 1",
+        ),
+        (
+            "agg_game_totals",
+            {
+                "game_id": -1,
+                "game_date": "2024-01-15",
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "home_team_id": 10,
+                "away_team_id": 20,
+                "home_pts": 110,
+                "away_pts": 102,
+                "total_pts": 212,
+                "home_reb": 40,
+                "away_reb": 38,
+                "home_ast": 25,
+                "away_ast": 22,
+                "home_fg_pct": 0.471,
+                "away_fg_pct": 0.438,
+            },
+            "game_id must be > 0",
         ),
     ],
 )
