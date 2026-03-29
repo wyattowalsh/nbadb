@@ -657,6 +657,13 @@ class Orchestrator:
             # Persist staging before transform (crash recovery)
             self._persist_staging_to_duckdb(db, raw)
 
+            # If extraction produced no new data (all skipped via journal),
+            # reload staging from DuckDB (recovery after prior crash).
+            if not raw or all(df.is_empty() for df in raw.values()):
+                bound_log.info("daily extraction produced no new data; loading staging from DuckDB")
+                raw = self._load_staging_from_duckdb(db)
+                bound_log.info("daily loaded {} staging tables from DuckDB", len(raw))
+
             # -- 3. Transform + Load --------------------------------
             tables_updated, rows_total, failed_loads = self._transform_and_load(
                 db, raw, journal, mode="replace"
@@ -721,6 +728,15 @@ class Orchestrator:
 
             # Persist staging before transform (crash recovery)
             self._persist_staging_to_duckdb(db, raw)
+
+            # If extraction produced no new data (all skipped via journal),
+            # reload staging from DuckDB (recovery after prior crash).
+            if not raw or all(df.is_empty() for df in raw.values()):
+                bound_log.info(
+                    "monthly extraction produced no new data; loading staging from DuckDB"
+                )
+                raw = self._load_staging_from_duckdb(db)
+                bound_log.info("monthly loaded {} staging tables from DuckDB", len(raw))
 
             # -- 3. Transform + Load --------------------------------
             tables_updated, rows_total, failed_loads = self._transform_and_load(
@@ -846,8 +862,14 @@ class Orchestrator:
             raw.update(gap_raw)
 
             # Persist staging before transform (crash recovery)
-            if raw:
-                self._persist_staging_to_duckdb(db, raw)
+            self._persist_staging_to_duckdb(db, raw)
+
+            # If extraction produced no new data (all skipped via journal),
+            # reload staging from DuckDB (recovery after prior crash).
+            if not raw or all(df.is_empty() for df in raw.values()):
+                bound_log.info("retry extraction produced no new data; loading staging from DuckDB")
+                raw = self._load_staging_from_duckdb(db)
+                bound_log.info("retry loaded {} staging tables from DuckDB", len(raw))
 
             # -- 3. Transform + Load --------------------------------
             tables_updated = 0

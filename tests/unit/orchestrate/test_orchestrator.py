@@ -477,6 +477,40 @@ class TestRunDaily:
 
         assert mock_extract.await_args.kwargs["include_static"] is False
 
+    def test_run_daily_loads_persisted_staging_when_extraction_is_empty(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+        mock_discovery.discover_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        recovered_raw = {
+            "stg_league_game_log": pl.DataFrame(
+                {"game_id": ["0022400001"], "game_date": ["2026-02-28"]}
+            )
+        }
+        mock_runner = _mock_runner(skipped=1)
+        mock_extract = AsyncMock(return_value={})
+
+        with (
+            patch(_CURRENT_SEASON, return_value="2025-26"),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(
+                orch, "_load_staging_from_duckdb", return_value=recovered_raw
+            ) as mock_load,
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+        ):
+            result = asyncio.run(orch.run_daily())
+
+        mock_load.assert_called_once_with(db)
+        assert mock_transform.call_args.args[1] is recovered_raw
+        assert result.tables_updated == 1
+
 
 # ---------------------------------------------------------------------------
 # run_retry tests
@@ -544,6 +578,41 @@ class TestRunMonthly:
         assert isinstance(result, PipelineResult)
         assert result.duration_seconds >= 0
 
+    def test_run_monthly_loads_persisted_staging_when_extraction_is_empty(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+        mock_discovery.discover_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_game_dates.return_value = []
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        recovered_raw = {
+            "stg_league_game_log": pl.DataFrame(
+                {"game_id": ["0022400001"], "game_date": ["2026-02-28"]}
+            )
+        }
+        mock_runner = _mock_runner(skipped=1)
+        mock_extract = AsyncMock(return_value={})
+
+        with (
+            patch(_RECENT_SEASONS, return_value=["2025-26"]),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(
+                orch, "_load_staging_from_duckdb", return_value=recovered_raw
+            ) as mock_load,
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+        ):
+            result = asyncio.run(orch.run_monthly())
+
+        mock_load.assert_called_once_with(db)
+        assert mock_transform.call_args.args[1] is recovered_raw
+        assert result.tables_updated == 1
+
 
 # ---------------------------------------------------------------------------
 # run_retry tests
@@ -585,6 +654,41 @@ class TestRunFull:
         mock_runner.run_pattern.assert_awaited_once()
         assert mock_runner.run_pattern.await_args.args[0] == "season"
         assert mock_runner.run_pattern.await_args.args[1] == [{"season": "2024-25"}]
+
+    def test_run_retry_loads_persisted_staging_when_extraction_is_empty(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+        mock_discovery.discover_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_game_dates.return_value = []
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        recovered_raw = {
+            "stg_league_game_log": pl.DataFrame(
+                {"game_id": ["0022400001"], "game_date": ["2026-02-28"]}
+            )
+        }
+        mock_runner = _mock_runner(skipped=1)
+        mock_extract = AsyncMock(return_value={})
+
+        with (
+            patch(_SEASON_RANGE, return_value=[]),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(
+                orch, "_load_staging_from_duckdb", return_value=recovered_raw
+            ) as mock_load,
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+        ):
+            result = asyncio.run(orch.run_retry())
+
+        mock_load.assert_called_once_with(db)
+        assert mock_transform.call_args.args[1] is recovered_raw
+        assert result.tables_updated == 1
 
     def test_retries_failed_extractions(self):
         orch, db, journal = _build_orchestrator_with_mocks()

@@ -22,7 +22,8 @@ class BridgeLineupPlayerTransformer(BaseTransformer):
             src = staging.get(key)
             if src is None:
                 continue
-            df = src.select("group_id", "team_id", "season_year").unique().collect()
+            collected = src.select("group_id", "team_id", "season_year").unique().collect()
+            df = collected if isinstance(collected, pl.DataFrame) else collected.fetch_blocking()
             if df.is_empty():
                 continue
             exploded = (
