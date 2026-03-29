@@ -29,8 +29,8 @@ from nbadb.schemas.star.dim_game import DimGameSchema
 from nbadb.schemas.star.dim_official import DimOfficialSchema
 from nbadb.schemas.star.dim_play_event_type import DimPlayEventTypeSchema
 from nbadb.schemas.star.dim_player import DimPlayerSchema
-from nbadb.schemas.star.dim_season import DimSeasonSchema
 from nbadb.schemas.star.dim_schedule_int import DimScheduleIntSchema
+from nbadb.schemas.star.dim_season import DimSeasonSchema
 from nbadb.schemas.star.dim_season_phase import DimSeasonPhaseSchema
 from nbadb.schemas.star.dim_season_week import DimSeasonWeekSchema
 from nbadb.schemas.star.dim_shot_zone import DimShotZoneSchema
@@ -113,6 +113,7 @@ __all__ = [
     "FactLineupStatsSchema",
     "FactMatchupSchema",
     "FactPlayByPlaySchema",
+    "FactPlayByPlayVideoSchema",
     "FactPlayerAwardsSchema",
     "FactPlayerGameAdvancedSchema",
     "FactPlayerGameHustleSchema",

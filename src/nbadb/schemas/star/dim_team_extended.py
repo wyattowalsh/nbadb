@@ -1,4 +1,8 @@
-"""Pandera star-schema contract for dim_team_extended."""
+"""Extended team dimension — wide denormalization of team background, details, and years data.
+
+This intentionally overlaps with ``fact_team_background`` to provide a single
+wide dimension for team-centric queries without joins.
+"""
 
 from __future__ import annotations
 
