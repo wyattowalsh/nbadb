@@ -72,7 +72,11 @@ service-account*.json
 .specify/
 ..bfg-report/
 
+# Legacy data directory (moved to /data/nbadb/)
+/nbadb/
+
 # Session transcripts and temp artifacts
 tmp-model-audit*/
 session*.txt
+sesh*.txt
 scripts/
