@@ -1,4 +1,4 @@
-"""Pandera star-schema contracts for all 15 agg_* aggregate output tables."""
+"""Pandera star-schema contracts for all 16 agg_* aggregate output tables."""
 
 from __future__ import annotations
 
@@ -53,6 +53,47 @@ class AggClutchStatsSchema(BaseSchema):
     )
     league_clutch_fg_pct: float | None = pa.Field(
         nullable=True, metadata={"description": "League-wide clutch FG percentage"}
+    )
+
+
+class AggGameTotalsSchema(BaseSchema):
+    """Per-game aggregate with home/away stats side-by-side."""
+
+    game_id: int = pa.Field(gt=0, metadata={"description": "Unique game identifier"})
+    game_date: str = pa.Field(metadata={"description": "Date the game was played"})
+    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
+    season_type: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"},
+    )
+    home_team_id: int = pa.Field(gt=0, metadata={"description": "Home team identifier"})
+    away_team_id: int = pa.Field(gt=0, metadata={"description": "Away team identifier"})
+    home_pts: int | None = pa.Field(
+        nullable=True, ge=0, metadata={"description": "Home team points"}
+    )
+    away_pts: int | None = pa.Field(
+        nullable=True, ge=0, metadata={"description": "Away team points"}
+    )
+    total_pts: int | None = pa.Field(
+        nullable=True, ge=0, metadata={"description": "Combined game points (home + away)"}
+    )
+    home_reb: int | None = pa.Field(
+        nullable=True, ge=0, metadata={"description": "Home team total rebounds"}
+    )
+    away_reb: int | None = pa.Field(
+        nullable=True, ge=0, metadata={"description": "Away team total rebounds"}
+    )
+    home_ast: int | None = pa.Field(
+        nullable=True, ge=0, metadata={"description": "Home team assists"}
+    )
+    away_ast: int | None = pa.Field(
+        nullable=True, ge=0, metadata={"description": "Away team assists"}
+    )
+    home_fg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Home team field goal percentage"}
+    )
+    away_fg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Away team field goal percentage"}
     )
 
 
@@ -250,6 +291,60 @@ class AggPlayerRollingSchema(BaseSchema):
     )
     ast_roll20: float | None = pa.Field(
         nullable=True, ge=0.0, metadata={"description": "20-game rolling average assists"}
+    )
+
+
+class AggPlayerSeasonAdvancedSchema(BaseSchema):
+    """Per-season advanced stat aggregates for a player including efficiency metrics."""
+
+    player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
+    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
+    season_type: str = pa.Field(
+        metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
+    )
+    gp: int = pa.Field(ge=0, metadata={"description": "Games played"})
+    avg_off_rating: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average offensive rating"}
+    )
+    avg_def_rating: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average defensive rating"}
+    )
+    avg_net_rating: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average net rating"}
+    )
+    avg_ts_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average true shooting percentage"}
+    )
+    avg_usg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average usage percentage"}
+    )
+    avg_efg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average effective FG%"}
+    )
+    avg_ast_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average assist percentage"}
+    )
+    avg_ast_ratio: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average assist ratio"}
+    )
+    avg_oreb_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average offensive rebound percentage"}
+    )
+    avg_dreb_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average defensive rebound percentage"}
+    )
+    avg_reb_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average total rebound percentage"}
+    )
+    avg_tov_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average turnover percentage"}
+    )
+    avg_pace: float | None = pa.Field(
+        nullable=True, ge=0.0, metadata={"description": "Average pace"}
+    )
+    avg_pie: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average player impact estimate"}
     )
 
 
