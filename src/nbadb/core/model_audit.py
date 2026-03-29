@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
@@ -25,6 +26,7 @@ from nbadb.core.endpoint_coverage import (
     _runtime_class_to_surface_name,
 )
 from nbadb.core.proxy import build_proxy_pool
+from nbadb.core.types import validate_sql_identifier
 from nbadb.docs_gen.lineage import LineageGenerator
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.discovery import EntityDiscovery
@@ -34,6 +36,8 @@ from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry
 from nbadb.orchestrate.transformers import discover_all_transformers
 from nbadb.schemas.registry import _star_schema_registry, get_input_schema, get_output_schema
 from nbadb.transform.pipeline import TransformPipeline
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_OUTPUT_DIR = Path("artifacts/model-audit")
 _PROBLEM_DECISIONS = {"runtime_gap", "source_gap", "schema_gap", "validation_gap"}
@@ -1510,6 +1514,18 @@ class ModelAuditEngine:
                     continue
                 ref_table, ref_column = fk_ref.split(".", 1)
                 if ref_table not in outputs:
+                    continue
+                try:
+                    validate_sql_identifier(table_name)
+                    validate_sql_identifier(ref_table)
+                    validate_sql_identifier(column_name)
+                    validate_sql_identifier(ref_column)
+                except ValueError:
+                    logger.warning(
+                        "Skipping FK check for %s.%s: invalid SQL identifier",
+                        table_name,
+                        column_name,
+                    )
                     continue
                 orphan_count = conn.execute(
                     f"""

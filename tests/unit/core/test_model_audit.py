@@ -242,3 +242,165 @@ def test_write_emits_inventory_matrix_report_and_baseline_comparison(tmp_path: P
     assert inventory_payload["summary"]["problem_count"] == 0
     assert matrix_payload["matrix"][0]["key"] == "stats:foo"
     assert baseline_payload["comparison"]["regression_detected"] is False
+
+
+def test_compare_baseline_detects_resolved_problems() -> None:
+    current_summary = {
+        "problem_keys": [],
+        "decision_breakdown": {"modeled": 2},
+    }
+    baseline_summary = {
+        "generated_at": "2026-03-28T00:00:00+00:00",
+        "problem_keys": [
+            "RuntimeSurface:stats:bar:source_gap",
+            "RuntimeSurface:stats:baz:runtime_gap",
+        ],
+        "decision_breakdown": {"modeled": 2, "source_gap": 1, "runtime_gap": 1},
+    }
+
+    comparison = compare_baseline(current_summary, baseline_summary)
+
+    assert comparison["regression_detected"] is False
+    assert comparison["new_problem_keys"] == []
+    assert comparison["increased_problem_counts"] == {}
+    assert sorted(comparison["resolved_problem_keys"]) == [
+        "RuntimeSurface:stats:bar:source_gap",
+        "RuntimeSurface:stats:baz:runtime_gap",
+    ]
+    assert comparison["current_problem_count"] == 0
+    assert comparison["baseline_problem_count"] == 2
+
+
+def test_discover_extractors_returns_catalog(tmp_path: Path) -> None:
+    extractor_classes = [
+        SimpleNamespace(endpoint_name="box_score_traditional", category="box_score"),
+        SimpleNamespace(endpoint_name="static_players", category="static"),
+        SimpleNamespace(endpoint_name="live_score_board", category="live"),
+    ]
+    fake_registry = _FakeRegistry(extractor_classes)
+
+    engine = ModelAuditEngine(project_root=tmp_path)
+
+    with patch.object(model_audit_module, "registry", fake_registry):
+        catalog = engine._discover_extractors()
+
+    assert len(catalog.extractor_classes) == 3
+    assert set(catalog.extractor_by_endpoint) == {
+        "box_score_traditional",
+        "static_players",
+        "live_score_board",
+    }
+    assert catalog.extractor_categories["box_score"] == 1
+    assert catalog.extractor_categories["static"] == 1
+    assert catalog.extractor_categories["live"] == 1
+    entry = catalog.extractor_by_canonical_endpoint["box_score_traditional"]
+    assert entry.endpoint_name == "box_score_traditional"
+
+
+def test_table_family_classification() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    assert EndpointCoverageGenerator._table_family("dim_player") == "dimensions"
+    assert EndpointCoverageGenerator._table_family("fact_box_score") == "facts"
+    assert EndpointCoverageGenerator._table_family("agg_player_season") == "derived"
+    assert EndpointCoverageGenerator._table_family("analytics_shooting") == "analytics"
+    assert EndpointCoverageGenerator._table_family("bridge_game_official") == "bridges"
+    assert EndpointCoverageGenerator._table_family("unknown_table") == "other"
+
+
+def test_write_no_regression_round_trip(tmp_path: Path) -> None:
+    engine = ModelAuditEngine(project_root=tmp_path)
+    record = AuditRecord(
+        layer="RuntimeSurface",
+        key="stats:foo",
+        decision=AuditDecision.MODELED.value,
+        decision_reason="Modeled surface.",
+        source_kind="stats",
+        endpoint_name="foo",
+        runtime_surface="foo",
+    )
+    inventory_meta = {
+        "project_root": str(tmp_path),
+        "runtime_version": "1.11.4",
+        "runtime_stats_surface_count": 1,
+        "runtime_stats_canonical_surface_count": 1,
+        "runtime_static_surface_count": 0,
+        "runtime_live_surface_count": 0,
+        "extractor_count": 1,
+        "extractor_category_breakdown": {"box_score": 1},
+        "staging_entry_count": 0,
+        "runtime_transform_output_count": 0,
+        "legacy_transform_output_count": 0,
+        "star_schema_count": 0,
+        "legacy_runtime_only_outputs": [],
+    }
+    summary = {
+        "generated_at": "2026-03-28T00:00:00+00:00",
+        "inventory": inventory_meta,
+        "discovery_issue_count": 0,
+        "discovery_issues": [],
+        "record_count": 1,
+        "decision_breakdown": {"modeled": 1},
+        "layer_breakdown": {"RuntimeSurface": {"modeled": 1}},
+        "issue_breakdown": {},
+        "problem_count": 0,
+        "problem_keys": [],
+    }
+    sections = {
+        "runtime_surfaces": [record],
+        "staging_surfaces": [],
+        "model_surfaces": [],
+        "column_contracts": [],
+        "records": [record],
+        "inventory_meta": inventory_meta,
+        "discovery_issues": [],
+        "summary": summary,
+    }
+
+    # First write — produces a baseline (CONSISTENCY does not require baseline_path)
+    baseline_dir = tmp_path / "baseline_artifacts"
+    with patch.object(engine, "_build_inventory_sections", return_value=sections):
+        first_written = engine.write(
+            mode=AuditMode.INVENTORY,
+            strictness=AuditStrictness.CONSISTENCY,
+            output_dir=baseline_dir,
+        )
+
+    baseline_path = first_written["inventory"]
+
+    # Second write — reads back the baseline and compares
+    output_dir = tmp_path / "round_trip_artifacts"
+    with patch.object(engine, "_build_inventory_sections", return_value=sections):
+        second_written = engine.write(
+            mode=AuditMode.INVENTORY,
+            strictness=AuditStrictness.NO_REGRESSIONS,
+            output_dir=output_dir,
+            baseline_path=baseline_path,
+        )
+
+    assert "baseline_comparison" in second_written
+    comparison_payload = json.loads(second_written["baseline_comparison"].read_text())
+    assert comparison_payload["comparison"]["regression_detected"] is False
+    assert comparison_payload["comparison"]["new_problem_keys"] == []
+    assert comparison_payload["comparison"]["resolved_problem_keys"] == []
+
+
+def test_compare_baseline_empty_baseline() -> None:
+    current_summary = {
+        "problem_keys": [],
+        "decision_breakdown": {"modeled": 5},
+    }
+    baseline_summary = {
+        "generated_at": "2026-03-28T00:00:00+00:00",
+        "problem_keys": [],
+        "decision_breakdown": {"modeled": 5},
+    }
+
+    comparison = compare_baseline(current_summary, baseline_summary)
+
+    assert comparison["regression_detected"] is False
+    assert comparison["new_problem_keys"] == []
+    assert comparison["resolved_problem_keys"] == []
+    assert comparison["increased_problem_counts"] == {}
+    assert comparison["current_problem_count"] == 0
+    assert comparison["baseline_problem_count"] == 0
