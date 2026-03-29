@@ -145,7 +145,8 @@ class TestGenerateMdx:
         gen = LineageGenerator()
         mdx = gen.generate_mdx()
         assert "# Data Lineage" in mdx
-        assert "## Table-Level Lineage" in mdx
+        assert "## Extraction Layer" in mdx
+        assert "## Transform Layer" in mdx
         assert "## Column-Level Lineage" in mdx
 
 

@@ -120,6 +120,53 @@ class ProbeExecution:
     dataframe: pl.DataFrame | None = None
 
 
+@dataclass(slots=True)
+class _ExtractorCatalog:
+    extractor_classes: list[Any]
+    extractor_by_endpoint: dict[str, Any]
+    extractor_by_canonical_endpoint: dict[str, Any]
+    extractor_categories: Counter[str]
+
+    def resolve(self, endpoint_name: str) -> Any | None:
+        extractor_cls = self.extractor_by_endpoint.get(endpoint_name)
+        if extractor_cls is not None:
+            return extractor_cls
+        canonical_endpoint = _ENDPOINT_ALIASES.get(endpoint_name, endpoint_name)
+        return self.extractor_by_canonical_endpoint.get(canonical_endpoint)
+
+
+@dataclass(slots=True)
+class _TransformCatalog:
+    transformers: list[Any]
+    runtime_transform_outputs: list[str]
+    runtime_outputs_set: set[str]
+    transform_outputs_by_staging: dict[str, set[str]]
+    transform_dependencies: dict[str, list[str]]
+    unresolved_dependencies: dict[str, list[str]]
+    legacy_outputs: set[str]
+    legacy_runtime_only_outputs: list[str]
+
+
+@dataclass(slots=True)
+class _InventoryContext:
+    extractors: _ExtractorCatalog
+    runtime_classes: list[str]
+    runtime_version: str
+    runtime_static_surfaces: set[str]
+    runtime_live_surfaces: set[str]
+    extractor_map: dict[str, Any]
+    static_extractors: set[str]
+    live_extractors: set[str]
+    staging_entries_by_endpoint: dict[str, list[StagingEntry]]
+    runtime_stats_surfaces: set[str]
+    runtime_stats_surface_rows: list[tuple[str, str, str]]
+    transforms: _TransformCatalog
+    star_schemas: dict[str, Any]
+    star_schema_tables: set[str]
+    lineage: dict[str, Any]
+    discovery_issues: list[dict[str, Any]]
+
+
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -278,7 +325,7 @@ class ModelAuditEngine:
         self.settings = settings if settings is not None else get_settings()
         self._coverage = EndpointCoverageGenerator(project_root=self.project_root)
 
-    def _build_inventory_sections(self) -> dict[str, Any]:
+    def _discover_extractors(self) -> _ExtractorCatalog:
         registry.discover()
         extractor_classes = registry.get_all()
         extractor_by_endpoint = {cls.endpoint_name: cls for cls in extractor_classes}
@@ -286,30 +333,21 @@ class ModelAuditEngine:
         for cls in extractor_classes:
             canonical_endpoint = _ENDPOINT_ALIASES.get(cls.endpoint_name, cls.endpoint_name)
             extractor_by_canonical_endpoint.setdefault(canonical_endpoint, cls)
-        extractor_categories = Counter(cls.category for cls in extractor_classes)
+        return _ExtractorCatalog(
+            extractor_classes=extractor_classes,
+            extractor_by_endpoint=extractor_by_endpoint,
+            extractor_by_canonical_endpoint=extractor_by_canonical_endpoint,
+            extractor_categories=Counter(cls.category for cls in extractor_classes),
+        )
 
-        runtime_classes, runtime_version = self._coverage._discover_runtime_endpoint_classes()
-        runtime_static_surfaces = self._coverage._discover_runtime_static_surfaces()
-        runtime_live_surfaces = self._coverage._discover_runtime_live_endpoint_classes()
-
-        extractor_map = self._coverage._extractor_endpoint_map()
-        static_extractors = self._coverage._static_extractor_surfaces()
-        live_extractors = self._coverage._live_extractor_surfaces()
-
+    def _build_staging_entries_by_endpoint(self) -> dict[str, list[StagingEntry]]:
         staging_entries_by_endpoint: dict[str, list[StagingEntry]] = defaultdict(list)
         for entry in STAGING_MAP:
-            canonical = _ENDPOINT_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
-            staging_entries_by_endpoint[canonical].append(entry)
+            canonical_endpoint = _ENDPOINT_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
+            staging_entries_by_endpoint[canonical_endpoint].append(entry)
+        return staging_entries_by_endpoint
 
-        known_stats_surfaces = set(staging_entries_by_endpoint) | set(extractor_map)
-        runtime_stats_surfaces: set[str] = set()
-        runtime_stats_surface_rows: list[tuple[str, str, str]] = []
-        for class_name in runtime_classes:
-            runtime_surface = _runtime_class_to_surface_name(class_name)
-            canonical_surface = _runtime_class_to_surface_name(class_name, known_stats_surfaces)
-            runtime_stats_surfaces.add(canonical_surface)
-            runtime_stats_surface_rows.append((class_name, runtime_surface, canonical_surface))
-
+    def _discover_transform_catalog(self) -> _TransformCatalog:
         transformers = discover_all_transformers()
         runtime_transform_outputs = sorted(
             {transformer.output_table for transformer in transformers}
@@ -321,25 +359,33 @@ class ModelAuditEngine:
         unresolved_dependencies: dict[str, list[str]] = {}
         for transformer in transformers:
             transform_dependencies[transformer.output_table] = sorted(transformer.depends_on)
-            unresolved = [
+            unresolved_dependencies[transformer.output_table] = sorted(
                 dep
                 for dep in transformer.depends_on
                 if dep not in runtime_outputs_set and not dep.startswith(("stg_", "raw_"))
-            ]
-            unresolved_dependencies[transformer.output_table] = sorted(unresolved)
+            )
             for dependency in transformer.depends_on:
                 if dependency.startswith("stg_"):
                     transform_outputs_by_staging[dependency].add(transformer.output_table)
 
         _, legacy_outputs = self._coverage._transform_catalog()
-        legacy_runtime_only_outputs = sorted(runtime_outputs_set - legacy_outputs)
+        return _TransformCatalog(
+            transformers=transformers,
+            runtime_transform_outputs=runtime_transform_outputs,
+            runtime_outputs_set=runtime_outputs_set,
+            transform_outputs_by_staging=transform_outputs_by_staging,
+            transform_dependencies=transform_dependencies,
+            unresolved_dependencies=unresolved_dependencies,
+            legacy_outputs=set(legacy_outputs),
+            legacy_runtime_only_outputs=sorted(runtime_outputs_set - legacy_outputs),
+        )
 
-        star_schemas = _star_schema_registry()
-        star_schema_tables = set(star_schemas)
-        lineage = LineageGenerator().generate_dict()
-
+    def _build_inventory_discovery_issues(
+        self,
+        transforms: _TransformCatalog,
+    ) -> list[dict[str, Any]]:
         discovery_issues: list[dict[str, Any]] = []
-        if legacy_runtime_only_outputs:
+        if transforms.legacy_runtime_only_outputs:
             discovery_issues.append(
                 {
                     "key": "legacy_transform_catalog_mismatch",
@@ -348,75 +394,124 @@ class ModelAuditEngine:
                         "legacy static transform catalog"
                     ),
                     "details": {
-                        "runtime_transform_output_count": len(runtime_outputs_set),
-                        "legacy_transform_output_count": len(legacy_outputs),
-                        "runtime_only_outputs": legacy_runtime_only_outputs,
+                        "runtime_transform_output_count": len(transforms.runtime_outputs_set),
+                        "legacy_transform_output_count": len(transforms.legacy_outputs),
+                        "runtime_only_outputs": transforms.legacy_runtime_only_outputs,
                     },
                 }
             )
+        return discovery_issues
 
+    def _discover_inventory_context(
+        self,
+        extractors: _ExtractorCatalog,
+    ) -> _InventoryContext:
+        runtime_classes, runtime_version = self._coverage._discover_runtime_endpoint_classes()
+        runtime_static_surfaces = self._coverage._discover_runtime_static_surfaces()
+        runtime_live_surfaces = self._coverage._discover_runtime_live_endpoint_classes()
+        extractor_map = self._coverage._extractor_endpoint_map()
+        static_extractors = self._coverage._static_extractor_surfaces()
+        live_extractors = self._coverage._live_extractor_surfaces()
+        staging_entries_by_endpoint = self._build_staging_entries_by_endpoint()
+
+        known_stats_surfaces = set(staging_entries_by_endpoint) | set(extractor_map)
+        runtime_stats_surfaces: set[str] = set()
+        runtime_stats_surface_rows: list[tuple[str, str, str]] = []
+        for class_name in runtime_classes:
+            runtime_surface = _runtime_class_to_surface_name(class_name)
+            canonical_surface = _runtime_class_to_surface_name(class_name, known_stats_surfaces)
+            runtime_stats_surfaces.add(canonical_surface)
+            runtime_stats_surface_rows.append((class_name, runtime_surface, canonical_surface))
+
+        transforms = self._discover_transform_catalog()
+        star_schemas = _star_schema_registry()
+        lineage = LineageGenerator().generate_dict()
+        discovery_issues = self._build_inventory_discovery_issues(transforms)
+
+        return _InventoryContext(
+            extractors=extractors,
+            runtime_classes=runtime_classes,
+            runtime_version=runtime_version,
+            runtime_static_surfaces=runtime_static_surfaces,
+            runtime_live_surfaces=runtime_live_surfaces,
+            extractor_map=extractor_map,
+            static_extractors=static_extractors,
+            live_extractors=live_extractors,
+            staging_entries_by_endpoint=staging_entries_by_endpoint,
+            runtime_stats_surfaces=runtime_stats_surfaces,
+            runtime_stats_surface_rows=runtime_stats_surface_rows,
+            transforms=transforms,
+            star_schemas=star_schemas,
+            star_schema_tables=set(star_schemas),
+            lineage=lineage,
+            discovery_issues=discovery_issues,
+        )
+
+    def _stats_surface_decision(
+        self,
+        *,
+        canonical_surface: str,
+        runtime_present: bool,
+        extractor_present: bool,
+        entries: list[StagingEntry],
+        inventory: _InventoryContext,
+    ) -> tuple[str, str, list[str], list[str]]:
+        transform_outputs = sorted(
+            {
+                output
+                for entry in entries
+                for output in inventory.transforms.transform_outputs_by_staging.get(
+                    entry.staging_key, set()
+                )
+            }
+        )
+        exclusion_reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(canonical_surface)
+        issues: list[str] = []
+
+        if not runtime_present and extractor_present:
+            decision = AuditDecision.RUNTIME_GAP.value
+            reason = "Extractor exists for a stats surface not present in installed nba_api."
+            issues.append("runtime_surface_missing")
+        elif runtime_present and not extractor_present and not entries:
+            decision = AuditDecision.SOURCE_GAP.value
+            reason = "Runtime stats surface is not represented by an extractor or staging map."
+            issues.append("extractor_missing")
+        elif entries and not extractor_present:
+            decision = AuditDecision.SOURCE_GAP.value
+            reason = "Staged stats surface is missing an extractor implementation."
+            issues.append("extractor_missing")
+        elif exclusion_reason is not None:
+            decision = AuditDecision.EXCLUDED.value
+            reason = exclusion_reason
+        elif transform_outputs:
+            decision = AuditDecision.MODELED.value
+            reason = "Stats surface reaches at least one runtime-discovered model output."
+        elif entries:
+            decision = AuditDecision.VALIDATION_GAP.value
+            reason = "Stats surface is staged but has no downstream model ownership decision."
+            issues.append("unowned_surface")
+        else:
+            decision = AuditDecision.SOURCE_GAP.value
+            reason = "Runtime stats surface is not mapped into staging."
+            issues.append("staging_missing")
+
+        return decision, reason, issues, transform_outputs
+
+    def _audit_runtime_surfaces(self, inventory: _InventoryContext) -> list[AuditRecord]:
         runtime_surface_records: list[AuditRecord] = []
-        staging_surface_records: list[AuditRecord] = []
-        model_surface_records: list[AuditRecord] = []
-        column_contract_records: list[AuditRecord] = []
-
-        def _stats_surface_decision(
-            *,
-            canonical_surface: str,
-            runtime_present: bool,
-            extractor_present: bool,
-            entries: list[StagingEntry],
-        ) -> tuple[str, str, list[str], list[str]]:
-            transform_outputs = sorted(
-                {
-                    output
-                    for entry in entries
-                    for output in transform_outputs_by_staging.get(entry.staging_key, set())
-                }
-            )
-            exclusion_reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(canonical_surface)
-            issues: list[str] = []
-
-            if not runtime_present and extractor_present:
-                decision = AuditDecision.RUNTIME_GAP.value
-                reason = "Extractor exists for a stats surface not present in installed nba_api."
-                issues.append("runtime_surface_missing")
-            elif runtime_present and not extractor_present and not entries:
-                decision = AuditDecision.SOURCE_GAP.value
-                reason = "Runtime stats surface is not represented by an extractor or staging map."
-                issues.append("extractor_missing")
-            elif entries and not extractor_present:
-                decision = AuditDecision.SOURCE_GAP.value
-                reason = "Staged stats surface is missing an extractor implementation."
-                issues.append("extractor_missing")
-            elif exclusion_reason is not None:
-                decision = AuditDecision.EXCLUDED.value
-                reason = exclusion_reason
-            elif transform_outputs:
-                decision = AuditDecision.MODELED.value
-                reason = "Stats surface reaches at least one runtime-discovered model output."
-            elif entries:
-                decision = AuditDecision.VALIDATION_GAP.value
-                reason = "Stats surface is staged but has no downstream model ownership decision."
-                issues.append("unowned_surface")
-            else:
-                decision = AuditDecision.SOURCE_GAP.value
-                reason = "Runtime stats surface is not mapped into staging."
-                issues.append("staging_missing")
-
-            return decision, reason, issues, transform_outputs
 
         for class_name, runtime_surface, canonical_surface in sorted(
-            runtime_stats_surface_rows,
+            inventory.runtime_stats_surface_rows,
             key=lambda item: item[1],
         ):
-            entries = staging_entries_by_endpoint.get(canonical_surface, [])
-            extractor_present = canonical_surface in extractor_map
-            decision, reason, issues, transform_outputs = _stats_surface_decision(
+            entries = inventory.staging_entries_by_endpoint.get(canonical_surface, [])
+            extractor_present = canonical_surface in inventory.extractor_map
+            decision, reason, issues, transform_outputs = self._stats_surface_decision(
                 canonical_surface=canonical_surface,
                 runtime_present=True,
                 extractor_present=extractor_present,
                 entries=entries,
+                inventory=inventory,
             )
             runtime_surface_records.append(
                 AuditRecord(
@@ -441,16 +536,17 @@ class ModelAuditEngine:
             )
 
         non_runtime = (
-            set(extractor_map) | set(staging_entries_by_endpoint)
-        ) - runtime_stats_surfaces
+            set(inventory.extractor_map) | set(inventory.staging_entries_by_endpoint)
+        ) - inventory.runtime_stats_surfaces
         for surface_name in sorted(non_runtime):
-            entries = staging_entries_by_endpoint.get(surface_name, [])
-            extractor_present = surface_name in extractor_map
-            decision, reason, issues, transform_outputs = _stats_surface_decision(
+            entries = inventory.staging_entries_by_endpoint.get(surface_name, [])
+            extractor_present = surface_name in inventory.extractor_map
+            decision, reason, issues, transform_outputs = self._stats_surface_decision(
                 canonical_surface=surface_name,
                 runtime_present=False,
                 extractor_present=extractor_present,
                 entries=entries,
+                inventory=inventory,
             )
             runtime_surface_records.append(
                 AuditRecord(
@@ -473,9 +569,9 @@ class ModelAuditEngine:
                 )
             )
 
-        for surface_name in sorted(runtime_static_surfaces | static_extractors):
-            extractor_present = surface_name in static_extractors
-            runtime_present = surface_name in runtime_static_surfaces
+        for surface_name in sorted(inventory.runtime_static_surfaces | inventory.static_extractors):
+            extractor_present = surface_name in inventory.static_extractors
+            runtime_present = surface_name in inventory.runtime_static_surfaces
             endpoint_name = next(
                 (key for key, value in _STATIC_SURFACE_ALIASES.items() if value == surface_name),
                 surface_name,
@@ -508,9 +604,9 @@ class ModelAuditEngine:
                 )
             )
 
-        for surface_name in sorted(runtime_live_surfaces | live_extractors):
-            extractor_present = surface_name in live_extractors
-            runtime_present = surface_name in runtime_live_surfaces
+        for surface_name in sorted(inventory.runtime_live_surfaces | inventory.live_extractors):
+            extractor_present = surface_name in inventory.live_extractors
+            runtime_present = surface_name in inventory.runtime_live_surfaces
             endpoint_name = next(
                 (key for key, value in _LIVE_SURFACE_ALIASES.items() if value == surface_name),
                 surface_name,
@@ -541,14 +637,17 @@ class ModelAuditEngine:
                 )
             )
 
+        return runtime_surface_records
+
+    def _audit_staging_surfaces(self, inventory: _InventoryContext) -> list[AuditRecord]:
+        staging_surface_records: list[AuditRecord] = []
+
         def _sort_key(item: object) -> tuple[str, int]:
             return (item.staging_key, item.result_set_index)
 
         for entry in sorted(STAGING_MAP, key=_sort_key):
             canonical_endpoint = _ENDPOINT_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
-            extractor_cls = extractor_by_endpoint.get(entry.endpoint_name)
-            if extractor_cls is None:
-                extractor_cls = extractor_by_canonical_endpoint.get(canonical_endpoint)
+            extractor_cls = inventory.extractors.resolve(entry.endpoint_name)
             extractor_present = extractor_cls is not None
             source_kind = _normalize_source_kind(
                 extractor_cls.category if extractor_cls is not None else None
@@ -556,17 +655,19 @@ class ModelAuditEngine:
             if source_kind == "static":
                 runtime_present = (
                     _STATIC_SURFACE_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
-                    in runtime_static_surfaces
+                    in inventory.runtime_static_surfaces
                 )
             elif source_kind == "live":
                 runtime_present = (
                     _LIVE_SURFACE_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
-                    in runtime_live_surfaces
+                    in inventory.runtime_live_surfaces
                 )
             else:
-                runtime_present = canonical_endpoint in runtime_stats_surfaces
+                runtime_present = canonical_endpoint in inventory.runtime_stats_surfaces
 
-            transform_outputs = sorted(transform_outputs_by_staging.get(entry.staging_key, set()))
+            transform_outputs = sorted(
+                inventory.transforms.transform_outputs_by_staging.get(entry.staging_key, set())
+            )
             input_schema = get_input_schema(entry.staging_key)
             exclusion_reason = _MODEL_EXCLUDED_STAGING_KEYS.get(entry.staging_key)
             if exclusion_reason is None:
@@ -639,13 +740,21 @@ class ModelAuditEngine:
                 )
             )
 
-        for output_table in runtime_transform_outputs:
-            transformer = next(t for t in transformers if t.output_table == output_table)
+        return staging_surface_records
+
+    def _audit_model_surfaces(self, inventory: _InventoryContext) -> list[AuditRecord]:
+        model_surface_records: list[AuditRecord] = []
+        for output_table in inventory.transforms.runtime_transform_outputs:
+            transformer = next(
+                transformer
+                for transformer in inventory.transforms.transformers
+                if transformer.output_table == output_table
+            )
             schema_cls = get_output_schema(output_table)
             staging_dependencies = sorted(
                 dep for dep in transformer.depends_on if dep.startswith("stg_")
             )
-            issue_list = list(unresolved_dependencies.get(output_table, []))
+            issue_list = list(inventory.transforms.unresolved_dependencies.get(output_table, []))
             issues = ["unresolved_dependency"] * len(issue_list) if issue_list else []
 
             if schema_cls is None:
@@ -662,7 +771,7 @@ class ModelAuditEngine:
                 decision = AuditDecision.MODELED.value
                 reason = "Runtime transform output has a registered star schema."
 
-            lineage_entry = lineage.get(output_table, {})
+            lineage_entry = inventory.lineage.get(output_table, {})
             model_surface_records.append(
                 AuditRecord(
                     layer="ModelSurface",
@@ -673,7 +782,9 @@ class ModelAuditEngine:
                     output_table=output_table,
                     details={
                         "table_family": _table_family(output_table),
-                        "depends_on": transform_dependencies.get(output_table, []),
+                        "depends_on": inventory.transforms.transform_dependencies.get(
+                            output_table, []
+                        ),
                         "staging_dependencies": staging_dependencies,
                         "output_schema_present": schema_cls is not None,
                         "schema_lineage_present": "schema_lineage" in lineage_entry,
@@ -682,6 +793,12 @@ class ModelAuditEngine:
                 )
             )
 
+        return model_surface_records
+
+    def _audit_column_contracts(self, inventory: _InventoryContext) -> list[AuditRecord]:
+        column_contract_records: list[AuditRecord] = []
+        for output_table in inventory.transforms.runtime_transform_outputs:
+            schema_cls = get_output_schema(output_table)
             if schema_cls is None:
                 continue
 
@@ -716,22 +833,35 @@ class ModelAuditEngine:
                         },
                     )
                 )
+        return column_contract_records
 
-        inventory_meta = {
+    def _build_inventory_meta(self, inventory: _InventoryContext) -> dict[str, Any]:
+        return {
             "project_root": str(self.project_root),
-            "runtime_version": runtime_version,
-            "runtime_stats_surface_count": len(runtime_classes),
-            "runtime_stats_canonical_surface_count": len(runtime_stats_surfaces),
-            "runtime_static_surface_count": len(runtime_static_surfaces),
-            "runtime_live_surface_count": len(runtime_live_surfaces),
+            "runtime_version": inventory.runtime_version,
+            "runtime_stats_surface_count": len(inventory.runtime_classes),
+            "runtime_stats_canonical_surface_count": len(inventory.runtime_stats_surfaces),
+            "runtime_static_surface_count": len(inventory.runtime_static_surfaces),
+            "runtime_live_surface_count": len(inventory.runtime_live_surfaces),
             "extractor_count": registry.count,
-            "extractor_category_breakdown": dict(sorted(extractor_categories.items())),
+            "extractor_category_breakdown": dict(
+                sorted(inventory.extractors.extractor_categories.items())
+            ),
             "staging_entry_count": len(STAGING_MAP),
-            "runtime_transform_output_count": len(runtime_outputs_set),
-            "legacy_transform_output_count": len(legacy_outputs),
-            "star_schema_count": len(star_schema_tables),
-            "legacy_runtime_only_outputs": legacy_runtime_only_outputs,
+            "runtime_transform_output_count": len(inventory.transforms.runtime_outputs_set),
+            "legacy_transform_output_count": len(inventory.transforms.legacy_outputs),
+            "star_schema_count": len(inventory.star_schema_tables),
+            "legacy_runtime_only_outputs": inventory.transforms.legacy_runtime_only_outputs,
         }
+
+    def _build_inventory_sections(self) -> dict[str, Any]:
+        extractors = self._discover_extractors()
+        inventory = self._discover_inventory_context(extractors)
+        runtime_surface_records = self._audit_runtime_surfaces(inventory)
+        staging_surface_records = self._audit_staging_surfaces(inventory)
+        model_surface_records = self._audit_model_surfaces(inventory)
+        column_contract_records = self._audit_column_contracts(inventory)
+        inventory_meta = self._build_inventory_meta(inventory)
 
         inventory_records = (
             runtime_surface_records
@@ -742,7 +872,7 @@ class ModelAuditEngine:
         inventory_summary = _summarize_records(
             inventory_records,
             inventory_meta=inventory_meta,
-            discovery_issues=discovery_issues,
+            discovery_issues=inventory.discovery_issues,
         )
 
         return {
@@ -752,18 +882,13 @@ class ModelAuditEngine:
             "column_contracts": column_contract_records,
             "records": inventory_records,
             "inventory_meta": inventory_meta,
-            "discovery_issues": discovery_issues,
+            "discovery_issues": inventory.discovery_issues,
             "summary": inventory_summary,
         }
 
     async def _build_probe_requests(self) -> tuple[list[ProbeRequest], list[AuditRecord]]:
-        registry.discover()
-        extractor_classes = registry.get_all()
-        extractor_by_endpoint = {cls.endpoint_name: cls for cls in extractor_classes}
-        extractor_by_canonical_endpoint: dict[str, Any] = {}
-        for cls in extractor_classes:
-            canonical_endpoint = _ENDPOINT_ALIASES.get(cls.endpoint_name, cls.endpoint_name)
-            extractor_by_canonical_endpoint.setdefault(canonical_endpoint, cls)
+        extractors = self._discover_extractors()
+        extractor_classes = extractors.extractor_classes
 
         proxy_pool = build_proxy_pool(self.settings)
         discovery = EntityDiscovery(registry, proxy_pool=proxy_pool)
@@ -851,10 +976,7 @@ class ModelAuditEngine:
             STAGING_MAP,
             key=lambda item: (item.staging_key, item.result_set_index),
         ):
-            canonical_endpoint = _ENDPOINT_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
-            extractor_cls = extractor_by_endpoint.get(entry.endpoint_name)
-            if extractor_cls is None:
-                extractor_cls = extractor_by_canonical_endpoint.get(canonical_endpoint)
+            extractor_cls = extractors.resolve(entry.endpoint_name)
             if extractor_cls is None:
                 _append_unavailable(
                     key=entry.staging_key,

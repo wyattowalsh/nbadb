@@ -209,12 +209,15 @@ class LineageGenerator:
         """Generate lineage JSON with both schema metadata and SQL analysis."""
         return json.dumps(self.generate_dict(), indent=2)
 
-    def generate_mermaid(self) -> str:
-        """Generate table-level lineage Mermaid flowchart.
-
-        Combines Pandera schema metadata (endpoint → star table) with
-        SQLGlot SQL analysis (staging/dim/fact → output table).
-        """
+    def _collect_lineage_data(
+        self,
+    ) -> tuple[
+        set[str],  # endpoints
+        set[str],  # staging_tables
+        set[str],  # output_tables
+        set[tuple[str, str]],  # edges
+    ]:
+        """Collect all lineage nodes and edges for diagram generation."""
         schema_graph = self.build_lineage_graph()
         sql_graph = self.build_sql_lineage()
 
@@ -223,7 +226,7 @@ class LineageGenerator:
         output_tables: set[str] = set()
         edges: set[tuple[str, str]] = set()
 
-        # Schema metadata edges: endpoint → star table
+        # Schema metadata edges: endpoint -> star table
         for table_name, info in schema_graph.items():
             output_tables.add(table_name)
             for col_info in info["columns"].values():
@@ -232,7 +235,7 @@ class LineageGenerator:
                     endpoints.add(ep)
                     edges.add((ep, table_name))
 
-        # SQL-parsed edges: source_table → output table
+        # SQL-parsed edges: source_table -> output table
         for output_table, info in sql_graph.items():
             output_tables.add(output_table)
             for src in info["source_tables"]:
@@ -242,6 +245,65 @@ class LineageGenerator:
                 ):
                     staging_tables.add(src)
 
+        return endpoints, staging_tables, output_tables, edges
+
+    def generate_mermaid(self) -> str:
+        """Generate combined table-level lineage Mermaid flowchart.
+
+        Kept for backward compatibility; combines both extraction and
+        transform layers into a single diagram.
+        """
+        endpoints, staging_tables, output_tables, edges = self._collect_lineage_data()
+        return self._render_flowchart(endpoints, staging_tables, output_tables, edges)
+
+    def generate_mermaid_extraction(self) -> str:
+        """Generate extraction-layer flowchart: endpoints -> staging tables."""
+        endpoints, staging_tables, output_tables, edges = self._collect_lineage_data()
+
+        # Keep only edges where source is an endpoint and target is a staging table,
+        # or source is an endpoint and target is an output table that is also a
+        # staging consumer.  For the extraction layer we want:
+        #   endpoint -> stg_* tables
+        #   endpoint -> output tables that endpoints feed directly
+        extraction_targets = staging_tables | {tgt for src, tgt in edges if src in endpoints}
+        extraction_edges = {
+            (src, tgt) for src, tgt in edges if src in endpoints and tgt in extraction_targets
+        }
+
+        return self._render_flowchart(
+            endpoints,
+            staging_tables & extraction_targets,
+            output_tables & extraction_targets,
+            extraction_edges,
+        )
+
+    def generate_mermaid_transform(self) -> str:
+        """Generate transform-layer flowchart: staging tables -> star schema outputs."""
+        endpoints, staging_tables, output_tables, edges = self._collect_lineage_data()
+
+        # Transform layer: edges where source is a staging or star-schema table
+        # (not a raw endpoint) feeding into an output table.
+        transform_edges = {(src, tgt) for src, tgt in edges if src not in endpoints}
+        # Collect nodes referenced by transform edges
+        transform_sources = {src for src, _ in transform_edges}
+        transform_targets = {tgt for _, tgt in transform_edges}
+        all_transform_nodes = transform_sources | transform_targets
+
+        return self._render_flowchart(
+            set(),  # no endpoints in transform layer
+            staging_tables & all_transform_nodes,
+            output_tables & all_transform_nodes,
+            transform_edges,
+        )
+
+    @staticmethod
+    def _render_flowchart(
+        endpoints: set[str],
+        staging_tables: set[str],
+        output_tables: set[str],
+        edges: set[tuple[str, str]],
+    ) -> str:
+        """Render a Mermaid flowchart from the given nodes and edges."""
         lines = ["flowchart LR"]
 
         # Style classes
@@ -278,8 +340,9 @@ class LineageGenerator:
         return "\n".join(lines)
 
     def generate_mdx(self) -> str:
-        """Generate lineage MDX with Mermaid diagram."""
-        mermaid = self.generate_mermaid()
+        """Generate lineage MDX with per-layer Mermaid diagrams."""
+        extraction = self.generate_mermaid_extraction()
+        transform = self.generate_mermaid_transform()
         sql_graph = self.build_sql_lineage()
         sql_count = len(sql_graph)
         return (
@@ -290,11 +353,17 @@ class LineageGenerator:
             "# Data Lineage\n\n"
             "{/* Auto-generated by nbadb docs-gen. Do not edit by hand. */}\n"
             "{/* Regenerate: uv run nbadb docs-autogen --docs-root docs/content/docs */}\n\n"
-            "## Table-Level Lineage\n\n"
             f"Generated from Pandera schema metadata and SQLGlot analysis"
             f" of {sql_count} SQL transforms.\n\n"
+            "## Extraction Layer\n\n"
+            "Endpoints to staging tables.\n\n"
             "```mermaid\n"
-            f"{mermaid}\n"
+            f"{extraction}\n"
+            "```\n\n"
+            "## Transform Layer\n\n"
+            "Staging tables to star schema outputs.\n\n"
+            "```mermaid\n"
+            f"{transform}\n"
             "```\n\n"
             "## Column-Level Lineage\n\n"
             "See `lineage.json` for machine-readable column-level tracing.\n"
