@@ -1,10 +1,15 @@
-"""Focused tests for selected dim_* Pandera star-schema contracts."""
+"""Focused tests for representative dim_* Pandera star-schema contracts."""
 
 from __future__ import annotations
 
+import duckdb
 import polars as pl
 import pytest
 
+from nbadb.transform.dimensions.dim_date import DimDateTransformer
+from nbadb.transform.dimensions.dim_game import DimGameTransformer
+from nbadb.transform.dimensions.dim_player import DimPlayerTransformer
+from nbadb.transform.dimensions.dim_team import DimTeamTransformer
 from nbadb.transform.pipeline import _star_schema_map
 
 # ---------------------------------------------------------------------------
@@ -13,10 +18,15 @@ from nbadb.transform.pipeline import _star_schema_map
 
 _FOCUSED_DIM_TABLES = [
     "dim_all_players",
+    "dim_date",
     "dim_defunct_team",
+    "dim_game",
+    "dim_player",
     "dim_schedule_int",
     "dim_season_week",
+    "dim_team",
     "dim_team_extended",
+    "dim_team_history",
 ]
 
 
@@ -24,9 +34,26 @@ def _frame(values: dict[str, object]) -> pl.DataFrame:
     return pl.DataFrame({k: [v] for k, v in values.items()})
 
 
-def _validate(table: str, row: dict[str, object]) -> pl.DataFrame:
+def _validate_frame(table: str, df: pl.DataFrame) -> pl.DataFrame:
     schema_cls = _star_schema_map()[table]
-    return schema_cls.validate(_frame(row))
+    return schema_cls.validate(df)
+
+
+def _validate(table: str, row: dict[str, object]) -> pl.DataFrame:
+    return _validate_frame(table, _frame(row))
+
+
+def _run_sql_transform(
+    transformer, staging: dict[str, pl.LazyFrame]
+) -> pl.DataFrame:
+    conn = duckdb.connect()
+    try:
+        for key, val in staging.items():
+            conn.register(key, val.collect())
+        transformer._conn = conn
+        return transformer.transform(staging)
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +162,223 @@ class TestDimDefunctTeamSchema:
             },
         )
         assert isinstance(result, pl.DataFrame)
+
+
+class TestDimDateSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "dim_date",
+            {
+                "date_key": 20250115,
+                "full_date": "2025-01-15",
+                "year": 2025,
+                "month": 1,
+                "day": 15,
+                "day_of_week": 3,
+                "day_name": "Wednesday",
+                "month_name": "January",
+                "is_weekend": False,
+                "nba_season": "2024-25",
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_fields(self) -> None:
+        result = _validate(
+            "dim_date",
+            {
+                "date_key": 20250704,
+                "full_date": "2025-07-04",
+                "year": 2025,
+                "month": 7,
+                "day": 4,
+                "day_of_week": 5,
+                "day_name": "Friday",
+                "month_name": "July",
+                "is_weekend": False,
+                "nba_season": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_transform_output_validates_schema(self) -> None:
+        result = DimDateTransformer().transform({})
+        sample = result.filter(
+            (pl.col("date_key") == 20240101) | (pl.col("date_key") == 20241001)
+        ).sort("date_key")
+
+        validated = _validate_frame("dim_date", sample)
+
+        assert sample.shape == (2, 11)
+        assert sample["nba_season"].to_list() == ["2023-24", "2024-25"]
+        assert "date" not in validated.columns
+
+
+class TestDimGameSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "dim_game",
+            {
+                "game_id": "0022400456",
+                "game_date": "2025-01-15",
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "home_team_id": 1610612747,
+                "visitor_team_id": 1610612738,
+                "matchup": "LAL vs. BOS",
+                "arena_name": "Crypto.com Arena",
+                "arena_city": "Los Angeles",
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_fields(self) -> None:
+        result = _validate(
+            "dim_game",
+            {
+                "game_id": "0022400457",
+                "game_date": "2025-01-17",
+                "season_year": "2024-25",
+                "season_type": None,
+                "home_team_id": None,
+                "visitor_team_id": None,
+                "matchup": None,
+                "arena_name": None,
+                "arena_city": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_transform_output_validates_schema(self) -> None:
+        game_log = pl.DataFrame(
+            {
+                "game_id": ["0022400001", "0022400002"],
+                "game_date": ["2024-10-22", "2024-10-23"],
+                "season_year": ["2024-25", "2024-25"],
+                "season_type": ["Regular Season", "Regular Season"],
+                "home_team_id": [1610612747, 1610612738],
+                "visitor_team_id": [1610612750, 1610612752],
+                "matchup": ["LAL vs. MIN", "BOS vs. NYK"],
+            }
+        )
+        schedule = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "arena_name": ["Crypto.com Arena"],
+                "arena_city": ["Los Angeles"],
+            }
+        )
+
+        result = DimGameTransformer().transform(
+            {
+                "stg_league_game_log": game_log.lazy(),
+                "stg_schedule": schedule.lazy(),
+            }
+        )
+
+        validated = _validate_frame("dim_game", result)
+
+        assert result.shape == (2, 9)
+        assert result.filter(pl.col("game_id") == "0022400002")["arena_name"][0] is None
+        assert validated.shape == result.shape
+
+
+class TestDimPlayerSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "dim_player",
+            {
+                "player_sk": 1,
+                "player_id": 2544,
+                "full_name": "LeBron James",
+                "first_name": "LeBron",
+                "last_name": "James",
+                "is_active": True,
+                "team_id": 1610612747,
+                "position": "F",
+                "jersey_number": "23",
+                "height": "6-9",
+                "weight": 250,
+                "birth_date": "1984-12-30",
+                "country": "USA",
+                "college_id": 1,
+                "draft_year": 2003,
+                "draft_round": 1,
+                "draft_number": 1,
+                "from_year": 2003,
+                "to_year": 2025,
+                "valid_from": "2003-04",
+                "valid_to": None,
+                "is_current": True,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_fields(self) -> None:
+        result = _validate(
+            "dim_player",
+            {
+                "player_sk": 2,
+                "player_id": 201935,
+                "full_name": "James Harden",
+                "first_name": None,
+                "last_name": None,
+                "is_active": None,
+                "team_id": None,
+                "position": None,
+                "jersey_number": None,
+                "height": None,
+                "weight": None,
+                "birth_date": None,
+                "country": None,
+                "college_id": None,
+                "draft_year": None,
+                "draft_round": None,
+                "draft_number": None,
+                "from_year": None,
+                "to_year": None,
+                "valid_from": "2009-10",
+                "valid_to": "2024-25",
+                "is_current": False,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_transform_output_validates_schema(self) -> None:
+        staging = {
+            "stg_player_info": pl.DataFrame(
+                {
+                    "player_id": [1, 1, 2],
+                    "full_name": ["Player A", "Player A", "Player B"],
+                    "first_name": ["Player", "Player", "Player"],
+                    "last_name": ["A", "A", "B"],
+                    "roster_status": ["Active", "Active", "Inactive"],
+                    "team_id": [10, 20, 30],
+                    "position": ["G", "G", "F"],
+                    "jersey_number": ["1", "1", "5"],
+                    "height": ["6-3", "6-3", "6-8"],
+                    "weight": [190, 190, 240],
+                    "birth_date": ["1990-01-01", "1990-01-01", "1992-05-15"],
+                    "country": ["USA", "USA", "Greece"],
+                    "draft_year": [2012, 2012, 2013],
+                    "draft_round": [1, 1, 1],
+                    "draft_number": [4, 4, 15],
+                    "college_id": [None, None, None],
+                    "from_year": ["2012", "2012", "2013"],
+                    "to_year": ["2025", "2025", "2020"],
+                    "season": ["2023-24", "2024-25", "2024-25"],
+                }
+            ).lazy()
+        }
+
+        result = _run_sql_transform(DimPlayerTransformer(), staging)
+        validated = _validate_frame("dim_player", result)
+        player_one = result.filter(pl.col("player_id") == 1).sort("valid_from")
+
+        assert result.shape[0] == 3
+        assert player_one["is_current"].to_list() == [False, True]
+        assert player_one["valid_to"][0] == "2024-25"
+        assert validated.shape == result.shape
 
 
 class TestDimScheduleIntSchema:
@@ -261,6 +505,71 @@ class TestDimSeasonWeekSchema:
         assert isinstance(result, pl.DataFrame)
 
 
+class TestDimTeamSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "dim_team",
+            {
+                "team_id": 1610612738,
+                "abbreviation": "BOS",
+                "full_name": "Boston Celtics",
+                "city": "Boston",
+                "state": "MA",
+                "arena": "TD Garden",
+                "year_founded": 1946,
+                "conference": "East",
+                "division": "Atlantic",
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_fields(self) -> None:
+        result = _validate(
+            "dim_team",
+            {
+                "team_id": 1610612762,
+                "abbreviation": "UTA",
+                "full_name": "Utah Jazz",
+                "city": None,
+                "state": None,
+                "arena": None,
+                "year_founded": None,
+                "conference": None,
+                "division": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_transform_output_validates_schema(self) -> None:
+        staging = {
+            "stg_team_info": pl.DataFrame(
+                {
+                    "team_id": [1, 1, 2],
+                    "abbreviation": ["BOS", "BOS", "LAL"],
+                    "full_name": [
+                        "Boston Celtics",
+                        "Boston Celtics",
+                        "Los Angeles Lakers",
+                    ],
+                    "city": ["Boston", "Boston", None],
+                    "state": ["MA", "MA", None],
+                    "arena": ["Old Garden", "TD Garden", None],
+                    "year_founded": [1946, 1946, None],
+                    "conference": ["East", "East", None],
+                    "division": ["Atlantic", "Atlantic", None],
+                }
+            ).lazy()
+        }
+
+        result = DimTeamTransformer().transform(staging)
+        validated = _validate_frame("dim_team", result)
+
+        assert result.shape == (2, 9)
+        assert result["team_id"].to_list() == [1, 2]
+        assert result.filter(pl.col("team_id") == 1)["arena"][0] == "TD Garden"
+        assert validated.shape == result.shape
+
+
 class TestDimTeamExtendedSchema:
     def test_valid_row(self) -> None:
         result = _validate(
@@ -331,6 +640,44 @@ class TestDimTeamExtendedSchema:
         assert isinstance(result, pl.DataFrame)
 
 
+class TestDimTeamHistorySchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "dim_team_history",
+            {
+                "team_history_sk": 1,
+                "team_id": 1610612751,
+                "city": "Brooklyn",
+                "nickname": "Nets",
+                "abbreviation": "BKN",
+                "franchise_name": "Brooklyn Nets",
+                "league_id": "00",
+                "valid_from": "2012-13",
+                "valid_to": None,
+                "is_current": True,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+    def test_nullable_fields(self) -> None:
+        result = _validate(
+            "dim_team_history",
+            {
+                "team_history_sk": 2,
+                "team_id": 1610612751,
+                "city": None,
+                "nickname": None,
+                "abbreviation": None,
+                "franchise_name": None,
+                "league_id": None,
+                "valid_from": "1976-77",
+                "valid_to": "2011-12",
+                "is_current": False,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+
 # ---------------------------------------------------------------------------
 # Negative tests
 # ---------------------------------------------------------------------------
@@ -359,6 +706,22 @@ class TestDimTeamExtendedSchema:
             "person_id must be > 0",
         ),
         (
+            "dim_date",
+            {
+                "date_key": 20251315,
+                "full_date": "2025-13-15",
+                "year": 2025,
+                "month": 13,
+                "day": 15,
+                "day_of_week": 3,
+                "day_name": "Wednesday",
+                "month_name": "Smarch",
+                "is_weekend": False,
+                "nba_season": "2025-26",
+            },
+            "month must be between 1 and 12",
+        ),
+        (
             "dim_defunct_team",
             {
                 "league_id": "00",
@@ -378,6 +741,64 @@ class TestDimTeamExtendedSchema:
                 "league_titles": 0,
             },
             "team_id must be > 0",
+        ),
+        (
+            "dim_game",
+            {
+                "game_id": "0022400458",
+                "game_date": "2025-01-19",
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "home_team_id": 0,
+                "visitor_team_id": 1610612744,
+                "matchup": "LAL vs. GSW",
+                "arena_name": "Crypto.com Arena",
+                "arena_city": "Los Angeles",
+            },
+            "home_team_id must be > 0 when present",
+        ),
+        (
+            "dim_player",
+            {
+                "player_sk": 0,
+                "player_id": 2544,
+                "full_name": "LeBron James",
+                "first_name": "LeBron",
+                "last_name": "James",
+                "is_active": True,
+                "team_id": 1610612747,
+                "position": "F",
+                "jersey_number": "23",
+                "height": "6-9",
+                "weight": 250,
+                "birth_date": "1984-12-30",
+                "country": "USA",
+                "college_id": 1,
+                "draft_year": 2003,
+                "draft_round": 1,
+                "draft_number": 1,
+                "from_year": 2003,
+                "to_year": 2025,
+                "valid_from": "2003-04",
+                "valid_to": None,
+                "is_current": True,
+            },
+            "player_sk must be > 0",
+        ),
+        (
+            "dim_team",
+            {
+                "team_id": 1610612738,
+                "abbreviation": "BOS",
+                "full_name": "Boston Celtics",
+                "city": "Boston",
+                "state": "MA",
+                "arena": "TD Garden",
+                "year_founded": 1900,
+                "conference": "East",
+                "division": "Atlantic",
+            },
+            "year_founded must be > 1900 when present",
         ),
         (
             "dim_team_extended",
@@ -410,6 +831,22 @@ class TestDimTeamExtendedSchema:
                 "max_year": None,
             },
             "team_id must be > 0",
+        ),
+        (
+            "dim_team_history",
+            {
+                "team_history_sk": 0,
+                "team_id": 1610612751,
+                "city": "Brooklyn",
+                "nickname": "Nets",
+                "abbreviation": "BKN",
+                "franchise_name": "Brooklyn Nets",
+                "league_id": "00",
+                "valid_from": "2012-13",
+                "valid_to": None,
+                "is_current": True,
+            },
+            "team_history_sk must be > 0",
         ),
     ],
 )
