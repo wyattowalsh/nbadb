@@ -17,7 +17,8 @@ function cellColor(hours: number | null): string {
 }
 
 function cellTooltip(cell: FreshnessCell): string {
-  if (cell.hoursSinceSuccess === null) return `${cell.label} (${cell.layer}) — never succeeded`;
+  if (cell.hoursSinceSuccess === null)
+    return `${cell.label} (${cell.layer}) — never succeeded`;
   const days = Math.floor(cell.hoursSinceSuccess / 24);
   const hours = Math.round(cell.hoursSinceSuccess % 24);
   const age = days > 0 ? `${days}d ${hours}h` : `${hours}h`;

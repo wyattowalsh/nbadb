@@ -15,8 +15,8 @@ function daysOldFromIso(iso: string | null): number {
   return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 }
 
-export default function ContentPage() {
-  const audit = getContentAudit();
+export default async function ContentPage() {
+  const audit = await getContentAudit();
 
   const freshnessData = audit.pages.map((p) => ({
     slug: p.slug,

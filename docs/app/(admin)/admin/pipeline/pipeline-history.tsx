@@ -29,8 +29,12 @@ export function PipelineHistory({
   freshness,
   healthScores,
 }: PipelineHistoryProps) {
-  const healthyCount = healthScores.filter((h) => h.status === "healthy").length;
-  const degradedCount = healthScores.filter((h) => h.status === "degraded").length;
+  const healthyCount = healthScores.filter(
+    (h) => h.status === "healthy",
+  ).length;
+  const degradedCount = healthScores.filter(
+    (h) => h.status === "degraded",
+  ).length;
   const staleCount = freshness.filter(
     (f) => f.hoursSinceSuccess !== null && f.hoursSinceSuccess > 168,
   ).length;
@@ -102,7 +106,9 @@ export function PipelineHistory({
                               ? "bg-amber-500"
                               : "bg-red-500",
                         )}
-                        style={{ width: `${Math.min(100, Math.max(0, item.score))}%` }}
+                        style={{
+                          width: `${Math.min(100, Math.max(0, item.score))}%`,
+                        }}
                       />
                     </div>
                     <span className="w-8 text-right font-mono text-xs tabular-nums text-muted-foreground">

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { getContentPages } from "@/lib/admin/content-audit";
 import {
@@ -15,12 +15,11 @@ import type { SubsystemStatus } from "@/lib/admin/types";
 export const metadata: Metadata = { title: "Health" };
 export const dynamic = "force-dynamic";
 
-function readPackageVersions(): Array<{ name: string; version: string }> {
+async function readPackageVersions(): Promise<
+  Array<{ name: string; version: string }>
+> {
   try {
-    const raw = readFileSync(
-      resolve(process.cwd(), "package.json"),
-      "utf-8",
-    );
+    const raw = await readFile(resolve(process.cwd(), "package.json"), "utf-8");
     const pkg = JSON.parse(raw) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
@@ -38,9 +37,7 @@ function readPackageVersions(): Array<{ name: string; version: string }> {
     return keyPackages.map((name) => ({
       name,
       version:
-        pkg.dependencies?.[name] ??
-        pkg.devDependencies?.[name] ??
-        "unknown",
+        pkg.dependencies?.[name] ?? pkg.devDependencies?.[name] ?? "unknown",
     }));
   } catch {
     return [];
@@ -55,7 +52,7 @@ function pipelineToHealth(status: string): SubsystemStatus {
 
 export default async function HealthPage() {
   const [pages, pipeline] = await Promise.all([
-    Promise.resolve(getContentPages()),
+    getContentPages(),
     getPipelineSummary(),
   ]);
 
@@ -95,7 +92,7 @@ export default async function HealthPage() {
       ? "degraded"
       : "healthy";
 
-  const deps = readPackageVersions();
+  const deps = await readPackageVersions();
 
   return (
     <div className="space-y-6 nba-reveal">

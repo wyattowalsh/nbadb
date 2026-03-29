@@ -56,10 +56,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label
-              htmlFor="password"
-              className="nba-metric-label mb-1.5 block"
-            >
+            <label htmlFor="password" className="nba-metric-label mb-1.5 block">
               Password
             </label>
             <div className="relative">

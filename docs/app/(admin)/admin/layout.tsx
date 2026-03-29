@@ -20,8 +20,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           role="alert"
           className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-700 dark:text-amber-400"
         >
-          Warning: <code className="rounded bg-amber-500/10 px-1 py-0.5 text-xs">ADMIN_PASSWORD</code> is not set.
-          The admin panel is unprotected.
+          Warning:{" "}
+          <code className="rounded bg-amber-500/10 px-1 py-0.5 text-xs">
+            ADMIN_PASSWORD
+          </code>{" "}
+          is not set. The admin panel is unprotected.
         </div>
       )}
       {children}

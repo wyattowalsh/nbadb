@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Database, FileText, Heart, LayoutDashboard } from "lucide-react";
+import {
+  Activity,
+  Database,
+  FileText,
+  Heart,
+  LayoutDashboard,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [

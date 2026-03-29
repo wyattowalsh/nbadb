@@ -11,6 +11,14 @@ const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
+
+  // Prune expired entries to prevent unbounded growth
+  if (loginAttempts.size > 10_000) {
+    for (const [key, val] of loginAttempts) {
+      if (now > val.resetAt) loginAttempts.delete(key);
+    }
+  }
+
   const entry = loginAttempts.get(ip);
 
   if (!entry || now > entry.resetAt) {
@@ -19,7 +27,7 @@ function isRateLimited(ip: string): boolean {
   }
 
   entry.count += 1;
-  return entry.count > MAX_ATTEMPTS;
+  return entry.count >= MAX_ATTEMPTS;
 }
 
 /* ------------------------------------------------------------------ */

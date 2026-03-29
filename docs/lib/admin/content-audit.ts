@@ -1,11 +1,13 @@
-import { statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { source } from "@/lib/source";
 import type { ContentPageMeta } from "./types";
 
 const CONTENT_DIR = resolve(process.cwd(), "content/docs");
 
-function getFileModifiedDate(slugParts: string[]): string | null {
+async function getFileModifiedDate(
+  slugParts: string[],
+): Promise<string | null> {
   // Try index file first (e.g. content/docs/guides/index.mdx), then leaf file
   const candidates = [
     resolve(CONTENT_DIR, ...slugParts, "index.mdx"),
@@ -13,8 +15,8 @@ function getFileModifiedDate(slugParts: string[]): string | null {
   ];
   for (const filePath of candidates) {
     try {
-      const stat = statSync(filePath);
-      return stat.mtime.toISOString();
+      const info = await stat(filePath);
+      return info.mtime.toISOString();
     } catch {
       continue;
     }
@@ -22,27 +24,29 @@ function getFileModifiedDate(slugParts: string[]): string | null {
   return null;
 }
 
-export function getContentPages(): ContentPageMeta[] {
+export async function getContentPages(): Promise<ContentPageMeta[]> {
   const pages = source.getPages();
 
-  return pages.map((page) => {
-    const slugParts = page.slugs;
-    const section = slugParts[0] ?? "root";
+  return Promise.all(
+    pages.map(async (page) => {
+      const slugParts = page.slugs;
+      const section = slugParts[0] ?? "root";
 
-    return {
-      title: page.data.title ?? "Untitled",
-      slug: slugParts.join("/"),
-      url: page.url,
-      section,
-      description: page.data.description ?? null,
-      tocDepth: page.data.toc?.length ?? 0,
-      lastModified: getFileModifiedDate(slugParts),
-    };
-  });
+      return {
+        title: page.data.title ?? "Untitled",
+        slug: slugParts.join("/"),
+        url: page.url,
+        section,
+        description: page.data.description ?? null,
+        tocDepth: page.data.toc?.length ?? 0,
+        lastModified: await getFileModifiedDate(slugParts),
+      };
+    }),
+  );
 }
 
-export function getContentAudit() {
-  const pages = getContentPages();
+export async function getContentAudit() {
+  const pages = await getContentPages();
   const missingDescription = pages.filter((p) => !p.description);
   const shallowToc = pages.filter((p) => p.tocDepth < 3);
 

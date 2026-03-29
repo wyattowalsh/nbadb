@@ -17,7 +17,7 @@ function pipelineToHealth(status: string): SubsystemStatus {
 
 export async function GET() {
   const [pages, pipeline] = await Promise.all([
-    Promise.resolve(getContentPages()),
+    getContentPages(),
     getPipelineSummary(),
   ]);
 

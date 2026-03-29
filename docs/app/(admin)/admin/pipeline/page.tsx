@@ -106,8 +106,14 @@ export default async function PipelinePage() {
           label={`Rows (${summary.windowDays}d)`}
           value={summary.totals.rowsExtracted.toLocaleString()}
         />
-        <KpiCard label="Avg latency" value={formatLatency(summary.totals.avgDurationMs)} />
-        <KpiCard label="p95 latency" value={formatLatency(summary.totals.p95DurationMs)} />
+        <KpiCard
+          label="Avg latency"
+          value={formatLatency(summary.totals.avgDurationMs)}
+        />
+        <KpiCard
+          label="p95 latency"
+          value={formatLatency(summary.totals.p95DurationMs)}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.8fr)] nba-delay-2">
@@ -214,7 +220,9 @@ export default async function PipelinePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Slowest Endpoints</CardTitle>
-                <Badge variant="outline">Top {summary.slowEndpoints.length}</Badge>
+                <Badge variant="outline">
+                  Top {summary.slowEndpoints.length}
+                </Badge>
               </CardHeader>
               <CardContent>
                 {summary.slowEndpoints.length > 0 ? (

@@ -15,8 +15,10 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function AdminOverviewPage() {
-  const audit = getContentAudit();
-  const pipeline = await getPipelineSummary();
+  const [audit, pipeline] = await Promise.all([
+    getContentAudit(),
+    getPipelineSummary(),
+  ]);
   const pipelineStatus = overallPipelineStatus(pipeline);
 
   const missingDesc = audit.missingDescription.length;
@@ -28,7 +30,9 @@ export default async function AdminOverviewPage() {
         : "unknown") as SubsystemStatus,
     subsystems: {
       content: {
-        status: (audit.totalPages > 0 ? "healthy" : "degraded") as SubsystemStatus,
+        status: (audit.totalPages > 0
+          ? "healthy"
+          : "degraded") as SubsystemStatus,
         detail: `${audit.totalPages} pages indexed, ${missingDesc} missing descriptions`,
       },
       pipeline: {
@@ -109,9 +113,7 @@ export default async function AdminOverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle>Pipeline Runs</CardTitle>
-            {pipeline && (
-              <Badge variant="outline">{pipelineStatus}</Badge>
-            )}
+            {pipeline && <Badge variant="outline">{pipelineStatus}</Badge>}
           </CardHeader>
           <CardContent>
             {pipeline && pipeline.runs.length > 0 ? (

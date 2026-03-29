@@ -42,8 +42,7 @@ export async function getPipelineSummary(): Promise<PipelineSummary> {
         runs: data.runs ?? EMPTY_SUMMARY.runs,
         daily: data.daily ?? EMPTY_SUMMARY.daily,
         slowEndpoints: data.slowEndpoints ?? EMPTY_SUMMARY.slowEndpoints,
-        failureHotspots:
-          data.failureHotspots ?? EMPTY_SUMMARY.failureHotspots,
+        failureHotspots: data.failureHotspots ?? EMPTY_SUMMARY.failureHotspots,
         recentErrors: data.recentErrors ?? EMPTY_SUMMARY.recentErrors,
       };
     } catch {
