@@ -2286,16 +2286,13 @@ erDiagram
         float ft_pct
     }
     analytics_clutch_performance {
-        int player_id PK
-        int team_id PK
-        str season_year
-        str clutch_window
-        str player_name
-        str team_abbreviation
-        int gp
-        int w
-        int l
-        float min
+        float pts
+        float reb
+        float ast
+        float stl
+        float blk
+        float tov
+        float pf
         float fgm
         float fga
         float fg_pct
@@ -2307,14 +2304,17 @@ erDiagram
         float ft_pct
         float oreb
         float dreb
-        float reb
-        float ast
-        float tov
-        float stl
-        float blk
-        float pf
-        float pts
         float plus_minus
+        float min
+        int player_id PK
+        int team_id PK
+        str season_year
+        str clutch_window
+        str player_name
+        str team_abbreviation
+        int gp
+        int w
+        int l
         float net_rating
         float off_rating
         float def_rating
@@ -2405,20 +2405,37 @@ erDiagram
         float league_avg_team_fg3_pct
     }
     analytics_player_game_complete {
-        int player_id PK
-        str game_id PK
-        int team_id PK
-        str season_year
-        str game_date
-        str player_name
-        str team_abbreviation
-        float min
+        float dist
+        float spd
+        float tchs
+        float passes
+        float contested_shots
+        float deflections
+        float loose_balls_recovered
+        float charges_drawn
+        float screen_assists
+        float pts_off_tov
+        float second_chance_pts
+        float fbps
+        float pitp
+        float off_rating
+        float def_rating
+        float net_rating
+        float efg_pct
+        float ts_pct
+        float pace
+        float pie
+        float ast_pct
+        float reb_pct
+        float oreb_pct
+        float dreb_pct
         float pts
         float reb
         float ast
         float stl
         float blk
         float tov
+        float pf
         float fgm
         float fga
         float fg_pct
@@ -2430,34 +2447,17 @@ erDiagram
         float ft_pct
         float oreb
         float dreb
-        float pf
         float plus_minus
-        float off_rating
-        float def_rating
-        float net_rating
-        float ast_pct
+        float min
+        int player_id PK
+        str game_id PK
+        int team_id PK
+        str season_year
+        str game_date
+        str player_name
+        str team_abbreviation
         float ast_ratio
-        float reb_pct
-        float oreb_pct
-        float dreb_pct
-        float efg_pct
-        float ts_pct
-        float pace
-        float pie
-        float pts_off_tov
-        float second_chance_pts
-        float fbps
-        float pitp
         float usg_pct
-        float contested_shots
-        float deflections
-        float loose_balls_recovered
-        float charges_drawn
-        float screen_assists
-        float dist
-        float spd
-        float tchs
-        float passes
         float dfg_pct
     }
     analytics_player_impact {
@@ -2572,18 +2572,37 @@ erDiagram
         float league_avg_fg_pct
     }
     analytics_team_game_complete {
-        int team_id PK
-        str game_id PK
-        str season_year
-        str game_date
-        str team_name
-        str team_abbreviation
+        float dist
+        float spd
+        float tchs
+        float passes
+        float contested_shots
+        float deflections
+        float loose_balls_recovered
+        float charges_drawn
+        float screen_assists
+        float pts_off_tov
+        float second_chance_pts
+        float fbps
+        float pitp
+        float off_rating
+        float def_rating
+        float net_rating
+        float efg_pct
+        float ts_pct
+        float pace
+        float pie
+        float ast_pct
+        float reb_pct
+        float oreb_pct
+        float dreb_pct
         float pts
         float reb
         float ast
         float stl
         float blk
         float tov
+        float pf
         float fgm
         float fga
         float fg_pct
@@ -2595,32 +2614,13 @@ erDiagram
         float ft_pct
         float oreb
         float dreb
-        float pf
         float plus_minus
-        float off_rating
-        float def_rating
-        float net_rating
-        float ast_pct
-        float reb_pct
-        float oreb_pct
-        float dreb_pct
-        float efg_pct
-        float ts_pct
-        float pace
-        float pie
-        float pts_off_tov
-        float second_chance_pts
-        float fbps
-        float pitp
-        float contested_shots
-        float deflections
-        float loose_balls_recovered
-        float charges_drawn
-        float screen_assists
-        float dist
-        float spd
-        float tchs
-        float passes
+        int team_id PK
+        str game_id PK
+        str season_year
+        str game_date
+        str team_name
+        str team_abbreviation
     }
     analytics_team_season_summary {
         int team_id PK

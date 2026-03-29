@@ -2,7 +2,10 @@
   "agg_all_time_leaders": {
     "sql_lineage": {
       "class_name": "AggAllTimeLeadersTransformer",
-      "columns": ["*", "stat_category"],
+      "columns": [
+        "*",
+        "stat_category"
+      ],
       "source_tables": [
         "stg_all_time",
         "stg_all_time_ast",
@@ -67,7 +70,11 @@
         "home_fg_pct",
         "away_fg_pct"
       ],
-      "source_tables": ["bridge_game_team", "dim_game", "fact_team_game"]
+      "source_tables": [
+        "bridge_game_team",
+        "dim_game",
+        "fact_team_game"
+      ]
     }
   },
   "agg_league_leaders": {
@@ -92,7 +99,9 @@
         "stl_rank",
         "blk_rank"
       ],
-      "source_tables": ["agg_player_season"]
+      "source_tables": [
+        "agg_player_season"
+      ]
     }
   },
   "agg_lineup_efficiency": {
@@ -108,7 +117,9 @@
         "avg_net_rating",
         "total_plus_minus"
       ],
-      "source_tables": ["fact_lineup_stats"]
+      "source_tables": [
+        "fact_lineup_stats"
+      ]
     }
   },
   "agg_on_off_splits": {
@@ -140,8 +151,12 @@
   "agg_player_bio": {
     "sql_lineage": {
       "class_name": "AggPlayerBioTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_league_player_bio"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_player_bio"
+      ]
     }
   },
   "agg_player_career": {
@@ -164,7 +179,9 @@
         "last_season",
         "seasons_played"
       ],
-      "source_tables": ["agg_player_season"]
+      "source_tables": [
+        "agg_player_season"
+      ]
     }
   },
   "agg_player_rolling": {
@@ -185,7 +202,10 @@
         "reb_roll20",
         "ast_roll20"
       ],
-      "source_tables": ["dim_game", "fact_player_game_traditional"]
+      "source_tables": [
+        "dim_game",
+        "fact_player_game_traditional"
+      ]
     }
   },
   "agg_player_season": {
@@ -260,7 +280,10 @@
         "avg_pace",
         "avg_pie"
       ],
-      "source_tables": ["dim_game", "fact_player_game_advanced"]
+      "source_tables": [
+        "dim_game",
+        "fact_player_game_advanced"
+      ]
     }
   },
   "agg_player_season_per36": {
@@ -280,7 +303,9 @@
         "blk_per36",
         "tov_per36"
       ],
-      "source_tables": ["agg_player_season"]
+      "source_tables": [
+        "agg_player_season"
+      ]
     }
   },
   "agg_player_season_per48": {
@@ -300,14 +325,21 @@
         "blk_per48",
         "tov_per48"
       ],
-      "source_tables": ["agg_player_season"]
+      "source_tables": [
+        "agg_player_season"
+      ]
     }
   },
   "agg_shot_location_season": {
     "sql_lineage": {
       "class_name": "AggShotLocationSeasonTransformer",
-      "columns": ["*", "season_fgm_rank"],
-      "source_tables": ["stg_shot_locations"]
+      "columns": [
+        "*",
+        "season_fgm_rank"
+      ],
+      "source_tables": [
+        "stg_shot_locations"
+      ]
     }
   },
   "agg_shot_zones": {
@@ -324,7 +356,10 @@
         "fg_pct",
         "avg_distance"
       ],
-      "source_tables": ["dim_game", "fact_shot_chart"]
+      "source_tables": [
+        "dim_game",
+        "fact_shot_chart"
+      ]
     }
   },
   "agg_team_defense": {
@@ -358,8 +393,14 @@
   "agg_team_franchise": {
     "sql_lineage": {
       "class_name": "AggTeamFranchiseTransformer",
-      "columns": ["*", "franchise_age_years", "computed_win_pct"],
-      "source_tables": ["stg_franchise"]
+      "columns": [
+        "*",
+        "franchise_age_years",
+        "computed_win_pct"
+      ],
+      "source_tables": [
+        "stg_franchise"
+      ]
     }
   },
   "agg_team_pace_and_efficiency": {
@@ -375,7 +416,10 @@
         "avg_drtg",
         "avg_net_rtg"
       ],
-      "source_tables": ["dim_game", "fact_box_score_advanced_team"]
+      "source_tables": [
+        "dim_game",
+        "fact_box_score_advanced_team"
+      ]
     }
   },
   "agg_team_season": {
@@ -396,7 +440,10 @@
         "fg3_pct",
         "ft_pct"
       ],
-      "source_tables": ["dim_game", "fact_team_game"]
+      "source_tables": [
+        "dim_game",
+        "fact_team_game"
+      ]
     }
   },
   "analytics_clutch_performance": {
@@ -436,7 +483,11 @@
         "off_rating",
         "def_rating"
       ],
-      "source_tables": ["dim_player", "dim_team", "fact_player_clutch_detail"]
+      "source_tables": [
+        "dim_player",
+        "dim_team",
+        "fact_player_clutch_detail"
+      ]
     }
   },
   "analytics_draft_value": {
@@ -463,7 +514,11 @@
         "first_season",
         "last_season"
       ],
-      "source_tables": ["agg_player_career", "dim_player", "fact_draft"]
+      "source_tables": [
+        "agg_player_career",
+        "dim_player",
+        "fact_draft"
+      ]
     }
   },
   "analytics_game_summary": {
@@ -523,7 +578,11 @@
         "avg_pts_allowed",
         "avg_margin"
       ],
-      "source_tables": ["dim_game", "dim_team", "fact_team_game"]
+      "source_tables": [
+        "dim_game",
+        "dim_team",
+        "fact_team_game"
+      ]
     }
   },
   "analytics_league_benchmarks": {
@@ -538,7 +597,10 @@
         "league_avg_team_fg_pct",
         "league_avg_team_fg3_pct"
       ],
-      "source_tables": ["agg_player_season", "agg_team_season"]
+      "source_tables": [
+        "agg_player_season",
+        "agg_team_season"
+      ]
     }
   },
   "analytics_player_game_complete": {
@@ -680,7 +742,11 @@
         "fg3a",
         "fg3_pct"
       ],
-      "source_tables": ["dim_player", "dim_team", "fact_player_matchups"]
+      "source_tables": [
+        "dim_player",
+        "dim_team",
+        "fact_player_matchups"
+      ]
     }
   },
   "analytics_player_season_complete": {
@@ -852,7 +918,11 @@
         "division",
         "division_rank"
       ],
-      "source_tables": ["agg_team_season", "dim_team", "fact_standings"]
+      "source_tables": [
+        "agg_team_season",
+        "dim_team",
+        "fact_standings"
+      ]
     }
   },
   "bridge_game_official": {
@@ -880,8 +950,13 @@
     },
     "sql_lineage": {
       "class_name": "BridgeGameOfficialTransformer",
-      "columns": ["game_id", "official_id"],
-      "source_tables": ["stg_officials"]
+      "columns": [
+        "game_id",
+        "official_id"
+      ],
+      "source_tables": [
+        "stg_officials"
+      ]
     }
   },
   "bridge_game_team": {
@@ -919,8 +994,16 @@
     },
     "sql_lineage": {
       "class_name": "BridgeGameTeamTransformer",
-      "columns": ["game_id", "team_id", "side", "wl", "season_year"],
-      "source_tables": ["stg_league_game_log"]
+      "columns": [
+        "game_id",
+        "team_id",
+        "side",
+        "wl",
+        "season_year"
+      ],
+      "source_tables": [
+        "stg_league_game_log"
+      ]
     }
   },
   "bridge_lineup_player": {
@@ -994,8 +1077,16 @@
     },
     "sql_lineage": {
       "class_name": "BridgePlayPlayerTransformer",
-      "columns": ["game_id", "event_num", "slot", "player_id", "team_id"],
-      "source_tables": ["stg_play_by_play"]
+      "columns": [
+        "game_id",
+        "event_num",
+        "slot",
+        "player_id",
+        "team_id"
+      ],
+      "source_tables": [
+        "stg_play_by_play"
+      ]
     }
   },
   "bridge_player_team_season": {
@@ -1040,7 +1131,9 @@
         "jersey_number",
         "position"
       ],
-      "source_tables": ["stg_player_info"]
+      "source_tables": [
+        "stg_player_info"
+      ]
     }
   },
   "dim_all_players": {
@@ -1117,8 +1210,12 @@
     },
     "sql_lineage": {
       "class_name": "DimAllPlayersTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_common_all_players"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_common_all_players"
+      ]
     }
   },
   "dim_arena": {
@@ -1198,8 +1295,13 @@
     },
     "sql_lineage": {
       "class_name": "DimCoachTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_coaches", "stg_team_info"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_coaches",
+        "stg_team_info"
+      ]
     }
   },
   "dim_college": {
@@ -1359,8 +1461,12 @@
     },
     "sql_lineage": {
       "class_name": "DimDefunctTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_defunct_teams"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_defunct_teams"
+      ]
     }
   },
   "dim_game": {
@@ -1610,7 +1716,9 @@
         "valid_to",
         "is_current"
       ],
-      "source_tables": ["stg_player_info"]
+      "source_tables": [
+        "stg_player_info"
+      ]
     }
   },
   "dim_schedule_int": {
@@ -1821,8 +1929,15 @@
     },
     "sql_lineage": {
       "class_name": "DimScheduleIntTransformer",
-      "columns": ["*", "week_start_date", "week_end_date"],
-      "source_tables": ["stg_schedule_int", "stg_schedule_int_weeks"]
+      "columns": [
+        "*",
+        "week_start_date",
+        "week_end_date"
+      ],
+      "source_tables": [
+        "stg_schedule_int",
+        "stg_schedule_int_weeks"
+      ]
     }
   },
   "dim_season": {
@@ -1907,8 +2022,12 @@
     },
     "sql_lineage": {
       "class_name": "DimSeasonWeekTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_schedule_weeks"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_schedule_weeks"
+      ]
     }
   },
   "dim_shot_zone": {
@@ -2129,7 +2248,11 @@
     },
     "sql_lineage": {
       "class_name": "DimTeamExtendedTransformer",
-      "columns": ["*", "*", "*"],
+      "columns": [
+        "*",
+        "*",
+        "*"
+      ],
       "source_tables": [
         "stg_team_details",
         "stg_team_info_common",
@@ -2208,21 +2331,32 @@
         "valid_to",
         "is_current"
       ],
-      "source_tables": ["stg_franchise", "stg_team_info"]
+      "source_tables": [
+        "stg_franchise",
+        "stg_team_info"
+      ]
     }
   },
   "fact_box_score_advanced_team": {
     "sql_lineage": {
       "class_name": "FactBoxScoreAdvancedTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_advanced_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_advanced_team"
+      ]
     }
   },
   "fact_box_score_defensive_team": {
     "sql_lineage": {
       "class_name": "FactBoxScoreDefensiveTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_defensive_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_defensive_team"
+      ]
     }
   },
   "fact_box_score_four_factors": {
@@ -2255,55 +2389,84 @@
         "opp_team_turnover_percentage",
         "opp_offensive_rebound_percentage"
       ],
-      "source_tables": ["stg_box_score_four_factors_player"]
+      "source_tables": [
+        "stg_box_score_four_factors_player"
+      ]
     }
   },
   "fact_box_score_four_factors_team": {
     "sql_lineage": {
       "class_name": "FactBoxScoreFourFactorsTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_four_factors_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_four_factors_team"
+      ]
     }
   },
   "fact_box_score_hustle_player": {
     "sql_lineage": {
       "class_name": "FactBoxScoreHustlePlayerTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_hustle_player"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_hustle_player"
+      ]
     }
   },
   "fact_box_score_misc_team": {
     "sql_lineage": {
       "class_name": "FactBoxScoreMiscTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_misc_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_misc_team"
+      ]
     }
   },
   "fact_box_score_player_track_team": {
     "sql_lineage": {
       "class_name": "FactBoxScorePlayerTrackTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_player_track_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_player_track_team"
+      ]
     }
   },
   "fact_box_score_scoring_team": {
     "sql_lineage": {
       "class_name": "FactBoxScoreScoringTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_scoring_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_scoring_team"
+      ]
     }
   },
   "fact_box_score_starter_bench": {
     "sql_lineage": {
       "class_name": "FactBoxScoreStarterBenchTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_traditional_starter_bench"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_traditional_starter_bench"
+      ]
     }
   },
   "fact_box_score_summary_v3": {
     "sql_lineage": {
       "class_name": "FactBoxScoreSummaryV3Transformer",
-      "columns": ["*", "summary_type"],
+      "columns": [
+        "*",
+        "summary_type"
+      ],
       "source_tables": [
         "stg_summary_v3_available_video",
         "stg_summary_v3_game_info",
@@ -2319,21 +2482,32 @@
   "fact_box_score_team": {
     "sql_lineage": {
       "class_name": "FactBoxScoreTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_traditional_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_traditional_team"
+      ]
     }
   },
   "fact_box_score_usage_team": {
     "sql_lineage": {
       "class_name": "FactBoxScoreUsageTeamTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_usage_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_usage_team"
+      ]
     }
   },
   "fact_college_rollup": {
     "sql_lineage": {
       "class_name": "FactCollegeRollupTransformer",
-      "columns": ["*", "rollup_type"],
+      "columns": [
+        "*",
+        "rollup_type"
+      ],
       "source_tables": [
         "stg_college_rollup_east",
         "stg_college_rollup_midwest",
@@ -2347,7 +2521,11 @@
   "fact_cumulative_stats": {
     "sql_lineage": {
       "class_name": "FactCumulativeStatsTransformer",
-      "columns": ["*", "entity_type", "stat_type"],
+      "columns": [
+        "*",
+        "entity_type",
+        "stat_type"
+      ],
       "source_tables": [
         "stg_cume_player",
         "stg_cume_player_games",
@@ -2359,7 +2537,10 @@
   "fact_cumulative_stats_detail": {
     "sql_lineage": {
       "class_name": "FactCumulativeStatsDetailTransformer",
-      "columns": ["*", "cume_type"],
+      "columns": [
+        "*",
+        "cume_type"
+      ],
       "source_tables": [
         "stg_cume_player_game_by_game",
         "stg_cume_player_totals",
@@ -2407,8 +2588,12 @@
     },
     "sql_lineage": {
       "class_name": "FactDefenseHubTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_defense_hub_stat1"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_defense_hub_stat1"
+      ]
     }
   },
   "fact_defense_hub_detail": {
@@ -2539,20 +2724,30 @@
         "three_quarter_sprint",
         "bench_press"
       ],
-      "source_tables": ["stg_draft", "stg_draft_combine"]
+      "source_tables": [
+        "stg_draft",
+        "stg_draft_combine"
+      ]
     }
   },
   "fact_draft_board": {
     "sql_lineage": {
       "class_name": "FactDraftBoardTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_draft_board"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_draft_board"
+      ]
     }
   },
   "fact_draft_combine_detail": {
     "sql_lineage": {
       "class_name": "FactDraftCombineDetailTransformer",
-      "columns": ["*", "detail_type"],
+      "columns": [
+        "*",
+        "detail_type"
+      ],
       "source_tables": [
         "stg_draft_combine_anthro",
         "stg_draft_combine_drills",
@@ -2658,7 +2853,10 @@
   "fact_fantasy": {
     "sql_lineage": {
       "class_name": "FactFantasyTransformer",
-      "columns": ["*", "fantasy_source"],
+      "columns": [
+        "*",
+        "fantasy_source"
+      ],
       "source_tables": [
         "stg_fanduel_player",
         "stg_fantasy_widget",
@@ -2670,14 +2868,23 @@
   "fact_franchise_detail": {
     "sql_lineage": {
       "class_name": "FactFranchiseDetailTransformer",
-      "columns": ["*", "detail_type"],
-      "source_tables": ["stg_franchise_leaders", "stg_franchise_players"]
+      "columns": [
+        "*",
+        "detail_type"
+      ],
+      "source_tables": [
+        "stg_franchise_leaders",
+        "stg_franchise_players"
+      ]
     }
   },
   "fact_game_context": {
     "sql_lineage": {
       "class_name": "FactGameContextTransformer",
-      "columns": ["*", "context_source"],
+      "columns": [
+        "*",
+        "context_source"
+      ],
       "source_tables": [
         "stg_game_info",
         "stg_game_summary",
@@ -2774,7 +2981,9 @@
         "rebounds",
         "assists"
       ],
-      "source_tables": ["stg_game_leaders"]
+      "source_tables": [
+        "stg_game_leaders"
+      ]
     }
   },
   "fact_game_result": {
@@ -2928,7 +3137,10 @@
         "pts_ot1_away",
         "pts_ot2_away"
       ],
-      "source_tables": ["stg_league_game_log", "stg_line_score"]
+      "source_tables": [
+        "stg_league_game_log",
+        "stg_line_score"
+      ]
     }
   },
   "fact_game_scoring": {
@@ -2971,15 +3183,23 @@
     },
     "sql_lineage": {
       "class_name": "FactGameScoringTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_line_score"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_line_score"
+      ]
     }
   },
   "fact_gl_alum_similarity": {
     "sql_lineage": {
       "class_name": "FactGlAlumSimilarityTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_gl_alum_box_score_similarity_score"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_gl_alum_box_score_similarity_score"
+      ]
     }
   },
   "fact_homepage": {
@@ -3026,8 +3246,14 @@
     },
     "sql_lineage": {
       "class_name": "FactHomepageTransformer",
-      "columns": ["*", "homepage_source"],
-      "source_tables": ["stg_home_page_v2", "stg_homepage_v2"]
+      "columns": [
+        "*",
+        "homepage_source"
+      ],
+      "source_tables": [
+        "stg_home_page_v2",
+        "stg_homepage_v2"
+      ]
     }
   },
   "fact_homepage_detail": {
@@ -3112,8 +3338,14 @@
     },
     "sql_lineage": {
       "class_name": "FactHomepageLeadersTransformer",
-      "columns": ["*", "leader_source"],
-      "source_tables": ["stg_home_page_leaders", "stg_homepage_leaders"]
+      "columns": [
+        "*",
+        "leader_source"
+      ],
+      "source_tables": [
+        "stg_home_page_leaders",
+        "stg_homepage_leaders"
+      ]
     }
   },
   "fact_homepage_leaders_detail": {
@@ -3192,7 +3424,10 @@
   "fact_hustle_availability": {
     "sql_lineage": {
       "class_name": "FactHustleAvailabilityTransformer",
-      "columns": ["*", "hustle_type"],
+      "columns": [
+        "*",
+        "hustle_type"
+      ],
       "source_tables": [
         "stg_box_score_hustle_box",
         "stg_hustle_stats_available"
@@ -3202,8 +3437,12 @@
   "fact_ist_standings": {
     "sql_lineage": {
       "class_name": "FactIstStandingsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_ist_standings"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_ist_standings"
+      ]
     }
   },
   "fact_leaders_tiles": {
@@ -3245,8 +3484,12 @@
     },
     "sql_lineage": {
       "class_name": "FactLeadersTilesTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_leaders_tiles"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_leaders_tiles"
+      ]
     }
   },
   "fact_leaders_tiles_detail": {
@@ -3300,28 +3543,43 @@
   "fact_league_dash_player_stats": {
     "sql_lineage": {
       "class_name": "FactLeagueDashPlayerStatsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_league_dash_player_stats"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_dash_player_stats"
+      ]
     }
   },
   "fact_league_dash_team_stats": {
     "sql_lineage": {
       "class_name": "FactLeagueDashTeamStatsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_league_dash_team_stats"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_dash_team_stats"
+      ]
     }
   },
   "fact_league_game_finder": {
     "sql_lineage": {
       "class_name": "FactLeagueGameFinderTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_league_game_finder"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_game_finder"
+      ]
     }
   },
   "fact_league_hustle": {
     "sql_lineage": {
       "class_name": "FactLeagueHustleTransformer",
-      "columns": ["*", "entity_type"],
+      "columns": [
+        "*",
+        "entity_type"
+      ],
       "source_tables": [
         "stg_league_dash_player_bio_stats",
         "stg_league_hustle_player",
@@ -3332,7 +3590,10 @@
   "fact_league_leaders_detail": {
     "sql_lineage": {
       "class_name": "FactLeagueLeadersDetailTransformer",
-      "columns": ["*", "leader_type"],
+      "columns": [
+        "*",
+        "leader_type"
+      ],
       "source_tables": [
         "stg_assist_leaders",
         "stg_assist_tracker",
@@ -3471,14 +3732,21 @@
     },
     "sql_lineage": {
       "class_name": "FactLeagueLineupVizTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_league_lineup_viz"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_lineup_viz"
+      ]
     }
   },
   "fact_league_pt_shots": {
     "sql_lineage": {
       "class_name": "FactLeaguePtShotsTransformer",
-      "columns": ["*", "shot_type"],
+      "columns": [
+        "*",
+        "shot_type"
+      ],
       "source_tables": [
         "stg_league_opp_pt_shot",
         "stg_league_player_pt_shot",
@@ -3491,15 +3759,23 @@
   "fact_league_shot_locations": {
     "sql_lineage": {
       "class_name": "FactLeagueShotLocationsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_league_team_shot_locations"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_team_shot_locations"
+      ]
     }
   },
   "fact_league_team_clutch": {
     "sql_lineage": {
       "class_name": "FactLeagueTeamClutchTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_league_team_clutch"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_team_clutch"
+      ]
     }
   },
   "fact_lineup_stats": {
@@ -3651,8 +3927,14 @@
     },
     "sql_lineage": {
       "class_name": "FactLineupStatsTransformer",
-      "columns": ["*", "lineup_source"],
-      "source_tables": ["stg_lineup", "stg_team_lineups"]
+      "columns": [
+        "*",
+        "lineup_source"
+      ],
+      "source_tables": [
+        "stg_lineup",
+        "stg_team_lineups"
+      ]
     }
   },
   "fact_matchup": {
@@ -3761,13 +4043,18 @@
         "def_fga",
         "def_fg_pct"
       ],
-      "source_tables": ["stg_matchup"]
+      "source_tables": [
+        "stg_matchup"
+      ]
     }
   },
   "fact_on_off_detail": {
     "sql_lineage": {
       "class_name": "FactOnOffDetailTransformer",
-      "columns": ["*", "court_status"],
+      "columns": [
+        "*",
+        "court_status"
+      ],
       "source_tables": [
         "stg_on_off_details_off_court",
         "stg_on_off_details_on_court",
@@ -3914,7 +4201,9 @@
         "player3_team_id",
         "event_type_name"
       ],
-      "source_tables": ["stg_play_by_play"]
+      "source_tables": [
+        "stg_play_by_play"
+      ]
     }
   },
   "fact_play_by_play_video": {
@@ -3930,15 +4219,23 @@
     },
     "sql_lineage": {
       "class_name": "FactPlayByPlayVideoTransformer",
-      "columns": ["video_available"],
-      "source_tables": ["stg_play_by_play_video_available"]
+      "columns": [
+        "video_available"
+      ],
+      "source_tables": [
+        "stg_play_by_play_video_available"
+      ]
     }
   },
   "fact_player_available_seasons": {
     "sql_lineage": {
       "class_name": "FactPlayerAvailableSeasonsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_available_seasons"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_available_seasons"
+      ]
     }
   },
   "fact_player_awards": {
@@ -4005,14 +4302,21 @@
     },
     "sql_lineage": {
       "class_name": "FactPlayerAwardsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_awards"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_awards"
+      ]
     }
   },
   "fact_player_career": {
     "sql_lineage": {
       "class_name": "FactPlayerCareerTransformer",
-      "columns": ["*", "career_type"],
+      "columns": [
+        "*",
+        "career_type"
+      ],
       "source_tables": [
         "stg_player_career_allstar",
         "stg_player_career_college",
@@ -4028,7 +4332,10 @@
   "fact_player_clutch_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerClutchDetailTransformer",
-      "columns": ["*", "clutch_window"],
+      "columns": [
+        "*",
+        "clutch_window"
+      ],
       "source_tables": [
         "stg_player_clutch_last10sec_3pt",
         "stg_player_clutch_last10sec_3pt2",
@@ -4047,50 +4354,78 @@
   "fact_player_dashboard_clutch_overall": {
     "sql_lineage": {
       "class_name": "FactPlayerDashboardClutchOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_dashboard_clutch"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_dashboard_clutch"
+      ]
     }
   },
   "fact_player_dashboard_game_splits_overall": {
     "sql_lineage": {
       "class_name": "FactPlayerDashboardGameSplitsOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_dashboard_game_splits"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_dashboard_game_splits"
+      ]
     }
   },
   "fact_player_dashboard_general_splits_overall": {
     "sql_lineage": {
       "class_name": "FactPlayerDashboardGeneralSplitsOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_dashboard_general_splits"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_dashboard_general_splits"
+      ]
     }
   },
   "fact_player_dashboard_last_n_overall": {
     "sql_lineage": {
       "class_name": "FactPlayerDashboardLastNOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_dashboard_last_n_games"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_dashboard_last_n_games"
+      ]
     }
   },
   "fact_player_dashboard_shooting_overall": {
     "sql_lineage": {
       "class_name": "FactPlayerDashboardShootingOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_dashboard_shooting_splits"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_dashboard_shooting_splits"
+      ]
     }
   },
   "fact_player_dashboard_team_perf_overall": {
     "sql_lineage": {
       "class_name": "FactPlayerDashboardTeamPerfOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_dashboard_team_performance"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_dashboard_team_performance"
+      ]
     }
   },
   "fact_player_dashboard_yoy_overall": {
     "sql_lineage": {
       "class_name": "FactPlayerDashboardYoyOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_dashboard_year_over_year"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_dashboard_year_over_year"
+      ]
     }
   },
   "fact_player_estimated_metrics": {
@@ -4207,7 +4542,9 @@
         "e_usg_pct",
         "season_year"
       ],
-      "source_tables": ["stg_player_tracking"]
+      "source_tables": [
+        "stg_player_tracking"
+      ]
     }
   },
   "fact_player_game_advanced": {
@@ -4349,7 +4686,10 @@
         "e_usg_pct",
         "e_pace"
       ],
-      "source_tables": ["dim_game", "stg_box_score_advanced"]
+      "source_tables": [
+        "dim_game",
+        "stg_box_score_advanced"
+      ]
     }
   },
   "fact_player_game_hustle": {
@@ -4444,13 +4784,18 @@
         "loose_balls_recovered",
         "box_outs"
       ],
-      "source_tables": ["dim_game", "stg_box_score_hustle"]
+      "source_tables": [
+        "dim_game",
+        "stg_box_score_hustle"
+      ]
     }
   },
   "fact_player_game_log": {
     "sql_lineage": {
       "class_name": "FactPlayerGameLogTransformer",
-      "columns": ["*"],
+      "columns": [
+        "*"
+      ],
       "source_tables": [
         "stg_player_game_log",
         "stg_player_game_logs",
@@ -4649,7 +4994,10 @@
   "fact_player_game_splits_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerGameSplitsDetailTransformer",
-      "columns": ["*", "split_type"],
+      "columns": [
+        "*",
+        "split_type"
+      ],
       "source_tables": [
         "stg_player_split_actual_margin",
         "stg_player_split_by_half",
@@ -4998,13 +5346,19 @@
         "pts",
         "plus_minus"
       ],
-      "source_tables": ["dim_game", "stg_box_score_traditional"]
+      "source_tables": [
+        "dim_game",
+        "stg_box_score_traditional"
+      ]
     }
   },
   "fact_player_general_splits_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerGeneralSplitsDetailTransformer",
-      "columns": ["*", "split_type"],
+      "columns": [
+        "*",
+        "split_type"
+      ],
       "source_tables": [
         "stg_player_split_days_rest",
         "stg_player_split_general_overall",
@@ -5019,14 +5373,21 @@
   "fact_player_headline_stats": {
     "sql_lineage": {
       "class_name": "FactPlayerHeadlineStatsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_headline_stats"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_headline_stats"
+      ]
     }
   },
   "fact_player_last_n_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerLastNDetailTransformer",
-      "columns": ["*", "window_size"],
+      "columns": [
+        "*",
+        "window_size"
+      ],
       "source_tables": [
         "stg_player_lastn_game_number",
         "stg_player_lastn_last10",
@@ -5040,8 +5401,14 @@
   "fact_player_matchups": {
     "sql_lineage": {
       "class_name": "FactPlayerMatchupsTransformer",
-      "columns": ["*", "matchup_type"],
-      "source_tables": ["stg_player_compare", "stg_player_vs_player"]
+      "columns": [
+        "*",
+        "matchup_type"
+      ],
+      "source_tables": [
+        "stg_player_compare",
+        "stg_player_vs_player"
+      ]
     }
   },
   "fact_player_matchups_detail": {
@@ -5081,14 +5448,21 @@
   "fact_player_next_games": {
     "sql_lineage": {
       "class_name": "FactPlayerNextGamesTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_player_next_games"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_next_games"
+      ]
     }
   },
   "fact_player_profile": {
     "sql_lineage": {
       "class_name": "FactPlayerProfileTransformer",
-      "columns": ["*", "profile_type"],
+      "columns": [
+        "*",
+        "profile_type"
+      ],
       "source_tables": [
         "stg_player_profile_allstar",
         "stg_player_profile_career_highs",
@@ -5111,7 +5485,10 @@
   "fact_player_pt_reb_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerPtRebDetailTransformer",
-      "columns": ["*", "breakdown_type"],
+      "columns": [
+        "*",
+        "breakdown_type"
+      ],
       "source_tables": [
         "stg_player_pt_reb",
         "stg_player_pt_reb_distance",
@@ -5124,7 +5501,10 @@
   "fact_player_pt_shots_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerPtShotsDetailTransformer",
-      "columns": ["*", "breakdown_type"],
+      "columns": [
+        "*",
+        "breakdown_type"
+      ],
       "source_tables": [
         "stg_player_pt_shots",
         "stg_player_pt_shots_closest_def",
@@ -5139,7 +5519,10 @@
   "fact_player_pt_tracking": {
     "sql_lineage": {
       "class_name": "FactPlayerPtTrackingTransformer",
-      "columns": ["*", "tracking_type"],
+      "columns": [
+        "*",
+        "tracking_type"
+      ],
       "source_tables": [
         "stg_player_pt_pass",
         "stg_player_pt_pass_received",
@@ -5152,7 +5535,10 @@
   "fact_player_season_ranks": {
     "sql_lineage": {
       "class_name": "FactPlayerSeasonRanksTransformer",
-      "columns": ["*", "rank_type"],
+      "columns": [
+        "*",
+        "rank_type"
+      ],
       "source_tables": [
         "stg_player_season_ranks_postseason",
         "stg_player_season_ranks_regular"
@@ -5162,7 +5548,10 @@
   "fact_player_shooting_splits_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerShootingSplitsDetailTransformer",
-      "columns": ["*", "shooting_split"],
+      "columns": [
+        "*",
+        "shooting_split"
+      ],
       "source_tables": [
         "stg_player_shoot_5ft",
         "stg_player_shoot_8ft",
@@ -5178,7 +5567,10 @@
   "fact_player_splits": {
     "sql_lineage": {
       "class_name": "FactPlayerSplitsTransformer",
-      "columns": ["*", "split_type"],
+      "columns": [
+        "*",
+        "split_type"
+      ],
       "source_tables": [
         "stg_player_dash_game_splits",
         "stg_player_dash_general_splits",
@@ -5192,7 +5584,10 @@
   "fact_player_team_perf_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerTeamPerfDetailTransformer",
-      "columns": ["*", "perf_context"],
+      "columns": [
+        "*",
+        "perf_context"
+      ],
       "source_tables": [
         "stg_player_perf_overall",
         "stg_player_perf_pts_against",
@@ -5204,14 +5599,23 @@
   "fact_player_yoy_detail": {
     "sql_lineage": {
       "class_name": "FactPlayerYoyDetailTransformer",
-      "columns": ["*", "yoy_type"],
-      "source_tables": ["stg_player_yoy_by_year", "stg_player_yoy_overall"]
+      "columns": [
+        "*",
+        "yoy_type"
+      ],
+      "source_tables": [
+        "stg_player_yoy_by_year",
+        "stg_player_yoy_overall"
+      ]
     }
   },
   "fact_playoff_picture": {
     "sql_lineage": {
       "class_name": "FactPlayoffPictureTransformer",
-      "columns": ["*", "conference"],
+      "columns": [
+        "*",
+        "conference"
+      ],
       "source_tables": [
         "stg_playoff_picture_east",
         "stg_playoff_picture_east_remaining",
@@ -5225,8 +5629,12 @@
   "fact_playoff_series": {
     "sql_lineage": {
       "class_name": "FactPlayoffSeriesTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_common_playoff_series"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_common_playoff_series"
+      ]
     }
   },
   "fact_rotation": {
@@ -5296,13 +5704,19 @@
         "usg_pct",
         "side"
       ],
-      "source_tables": ["stg_rotation_away", "stg_rotation_home"]
+      "source_tables": [
+        "stg_rotation_away",
+        "stg_rotation_home"
+      ]
     }
   },
   "fact_scoreboard_detail": {
     "sql_lineage": {
       "class_name": "FactScoreboardDetailTransformer",
-      "columns": ["*", "detail_type"],
+      "columns": [
+        "*",
+        "detail_type"
+      ],
       "source_tables": [
         "stg_scoreboard",
         "stg_scoreboard_east_conf",
@@ -5319,7 +5733,10 @@
   "fact_scoreboard_v3": {
     "sql_lineage": {
       "class_name": "FactScoreboardV3Transformer",
-      "columns": ["*", "scoreboard_type"],
+      "columns": [
+        "*",
+        "scoreboard_type"
+      ],
       "source_tables": [
         "stg_scoreboard_v3_broadcaster",
         "stg_scoreboard_v3_line_score",
@@ -5332,15 +5749,25 @@
   "fact_scoreboard_win_probability": {
     "sql_lineage": {
       "class_name": "FactScoreboardWinProbabilityTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_scoreboard_win_probability"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_scoreboard_win_probability"
+      ]
     }
   },
   "fact_season_matchups": {
     "sql_lineage": {
       "class_name": "FactSeasonMatchupsTransformer",
-      "columns": ["*", "matchup_type"],
-      "source_tables": ["stg_matchups_rollup", "stg_season_matchups"]
+      "columns": [
+        "*",
+        "matchup_type"
+      ],
+      "source_tables": [
+        "stg_matchups_rollup",
+        "stg_season_matchups"
+      ]
     }
   },
   "fact_shot_chart": {
@@ -5452,14 +5879,21 @@
         "loc_y",
         "shot_made_flag"
       ],
-      "source_tables": ["dim_game", "stg_shot_chart"]
+      "source_tables": [
+        "dim_game",
+        "stg_shot_chart"
+      ]
     }
   },
   "fact_shot_chart_league": {
     "sql_lineage": {
       "class_name": "FactShotChartLeagueTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_shot_chart_league_wide"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_shot_chart_league_wide"
+      ]
     }
   },
   "fact_shot_chart_league_averages": {
@@ -5475,7 +5909,10 @@
     },
     "sql_lineage": {
       "class_name": "FactShotChartLeagueAveragesTransformer",
-      "columns": ["*", "average_source"],
+      "columns": [
+        "*",
+        "average_source"
+      ],
       "source_tables": [
         "stg_shot_chart_league_averages",
         "stg_shot_chart_lineup_league_avg"
@@ -5485,8 +5922,14 @@
   "fact_shot_chart_lineup": {
     "sql_lineage": {
       "class_name": "FactShotChartLineupTransformer",
-      "columns": ["*", "chart_type"],
-      "source_tables": ["stg_shot_chart_lineup", "stg_shot_chart_lineup_detail"]
+      "columns": [
+        "*",
+        "chart_type"
+      ],
+      "source_tables": [
+        "stg_shot_chart_lineup",
+        "stg_shot_chart_lineup_detail"
+      ]
     }
   },
   "fact_standings": {
@@ -5609,13 +6052,18 @@
         "last_ten",
         "streak"
       ],
-      "source_tables": ["stg_standings"]
+      "source_tables": [
+        "stg_standings"
+      ]
     }
   },
   "fact_streak_finder": {
     "sql_lineage": {
       "class_name": "FactStreakFinderTransformer",
-      "columns": ["*", "entity_type"],
+      "columns": [
+        "*",
+        "entity_type"
+      ],
       "source_tables": [
         "stg_player_game_streak_finder",
         "stg_player_streak_finder",
@@ -5745,49 +6193,75 @@
         "score_poss_pct",
         "percentile"
       ],
-      "source_tables": ["stg_synergy"]
+      "source_tables": [
+        "stg_synergy"
+      ]
     }
   },
   "fact_team_available_seasons": {
     "sql_lineage": {
       "class_name": "FactTeamAvailableSeasonsTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_available_seasons"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_available_seasons"
+      ]
     }
   },
   "fact_team_awards_conf": {
     "sql_lineage": {
       "class_name": "FactTeamAwardsConfTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_awards_conf"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_awards_conf"
+      ]
     }
   },
   "fact_team_awards_div": {
     "sql_lineage": {
       "class_name": "FactTeamAwardsDivTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_awards_div"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_awards_div"
+      ]
     }
   },
   "fact_team_background": {
     "sql_lineage": {
       "class_name": "FactTeamBackgroundTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_background"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_background"
+      ]
     }
   },
   "fact_team_dashboard_general_overall": {
     "sql_lineage": {
       "class_name": "FactTeamDashboardGeneralOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_dash_general_splits"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_dash_general_splits"
+      ]
     }
   },
   "fact_team_dashboard_shooting_overall": {
     "sql_lineage": {
       "class_name": "FactTeamDashboardShootingOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_dash_shooting_splits"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_dash_shooting_splits"
+      ]
     }
   },
   "fact_team_estimated_metrics": {
@@ -5891,7 +6365,9 @@
         "e_tov_pct",
         "season_year"
       ],
-      "source_tables": ["stg_team_dashboard_estimated"]
+      "source_tables": [
+        "stg_team_dashboard_estimated"
+      ]
     }
   },
   "fact_team_game": {
@@ -6047,21 +6523,33 @@
   "fact_team_game_hustle": {
     "sql_lineage": {
       "class_name": "FactTeamGameHustleTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_box_score_hustle_team"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_box_score_hustle_team"
+      ]
     }
   },
   "fact_team_game_log": {
     "sql_lineage": {
       "class_name": "FactTeamGameLogTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_game_log", "stg_team_game_logs_v2"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_game_log",
+        "stg_team_game_logs_v2"
+      ]
     }
   },
   "fact_team_general_splits_detail": {
     "sql_lineage": {
       "class_name": "FactTeamGeneralSplitsDetailTransformer",
-      "columns": ["*", "split_type"],
+      "columns": [
+        "*",
+        "split_type"
+      ],
       "source_tables": [
         "stg_team_split_days_rest",
         "stg_team_split_general_overall",
@@ -6075,7 +6563,10 @@
   "fact_team_historical": {
     "sql_lineage": {
       "class_name": "FactTeamHistoricalTransformer",
-      "columns": ["*", "history_type"],
+      "columns": [
+        "*",
+        "history_type"
+      ],
       "source_tables": [
         "stg_team_historical_leaders",
         "stg_team_year_by_year",
@@ -6086,35 +6577,54 @@
   "fact_team_history_detail": {
     "sql_lineage": {
       "class_name": "FactTeamHistoryDetailTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_history"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_history"
+      ]
     }
   },
   "fact_team_hof": {
     "sql_lineage": {
       "class_name": "FactTeamHofTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_hof"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_hof"
+      ]
     }
   },
   "fact_team_lineups_detail": {
     "sql_lineage": {
       "class_name": "FactTeamLineupsDetailTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_lineups_overall"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_lineups_overall"
+      ]
     }
   },
   "fact_team_lineups_overall": {
     "sql_lineage": {
       "class_name": "FactTeamLineupsOverallTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_lineups"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_lineups"
+      ]
     }
   },
   "fact_team_matchups": {
     "sql_lineage": {
       "class_name": "FactTeamMatchupsTransformer",
-      "columns": ["*", "matchup_type"],
+      "columns": [
+        "*",
+        "matchup_type"
+      ],
       "source_tables": [
         "stg_team_and_players_vs",
         "stg_team_and_players_vs_players",
@@ -6159,7 +6669,10 @@
   "fact_team_player_dashboard": {
     "sql_lineage": {
       "class_name": "FactTeamPlayerDashboardTransformer",
-      "columns": ["*", "dashboard_type"],
+      "columns": [
+        "*",
+        "dashboard_type"
+      ],
       "source_tables": [
         "stg_team_player_dash_overall",
         "stg_team_player_dash_players",
@@ -6170,7 +6683,10 @@
   "fact_team_pt_reb_detail": {
     "sql_lineage": {
       "class_name": "FactTeamPtRebDetailTransformer",
-      "columns": ["*", "breakdown_type"],
+      "columns": [
+        "*",
+        "breakdown_type"
+      ],
       "source_tables": [
         "stg_team_pt_reb",
         "stg_team_pt_reb_distance",
@@ -6183,7 +6699,10 @@
   "fact_team_pt_shots_detail": {
     "sql_lineage": {
       "class_name": "FactTeamPtShotsDetailTransformer",
-      "columns": ["*", "breakdown_type"],
+      "columns": [
+        "*",
+        "breakdown_type"
+      ],
       "source_tables": [
         "stg_team_pt_shots",
         "stg_team_pt_shots_closest_def",
@@ -6197,7 +6716,10 @@
   "fact_team_pt_tracking": {
     "sql_lineage": {
       "class_name": "FactTeamPtTrackingTransformer",
-      "columns": ["*", "tracking_type"],
+      "columns": [
+        "*",
+        "tracking_type"
+      ],
       "source_tables": [
         "stg_team_pt_pass",
         "stg_team_pt_pass_received",
@@ -6209,21 +6731,32 @@
   "fact_team_retired": {
     "sql_lineage": {
       "class_name": "FactTeamRetiredTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_retired"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_retired"
+      ]
     }
   },
   "fact_team_season_ranks": {
     "sql_lineage": {
       "class_name": "FactTeamSeasonRanksTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_season_ranks"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_season_ranks"
+      ]
     }
   },
   "fact_team_shooting_splits_detail": {
     "sql_lineage": {
       "class_name": "FactTeamShootingSplitsDetailTransformer",
-      "columns": ["*", "shooting_split"],
+      "columns": [
+        "*",
+        "shooting_split"
+      ],
       "source_tables": [
         "stg_team_shoot_5ft",
         "stg_team_shoot_8ft",
@@ -6238,14 +6771,21 @@
   "fact_team_social_sites": {
     "sql_lineage": {
       "class_name": "FactTeamSocialSitesTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_team_social_sites"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_team_social_sites"
+      ]
     }
   },
   "fact_team_splits": {
     "sql_lineage": {
       "class_name": "FactTeamSplitsTransformer",
-      "columns": ["*", "split_type"],
+      "columns": [
+        "*",
+        "split_type"
+      ],
       "source_tables": [
         "stg_team_dash_general_splits",
         "stg_team_dash_shooting_splits"
@@ -6322,8 +6862,12 @@
     },
     "sql_lineage": {
       "class_name": "FactTrackingDefenseTransformer",
-      "columns": ["*"],
-      "source_tables": ["stg_tracking_defense"]
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_tracking_defense"
+      ]
     }
   },
   "fact_win_prob_pbp": {
@@ -6427,7 +6971,9 @@
         "pctimestring",
         "isvisible"
       ],
-      "source_tables": ["stg_win_prob_pbp"]
+      "source_tables": [
+        "stg_win_prob_pbp"
+      ]
     }
   },
   "fact_win_probability": {
@@ -6500,7 +7046,9 @@
         "visitor_pts",
         "home_score_margin"
       ],
-      "source_tables": ["stg_win_probability"]
+      "source_tables": [
+        "stg_win_probability"
+      ]
     }
   }
 }

@@ -1442,53 +1442,38 @@
     "analytics_clutch_performance": {
       "columns": [
         {
-          "key": "PK",
-          "name": "player_id",
-          "type": "int"
-        },
-        {
-          "key": "PK",
-          "name": "team_id",
-          "type": "int"
+          "key": "",
+          "name": "pts",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "season_year",
-          "type": "str"
+          "name": "reb",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "clutch_window",
-          "type": "str"
+          "name": "ast",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "player_name",
-          "type": "str"
+          "name": "stl",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "team_abbreviation",
-          "type": "str"
+          "name": "blk",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "gp",
-          "type": "int"
+          "name": "tov",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "w",
-          "type": "int"
-        },
-        {
-          "key": "",
-          "name": "l",
-          "type": "int"
-        },
-        {
-          "key": "",
-          "name": "min",
+          "name": "pf",
           "type": "float"
         },
         {
@@ -1548,43 +1533,58 @@
         },
         {
           "key": "",
-          "name": "reb",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "ast",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "tov",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "stl",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "blk",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pf",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pts",
-          "type": "float"
-        },
-        {
-          "key": "",
           "name": "plus_minus",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "clutch_window",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l",
+          "type": "int"
         },
         {
           "key": "",
@@ -2017,43 +2017,123 @@
     "analytics_player_game_complete": {
       "columns": [
         {
-          "key": "PK",
-          "name": "player_id",
-          "type": "int"
-        },
-        {
-          "key": "PK",
-          "name": "game_id",
-          "type": "str"
-        },
-        {
-          "key": "PK",
-          "name": "team_id",
-          "type": "int"
+          "key": "",
+          "name": "dist",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "season_year",
-          "type": "str"
+          "name": "spd",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "game_date",
-          "type": "str"
+          "name": "tchs",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "player_name",
-          "type": "str"
+          "name": "passes",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "team_abbreviation",
-          "type": "str"
+          "name": "contested_shots",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "min",
+          "name": "deflections",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "loose_balls_recovered",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "charges_drawn",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "screen_assists",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts_off_tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "second_chance_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fbps",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pitp",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "def_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "net_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ts_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pace",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pie",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb_pct",
           "type": "float"
         },
         {
@@ -2084,6 +2164,11 @@
         {
           "key": "",
           "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf",
           "type": "float"
         },
         {
@@ -2143,33 +2228,48 @@
         },
         {
           "key": "",
-          "name": "pf",
-          "type": "float"
-        },
-        {
-          "key": "",
           "name": "plus_minus",
           "type": "float"
         },
         {
           "key": "",
-          "name": "off_rating",
+          "name": "min",
           "type": "float"
         },
         {
-          "key": "",
-          "name": "def_rating",
-          "type": "float"
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
         },
         {
           "key": "",
-          "name": "net_rating",
-          "type": "float"
+          "name": "season_year",
+          "type": "str"
         },
         {
           "key": "",
-          "name": "ast_pct",
-          "type": "float"
+          "name": "game_date",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
         },
         {
           "key": "",
@@ -2178,107 +2278,7 @@
         },
         {
           "key": "",
-          "name": "reb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "oreb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "dreb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "efg_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "ts_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pace",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pie",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pts_off_tov",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "second_chance_pts",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "fbps",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pitp",
-          "type": "float"
-        },
-        {
-          "key": "",
           "name": "usg_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "contested_shots",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "deflections",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "loose_balls_recovered",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "charges_drawn",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "screen_assists",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "dist",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "spd",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "tchs",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "passes",
           "type": "float"
         },
         {
@@ -2832,34 +2832,124 @@
     "analytics_team_game_complete": {
       "columns": [
         {
-          "key": "PK",
-          "name": "team_id",
-          "type": "int"
-        },
-        {
-          "key": "PK",
-          "name": "game_id",
-          "type": "str"
+          "key": "",
+          "name": "dist",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "season_year",
-          "type": "str"
+          "name": "spd",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "game_date",
-          "type": "str"
+          "name": "tchs",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "team_name",
-          "type": "str"
+          "name": "passes",
+          "type": "float"
         },
         {
           "key": "",
-          "name": "team_abbreviation",
-          "type": "str"
+          "name": "contested_shots",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "deflections",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "loose_balls_recovered",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "charges_drawn",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "screen_assists",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts_off_tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "second_chance_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fbps",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pitp",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "def_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "net_rating",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ts_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pace",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pie",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb_pct",
+          "type": "float"
         },
         {
           "key": "",
@@ -2889,6 +2979,11 @@
         {
           "key": "",
           "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf",
           "type": "float"
         },
         {
@@ -2948,133 +3043,38 @@
         },
         {
           "key": "",
-          "name": "pf",
-          "type": "float"
-        },
-        {
-          "key": "",
           "name": "plus_minus",
           "type": "float"
         },
         {
-          "key": "",
-          "name": "off_rating",
-          "type": "float"
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
         },
         {
           "key": "",
-          "name": "def_rating",
-          "type": "float"
+          "name": "season_year",
+          "type": "str"
         },
         {
           "key": "",
-          "name": "net_rating",
-          "type": "float"
+          "name": "game_date",
+          "type": "str"
         },
         {
           "key": "",
-          "name": "ast_pct",
-          "type": "float"
+          "name": "team_name",
+          "type": "str"
         },
         {
           "key": "",
-          "name": "reb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "oreb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "dreb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "efg_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "ts_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pace",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pie",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pts_off_tov",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "second_chance_pts",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "fbps",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "pitp",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "contested_shots",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "deflections",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "loose_balls_recovered",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "charges_drawn",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "screen_assists",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "dist",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "spd",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "tchs",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "passes",
-          "type": "float"
+          "name": "team_abbreviation",
+          "type": "str"
         }
       ],
       "family": "analytics",
