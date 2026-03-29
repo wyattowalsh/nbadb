@@ -13,25 +13,26 @@ Six specialty endpoints round out the game package.
 
 ## Quick route
 
-| If you need... | Use | Why it is the fastest route |
-| -------------- | --- | --------------------------- |
-| shot coordinates and zone labels | `ShotChartDetail` | Best single stop for court-mapped shooting detail and league-average zone context |
-| stint-level substitution timing | `GameRotation` | Shows when players checked in/out and what happened during those runs |
-| hustle stats outside the main box board | `HustleStatsBoxScore` | Quick mirror for hustle categories in a game-specific specialty feed |
-| officials, inactive players, and series context | `BoxScoreSummaryV2` | Summary packet for everything around the main line score |
-| season-level estimated player models | `PlayerEstimatedMetrics` | Efficient way to pull estimated advanced metrics for players |
-| season-level estimated team models | `TeamEstimatedMetrics` | Same estimated-model lane, but at team scope |
+| If you need...                                  | Use                      | Why it is the fastest route                                                       |
+| ----------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| shot coordinates and zone labels                | `ShotChartDetail`        | Best single stop for court-mapped shooting detail and league-average zone context |
+| stint-level substitution timing                 | `GameRotation`           | Shows when players checked in/out and what happened during those runs             |
+| hustle stats outside the main box board         | `HustleStatsBoxScore`    | Quick mirror for hustle categories in a game-specific specialty feed              |
+| officials, inactive players, and series context | `BoxScoreSummaryV2`      | Summary packet for everything around the main line score                          |
+| season-level estimated player models            | `PlayerEstimatedMetrics` | Efficient way to pull estimated advanced metrics for players                      |
+| season-level estimated team models              | `TeamEstimatedMetrics`   | Same estimated-model lane, but at team scope                                      |
 
 ## Single-game supplements
 
-| Endpoint | Parameters | Result sets | Route cue |
-| -------- | ---------- | ----------- | --------- |
-| `ShotChartDetail` | `player_id`, `team_id`, `game_id`, `season`, `context_measure` | `Shot_Chart_Detail`, `LeagueAverages` | Use when the game question becomes “where did the shots come from?” |
-| `GameRotation` | `game_id` (required) | `HomeTeam`, `AwayTeam` | Best for substitution waves, stint windows, and on-floor timing |
-| `HustleStatsBoxScore` | `game_id` (required) | `PlayerStats`, `TeamStats` | Pull this when deflections, loose balls, or contested shots are central to the story |
-| `BoxScoreSummaryV2` | `game_id` (required) | `GameSummary`, `OtherStats`, `Officials`, `InactivePlayers`, `GameInfo`, `LineScore`, `LastMeeting`, `SeasonSeries`, `AvailableVideo` | Use when you need officials, inactive lists, or series context; officials feed `bridge_game_official` |
+| Endpoint              | Parameters                                                     | Result sets                                                                                                                           | Route cue                                                                                             |
+| --------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `ShotChartDetail`     | `player_id`, `team_id`, `game_id`, `season`, `context_measure` | `Shot_Chart_Detail`, `LeagueAverages`                                                                                                 | Use when the game question becomes “where did the shots come from?”                                   |
+| `GameRotation`        | `game_id` (required)                                           | `HomeTeam`, `AwayTeam`                                                                                                                | Best for substitution waves, stint windows, and on-floor timing                                       |
+| `HustleStatsBoxScore` | `game_id` (required)                                           | `PlayerStats`, `TeamStats`                                                                                                            | Pull this when deflections, loose balls, or contested shots are central to the story                  |
+| `BoxScoreSummaryV2`   | `game_id` (required)                                           | `GameSummary`, `OtherStats`, `Officials`, `InactivePlayers`, `GameInfo`, `LineScore`, `LastMeeting`, `SeasonSeries`, `AvailableVideo` | Use when you need officials, inactive lists, or series context; officials feed `bridge_game_official` |
 
 **Lands in:**
+
 - `ShotChartDetail` &rarr; `stg_shot_chart` &rarr; `fact_shot_chart`, `fact_shot_chart_league_averages`
 - `GameRotation` &rarr; `stg_rotation_home`, `stg_rotation_away` &rarr; `fact_rotation`
 - `HustleStatsBoxScore` &rarr; `stg_box_score_hustle` &rarr; `fact_league_hustle`, `fact_team_game_hustle`
@@ -39,12 +40,13 @@ Six specialty endpoints round out the game package.
 
 ## Season estimated-model shelf
 
-| Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
-| -------- | ---------- | ----------- | --------------------- | --------- |
+| Endpoint                 | Parameters          | Result sets              | Key columns / signals                                                                                                                      | Route cue                                                                               |
+| ------------------------ | ------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | `PlayerEstimatedMetrics` | `season` (required) | `PlayerEstimatedMetrics` | `e_off_rating`, `e_def_rating`, `e_net_rating`, `e_ast_ratio`, `e_oreb_pct`, `e_dreb_pct`, `e_reb_pct`, `e_tov_pct`, `e_usg_pct`, `e_pace` | Use when you need model-derived player rates without opening the full league dashboards |
-| `TeamEstimatedMetrics` | `season` (required) | `TeamEstimatedMetrics` | estimated team-level rating and pace fields | Use when the estimated-model question is about team profile rather than player profile |
+| `TeamEstimatedMetrics`   | `season` (required) | `TeamEstimatedMetrics`   | estimated team-level rating and pace fields                                                                                                | Use when the estimated-model question is about team profile rather than player profile  |
 
 **Lands in:**
+
 - `PlayerEstimatedMetrics` &rarr; `stg_player_tracking` &rarr; `fact_estimated_metrics`
 - `TeamEstimatedMetrics` &rarr; `stg_team_dashboard_estimated` &rarr; `fact_estimated_metrics`
 
@@ -60,16 +62,21 @@ Six specialty endpoints round out the game package.
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Reconnect to the core game packet" label="Next stop">
-    Head back to <a href="/docs/endpoints/box-scores">Box Scores</a> when you need the
-    traditional, advanced, and tracking summaries that frame these specialty feeds inside
-    the full postgame report.
+    Head back to <a href="/docs/endpoints/box-scores">Box Scores</a> when you
+    need the traditional, advanced, and tracking summaries that frame these
+    specialty feeds inside the full postgame report.
   </ScoutCard>
   <ScoutCard title="Restore action order" label="Next stop">
-    Open <a href="/docs/endpoints/play-by-play">Play-by-Play</a> to place shot charts,
-    rotations, and summary details back onto the possession timeline for the same <code>game_id</code>.
+    Open <a href="/docs/endpoints/play-by-play">Play-by-Play</a> to place shot
+    charts, rotations, and summary details back onto the possession timeline for
+    the same <code>game_id</code>.
   </ScoutCard>
-  <ScoutCard title="Compare estimated models against the season board" label="Next stop">
-    Use <a href="/docs/endpoints/league-stats">League Stats</a> when player or team estimated
-    metrics need league-wide rankings, lineup context, or standings-level comparison.
+  <ScoutCard
+    title="Compare estimated models against the season board"
+    label="Next stop"
+  >
+    Use <a href="/docs/endpoints/league-stats">League Stats</a> when player or
+    team estimated metrics need league-wide rankings, lineup context, or
+    standings-level comparison.
   </ScoutCard>
 </div>

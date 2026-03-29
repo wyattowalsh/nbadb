@@ -28,7 +28,8 @@ This page is the passing diagram for the warehouse: it shows how dimensions, fac
 </StatGrid>
 
 <Callout type="info">
-Start from the fact grain, add only the dimensions the question needs, and let bridges absorb many-to-many edges instead of hand-building duplicate joins.
+  Start from the fact grain, add only the dimensions the question needs, and let
+  bridges absorb many-to-many edges instead of hand-building duplicate joins.
 </Callout>
 
 ## Before you join anything
@@ -42,16 +43,24 @@ Start from the fact grain, add only the dimensions the question needs, and let b
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="See the common join lanes" label="Jump to section">
-    Start with <a href="#common-join-lanes">Common join lanes</a> when you already know the analytical question and want the cleanest table path.
+    Start with <a href="#common-join-lanes">Common join lanes</a> when you
+    already know the analytical question and want the cleanest table path.
   </ScoutCard>
   <ScoutCard title="Copy a working pattern" label="Jump to section">
-    Jump to <a href="#join-play-calls">Join play calls</a> for reusable SQL examples covering player-game, matchup, game-team, official, and shot-zone workflows.
+    Jump to <a href="#join-play-calls">Join play calls</a> for reusable SQL
+    examples covering player-game, matchup, game-team, official, and shot-zone
+    workflows.
   </ScoutCard>
   <ScoutCard title="Avoid naming traps" label="Jump to section">
-    Go to <a href="#column-names-to-use-carefully">Column names to use carefully</a> before you assume `visitor` and `away`, or `player_id` and source-shaped person fields, mean the same thing everywhere.
+    Go to{" "}
+    <a href="#column-names-to-use-carefully">Column names to use carefully</a>{" "}
+    before you assume `visitor` and `away`, or `player_id` and source-shaped
+    person fields, mean the same thing everywhere.
   </ScoutCard>
   <ScoutCard title="Validate exact contracts" label="Generated boundary">
-    Use the generated <a href="/docs/schema/star-reference">Star Reference</a> after you choose the join lane here and need to confirm exact columns or nullability.
+    Use the generated <a href="/docs/schema/star-reference">Star Reference</a>{" "}
+    after you choose the join lane here and need to confirm exact columns or
+    nullability.
   </ScoutCard>
 </div>
 
@@ -59,49 +68,58 @@ Start from the fact grain, add only the dimensions the question needs, and let b
 
 ## Core keys by hub
 
-| Hub | Default key(s) | Common use |
-| --- | -------------- | ---------- |
-| Player | `player_id` | Attach player identity, roster context, and most player-facing facts |
-| Team | `team_id` | Attach current team identity, standings context, and team-facing facts |
-| Game | `game_id` | Anchor game, matchup, event, and shot workflows |
-| Season/time | `season_year`, `date_key`, phase/week fields | Filter, bucket, and summarize without hand-rolling calendar logic |
-| Historical team context | franchise/history fields on `dim_team_history` | Era-aware team branding and franchise timeline work |
-| Event vocabularies | event/zone identifiers | Decode play types and shot geography without bloating fact rows |
+| Hub                     | Default key(s)                                 | Common use                                                             |
+| ----------------------- | ---------------------------------------------- | ---------------------------------------------------------------------- |
+| Player                  | `player_id`                                    | Attach player identity, roster context, and most player-facing facts   |
+| Team                    | `team_id`                                      | Attach current team identity, standings context, and team-facing facts |
+| Game                    | `game_id`                                      | Anchor game, matchup, event, and shot workflows                        |
+| Season/time             | `season_year`, `date_key`, phase/week fields   | Filter, bucket, and summarize without hand-rolling calendar logic      |
+| Historical team context | franchise/history fields on `dim_team_history` | Era-aware team branding and franchise timeline work                    |
+| Event vocabularies      | event/zone identifiers                         | Decode play types and shot geography without bloating fact rows        |
 
 ## Common join lanes
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <ScoutCard title="Grain first" label="Join rule">
-    Pick the fact table that already matches the final row grain before you add any context tables. Most duplication problems start when the base fact is too wide or too high-level for the question.
+    Pick the fact table that already matches the final row grain before you add
+    any context tables. Most duplication problems start when the base fact is
+    too wide or too high-level for the question.
   </ScoutCard>
   <ScoutCard title="Game joins carry two teams" label="Join rule">
-    Use `dim_game` as the anchor when both clubs belong on the same record. It already carries `home_team_id` and `visitor_team_id`, so you can add both sides cleanly.
+    Use `dim_game` as the anchor when both clubs belong on the same record. It
+    already carries `home_team_id` and `visitor_team_id`, so you can add both
+    sides cleanly.
   </ScoutCard>
   <ScoutCard title="Bridges absorb many-to-many edges" label="Join rule">
-    Let the five bridge tables (`bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season`) handle expansion instead of repeating columns or reverse-engineering slot logic from a fact table.
+    Let the five bridge tables (`bridge_game_official`, `bridge_play_player`,
+    `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season`)
+    handle expansion instead of repeating columns or reverse-engineering slot
+    logic from a fact table.
   </ScoutCard>
   <ScoutCard title="Discriminators are part of the grain" label="Join rule">
-    Dashboard and event-style facts often need `split_type`, `detail_type`, `tracking_type`, or similar fields to stay logically unique. Treat those as grouping context, not decoration.
+    Dashboard and event-style facts often need `split_type`, `detail_type`,
+    `tracking_type`, or similar fields to stay logically unique. Treat those as
+    grouping context, not decoration.
   </ScoutCard>
 </div>
 
-| Question | Start at | Add these joins | Why this lane stays clean |
-| -------- | -------- | --------------- | ------------------------- |
-| What happened in a player game? | `fact_player_game_traditional` | `dim_player`, `dim_team`, `dim_game` | One row already matches the player-game grain |
-| How do I show both clubs on one game row? | `dim_game` | `dim_team` twice via `home_team_id` and `visitor_team_id` | The game dimension carries both sides of the matchup |
-| Who guarded whom? | `fact_matchup` | offensive `dim_player`/`dim_team`, defensive `dim_player`/`dim_team`, then `dim_game` | Offense and defense stay in separate lanes on the matchup fact |
-| Which officials worked a game? | `bridge_game_official` | `dim_game`, `dim_official` | The bridge prevents repeated official columns on every game row |
-| How do I group shots by zone? | `fact_shot_chart` | `dim_player`, `dim_shot_zone`, `dim_game` | Shot attempts stay atomic while the lookup adds readable court labels |
+| Question                                  | Start at                       | Add these joins                                                                       | Why this lane stays clean                                             |
+| ----------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| What happened in a player game?           | `fact_player_game_traditional` | `dim_player`, `dim_team`, `dim_game`                                                  | One row already matches the player-game grain                         |
+| How do I show both clubs on one game row? | `dim_game`                     | `dim_team` twice via `home_team_id` and `visitor_team_id`                             | The game dimension carries both sides of the matchup                  |
+| Who guarded whom?                         | `fact_matchup`                 | offensive `dim_player`/`dim_team`, defensive `dim_player`/`dim_team`, then `dim_game` | Offense and defense stay in separate lanes on the matchup fact        |
+| Which officials worked a game?            | `bridge_game_official`         | `dim_game`, `dim_official`                                                            | The bridge prevents repeated official columns on every game row       |
+| How do I group shots by zone?             | `fact_shot_chart`              | `dim_player`, `dim_shot_zone`, `dim_game`                                             | Shot attempts stay atomic while the lookup adds readable court labels |
 
 ## Safe join sequence
 
-| Step | What to decide | Typical choices |
-| ---- | -------------- | --------------- |
-| 1 | Base grain | player-game, team-game, event, stint, shot, season summary |
-| 2 | Required entity context | `dim_player`, `dim_team`, `dim_game` |
-| 3 | Time/reporting context | `dim_date`, `dim_season`, `dim_season_phase`, `dim_season_week` |
-| 4 | Lookup labels or many-to-many expansion | `dim_play_event_type`, `dim_shot_zone`, `bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season` |
-| 5 | Contract verification | generated [Star Reference](/docs/schema/star-reference) |
+| Step | What to decide                          | Typical choices                                                                                                                                               |
+| ---- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Base grain                              | player-game, team-game, event, stint, shot, season summary                                                                                                    |
+| 2    | Required entity context                 | `dim_player`, `dim_team`, `dim_game`                                                                                                                          |
+| 3    | Time/reporting context                  | `dim_date`, `dim_season`, `dim_season_phase`, `dim_season_week`                                                                                               |
+| 4    | Lookup labels or many-to-many expansion | `dim_play_event_type`, `dim_shot_zone`, `bridge_game_official`, `bridge_play_player`, `bridge_game_team`, `bridge_lineup_player`, `bridge_player_team_season` |
+| 5    | Contract verification                   | generated [Star Reference](/docs/schema/star-reference)                                                                                                       |
 
 ## Join play calls
 
@@ -228,20 +246,20 @@ ORDER BY bpts.season_year;
 
 ## Column names to use carefully
 
-| Pattern | What to watch |
-| ------- | ------------- |
-| `visitor_*` vs `away_*` | `dim_game` and several game facts use `visitor_team_id`/`visitor_*`, while some other surfaces use `away` in text or side labels. Do not assume one universal spelling. |
-| `player_id` vs source-shaped person fields | Most analyst-facing joins use `player_id`, but some source-shaped facts still expose `person_id` or player-slot columns directly. Check the table before copying a join pattern. |
+| Pattern                                     | What to watch                                                                                                                                                                     |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `visitor_*` vs `away_*`                     | `dim_game` and several game facts use `visitor_team_id`/`visitor_*`, while some other surfaces use `away` in text or side labels. Do not assume one universal spelling.           |
+| `player_id` vs source-shaped person fields  | Most analyst-facing joins use `player_id`, but some source-shaped facts still expose `person_id` or player-slot columns directly. Check the table before copying a join pattern.  |
 | Participant slots and discriminator columns | Event-style and dashboard-style facts often include slots or discriminator fields that are part of the grain. Treat them as join keys or grouping context, not optional metadata. |
 
 ## Common duplication traps
 
-| Trap | Safer move |
-| ---- | ---------- |
+| Trap                                                                                                                       | Safer move                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Joining a team dimension to a player-game fact before confirming whether the team key is on the fact or only on `dim_game` | Start from the fact's native `team_id` first, then add `dim_game` only if matchup context is needed |
-| Reconstructing multiple play participants from slot columns | Use `bridge_play_player` so each participant becomes a clean row |
-| Repeating official columns across game-level outputs | Join through `bridge_game_official` instead of expecting a fixed set of referee columns everywhere |
-| Treating dashboard discriminators like optional labels | Include them in grouping/filter logic whenever they define the logical row |
+| Reconstructing multiple play participants from slot columns                                                                | Use `bridge_play_player` so each participant becomes a clean row                                    |
+| Repeating official columns across game-level outputs                                                                       | Join through `bridge_game_official` instead of expecting a fixed set of referee columns everywhere  |
+| Treating dashboard discriminators like optional labels                                                                     | Include them in grouping/filter logic whenever they define the logical row                          |
 
 ## Join performance tips
 

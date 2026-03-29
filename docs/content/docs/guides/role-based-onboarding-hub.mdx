@@ -11,21 +11,37 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 Welcome to the **coaching staff room** for nbadb. Use this page to pick your role, run the opening drill, and get onto the right page before you burn time wandering the whole playbook.
 
 <StatGrid columns={4}>
-  <StatPill label="Routes" value="4" note="contributor, analyst, operator, stakeholder" />
-  <StatPill label="Warm-up lane" value="Browser first" note="open Playground when you want the lowest-friction start" />
-  <StatPill label="Best first win" value="One useful artifact" note="leave with a query, command, diagram, or handoff page" />
-  <StatPill label="Default move" value="Start by today" note="pick the role that matches the current job, not the org chart" />
+  <StatPill
+    label="Routes"
+    value="4"
+    note="contributor, analyst, operator, stakeholder"
+  />
+  <StatPill
+    label="Warm-up lane"
+    value="Browser first"
+    note="open Playground when you want the lowest-friction start"
+  />
+  <StatPill
+    label="Best first win"
+    value="One useful artifact"
+    note="leave with a query, command, diagram, or handoff page"
+  />
+  <StatPill
+    label="Default move"
+    value="Start by today"
+    note="pick the role that matches the current job, not the org chart"
+  />
 </StatGrid>
 
 ## Route board in one glance
 
-| Role today | Start here | First useful action | Leave with |
-| ---------- | ---------- | ------------------- | ---------- |
-| Contributor | [Installation](/docs/installation) | Run `uv sync --extra dev` so the local toolchain is real before you touch code or docs | A working dev environment and the right follow-up page |
-| Analyst without local setup | [SQL Playground](/docs/playground) | Run one sample query in the browser and change a filter, aggregate, or sort | A query shape you can port to live data |
-| Analyst with live data | [Analytics Quickstart](/docs/guides/analytics-quickstart) | Connect to `nba.duckdb` and stop once `SHOW TABLES` confirms the floor | One working answer or reusable notebook cell |
-| Operator | [Daily Updates](/docs/guides/daily-updates) | Run `nbadb status --output-format json` so you know the current state before you choose `daily`, `monthly`, or `full` | A clean run, a deliberate rerun, or an isolated failure lane |
-| Stakeholder | [Architecture](/docs/architecture) | Run `nbadb schema` for the fastest public-model snapshot | A clear picture of what the dataset contains and how it moves |
+| Role today                  | Start here                                                | First useful action                                                                                                   | Leave with                                                    |
+| --------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Contributor                 | [Installation](/docs/installation)                        | Run `uv sync --extra dev` so the local toolchain is real before you touch code or docs                                | A working dev environment and the right follow-up page        |
+| Analyst without local setup | [SQL Playground](/docs/playground)                        | Run one sample query in the browser and change a filter, aggregate, or sort                                           | A query shape you can port to live data                       |
+| Analyst with live data      | [Analytics Quickstart](/docs/guides/analytics-quickstart) | Connect to `nba.duckdb` and stop once `SHOW TABLES` confirms the floor                                                | One working answer or reusable notebook cell                  |
+| Operator                    | [Daily Updates](/docs/guides/daily-updates)               | Run `nbadb status --output-format json` so you know the current state before you choose `daily`, `monthly`, or `full` | A clean run, a deliberate rerun, or an isolated failure lane  |
+| Stakeholder                 | [Architecture](/docs/architecture)                        | Run `nbadb schema` for the fastest public-model snapshot                                                              | A clear picture of what the dataset contains and how it moves |
 
 ## Quick route board
 
@@ -36,14 +52,25 @@ Welcome to the **coaching staff room** for nbadb. Use this page to pick your rol
     Next stop: <a href="/docs/cli-reference">CLI Reference</a>.
   </ScoutCard>
   <ScoutCard title="Analyst" label="First-answer lane">
-    First read: <a href="/docs/playground">SQL Playground</a> for browser-only reps, or <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a> for live data.<br />
-    First useful action: run the Playground leaderboard example, or <code>nbadb download</code> if you are moving straight to the full dataset.<br />
-    Next stop: <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>.
+    First read: <a href="/docs/playground">SQL Playground</a> for browser-only
+    reps, or{" "}
+    <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a> for
+    live data.
+    <br />
+    First useful action: run the Playground leaderboard example, or{" "}
+    <code>nbadb download</code> if you are moving straight to the full dataset.
+    <br />
+    Next stop:{" "}
+    <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>.
   </ScoutCard>
   <ScoutCard title="Operator" label="Run and recovery lane">
     First read: <a href="/docs/guides/daily-updates">Daily Updates</a>.<br />
-    First useful action: <code>nbadb status --output-format json</code>, then <code>nbadb daily</code> when the recurring lane is clear.<br />
-    Next stop: <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a>.
+    First useful action: <code>nbadb status --output-format json</code>, then{" "}
+    <code>nbadb daily</code> when the recurring lane is clear.
+    <br />
+    Next stop:{" "}
+    <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a>
+    .
   </ScoutCard>
   <ScoutCard title="Stakeholder" label="Context lane">
     First read: <a href="/docs/architecture">Architecture</a>.<br />
@@ -52,13 +79,19 @@ Welcome to the **coaching staff room** for nbadb. Use this page to pick your rol
   </ScoutCard>
   <ScoutCard title="Browser warm-up" label="Low-friction lane">
     First read: <a href="/docs/playground">SQL Playground</a>.<br />
-    First useful action: run one sample query and change one filter, sort, or aggregate.<br />
-    Next stop: <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>.
+    First useful action: run one sample query and change one filter, sort, or
+    aggregate.
+    <br />
+    Next stop:{" "}
+    <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>.
   </ScoutCard>
 </div>
 
 <Callout type="info">
-Pick one lane, run one useful action, then branch. If you are not sure where to begin, choose the row that matches the job you need done **today**, not the title on your org chart. If you need the lowest-friction start possible, take the browser lane first and move to the local warehouse second.
+  Pick one lane, run one useful action, then branch. If you are not sure where
+  to begin, choose the row that matches the job you need done **today**, not the
+  title on your org chart. If you need the lowest-friction start possible, take
+  the browser lane first and move to the local warehouse second.
 </Callout>
 
 ## Pick your lane
@@ -103,6 +136,7 @@ Each tab gives you the same scan path:
         <li>If CI or artifacts fail, jump to the <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a>.</li>
       </ul>
     </InsightCard>
+
   </Tab>
 
   <Tab value="Analyst">
@@ -145,6 +179,7 @@ Each tab gives you the same scan path:
         <li>DuckDB is the fastest first possession for joins; Parquet is the cleaner handoff when the rest of the workflow is DataFrame-first.</li>
       </ul>
     </InsightCard>
+
   </Tab>
 
   <Tab value="Operator">
@@ -188,6 +223,7 @@ Each tab gives you the same scan path:
         <li>When something breaks, start with the exact artifact or command named in the failure message.</li>
       </ul>
     </InsightCard>
+
   </Tab>
 
   <Tab value="Stakeholder">
@@ -223,5 +259,6 @@ Each tab gives you the same scan path:
         <li>Use this hub as the handoff page for new teammates entering the rotation.</li>
       </ul>
     </InsightCard>
+
   </Tab>
 </Tabs>

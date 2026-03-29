@@ -12,56 +12,60 @@ nbadb extracts from the **nba_api endpoint surface** and normalizes data into **
 > **Coverage cue:** Read each family top to bottom: endpoint first, result set second, target table third. That order tells you where a question should start and where it lands.
 
 <Callout type="info">
-This page is the source-coverage overlay for the warehouse. Use it when you know the inbound feed
-or endpoint family; switch to <a href="/docs/lineage/table-lineage">Table Lineage</a> when you need
-the full possession chain through raw and staging layers.
+  This page is the source-coverage overlay for the warehouse. Use it when you
+  know the inbound feed or endpoint family; switch to{" "}
+  <a href="/docs/lineage/table-lineage">Table Lineage</a> when you need the full
+  possession chain through raw and staging layers.
 </Callout>
 
 ## Quick navigation
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <ScoutCard title="Start with box scores" label="Fastest route">
-    Jump to <a href="#box-score-endpoints">Box score endpoints</a> when the issue lives in the
-    player-game or team-game stat families.
+    Jump to <a href="#box-score-endpoints">Box score endpoints</a> when the
+    issue lives in the player-game or team-game stat families.
   </ScoutCard>
   <ScoutCard title="Check game flow feeds" label="Fastest route">
-    Use <a href="#play-by-play-endpoints">Play-by-play endpoints</a> or{' '}
-    <a href="#schedule--scoreboard-endpoints">Schedule &amp; scoreboard endpoints</a> when the
-    question is about events, game headers, or live-state coverage.
+    Use <a href="#play-by-play-endpoints">Play-by-play endpoints</a> or{" "}
+    <a href="#schedule--scoreboard-endpoints">
+      Schedule &amp; scoreboard endpoints
+    </a>{" "}
+    when the question is about events, game headers, or live-state coverage.
   </ScoutCard>
   <ScoutCard title="Inspect broader warehouse families" label="Fastest route">
-    Go to <a href="#league-wide-endpoints">League-wide endpoints</a> or{' '}
-    <a href="#draft-endpoints">Draft endpoints</a> when the source is not tied to a single game.
+    Go to <a href="#league-wide-endpoints">League-wide endpoints</a> or{" "}
+    <a href="#draft-endpoints">Draft endpoints</a> when the source is not tied
+    to a single game.
   </ScoutCard>
   <ScoutCard title="Check what stays out" label="Boundary">
-    Open <a href="#skipped-endpoints">Skipped endpoints</a> when you need to confirm why a feed is
-    not represented on the board.
+    Open <a href="#skipped-endpoints">Skipped endpoints</a> when you need to
+    confirm why a feed is not represented on the board.
   </ScoutCard>
 </div>
 
 ## Read the board in three passes
 
-| Pass | What to scan first | Why it helps |
-| ---- | ------------------ | ------------ |
-| 1. Endpoint family | The section heading that matches your nba_api surface | It narrows the search before you read result-set names or table names |
-| 2. Result set | The middle column in each table | It tells you which payload slice actually lands, especially on multi-result endpoints |
-| 3. Target table | The warehouse output column | It tells you whether to switch next to diagrams, lineage, or schema reference |
+| Pass               | What to scan first                                    | Why it helps                                                                          |
+| ------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1. Endpoint family | The section heading that matches your nba_api surface | It narrows the search before you read result-set names or table names                 |
+| 2. Result set      | The middle column in each table                       | It tells you which payload slice actually lands, especially on multi-result endpoints |
+| 3. Target table    | The warehouse output column                           | It tells you whether to switch next to diagrams, lineage, or schema reference         |
 
 ## Coverage families in one glance
 
-| Family | Count | Start here when… |
-| ------ | ----- | ---------------- |
-| Box score | 10 | The question is about per-game player/team stat splits |
-| Play-by-play | 3 | You need event streams, available video flags, or win-probability data |
-| Game logs | 3 | You are tracing season log-style tables rather than event-level feeds |
-| Player | 7 | The issue is identity, profile, awards, streaks, or career history |
-| Team | 6 | The source concerns franchise, roster, coach, or team history context |
-| Schedule & scoreboard | 3 | The problem starts with game headers, line scores, or schedule coverage |
-| League-wide | 8 | The source is cross-league rather than game-specific |
-| Draft | 7 | The feed belongs to draft history or combine workflows |
-| Shot chart | 2 | The question is about location-level shooting data |
-| Other | 6 | The feed sits outside the main family buckets |
-| Skipped | 8 | You need the exclusion rationale for deprecated or redundant feeds |
+| Family                | Count | Start here when…                                                        |
+| --------------------- | ----- | ----------------------------------------------------------------------- |
+| Box score             | 10    | The question is about per-game player/team stat splits                  |
+| Play-by-play          | 3     | You need event streams, available video flags, or win-probability data  |
+| Game logs             | 3     | You are tracing season log-style tables rather than event-level feeds   |
+| Player                | 7     | The issue is identity, profile, awards, streaks, or career history      |
+| Team                  | 6     | The source concerns franchise, roster, coach, or team history context   |
+| Schedule & scoreboard | 3     | The problem starts with game headers, line scores, or schedule coverage |
+| League-wide           | 8     | The source is cross-league rather than game-specific                    |
+| Draft                 | 7     | The feed belongs to draft history or combine workflows                  |
+| Shot chart            | 2     | The question is about location-level shooting data                      |
+| Other                 | 6     | The feed sits outside the main family buckets                           |
+| Skipped               | 8     | You need the exclusion rationale for deprecated or redundant feeds      |
 
 <CourtDivider label="Trace the source families" />
 
@@ -98,15 +102,15 @@ the full possession chain through raw and staging layers.
 
 ## Player endpoints
 
-| Endpoint                      | Result Sets                           | Target Tables            |
-| ----------------------------- | ------------------------------------- | ------------------------ |
-| CommonAllPlayers              | CommonAllPlayers                      | dim_player (staging)     |
-| PlayerIndex                   | PlayerIndex                           | dim_player (staging)     |
-| CommonPlayerInfo              | CommonPlayerInfo, PlayerHeadlineStats | dim_player               |
-| PlayerCareerStats             | SeasonTotals (Reg/Post/AllStar)       | fact_player_career       |
-| PlayerAwards                  | PlayerAwards                          | fact_player_awards       |
+| Endpoint                      | Result Sets                           | Target Tables                     |
+| ----------------------------- | ------------------------------------- | --------------------------------- |
+| CommonAllPlayers              | CommonAllPlayers                      | dim_player (staging)              |
+| PlayerIndex                   | PlayerIndex                           | dim_player (staging)              |
+| CommonPlayerInfo              | CommonPlayerInfo, PlayerHeadlineStats | dim_player                        |
+| PlayerCareerStats             | SeasonTotals (Reg/Post/AllStar)       | fact_player_career                |
+| PlayerAwards                  | PlayerAwards                          | fact_player_awards                |
 | PlayerDashboardByYearOverYear | OverallPlayerDashboard                | fact_player_dashboard_yoy_overall |
-| PlayerGameStreakFinder        | PlayerGameStreakFinderResults         | fact_player_streaks      |
+| PlayerGameStreakFinder        | PlayerGameStreakFinderResults         | fact_player_streaks               |
 
 ## Team endpoints
 
@@ -129,16 +133,16 @@ the full possession chain through raw and staging layers.
 
 ## League-wide endpoints
 
-| Endpoint              | Result Sets           | Target Tables               |
-| --------------------- | --------------------- | --------------------------- |
+| Endpoint              | Result Sets           | Target Tables                 |
+| --------------------- | --------------------- | ----------------------------- |
 | LeagueDashPlayerStats | LeagueDashPlayerStats | fact_league_dash_player_stats |
 | LeagueDashTeamStats   | LeagueDashTeamStats   | fact_league_dash_team_stats   |
-| LeagueStandingsV3     | Standings             | fact_standings              |
-| SynergyPlayTypes      | SynergyPlayType       | fact_synergy                |
-| LeagueSeasonMatchups  | SeasonMatchups        | fact_season_matchups        |
-| LeagueDashLineups     | Lineups               | fact_lineups                |
-| LeagueLeaders         | LeagueLeaders         | fact_league_leaders_detail  |
-| AllTimeLeadersGrids   | Various               | agg_all_time_leaders        |
+| LeagueStandingsV3     | Standings             | fact_standings                |
+| SynergyPlayTypes      | SynergyPlayType       | fact_synergy                  |
+| LeagueSeasonMatchups  | SeasonMatchups        | fact_season_matchups          |
+| LeagueDashLineups     | Lineups               | fact_lineups                  |
+| LeagueLeaders         | LeagueLeaders         | fact_league_leaders_detail    |
+| AllTimeLeadersGrids   | Various               | agg_all_time_leaders          |
 
 ## Draft endpoints
 
@@ -154,10 +158,10 @@ the full possession chain through raw and staging layers.
 
 ## Shot chart endpoints
 
-| Endpoint            | Result Sets       | Target Tables             |
-| ------------------- | ----------------- | ------------------------- |
-| ShotChartDetail     | Shot_Chart_Detail | fact_shot_chart           |
-| ShotChartLeagueWide | League_Wide       | fact_shot_chart_league   |
+| Endpoint            | Result Sets       | Target Tables          |
+| ------------------- | ----------------- | ---------------------- |
+| ShotChartDetail     | Shot_Chart_Detail | fact_shot_chart        |
+| ShotChartLeagueWide | League_Wide       | fact_shot_chart_league |
 
 ## Other endpoints
 
@@ -189,16 +193,21 @@ These endpoints are excluded due to deprecation, instability, or redundancy:
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="See where these tables live on the floor" label="Next stop">
-    Open <a href="/docs/diagrams/er-diagram">ER Diagram</a> when the coverage board tells you
-    which table matters and you now need the warehouse context around that table's joins and neighbors.
+    Open <a href="/docs/diagrams/er-diagram">ER Diagram</a> when the coverage
+    board tells you which table matters and you now need the warehouse context
+    around that table's joins and neighbors.
   </ScoutCard>
   <ScoutCard title="Follow one feed through the playbook" label="Next stop">
-    Continue to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> when the problem is not
-    coverage but stage movement: validation checkpoints, DuckDB staging, transform fan-out, and export.
+    Continue to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> when
+    the problem is not coverage but stage movement: validation checkpoints,
+    DuckDB staging, transform fan-out, and export.
   </ScoutCard>
-  <ScoutCard title="Trace the exact downstream possession chain" label="Next stop">
+  <ScoutCard
+    title="Trace the exact downstream possession chain"
+    label="Next stop"
+  >
     Move to <a href="/docs/lineage/table-lineage">Table Lineage</a> or{" "}
-    <a href="/docs/lineage/column-lineage">Column Lineage</a> when you need to follow one table or
-    field from endpoint touch to final analytical surface.
+    <a href="/docs/lineage/column-lineage">Column Lineage</a> when you need to
+    follow one table or field from endpoint touch to final analytical surface.
   </ScoutCard>
 </div>

@@ -28,7 +28,9 @@ Dimensions are the lineup card for the warehouse: they tell you who is on the fl
 </StatGrid>
 
 <Callout>
-<strong>SCD Type 2 alert:</strong> `dim_player` and `dim_team_history` preserve change over time. Use their business keys for ordinary joins, and reach for surrogate/history fields only when you need time-aware snapshots.
+  <strong>SCD Type 2 alert:</strong> `dim_player` and `dim_team_history`
+  preserve change over time. Use their business keys for ordinary joins, and
+  reach for surrogate/history fields only when you need time-aware snapshots.
 </Callout>
 
 ## How to use this page
@@ -41,16 +43,22 @@ Dimensions are the lineup card for the warehouse: they tell you who is on the fl
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="Anchor hubs" label="Jump to section">
-    Go to <a href="#anchor-hubs">Anchor hubs</a> for the tables that carry most analyst joins: player, team, game, and season/date context.
+    Go to <a href="#anchor-hubs">Anchor hubs</a> for the tables that carry most
+    analyst joins: player, team, game, and season/date context.
   </ScoutCard>
   <ScoutCard title="Supporting context" label="Jump to section">
-    Jump to <a href="#supporting-context">Supporting context</a> when the question is about people, venues, franchise history, or lookup vocabularies rather than the primary join hubs.
+    Jump to <a href="#supporting-context">Supporting context</a> when the
+    question is about people, venues, franchise history, or lookup vocabularies
+    rather than the primary join hubs.
   </ScoutCard>
   <ScoutCard title="Join anchors" label="Jump to section">
-    Use <a href="#join-anchors-and-watchouts">Join anchors and watchouts</a> when you need the safest key to bring a dimension into a query.
+    Use <a href="#join-anchors-and-watchouts">Join anchors and watchouts</a>{" "}
+    when you need the safest key to bring a dimension into a query.
   </ScoutCard>
   <ScoutCard title="Exact contracts" label="Generated boundary">
-    Switch to the generated <a href="/docs/schema/star-reference">Star Reference</a> once you know the dimension family and need exact schema-backed columns or constraints.
+    Switch to the generated{" "}
+    <a href="/docs/schema/star-reference">Star Reference</a> once you know the
+    dimension family and need exact schema-backed columns or constraints.
   </ScoutCard>
 </div>
 
@@ -58,37 +66,45 @@ Dimensions are the lineup card for the warehouse: they tell you who is on the fl
 
 ## Start by join anchor
 
-| If your query starts from... | Default dimension first | Add these only when needed |
-| ---------------------------- | ----------------------- | -------------------------- |
-| player facts or player-season rollups | `dim_player` | `dim_all_players` for wider lookup coverage, `dim_college` for background context |
-| team or standings facts | `dim_team` | `dim_team_extended` for richer team profile detail, `dim_team_history` / `dim_defunct_team` for era-aware franchise work |
-| game, matchup, or event facts | `dim_game` | `dim_arena` for venue detail, `dim_date` / season dimensions for reporting slices |
-| time-sliced reporting | `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase` | Other hubs only after the time frame is locked |
-| play-by-play or shot-taxonomy analysis | `dim_play_event_type`, `dim_shot_zone` | `dim_game`, `dim_player`, or `dim_team` once readable labels are in place |
+| If your query starts from...           | Default dimension first                                         | Add these only when needed                                                                                               |
+| -------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| player facts or player-season rollups  | `dim_player`                                                    | `dim_all_players` for wider lookup coverage, `dim_college` for background context                                        |
+| team or standings facts                | `dim_team`                                                      | `dim_team_extended` for richer team profile detail, `dim_team_history` / `dim_defunct_team` for era-aware franchise work |
+| game, matchup, or event facts          | `dim_game`                                                      | `dim_arena` for venue detail, `dim_date` / season dimensions for reporting slices                                        |
+| time-sliced reporting                  | `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase` | Other hubs only after the time frame is locked                                                                           |
+| play-by-play or shot-taxonomy analysis | `dim_play_event_type`, `dim_shot_zone`                          | `dim_game`, `dim_player`, or `dim_team` once readable labels are in place                                                |
 
 ## Dimension families at a glance
 
-| Cluster | Tables in the rotation | What they add to the possession |
-| ------- | ---------------------- | ------------------------------- |
-| People and identity | `dim_player`, `dim_all_players`, `dim_coach`, `dim_official`, `dim_college` | Stable person and background context for players, coaches, referees, and schools |
-| Teams, franchise history, and venues | `dim_team`, `dim_team_extended`, `dim_team_history`, `dim_defunct_team`, `dim_arena` | Current team context plus branding, franchise-history, and arena details |
-| Game and calendar frame | `dim_game`, `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase` | Schedule, season boundaries, date slicing, and NBA-specific calendar semantics |
-| Controlled vocabularies | `dim_play_event_type`, `dim_shot_zone` | Reusable labels for play-by-play event codes and shot geography |
+| Cluster                              | Tables in the rotation                                                               | What they add to the possession                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| People and identity                  | `dim_player`, `dim_all_players`, `dim_coach`, `dim_official`, `dim_college`          | Stable person and background context for players, coaches, referees, and schools |
+| Teams, franchise history, and venues | `dim_team`, `dim_team_extended`, `dim_team_history`, `dim_defunct_team`, `dim_arena` | Current team context plus branding, franchise-history, and arena details         |
+| Game and calendar frame              | `dim_game`, `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase`          | Schedule, season boundaries, date slicing, and NBA-specific calendar semantics   |
+| Controlled vocabularies              | `dim_play_event_type`, `dim_shot_zone`                                               | Reusable labels for play-by-play event codes and shot geography                  |
 
 ## Anchor hubs
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="dim_player" label="Primary hub">
-    Start here for current player identity, position, jersey, and team context. It is the default player join for most fact families unless you explicitly need a broader lookup-only roster list.
+    Start here for current player identity, position, jersey, and team context.
+    It is the default player join for most fact families unless you explicitly
+    need a broader lookup-only roster list.
   </ScoutCard>
   <ScoutCard title="dim_team" label="Primary hub">
-    The safest current-team join for names, abbreviations, conference/division context, and arena linkage. Reach for `dim_team_extended` only when the baseline team surface is too thin.
+    The safest current-team join for names, abbreviations, conference/division
+    context, and arena linkage. Reach for `dim_team_extended` only when the
+    baseline team surface is too thin.
   </ScoutCard>
   <ScoutCard title="dim_game" label="Primary hub">
-    The game anchor for both sides of the matchup. It carries `game_id` plus `home_team_id` and `visitor_team_id`, so you can add both clubs without inventing a separate matchup table.
+    The game anchor for both sides of the matchup. It carries `game_id` plus
+    `home_team_id` and `visitor_team_id`, so you can add both clubs without
+    inventing a separate matchup table.
   </ScoutCard>
   <ScoutCard title="Season + date dimensions" label="Primary hub">
-    Use `dim_season`, `dim_season_phase`, `dim_season_week`, and `dim_date` when the question is temporal first: reporting windows, weekday splits, regular season vs playoffs, or NBA-specific calendar framing.
+    Use `dim_season`, `dim_season_phase`, `dim_season_week`, and `dim_date` when
+    the question is temporal first: reporting windows, weekday splits, regular
+    season vs playoffs, or NBA-specific calendar framing.
   </ScoutCard>
 </div>
 
@@ -96,56 +112,67 @@ Dimensions are the lineup card for the warehouse: they tell you who is on the fl
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="People and school context" label="Content module">
-    `dim_all_players`, `dim_coach`, `dim_official`, and `dim_college` support broader person lookup, staffing, officiating, and background workflows that do not belong on every fact row.
+    `dim_all_players`, `dim_coach`, `dim_official`, and `dim_college` support
+    broader person lookup, staffing, officiating, and background workflows that
+    do not belong on every fact row.
   </ScoutCard>
-  <ScoutCard title="Franchise, venue, and history context" label="Content module">
-    `dim_team_history`, `dim_defunct_team`, and `dim_arena` cover branding changes, relocated franchises, retired identities, and venue metadata that would otherwise clutter the core team and game dimensions.
+  <ScoutCard
+    title="Franchise, venue, and history context"
+    label="Content module"
+  >
+    `dim_team_history`, `dim_defunct_team`, and `dim_arena` cover branding
+    changes, relocated franchises, retired identities, and venue metadata that
+    would otherwise clutter the core team and game dimensions.
   </ScoutCard>
   <ScoutCard title="Controlled vocabularies" label="Content module">
-    `dim_play_event_type` and `dim_shot_zone` decode repeated codes and geography into readable labels. They are small tables with outsized value because they keep event and shot facts interpretable.
+    `dim_play_event_type` and `dim_shot_zone` decode repeated codes and
+    geography into readable labels. They are small tables with outsized value
+    because they keep event and shot facts interpretable.
   </ScoutCard>
   <ScoutCard title="History-aware joins" label="Content module">
-    When time-aware history matters, use the SCD2 fields on `dim_player` or the historical rows in `dim_team_history`. For ordinary analyst joins, stick to the business keys and current rows.
+    When time-aware history matters, use the SCD2 fields on `dim_player` or the
+    historical rows in `dim_team_history`. For ordinary analyst joins, stick to
+    the business keys and current rows.
   </ScoutCard>
 </div>
 
 ## Fast picks by analyst task
 
-| Need | Start with | Why |
-| ---- | ---------- | --- |
-| Current player identity, jersey, position, and team context | `dim_player` | It is the main player join hub for most fact surfaces |
-| Exhaustive player lookup coverage beyond the main curated hub | `dim_all_players` | Useful for broad roster/entity lookup workflows |
-| Current franchise/team attributes | `dim_team` | Best default join for team names, conference, division, and arena context |
-| Richer team profile details from team background-style feeds | `dim_team_extended` | Use when current-team context needs more than the core `dim_team` surface |
-| Historical branding or franchise moves | `dim_team_history` and `dim_defunct_team` | These preserve city/nickname/franchise history rather than only the latest team state |
-| Venue-level reporting | `dim_arena` | Keeps arena metadata separate from individual game records |
-| Game-level join anchor | `dim_game` | Carries `game_id` plus `home_team_id` and `visitor_team_id` for both sides of the matchup |
-| Calendar slicing and NBA-specific time buckets | `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase` | Use dimensions instead of hand-parsing date strings in every query |
-| Decoding event or shot taxonomy | `dim_play_event_type`, `dim_shot_zone` | Standardizes event codes and shot areas across the model |
+| Need                                                          | Start with                                                      | Why                                                                                       |
+| ------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Current player identity, jersey, position, and team context   | `dim_player`                                                    | It is the main player join hub for most fact surfaces                                     |
+| Exhaustive player lookup coverage beyond the main curated hub | `dim_all_players`                                               | Useful for broad roster/entity lookup workflows                                           |
+| Current franchise/team attributes                             | `dim_team`                                                      | Best default join for team names, conference, division, and arena context                 |
+| Richer team profile details from team background-style feeds  | `dim_team_extended`                                             | Use when current-team context needs more than the core `dim_team` surface                 |
+| Historical branding or franchise moves                        | `dim_team_history` and `dim_defunct_team`                       | These preserve city/nickname/franchise history rather than only the latest team state     |
+| Venue-level reporting                                         | `dim_arena`                                                     | Keeps arena metadata separate from individual game records                                |
+| Game-level join anchor                                        | `dim_game`                                                      | Carries `game_id` plus `home_team_id` and `visitor_team_id` for both sides of the matchup |
+| Calendar slicing and NBA-specific time buckets                | `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase` | Use dimensions instead of hand-parsing date strings in every query                        |
+| Decoding event or shot taxonomy                               | `dim_play_event_type`, `dim_shot_zone`                          | Standardizes event codes and shot areas across the model                                  |
 
 ## When to reach past the default hub
 
-| Default choice | Reach past it when... | Better follow-up |
-| -------------- | --------------------- | ---------------- |
-| `dim_player` | you need a wider lookup-oriented player registry than the main curated join hub | `dim_all_players` |
-| `dim_team` | the baseline current-team surface is too thin for the question | `dim_team_extended` |
-| `dim_team` | the analysis is era-aware and cares about branding, relocation, or retired franchise identity | `dim_team_history` or `dim_defunct_team` |
-| `dim_game` | the real question is venue reporting rather than matchup framing | `dim_arena` |
-| `dim_game` or raw dates on facts | the report needs season windows, phases, weeks, or reusable calendar buckets | `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase` |
+| Default choice                   | Reach past it when...                                                                         | Better follow-up                                                |
+| -------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `dim_player`                     | you need a wider lookup-oriented player registry than the main curated join hub               | `dim_all_players`                                               |
+| `dim_team`                       | the baseline current-team surface is too thin for the question                                | `dim_team_extended`                                             |
+| `dim_team`                       | the analysis is era-aware and cares about branding, relocation, or retired franchise identity | `dim_team_history` or `dim_defunct_team`                        |
+| `dim_game`                       | the real question is venue reporting rather than matchup framing                              | `dim_arena`                                                     |
+| `dim_game` or raw dates on facts | the report needs season windows, phases, weeks, or reusable calendar buckets                  | `dim_date`, `dim_season`, `dim_season_week`, `dim_season_phase` |
 
 <CourtDivider label="Join anchors" />
 
 ## Join anchors and watchouts
 
-| Table | Primary join fields | Scouting note |
-| ----- | ------------------- | ------------- |
-| `dim_player` | `player_id` (plus history fields when needed) | Default player hub; only use the SCD2/history fields when you need row state over time |
-| `dim_team` | `team_id` | Best current-team join for most analytical work |
-| `dim_team_history` | historical team keying + franchise fields | Use for era-specific branding and long-horizon franchise work |
-| `dim_game` | `game_id`, `home_team_id`, `visitor_team_id` | Matchups are modeled with `visitor`, not `away`, on the main game dimension |
-| `dim_date` | `date_key`, `full_date` | Calendar helper for reporting windows, weekdays, and season-aligned date work |
-| `dim_season` / `dim_season_phase` / `dim_season_week` | season and phase/week fields | Useful when the question is temporal first and statistical second |
-| `dim_play_event_type` / `dim_shot_zone` | event or zone identifiers | Lookup tables that turn event codes and shot coordinates into readable categories |
+| Table                                                 | Primary join fields                           | Scouting note                                                                          |
+| ----------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `dim_player`                                          | `player_id` (plus history fields when needed) | Default player hub; only use the SCD2/history fields when you need row state over time |
+| `dim_team`                                            | `team_id`                                     | Best current-team join for most analytical work                                        |
+| `dim_team_history`                                    | historical team keying + franchise fields     | Use for era-specific branding and long-horizon franchise work                          |
+| `dim_game`                                            | `game_id`, `home_team_id`, `visitor_team_id`  | Matchups are modeled with `visitor`, not `away`, on the main game dimension            |
+| `dim_date`                                            | `date_key`, `full_date`                       | Calendar helper for reporting windows, weekdays, and season-aligned date work          |
+| `dim_season` / `dim_season_phase` / `dim_season_week` | season and phase/week fields                  | Useful when the question is temporal first and statistical second                      |
+| `dim_play_event_type` / `dim_shot_zone`               | event or zone identifiers                     | Lookup tables that turn event codes and shot coordinates into readable categories      |
 
 ## Default dimension habits
 
@@ -155,7 +182,9 @@ Dimensions are the lineup card for the warehouse: they tell you who is on the fl
 - **Do not over-join.** If the dimension adds no filter, label, or grouping value to the final result, leave it off the possession.
 
 <Callout type="info">
-Use this page as the scouting summary. When you need the exact schema-backed contract for a specific dimension, jump to the generated <a href="/docs/schema/star-reference">Star Reference</a>.
+  Use this page as the scouting summary. When you need the exact schema-backed
+  contract for a specific dimension, jump to the generated{" "}
+  <a href="/docs/schema/star-reference">Star Reference</a>.
 </Callout>
 
 ---

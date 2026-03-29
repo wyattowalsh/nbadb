@@ -38,27 +38,33 @@ nbadb turns the NBA stats surface into a **public analytical model** with DuckDB
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <ScoutCard title="Install and verify" label="Start here">
-    Jump to <a href="/docs/installation">Installation</a> for prerequisites, install routes, env defaults, and first-run checks.
+    Jump to <a href="/docs/installation">Installation</a> for prerequisites,
+    install routes, env defaults, and first-run checks.
   </ScoutCard>
   <ScoutCard title="Understand the pipeline" label="How it works">
-    Open <a href="/docs/architecture">Architecture</a> for the raw, staging, star flow, validation tiers, and design decisions.
+    Open <a href="/docs/architecture">Architecture</a> for the raw, staging,
+    star flow, validation tiers, and design decisions.
   </ScoutCard>
   <ScoutCard title="Find commands and flags" label="Operate">
-    Use <a href="/docs/cli-reference">CLI Reference</a> for the exact command surface, shared behaviors, and current signatures.
+    Use <a href="/docs/cli-reference">CLI Reference</a> for the exact command
+    surface, shared behaviors, and current signatures.
   </ScoutCard>
   <ScoutCard title="Query the data" label="Analyze">
-    Start with <a href="/docs/playground">SQL Playground</a> (browser-only) or <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a> (local), then use <a href="/docs/schema">Schema Reference</a> for table discovery.
+    Start with <a href="/docs/playground">SQL Playground</a> (browser-only) or{" "}
+    <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>{" "}
+    (local), then use <a href="/docs/schema">Schema Reference</a> for table
+    discovery.
   </ScoutCard>
 </div>
 
 ## Pick your lane
 
-| Reader | Start here | Then move to |
-| ------ | ---------- | ------------ |
-| First-time installer or evaluator | [Installation](/docs/installation) | [CLI Reference](/docs/cli-reference) |
-| Analyst looking for usable tables | [SQL Playground](/docs/playground) or [Analytics Quickstart](/docs/guides/analytics-quickstart) | [DuckDB Query Examples](/docs/guides/duckdb-queries) and [Schema Reference](/docs/schema) |
-| Builder changing pipeline or docs | [Architecture](/docs/architecture) | [CLI Reference](/docs/cli-reference) and [Data Dictionary](/docs/data-dictionary) |
-| Operator running recurring refreshes | [Daily Updates](/docs/guides/daily-updates) | [Kaggle Setup](/docs/guides/kaggle-setup) and [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
+| Reader                               | Start here                                                                                      | Then move to                                                                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| First-time installer or evaluator    | [Installation](/docs/installation)                                                              | [CLI Reference](/docs/cli-reference)                                                                            |
+| Analyst looking for usable tables    | [SQL Playground](/docs/playground) or [Analytics Quickstart](/docs/guides/analytics-quickstart) | [DuckDB Query Examples](/docs/guides/duckdb-queries) and [Schema Reference](/docs/schema)                       |
+| Builder changing pipeline or docs    | [Architecture](/docs/architecture)                                                              | [CLI Reference](/docs/cli-reference) and [Data Dictionary](/docs/data-dictionary)                               |
+| Operator running recurring refreshes | [Daily Updates](/docs/guides/daily-updates)                                                     | [Kaggle Setup](/docs/guides/kaggle-setup) and [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
 
 <CourtDivider label="First-five-minutes route" />
 
@@ -71,18 +77,21 @@ nbadb schema         # confirm public tables are visible
 ```
 
 <Callout type="info">
-`nbadb download` pulls the latest published Kaggle dataset. For a full historical build from source, use `nbadb init` instead (takes hours, not minutes). Once your data directory is seeded, `nbadb daily` becomes the standard game-day refresh.
+  `nbadb download` pulls the latest published Kaggle dataset. For a full
+  historical build from source, use `nbadb init` instead (takes hours, not
+  minutes). Once your data directory is seeded, `nbadb daily` becomes the
+  standard game-day refresh.
 </Callout>
 
 ## What's on the floor
 
-| Surface | Read it as… | Reach for it when… | Start here |
-| ------- | ----------- | ------------------ | ---------- |
-| Dimensions | `dim_*` identity and lookup context | You need stable entities like players, teams, games, seasons, and history-aware reference context | [Dimensions](/docs/schema/dimensions) |
-| Facts | `fact_*` event and measurement grain | You need player, team, game, play, shot, tracking, or standings data at its working grain | [Facts & Bridges](/docs/schema/facts) |
-| Bridges | `bridge_*` connectors | You are resolving many-to-many relationships between public entities | [Facts & Bridges](/docs/schema/facts) |
-| Aggregates | `agg_*` reusable rollups | You want pre-rolled summaries instead of rebuilding the same season or career SQL repeatedly | [Derived Aggregations](/docs/schema/derived) |
-| Analytics outputs | `analytics_*` convenience surfaces | You want the shortest route to analysis-ready tables and views | [Analytics Views](/docs/schema/analytics-views) |
+| Surface           | Read it as…                          | Reach for it when…                                                                                | Start here                                      |
+| ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Dimensions        | `dim_*` identity and lookup context  | You need stable entities like players, teams, games, seasons, and history-aware reference context | [Dimensions](/docs/schema/dimensions)           |
+| Facts             | `fact_*` event and measurement grain | You need player, team, game, play, shot, tracking, or standings data at its working grain         | [Facts & Bridges](/docs/schema/facts)           |
+| Bridges           | `bridge_*` connectors                | You are resolving many-to-many relationships between public entities                              | [Facts & Bridges](/docs/schema/facts)           |
+| Aggregates        | `agg_*` reusable rollups             | You want pre-rolled summaries instead of rebuilding the same season or career SQL repeatedly      | [Derived Aggregations](/docs/schema/derived)    |
+| Analytics outputs | `analytics_*` convenience surfaces   | You want the shortest route to analysis-ready tables and views                                    | [Analytics Views](/docs/schema/analytics-views) |
 
 <CourtDivider label="Guides and references" />
 

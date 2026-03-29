@@ -10,41 +10,44 @@ import { Callout } from "fumadocs-ui/components/callout";
 This page traces individual columns through the pipeline -- from their NBA API source field through raw, staging, and star schema layers. Use it like replay review for one touch in the possession: the exact field that drifted, changed names, or started failing validation.
 
 <Callout>
-Start here when the bug is field-shaped: a wrong percentage, a renamed key, a surprising nullability
-change, or a foreign key that no longer lands where you expect.
+  Start here when the bug is field-shaped: a wrong percentage, a renamed key, a
+  surprising nullability change, or a foreign key that no longer lands where you
+  expect.
 </Callout>
 
 ## Quick navigation
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <ScoutCard title="Trace identity fields" label="Entry surface">
-    Start with <a href="#player-identity-lineage">Player identity lineage</a> when the issue is a
-    key, natural identifier, or rename across layers.
+    Start with <a href="#player-identity-lineage">Player identity lineage</a>{" "}
+    when the issue is a key, natural identifier, or rename across layers.
   </ScoutCard>
   <ScoutCard title="Check metric math" label="Entry surface">
-    Use <a href="#shooting-stats-lineage">Shooting stats lineage</a> or{' '}
-    <a href="#advanced-metrics-lineage">Advanced metrics lineage</a> when a percentage or rating
-    changed unexpectedly.
+    Use <a href="#shooting-stats-lineage">Shooting stats lineage</a> or{" "}
+    <a href="#advanced-metrics-lineage">Advanced metrics lineage</a> when a
+    percentage or rating changed unexpectedly.
   </ScoutCard>
   <ScoutCard title="Follow context keys" label="Entry surface">
-    Jump to <a href="#game-context-lineage">Game context lineage</a> or{' '}
-    <a href="#team-lineage">Team lineage</a> when the breakage is about joins rather than metric math.
+    Jump to <a href="#game-context-lineage">Game context lineage</a> or{" "}
+    <a href="#team-lineage">Team lineage</a> when the breakage is about joins
+    rather than metric math.
   </ScoutCard>
   <ScoutCard title="Inspect metadata sources" label="Under the hood">
-    Go to <a href="#lineage-metadata-in-code">Lineage metadata in code</a> when you need to confirm
-    how schema metadata and transformer dependencies encode the replay.
+    Go to <a href="#lineage-metadata-in-code">Lineage metadata in code</a> when
+    you need to confirm how schema metadata and transformer dependencies encode
+    the replay.
   </ScoutCard>
 </div>
 
 ## Scan modes
 
-| If the issue looks like… | Start here | Why |
-| ------------------------ | ---------- | --- |
-| A renamed or drifting identifier | [Player identity lineage](#player-identity-lineage) | Keys usually reveal where naming changed between API, staging, and star layers |
-| A wrong percentage or derived metric | [Shooting stats lineage](#shooting-stats-lineage) | Metric examples show where values are passed through versus recomputed |
-| A join or season-context mismatch | [Game context lineage](#game-context-lineage) | Shared keys like `game_id` and `season_year` explain most warehouse joins |
-| A denormalization or dimension split | [Shot chart lineage](#shot-chart-lineage) | These examples show how raw fields become normalized dimensions and foreign keys |
-| A code-generation question | [Lineage metadata in code](#lineage-metadata-in-code) | The schema metadata and `depends_on` declarations power the generated lineage surface |
+| If the issue looks like…             | Start here                                            | Why                                                                                   |
+| ------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| A renamed or drifting identifier     | [Player identity lineage](#player-identity-lineage)   | Keys usually reveal where naming changed between API, staging, and star layers        |
+| A wrong percentage or derived metric | [Shooting stats lineage](#shooting-stats-lineage)     | Metric examples show where values are passed through versus recomputed                |
+| A join or season-context mismatch    | [Game context lineage](#game-context-lineage)         | Shared keys like `game_id` and `season_year` explain most warehouse joins             |
+| A denormalization or dimension split | [Shot chart lineage](#shot-chart-lineage)             | These examples show how raw fields become normalized dimensions and foreign keys      |
+| A code-generation question           | [Lineage metadata in code](#lineage-metadata-in-code) | The schema metadata and `depends_on` declarations power the generated lineage surface |
 
 ## How Column Lineage Works
 
@@ -59,12 +62,12 @@ flowchart LR
 
 The `source` metadata on staging schemas and `description` + `fk_ref` metadata on star schemas encode this lineage.
 
-| Frame | Typical change | What to watch for |
-| ----- | -------------- | ----------------- |
-| API → Raw | Usually a straight pass-through | Nullable or mixed-type payloads |
-| Raw → Staging | Renames to `snake_case` + validation | Contract tightening, parsed types, and nullability changes |
-| Staging → Star | Modeling decisions and FK wiring | Surrogate keys, dimension resolution, and derived fields |
-| Star → Analytics/Aggs | Convenience joins or recomputation | Semantic renames and metric rollups |
+| Frame                 | Typical change                       | What to watch for                                          |
+| --------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| API → Raw             | Usually a straight pass-through      | Nullable or mixed-type payloads                            |
+| Raw → Staging         | Renames to `snake_case` + validation | Contract tightening, parsed types, and nullability changes |
+| Staging → Star        | Modeling decisions and FK wiring     | Surrogate keys, dimension resolution, and derived fields   |
+| Star → Analytics/Aggs | Convenience joins or recomputation   | Semantic renames and metric rollups                        |
 
 <CourtDivider label="Field-level replay" />
 
@@ -116,12 +119,12 @@ flowchart LR
     D --> E["agg_player_season\nfg_pct = SUM(fgm)/SUM(fga)"]
 ```
 
-| Stage   | Column   | Notes                                       |
-| ------- | -------- | ------------------------------------------- |
-| API     | `FG_PCT` | Pre-computed by NBA                         |
-| Raw     | `FG_PCT` | Passed through                              |
-| Staging | `fg_pct` | Validated: 0.0 - 1.0                        |
-| Fact    | `fg_pct` | Per-game value                              |
+| Stage     | Column   | Notes                                       |
+| --------- | -------- | ------------------------------------------- |
+| API       | `FG_PCT` | Pre-computed by NBA                         |
+| Raw       | `FG_PCT` | Passed through                              |
+| Staging   | `fg_pct` | Validated: 0.0 - 1.0                        |
+| Fact      | `fg_pct` | Per-game value                              |
 | Aggregate | `fg_pct` | Re-computed from season totals for accuracy |
 
 **Key transformation**: In `agg_player_season`, the season `fg_pct` is recomputed as `SUM(fgm) / SUM(fga)` rather than averaging per-game percentages, which would be statistically incorrect.
@@ -275,17 +278,20 @@ Together, these three metadata sources (`source`, `fk_ref`, `depends_on`) enable
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Zoom back out to table-level movement" label="Next stop">
-    Continue to <a href="/docs/lineage/table-lineage">Table Lineage</a> when the issue has spread
-    beyond one field and you need the full upstream/downstream dependency chain.
+    Continue to <a href="/docs/lineage/table-lineage">Table Lineage</a> when the
+    issue has spread beyond one field and you need the full upstream/downstream
+    dependency chain.
   </ScoutCard>
   <ScoutCard title="Check naming and semantic intent" label="Next stop">
-    Use <a href="/docs/data-dictionary/field-reference">Field Reference</a> or the{" "}
-    <a href="/docs/data-dictionary/glossary">Glossary</a> when the lineage is clear but the meaning
-    of the metric, suffix, or field family still is not.
+    Use <a href="/docs/data-dictionary/field-reference">Field Reference</a> or
+    the <a href="/docs/data-dictionary/glossary">Glossary</a> when the lineage
+    is clear but the meaning of the metric, suffix, or field family still is
+    not.
   </ScoutCard>
   <ScoutCard title="Verify the exact generated contract" label="Next stop">
     Open <a href="/docs/schema/staging-reference">Staging Reference</a> or{" "}
-    <a href="/docs/schema/star-reference">Star Reference</a> when you need the current schema-backed
-    type, nullability, and constraint details for the field you just traced.
+    <a href="/docs/schema/star-reference">Star Reference</a> when you need the
+    current schema-backed type, nullability, and constraint details for the
+    field you just traced.
   </ScoutCard>
 </div>

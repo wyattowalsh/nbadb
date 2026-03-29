@@ -11,15 +11,17 @@ Use this guide when you want to turn `fact_shot_chart` into a reliable **film-ro
 
 ## Pick the first question
 
-| If you need… | Start here | Finish with |
-| ------------- | ---------- | ----------- |
-| A fast zone read before plotting | [Zone efficiency query](#pass-1--zone-efficiency-query) | A table you can sort by attempts or FG% |
-| A first visual sanity check | [First-pass shot chart](#pass-2--build-a-first-pass-shot-chart) | A half-court map with makes and misses |
-| Hot and cold area reads | [Efficiency heatmap](#pass-3--convert-it-into-an-efficiency-heatmap) | A location-based FG% view |
-| Range profile by distance | [Distance read](#pass-4--add-a-distance-read) | A table you can bin or chart later |
+| If you need…                     | Start here                                                           | Finish with                             |
+| -------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
+| A fast zone read before plotting | [Zone efficiency query](#pass-1--zone-efficiency-query)              | A table you can sort by attempts or FG% |
+| A first visual sanity check      | [First-pass shot chart](#pass-2--build-a-first-pass-shot-chart)      | A half-court map with makes and misses  |
+| Hot and cold area reads          | [Efficiency heatmap](#pass-3--convert-it-into-an-efficiency-heatmap) | A location-based FG% view               |
+| Range profile by distance        | [Distance read](#pass-4--add-a-distance-read)                        | A table you can bin or chart later      |
 
 <Callout type="info">
-Filter to one player and one season for your first pass. Get the court rendering right before you widen the sample to teams, lineups, or league-wide heatmaps.
+  Filter to one player and one season for your first pass. Get the court
+  rendering right before you widen the sample to teams, lineups, or league-wide
+  heatmaps.
 </Callout>
 
 ## Scope the possession first
@@ -34,11 +36,11 @@ Before plotting anything, lock in three choices:
 
 Each shot record includes four main buckets of context:
 
-| Bucket | Useful columns |
-| ------ | -------------- |
-| Location | `loc_x`, `loc_y` |
-| Zones | `shot_zone_basic`, `shot_zone_area`, `shot_zone_range` |
-| Result | `shot_made_flag`, `event_type`, `shot_type` |
+| Bucket       | Useful columns                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| Location     | `loc_x`, `loc_y`                                                                            |
+| Zones        | `shot_zone_basic`, `shot_zone_area`, `shot_zone_range`                                      |
+| Result       | `shot_made_flag`, `event_type`, `shot_type`                                                 |
 | Game context | `period`, `minutes_remaining`, `seconds_remaining`, `shot_distance`, `game_id`, `player_id` |
 
 ## Court coordinates refresher
@@ -49,6 +51,35 @@ The NBA shot-coordinate frame used here is the standard half-court orientation:
 - `loc_x` runs left to right
 - `loc_y` runs baseline toward midcourt
 - A first-pass plot usually focuses on the offensive half court rather than the full floor
+
+### Live shot chart preview
+
+The interactive chart below renders a small sample of shot locations on a half-court diagram. Green dots are makes, red dots are misses. This is the same `ShotChart` component you can use in any MDX page once you have real query results.
+
+export const sampleShots = [
+  { loc_x: -22, loc_y: 2, made: true },
+  { loc_x: 0, loc_y: 5, made: true },
+  { loc_x: 15, loc_y: 8, made: false },
+  { loc_x: -160, loc_y: 200, made: false },
+  { loc_x: 140, loc_y: 180, made: true },
+  { loc_x: -70, loc_y: 320, made: false },
+  { loc_x: 80, loc_y: 310, made: true },
+  { loc_x: -220, loc_y: 90, made: true },
+  { loc_x: 210, loc_y: 85, made: false },
+  { loc_x: 0, loc_y: 140, made: true },
+  { loc_x: -50, loc_y: 50, made: false },
+  { loc_x: 55, loc_y: 45, made: true },
+  { loc_x: -130, loc_y: 10, made: false },
+  { loc_x: 120, loc_y: 15, made: true },
+  { loc_x: -10, loc_y: 230, made: true },
+  { loc_x: 190, loc_y: 250, made: false },
+  { loc_x: -200, loc_y: 260, made: false },
+  { loc_x: 40, loc_y: 380, made: false },
+  { loc_x: -90, loc_y: 160, made: true },
+  { loc_x: 100, loc_y: 170, made: true },
+];
+
+<ShotChart data={sampleShots} title="Sample Shot Chart" />
 
 ## Build the analysis in four passes
 
@@ -177,12 +208,12 @@ distance = conn.sql("""
 
 ## Sanity checks before you trust the chart
 
-| Check | Why |
-| ----- | --- |
-| Confirm the player, season, and season type filter | Most misleading charts are really scope mistakes |
+| Check                                                | Why                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------- |
+| Confirm the player, season, and season type filter   | Most misleading charts are really scope mistakes              |
 | Join `dim_game` when you need season-level filtering | Shot tables alone do not carry every analysis filter you need |
-| Validate the coordinate frame before tuning colors | A beautiful chart on the wrong floor is still wrong |
-| Say when you mix `Regular Season` and `Playoffs` | Otherwise the read is not comparable possession-to-possession |
+| Validate the coordinate frame before tuning colors   | A beautiful chart on the wrong floor is still wrong           |
+| Say when you mix `Regular Season` and `Playoffs`     | Otherwise the read is not comparable possession-to-possession |
 
 ## Related routes
 

@@ -30,72 +30,76 @@ The diagrams section is the visual film room for nbadb: whiteboard views for sch
 </div>
 
 <Callout type="info">
-The curated pages in this section add reading cues around the visuals. The companion [auto-generated ER diagram](/docs/diagrams/er-auto) remains source-derived and should be regenerated, not hand-edited.
+  The curated pages in this section add reading cues around the visuals. The
+  companion [auto-generated ER diagram](/docs/diagrams/er-auto) remains
+  source-derived and should be regenerated, not hand-edited.
 </Callout>
 
 ## Quick navigation
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <ScoutCard title="Read the warehouse shape" label="Entry surface">
-    Start with <a href="/docs/diagrams/er-diagram">ER Diagram</a> when your question is about
-    join anchors, fact neighborhoods, or bridge-table placement.
+    Start with <a href="/docs/diagrams/er-diagram">ER Diagram</a> when your
+    question is about join anchors, fact neighborhoods, or bridge-table
+    placement.
   </ScoutCard>
   <ScoutCard title="Trace stage movement" label="Entry surface">
-    Go to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> when you need the raw → staging
-    → star route before you inspect any single table.
+    Go to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> when you need
+    the raw → staging → star route before you inspect any single table.
   </ScoutCard>
   <ScoutCard title="Map feeds to landing tables" label="Entry surface">
-    Use <a href="/docs/diagrams/endpoint-map">Endpoint Map</a> when you know the inbound endpoint
-    family and need the fastest route to the warehouse target.
+    Use <a href="/docs/diagrams/endpoint-map">Endpoint Map</a> when you know the
+    inbound endpoint family and need the fastest route to the warehouse target.
   </ScoutCard>
   <ScoutCard title="Open the full generated roster" label="Generated companion">
-    Jump to <a href="/docs/diagrams/er-auto">Auto ER Diagram</a> when curated emphasis is not enough
-    and you need the exhaustive schema-derived board.
+    Jump to <a href="/docs/diagrams/er-auto">Auto ER Diagram</a> when curated
+    emphasis is not enough and you need the exhaustive schema-derived board.
   </ScoutCard>
 </div>
 
 ## Use this section when…
 
-| If you need to answer… | Start here |
-| ---------------------- | ---------- |
-| “What does the warehouse look like at a glance?” | [ER Diagram](/docs/diagrams/er-diagram) |
-| “How does data move from source to export?” | [Pipeline Flow](/docs/diagrams/pipeline-flow) |
-| “Which endpoint family feeds this table?” | [Endpoint Map](/docs/diagrams/endpoint-map) |
-| “Where is the full schema-derived entity inventory?” | [Auto ER Diagram](/docs/diagrams/er-auto) |
+| If you need to answer…                               | Start here                                    |
+| ---------------------------------------------------- | --------------------------------------------- |
+| “What does the warehouse look like at a glance?”     | [ER Diagram](/docs/diagrams/er-diagram)       |
+| “How does data move from source to export?”          | [Pipeline Flow](/docs/diagrams/pipeline-flow) |
+| “Which endpoint family feeds this table?”            | [Endpoint Map](/docs/diagrams/endpoint-map)   |
+| “Where is the full schema-derived entity inventory?” | [Auto ER Diagram](/docs/diagrams/er-auto)     |
 
 <CourtDivider label="Pick the right board" />
 
 ## Pick the Right Board
 
-| Lens | Page | Best for |
-| ---- | ---- | -------- |
-| Whiteboard | [ER Diagram](/docs/diagrams/er-diagram) | Understanding how the core dimensions, facts, and bridges fit together |
-| Generator board | [Auto ER Diagram](/docs/diagrams/er-auto) | Inspecting the full schema-derived entity inventory without curation |
-| Playbook | [Pipeline Flow](/docs/diagrams/pipeline-flow) | Tracing how raw NBA API extracts become analytical outputs |
-| Shot-chart overlay | [Endpoint Map](/docs/diagrams/endpoint-map) | Mapping endpoint families to their landing tables |
+| Lens               | Page                                          | Best for                                                               |
+| ------------------ | --------------------------------------------- | ---------------------------------------------------------------------- |
+| Whiteboard         | [ER Diagram](/docs/diagrams/er-diagram)       | Understanding how the core dimensions, facts, and bridges fit together |
+| Generator board    | [Auto ER Diagram](/docs/diagrams/er-auto)     | Inspecting the full schema-derived entity inventory without curation   |
+| Playbook           | [Pipeline Flow](/docs/diagrams/pipeline-flow) | Tracing how raw NBA API extracts become analytical outputs             |
+| Shot-chart overlay | [Endpoint Map](/docs/diagrams/endpoint-map)   | Mapping endpoint families to their landing tables                      |
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Whiteboard the warehouse" label="Curated board">
-    Open <a href="/docs/diagrams/er-diagram">ER Diagram</a> when you need the quickest read on
-    which dimensions anchor the model, where the busiest fact clusters live, and how the bridge
-    tables keep the joins honest.
+    Open <a href="/docs/diagrams/er-diagram">ER Diagram</a> when you need the
+    quickest read on which dimensions anchor the model, where the busiest fact
+    clusters live, and how the bridge tables keep the joins honest.
   </ScoutCard>
   <ScoutCard title="Run the full playbook" label="Curated board">
-    Go to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> when the question is about
-    movement: how raw feeds become staging tables, where validation stops a bad possession, and
-    which stages produce the public warehouse surface.
+    Go to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> when the
+    question is about movement: how raw feeds become staging tables, where
+    validation stops a bad possession, and which stages produce the public
+    warehouse surface.
   </ScoutCard>
   <ScoutCard title="Trace source coverage" label="Curated board">
-    Use <a href="/docs/diagrams/endpoint-map">Endpoint Map</a> when you know the source family
-    or target table and need to reconnect extractors, result sets, and landing surfaces without
-    reading transform code first.
+    Use <a href="/docs/diagrams/endpoint-map">Endpoint Map</a> when you know the
+    source family or target table and need to reconnect extractors, result sets,
+    and landing surfaces without reading transform code first.
   </ScoutCard>
 </div>
 
 ## Companion board
 
-| Page | Ownership | Use it when |
-| ---- | --------- | ----------- |
+| Page                                      | Ownership                         | Use it when                                                                      |
+| ----------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------- |
 | [Auto ER Diagram](/docs/diagrams/er-auto) | Generated from schema definitions | You need the exhaustive entity inventory rather than the curated whiteboard read |
 
 <CourtDivider label="Keep the film rolling" />
@@ -104,17 +108,21 @@ The curated pages in this section add reading cues around the visuals. The compa
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Turn the board into join decisions" label="Next stop">
-    Continue to <a href="/docs/schema/relationships">Relationships</a> or the broader{" "}
-    <a href="/docs/schema">Schema Reference</a> when the diagram has answered the shape question
-    and you now need to plan the actual SQL path.
+    Continue to <a href="/docs/schema/relationships">Relationships</a> or the
+    broader <a href="/docs/schema">Schema Reference</a> when the diagram has
+    answered the shape question and you now need to plan the actual SQL path.
   </ScoutCard>
   <ScoutCard title="Switch from shape to dependency replay" label="Next stop">
-    Move to <a href="/docs/lineage">Lineage</a> when you need to know not just what connects,
-    but how a source feed or staging table propagates into downstream facts, aggregates, and
-    analytics outputs.
+    Move to <a href="/docs/lineage">Lineage</a> when you need to know not just
+    what connects, but how a source feed or staging table propagates into
+    downstream facts, aggregates, and analytics outputs.
   </ScoutCard>
-  <ScoutCard title="Reconnect the picture to live source families" label="Next stop">
-    Jump to <a href="/docs/endpoints">Endpoints</a> when the visual board raises a coverage
-    question and you need the page-by-page scouting report for the nba_api surface behind it.
+  <ScoutCard
+    title="Reconnect the picture to live source families"
+    label="Next stop"
+  >
+    Jump to <a href="/docs/endpoints">Endpoints</a> when the visual board raises
+    a coverage question and you need the page-by-page scouting report for the
+    nba_api surface behind it.
   </ScoutCard>
 </div>

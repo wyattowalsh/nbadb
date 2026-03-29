@@ -41,45 +41,52 @@ Lineage is the film room for nbadb. Instead of watching a possession from the br
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Table Lineage" label="Curated lens">
-    Start with <a href="/docs/lineage/table-lineage">Table Lineage</a> when you need the full possession chain from source feed to downstream table.
+    Start with <a href="/docs/lineage/table-lineage">Table Lineage</a> when you
+    need the full possession chain from source feed to downstream table.
   </ScoutCard>
   <ScoutCard title="Column Lineage" label="Curated lens">
-    Start with <a href="/docs/lineage/column-lineage">Column Lineage</a> when the breakage is local to one key, metric, rename, or constraint.
+    Start with <a href="/docs/lineage/column-lineage">Column Lineage</a> when
+    the breakage is local to one key, metric, rename, or constraint.
   </ScoutCard>
   <ScoutCard title="Generated Lineage Map" label="Generated lens">
-    Start with <a href="/docs/lineage/lineage-auto">Generated Lineage Map</a> when the curated examples are not wide enough and you need exhaustive, code-sourced coverage.
+    Start with <a href="/docs/lineage/lineage-auto">Generated Lineage Map</a>{" "}
+    when the curated examples are not wide enough and you need exhaustive,
+    code-sourced coverage.
   </ScoutCard>
 </div>
 
 ## Choose by symptom
 
-| If you need to answer... | Start here | Then escalate to... |
-| ------------------------ | ---------- | ------------------- |
-| “Where did this table come from?” | [Table Lineage](/docs/lineage/table-lineage) | [Generated Lineage Map](/docs/lineage/lineage-auto) if you need the full graph |
-| “Which upstream field fed this column?” | [Column Lineage](/docs/lineage/column-lineage) | [Generated Lineage Map](/docs/lineage/lineage-auto) if the example trail is not enough |
-| “What else breaks if I change this staging schema or transformer?” | [Table Lineage](/docs/lineage/table-lineage) | [Generated Lineage Map](/docs/lineage/lineage-auto) for exhaustive dependency blast radius |
-| “Where is the exact code-derived dependency map?” | [Generated Lineage Map](/docs/lineage/lineage-auto) | [Schema Reference](/docs/schema) or [Data Dictionary](/docs/data-dictionary) once you need contracts |
+| If you need to answer...                                           | Start here                                          | Then escalate to...                                                                                  |
+| ------------------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| “Where did this table come from?”                                  | [Table Lineage](/docs/lineage/table-lineage)        | [Generated Lineage Map](/docs/lineage/lineage-auto) if you need the full graph                       |
+| “Which upstream field fed this column?”                            | [Column Lineage](/docs/lineage/column-lineage)      | [Generated Lineage Map](/docs/lineage/lineage-auto) if the example trail is not enough               |
+| “What else breaks if I change this staging schema or transformer?” | [Table Lineage](/docs/lineage/table-lineage)        | [Generated Lineage Map](/docs/lineage/lineage-auto) for exhaustive dependency blast radius           |
+| “Where is the exact code-derived dependency map?”                  | [Generated Lineage Map](/docs/lineage/lineage-auto) | [Schema Reference](/docs/schema) or [Data Dictionary](/docs/data-dictionary) once you need contracts |
 
 ## Curated vs generated boundary
 
-| Surface | Optimized for | Not trying to do | Maintenance path |
-| ------- | ------------- | ---------------- | ---------------- |
-| [Table Lineage](/docs/lineage/table-lineage) | Table-level dependency tracing and impact analysis | Exhaustively list every transformer edge | Hand-authored |
-| [Column Lineage](/docs/lineage/column-lineage) | Field-level debugging examples and rename tracing | Replace the full auto-generated graph | Hand-authored |
+| Surface                                             | Optimized for                                           | Not trying to do                         | Maintenance path             |
+| --------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------- | ---------------------------- |
+| [Table Lineage](/docs/lineage/table-lineage)        | Table-level dependency tracing and impact analysis      | Exhaustively list every transformer edge | Hand-authored                |
+| [Column Lineage](/docs/lineage/column-lineage)      | Field-level debugging examples and rename tracing       | Replace the full auto-generated graph    | Hand-authored                |
 | [Generated Lineage Map](/docs/lineage/lineage-auto) | Exhaustive dependency lookup sourced from code metadata | Teach route selection or worked examples | Regenerate, do not hand-edit |
 
 ## Watch one possession end to end
 
 <InsightCard title="Worked replay: follow a reusable key">
-  A lineage question often starts with something simple like <code>player_id</code> or <code>game_id</code>. The useful replay is not just "where did this field appear first?" but "where was it normalized, and when did it become safe to join against the public model?"
+  A lineage question often starts with something simple like{" "}
+  <code>player_id</code> or <code>game_id</code>. The useful replay is not just
+  "where did this field appear first?" but "where was it normalized, and when
+  did it become safe to join against the public model?"
 </InsightCard>
 
-| Touch | What changes | What to verify |
-| ----- | ------------ | -------------- |
-| Source feed | endpoint-specific naming and result-set shape | the field still maps cleanly back to the upstream NBA surface |
-| Raw capture | source shape is preserved with minimal interpretation | you can still reason about the original payload without warehouse assumptions |
-| Staging | names normalize to snake_case, types tighten, and join anchors become stable | downstream transforms have a clean, typed lane to build on |
-| Star / analytics surface | the field becomes part of an analyst-facing grain or convenience view | readers can join or filter without knowing the source quirks that started the possession |
+| Touch                    | What changes                                                                 | What to verify                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Source feed              | endpoint-specific naming and result-set shape                                | the field still maps cleanly back to the upstream NBA surface                            |
+| Raw capture              | source shape is preserved with minimal interpretation                        | you can still reason about the original payload without warehouse assumptions            |
+| Staging                  | names normalize to snake_case, types tighten, and join anchors become stable | downstream transforms have a clean, typed lane to build on                               |
+| Star / analytics surface | the field becomes part of an analyst-facing grain or convenience view        | readers can join or filter without knowing the source quirks that started the possession |
 
 Text fallback: use lineage to find the stage where a field stopped being source-shaped and became warehouse-safe. That is usually the moment when debugging, documentation, and join strategy become easier.
 
@@ -110,11 +117,11 @@ Read it left to right: sources start the action, raw preserves the original shap
 
 ## Read the replay by question
 
-| Question | Focus on | Then route to |
-| -------- | -------- | ------------- |
-| “Where did the chain start?” | The source and raw touches in the possession map | [Endpoints](/docs/endpoints) if you need source-family detail |
-| “Where was the shape normalized?” | The staging touch and validation table below | [Schema Reference](/docs/schema) if you need exact contracts |
-| “What table or view finished the play?” | The star and export touches | [Table Lineage](/docs/lineage/table-lineage) or [Column Lineage](/docs/lineage/column-lineage) for the detailed replay |
+| Question                                | Focus on                                         | Then route to                                                                                                          |
+| --------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| “Where did the chain start?”            | The source and raw touches in the possession map | [Endpoints](/docs/endpoints) if you need source-family detail                                                          |
+| “Where was the shape normalized?”       | The staging touch and validation table below     | [Schema Reference](/docs/schema) if you need exact contracts                                                           |
+| “What table or view finished the play?” | The star and export touches                      | [Table Lineage](/docs/lineage/table-lineage) or [Column Lineage](/docs/lineage/column-lineage) for the detailed replay |
 
 ```text
 NBA API --> Raw capture --> Staging validation --> Star surface --> Export

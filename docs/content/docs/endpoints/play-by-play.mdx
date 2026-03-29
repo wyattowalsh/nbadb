@@ -13,19 +13,19 @@ Three endpoints power the possession feed for a single game.
 
 ## Quick route
 
-| If you need... | Use | Why it is the fastest route |
-| -------------- | --- | --------------------------- |
-| the preferred modern action log | `PlayByPlayV3` | Best structured possession feed for newer games, with action taxonomy and shot coordinates |
-| legacy-format historical event detail | `PlayByPlayV2` | Best fit for older games and the classic three-player event structure |
-| score-state leverage at every event | `WinProbabilityPBP` | Adds live win odds and score margin swing on top of the action sequence |
+| If you need...                        | Use                 | Why it is the fastest route                                                                |
+| ------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+| the preferred modern action log       | `PlayByPlayV3`      | Best structured possession feed for newer games, with action taxonomy and shot coordinates |
+| legacy-format historical event detail | `PlayByPlayV2`      | Best fit for older games and the classic three-player event structure                      |
+| score-state leverage at every event   | `WinProbabilityPBP` | Adds live win odds and score margin swing on top of the action sequence                    |
 
 ## Action log family
 
-| Endpoint | Result sets | Key columns / signals | Route cue |
-| -------- | ----------- | --------------------- | --------- |
-| `PlayByPlayV3` | `PlayByPlay` | `action_number`, `clock`, `period`, `action_type`, `sub_type`, `description`, `shot_distance`, `shot_result`, `x_legacy`, `y_legacy` | Preferred starting point for games from 2021-22 onward |
-| `PlayByPlayV2` | `PlayByPlay`, `AvailableVideo` | `eventmsgtype`, `eventmsgactiontype`, `homedescription`, `visitordescription`, `player1_id`, `player2_id`, `player3_id` | Use for historical coverage or when you need the legacy event-code model |
-| `WinProbabilityPBP` | `WinProbPBP`, `GameInfo` | `home_pct`, `visitor_pct`, `home_pts`, `visitor_pts`, `home_score_margin`, `period`, `seconds_remaining` | Layer this in when “what happened” needs “how much it changed the game” |
+| Endpoint            | Result sets                    | Key columns / signals                                                                                                                | Route cue                                                                |
+| ------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `PlayByPlayV3`      | `PlayByPlay`                   | `action_number`, `clock`, `period`, `action_type`, `sub_type`, `description`, `shot_distance`, `shot_result`, `x_legacy`, `y_legacy` | Preferred starting point for games from 2021-22 onward                   |
+| `PlayByPlayV2`      | `PlayByPlay`, `AvailableVideo` | `eventmsgtype`, `eventmsgactiontype`, `homedescription`, `visitordescription`, `player1_id`, `player2_id`, `player3_id`              | Use for historical coverage or when you need the legacy event-code model |
+| `WinProbabilityPBP` | `WinProbPBP`, `GameInfo`       | `home_pct`, `visitor_pct`, `home_pts`, `visitor_pts`, `home_score_margin`, `period`, `seconds_remaining`                             | Layer this in when “what happened” needs “how much it changed the game”  |
 
 ## Route cues
 
@@ -37,21 +37,21 @@ Three endpoints power the possession feed for a single game.
 
 Legacy `eventmsgtype` values from `PlayByPlayV2` map to the following game events:
 
-| Type | Description |
-| ---- | ----------- |
-| 1 | Made shot |
-| 2 | Missed shot |
-| 3 | Free throw |
-| 4 | Rebound |
-| 5 | Turnover |
-| 6 | Foul |
-| 7 | Violation |
-| 8 | Substitution |
-| 9 | Timeout |
-| 10 | Jump ball |
-| 11 | Ejection |
-| 12 | Period start |
-| 13 | Period end |
+| Type | Description  |
+| ---- | ------------ |
+| 1    | Made shot    |
+| 2    | Missed shot  |
+| 3    | Free throw   |
+| 4    | Rebound      |
+| 5    | Turnover     |
+| 6    | Foul         |
+| 7    | Violation    |
+| 8    | Substitution |
+| 9    | Timeout      |
+| 10   | Jump ball    |
+| 11   | Ejection     |
+| 12   | Period start |
+| 13   | Period end   |
 
 <CourtDivider label="Next possession" />
 
@@ -59,16 +59,18 @@ Legacy `eventmsgtype` values from `PlayByPlayV2` map to the following game event
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Close the loop with the final line" label="Next stop">
-    Pair this page with <a href="/docs/endpoints/box-scores">Box Scores</a> when the
-    event stream needs the team and player totals, ratings, and matchup summaries keyed
-    by the same <code>game_id</code>.
+    Pair this page with <a href="/docs/endpoints/box-scores">Box Scores</a> when
+    the event stream needs the team and player totals, ratings, and matchup
+    summaries keyed by the same <code>game_id</code>.
   </ScoutCard>
   <ScoutCard title="Add off-ball game context" label="Next stop">
-    Continue to <a href="/docs/endpoints/other">Other</a> for rotation stints, officiating
-    crews, summary packets, and shot-map detail that complement the ordered action log.
+    Continue to <a href="/docs/endpoints/other">Other</a> for rotation stints,
+    officiating crews, summary packets, and shot-map detail that complement the
+    ordered action log.
   </ScoutCard>
   <ScoutCard title="Turn one game into a season question" label="Next stop">
-    Use <a href="/docs/endpoints/league-stats">League Stats</a> when a possession pattern
-    needs league-wide comparison through standings, lineups, play types, or season matchup data.
+    Use <a href="/docs/endpoints/league-stats">League Stats</a> when a
+    possession pattern needs league-wide comparison through standings, lineups,
+    play types, or season matchup data.
   </ScoutCard>
 </div>

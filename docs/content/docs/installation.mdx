@@ -10,26 +10,46 @@ import { Callout } from "fumadocs-ui/components/callout";
 Use this page as the **pregame checklist** for getting nbadb onto your machine and confirming the first possession works before you move into queries, refreshes, or docs work.
 
 <StatGrid columns={4}>
-  <StatPill label="Python" value="3.12+" note="required for the current package and source workflow" />
-  <StatPill label="Install routes" value="2" note="PyPI for quick use, source checkout for contributors" />
-  <StatPill label="Default exports" value="4" note="sqlite, duckdb, csv, and parquet" />
-  <StatPill label="Daily lookback" value="7 days" note="default recent-game window for nbadb daily" />
+  <StatPill
+    label="Python"
+    value="3.12+"
+    note="required for the current package and source workflow"
+  />
+  <StatPill
+    label="Install routes"
+    value="2"
+    note="PyPI for quick use, source checkout for contributors"
+  />
+  <StatPill
+    label="Default exports"
+    value="4"
+    note="sqlite, duckdb, csv, and parquet"
+  />
+  <StatPill
+    label="Daily lookback"
+    value="7 days"
+    note="default recent-game window for nbadb daily"
+  />
 </StatGrid>
 
 ## Quick navigation
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <ScoutCard title="Quick package install" label="Entry surface">
-    Jump to <a href="#install-from-pypi">Install from PyPI</a> if you just want the CLI on your machine fast.
+    Jump to <a href="#install-from-pypi">Install from PyPI</a> if you just want
+    the CLI on your machine fast.
   </ScoutCard>
   <ScoutCard title="Contributor source setup" label="Entry surface">
-    Use <a href="#install-from-source">Install from source</a> if you will edit code, docs, or generated artifacts.
+    Use <a href="#install-from-source">Install from source</a> if you will edit
+    code, docs, or generated artifacts.
   </ScoutCard>
   <ScoutCard title="Env and defaults" label="Entry surface">
-    Go straight to <a href="#configuration-defaults">Configuration defaults</a> for the `NBADB_` knobs that matter first.
+    Go straight to <a href="#configuration-defaults">Configuration defaults</a>{" "}
+    for the `NBADB_` knobs that matter first.
   </ScoutCard>
   <ScoutCard title="Sanity-check the setup" label="Entry surface">
-    Skip to <a href="#first-possession-checklist">First possession checklist</a> if install already succeeded and you need to validate it.
+    Skip to <a href="#first-possession-checklist">First possession checklist</a>{" "}
+    if install already succeeded and you need to validate it.
   </ScoutCard>
 </div>
 
@@ -48,18 +68,21 @@ Before you install:
 
 <DataColumns>
   <ScoutCard title="PyPI route" label="Best for">
-    Analysts and users who want the CLI without cloning the repo. Install the package, confirm `nbadb --help` works, then move into the first build or download flow.
+    Analysts and users who want the CLI without cloning the repo. Install the
+    package, confirm `nbadb --help` works, then move into the first build or
+    download flow.
   </ScoutCard>
   <ScoutCard title="Source route" label="Best for">
-    Contributors, operators, and docs writers working inside the repo. This route keeps the checked-out code, docs generator, and local CLI aligned.
+    Contributors, operators, and docs writers working inside the repo. This
+    route keeps the checked-out code, docs generator, and local CLI aligned.
   </ScoutCard>
 </DataColumns>
 
 ### Install routes in one glance
 
-| Route | Best when… | First commands | What you get |
-| ----- | ---------- | -------------- | ------------ |
-| PyPI | You want the packaged CLI quickly and do not need a repo checkout | `pip install nbadb` | The installed CLI and defaults needed for normal use |
+| Route  | Best when…                                                             | First commands        | What you get                                                                  |
+| ------ | ---------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| PyPI   | You want the packaged CLI quickly and do not need a repo checkout      | `pip install nbadb`   | The installed CLI and defaults needed for normal use                          |
 | Source | You will edit code, docs, generated artifacts, or local project config | `uv sync --extra dev` | A checked-out repo, contributor tooling, docs generator, and repo-aligned CLI |
 
 ## Install from PyPI
@@ -72,6 +95,7 @@ python -m venv .venv
 source .venv/bin/activate   # macOS/Linux
 # .venv\Scripts\activate    # Windows
 ```
+
 </Callout>
 
 ```bash
@@ -91,7 +115,8 @@ uv run nbadb --help
 ```
 
 <Callout type="info">
-If you are contributing docs or code, prefer the source route. It keeps the docs generator, tests, and local CLI aligned with the checked-out code.
+  If you are contributing docs or code, prefer the source route. It keeps the
+  docs generator, tests, and local CLI aligned with the checked-out code.
 </Callout>
 
 ## Configuration defaults
@@ -104,31 +129,31 @@ cp .env.example .env
 
 ### Core settings you will usually care about first
 
-| Variable | Purpose | Default |
-| -------- | ------- | ------- |
-| `NBADB_DATA_DIR` | Root folder for local database files and exported data | `nbadb` |
-| `NBADB_FORMATS` | Default export formats for `init` and `export` | `['sqlite', 'duckdb', 'csv', 'parquet']` |
-| `NBADB_DAILY_LOOKBACK_DAYS` | Recent-game window used by `nbadb daily` | `7` |
-| `NBADB_KAGGLE_DATASET` | Dataset slug used by download/upload flows | `wyattowalsh/basketball` |
-| `NBADB_PROXY_ENABLED` | Enable proxy rotation support | `false` |
+| Variable                    | Purpose                                                | Default                                  |
+| --------------------------- | ------------------------------------------------------ | ---------------------------------------- |
+| `NBADB_DATA_DIR`            | Root folder for local database files and exported data | `nbadb`                                  |
+| `NBADB_FORMATS`             | Default export formats for `init` and `export`         | `['sqlite', 'duckdb', 'csv', 'parquet']` |
+| `NBADB_DAILY_LOOKBACK_DAYS` | Recent-game window used by `nbadb daily`               | `7`                                      |
+| `NBADB_KAGGLE_DATASET`      | Dataset slug used by download/upload flows             | `wyattowalsh/basketball`                 |
+| `NBADB_PROXY_ENABLED`       | Enable proxy rotation support                          | `false`                                  |
 
 ### Fast decisions for new installs
 
-| Question | Default answer | Change it when… |
-| -------- | -------------- | --------------- |
-| Where should files land? | Keep the default `nbadb/` data directory | You want the dataset somewhere else or need multiple local copies |
-| Which formats should export? | Keep all four: `sqlite`, `duckdb`, `csv`, `parquet` | You only want a subset for local storage or downstream tooling |
-| Should proxies be enabled? | No | You are explicitly solving extraction-network or rate-limit issues |
-| Should I use Kaggle credentials now? | Not unless you need `download` or `upload` | You want the fastest path to a published dataset or need to publish one |
+| Question                             | Default answer                                      | Change it when…                                                         |
+| ------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------- |
+| Where should files land?             | Keep the default `nbadb/` data directory            | You want the dataset somewhere else or need multiple local copies       |
+| Which formats should export?         | Keep all four: `sqlite`, `duckdb`, `csv`, `parquet` | You only want a subset for local storage or downstream tooling          |
+| Should proxies be enabled?           | No                                                  | You are explicitly solving extraction-network or rate-limit issues      |
+| Should I use Kaggle credentials now? | Not unless you need `download` or `upload`          | You want the fastest path to a published dataset or need to publish one |
 
 ### Optional knobs worth knowing exist
 
-| Variable | Why you might set it |
-| -------- | -------------------- |
-| `NBADB_LOG_DIR` | Move logs away from the default `logs/` folder |
-| `NBADB_REQUEST_TIMEOUT` | Override the extractor request timeout without changing code |
+| Variable                                                   | Why you might set it                                                 |
+| ---------------------------------------------------------- | -------------------------------------------------------------------- |
+| `NBADB_LOG_DIR`                                            | Move logs away from the default `logs/` folder                       |
+| `NBADB_REQUEST_TIMEOUT`                                    | Override the extractor request timeout without changing code         |
 | `NBADB_PROXY_URLS`, `NBADB_PROXY_USER`, `NBADB_PROXY_PASS` | Point extraction at explicit proxies or authenticated SOCKS5 proxies |
-| `KAGGLE_USERNAME`, `KAGGLE_KEY` | Enable `nbadb download` and `nbadb upload` workflows |
+| `KAGGLE_USERNAME`, `KAGGLE_KEY`                            | Enable `nbadb download` and `nbadb upload` workflows                 |
 
 All settings ship with defaults. Only add `.env` entries for the knobs you actually want to change.
 
@@ -138,10 +163,10 @@ All settings ship with defaults. Only add `.env` entries for the knobs you actua
 
 ### The fastest path to a usable local dataset
 
-| If your goal is… | Take this route |
-| ---------------- | --------------- |
-| Use nbadb as fast as possible | Install from PyPI, then run `nbadb download` |
-| Build everything locally from source | Install from source, then run `nbadb init` |
+| If your goal is…                                           | Take this route                                           |
+| ---------------------------------------------------------- | --------------------------------------------------------- |
+| Use nbadb as fast as possible                              | Install from PyPI, then run `nbadb download`              |
+| Build everything locally from source                       | Install from source, then run `nbadb init`                |
 | Confirm the CLI works before any long-running data command | Run `nbadb --help`, then `nbadb schema` after data exists |
 
 ### 1. Build or fetch data
@@ -159,7 +184,9 @@ nbadb download
 ```
 
 <Callout>
-`nbadb init` is the full historical rebuild. If you want the fastest path to a usable local dataset, `nbadb download` is usually the quicker opening possession.
+  `nbadb init` is the full historical rebuild. If you want the fastest path to a
+  usable local dataset, `nbadb download` is usually the quicker opening
+  possession.
 </Callout>
 
 ### 2. Inspect the floor
@@ -196,22 +223,24 @@ By default, nbadb writes into `nbadb/`.
 
 ### Default output map
 
-| Path | What it is for | Typical first use |
-| ---- | -------------- | ----------------- |
-| `nba.duckdb` | Primary local warehouse | Querying, status inspection, and quality checks |
-| `nba.sqlite` | Portable single-file export | Sharing and broad tool compatibility |
-| `parquet/` | Columnar export lane | DataFrame-heavy and analytics workflows |
-| `csv/` | Flat-file export lane | Simple ingestion into tools that expect CSV |
+| Path         | What it is for              | Typical first use                               |
+| ------------ | --------------------------- | ----------------------------------------------- |
+| `nba.duckdb` | Primary local warehouse     | Querying, status inspection, and quality checks |
+| `nba.sqlite` | Portable single-file export | Sharing and broad tool compatibility            |
+| `parquet/`   | Columnar export lane        | DataFrame-heavy and analytics workflows         |
+| `csv/`       | Flat-file export lane       | Simple ingestion into tools that expect CSV     |
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="`nba.sqlite`" label="Portable export">
     A single-file SQLite database for broad tool compatibility and easy sharing.
   </ScoutCard>
   <ScoutCard title="`nba.duckdb`" label="Primary local warehouse">
-    The DuckDB database used for analytics, status inspection, quality checks, and local SQL work.
+    The DuckDB database used for analytics, status inspection, quality checks,
+    and local SQL work.
   </ScoutCard>
   <ScoutCard title="`parquet/`" label="Columnar export lane">
-    One directory per exported table for DataFrame-friendly and analytics-heavy workflows.
+    One directory per exported table for DataFrame-friendly and analytics-heavy
+    workflows.
   </ScoutCard>
   <ScoutCard title="`csv/`" label="Wide compatibility lane">
     One CSV per exported table for tools that prefer simple flat-file ingestion.
@@ -219,26 +248,28 @@ By default, nbadb writes into `nbadb/`.
 </div>
 
 <InsightCard title="Useful download detail">
-  After `nbadb download`, nbadb will seed `nba.duckdb` from `nba.sqlite` if the download produced SQLite but not DuckDB. That gives you a usable DuckDB file without forcing a fresh historical rebuild.
+  After `nbadb download`, nbadb will seed `nba.duckdb` from `nba.sqlite` if the
+  download produced SQLite but not DuckDB. That gives you a usable DuckDB file
+  without forcing a fresh historical rebuild.
 </InsightCard>
 
 ## Common install-time decisions
 
-| Decision | Reach for this | Why |
-| -------- | -------------- | --- |
-| Put data somewhere other than `nbadb/` | `--data-dir` for one-off runs, `NBADB_DATA_DIR` for a lasting default | Keeps multiple datasets or non-default storage locations cleanly separated |
-| Change what `init` and `export` write | `NBADB_FORMATS` or repeatable `--format` on supported commands | Lets you trim disk usage or match downstream tool expectations |
-| Enable proxies | `NBADB_PROXY_ENABLED=true` plus proxy settings | Only needed when you are explicitly addressing extraction-network behavior |
-| Use published datasets instead of building from scratch | `nbadb download` with Kaggle credentials configured | Usually the shortest route to a usable local dataset |
+| Decision                                                | Reach for this                                                        | Why                                                                        |
+| ------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Put data somewhere other than `nbadb/`                  | `--data-dir` for one-off runs, `NBADB_DATA_DIR` for a lasting default | Keeps multiple datasets or non-default storage locations cleanly separated |
+| Change what `init` and `export` write                   | `NBADB_FORMATS` or repeatable `--format` on supported commands        | Lets you trim disk usage or match downstream tool expectations             |
+| Enable proxies                                          | `NBADB_PROXY_ENABLED=true` plus proxy settings                        | Only needed when you are explicitly addressing extraction-network behavior |
+| Use published datasets instead of building from scratch | `nbadb download` with Kaggle credentials configured                   | Usually the shortest route to a usable local dataset                       |
 
 ## Which page should you read next?
 
-| If you want to… | Go here |
-| --------------- | ------- |
-| Learn what `daily`, `monthly`, `status`, `scan`, and other commands do | [CLI Reference](/docs/cli-reference) |
-| Understand raw → staging → star and the public table families | [Architecture](/docs/architecture) |
-| Start querying with the easiest analysis-ready surface | [Analytics Quickstart](/docs/guides/analytics-quickstart) |
-| Download from or publish to Kaggle | [Kaggle Setup](/docs/guides/kaggle-setup) |
+| If you want to…                                                        | Go here                                                   |
+| ---------------------------------------------------------------------- | --------------------------------------------------------- |
+| Learn what `daily`, `monthly`, `status`, `scan`, and other commands do | [CLI Reference](/docs/cli-reference)                      |
+| Understand raw → staging → star and the public table families          | [Architecture](/docs/architecture)                        |
+| Start querying with the easiest analysis-ready surface                 | [Analytics Quickstart](/docs/guides/analytics-quickstart) |
+| Download from or publish to Kaggle                                     | [Kaggle Setup](/docs/guides/kaggle-setup)                 |
 
 ## Docs contributors: generated artifacts boundary
 

@@ -11,23 +11,25 @@ This guide is the **game-day operations board** for keeping nbadb current once y
 
 ## Pick the right play
 
-| Command | Use it when… | What it covers |
-| ------- | ------------ | -------------- |
-| `nbadb daily` | You want the normal recurring refresh | Current season, recent games inside the daily lookback window, plus active player/team refresh |
-| `nbadb monthly` | You need a broader sweep | The last 3 seasons |
-| `nbadb full` | You are recovering from failures or filling old gaps | Failed journal entries first, then the full season range |
+| Command         | Use it when…                                         | What it covers                                                                                 |
+| --------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `nbadb daily`   | You want the normal recurring refresh                | Current season, recent games inside the daily lookback window, plus active player/team refresh |
+| `nbadb monthly` | You need a broader sweep                             | The last 3 seasons                                                                             |
+| `nbadb full`    | You are recovering from failures or filling old gaps | Failed journal entries first, then the full season range                                       |
 
 <Callout type="info">
-`nbadb daily` is the default half-court set. Reach for `monthly` when you need a wider recent-history sweep, and use `full` when you need recovery plus gap-filling without starting from a blank slate.
+  `nbadb daily` is the default half-court set. Reach for `monthly` when you need
+  a wider recent-history sweep, and use `full` when you need recovery plus
+  gap-filling without starting from a blank slate.
 </Callout>
 
 ## Fast operator route
 
-| Step | What you do | Why it matters |
-| ---- | ----------- | -------------- |
-| 1 | Run the narrowest refresh that fits the need | Shorter possessions are easier to diagnose and rerun |
-| 2 | Check status and quality artifacts right after the run | You catch drift while the command context is still fresh |
-| 3 | Escalate from `daily` to `monthly` or `full` only when the symptoms demand it | Wider reruns cost more time and hide the original miss |
+| Step | What you do                                                                   | Why it matters                                           |
+| ---- | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 1    | Run the narrowest refresh that fits the need                                  | Shorter possessions are easier to diagnose and rerun     |
+| 2    | Check status and quality artifacts right after the run                        | You catch drift while the command context is still fresh |
+| 3    | Escalate from `daily` to `monthly` or `full` only when the symptoms demand it | Wider reruns cost more time and hide the original miss   |
 
 ## What `nbadb daily` actually does
 
@@ -70,10 +72,10 @@ nbadb full
 
 ## Configuration knobs that actually change the possession
 
-| Setting | Default | Why you touch it |
-| ------- | ------- | ---------------- |
-| `NBADB_DAILY_LOOKBACK_DAYS` | `7` | Widen or tighten the recent-game window for `daily` |
-| `NBADB_DATA_DIR` | environment-dependent | Point the CLI at a different local dataset location |
+| Setting                     | Default               | Why you touch it                                    |
+| --------------------------- | --------------------- | --------------------------------------------------- |
+| `NBADB_DAILY_LOOKBACK_DAYS` | `7`                   | Widen or tighten the recent-game window for `daily` |
+| `NBADB_DATA_DIR`            | environment-dependent | Point the CLI at a different local dataset location |
 
 ```bash
 # Widen the recent-game window (default: 7 days)
@@ -88,13 +90,13 @@ nbadb daily
 
 ## Operator cues during the run
 
-| Signal | What it means |
-| ------ | ------------- |
-| Textual UI appears | stdout is interactive and `--verbose` is not set |
-| Plain logs appear | you passed `--verbose` or the run is non-interactive |
+| Signal                           | What it means                                             |
+| -------------------------------- | --------------------------------------------------------- |
+| Textual UI appears               | stdout is interactive and `--verbose` is not set          |
+| Plain logs appear                | you passed `--verbose` or the run is non-interactive      |
 | `--quality-check` reports issues | checks ran, but reported failures are informational today |
-| First `Ctrl+C` | graceful stop request that preserves resume-safe state |
-| Second `Ctrl+C` | forced exit |
+| First `Ctrl+C`                   | graceful stop request that preserves resume-safe state    |
+| Second `Ctrl+C`                  | forced exit                                               |
 
 ## Scheduling the possession
 
@@ -107,11 +109,11 @@ A practical recurring pattern is to run after most late games have settled.
 
 ## What to check after the buzzer
 
-| Check | Why | Escalate when… |
-| ----- | --- | --------------- |
-| `nbadb status` | Inspect pipeline metadata, journal, and watermarks | state looks stale or failed work remains queued |
-| `uv run nbadb run-quality --report-path …` | Capture a machine-readable quality report | failed checks point at empty or inconsistent tables |
-| `artifacts/endpoint-coverage/*` | Confirm coverage artifacts when extractor/staging work changed | coverage drift appears after a supposedly good refresh |
+| Check                                      | Why                                                            | Escalate when…                                         |
+| ------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------ |
+| `nbadb status`                             | Inspect pipeline metadata, journal, and watermarks             | state looks stale or failed work remains queued        |
+| `uv run nbadb run-quality --report-path …` | Capture a machine-readable quality report                      | failed checks point at empty or inconsistent tables    |
+| `artifacts/endpoint-coverage/*`            | Confirm coverage artifacts when extractor/staging work changed | coverage drift appears after a supposedly good refresh |
 
 ## When to escalate from `daily`
 

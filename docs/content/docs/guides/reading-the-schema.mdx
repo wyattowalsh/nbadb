@@ -1,0 +1,77 @@
+---
+title: Reading the Schema
+description: How to navigate the nbadb star schema -- dimensions, facts, bridges, and analytics views explained.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+# Reading the Schema
+
+The nbadb warehouse follows a **star schema** design. Every table has a prefix that tells you its role. Once you can read the prefix, you can navigate the entire warehouse without memorizing individual table names.
+
+## The four table types
+
+| Prefix    | Role          | Example                        | What it stores                                                       |
+| --------- | ------------- | ------------------------------ | -------------------------------------------------------------------- |
+| `dim_`    | **Dimension** | `dim_player`                   | Slowly changing descriptors -- who, what, where. One row per entity. |
+| `fact_`   | **Fact**      | `fact_player_game_traditional` | Measured events -- one row per occurrence (player-game, shot, play). |
+| `bridge_` | **Bridge**    | `bridge_game_official`         | Many-to-many links between dimensions and facts.                     |
+| `agg_`    | **Aggregate** | `agg_player_season`            | Pre-computed roll-ups built from facts and dimensions.               |
+
+In addition, **analytics views** (`analytics_*`) combine multiple facts and dimensions into wide, query-ready surfaces for common analysis patterns.
+
+## How star schema joins work
+
+Dimensions sit at the tips of a star; facts sit in the centre. You always join **from a fact outward to dimensions** using surrogate keys like `player_id` or `team_id`.
+
+```sql
+SELECT p.player_name, t.abbreviation, f.pts, f.reb, f.ast
+FROM   fact_player_game_traditional f
+JOIN   dim_player p ON f.player_id = p.player_id
+JOIN   dim_team   t ON f.team_id   = t.team_id;
+```
+
+Bridges resolve many-to-many relationships -- for example, `bridge_game_official` connects games to their three referees without duplicating rows in either table.
+
+## Navigating the docs pages
+
+<Callout type="info">
+  Start with a curated page to understand intent, then drill into generated
+  pages for exact column contracts.
+</Callout>
+
+| Page                                      | When to use it                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------ |
+| [Schema Reference](/docs/schema)          | Understand which table tiers exist and how they relate.            |
+| [Data Dictionary](/docs/data-dictionary)  | Look up a column name, suffix convention, or stat abbreviation.    |
+| [ER Diagram](/docs/diagrams/endpoint-map) | Visualise foreign-key relationships between tables.                |
+| [Table Lineage](/docs/lineage)            | Trace a table back through staging to its NBA API source endpoint. |
+
+## Reading the ER diagram
+
+The auto-generated ER diagram uses standard notation:
+
+- **Boxes** are tables. The header shows the table name; rows list columns.
+- **Lines** show foreign-key joins. Follow them to see which dimension a fact references.
+- **Crow's-foot marks** (the fork at one end) indicate a one-to-many relationship: one dimension row maps to many fact rows.
+
+Start from a fact table you care about and follow every line outward to discover the dimensions you can join.
+
+## Suggested learning path
+
+If you are new to nbadb, walk through these three tables in order:
+
+1. **`dim_player`** -- Open the schema page and read the columns. Notice `player_id` (the surrogate key) and descriptive fields like `player_name` and `is_active`.
+2. **`fact_player_game_traditional`** -- This is the core box-score fact. Find the `player_id` and `team_id` foreign keys, then look at measure columns (`pts`, `reb`, `ast`).
+3. **`agg_player_season`** -- An aggregate that rolls the per-game fact into season totals. Compare its grain (one row per player-season) to the fact's grain (one row per player-game).
+
+After that progression, try writing a three-table join in the [SQL Playground](/docs/playground) to cement the pattern.
+
+## Where to go next
+
+| Goal                               | Page                                                      |
+| ---------------------------------- | --------------------------------------------------------- |
+| Practice SQL against sample data   | [SQL Playground](/docs/playground)                        |
+| Run queries on the real warehouse  | [Analytics Quickstart](/docs/guides/analytics-quickstart) |
+| Look up a specific stat definition | [Data Dictionary](/docs/data-dictionary)                  |
+| Explore the full table inventory   | [Schema Reference](/docs/schema)                          |

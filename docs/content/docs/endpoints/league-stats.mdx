@@ -13,27 +13,28 @@ Eight endpoints stock the league desk with season-wide views.
 
 ## Quick route
 
-| If you need... | Use | Why it is the fastest route |
-| -------------- | --- | --------------------------- |
-| player leaderboards with broad filtering | `LeagueDashPlayerStats` | Best season dashboard for player stat comparisons |
-| team leaderboards with the same style of filters | `LeagueDashTeamStats` | Best season dashboard for team comparisons |
-| standings and rank context | `LeagueStandingsV3` | Fastest route to conference, division, and record context |
-| play-type efficiency | `SynergyPlayTypes` | Best for possession-type questions like isolation or pick-and-roll |
-| season matchup coverage | `LeagueSeasonMatchups` | Best for player-vs-player defensive matchup work over a whole season |
-| lineup combinations | `LeagueDashLineups` | Best for 2-man through 5-man unit analysis |
-| stat-category leaders | `LeagueLeaders` | Best simple leaders board when you already know the stat you want |
-| all-time leader grids | `AllTimeLeadersGrids` | Best route when the question leaves one season behind |
+| If you need...                                   | Use                     | Why it is the fastest route                                          |
+| ------------------------------------------------ | ----------------------- | -------------------------------------------------------------------- |
+| player leaderboards with broad filtering         | `LeagueDashPlayerStats` | Best season dashboard for player stat comparisons                    |
+| team leaderboards with the same style of filters | `LeagueDashTeamStats`   | Best season dashboard for team comparisons                           |
+| standings and rank context                       | `LeagueStandingsV3`     | Fastest route to conference, division, and record context            |
+| play-type efficiency                             | `SynergyPlayTypes`      | Best for possession-type questions like isolation or pick-and-roll   |
+| season matchup coverage                          | `LeagueSeasonMatchups`  | Best for player-vs-player defensive matchup work over a whole season |
+| lineup combinations                              | `LeagueDashLineups`     | Best for 2-man through 5-man unit analysis                           |
+| stat-category leaders                            | `LeagueLeaders`         | Best simple leaders board when you already know the stat you want    |
+| all-time leader grids                            | `AllTimeLeadersGrids`   | Best route when the question leaves one season behind                |
 
 ## Dashboards and standings
 
-| Endpoint | Parameters | Result sets | Route cue |
-| -------- | ---------- | ----------- | --------- |
-| `LeagueDashPlayerStats` | `season` (required), `season_type`, `per_mode`, `measure_type` | `LeagueDashPlayerStats` | Default player leaderboard surface when you need heavy filtering |
-| `LeagueDashTeamStats` | `season` (required), `season_type`, `per_mode`, `measure_type` | `LeagueDashTeamStats` | Default team leaderboard surface with the same filter style |
-| `LeagueStandingsV3` | `league_id`, `season`, `season_type` | `Standings` | Best first stop when rank, record, streak, and conference context matter |
-| `LeagueLeaders` | `season` (required), `stat_category`, `per_mode` | `LeagueLeaders` | Use when you want a clean stat-category leaderboard without the full dashboard surface |
+| Endpoint                | Parameters                                                     | Result sets             | Route cue                                                                              |
+| ----------------------- | -------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------- |
+| `LeagueDashPlayerStats` | `season` (required), `season_type`, `per_mode`, `measure_type` | `LeagueDashPlayerStats` | Default player leaderboard surface when you need heavy filtering                       |
+| `LeagueDashTeamStats`   | `season` (required), `season_type`, `per_mode`, `measure_type` | `LeagueDashTeamStats`   | Default team leaderboard surface with the same filter style                            |
+| `LeagueStandingsV3`     | `league_id`, `season`, `season_type`                           | `Standings`             | Best first stop when rank, record, streak, and conference context matter               |
+| `LeagueLeaders`         | `season` (required), `stat_category`, `per_mode`               | `LeagueLeaders`         | Use when you want a clean stat-category leaderboard without the full dashboard surface |
 
 **Lands in:**
+
 - `LeagueDashPlayerStats` &rarr; `stg_league_dash_player_stats` &rarr; `fact_league_dash_player_stats`
 - `LeagueDashTeamStats` &rarr; `stg_league_dash_team_stats` &rarr; `fact_league_dash_team_stats`
 - `LeagueStandingsV3` &rarr; `stg_standings` &rarr; `fact_standings`
@@ -41,24 +42,26 @@ Eight endpoints stock the league desk with season-wide views.
 
 ## Combinations and matchup scouting
 
-| Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
-| -------- | ---------- | ----------- | --------------------- | --------- |
-| `SynergyPlayTypes` | `season` (required), `play_type`, `player_or_team`, `type_grouping` | `SynergyPlayType` | `play_type`, `gp`, `poss`, `poss_pct`, `ppp`, `fg_pct`, `efg_pct`, `score_pct` | Use when you need possession-type efficiency rather than box-score stats |
-| `LeagueSeasonMatchups` | `season` (required), various player/team filters | `SeasonMatchups` | `off_player_id`, `def_player_id`, `gp`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga`, `matchup_fg_pct` | Use when the question is who guarded whom over a season |
-| `LeagueDashLineups` | `season` (required), `group_quantity` (2-5 players) | `Lineups` | `group_set`, `gp`, `min`, `plus_minus`, various per-mode stats | Use when the unit, not the player or team, is the thing you are studying |
+| Endpoint               | Parameters                                                          | Result sets       | Key columns / signals                                                                                                 | Route cue                                                                |
+| ---------------------- | ------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `SynergyPlayTypes`     | `season` (required), `play_type`, `player_or_team`, `type_grouping` | `SynergyPlayType` | `play_type`, `gp`, `poss`, `poss_pct`, `ppp`, `fg_pct`, `efg_pct`, `score_pct`                                        | Use when you need possession-type efficiency rather than box-score stats |
+| `LeagueSeasonMatchups` | `season` (required), various player/team filters                    | `SeasonMatchups`  | `off_player_id`, `def_player_id`, `gp`, `matchup_min`, `partial_poss`, `matchup_fgm`, `matchup_fga`, `matchup_fg_pct` | Use when the question is who guarded whom over a season                  |
+| `LeagueDashLineups`    | `season` (required), `group_quantity` (2-5 players)                 | `Lineups`         | `group_set`, `gp`, `min`, `plus_minus`, various per-mode stats                                                        | Use when the unit, not the player or team, is the thing you are studying |
 
 **Lands in:**
+
 - `SynergyPlayTypes` &rarr; `stg_synergy` &rarr; `fact_synergy`
 - `LeagueSeasonMatchups` &rarr; `stg_season_matchups` &rarr; `fact_season_matchups`
 - `LeagueDashLineups` &rarr; `stg_lineup` &rarr; `fact_lineup_stats`, `bridge_lineup_player`
 
 ## Historical leaders
 
-| Endpoint | Parameters | Result sets | Route cue |
-| -------- | ---------- | ----------- | --------- |
+| Endpoint              | Parameters  | Result sets           | Route cue                                                                                            |
+| --------------------- | ----------- | --------------------- | ---------------------------------------------------------------------------------------------------- |
 | `AllTimeLeadersGrids` | none listed | multiple leader grids | Use when season filters are no longer enough and the question is all-time career or season placement |
 
 **Lands in:**
+
 - `AllTimeLeadersGrids` &rarr; `stg_all_time_leaders_*` (19 staging tables, one per stat category) &rarr; `agg_all_time_leaders`
 
 ## Route cues
@@ -72,16 +75,22 @@ Eight endpoints stock the league desk with season-wide views.
 ## Next steps from the league desk
 
 <div className="grid gap-4 md:grid-cols-3">
-  <ScoutCard title="Drop from the league view into a club file" label="Next stop">
-    Open <a href="/docs/endpoints/team-stats">Team Stats</a> when standings or lineup questions
-    need roster sheets, franchise detail, or year-by-year team context.
+  <ScoutCard
+    title="Drop from the league view into a club file"
+    label="Next stop"
+  >
+    Open <a href="/docs/endpoints/team-stats">Team Stats</a> when standings or
+    lineup questions need roster sheets, franchise detail, or year-by-year team
+    context.
   </ScoutCard>
   <ScoutCard title="Turn a leaderboard into a player dossier" label="Next stop">
-    Continue to <a href="/docs/endpoints/player-stats">Player Stats</a> when a league ranking
-    needs player bio, awards, career history, or dashboard detail behind the name.
+    Continue to <a href="/docs/endpoints/player-stats">Player Stats</a> when a
+    league ranking needs player bio, awards, career history, or dashboard detail
+    behind the name.
   </ScoutCard>
   <ScoutCard title="Drill into one matchup" label="Next stop">
-    Move to <a href="/docs/endpoints/box-scores">Box Scores</a> when a season trend or matchup
-    question needs the single-game package keyed by <code>game_id</code>.
+    Move to <a href="/docs/endpoints/box-scores">Box Scores</a> when a season
+    trend or matchup question needs the single-game package keyed by{" "}
+    <code>game_id</code>.
   </ScoutCard>
 </div>

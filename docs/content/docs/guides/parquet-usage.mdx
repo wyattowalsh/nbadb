@@ -26,22 +26,23 @@ nbadb/parquet/
         └── part0.parquet
 ```
 
-| Pattern | Shape | Typical use |
-| ------- | ----- | ----------- |
-| `parquet/<table>/<table>.parquet` | Single-file table | Dimensions and non-partitioned tables |
-| `parquet/<table>/season_year=<year>/part0.parquet` | Partitioned directory tree | Season-based fact tables |
+| Pattern                                            | Shape                      | Typical use                           |
+| -------------------------------------------------- | -------------------------- | ------------------------------------- |
+| `parquet/<table>/<table>.parquet`                  | Single-file table          | Dimensions and non-partitioned tables |
+| `parquet/<table>/season_year=<year>/part0.parquet` | Partitioned directory tree | Season-based fact tables              |
 
 <Callout type="info">
-Lead with column selection and lazy scans. Parquet rewards narrow, targeted possessions much more than “load every column and sort it out later.”
+  Lead with column selection and lazy scans. Parquet rewards narrow, targeted
+  possessions much more than “load every column and sort it out later.”
 </Callout>
 
 ## Choose the right tool for the possession
 
-| Tool | Best for |
-| ---- | -------- |
-| Polars | Fast lazy scans and selective reads |
-| DuckDB | SQL across many Parquet tables or partitions |
-| Pandas | Compatibility with notebook and plotting ecosystems |
+| Tool    | Best for                                                     |
+| ------- | ------------------------------------------------------------ |
+| Polars  | Fast lazy scans and selective reads                          |
+| DuckDB  | SQL across many Parquet tables or partitions                 |
+| Pandas  | Compatibility with notebook and plotting ecosystems          |
 | PyArrow | Metadata, schema inspection, and lower-level Arrow workflows |
 
 ## Read with Polars
@@ -135,12 +136,12 @@ print(schema)
 
 ## Habits that pay off
 
-| Do this | Why |
-| ------- | --- |
-| Filter on `season_year` as early as possible for partitioned fact tables | You reduce scan cost before collection |
-| Select only the columns you need | Narrow reads keep memory use predictable |
-| Use DuckDB when you need joins across many tables or partitions | SQL over files is often simpler than manual DataFrame stitching |
-| Use Parquet as the handoff format when downstream systems do not need the whole DuckDB file | Smaller, more modular delivery surface |
+| Do this                                                                                     | Why                                                             |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Filter on `season_year` as early as possible for partitioned fact tables                    | You reduce scan cost before collection                          |
+| Select only the columns you need                                                            | Narrow reads keep memory use predictable                        |
+| Use DuckDB when you need joins across many tables or partitions                             | SQL over files is often simpler than manual DataFrame stitching |
+| Use Parquet as the handoff format when downstream systems do not need the whole DuckDB file | Smaller, more modular delivery surface                          |
 
 ## Related routes
 

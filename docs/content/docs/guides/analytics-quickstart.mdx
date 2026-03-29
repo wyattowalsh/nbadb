@@ -13,54 +13,72 @@ If you want to rehearse the SQL shape before downloading anything, warm up in <a
 
 ## Choose one first possession
 
-| If you have today… | Start here | First useful action | Stop when |
-| ------------------ | ---------- | ------------------- | --------- |
-| A browser tab and no local setup | [SQL Playground](/docs/playground) | Run one sample query and change one filter, sort, or aggregate so the SQL shape is yours | You understand the query skeleton you want to port |
-| A local file or download path | [Possession 3](#possession-3--connect-and-confirm-the-floor) | Connect to `nba.duckdb` and run `SHOW TABLES` | You can see `analytics_*`, `dim_*`, and `fact_*` surfaces |
-| A basketball question and need one reusable answer | [Possession 4](#possession-4--run-your-first-question) | Run one option end to end and keep the output dataframe or notebook cell | You have one working pattern you can reuse |
+| If you have today…                                 | Start here                                                   | First useful action                                                                      | Stop when                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| A browser tab and no local setup                   | [SQL Playground](/docs/playground)                           | Run one sample query and change one filter, sort, or aggregate so the SQL shape is yours | You understand the query skeleton you want to port        |
+| A local file or download path                      | [Possession 3](#possession-3--connect-and-confirm-the-floor) | Connect to `nba.duckdb` and run `SHOW TABLES`                                            | You can see `analytics_*`, `dim_*`, and `fact_*` surfaces |
+| A basketball question and need one reusable answer | [Possession 4](#possession-4--run-your-first-question)       | Run one option end to end and keep the output dataframe or notebook cell                 | You have one working pattern you can reuse                |
 
 <MetricRow>
-    <Metric label="Fastest first read" value="analytics_*" />
-    <Metric label="Local engine" value="DuckDB" />
-    <Metric label="Frame layer" value="Polars" />
-    <Metric label="First wins" value="3" />
+  <Metric label="Fastest first read" value="analytics_*" />
+  <Metric label="Local engine" value="DuckDB" />
+  <Metric label="Frame layer" value="Polars" />
+  <Metric label="First wins" value="3" />
 </MetricRow>
 
 <InsightCard title="What success looks like">
-    Leave this page with three things: one working local connection, one reusable query pattern, and one clear next stop for the question that survived the opening possession.
+  Leave this page with three things: one working local connection, one reusable
+  query pattern, and one clear next stop for the question that survived the
+  opening possession.
 </InsightCard>
 
 <div className="grid gap-4 md:grid-cols-3">
-    <ScoutCard title="Win 1" label="Connection">
-        Prove that the warehouse opens cleanly and that <code>SHOW TABLES</code> returns the surfaces you expect.
-    </ScoutCard>
-    <ScoutCard title="Win 2" label="Pattern">
-        Leave with one pattern you can reuse: a leaderboard, a shot-zone slice, or a season snapshot.
-    </ScoutCard>
-    <ScoutCard title="Win 3" label="Branch">
-        Know whether the next possession belongs in <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a>, <a href="/docs/guides/player-comparison">Player Comparison</a>, <a href="/docs/guides/shot-chart-analysis">Shot Chart Analysis</a>, or <a href="/docs/schema">Schema Reference</a>.
-    </ScoutCard>
+  <ScoutCard title="Win 1" label="Connection">
+    Prove that the warehouse opens cleanly and that <code>SHOW TABLES</code>{" "}
+    returns the surfaces you expect.
+  </ScoutCard>
+  <ScoutCard title="Win 2" label="Pattern">
+    Leave with one pattern you can reuse: a leaderboard, a shot-zone slice, or a
+    season snapshot.
+  </ScoutCard>
+  <ScoutCard title="Win 3" label="Branch">
+    Know whether the next possession belongs in{" "}
+    <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a>,{" "}
+    <a href="/docs/guides/player-comparison">Player Comparison</a>,{" "}
+    <a href="/docs/guides/shot-chart-analysis">Shot Chart Analysis</a>, or{" "}
+    <a href="/docs/schema">Schema Reference</a>.
+  </ScoutCard>
 </div>
 
 ## Pick your route
 
 <div className="grid gap-4 md:grid-cols-2">
-    <ScoutCard title="Rehearse the query shape first" label="Start here">
-        Open <a href="/docs/playground">SQL Playground</a> if you want browser-only reps before touching the local warehouse.
-    </ScoutCard>
-    <ScoutCard title="Prove the dataset is usable locally" label="Start here">
-        Start at <a href="#possession-1-install-dependencies">Possession 1</a> and stop once <code>SHOW TABLES</code> returns the surfaces you expect.
-    </ScoutCard>
-    <ScoutCard title="Grab one working pattern fast" label="Start here">
-        Jump to <a href="#possession-4-run-your-first-question">Possession 4</a> if you already have the file and just need one reusable analysis pattern.
-    </ScoutCard>
-    <ScoutCard title="Branch deeper after the first result" label="Start here">
-        Finish on <a href="#where-to-go-next">Where to go next</a> once you know whether the next possession is SQL, visualization, comparison, or schema reading.
-    </ScoutCard>
+  <ScoutCard title="Rehearse the query shape first" label="Start here">
+    Open <a href="/docs/playground">SQL Playground</a> if you want browser-only
+    reps before touching the local warehouse.
+  </ScoutCard>
+  <ScoutCard title="Prove the dataset is usable locally" label="Start here">
+    Start at <a href="#possession-1-install-dependencies">Possession 1</a> and
+    stop once <code>SHOW TABLES</code> returns the surfaces you expect.
+  </ScoutCard>
+  <ScoutCard title="Grab one working pattern fast" label="Start here">
+    Jump to <a href="#possession-4-run-your-first-question">Possession 4</a> if
+    you already have the file and just need one reusable analysis pattern.
+  </ScoutCard>
+  <ScoutCard title="Branch deeper after the first result" label="Start here">
+    Finish on <a href="#where-to-go-next">Where to go next</a> once you know
+    whether the next possession is SQL, visualization, comparison, or schema
+    reading.
+  </ScoutCard>
 </div>
 
 <Callout type="info">
-**Coaching note:** Pick one lane only. Browser-only reps belong in <a href="/docs/playground">SQL Playground</a>; live-data validation starts with `SHOW TABLES`; deeper analysis starts after you have one working query in hand. Start with the denormalized `analytics_*` surfaces when you need the fastest first read, then drop to fact tables once you know which possession deserves deeper inspection.
+  **Coaching note:** Pick one lane only. Browser-only reps belong in{" "}
+  <a href="/docs/playground">SQL Playground</a>; live-data validation starts
+  with `SHOW TABLES`; deeper analysis starts after you have one working query in
+  hand. Start with the denormalized `analytics_*` surfaces when you need the
+  fastest first read, then drop to fact tables once you know which possession
+  deserves deeper inspection.
 </Callout>
 
 <CourtDivider label="Opening possession" />
@@ -69,7 +87,10 @@ If you want to rehearse the SQL shape before downloading anything, warm up in <a
 
 ### Possession 1 — Install dependencies
 
-<CommandBlock command="pip install polars duckdb kagglehub" label="Lightweight local stack" />
+<CommandBlock
+  command="pip install polars duckdb kagglehub"
+  label="Lightweight local stack"
+/>
 
 This gives you one SQL engine (`duckdb`), one DataFrame tool (`polars`), and one download path (`kagglehub`) without a heavier local stack.
 
@@ -104,15 +125,18 @@ for t in tables:
 Pick one of these three reads before you branch out. Each one gives you a reusable pattern for joins, filters, and aggregation.
 
 <div className="grid gap-4 md:grid-cols-3">
-    <ScoutCard title="Option A" label="Leaderboard">
-        Use this when you need an all-time or season-scoped ranking and want a clean fact-plus-dimension aggregation pattern.
-    </ScoutCard>
-    <ScoutCard title="Option B" label="Shot map">
-        Use this when you need a player slice with court coordinates you can later plot or group by zone.
-    </ScoutCard>
-    <ScoutCard title="Option C" label="Standings">
-        Use this when you need a current-season team snapshot that already lives in a purpose-built fact table.
-    </ScoutCard>
+  <ScoutCard title="Option A" label="Leaderboard">
+    Use this when you need an all-time or season-scoped ranking and want a clean
+    fact-plus-dimension aggregation pattern.
+  </ScoutCard>
+  <ScoutCard title="Option B" label="Shot map">
+    Use this when you need a player slice with court coordinates you can later
+    plot or group by zone.
+  </ScoutCard>
+  <ScoutCard title="Option C" label="Standings">
+    Use this when you need a current-season team snapshot that already lives in
+    a purpose-built fact table.
+  </ScoutCard>
 </div>
 
 #### Option A — Who are the all-time scoring leaders?
@@ -189,19 +213,23 @@ Use this pattern when you need a **current-season snapshot** that already lives 
 ## Where to go next
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-    <ScoutCard title="Browser-only sandbox" label="Next question">
-        Go to <a href="/docs/playground">SQL Playground</a> before touching the local file.
-    </ScoutCard>
-    <ScoutCard title="More SQL examples" label="Next question">
-        Go to <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a> for copy-ready patterns.
-    </ScoutCard>
-    <ScoutCard title="Visualize shooting locations" label="Next question">
-        Go to <a href="/docs/guides/shot-chart-analysis">Shot Chart Analysis</a> for court-map work.
-    </ScoutCard>
-    <ScoutCard title="Run side-by-side player reads" label="Next question">
-        Go to <a href="/docs/guides/player-comparison">Player Comparison</a> for head-to-head patterns.
-    </ScoutCard>
-    <ScoutCard title="Read table-level documentation" label="Next question">
-        Go to <a href="/docs/schema">Schema Reference</a> before you write more SQL.
-    </ScoutCard>
+  <ScoutCard title="Browser-only sandbox" label="Next question">
+    Go to <a href="/docs/playground">SQL Playground</a> before touching the
+    local file.
+  </ScoutCard>
+  <ScoutCard title="More SQL examples" label="Next question">
+    Go to <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a> for
+    copy-ready patterns.
+  </ScoutCard>
+  <ScoutCard title="Visualize shooting locations" label="Next question">
+    Go to <a href="/docs/guides/shot-chart-analysis">Shot Chart Analysis</a> for
+    court-map work.
+  </ScoutCard>
+  <ScoutCard title="Run side-by-side player reads" label="Next question">
+    Go to <a href="/docs/guides/player-comparison">Player Comparison</a> for
+    head-to-head patterns.
+  </ScoutCard>
+  <ScoutCard title="Read table-level documentation" label="Next question">
+    Go to <a href="/docs/schema">Schema Reference</a> before you write more SQL.
+  </ScoutCard>
 </div>

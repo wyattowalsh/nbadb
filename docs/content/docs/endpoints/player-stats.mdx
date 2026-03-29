@@ -13,48 +13,51 @@ Seven endpoints build the player scouting report.
 
 ## Quick route
 
-| If you need... | Use | Why it is the fastest route |
-| -------------- | --- | --------------------------- |
-| the full player universe | `CommonAllPlayers` | Fastest directory for current and historical NBA players |
-| bio plus current-season snapshot in one row set | `PlayerIndex` | Good first stop when you want identity and lightweight production together |
-| one player's core bio and headline context | `CommonPlayerInfo` | Best single dossier opener once you have `player_id` |
-| season-by-season and career totals | `PlayerCareerStats` | Best historical arc for one player across regular season and playoffs |
-| awards and honors | `PlayerAwards` | Clean honors timeline keyed by `player_id` |
-| a year-over-year dashboard | `PlayerDashboardByYearOverYear` | Quick way to compare one season against the surrounding seasons |
-| streak hunting with filters | `PlayerGameStreakFinder` | Best route when the question is “find games like this” |
+| If you need...                                  | Use                             | Why it is the fastest route                                                |
+| ----------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| the full player universe                        | `CommonAllPlayers`              | Fastest directory for current and historical NBA players                   |
+| bio plus current-season snapshot in one row set | `PlayerIndex`                   | Good first stop when you want identity and lightweight production together |
+| one player's core bio and headline context      | `CommonPlayerInfo`              | Best single dossier opener once you have `player_id`                       |
+| season-by-season and career totals              | `PlayerCareerStats`             | Best historical arc for one player across regular season and playoffs      |
+| awards and honors                               | `PlayerAwards`                  | Clean honors timeline keyed by `player_id`                                 |
+| a year-over-year dashboard                      | `PlayerDashboardByYearOverYear` | Quick way to compare one season against the surrounding seasons            |
+| streak hunting with filters                     | `PlayerGameStreakFinder`        | Best route when the question is “find games like this”                     |
 
 ## Lookup surfaces
 
-| Endpoint | Result sets | Key columns / signals | Route cue |
-| -------- | ----------- | --------------------- | --------- |
-| `CommonAllPlayers` | `CommonAllPlayers` | `person_id`, `display_first_last`, `roster_status`, `from_year`, `to_year`, `team_id` | Start here when you need the canonical player list or a fast ID lookup |
-| `PlayerIndex` | `PlayerIndex` | `person_id`, `player_first_name`, `player_last_name`, `position`, `height`, `weight`, `college`, `country`, `draft_year`, `draft_round`, `draft_number`, `pts`, `reb`, `ast` | Best first page when you want a searchable player directory with lightweight stat context |
+| Endpoint           | Result sets        | Key columns / signals                                                                                                                                                        | Route cue                                                                                 |
+| ------------------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `CommonAllPlayers` | `CommonAllPlayers` | `person_id`, `display_first_last`, `roster_status`, `from_year`, `to_year`, `team_id`                                                                                        | Start here when you need the canonical player list or a fast ID lookup                    |
+| `PlayerIndex`      | `PlayerIndex`      | `person_id`, `player_first_name`, `player_last_name`, `position`, `height`, `weight`, `college`, `country`, `draft_year`, `draft_round`, `draft_number`, `pts`, `reb`, `ast` | Best first page when you want a searchable player directory with lightweight stat context |
 
 **Lands in:**
+
 - `CommonAllPlayers` &rarr; `stg_all_players` &rarr; `dim_all_players`
 - `PlayerIndex` &rarr; `stg_player_index` (model-excluded; `dim_player` is modeled from `CommonPlayerInfo`)
 
 ## Core player dossier
 
-| Endpoint | Parameters | Result sets | Route cue |
-| -------- | ---------- | ----------- | --------- |
-| `CommonPlayerInfo` | `player_id` (required) | `CommonPlayerInfo`, `PlayerHeadlineStats`, `AvailableSeasons` | Open this first once you have a player ID; it anchors bio, position, jersey, draft slot, and available seasons |
-| `PlayerCareerStats` | `player_id` (required) | `SeasonTotalsRegularSeason`, `SeasonTotalsPostSeason`, `SeasonTotalsAllStarSeason`, `CareerTotalsRegularSeason`, `CareerTotalsPostSeason` | Use when you need the actual season-by-season arc and career rollup |
-| `PlayerAwards` | `player_id` (required) | `PlayerAwards` | Add when awards, All-NBA history, or honors context matters |
+| Endpoint            | Parameters             | Result sets                                                                                                                               | Route cue                                                                                                      |
+| ------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `CommonPlayerInfo`  | `player_id` (required) | `CommonPlayerInfo`, `PlayerHeadlineStats`, `AvailableSeasons`                                                                             | Open this first once you have a player ID; it anchors bio, position, jersey, draft slot, and available seasons |
+| `PlayerCareerStats` | `player_id` (required) | `SeasonTotalsRegularSeason`, `SeasonTotalsPostSeason`, `SeasonTotalsAllStarSeason`, `CareerTotalsRegularSeason`, `CareerTotalsPostSeason` | Use when you need the actual season-by-season arc and career rollup                                            |
+| `PlayerAwards`      | `player_id` (required) | `PlayerAwards`                                                                                                                            | Add when awards, All-NBA history, or honors context matters                                                    |
 
 **Lands in:**
+
 - `CommonPlayerInfo` &rarr; `stg_player_info`, `stg_player_headline_stats`, `stg_player_available_seasons` &rarr; `dim_player`, `fact_player_headline_stats`, `fact_player_available_seasons`, `bridge_player_team_season`
 - `PlayerCareerStats` &rarr; `stg_player_career` &rarr; `fact_player_career`, `fact_player_profile`
 - `PlayerAwards` &rarr; `stg_player_awards` &rarr; `fact_player_awards`
 
 ## Dashboards and search tools
 
-| Endpoint | Parameters | Result sets | Key columns / signals | Route cue |
-| -------- | ---------- | ----------- | --------------------- | --------- |
-| `PlayerDashboardByYearOverYear` | `player_id` (required), `season` (required) | `OverallPlayerDashboard`, `ByYearPlayerDashboard` | year-over-year comparison lanes for the selected season | Use when one season needs to be benchmarked against the player's nearby history |
-| `PlayerGameStreakFinder` | various filter criteria | `PlayerGameStreakFinderResults` | streak-criteria match output | Use when the prompt starts with thresholds, streak length, or repeating game patterns |
+| Endpoint                        | Parameters                                  | Result sets                                       | Key columns / signals                                   | Route cue                                                                             |
+| ------------------------------- | ------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `PlayerDashboardByYearOverYear` | `player_id` (required), `season` (required) | `OverallPlayerDashboard`, `ByYearPlayerDashboard` | year-over-year comparison lanes for the selected season | Use when one season needs to be benchmarked against the player's nearby history       |
+| `PlayerGameStreakFinder`        | various filter criteria                     | `PlayerGameStreakFinderResults`                   | streak-criteria match output                            | Use when the prompt starts with thresholds, streak length, or repeating game patterns |
 
 **Lands in:**
+
 - `PlayerDashboardByYearOverYear` &rarr; `stg_player_dashboard_yoy` &rarr; `fact_player_dashboard_yoy_overall`, `fact_player_yoy_detail`
 - `PlayerGameStreakFinder` &rarr; `stg_streak_finder` &rarr; `fact_streak_finder`
 
@@ -70,15 +73,17 @@ Seven endpoints build the player scouting report.
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Place the player inside a club file" label="Next stop">
-    Continue to <a href="/docs/endpoints/team-stats">Team Stats</a> when a player dossier
-    needs roster context, front-office detail, or franchise history around the same people and seasons.
+    Continue to <a href="/docs/endpoints/team-stats">Team Stats</a> when a
+    player dossier needs roster context, front-office detail, or franchise
+    history around the same people and seasons.
   </ScoutCard>
   <ScoutCard title="Trace the pre-NBA background" label="Next stop">
-    Open <a href="/docs/endpoints/draft">Draft</a> to connect current player records back
-    to class order, combine testing, and prospect-era measurements.
+    Open <a href="/docs/endpoints/draft">Draft</a> to connect current player
+    records back to class order, combine testing, and prospect-era measurements.
   </ScoutCard>
   <ScoutCard title="Benchmark against the whole league" label="Next stop">
-    Jump to <a href="/docs/endpoints/league-stats">League Stats</a> when one player's
-    dashboard needs leaderboards, lineup context, or season-wide comparison sets.
+    Jump to <a href="/docs/endpoints/league-stats">League Stats</a> when one
+    player's dashboard needs leaderboards, lineup context, or season-wide
+    comparison sets.
   </ScoutCard>
 </div>

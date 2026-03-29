@@ -16,26 +16,32 @@ Read each chain from left to right:
 2. **Advance** — `raw_*` capture keeps the original feed available
 3. **Set** — `stg_*` tables normalize names, types, and validation
 4. **Finish** — `dim_*`, `fact_*`, `bridge_*`, `agg_*`, or `analytics_*` tables receive the final touch
+
 </Callout>
 
 ## Quick navigation
 
 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <ScoutCard title="Start with dimensions" label="Entry surface">
-    Jump to <a href="#dimension-tables">Dimension tables</a> when the downstream issue is about
-    conformed entities like player, team, game, date, or season.
+    Jump to <a href="#dimension-tables">Dimension tables</a> when the downstream
+    issue is about conformed entities like player, team, game, date, or season.
   </ScoutCard>
   <ScoutCard title="Start with facts" label="Entry surface">
-    Use <a href="#fact-tables">Fact tables</a> when the breakage is at player-game, team-game,
-    play-by-play, shot, standings, or matchup grain.
+    Use <a href="#fact-tables">Fact tables</a> when the breakage is at
+    player-game, team-game, play-by-play, shot, standings, or matchup grain.
   </ScoutCard>
   <ScoutCard title="Check bridges or second-side tables" label="Entry surface">
-    Go to <a href="#bridge-tables">Bridge tables</a>, <a href="#derived-aggregations">Derived aggregations</a>,
-    or <a href="#analytics-views">Analytics views</a> when the dependency chain starts after the first finish.
+    Go to <a href="#bridge-tables">Bridge tables</a>,{" "}
+    <a href="#derived-aggregations">Derived aggregations</a>, or{" "}
+    <a href="#analytics-views">Analytics views</a> when the dependency chain
+    starts after the first finish.
   </ScoutCard>
-  <ScoutCard title="Leave curated examples for full coverage" label="Generated companion">
-    Open <a href="/docs/lineage/lineage-auto">Generated Lineage Map</a> when you need wider dependency
-    coverage than this page curates.
+  <ScoutCard
+    title="Leave curated examples for full coverage"
+    label="Generated companion"
+  >
+    Open <a href="/docs/lineage/lineage-auto">Generated Lineage Map</a> when you
+    need wider dependency coverage than this page curates.
   </ScoutCard>
 </div>
 
@@ -57,13 +63,13 @@ The diagram is a legend for the detailed chains below: dimensions set the floor,
 
 ## Start with the right possession type
 
-| If the downstream table starts with… | Start here | What you will usually learn first |
-| ------------------------------------ | ---------- | --------------------------------- |
-| `dim_` | [Dimension tables](#dimension-tables) | Which source feeds establish reusable join anchors |
-| `fact_` | [Fact tables](#fact-tables) | The natural grain and primary inbound endpoint family |
-| `bridge_` | [Bridge tables](#bridge-tables) | Which secondary actors are attached outside the main fact grain |
-| `agg_` | [Derived aggregations](#derived-aggregations) | Which star tables are recombined into reusable rollups |
-| `analytics_` | [Analytics views](#analytics-views) | Which facts, aggregates, and dimensions are joined for convenience |
+| If the downstream table starts with… | Start here                                    | What you will usually learn first                                  |
+| ------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------ |
+| `dim_`                               | [Dimension tables](#dimension-tables)         | Which source feeds establish reusable join anchors                 |
+| `fact_`                              | [Fact tables](#fact-tables)                   | The natural grain and primary inbound endpoint family              |
+| `bridge_`                            | [Bridge tables](#bridge-tables)               | Which secondary actors are attached outside the main fact grain    |
+| `agg_`                               | [Derived aggregations](#derived-aggregations) | Which star tables are recombined into reusable rollups             |
+| `analytics_`                         | [Analytics views](#analytics-views)           | Which facts, aggregates, and dimensions are joined for convenience |
 
 <CourtDivider label="Set the floor" />
 
@@ -453,16 +459,21 @@ fact_team_game
 
 <div className="grid gap-4 md:grid-cols-3">
   <ScoutCard title="Slow down to the field that changed" label="Next stop">
-    Move to <a href="/docs/lineage/column-lineage">Column Lineage</a> when the table chain is clear
-    but one key or metric still needs a frame-by-frame review.
+    Move to <a href="/docs/lineage/column-lineage">Column Lineage</a> when the
+    table chain is clear but one key or metric still needs a frame-by-frame
+    review.
   </ScoutCard>
   <ScoutCard title="Open the exhaustive dependency board" label="Next stop">
-    Use <a href="/docs/lineage/lineage-auto">Generated Lineage Map</a> when you need wider coverage
-    than the curated examples on this page.
+    Use <a href="/docs/lineage/lineage-auto">Generated Lineage Map</a> when you
+    need wider coverage than the curated examples on this page.
   </ScoutCard>
-  <ScoutCard title="Reconnect the replay to the visual boards" label="Next stop">
+  <ScoutCard
+    title="Reconnect the replay to the visual boards"
+    label="Next stop"
+  >
     Jump to <a href="/docs/diagrams/pipeline-flow">Pipeline Flow</a> or{" "}
-    <a href="/docs/diagrams/endpoint-map">Endpoint Map</a> when you want the same story told as a
-    stage diagram or source-coverage board instead of a dependency trace.
+    <a href="/docs/diagrams/endpoint-map">Endpoint Map</a> when you want the
+    same story told as a stage diagram or source-coverage board instead of a
+    dependency trace.
   </ScoutCard>
 </div>

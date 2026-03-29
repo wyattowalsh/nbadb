@@ -30,7 +30,11 @@ Use it when you recognize the stat family but not the exact interpretation: whet
 </div>
 
 <Callout type="info">
-Percentages and rates are usually stored as decimals (`0.0-1.0`) unless the source metric is traditionally expressed another way. Always pair the metric with the table grain: the same stat name means something different on a player-game row than on a season aggregate. Use this page for meaning; use the generated inventory pages for exact table-by-table field presence.
+  Percentages and rates are usually stored as decimals (`0.0-1.0`) unless the
+  source metric is traditionally expressed another way. Always pair the metric
+  with the table grain: the same stat name means something different on a
+  player-game row than on a season aggregate. Use this page for meaning; use the
+  generated inventory pages for exact table-by-table field presence.
 </Callout>
 
 <CourtDivider label="Read the shorthand" />
@@ -41,30 +45,49 @@ Use these as jump points when the name is familiar enough to recognize but not s
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="Shooting efficiency and shot value" label="Quick route">
-    Start with <a href="#shooting-efficiency">Shooting Efficiency</a> for <code>TS%</code>,{" "}
-    <code>eFG%</code>, <code>FG%</code>, <code>FG3%</code>, <code>FT%</code>, and free-throw-rate style fields.
+    Start with <a href="#shooting-efficiency">Shooting Efficiency</a> for{" "}
+    <code>TS%</code>, <code>eFG%</code>, <code>FG%</code>, <code>FG3%</code>,{" "}
+    <code>FT%</code>, and free-throw-rate style fields.
   </ScoutCard>
   <ScoutCard title="Impact and usage metrics" label="Quick route">
-    Go to <a href="#player-impact-metrics">Player Impact Metrics</a> for <code>PIE</code>,{" "}
-    <code>USG%</code>, <code>AST%</code>, <code>AST/TO</code>, and <code>AST Ratio</code>.
+    Go to <a href="#player-impact-metrics">Player Impact Metrics</a> for{" "}
+    <code>PIE</code>, <code>USG%</code>, <code>AST%</code>, <code>AST/TO</code>,
+    and <code>AST Ratio</code>.
   </ScoutCard>
-  <ScoutCard title="Rebounding, turnovers, and possession control" label="Quick route">
-    Use <a href="#rebounding-and-turnover-metrics">Rebounding and turnover metrics</a> for{" "}
-    <code>OREB%</code>, <code>DREB%</code>, <code>REB%</code>, and turnover-rate context.
+  <ScoutCard
+    title="Rebounding, turnovers, and possession control"
+    label="Quick route"
+  >
+    Use{" "}
+    <a href="#rebounding-and-turnover-metrics">
+      Rebounding and turnover metrics
+    </a>{" "}
+    for <code>OREB%</code>, <code>DREB%</code>, <code>REB%</code>, and
+    turnover-rate context.
   </ScoutCard>
-  <ScoutCard title="Pace, ratings, and team quality signals" label="Quick route">
-    Open <a href="#pace-and-efficiency-ratings">Pace and efficiency ratings</a> for pace, offensive
-    rating, defensive rating, and net rating.
+  <ScoutCard
+    title="Pace, ratings, and team quality signals"
+    label="Quick route"
+  >
+    Open <a href="#pace-and-efficiency-ratings">Pace and efficiency ratings</a>{" "}
+    for pace, offensive rating, defensive rating, and net rating.
   </ScoutCard>
   <ScoutCard title="Four Factors and Synergy shorthand" label="Quick route">
     Read <a href="#dean-olivers-four-factors">Dean Oliver's Four Factors</a> and{" "}
-    <a href="#synergy-and-possession-type-shorthand">Synergy and possession-type shorthand</a> when
-    the question is about team-winning drivers or possession classifications.
+    <a href="#synergy-and-possession-type-shorthand">
+      Synergy and possession-type shorthand
+    </a>{" "}
+    when the question is about team-winning drivers or possession
+    classifications.
   </ScoutCard>
-  <ScoutCard title="Box score, hustle, tracking, and win probability" label="Quick route">
+  <ScoutCard
+    title="Box score, hustle, tracking, and win probability"
+    label="Quick route"
+  >
     Jump to <a href="#box-score-basics">Box score basics</a>,{" "}
-    <a href="#hustle-and-tracking-shorthand">Hustle and tracking shorthand</a>, or{" "}
-    <a href="#win-probability-shorthand">Win probability shorthand</a> for the fastest operational definitions.
+    <a href="#hustle-and-tracking-shorthand">Hustle and tracking shorthand</a>,
+    or <a href="#win-probability-shorthand">Win probability shorthand</a> for
+    the fastest operational definitions.
   </ScoutCard>
 </div>
 
@@ -72,12 +95,14 @@ Use these as jump points when the name is familiar enough to recognize but not s
 
 <DataColumns>
   <InsightCard title="Check the grain">
-    A stat on a player-game row, a team-game row, and a season aggregate can share the same name but
-    answer different questions. Grain first, interpretation second.
+    A stat on a player-game row, a team-game row, and a season aggregate can
+    share the same name but answer different questions. Grain first,
+    interpretation second.
   </InsightCard>
   <InsightCard title="Check the stat family">
-    Decide whether the metric is about shooting efficiency, possession load, pace/rating context,
-    tracking, or event counts. That narrows the reading lane fast.
+    Decide whether the metric is about shooting efficiency, possession load,
+    pace/rating context, tracking, or event counts. That narrows the reading
+    lane fast.
   </InsightCard>
   <InsightCard title="Check exact column presence last">
     Once the definition is clear, confirm the concrete field on the generated{" "}
@@ -91,24 +116,27 @@ Use these as jump points when the name is familiar enough to recognize but not s
 
 <DataColumns>
   <InsightCard title="How to use this page">
-    Treat the formulas here as reading aids for warehouse metrics, not as guarantees that every
-    table exposes every intermediate term. The same named metric may appear at different grains with
-    slightly different surrounding context columns.
+    Treat the formulas here as reading aids for warehouse metrics, not as
+    guarantees that every table exposes every intermediate term. The same named
+    metric may appear at different grains with slightly different surrounding
+    context columns.
   </InsightCard>
   <InsightCard title="Where to go after the definition">
-    Once you understand the term, switch to <a href="/docs/data-dictionary/field-reference">Field Reference</a>{" "}
-    for naming patterns or to the generated <a href="/docs/data-dictionary/star">Star</a> inventory
-    when you need to confirm exactly which public tables expose the field.
+    Once you understand the term, switch to{" "}
+    <a href="/docs/data-dictionary/field-reference">Field Reference</a> for
+    naming patterns or to the generated{" "}
+    <a href="/docs/data-dictionary/star">Star</a> inventory when you need to
+    confirm exactly which public tables expose the field.
   </InsightCard>
 </DataColumns>
 
-| Family | Common terms | Typical places you will see them |
-| ------ | ------------ | -------------------------------- |
-| Shooting efficiency | TS%, eFG%, FG%, FG3%, FT%, FTA Rate | player-game facts, four-factors tables, season aggregates |
-| Impact and usage | PIE, USG%, AST%, AST/TO, AST Ratio | advanced player-game tables and season rollups |
-| Possession control | OREB%, DREB%, REB%, TOV% | advanced and four-factors style analysis |
-| Pace and ratings | Pace, ORTG, DRTG, Net Rating | advanced player-game metrics, team pace rollups, analytics views |
-| Tracking and synergy | PPP, Score%, touches, speed, defended FG | tracking, defense, and synergy tables |
+| Family               | Common terms                             | Typical places you will see them                                 |
+| -------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
+| Shooting efficiency  | TS%, eFG%, FG%, FG3%, FT%, FTA Rate      | player-game facts, four-factors tables, season aggregates        |
+| Impact and usage     | PIE, USG%, AST%, AST/TO, AST Ratio       | advanced player-game tables and season rollups                   |
+| Possession control   | OREB%, DREB%, REB%, TOV%                 | advanced and four-factors style analysis                         |
+| Pace and ratings     | Pace, ORTG, DRTG, Net Rating             | advanced player-game metrics, team pace rollups, analytics views |
+| Tracking and synergy | PPP, Score%, touches, speed, defended FG | tracking, defense, and synergy tables                            |
 
 ## Shooting Efficiency
 
@@ -310,12 +338,12 @@ Difference between offensive and defensive rating. Positive means outscoring opp
 
 The four factors most strongly associated with winning. In nbadb they are surfaced in `fact_box_score_four_factors`.
 
-| Factor | Importance | Column | What it measures |
-| ------ | :--------: | ------ | ---------------- |
-| eFG% | 40% | `efg_pct` | Shooting efficiency |
-| TOV% | 25% | `tm_tov_pct` | Ball security |
-| OREB% | 20% | `oreb_pct` | Second-chance creation |
-| FTA Rate | 15% | `fta_rate` | Getting to the line |
+| Factor   | Importance | Column       | What it measures       |
+| -------- | :--------: | ------------ | ---------------------- |
+| eFG%     |    40%     | `efg_pct`    | Shooting efficiency    |
+| TOV%     |    25%     | `tm_tov_pct` | Ball security          |
+| OREB%    |    20%     | `oreb_pct`   | Second-chance creation |
+| FTA Rate |    15%     | `fta_rate`   | Getting to the line    |
 
 ## Synergy and possession-type shorthand
 
@@ -325,10 +353,10 @@ This is the lane for possession classification: not just <em>what happened</em>,
 
 Synergy-classified possessions appear in `fact_synergy`.
 
-| Term | Meaning | Column |
-| ---- | ------- | ------ |
-| PPP | Points per possession | `ppp` |
-| Score% | Percentage of possessions that result in a score | `score_pct` |
+| Term      | Meaning                                                     | Column      |
+| --------- | ----------------------------------------------------------- | ----------- |
+| PPP       | Points per possession                                       | `ppp`       |
+| Score%    | Percentage of possessions that result in a score            | `score_pct` |
 | Play type | Possession family such as isolation, post-up, or transition | `play_type` |
 
 Common play types include Isolation, PnR Ball Handler, PnR Roll Man, Post Up, Spot Up, Transition, Handoff, Cut, Off Screen, Putback, and Misc.
@@ -341,21 +369,21 @@ Common play types include Isolation, PnR Ball Handler, PnR Roll Man, Post Up, Sp
 
 Use this section when the column is ordinary scoreboard shorthand rather than an advanced formula.
 
-| Abbreviation | Full name | Column |
-| ------------ | --------- | ------ |
-| PTS | Points | `pts` |
-| REB | Total rebounds | `reb` |
-| AST | Assists | `ast` |
-| STL | Steals | `stl` |
-| BLK | Blocks | `blk` |
-| TOV | Turnovers | `tov` |
-| PF | Personal fouls | `pf` |
-| MIN | Minutes played | `min` |
-| FGM/FGA | Field goals made/attempted | `fgm`, `fga` |
-| FG3M/FG3A | Three-point field goals made/attempted | `fg3m`, `fg3a` |
-| FTM/FTA | Free throws made/attempted | `ftm`, `fta` |
-| OREB/DREB | Offensive/defensive rebounds | `oreb`, `dreb` |
-| +/- | Plus/minus | `plus_minus` |
+| Abbreviation | Full name                              | Column         |
+| ------------ | -------------------------------------- | -------------- |
+| PTS          | Points                                 | `pts`          |
+| REB          | Total rebounds                         | `reb`          |
+| AST          | Assists                                | `ast`          |
+| STL          | Steals                                 | `stl`          |
+| BLK          | Blocks                                 | `blk`          |
+| TOV          | Turnovers                              | `tov`          |
+| PF           | Personal fouls                         | `pf`           |
+| MIN          | Minutes played                         | `min`          |
+| FGM/FGA      | Field goals made/attempted             | `fgm`, `fga`   |
+| FG3M/FG3A    | Three-point field goals made/attempted | `fg3m`, `fg3a` |
+| FTM/FTA      | Free throws made/attempted             | `ftm`, `fta`   |
+| OREB/DREB    | Offensive/defensive rebounds           | `oreb`, `dreb` |
+| +/-          | Plus/minus                             | `plus_minus`   |
 
 ## Hustle and tracking shorthand
 
@@ -367,28 +395,28 @@ This is the operational lane for event-count and movement/context metrics that a
 
 Common in `fact_player_game_hustle`:
 
-| Metric | Column | Description |
-| ------ | ------ | ----------- |
-| Contested Shots | `contested_shots` | Total contested shots |
-| Deflections | `deflections` | Balls deflected |
-| Charges Drawn | `charges_drawn` | Offensive fouls drawn |
-| Loose Balls Recovered | `loose_balls_recovered` | Loose balls secured |
-| Screen Assists | `screen_assists` | Screens that directly produced teammate scores |
-| Screen Assist Points | `screen_ast_pts` | Points created from screen assists |
-| Box Outs | `box_outs` | Box outs recorded |
+| Metric                | Column                  | Description                                    |
+| --------------------- | ----------------------- | ---------------------------------------------- |
+| Contested Shots       | `contested_shots`       | Total contested shots                          |
+| Deflections           | `deflections`           | Balls deflected                                |
+| Charges Drawn         | `charges_drawn`         | Offensive fouls drawn                          |
+| Loose Balls Recovered | `loose_balls_recovered` | Loose balls secured                            |
+| Screen Assists        | `screen_assists`        | Screens that directly produced teammate scores |
+| Screen Assist Points  | `screen_ast_pts`        | Points created from screen assists             |
+| Box Outs              | `box_outs`              | Box outs recorded                              |
 
 ### Tracking shorthand
 
 Common in `fact_player_game_tracking`:
 
-| Metric | Column | Description |
-| ------ | ------ | ----------- |
-| Speed | `spd` | Average speed in miles per hour |
-| Distance | `dist` | Distance traveled in miles |
-| Touches | `tchs` | Times the player touched the ball |
-| Passes | `passes` | Total passes made |
-| Defended FG% | `dfg_pct` | Opponent field-goal percentage on defended shots |
-| Time of Possession | `time_of_poss` | Possession time credited to the player |
+| Metric             | Column         | Description                                      |
+| ------------------ | -------------- | ------------------------------------------------ |
+| Speed              | `spd`          | Average speed in miles per hour                  |
+| Distance           | `dist`         | Distance traveled in miles                       |
+| Touches            | `tchs`         | Times the player touched the ball                |
+| Passes             | `passes`       | Total passes made                                |
+| Defended FG%       | `dfg_pct`      | Opponent field-goal percentage on defended shots |
+| Time of Possession | `time_of_poss` | Possession time credited to the player           |
 
 ## Win probability shorthand
 
@@ -398,11 +426,11 @@ Use this section when the field is about game state and odds at a specific event
 
 Common in `fact_win_probability`:
 
-| Metric | Column | Description |
-| ------ | ------ | ----------- |
-| Home Win% | `home_pct` | Home team win probability at the event |
-| Visitor Win% | `visitor_pct` | Visitor team win probability at the event |
-| Home Margin | `home_score_margin` | Home team's lead/deficit at that event |
+| Metric       | Column              | Description                               |
+| ------------ | ------------------- | ----------------------------------------- |
+| Home Win%    | `home_pct`          | Home team win probability at the event    |
+| Visitor Win% | `visitor_pct`       | Visitor team win probability at the event |
+| Home Margin  | `home_score_margin` | Home team's lead/deficit at that event    |
 
 ---
 

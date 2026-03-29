@@ -11,60 +11,61 @@ This document defines the **strategic migration tracks** and **phased rollout se
 
 ## Read this page as a rollout clipboard
 
-| If you need… | Start here |
-| ------------- | ---------- |
-| The current state in one glance | [Current state](#current-state) |
-| The work lanes for future changes | [Strategic tracks](#strategic-tracks) |
-| The rollout order | [Phased rollout plan](#phased-rollout-plan) |
-| The placeholder flags | [Flag-to-track mapping](#flag-to-track-mapping) |
+| If you need…                      | Start here                                      |
+| --------------------------------- | ----------------------------------------------- |
+| The current state in one glance   | [Current state](#current-state)                 |
+| The work lanes for future changes | [Strategic tracks](#strategic-tracks)           |
+| The rollout order                 | [Phased rollout plan](#phased-rollout-plan)     |
+| The placeholder flags             | [Flag-to-track mapping](#flag-to-track-mapping) |
 
 <Callout type="info">
-**Coaching note:** Every flag listed here defaults to `false`. This page is a rollout clipboard for sequencing work, not an activation guide.
+  **Coaching note:** Every flag listed here defaults to `false`. This page is a
+  rollout clipboard for sequencing work, not an activation guide.
 </Callout>
 
 ## Current state
 
-| Item | Current position |
-| ---- | ---------------- |
-| Active phase | **Phase 0 — Scaffolding only** |
-| Runtime behavior change | None |
-| Feature flag defaults | All listed flags remain `false` |
-| Purpose of this page | Sequence future work before implementation starts |
+| Item                    | Current position                                  |
+| ----------------------- | ------------------------------------------------- |
+| Active phase            | **Phase 0 — Scaffolding only**                    |
+| Runtime behavior change | None                                              |
+| Feature flag defaults   | All listed flags remain `false`                   |
+| Purpose of this page    | Sequence future work before implementation starts |
 
 ## Strategic tracks
 
 The strategic shift is split into parallel tracks so future migrations can land incrementally:
 
-| Track | What moves in this lane |
-| ----- | ----------------------- |
+| Track               | What moves in this lane                                    |
+| ------------------- | ---------------------------------------------------------- |
 | **Ingestion track** | Source extraction and upstream fetch orchestration updates |
-| **Storage track** | Data persistence and file/database layout migration |
-| **Schema track** | Validation and model evolution for new data contracts |
-| **Serving track** | Downstream access patterns and consumer compatibility |
+| **Storage track**   | Data persistence and file/database layout migration        |
+| **Schema track**    | Validation and model evolution for new data contracts      |
+| **Serving track**   | Downstream access patterns and consumer compatibility      |
 
 ## Phased rollout plan
 
 The phased rollout is intentionally low-risk and backward-compatible:
 
-| Phase | What happens | Expected behavior |
-| ----- | ------------ | ----------------- |
-| **Phase 0 — Scaffolding only (current)** | Add config placeholders and documentation artifacts | No behavior changes |
-| **Phase 1 — Shadow mode** | Enable parallel reads/comparisons behind flags | No production writes |
+| Phase                                         | What happens                                                                            | Expected behavior                         |
+| --------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **Phase 0 — Scaffolding only (current)**      | Add config placeholders and documentation artifacts                                     | No behavior changes                       |
+| **Phase 1 — Shadow mode**                     | Enable parallel reads/comparisons behind flags                                          | No production writes                      |
 | **Phase 2 — Dual-write / controlled cutover** | Write to both legacy and strategic paths, validate parity, then route traffic gradually | Controlled overlap with parity validation |
-| **Phase 3 — Legacy retirement** | Remove fallback paths after sustained parity and operational sign-off | Strategic path becomes the only path |
+| **Phase 3 — Legacy retirement**               | Remove fallback paths after sustained parity and operational sign-off                   | Strategic path becomes the only path      |
 
 ## Flag-to-track mapping
 
 Future migrations can be enabled per track or phase using these placeholders:
 
-| Area | Placeholder flag |
-| ---- | ---------------- |
-| Ingestion track | `NBADB_STRATEGIC_TRACK_INGESTION_V2_ENABLED` |
-| Storage track | `NBADB_STRATEGIC_TRACK_STORAGE_V2_ENABLED` |
-| Schema track | `NBADB_STRATEGIC_TRACK_SCHEMA_V2_ENABLED` |
-| Serving track | `NBADB_STRATEGIC_TRACK_SERVING_V2_ENABLED` |
+| Area                | Placeholder flag                              |
+| ------------------- | --------------------------------------------- |
+| Ingestion track     | `NBADB_STRATEGIC_TRACK_INGESTION_V2_ENABLED`  |
+| Storage track       | `NBADB_STRATEGIC_TRACK_STORAGE_V2_ENABLED`    |
+| Schema track        | `NBADB_STRATEGIC_TRACK_SCHEMA_V2_ENABLED`     |
+| Serving track       | `NBADB_STRATEGIC_TRACK_SERVING_V2_ENABLED`    |
 | Phase 1 shadow mode | `NBADB_STRATEGIC_PHASE_1_SHADOW_MODE_ENABLED` |
-| Phase 2 dual-write | `NBADB_STRATEGIC_PHASE_2_DUAL_WRITE_ENABLED` |
+| Phase 2 dual-write  | `NBADB_STRATEGIC_PHASE_2_DUAL_WRITE_ENABLED`  |
 
 All flags default to `false`, preserving current behavior until explicitly enabled.
 

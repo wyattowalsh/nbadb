@@ -35,7 +35,11 @@ Use it when the column name is technically familiar but context is still fuzzy: 
 </div>
 
 <Callout type="info">
-Need the exact field list for a specific schema-backed table? Jump to the generated [Raw](/docs/data-dictionary/raw), [Staging](/docs/data-dictionary/staging), or [Star](/docs/data-dictionary/star) inventory. Use this page to decode how those fields behave.
+  Need the exact field list for a specific schema-backed table? Jump to the
+  generated [Raw](/docs/data-dictionary/raw),
+  [Staging](/docs/data-dictionary/staging), or
+  [Star](/docs/data-dictionary/star) inventory. Use this page to decode how
+  those fields behave.
 </Callout>
 
 <CourtDivider label="Pick the lookup sheet" />
@@ -46,42 +50,47 @@ Use this page like a scan aid, not like a linear essay.
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="Find the join anchors first" label="Quick route">
-    Jump to <a href="#identity-and-grain-columns">Identity and grain columns</a> when you need to
-    decide whether a row is keyed by player, team, game, season, date, or lineup/group context.
+    Jump to <a href="#identity-and-grain-columns">Identity and grain columns</a>{" "}
+    when you need to decide whether a row is keyed by player, team, game,
+    season, date, or lineup/group context.
   </ScoutCard>
   <ScoutCard title="Decode who the row is talking about" label="Quick route">
-    Use <a href="#role-and-context-columns">Role and context columns</a> for home vs visitor,
-    offense vs defense, participant-slot fields, and shot-zone labels.
+    Use <a href="#role-and-context-columns">Role and context columns</a> for
+    home vs visitor, offense vs defense, participant-slot fields, and shot-zone
+    labels.
   </ScoutCard>
   <ScoutCard title="Read the stat name by sight" label="Quick route">
-    Open <a href="#metric-naming-quick-read">Metric naming quick read</a> when the question is
-    really about suffixes like <code>{"_pct"}</code>, <code>{"_rank"}</code>,{" "}
-    <code>{"total_"}</code>, or rolling windows.
+    Open <a href="#metric-naming-quick-read">Metric naming quick read</a> when
+    the question is really about suffixes like <code>{"_pct"}</code>,{" "}
+    <code>{"_rank"}</code>, <code>{"total_"}</code>, or rolling windows.
   </ScoutCard>
   <ScoutCard title="Explain the duplicate-looking rows" label="Quick route">
-    Go to <a href="#discriminator-columns">Discriminator columns</a> when repeated keys might
-    actually be different slices, summaries, or tracking cuts rather than bad duplication.
+    Go to <a href="#discriminator-columns">Discriminator columns</a> when
+    repeated keys might actually be different slices, summaries, or tracking
+    cuts rather than bad duplication.
   </ScoutCard>
 </div>
 
 ## Start here by question
 
-| If the question is... | Read this section | Why |
-| --------------------- | ----------------- | --- |
-| "Which columns identify the row and define its grain?" | [Identity and grain columns](#identity-and-grain-columns) | These are the keys and season/game anchors that keep joins honest |
-| "What do these home/visitor/offense/defense columns mean?" | [Role and context columns](#role-and-context-columns) | These fields tell you which side of the possession a row is describing |
-| "How should I interpret `_pct`, `avg_`, `total_`, or rolling fields?" | [Metric naming quick read](#metric-naming-quick-read) | This is the fastest way to decode a stat column by sight |
-| "Why do multiple rows exist for what looks like the same entity?" | [Discriminator columns](#discriminator-columns) | Dashboard-style surfaces often encode row meaning in type/context fields |
+| If the question is...                                                 | Read this section                                         | Why                                                                      |
+| --------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| "Which columns identify the row and define its grain?"                | [Identity and grain columns](#identity-and-grain-columns) | These are the keys and season/game anchors that keep joins honest        |
+| "What do these home/visitor/offense/defense columns mean?"            | [Role and context columns](#role-and-context-columns)     | These fields tell you which side of the possession a row is describing   |
+| "How should I interpret `_pct`, `avg_`, `total_`, or rolling fields?" | [Metric naming quick read](#metric-naming-quick-read)     | This is the fastest way to decode a stat column by sight                 |
+| "Why do multiple rows exist for what looks like the same entity?"     | [Discriminator columns](#discriminator-columns)           | Dashboard-style surfaces often encode row meaning in type/context fields |
 
 <DataColumns>
   <InsightCard title="Fast reading sequence">
-    Read dense generated tables in this order: <strong>grain</strong> first, then{" "}
-    <strong>discriminator</strong>, then <strong>role/context</strong>, and only after that the
-    measures. That order prevents most bad joins and most stat-name misreads.
+    Read dense generated tables in this order: <strong>grain</strong> first,
+    then <strong>discriminator</strong>, then <strong>role/context</strong>, and
+    only after that the measures. That order prevents most bad joins and most
+    stat-name misreads.
   </InsightCard>
   <InsightCard title="Where exactness lives">
-    This page explains patterns that repeat across the warehouse. The authoritative exhaustive
-    field lists still live on the generated <a href="/docs/data-dictionary/raw">Raw</a>,{" "}
+    This page explains patterns that repeat across the warehouse. The
+    authoritative exhaustive field lists still live on the generated{" "}
+    <a href="/docs/data-dictionary/raw">Raw</a>,{" "}
     <a href="/docs/data-dictionary/staging">Staging</a>, and{" "}
     <a href="/docs/data-dictionary/star">Star</a> pages.
   </InsightCard>
@@ -91,77 +100,80 @@ Use this page like a scan aid, not like a linear essay.
 
 ### Primary join anchors
 
-| Pattern | Where you will see it | How to read it |
-| ------- | --------------------- | -------------- |
-| `player_id` | `dim_player`, player facts, matchup and shot tables | Default natural key for player joins across the analytical surface |
-| `team_id` | `dim_team`, team facts, many player/team mixed facts | Default team join key for both team-level and roster-context analysis |
-| `game_id` | `dim_game`, game facts, player-game and team-game facts | The main possession/game anchor for event and box-score style analysis |
-| `group_id` | lineup-oriented facts and bridges | Identifier for lineup/group analysis rather than a single player or team |
+| Pattern     | Where you will see it                                   | How to read it                                                           |
+| ----------- | ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `player_id` | `dim_player`, player facts, matchup and shot tables     | Default natural key for player joins across the analytical surface       |
+| `team_id`   | `dim_team`, team facts, many player/team mixed facts    | Default team join key for both team-level and roster-context analysis    |
+| `game_id`   | `dim_game`, game facts, player-game and team-game facts | The main possession/game anchor for event and box-score style analysis   |
+| `group_id`  | lineup-oriented facts and bridges                       | Identifier for lineup/group analysis rather than a single player or team |
 
 ### Grain-scoping helpers
 
-| Pattern | Where you will see it | How to read it |
-| ------- | --------------------- | -------------- |
-| `season_year` | `dim_game`, season-level facts, aggregates, analytics views | Common season-scoping field; use it early to narrow wide scans |
-| `season_type` | game or season summary surfaces | Distinguishes regular season, playoffs, and other competition phases |
-| `date_key` / `full_date` | `dim_date` and date-aware reporting | Calendar helpers for reporting windows, weekday analysis, and date joins |
+| Pattern                  | Where you will see it                                       | How to read it                                                           |
+| ------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `season_year`            | `dim_game`, season-level facts, aggregates, analytics views | Common season-scoping field; use it early to narrow wide scans           |
+| `season_type`            | game or season summary surfaces                             | Distinguishes regular season, playoffs, and other competition phases     |
+| `date_key` / `full_date` | `dim_date` and date-aware reporting                         | Calendar helpers for reporting windows, weekday analysis, and date joins |
 
 ### History-aware keys
 
-| Pattern | Where you will see it | How to read it |
-| ------- | --------------------- | -------------- |
+| Pattern       | Where you will see it                         | How to read it                                              |
+| ------------- | --------------------------------------------- | ----------------------------------------------------------- |
 | `<entity>_sk` | history-aware dimensions such as `dim_player` | Surrogate/history key used when row state over time matters |
 
 <Callout>
-If a table exposes both <code>&lt;entity&gt;_id</code> and <code>&lt;entity&gt;_sk</code>, read them as different jobs, not duplicate columns. The natural key answers <em>who</em>; the surrogate/history key answers <em>which versioned row</em>.
+  If a table exposes both <code>&lt;entity&gt;_id</code> and{" "}
+  <code>&lt;entity&gt;_sk</code>, read them as different jobs, not duplicate
+  columns. The natural key answers <em>who</em>; the surrogate/history key
+  answers <em>which versioned row</em>.
 </Callout>
 
 ## Role and context columns
 
 ### Side-of-game context
 
-| Column or pattern | What it usually signals | Scouting note |
-| ----------------- | ----------------------- | ------------- |
-| `home_team_id` / `visitor_team_id` | Both clubs attached to one game row | The main game dimension uses `visitor`, not `away`, for the second team |
-| `side` | Home/away designation on a row | Important in stint and bridge-style tables where one surface carries both sides |
-| `def_player_id` / `def_team_id` | Defensive-side participant in matchup or defense tables | Keep offense and defense in separate lanes when joining |
+| Column or pattern                  | What it usually signals                                 | Scouting note                                                                   |
+| ---------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `home_team_id` / `visitor_team_id` | Both clubs attached to one game row                     | The main game dimension uses `visitor`, not `away`, for the second team         |
+| `side`                             | Home/away designation on a row                          | Important in stint and bridge-style tables where one surface carries both sides |
+| `def_player_id` / `def_team_id`    | Defensive-side participant in matchup or defense tables | Keep offense and defense in separate lanes when joining                         |
 
 ### Participant-slot columns
 
-| Column or pattern | What it usually signals | Scouting note |
-| ----------------- | ----------------------- | ------------- |
+| Column or pattern                          | What it usually signals                               | Scouting note                                                            |
+| ------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
 | `player1_id` / `player2_id` / `player3_id` | Event participants embedded directly on an action row | Common on play-by-play style data before participant rows are fanned out |
 
 ### Human-readable labels and geography
 
-| Column or pattern | What it usually signals | Scouting note |
-| ----------------- | ----------------------- | ------------- |
-| `matchup`, `conference`, `division` | Human-readable context labels | Useful for output and grouping, but not substitutes for business keys |
-| `zone_basic`, `zone_area`, `zone_range` | Shot geography | Read these together to describe where a shot came from on the floor |
+| Column or pattern                       | What it usually signals       | Scouting note                                                         |
+| --------------------------------------- | ----------------------------- | --------------------------------------------------------------------- |
+| `matchup`, `conference`, `division`     | Human-readable context labels | Useful for output and grouping, but not substitutes for business keys |
+| `zone_basic`, `zone_area`, `zone_range` | Shot geography                | Read these together to describe where a shot came from on the floor   |
 
 ## Metric naming quick read
 
 ### Percentages, ratings, and ranks
 
-| Pattern | Meaning | Example interpretation |
-| ------- | ------- | ---------------------- |
-| `_pct` | Decimal percentage or rate | `fg_pct`, `ts_pct`, `score_pct` are typically stored as `0.0-1.0` |
-| `_rating` | Per-possession rating metric | `off_rating`, `def_rating`, and `net_rating` describe scoring efficiency context |
-| `_rank` | Ordering within a category | `pts_rank` or `conference_rank` is only meaningful with the matching leaderboard or standings context |
+| Pattern   | Meaning                      | Example interpretation                                                                                |
+| --------- | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `_pct`    | Decimal percentage or rate   | `fg_pct`, `ts_pct`, `score_pct` are typically stored as `0.0-1.0`                                     |
+| `_rating` | Per-possession rating metric | `off_rating`, `def_rating`, and `net_rating` describe scoring efficiency context                      |
+| `_rank`   | Ordering within a category   | `pts_rank` or `conference_rank` is only meaningful with the matching leaderboard or standings context |
 
 ### Totals, averages, and windows
 
-| Pattern | Meaning | Example interpretation |
-| ------- | ------- | ---------------------- |
-| `total_` | Aggregate count or sum | `total_pts` means season total points, not per-game output |
-| `avg_` | Average over the row's grain | `avg_pts` on a season rollup means points per game at that summary grain |
-| `_rollN` | Rolling window metric | `pts_roll5` means a five-game rolling average, not a season mean |
+| Pattern  | Meaning                      | Example interpretation                                                   |
+| -------- | ---------------------------- | ------------------------------------------------------------------------ |
+| `total_` | Aggregate count or sum       | `total_pts` means season total points, not per-game output               |
+| `avg_`   | Average over the row's grain | `avg_pts` on a season rollup means points per game at that summary grain |
+| `_rollN` | Rolling window metric        | `pts_roll5` means a five-game rolling average, not a season mean         |
 
 ### Flags and shorthand
 
-| Pattern | Meaning | Example interpretation |
-| ------- | ------- | ---------------------- |
-| `is_` | Boolean flag | `is_current` and `is_weekend` are yes/no state markers |
+| Pattern           | Meaning                              | Example interpretation                                                                           |
+| ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `is_`             | Boolean flag                         | `is_current` and `is_weekend` are yes/no state markers                                           |
 | shorthand metrics | Established basketball abbreviations | `pie`, `pace`, `ppp`, `tchs`, and `spd` are compact stat names rather than suffix-based patterns |
 
 <CourtDivider label="Read the row meaning" />
@@ -170,13 +182,13 @@ If a table exposes both <code>&lt;entity&gt;_id</code> and <code>&lt;entity&gt;_
 
 Some surfaces look denormalized because they intentionally stack multiple related feeds or analytical cuts into one table. In those cases, the discriminator column is part of the row's meaning.
 
-| Pattern | What it tells you | Common examples |
-| ------- | ----------------- | --------------- |
-| `*_type` | Which slice or variant produced the row | `detail_type`, `summary_type`, `tracking_type`, `leader_type` |
-| `*_source` | Which upstream context or feed produced the row | `context_source` |
-| `split_*` | Which analytical split the row belongs to | `split_type` |
-| `entity_*` | Which entity level is represented | `entity_type`, `entity_id` |
-| chart/shot labels | Which shot or chart cut is present | `shot_type`, `chart_type` |
+| Pattern           | What it tells you                               | Common examples                                               |
+| ----------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `*_type`          | Which slice or variant produced the row         | `detail_type`, `summary_type`, `tracking_type`, `leader_type` |
+| `*_source`        | Which upstream context or feed produced the row | `context_source`                                              |
+| `split_*`         | Which analytical split the row belongs to       | `split_type`                                                  |
+| `entity_*`        | Which entity level is represented               | `entity_type`, `entity_id`                                    |
+| chart/shot labels | Which shot or chart cut is present              | `shot_type`, `chart_type`                                     |
 
 If two rows share the same `player_id` or `team_id` but differ on one of these fields, they are usually not duplicates. They are different possessions in the same set.
 
@@ -197,26 +209,38 @@ If two rows share the same `player_id` or `team_id` but differ on one of these f
 
 <div className="grid gap-4 md:grid-cols-2">
   <ScoutCard title="Natural key vs history key" label="Trap to avoid">
-    Do not treat <code>&lt;entity&gt;_id</code> and <code>&lt;entity&gt;_sk</code> as interchangeable.
-    The natural key answers <em>who</em>; the surrogate/history key answers <em>which row version</em>.
+    Do not treat <code>&lt;entity&gt;_id</code> and{" "}
+    <code>&lt;entity&gt;_sk</code> as interchangeable. The natural key answers{" "}
+    <em>who</em>; the surrogate/history key answers <em>which row version</em>.
   </ScoutCard>
   <ScoutCard title="Home/visitor labels are not noise" label="Trap to avoid">
-    On game-centered surfaces, <code>home_team_id</code> and <code>visitor_team_id</code> define
-    the matchup context. They are part of the row's story, not decorative lookup columns.
+    On game-centered surfaces, <code>home_team_id</code> and{" "}
+    <code>visitor_team_id</code> define the matchup context. They are part of
+    the row's story, not decorative lookup columns.
   </ScoutCard>
-  <ScoutCard title="Totals and averages should not be mixed casually" label="Trap to avoid">
-    <code>total_pts</code> and <code>avg_pts</code> can sit near each other on season surfaces but
-    answer different questions. Check the grain before comparing them to player-game rows.
+  <ScoutCard
+    title="Totals and averages should not be mixed casually"
+    label="Trap to avoid"
+  >
+    <code>total_pts</code> and <code>avg_pts</code> can sit near each other on
+    season surfaces but answer different questions. Check the grain before
+    comparing them to player-game rows.
   </ScoutCard>
   <ScoutCard title="Repeated IDs are often intentional" label="Trap to avoid">
-    If repeated keys differ on <code>detail_type</code>, <code>summary_type</code>,{" "}
-    <code>tracking_type</code>, or <code>split_type</code>, you are probably looking at parallel
-    analytical cuts rather than a broken dedupe.
+    If repeated keys differ on <code>detail_type</code>,{" "}
+    <code>summary_type</code>, <code>tracking_type</code>, or{" "}
+    <code>split_type</code>, you are probably looking at parallel analytical
+    cuts rather than a broken dedupe.
   </ScoutCard>
 </div>
 
 <Callout>
-When the table is still too dense, switch to the schema page first: [Dimensions](/docs/schema/dimensions), [Facts](/docs/schema/facts), [Derived Aggregations](/docs/schema/derived), or [Analytics Views](/docs/schema/analytics-views). Use the curated page to understand the table family, then come back to the generated field inventory for exact columns.
+  When the table is still too dense, switch to the schema page first:
+  [Dimensions](/docs/schema/dimensions), [Facts](/docs/schema/facts), [Derived
+  Aggregations](/docs/schema/derived), or [Analytics
+  Views](/docs/schema/analytics-views). Use the curated page to understand the
+  table family, then come back to the generated field inventory for exact
+  columns.
 </Callout>
 
 ---
