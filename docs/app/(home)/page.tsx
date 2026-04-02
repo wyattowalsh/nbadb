@@ -49,7 +49,7 @@ export default function HomePage() {
       {/* ── Stat hero ────────────────────────────────── */}
       <section
         id="scoreboard"
-        className="nba-hero-bg mx-auto w-full max-w-5xl px-4 pb-10 pt-12 sm:px-6 lg:px-8"
+        className="nba-hero-bg mx-auto w-full max-w-5xl px-4 pb-8 pt-8 sm:px-6 lg:px-8"
       >
         <div className="nba-hero-grid nba-reveal">
           <div>

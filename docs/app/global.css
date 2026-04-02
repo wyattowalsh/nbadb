@@ -160,7 +160,7 @@ body {
 /* ── Scrollbar ─────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent)
+  scrollbar-color: color-mix(in oklch, var(--foreground) 28%, transparent)
     transparent;
 }
 
@@ -174,7 +174,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--foreground) 18%, transparent);
+  background: color-mix(in oklch, var(--foreground) 28%, transparent);
   border-radius: 999px;
 }
 
@@ -380,7 +380,7 @@ kbd {
   overflow: hidden;
   border: none;
   border-radius: var(--radius-3xl);
-  min-height: 22rem;
+  min-height: 16rem;
   background:
     linear-gradient(
       180deg,
@@ -451,7 +451,7 @@ kbd {
 .nba-court-markings {
   position: absolute;
   inset: 1rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
   border-radius: 1.25rem;
 }
 
@@ -460,7 +460,7 @@ kbd {
 .nba-court-key,
 .nba-court-arc {
   position: absolute;
-  border-color: color-mix(in oklch, var(--foreground) 18%, transparent);
+  border-color: color-mix(in oklch, var(--foreground) 28%, transparent);
 }
 
 .nba-court-midline {
@@ -468,7 +468,7 @@ kbd {
   bottom: -2px;
   left: 50%;
   width: 0;
-  border-left: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border-left: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
   transform: translateX(-50%);
 }
 
@@ -477,7 +477,7 @@ kbd {
   left: 50%;
   width: 8rem;
   height: 8rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
   border-radius: 999px;
   transform: translate(-50%, -50%);
 }
@@ -486,7 +486,7 @@ kbd {
   top: 50%;
   width: 4.75rem;
   height: 10rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
   transform: translateY(-50%);
 }
 
@@ -506,7 +506,7 @@ kbd {
   top: 50%;
   width: 11rem;
   height: 11rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
   border-radius: 999px;
   transform: translateY(-50%);
 }
@@ -570,7 +570,7 @@ kbd {
   top: clamp(1.5rem, 10vw, 3rem);
   width: min(24rem, 78%);
   filter: drop-shadow(
-    0 1.25rem 2rem color-mix(in oklch, var(--foreground) 18%, transparent)
+    0 1.25rem 2rem color-mix(in oklch, var(--foreground) 28%, transparent)
   );
 }
 
