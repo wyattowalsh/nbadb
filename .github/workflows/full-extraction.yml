@@ -380,8 +380,9 @@ jobs:
           print(f'Merge complete: {merged_count} table operations')
           "
 
-      # Transform from merged staging
+      # Transform from merged staging (only when all shards completed)
       - name: Transform and load
+        if: needs.extract.result == 'success'
         run: uv run nbadb backfill run --transform-only --verbose
 
       - name: Merge summary
@@ -392,9 +393,10 @@ jobs:
           ls -lh data/nbadb/ 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No data directory" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      # Scan, export, upload
+      # Scan, export, upload — only when all shards completed
       - name: Scan data quality
         id: scan
+        if: needs.extract.result == 'success'
         continue-on-error: true
         uses: ./.github/actions/scan-report
         with:
@@ -403,12 +405,15 @@ jobs:
           fail-on: error
 
       - name: Export all formats
+        if: needs.extract.result == 'success'
         run: uv run nbadb export
 
       - name: Refresh checked-in metadata
+        if: needs.extract.result == 'success'
         uses: ./.github/actions/refresh-metadata
 
       - name: Upload to Kaggle
+        if: needs.extract.result == 'success'
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
@@ -432,7 +437,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   chain:
     needs: [extract, merge]
-    if: ${{ always() && !cancelled() && needs.merge.result == 'success' && needs.extract.result != 'success' }}
+    if: ${{ always() && !cancelled() && needs.extract.result != 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
