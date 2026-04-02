@@ -68,26 +68,22 @@ jobs:
             season_end: "1979"
             name: "early"
             patterns: "season,game,date,player_season,player_team_season,team_season"
-            vpn_server: "us-new-york"
           - shard: 1
             season_start: "1980"
             season_end: "1999"
             name: "growth"
             patterns: "season,game,date,player_season,player_team_season,team_season"
-            vpn_server: "us-atlanta"
           - shard: 2
             season_start: "2000"
             season_end: "2014"
             name: "modern"
             patterns: "season,game,date,player_season,player_team_season,team_season"
-            vpn_server: "us-chicago"
           # Shard 3: ALL patterns (season-scoped for 2015-2025 + global player/team/static)
           - shard: 3
             season_start: "2015"
             season_end: "2025"
             name: "recent"
             patterns: ""
-            vpn_server: "us-los-angeles"
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -136,7 +132,7 @@ jobs:
       - name: Connect NordVPN tunnel
         env:
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
-          VPN_SERVER: ${{ matrix.vpn_server }}
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
           # Derive OpenVPN credentials from NordVPN token
           creds=$(curl -sf -u "token:$NORDVPN_TOKEN" \
@@ -153,10 +149,10 @@ jobs:
           # Install OpenVPN
           sudo apt-get update -qq && sudo apt-get install -y -qq openvpn > /dev/null
 
-          # Get recommended US server filtered by city
-          server=$(curl -sf "https://api.nordvpn.com/v1/servers/recommendations?limit=1&filters[country_id]=228&filters[servers_technologies][identifier]=openvpn_udp&filters[servers.hostname]=${VPN_SERVER}" \
-            | jq -r '.[0].hostname')
-          echo "::notice::Connecting to $server (requested: $VPN_SERVER)"
+          # Get 4 recommended US OpenVPN servers; each shard picks its own
+          server=$(curl -sf 'https://api.nordvpn.com/v1/servers/recommendations?limit=4&filters[country_id]=228&filters[servers_technologies][identifier]=openvpn_udp' \
+            | jq -r ".[$SHARD_INDEX].hostname")
+          echo "::notice::Shard $SHARD_INDEX connecting to $server"
 
           # Download config and connect
           curl -sf "https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/${server}.udp.ovpn" \
