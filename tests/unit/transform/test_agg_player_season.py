@@ -132,9 +132,7 @@ class TestTeamAbbreviation:
 
     def test_team_abbreviation_null_when_no_match(self) -> None:
         """LEFT JOIN means missing teams yield null abbreviation."""
-        dim_team = pl.DataFrame(
-            {"team_id": [999], "abbreviation": ["XXX"]}
-        )
+        dim_team = pl.DataFrame({"team_id": [999], "abbreviation": ["XXX"]})
 
         result = _run(
             AggPlayerSeasonTransformer(),
@@ -155,9 +153,7 @@ class TestTeamAbbreviation:
         fact = _make_fact_traditional(
             team_id=[1, 2],
         )
-        dim_team = pl.DataFrame(
-            {"team_id": [1, 2], "abbreviation": ["LAL", "BOS"]}
-        )
+        dim_team = pl.DataFrame({"team_id": [1, 2], "abbreviation": ["LAL", "BOS"]})
 
         result = _run(
             AggPlayerSeasonTransformer(),

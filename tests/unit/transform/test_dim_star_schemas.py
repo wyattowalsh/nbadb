@@ -43,9 +43,7 @@ def _validate(table: str, row: dict[str, object]) -> pl.DataFrame:
     return _validate_frame(table, _frame(row))
 
 
-def _run_sql_transform(
-    transformer, staging: dict[str, pl.LazyFrame]
-) -> pl.DataFrame:
+def _run_sql_transform(transformer, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
     conn = duckdb.connect()
     try:
         for key, val in staging.items():

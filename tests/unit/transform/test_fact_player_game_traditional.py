@@ -75,9 +75,7 @@ class TestMinCast:
                 "plus_minus": [5.0],
             }
         )
-        dim_game = pl.DataFrame(
-            {"game_id": ["G1"], "season_year": ["2024-25"]}
-        )
+        dim_game = pl.DataFrame({"game_id": ["G1"], "season_year": ["2024-25"]})
 
         result = _run(
             FactPlayerGameTraditionalTransformer(),
@@ -119,9 +117,7 @@ class TestMinCast:
                 "plus_minus": [None],
             }
         )
-        dim_game = pl.DataFrame(
-            {"game_id": ["G1"], "season_year": ["2024-25"]}
-        )
+        dim_game = pl.DataFrame({"game_id": ["G1"], "season_year": ["2024-25"]})
 
         result = _run(
             FactPlayerGameTraditionalTransformer(),
@@ -161,9 +157,7 @@ class TestMinCast:
                 "plus_minus": [5.0, -3.0],
             }
         )
-        dim_game = pl.DataFrame(
-            {"game_id": ["G1", "G2"], "season_year": ["2024-25", "2024-25"]}
-        )
+        dim_game = pl.DataFrame({"game_id": ["G1", "G2"], "season_year": ["2024-25", "2024-25"]})
 
         result = _run(
             FactPlayerGameTraditionalTransformer(),
