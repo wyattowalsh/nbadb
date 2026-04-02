@@ -246,6 +246,12 @@ kbd {
   inset: 0;
   background:
     radial-gradient(
+      circle at top left,
+      color-mix(in oklch, var(--accent) 11%, transparent),
+      transparent 24%
+    ),
+    url("/texture-docs-ambient.png") center/cover no-repeat,
+    radial-gradient(
       circle at top right,
       color-mix(in oklch, var(--primary) 11%, transparent),
       transparent 28%
@@ -257,8 +263,11 @@ kbd {
     );
   background-size:
     auto,
+    cover,
+    auto,
     100% 2.75rem;
-  opacity: 0.7;
+  background-blend-mode: screen, soft-light, normal, normal;
+  opacity: 0.88;
   pointer-events: none;
   z-index: -1;
 }
@@ -268,6 +277,14 @@ kbd {
   position: absolute;
   inset: 0;
   background:
+    linear-gradient(
+      120deg,
+      color-mix(in oklch, var(--background) 78%, transparent) 0%,
+      color-mix(in oklch, var(--background) 42%, transparent) 46%,
+      transparent 100%
+    ),
+    url("/hero-homepage.png") center top / cover no-repeat,
+    url("/texture-docs-ambient.png") center top / cover no-repeat,
     radial-gradient(
       circle at top right,
       color-mix(in oklch, var(--primary) 24%, transparent) 0,
@@ -283,6 +300,7 @@ kbd {
       color-mix(in oklch, var(--primary) 4%, var(--background)) 0%,
       var(--background) 30%
     );
+  background-blend-mode: normal, soft-light, soft-light, screen, screen, normal;
   opacity: 0.95;
   pointer-events: none;
   z-index: -2;
@@ -292,12 +310,20 @@ kbd {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(
-    90deg,
-    color-mix(in oklch, var(--border) 65%, transparent) 1px,
-    transparent 1px
-  );
-  background-size: 96px 96px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--border) 65%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--primary) 10%, transparent),
+      transparent 42%
+    );
+  background-size:
+    96px 96px,
+    auto;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 45%);
   pointer-events: none;
   z-index: -1;
@@ -356,6 +382,12 @@ kbd {
   border-radius: var(--radius-3xl);
   min-height: 22rem;
   background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--background) 34%, transparent),
+      color-mix(in oklch, var(--background) 8%, transparent)
+    ),
+    url("/hero-homepage.png") center/cover no-repeat,
     radial-gradient(
       circle at top,
       color-mix(in oklch, var(--chart-2) 26%, transparent),
@@ -373,6 +405,7 @@ kbd {
       color-mix(in oklch, var(--primary) 10%, var(--background)) 2.25rem,
       color-mix(in oklch, var(--primary) 10%, var(--background)) 4.5rem
     );
+  background-blend-mode: screen, soft-light, screen, normal, normal;
   box-shadow: inset 0 1px 0
     color-mix(in oklch, var(--background) 80%, transparent);
 }
@@ -657,12 +690,44 @@ kbd {
 /* ── Hero glow ────────────────────────────────────── */
 .nba-hero-bg {
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: calc(var(--radius-3xl) + 0.25rem);
+}
+
+.nba-hero-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+.nba-hero-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--background) 70%, transparent) 0%,
+      color-mix(in oklch, var(--background) 28%, transparent) 44%,
+      color-mix(in oklch, var(--primary) 12%, transparent) 100%
+    ),
+    radial-gradient(
+      circle at 78% 18%,
+      color-mix(in oklch, var(--accent) 14%, transparent),
+      transparent 34%
+    ),
+    url("/hero-homepage.png") center/cover no-repeat;
+  opacity: 0.88;
+  pointer-events: none;
+  z-index: -2;
 }
 
 .nba-hero-bg::after {
   content: "";
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background: radial-gradient(
     ellipse 80% 60% at 50% -10%,
     color-mix(in oklch, var(--primary) 12%, transparent),

@@ -17,6 +17,10 @@ Files
 - apple-touch-icon-transparent.png
 - android-chrome-192x192.png
 - android-chrome-512x512.png
+- texture-docs-ambient.png
+- polish-plate-base.png
+- hero-homepage.png
+- backplate-social-1344x704.png
 - og-image-1200x630.png
 - social-preview-wide.png
 - site.webmanifest
@@ -27,4 +31,8 @@ Files
 Notes
 - The icon/favicon set now uses the full logo mark fitted into a square.
 - The favicon is less simplified than the cropped-ball version, by request.
+- `texture-docs-ambient.png` is the Draw Things-generated ambient plate used in the docs shell.
+- `polish-plate-base.png` is the second-wave Draw Things master plate used to push the hero and social suite further.
+- `hero-homepage.png` and `backplate-social-1344x704.png` are the current master backplates for the docs hero and social compositions.
+- `og-image-1200x630.png` and `social-preview-wide.png` are branded derivatives composed with the existing unchanged full logo.
 - The two latest dev-doc concept images remain excluded.

@@ -15,6 +15,10 @@
 [![Kaggle](https://img.shields.io/badge/Kaggle-Dataset-blue?logo=kaggle&style=for-the-badge)](https://www.kaggle.com/datasets/wyattowalsh/basketball)
 [![Data Coverage](https://img.shields.io/badge/1946–present-data_coverage-orange?style=for-the-badge)](https://nbadb.w4w.dev/docs/schema)
 
+![nbadb warehouse preview](.github/assets/img/social-preview-wide.png)
+
+> Basketball-native docs, lineage, and warehouse storytelling built around the unchanged `nbadb` mark.
+
 | Extractors | Warehouse Models | Derived Outputs | Docs Pages |
 | ---------- | ---------------- | --------------- | ---------- |
 | 154 | 96 | 24 | 49 |
