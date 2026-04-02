@@ -1027,11 +1027,11 @@ kbd {
   padding-inline-start: 1.25rem;
 }
 
-.nba-docs-page :where(a:not(.nba-crumb-link)) {
+.nba-reading-lane :where(a:not(.nba-crumb-link)) {
   color: var(--primary);
 }
 
-.nba-docs-page :where(a:not(.nba-crumb-link)):hover {
+.nba-reading-lane :where(a:not(.nba-crumb-link)):hover {
   color: var(--foreground);
 }
 

@@ -54,33 +54,43 @@ export function Counter({
     hasAnimated.current = false;
     let rafId = 0;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !hasAnimated.current) {
-          hasAnimated.current = true;
-          const start = performance.now();
+    function animate() {
+      if (hasAnimated.current) return;
+      hasAnimated.current = true;
+      const start = performance.now();
 
-          function tick(now: number) {
-            const elapsed = now - start;
-            const progress = Math.min(elapsed / duration, 1);
-            const eased = easeOutExpo(progress);
-            setValue(Math.round(eased * target));
+      function tick(now: number) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = easeOutExpo(progress);
+        setValue(Math.round(eased * target));
 
-            if (progress < 1) {
-              rafId = requestAnimationFrame(tick);
-            }
-          }
-
+        if (progress < 1) {
           rafId = requestAnimationFrame(tick);
         }
+      }
+
+      rafId = requestAnimationFrame(tick);
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) animate();
       },
-      { threshold: 0.3 },
+      { threshold: 0.1 },
     );
 
     observer.observe(el);
+
+    // Fallback: if observer hasn't fired within 1.5s, snap to target
+    const fallbackTimer = setTimeout(() => {
+      if (!hasAnimated.current) animate();
+    }, 1500);
+
     return () => {
       observer.disconnect();
       cancelAnimationFrame(rafId);
+      clearTimeout(fallbackTimer);
     };
   }, [target, duration, prefersReducedMotion]);
 

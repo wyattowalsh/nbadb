@@ -127,11 +127,32 @@ function cachePromise<T>(
   return promise;
 }
 
+let _probeCtx: CanvasRenderingContext2D | null = null;
+
+function toHex(cssColor: string): string {
+  if (typeof document === "undefined") return cssColor;
+  if (/^#[0-9a-f]{3,8}$/i.test(cssColor)) return cssColor;
+
+  if (!_probeCtx) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    _probeCtx = c.getContext("2d", { willReadFrequently: true });
+  }
+  const ctx = _probeCtx;
+  if (!ctx) return cssColor;
+
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = cssColor;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
 function getThemeToken(name: string, fallback: string) {
-  return (
+  const raw =
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() ||
-    fallback
-  );
+    fallback;
+  return toHex(raw);
 }
 
 function getMermaidTheme() {
