@@ -1,0 +1,7171 @@
+[
+  {
+    "table_name": "raw_box_score_advanced_player",
+    "class_name": "RawBoxScoreAdvancedPlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "e_off_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Estimated offensive rating"
+      },
+      {
+        "name": "off_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rating"
+      },
+      {
+        "name": "e_def_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Estimated defensive rating"
+      },
+      {
+        "name": "def_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rating"
+      },
+      {
+        "name": "e_net_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Estimated net rating"
+      },
+      {
+        "name": "net_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Net rating"
+      },
+      {
+        "name": "ast_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assist percentage"
+      },
+      {
+        "name": "ast_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assist-to-turnover ratio"
+      },
+      {
+        "name": "ast_ratio",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assist ratio"
+      },
+      {
+        "name": "oreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebound percentage"
+      },
+      {
+        "name": "dreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebound percentage"
+      },
+      {
+        "name": "reb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebound percentage"
+      },
+      {
+        "name": "tm_tov_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team turnover percentage"
+      },
+      {
+        "name": "efg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Effective field goal percentage"
+      },
+      {
+        "name": "ts_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "True shooting percentage"
+      },
+      {
+        "name": "usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Usage percentage"
+      },
+      {
+        "name": "e_usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Estimated usage percentage"
+      },
+      {
+        "name": "e_pace",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Estimated pace"
+      },
+      {
+        "name": "pace",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Pace"
+      },
+      {
+        "name": "pace_per40",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Pace per 40 minutes"
+      },
+      {
+        "name": "poss",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Possessions"
+      },
+      {
+        "name": "pie",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player impact estimate"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_defensive_player",
+    "class_name": "RawBoxScoreDefensivePlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "matchup_min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Matchup minutes as string"
+      },
+      {
+        "name": "player_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored by player"
+      },
+      {
+        "name": "team_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored by team"
+      },
+      {
+        "name": "matchup_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Matchup time percentage"
+      },
+      {
+        "name": "partial_poss",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Partial possessions"
+      },
+      {
+        "name": "switches_on",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Switches drawn on defense"
+      },
+      {
+        "name": "matchup_ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists allowed in matchup"
+      },
+      {
+        "name": "matchup_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers forced in matchup"
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Steals"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "matchup_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "FG made allowed in matchup"
+      },
+      {
+        "name": "matchup_fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "FG attempted in matchup"
+      },
+      {
+        "name": "matchup_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "FG percentage in matchup"
+      },
+      {
+        "name": "matchup_fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "3-point FG made in matchup"
+      },
+      {
+        "name": "matchup_fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "3-point FG attempted in matchup"
+      },
+      {
+        "name": "matchup_fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "3-point FG pct in matchup"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_four_factors_player",
+    "class_name": "RawBoxScoreFourFactorsPlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "efg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Effective field goal percentage"
+      },
+      {
+        "name": "fta_rate",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw attempt rate"
+      },
+      {
+        "name": "tm_tov_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team turnover percentage"
+      },
+      {
+        "name": "oreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebound percentage"
+      },
+      {
+        "name": "opp_efg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent effective FG percentage"
+      },
+      {
+        "name": "opp_fta_rate",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent free throw attempt rate"
+      },
+      {
+        "name": "opp_tov_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent turnover percentage"
+      },
+      {
+        "name": "opp_oreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent offensive rebound pct"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_hustle_player",
+    "class_name": "RawBoxScoreHustlePlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "contested_shots",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total contested shots"
+      },
+      {
+        "name": "contested_shots_2pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Contested 2-point shots"
+      },
+      {
+        "name": "contested_shots_3pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Contested 3-point shots"
+      },
+      {
+        "name": "deflections",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Deflections"
+      },
+      {
+        "name": "charges_drawn",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Charges drawn"
+      },
+      {
+        "name": "screen_assists",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Screen assists"
+      },
+      {
+        "name": "screen_ast_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points from screen assists"
+      },
+      {
+        "name": "loose_balls_recovered_off",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive loose balls recovered"
+      },
+      {
+        "name": "loose_balls_recovered_def",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive loose balls recovered"
+      },
+      {
+        "name": "loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total loose balls recovered"
+      },
+      {
+        "name": "off_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive box outs"
+      },
+      {
+        "name": "def_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive box outs"
+      },
+      {
+        "name": "box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total box outs"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_matchups",
+    "class_name": "RawBoxScoreMatchupsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "off_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive team identifier"
+      },
+      {
+        "name": "off_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive team abbreviation"
+      },
+      {
+        "name": "def_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive team identifier"
+      },
+      {
+        "name": "def_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive team abbreviation"
+      },
+      {
+        "name": "off_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive player identifier"
+      },
+      {
+        "name": "off_player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive player name"
+      },
+      {
+        "name": "def_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive player identifier"
+      },
+      {
+        "name": "def_player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive player name"
+      },
+      {
+        "name": "matchup_min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes in matchup"
+      },
+      {
+        "name": "partial_poss",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Partial possessions in matchup"
+      },
+      {
+        "name": "player_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player points in matchup"
+      },
+      {
+        "name": "team_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team points in matchup"
+      },
+      {
+        "name": "matchup_ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists in matchup"
+      },
+      {
+        "name": "matchup_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers in matchup"
+      },
+      {
+        "name": "matchup_blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks in matchup"
+      },
+      {
+        "name": "matchup_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made in matchup"
+      },
+      {
+        "name": "matchup_fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted in matchup"
+      },
+      {
+        "name": "matchup_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal pct in matchup"
+      },
+      {
+        "name": "matchup_fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-pointers made in matchup"
+      },
+      {
+        "name": "matchup_fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-pointers attempted"
+      },
+      {
+        "name": "matchup_fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point pct in matchup"
+      },
+      {
+        "name": "help_blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help blocks in matchup"
+      },
+      {
+        "name": "help_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help field goals made"
+      },
+      {
+        "name": "help_fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help field goals attempted"
+      },
+      {
+        "name": "help_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help field goal percentage"
+      },
+      {
+        "name": "matchup_ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made in matchup"
+      },
+      {
+        "name": "matchup_fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "switches_on",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Number of switches onto player"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_misc_player",
+    "class_name": "RawBoxScoreMiscPlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "pts_off_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points off turnovers"
+      },
+      {
+        "name": "second_chance_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Second chance points"
+      },
+      {
+        "name": "fbps",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fast break points"
+      },
+      {
+        "name": "pitp",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points in the paint"
+      },
+      {
+        "name": "opp_pts_off_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent points off turnovers"
+      },
+      {
+        "name": "opp_second_chance_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent second chance points"
+      },
+      {
+        "name": "opp_fbps",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent fast break points"
+      },
+      {
+        "name": "opp_pitp",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent points in the paint"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocked shot attempts"
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls"
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls drawn"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_player_track",
+    "class_name": "RawBoxScorePlayerTrackSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "spd",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Average speed"
+      },
+      {
+        "name": "dist",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Distance covered"
+      },
+      {
+        "name": "orbc",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebound chances"
+      },
+      {
+        "name": "drbc",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebound chances"
+      },
+      {
+        "name": "rbc",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebound chances"
+      },
+      {
+        "name": "tchs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Touches"
+      },
+      {
+        "name": "sast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Secondary assists"
+      },
+      {
+        "name": "ftast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw assists"
+      },
+      {
+        "name": "pass_",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Passes made"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "cfgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Contested field goals made"
+      },
+      {
+        "name": "cfga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Contested field goals attempted"
+      },
+      {
+        "name": "cfg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Contested field goal percentage"
+      },
+      {
+        "name": "ufgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Uncontested field goals made"
+      },
+      {
+        "name": "ufga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Uncontested FG attempted"
+      },
+      {
+        "name": "ufg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Uncontested field goal percentage"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "dfgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defended field goals made"
+      },
+      {
+        "name": "dfga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defended field goals attempted"
+      },
+      {
+        "name": "dfg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defended field goal percentage"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_scoring_player",
+    "class_name": "RawBoxScoreScoringPlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "pct_fga_2pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of FGA that are 2-pointers"
+      },
+      {
+        "name": "pct_fga_3pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of FGA that are 3-pointers"
+      },
+      {
+        "name": "pct_pts_2pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of points from 2-pointers"
+      },
+      {
+        "name": "pct_pts_2pt_mr",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of points from mid-range"
+      },
+      {
+        "name": "pct_pts_3pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of points from 3-pointers"
+      },
+      {
+        "name": "pct_pts_fb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of points from fast breaks"
+      },
+      {
+        "name": "pct_pts_ft",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of points from free throws"
+      },
+      {
+        "name": "pct_pts_off_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of points off turnovers"
+      },
+      {
+        "name": "pct_pts_pitp",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of points in the paint"
+      },
+      {
+        "name": "pct_ast_2pm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of assisted 2-point makes"
+      },
+      {
+        "name": "pct_uast_2pm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of unassisted 2-point makes"
+      },
+      {
+        "name": "pct_ast_3pm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of assisted 3-point makes"
+      },
+      {
+        "name": "pct_uast_3pm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of unassisted 3-point makes"
+      },
+      {
+        "name": "pct_ast_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of assisted field goal makes"
+      },
+      {
+        "name": "pct_uast_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of unassisted FG makes"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_traditional_player",
+    "class_name": "RawBoxScoreTraditionalPlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals made"
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals attempted"
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goal percentage"
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made"
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw percentage"
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebounds"
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebounds"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Steals"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers (alias TO in some versions)"
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored"
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Plus-minus differential"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_traditional_team",
+    "class_name": "RawBoxScoreTraditionalTeamSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total team minutes played"
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals made"
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals attempted"
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goal percentage"
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made"
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw percentage"
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebounds"
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebounds"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Steals"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers"
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored"
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Plus-minus differential"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_box_score_usage_player",
+    "class_name": "RawBoxScoreUsagePlayerSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "start_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Starting position (F/C/G)"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played as string"
+      },
+      {
+        "name": "usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Usage percentage"
+      },
+      {
+        "name": "pct_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team field goals made"
+      },
+      {
+        "name": "pct_fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team FG attempted"
+      },
+      {
+        "name": "pct_fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team 3-point FG made"
+      },
+      {
+        "name": "pct_fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team 3-point FG attempted"
+      },
+      {
+        "name": "pct_ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team free throws made"
+      },
+      {
+        "name": "pct_fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team FT attempted"
+      },
+      {
+        "name": "pct_oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team offensive rebounds"
+      },
+      {
+        "name": "pct_dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team defensive rebounds"
+      },
+      {
+        "name": "pct_reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team total rebounds"
+      },
+      {
+        "name": "pct_ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team assists"
+      },
+      {
+        "name": "pct_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team turnovers"
+      },
+      {
+        "name": "pct_stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team steals"
+      },
+      {
+        "name": "pct_blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team blocks"
+      },
+      {
+        "name": "pct_blka",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team blocked attempts"
+      },
+      {
+        "name": "pct_pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team personal fouls"
+      },
+      {
+        "name": "pct_pfd",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team personal fouls drawn"
+      },
+      {
+        "name": "pct_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percent of team points"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_common_all_players",
+    "class_name": "RawCommonAllPlayersSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "display_last_comma_first",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player name as Last, First"
+      },
+      {
+        "name": "display_first_last",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player name as First Last"
+      },
+      {
+        "name": "roster_status",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "in=[0, 1]",
+        "description": "Active roster flag (0 or 1)"
+      },
+      {
+        "name": "from_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "First year in the league"
+      },
+      {
+        "name": "to_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Last year in the league"
+      },
+      {
+        "name": "playercode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player code slug"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_code",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team code slug"
+      },
+      {
+        "name": "games_played_flag",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag indicating games played"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_common_player_info",
+    "class_name": "RawCommonPlayerInfoSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "display_first_last",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player name as First Last"
+      },
+      {
+        "name": "display_last_comma_first",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player name as Last, First"
+      },
+      {
+        "name": "display_fi_last",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player name as F. Last"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly player slug"
+      },
+      {
+        "name": "birthdate",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player date of birth"
+      },
+      {
+        "name": "school",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "School or college attended"
+      },
+      {
+        "name": "country",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Country of origin"
+      },
+      {
+        "name": "last_affiliation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Last team or school affiliation"
+      },
+      {
+        "name": "height",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player height as string"
+      },
+      {
+        "name": "weight",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player weight as string"
+      },
+      {
+        "name": "season_exp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Years of NBA experience"
+      },
+      {
+        "name": "jersey",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Jersey number as string"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "roster_status",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Current roster status"
+      },
+      {
+        "name": "games_played_current_season_flag",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag for games played this season"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_code",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team code slug"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "playercode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player code slug"
+      },
+      {
+        "name": "from_year",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "First year in the league"
+      },
+      {
+        "name": "to_year",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Last year in the league"
+      },
+      {
+        "name": "dleague_flag",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "G-League eligibility flag"
+      },
+      {
+        "name": "nba_flag",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA eligibility flag"
+      },
+      {
+        "name": "games_played_flag",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag indicating games played"
+      },
+      {
+        "name": "draft_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Year drafted"
+      },
+      {
+        "name": "draft_round",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Round drafted"
+      },
+      {
+        "name": "draft_number",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Overall draft pick number"
+      },
+      {
+        "name": "greatest_75_flag",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA 75th anniversary team flag"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_common_team_roster_coaches",
+    "class_name": "RawCommonTeamRosterCoachesSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season string"
+      },
+      {
+        "name": "coach_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Unique coach identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Coach first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Coach last name"
+      },
+      {
+        "name": "coach_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Coach full name"
+      },
+      {
+        "name": "is_assistant",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag indicating assistant coach"
+      },
+      {
+        "name": "coach_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Type of coaching role"
+      },
+      {
+        "name": "sort_sequence",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Display sort order"
+      },
+      {
+        "name": "sub_sort_sequence",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Secondary display sort order"
+      },
+      {
+        "name": "school",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "School or college attended"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_common_team_roster",
+    "class_name": "RawCommonTeamRosterSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "teamid",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season string"
+      },
+      {
+        "name": "leagueid",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "League identifier"
+      },
+      {
+        "name": "player",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player nickname"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly player slug"
+      },
+      {
+        "name": "num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Jersey number as string"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "height",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player height as string"
+      },
+      {
+        "name": "weight",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player weight as string"
+      },
+      {
+        "name": "birth_date",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player date of birth"
+      },
+      {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player age"
+      },
+      {
+        "name": "exp",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Years of experience as string"
+      },
+      {
+        "name": "school",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "School or college attended"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "how_acquired",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "How the player was acquired"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_common_team_years",
+    "class_name": "RawCommonTeamYearsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "League identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "min_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "First year of team activity"
+      },
+      {
+        "name": "max_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Last year of team activity"
+      },
+      {
+        "name": "abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_draft_combine_drill_results",
+    "class_name": "RawDraftCombineDrillResultsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Combine season year"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "standing_vertical_leap",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Standing vertical leap in inches"
+      },
+      {
+        "name": "max_vertical_leap",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Maximum vertical leap in inches"
+      },
+      {
+        "name": "lane_agility_time",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Lane agility drill time in seconds"
+      },
+      {
+        "name": "modified_lane_agility_time",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Modified lane agility time in seconds"
+      },
+      {
+        "name": "three_quarter_sprint",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-quarter court sprint time in seconds"
+      },
+      {
+        "name": "bench_press",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Bench press repetitions"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_draft_combine_non_stationary_shooting",
+    "class_name": "RawDraftCombineNonStationaryShootingSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Combine season year"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "off_drib_fifteen_break_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble fifteen-foot break left shots made"
+      },
+      {
+        "name": "off_drib_fifteen_break_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble fifteen-foot break left shots attempted"
+      },
+      {
+        "name": "off_drib_fifteen_break_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble fifteen-foot break left shooting percentage"
+      },
+      {
+        "name": "off_drib_fifteen_top_key_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble fifteen-foot top of key shots made"
+      },
+      {
+        "name": "off_drib_fifteen_top_key_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble fifteen-foot top of key shots attempted"
+      },
+      {
+        "name": "off_drib_fifteen_top_key_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble fifteen-foot top of key shooting percentage"
+      },
+      {
+        "name": "off_drib_college_break_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble college break left shots made"
+      },
+      {
+        "name": "off_drib_college_break_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble college break left shots attempted"
+      },
+      {
+        "name": "off_drib_college_break_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble college break left shooting percentage"
+      },
+      {
+        "name": "off_drib_college_top_key_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble college top of key shots made"
+      },
+      {
+        "name": "off_drib_college_top_key_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble college top of key shots attempted"
+      },
+      {
+        "name": "off_drib_college_top_key_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Off-dribble college top of key shooting percentage"
+      },
+      {
+        "name": "on_move_fifteen_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "On-move fifteen-foot shots made"
+      },
+      {
+        "name": "on_move_fifteen_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "On-move fifteen-foot shots attempted"
+      },
+      {
+        "name": "on_move_fifteen_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "On-move fifteen-foot shooting percentage"
+      },
+      {
+        "name": "on_move_college_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "On-move college range shots made"
+      },
+      {
+        "name": "on_move_college_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "On-move college range shots attempted"
+      },
+      {
+        "name": "on_move_college_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "On-move college range shooting percentage"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_draft_combine_player_anthro",
+    "class_name": "RawDraftCombinePlayerAnthroSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Combine season year"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "height_wo_shoes",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height without shoes in inches"
+      },
+      {
+        "name": "height_wo_shoes_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height without shoes in feet-inches"
+      },
+      {
+        "name": "height_w_shoes",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height with shoes in inches"
+      },
+      {
+        "name": "height_w_shoes_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height with shoes in feet-inches"
+      },
+      {
+        "name": "weight",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player weight in pounds"
+      },
+      {
+        "name": "wingspan",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wingspan in inches"
+      },
+      {
+        "name": "wingspan_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wingspan in feet-inches"
+      },
+      {
+        "name": "standing_reach",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Standing reach in inches"
+      },
+      {
+        "name": "standing_reach_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Standing reach in feet-inches"
+      },
+      {
+        "name": "body_fat_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Body fat percentage"
+      },
+      {
+        "name": "hand_length",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Hand length in inches"
+      },
+      {
+        "name": "hand_width",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Hand width in inches"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_draft_combine_spot_shooting",
+    "class_name": "RawDraftCombineSpotShootingSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Combine season year"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "nba_break_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA break left shots made"
+      },
+      {
+        "name": "nba_break_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA break left shots attempted"
+      },
+      {
+        "name": "nba_break_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA break left shooting percentage"
+      },
+      {
+        "name": "nba_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA break right shots made"
+      },
+      {
+        "name": "nba_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA break right shots attempted"
+      },
+      {
+        "name": "nba_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA break right shooting percentage"
+      },
+      {
+        "name": "nba_corner_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA corner left shots made"
+      },
+      {
+        "name": "nba_corner_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA corner left shots attempted"
+      },
+      {
+        "name": "nba_corner_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA corner left shooting percentage"
+      },
+      {
+        "name": "nba_corner_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA corner right shots made"
+      },
+      {
+        "name": "nba_corner_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA corner right shots attempted"
+      },
+      {
+        "name": "nba_corner_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA corner right shooting percentage"
+      },
+      {
+        "name": "nba_top_key_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA top of key shots made"
+      },
+      {
+        "name": "nba_top_key_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA top of key shots attempted"
+      },
+      {
+        "name": "nba_top_key_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA top of key shooting percentage"
+      },
+      {
+        "name": "college_break_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College break left shots made"
+      },
+      {
+        "name": "college_break_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College break left shots attempted"
+      },
+      {
+        "name": "college_break_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College break left shooting percentage"
+      },
+      {
+        "name": "college_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College break right shots made"
+      },
+      {
+        "name": "college_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College break right shots attempted"
+      },
+      {
+        "name": "college_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College break right shooting percentage"
+      },
+      {
+        "name": "college_corner_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College corner left shots made"
+      },
+      {
+        "name": "college_corner_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College corner left shots attempted"
+      },
+      {
+        "name": "college_corner_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College corner left shooting percentage"
+      },
+      {
+        "name": "college_corner_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College corner right shots made"
+      },
+      {
+        "name": "college_corner_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College corner right shots attempted"
+      },
+      {
+        "name": "college_corner_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College corner right shooting percentage"
+      },
+      {
+        "name": "college_top_key_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College top of key shots made"
+      },
+      {
+        "name": "college_top_key_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College top of key shots attempted"
+      },
+      {
+        "name": "college_top_key_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College top of key shooting percentage"
+      },
+      {
+        "name": "fifteen_break_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot break left shots made"
+      },
+      {
+        "name": "fifteen_break_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot break left shots attempted"
+      },
+      {
+        "name": "fifteen_break_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot break left shooting percentage"
+      },
+      {
+        "name": "fifteen_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot break right shots made"
+      },
+      {
+        "name": "fifteen_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot break right shots attempted"
+      },
+      {
+        "name": "fifteen_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot break right shooting percentage"
+      },
+      {
+        "name": "fifteen_corner_left_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot corner left shots made"
+      },
+      {
+        "name": "fifteen_corner_left_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot corner left shots attempted"
+      },
+      {
+        "name": "fifteen_corner_left_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot corner left shooting percentage"
+      },
+      {
+        "name": "fifteen_corner_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot corner right shots made"
+      },
+      {
+        "name": "fifteen_corner_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot corner right shots attempted"
+      },
+      {
+        "name": "fifteen_corner_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot corner right shooting percentage"
+      },
+      {
+        "name": "fifteen_top_key_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot top of key shots made"
+      },
+      {
+        "name": "fifteen_top_key_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot top of key shots attempted"
+      },
+      {
+        "name": "fifteen_top_key_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Fifteen-foot top of key shooting percentage"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_draft_combine_stats",
+    "class_name": "RawDraftCombineStatsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Combine season year"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "height_wo_shoes",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height without shoes in inches"
+      },
+      {
+        "name": "height_wo_shoes_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height without shoes in feet-inches"
+      },
+      {
+        "name": "height_w_shoes",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height with shoes in inches"
+      },
+      {
+        "name": "height_w_shoes_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Height with shoes in feet-inches"
+      },
+      {
+        "name": "weight",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player weight in pounds"
+      },
+      {
+        "name": "wingspan",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wingspan in inches"
+      },
+      {
+        "name": "wingspan_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wingspan in feet-inches"
+      },
+      {
+        "name": "standing_reach",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Standing reach in inches"
+      },
+      {
+        "name": "standing_reach_ft_in",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Standing reach in feet-inches"
+      },
+      {
+        "name": "body_fat_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Body fat percentage"
+      },
+      {
+        "name": "hand_length",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Hand length in inches"
+      },
+      {
+        "name": "hand_width",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Hand width in inches"
+      },
+      {
+        "name": "standing_vertical_leap",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Standing vertical leap in inches"
+      },
+      {
+        "name": "max_vertical_leap",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Maximum vertical leap in inches"
+      },
+      {
+        "name": "lane_agility_time",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Lane agility drill time in seconds"
+      },
+      {
+        "name": "modified_lane_agility_time",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Modified lane agility time in seconds"
+      },
+      {
+        "name": "three_quarter_sprint",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-quarter court sprint time in seconds"
+      },
+      {
+        "name": "bench_press",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Bench press repetitions"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_draft_history",
+    "class_name": "RawDraftHistorySchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft season year"
+      },
+      {
+        "name": "round_number",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft round number"
+      },
+      {
+        "name": "round_pick",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Pick number within the round"
+      },
+      {
+        "name": "overall_pick",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Overall draft pick number"
+      },
+      {
+        "name": "draft_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Type of draft"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "organization",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Pre-draft organization"
+      },
+      {
+        "name": "organization_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Type of pre-draft organization"
+      },
+      {
+        "name": "player_profile_flag",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player profile availability flag"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_franchise_history",
+    "class_name": "RawFranchiseHistorySchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "League identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "start_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "First year of franchise era"
+      },
+      {
+        "name": "end_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Last year of franchise era"
+      },
+      {
+        "name": "years",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total years in franchise era"
+      },
+      {
+        "name": "games",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total games played"
+      },
+      {
+        "name": "wins",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total wins"
+      },
+      {
+        "name": "losses",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total losses"
+      },
+      {
+        "name": "win_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win percentage"
+      },
+      {
+        "name": "po_appearances",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Playoff appearances count"
+      },
+      {
+        "name": "div_titles",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Division titles won"
+      },
+      {
+        "name": "conf_titles",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Conference titles won"
+      },
+      {
+        "name": "league_titles",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "League championships won"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_game_rotation",
+    "class_name": "RawGameRotationSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player person identifier"
+      },
+      {
+        "name": "player_first",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "player_last",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "in_time_real",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Real time player entered game"
+      },
+      {
+        "name": "out_time_real",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Real time player exited game"
+      },
+      {
+        "name": "player_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored during stint"
+      },
+      {
+        "name": "pt_diff",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Point differential during stint"
+      },
+      {
+        "name": "usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Usage percentage during stint"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_league_game_log",
+    "class_name": "RawLeagueGameLogSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Season identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Date of the game"
+      },
+      {
+        "name": "matchup",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Matchup string (e.g. LAL vs. BOS)"
+      },
+      {
+        "name": "wl",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win or loss indicator"
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wins"
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Losses"
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win percentage"
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played"
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals made"
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals attempted"
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goal percentage"
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made"
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw percentage"
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebounds"
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebounds"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Steals"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers"
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored"
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Plus-minus differential"
+      },
+      {
+        "name": "video_available",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Video availability flag"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_league_season_matchups",
+    "class_name": "RawLeagueSeasonMatchupsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "off_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive player identifier"
+      },
+      {
+        "name": "off_player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive player name"
+      },
+      {
+        "name": "def_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive player identifier"
+      },
+      {
+        "name": "def_player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive player name"
+      },
+      {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
+        "name": "matchup_min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes in matchup"
+      },
+      {
+        "name": "partial_poss",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Partial possessions in matchup"
+      },
+      {
+        "name": "player_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player points in matchup"
+      },
+      {
+        "name": "team_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team points in matchup"
+      },
+      {
+        "name": "matchup_ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists in matchup"
+      },
+      {
+        "name": "matchup_tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers in matchup"
+      },
+      {
+        "name": "matchup_blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks in matchup"
+      },
+      {
+        "name": "matchup_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made in matchup"
+      },
+      {
+        "name": "matchup_fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted in matchup"
+      },
+      {
+        "name": "matchup_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal pct in matchup"
+      },
+      {
+        "name": "matchup_fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-pointers made in matchup"
+      },
+      {
+        "name": "matchup_fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-pointers attempted"
+      },
+      {
+        "name": "matchup_fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point pct in matchup"
+      },
+      {
+        "name": "help_blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help blocks in matchup"
+      },
+      {
+        "name": "help_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help field goals made"
+      },
+      {
+        "name": "help_fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help field goals attempted"
+      },
+      {
+        "name": "help_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Help field goal percentage"
+      },
+      {
+        "name": "matchup_ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made in matchup"
+      },
+      {
+        "name": "matchup_fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "switches_on",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Number of switches onto player"
+      },
+      {
+        "name": "pct_switched",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percentage of possessions switched"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_league_standings_v3",
+    "class_name": "RawLeagueStandingsV3Schema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "League identifier"
+      },
+      {
+        "name": "season_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly team slug"
+      },
+      {
+        "name": "conference",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Conference name"
+      },
+      {
+        "name": "conference_record",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win-loss record in conference"
+      },
+      {
+        "name": "playoff_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Playoff seeding rank"
+      },
+      {
+        "name": "clinch_indicator",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Clinch status indicator"
+      },
+      {
+        "name": "division",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Division name"
+      },
+      {
+        "name": "division_record",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win-loss record in division"
+      },
+      {
+        "name": "division_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Rank within division"
+      },
+      {
+        "name": "wins",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total wins"
+      },
+      {
+        "name": "losses",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total losses"
+      },
+      {
+        "name": "win_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Winning percentage"
+      },
+      {
+        "name": "league_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Overall league rank"
+      },
+      {
+        "name": "record",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Overall win-loss record"
+      },
+      {
+        "name": "home",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home win-loss record"
+      },
+      {
+        "name": "road",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Road win-loss record"
+      },
+      {
+        "name": "l10",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Record in last 10 games"
+      },
+      {
+        "name": "long_win_streak",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Longest winning streak"
+      },
+      {
+        "name": "long_loss_streak",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Longest losing streak"
+      },
+      {
+        "name": "current_streak",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Current win or loss streak"
+      },
+      {
+        "name": "ot_record",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Overtime win-loss record"
+      },
+      {
+        "name": "three_pts_or_less",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Record in games decided by 3 points or less"
+      },
+      {
+        "name": "ten_pts_or_more",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Record in games decided by 10 points or more"
+      },
+      {
+        "name": "conference_games_back",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games behind conference leader"
+      },
+      {
+        "name": "division_games_back",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games behind division leader"
+      },
+      {
+        "name": "clinched_conference_title",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether team clinched conference"
+      },
+      {
+        "name": "clinched_division_title",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether team clinched division"
+      },
+      {
+        "name": "clinched_playoff_birth",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether team clinched playoff berth"
+      },
+      {
+        "name": "eliminated_conference",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether team eliminated from conference playoff contention"
+      },
+      {
+        "name": "pts_pg",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points per game"
+      },
+      {
+        "name": "opp_pts_pg",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent points per game"
+      },
+      {
+        "name": "diff_pts_pg",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Point differential per game"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_play_by_play_v2",
+    "class_name": "RawPlayByPlayV2Schema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "eventnum",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Event sequence number"
+      },
+      {
+        "name": "eventmsgtype",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Event message type code"
+      },
+      {
+        "name": "eventmsgactiontype",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Event message action type code"
+      },
+      {
+        "name": "period",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Game period number"
+      },
+      {
+        "name": "wctimestring",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wall clock time string"
+      },
+      {
+        "name": "pctimestring",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Period clock time string"
+      },
+      {
+        "name": "homedescription",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Play description for home team"
+      },
+      {
+        "name": "neutraldescription",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Neutral play description"
+      },
+      {
+        "name": "visitordescription",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Play description for visitor team"
+      },
+      {
+        "name": "score",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Current game score"
+      },
+      {
+        "name": "scoremargin",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Score margin value"
+      },
+      {
+        "name": "person1type",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Person 1 type identifier"
+      },
+      {
+        "name": "player1_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 1 unique identifier"
+      },
+      {
+        "name": "player1_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 1 full name"
+      },
+      {
+        "name": "player1_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 1 team identifier"
+      },
+      {
+        "name": "player1_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 1 team city"
+      },
+      {
+        "name": "player1_team_nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 1 team nickname"
+      },
+      {
+        "name": "player1_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 1 team abbreviation"
+      },
+      {
+        "name": "person2type",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Person 2 type identifier"
+      },
+      {
+        "name": "player2_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 2 unique identifier"
+      },
+      {
+        "name": "player2_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 2 full name"
+      },
+      {
+        "name": "player2_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 2 team identifier"
+      },
+      {
+        "name": "player2_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 2 team city"
+      },
+      {
+        "name": "player2_team_nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 2 team nickname"
+      },
+      {
+        "name": "player2_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 2 team abbreviation"
+      },
+      {
+        "name": "person3type",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Person 3 type identifier"
+      },
+      {
+        "name": "player3_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 3 unique identifier"
+      },
+      {
+        "name": "player3_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 3 full name"
+      },
+      {
+        "name": "player3_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 3 team identifier"
+      },
+      {
+        "name": "player3_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 3 team city"
+      },
+      {
+        "name": "player3_team_nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 3 team nickname"
+      },
+      {
+        "name": "player3_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player 3 team abbreviation"
+      },
+      {
+        "name": "video_available_flag",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Video availability flag"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_play_by_play_v3",
+    "class_name": "RawPlayByPlayV3Schema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "action_number",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Sequential action number within game"
+      },
+      {
+        "name": "clock",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game clock time string"
+      },
+      {
+        "name": "period",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Game period number"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-letter team abbreviation code"
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Person identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Full player name"
+      },
+      {
+        "name": "player_name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player name in initial format"
+      },
+      {
+        "name": "x_legacy",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Legacy x-coordinate of action"
+      },
+      {
+        "name": "y_legacy",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Legacy y-coordinate of action"
+      },
+      {
+        "name": "shot_distance",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Distance of shot in feet"
+      },
+      {
+        "name": "shot_result",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Result of shot attempt"
+      },
+      {
+        "name": "is_field_goal",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag indicating if action is a field goal attempt"
+      },
+      {
+        "name": "score_home",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team score"
+      },
+      {
+        "name": "score_away",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team score"
+      },
+      {
+        "name": "points_total",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total points scored on the play"
+      },
+      {
+        "name": "location",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home or away location indicator"
+      },
+      {
+        "name": "description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Text description of the play"
+      },
+      {
+        "name": "action_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Type of action performed"
+      },
+      {
+        "name": "sub_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Sub-type of action performed"
+      },
+      {
+        "name": "video_available",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Video availability flag"
+      },
+      {
+        "name": "action_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Unique action identifier"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_player_awards",
+    "class_name": "RawPlayerAwardsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "team",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name at time of award"
+      },
+      {
+        "name": "description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Award description"
+      },
+      {
+        "name": "all_nba_team_number",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "All-NBA team number selection"
+      },
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season of the award"
+      },
+      {
+        "name": "month",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Month of the award if applicable"
+      },
+      {
+        "name": "week",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Week of the award if applicable"
+      },
+      {
+        "name": "conference",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Conference for the award"
+      },
+      {
+        "name": "type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Award type category"
+      },
+      {
+        "name": "subtype1",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Award subtype level 1"
+      },
+      {
+        "name": "subtype2",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Award subtype level 2"
+      },
+      {
+        "name": "subtype3",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Award subtype level 3"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_player_career_stats",
+    "class_name": "RawPlayerCareerStatsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "season_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season identifier string"
+      },
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "League identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "player_age",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player age during season"
+      },
+      {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
+        "name": "gs",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games started"
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played"
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals made"
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals attempted"
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goal percentage"
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made"
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw percentage"
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebounds"
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebounds"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Steals"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers"
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_player_game_log",
+    "class_name": "RawPlayerGameLogSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Season identifier"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Date of the game"
+      },
+      {
+        "name": "matchup",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Matchup string (e.g. LAL vs. BOS)"
+      },
+      {
+        "name": "wl",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win or loss indicator"
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played"
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals made"
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals attempted"
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goal percentage"
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made"
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw percentage"
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebounds"
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebounds"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Steals"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers"
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored"
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Plus-minus differential"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_player_index",
+    "class_name": "RawPlayerIndexSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last name"
+      },
+      {
+        "name": "player_first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly player slug"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly team slug"
+      },
+      {
+        "name": "is_defunct",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether team is defunct"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "jersey_number",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Jersey number as string"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "height",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player height as string"
+      },
+      {
+        "name": "weight",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player weight as string"
+      },
+      {
+        "name": "college",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "College attended"
+      },
+      {
+        "name": "country",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Country of origin"
+      },
+      {
+        "name": "draft_year",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Year drafted"
+      },
+      {
+        "name": "draft_round",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Round drafted"
+      },
+      {
+        "name": "draft_number",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Overall draft pick number"
+      },
+      {
+        "name": "roster_status",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Active roster status"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points per game"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Rebounds per game"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists per game"
+      },
+      {
+        "name": "stats_timeframe",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Timeframe for stats"
+      },
+      {
+        "name": "from_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "First year in the league"
+      },
+      {
+        "name": "to_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Last year in the league"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_playoff_picture",
+    "class_name": "RawPlayoffPictureSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "conference",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Conference name"
+      },
+      {
+        "name": "high_seed_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Higher seed rank"
+      },
+      {
+        "name": "high_seed_team",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Higher seed team name"
+      },
+      {
+        "name": "high_seed_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Higher seed team identifier"
+      },
+      {
+        "name": "low_seed_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Lower seed rank"
+      },
+      {
+        "name": "low_seed_team",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Lower seed team name"
+      },
+      {
+        "name": "low_seed_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Lower seed team identifier"
+      },
+      {
+        "name": "high_seed_series_w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Higher seed series wins"
+      },
+      {
+        "name": "high_seed_series_l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Higher seed series losses"
+      },
+      {
+        "name": "high_seed_series_remaining_g",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Remaining games in series"
+      },
+      {
+        "name": "high_seed_series_remaining_home_g",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Remaining home games in series"
+      },
+      {
+        "name": "high_seed_series_remaining_away_g",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Remaining away games in series"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_schedule_league_v2",
+    "class_name": "RawScheduleLeagueV2Schema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Date of the game"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "game_code",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game code string"
+      },
+      {
+        "name": "game_status",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game status code"
+      },
+      {
+        "name": "game_status_text",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game status display text"
+      },
+      {
+        "name": "game_sequence",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game sequence number for the day"
+      },
+      {
+        "name": "game_date_est",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game date in Eastern time"
+      },
+      {
+        "name": "game_time_est",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game time in Eastern time"
+      },
+      {
+        "name": "game_date_time_est",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game date and time in Eastern time"
+      },
+      {
+        "name": "game_date_utc",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game date in UTC"
+      },
+      {
+        "name": "game_time_utc",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game time in UTC"
+      },
+      {
+        "name": "game_date_time_utc",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game date and time in UTC"
+      },
+      {
+        "name": "away_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team identifier"
+      },
+      {
+        "name": "away_team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team name"
+      },
+      {
+        "name": "away_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team city"
+      },
+      {
+        "name": "away_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team three-letter code"
+      },
+      {
+        "name": "away_team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team URL slug"
+      },
+      {
+        "name": "away_team_wins",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team win count"
+      },
+      {
+        "name": "away_team_losses",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team loss count"
+      },
+      {
+        "name": "away_team_score",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away team score"
+      },
+      {
+        "name": "home_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team identifier"
+      },
+      {
+        "name": "home_team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team name"
+      },
+      {
+        "name": "home_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team city"
+      },
+      {
+        "name": "home_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team three-letter code"
+      },
+      {
+        "name": "home_team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team URL slug"
+      },
+      {
+        "name": "home_team_wins",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team win count"
+      },
+      {
+        "name": "home_team_losses",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team loss count"
+      },
+      {
+        "name": "home_team_score",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team score"
+      },
+      {
+        "name": "arena_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Arena name"
+      },
+      {
+        "name": "arena_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Arena city"
+      },
+      {
+        "name": "arena_state",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Arena state"
+      },
+      {
+        "name": "postponed_status",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Postponement status"
+      },
+      {
+        "name": "branch_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Branch deep link URL"
+      },
+      {
+        "name": "game_subtype",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game subtype classification"
+      },
+      {
+        "name": "series_conference",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Playoff series conference"
+      },
+      {
+        "name": "series_text",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Playoff series status text"
+      },
+      {
+        "name": "if_necessary",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "If-necessary game indicator"
+      },
+      {
+        "name": "series_game_number",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game number in playoff series"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_scoreboard_v2",
+    "class_name": "RawScoreboardV2Schema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_date_est",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Game date in Eastern time"
+      },
+      {
+        "name": "game_sequence",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game sequence number for the day"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "game_status_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game status identifier"
+      },
+      {
+        "name": "game_status_text",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game status display text"
+      },
+      {
+        "name": "gamecode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game code string"
+      },
+      {
+        "name": "home_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team identifier"
+      },
+      {
+        "name": "visitor_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team identifier"
+      },
+      {
+        "name": "season",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season year string"
+      },
+      {
+        "name": "live_period",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Current live period"
+      },
+      {
+        "name": "live_pc_time",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game clock time"
+      },
+      {
+        "name": "natl_tv_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "National TV broadcaster abbreviation"
+      },
+      {
+        "name": "home_tv_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home TV broadcaster abbreviation"
+      },
+      {
+        "name": "away_tv_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away TV broadcaster abbreviation"
+      },
+      {
+        "name": "live_period_time_bcast",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live period time broadcast string"
+      },
+      {
+        "name": "arena_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Arena name"
+      },
+      {
+        "name": "wh_status",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wagering hub status flag"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_shot_chart_detail",
+    "class_name": "RawShotChartDetailSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "grid_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot chart grid type"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "game_event_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Event identifier within game"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "period",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game period number"
+      },
+      {
+        "name": "minutes_remaining",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes remaining in period"
+      },
+      {
+        "name": "seconds_remaining",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Seconds remaining in period"
+      },
+      {
+        "name": "event_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot event type (Made/Missed)"
+      },
+      {
+        "name": "action_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Specific shot action type"
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot type (2PT/3PT Field Goal)"
+      },
+      {
+        "name": "shot_zone_basic",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Basic shot zone category"
+      },
+      {
+        "name": "shot_zone_area",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot zone area on court"
+      },
+      {
+        "name": "shot_zone_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot distance range bucket"
+      },
+      {
+        "name": "shot_distance",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot distance in feet"
+      },
+      {
+        "name": "loc_x",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot X coordinate on court"
+      },
+      {
+        "name": "loc_y",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot Y coordinate on court"
+      },
+      {
+        "name": "shot_attempted_flag",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag indicating shot was attempted"
+      },
+      {
+        "name": "shot_made_flag",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag indicating shot was made"
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Date of the game"
+      },
+      {
+        "name": "htm",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team abbreviation"
+      },
+      {
+        "name": "vtm",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team abbreviation"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_shot_chart_league_wide",
+    "class_name": "RawShotChartLeagueWideSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "grid_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot chart grid type"
+      },
+      {
+        "name": "shot_zone_basic",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Basic shot zone category"
+      },
+      {
+        "name": "shot_zone_area",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot zone area on court"
+      },
+      {
+        "name": "shot_zone_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot distance range bucket"
+      },
+      {
+        "name": "fga",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fgm",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_synergy_play_types",
+    "class_name": "RawSynergyPlayTypesSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "NBA season identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Unique player identifier"
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player full name"
+      },
+      {
+        "name": "play_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Synergy play type classification"
+      },
+      {
+        "name": "type_grouping",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive or defensive grouping"
+      },
+      {
+        "name": "percentile",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percentile rank for play type"
+      },
+      {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
+        "name": "poss_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Percentage of possessions"
+      },
+      {
+        "name": "ppp",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points per possession"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "ft_pct_adjust",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw percentage adjusted"
+      },
+      {
+        "name": "to_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnover percentage"
+      },
+      {
+        "name": "sf_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shooting foul percentage"
+      },
+      {
+        "name": "plusone_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "And-one conversion percentage"
+      },
+      {
+        "name": "score_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Scoring percentage"
+      },
+      {
+        "name": "efg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Effective field goal percentage"
+      },
+      {
+        "name": "poss",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total possessions"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total points scored"
+      },
+      {
+        "name": "fgm",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fga",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fgmx",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals missed"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_team_details",
+    "class_name": "RawTeamDetailsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "nickname",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team nickname"
+      },
+      {
+        "name": "yearfounded",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Year the team was founded"
+      },
+      {
+        "name": "city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "arena",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home arena name"
+      },
+      {
+        "name": "arenacapacity",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Arena seating capacity"
+      },
+      {
+        "name": "owner",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team owner name"
+      },
+      {
+        "name": "generalmanager",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "General manager name"
+      },
+      {
+        "name": "headcoach",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Head coach name"
+      },
+      {
+        "name": "dleagueaffiliation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "G-League affiliate team name"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_team_game_log",
+    "class_name": "RawTeamGameLogSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "season_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Season identifier"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Date of the game"
+      },
+      {
+        "name": "matchup",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Matchup string (e.g. LAL vs. BOS)"
+      },
+      {
+        "name": "wl",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win or loss indicator"
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wins"
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Losses"
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win percentage"
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes played"
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals made"
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goals attempted"
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Field goal percentage"
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals made"
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goals attempted"
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Three-point field goal percentage"
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws made"
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throws attempted"
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Free throw percentage"
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Offensive rebounds"
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Defensive rebounds"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Total rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Steals"
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Blocks"
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Turnovers"
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Personal fouls"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored"
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Plus-minus differential"
+      },
+      {
+        "name": "video_available",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Video availability flag"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_team_info_common",
+    "class_name": "RawTeamInfoCommonSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0",
+        "description": "Unique team identifier"
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season year string"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city name"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_conference",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Conference name"
+      },
+      {
+        "name": "team_division",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Division name"
+      },
+      {
+        "name": "team_code",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team code slug"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly team slug"
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wins"
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Losses"
+      },
+      {
+        "name": "pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win percentage"
+      },
+      {
+        "name": "conf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Conference ranking"
+      },
+      {
+        "name": "div_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Division ranking"
+      },
+      {
+        "name": "min_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "First year of team activity"
+      },
+      {
+        "name": "max_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Last year of team activity"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_win_probability",
+    "class_name": "RawWinProbabilitySchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "event_num",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Event sequence number"
+      },
+      {
+        "name": "home_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team win probability"
+      },
+      {
+        "name": "visitor_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team win probability"
+      },
+      {
+        "name": "home_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team points"
+      },
+      {
+        "name": "visitor_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team points"
+      },
+      {
+        "name": "home_score_margin",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team score margin"
+      },
+      {
+        "name": "period",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game period number"
+      },
+      {
+        "name": "seconds_remaining",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Seconds remaining in period"
+      },
+      {
+        "name": "home_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team identifier"
+      },
+      {
+        "name": "home_team_abb",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team abbreviation code"
+      },
+      {
+        "name": "visitor_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team identifier"
+      },
+      {
+        "name": "visitor_team_abb",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team abbreviation code"
+      },
+      {
+        "name": "description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Text description of the play"
+      },
+      {
+        "name": "location",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home or away location indicator"
+      },
+      {
+        "name": "pctimestring",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Period clock time string"
+      },
+      {
+        "name": "is_score_change",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Flag indicating if score changed"
+      }
+    ]
+  }
+]

@@ -19,6 +19,14 @@ SCHEMA_TIERS = ("raw", "staging", "star")
 DATA_DICTIONARY_TIERS = ("raw", "staging", "star")
 
 
+def _resolve_generated_data_dir(docs_root: Path) -> Path:
+    """Resolve the lib/generated directory for JSON data files."""
+    docs_root = docs_root.resolve()
+    if docs_root.name == "docs" and docs_root.parent.name == "content":
+        return docs_root.parent.parent / "lib" / "generated"
+    return docs_root / "_generated"
+
+
 def _normalize_content(content: str) -> str:
     return f"{content.rstrip()}\n"
 
@@ -58,20 +66,37 @@ def generate_docs_artifacts(
     updated_paths: list[Path] = []
     unchanged_paths: list[Path] = []
 
+    gen_data_dir = _resolve_generated_data_dir(docs_root)
+    gen_data_dir.mkdir(parents=True, exist_ok=True)
+
     schema_gen = SchemaDocsGenerator(output_dir=docs_root / "schema")
     for tier in SCHEMA_TIERS:
+        data = schema_gen.generate_tier_json(tier)
+        _write_artifact(
+            gen_data_dir / f"{tier}-reference.json",
+            json.dumps(data, indent=2, sort_keys=False),
+            updated_paths,
+            unchanged_paths,
+        )
         _write_artifact(
             docs_root / "schema" / f"{tier}-reference.mdx",
-            schema_gen.generate_tier_mdx(tier),
+            schema_gen.generate_tier_stub_mdx(tier, len(data)),
             updated_paths,
             unchanged_paths,
         )
 
     data_dictionary_gen = DataDictionaryGenerator(output_dir=docs_root / "data-dictionary")
     for tier in DATA_DICTIONARY_TIERS:
+        data = data_dictionary_gen.generate_tier_json(tier)
+        _write_artifact(
+            gen_data_dir / f"{tier}-dictionary.json",
+            json.dumps(data, indent=2, sort_keys=False),
+            updated_paths,
+            unchanged_paths,
+        )
         _write_artifact(
             docs_root / "data-dictionary" / f"{tier}.mdx",
-            data_dictionary_gen.generate_mdx(tier),
+            data_dictionary_gen.generate_stub_mdx(tier, len(data)),
             updated_paths,
             unchanged_paths,
         )

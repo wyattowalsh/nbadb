@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import json
 from pathlib import Path
+from typing import Any
 
 import pandera.polars as pa
 from loguru import logger
@@ -11,7 +13,9 @@ from loguru import logger
 class SchemaDocsGenerator:
     """Generate complete schema reference MDX from Pandera models.
 
-    Produces one MDX file per schema tier with full table/column docs.
+    Produces one JSON data file + one lightweight MDX stub per schema tier.
+    The MDX stub imports a React component that renders from JSON at runtime,
+    avoiding MDX compilation of hundreds of markdown tables.
     """
 
     SCHEMA_PACKAGES = {
@@ -142,15 +146,114 @@ class SchemaDocsGenerator:
 
         return "\n".join(lines)
 
+    def generate_tier_json(self, tier: str) -> list[dict[str, Any]]:
+        """Generate JSON schema reference data for a tier."""
+        package = self.SCHEMA_PACKAGES.get(tier)
+        if not package:
+            return []
+
+        schemas = self._discover_schemas(package)
+        result: list[dict[str, Any]] = []
+
+        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
+            table_name = self._table_name_from_class(class_name)
+            config = getattr(schema_cls, "Config", None)
+            coerce = getattr(config, "coerce", False) if config else False
+            strict = getattr(config, "strict", True) if config else True
+
+            schema = schema_cls.to_schema()
+            columns: list[dict[str, Any]] = []
+
+            for col_name, col in schema.columns.items():
+                metadata = getattr(col, "metadata", {}) or {}
+                nullable = getattr(col, "nullable", False)
+                fk = metadata.get("fk_ref", "")
+                dtype = getattr(col, "dtype", None)
+                type_str = str(dtype) if dtype else "unknown"
+
+                constraints = []
+                for check in getattr(col, "checks", []):
+                    name = getattr(check, "name", "")
+                    stats = getattr(check, "statistics", {})
+                    if name == "greater_than":
+                        constraints.append(f"gt={stats.get('min_value')}")
+                    elif name == "greater_or_equal":
+                        constraints.append(f"ge={stats.get('min_value')}")
+                    elif name == "less_than":
+                        constraints.append(f"lt={stats.get('max_value')}")
+                    elif name == "less_or_equal":
+                        constraints.append(f"le={stats.get('max_value')}")
+                    elif name == "in_range":
+                        lo = stats.get("min_value")
+                        hi = stats.get("max_value")
+                        constraints.append(f"range=[{lo}, {hi}]")
+                    elif name == "isin":
+                        constraints.append(f"in={stats.get('allowed_values')}")
+                    elif name == "unique_values":
+                        constraints.append("unique")
+                if fk:
+                    constraints.append(f"FK→{fk}")
+
+                columns.append(
+                    {
+                        "name": col_name,
+                        "type": type_str,
+                        "nullable": nullable,
+                        "constraints": ", ".join(constraints) if constraints else "—",
+                        "description": metadata.get("description", ""),
+                    }
+                )
+
+            result.append(
+                {
+                    "table_name": table_name,
+                    "class_name": class_name,
+                    "coerce": coerce,
+                    "strict": strict,
+                    "columns": columns,
+                }
+            )
+        return result
+
+    def generate_tier_stub_mdx(self, tier: str, schema_count: int) -> str:
+        """Generate a lightweight MDX stub that renders from JSON."""
+        json_path = f"@/lib/generated/{tier}-reference.json"
+        return "\n".join(
+            [
+                "---",
+                f"title: Schema Reference — {tier.title()}",
+                f"description: Complete schema docs for {tier} tier ({schema_count} schemas)",
+                "full: true",
+                "---",
+                "",
+                f"import data from '{json_path}'",
+                "import { SchemaReferenceTable } from '@/components/mdx/schema-reference-table'",
+                "",
+                f"# Schema Reference — {tier.title()}",
+                "",
+                f"This tier contains **{schema_count}** schemas.",
+                "",
+                "<SchemaReferenceTable data={data} />",
+            ]
+        )
+
     def write(self, tiers: list[str] | None = None) -> list[Path]:
-        """Write schema reference MDX for specified tiers."""
+        """Write schema reference JSON + MDX stub for specified tiers."""
         tiers = tiers or ["raw", "staging", "star"]
         self.output_dir.mkdir(parents=True, exist_ok=True)
         written: list[Path] = []
         for tier in tiers:
-            content = self.generate_tier_mdx(tier)
-            path = self.output_dir / f"{tier}-reference.mdx"
-            path.write_text(content, encoding="utf-8")
-            logger.info(f"Wrote schema docs: {path}")
-            written.append(path)
+            # Write JSON data
+            data = self.generate_tier_json(tier)
+            json_path = self.output_dir / f"{tier}-reference.json"
+            json_path.write_text(json.dumps(data, indent=2, sort_keys=False), encoding="utf-8")
+            logger.info(f"Wrote schema JSON: {json_path} ({len(data)} schemas)")
+            written.append(json_path)
+
+            # Write MDX stub
+            content = self.generate_tier_stub_mdx(tier, len(data))
+            mdx_path = self.output_dir / f"{tier}-reference.mdx"
+            mdx_path.write_text(content, encoding="utf-8")
+            logger.info(f"Wrote schema stub: {mdx_path}")
+            written.append(mdx_path)
         return written

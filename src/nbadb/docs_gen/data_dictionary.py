@@ -139,15 +139,56 @@ class DataDictionaryGenerator:
             result[table_name] = self._extract_fields(schema_cls)
         return json.dumps(result, indent=2)
 
+    def generate_tier_json(self, tier: str = "star") -> list[dict[str, Any]]:
+        """Generate JSON data dictionary for a tier."""
+        package = f"nbadb.schemas.{tier}"
+        schemas = self._discover_schemas(package)
+        result: list[dict[str, Any]] = []
+        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
+            table_name = self._table_name_from_class(class_name)
+            fields = self._extract_fields(schema_cls)
+            result.append({"table_name": table_name, "fields": fields})
+        return result
+
+    def generate_stub_mdx(self, tier: str, table_count: int) -> str:
+        """Generate a lightweight MDX stub that renders from JSON."""
+        json_path = f"@/lib/generated/{tier}-dictionary.json"
+        return "\n".join(
+            [
+                "---",
+                f"title: Data Dictionary — {tier.title()}",
+                f"description: Field-level docs for {tier} tables ({table_count} total)",
+                "full: true",
+                "---",
+                "",
+                f"import data from '{json_path}'",
+                "import { DataDictionaryTable } from '@/components/mdx/schema-reference-table'",
+                "",
+                f"# Data Dictionary — {tier.title()}",
+                "",
+                f"This tier contains **{table_count}** tables.",
+                "",
+                "<DataDictionaryTable data={data} />",
+            ]
+        )
+
     def write(self, tiers: list[str] | None = None) -> list[Path]:
-        """Write MDX files for specified tiers."""
+        """Write data dictionary JSON + MDX stub for specified tiers."""
         tiers = tiers or ["star", "staging", "raw"]
         self.output_dir.mkdir(parents=True, exist_ok=True)
         written: list[Path] = []
         for tier in tiers:
-            content = self.generate_mdx(tier)
-            path = self.output_dir / f"{tier}.mdx"
-            path.write_text(content, encoding="utf-8")
-            logger.info(f"Wrote data dictionary: {path}")
-            written.append(path)
+            # Write JSON data
+            data = self.generate_tier_json(tier)
+            json_path = self.output_dir / f"{tier}.json"
+            json_path.write_text(json.dumps(data, indent=2, sort_keys=False), encoding="utf-8")
+            logger.info(f"Wrote data dictionary JSON: {json_path} ({len(data)} tables)")
+            written.append(json_path)
+
+            # Write MDX stub
+            content = self.generate_stub_mdx(tier, len(data))
+            mdx_path = self.output_dir / f"{tier}.mdx"
+            mdx_path.write_text(content, encoding="utf-8")
+            logger.info(f"Wrote data dictionary stub: {mdx_path}")
+            written.append(mdx_path)
         return written
