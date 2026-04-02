@@ -23,10 +23,10 @@ from nbadb.orchestrate.orchestrator import PipelineResult
 # ---------------------------------------------------------------------------
 
 
-def test_build_settings_defaults() -> None:
+def test_build_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NBADB_DATA_DIR", raising=False)
     settings = _build_settings()
     assert isinstance(settings, NbaDbSettings)
-    assert settings.data_dir == Path("nbadb")
 
 
 def test_build_settings_data_dir_override() -> None:

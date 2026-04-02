@@ -14,13 +14,15 @@ def clear_settings_cache():
 
 
 class TestNbaDbSettingsDefaults:
-    def test_default_data_dir(self) -> None:
-        assert NbaDbSettings().data_dir == Path("nbadb")
+    def test_default_data_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NBADB_DATA_DIR", raising=False)
+        assert NbaDbSettings(_env_file=None).data_dir == Path("data/nbadb")
 
-    def test_default_db_paths_validator(self) -> None:
-        settings = NbaDbSettings()
-        assert settings.sqlite_path == Path("nbadb") / "nba.sqlite"
-        assert settings.duckdb_path == Path("nbadb") / "nba.duckdb"
+    def test_default_db_paths_validator(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NBADB_DATA_DIR", raising=False)
+        settings = NbaDbSettings(_env_file=None)
+        assert settings.sqlite_path == Path("data/nbadb") / "nba.sqlite"
+        assert settings.duckdb_path == Path("data/nbadb") / "nba.duckdb"
 
 
 class TestNbaDbSettingsCustom:
