@@ -73,6 +73,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "TCH"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/nbadb/kaggle/metadata.py" = ["E501"]
+"notebooks/kaggle_update.py" = ["E402"]
 
 [tool.ty.src]
 include = ["src"]

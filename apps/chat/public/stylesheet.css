@@ -100,6 +100,17 @@ button[class*="starter"]:hover,
   [data-testid="starter"] {
     transition: none;
   }
+  [id^="step-"] {
+    transition: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* ── Standard scrollbar (Firefox, future browsers) ─────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
 }
 
 /* ── Scrollbar styling ──────────────────────────────────────────── */

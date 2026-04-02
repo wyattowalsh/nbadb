@@ -46,7 +46,7 @@ def setup_tracing(settings: ChatSettings) -> list[Any]:
             except ImportError:
                 logger.warning(
                     "tracing_provider=langfuse but langfuse is not "
-                    "installed — run: pip install 'nbadb-chat[tracing]'"
+                    "installed — run: uv add 'nbadb-chat[tracing]'"
                 )
                 return []
 

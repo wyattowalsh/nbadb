@@ -40,7 +40,7 @@ class TestBuildTemplateScript:
         log = [{"code": "SELECT 1", "tool": "run_sql", "lang": "sql"}]
         result = self.build(log, "my_analysis")
         assert "Step 1: run_sql" in result
-        assert 'query("""SELECT 1""")' in result
+        assert "query('SELECT 1')" in result
 
     def test_python_entry(self):
         log = [{"code": "print('hello')", "tool": "run_python", "lang": "python"}]
@@ -80,8 +80,10 @@ class TestBuildSpreadsheetHtml:
             ):
                 break
             func_lines.append(line)
+        import html as _html_mod
+
         func_source = "\n".join(func_lines)
-        ns = {}
+        ns = {"_html": _html_mod}
         exec(func_source, ns)  # noqa: S102
         self.build = ns["_build_spreadsheet_html"]
 

@@ -40,3 +40,7 @@ packages = ["server", "mcp_servers", "skills"]
 
 # nbadb is imported via sys.path (avoids dep conflicts with chainlit's aiofiles cap).
 # The chat app only uses nbadb.agent.safety, nbadb.agent.context, nbadb.kaggle.client.
+
+[tool.ty]
+python-version = "3.12"
+src = ["."]

@@ -201,14 +201,18 @@ class CopilotAgentWrapper:
         config: dict | None = None,
     ) -> AsyncIterator[tuple[AIMessage | ToolMessage, dict]]:
         """Stream agent events as (message, metadata) tuples."""
-        from copilot.session import PermissionHandler
-
         queue: asyncio.Queue = asyncio.Queue()
 
         # Create or reuse session
         if self._session is None:
+            _allowed_tools = frozenset({"run_sql", "list_tables", "describe_table", "run_python"})
+
+            def _scoped_permission_handler(request: Any) -> bool:
+                tool_name = getattr(request, "name", None) or getattr(request, "tool_name", None)
+                return tool_name in _allowed_tools
+
             self._session = await self._client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
+                on_permission_request=_scoped_permission_handler,
                 model=self._model,
                 streaming=True,
                 tools=self._tools,

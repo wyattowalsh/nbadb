@@ -138,6 +138,12 @@ _BLOCKED_ATTRS: frozenset[str] = frozenset(
         "__globals__",
         "__code__",
         "__builtins__",
+        "__objclass__",
+        "__init_subclass__",
+        "__set_name__",
+        "__class_getitem__",
+        "__reduce__",
+        "__reduce_ex__",
         "savefig",
     }
 )
@@ -194,6 +200,17 @@ def check_code_safety(code: str) -> str | None:
                 if func.attr in _BLOCKED_ATTRIBUTE_CALLS:
                     call_name = chain or func.attr
                     return f"Blocked file or network access call: {call_name}()"
+
+        # Block decorators that use blocked calls (evaluated at definition time)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            for decorator in node.decorator_list:
+                for sub in ast.walk(decorator):
+                    if isinstance(sub, ast.Call):
+                        func = sub.func
+                        if isinstance(func, ast.Name) and func.id in _BLOCKED_BUILTINS:
+                            return f"Blocked builtin in decorator: {func.id}()"
+                        if isinstance(func, ast.Attribute) and func.attr in _BLOCKED_BUILTINS:
+                            return f"Blocked call in decorator: .{func.attr}()"
 
         # Block dunder attribute access for class hierarchy traversal
         elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_ATTRS:

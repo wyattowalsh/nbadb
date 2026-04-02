@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html as _html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -212,7 +214,8 @@ async def on_download_json(action: cl.Action) -> None:
     raw = action.payload.get("data", "{}")
     data = json.loads(raw) if isinstance(raw, str) else raw
     df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
-    json_bytes = df.to_json(orient="records", indent=2).encode()
+    json_str = df.to_json(orient="records", indent=2) or "[]"
+    json_bytes = json_str.encode()
     elements = [cl.File(name="query_result.json", content=json_bytes, display="inline")]
     await cl.Message(content="", elements=elements).send()
     await action.remove()
@@ -229,10 +232,10 @@ async def on_edit_spreadsheet(action: cl.Action) -> None:
     columns_json = json.dumps(
         [{"field": c, "editable": True, "sortable": True, "filter": True} for c in df.columns]
     )
-    rows_json = df.to_json(orient="records")
+    rows_json = df.to_json(orient="records") or "[]"
     name = "query_result"
-    html = _build_spreadsheet_html(name, columns_json, rows_json)
-    elements = [cl.File(name=f"{name}.html", content=html.encode(), display="inline")]
+    html_content = _build_spreadsheet_html(name, columns_json, rows_json)
+    elements = [cl.File(name=f"{name}.html", content=html_content.encode(), display="inline")]
     await cl.Message(
         content="Open the HTML file in your browser to edit, sort, filter, and export.",
         elements=elements,
@@ -277,7 +280,7 @@ async def on_export_session_code(action: cl.Action) -> None:
     for i, entry in enumerate(code_log, 1):
         lines.append(f"# --- Step {i}: {entry['tool']} ---")
         if entry["lang"] == "sql":
-            lines.append(f'df_{i} = query("""{entry["code"]}""")')
+            lines.append(f"df_{i} = query({entry['code']!r})")
             lines.append(f"print(df_{i})")
         else:
             lines.append(entry["code"])
@@ -296,7 +299,10 @@ async def on_save_template(action: cl.Action) -> None:
         await cl.Message(content="No code to save as a template.").send()
         return
 
-    name = action.payload.get("name", "analysis")
+    raw_name = action.payload.get("name", "analysis")
+    name = Path(raw_name).stem
+    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
+        name = "analysis"
     template_dir = Path.home() / ".nbadb" / "templates"
     template_dir.mkdir(parents=True, exist_ok=True)
 
@@ -352,7 +358,7 @@ def _build_template_script(code_log: list[dict], name: str) -> str:
     for i, entry in enumerate(code_log, 1):
         lines.append(f"# --- Step {i}: {entry['tool']} ---")
         if entry["lang"] == "sql":
-            lines.append(f'df_{i} = query("""{entry["code"]}""")')
+            lines.append(f"df_{i} = query({entry['code']!r})")
             lines.append(f"print(df_{i})")
         else:
             lines.append(entry["code"])
@@ -492,9 +498,11 @@ async def on_chat_start() -> None:
     try:
         agent = await create_nba_agent(settings, profile=profile, session_id=session_id)
     except Exception as e:
+        logger.exception("Failed to initialize agent")
+        detail = "" if settings.public_demo_mode else f" {e}"
         await cl.Message(
             content=(
-                f"**Failed to initialize agent:** {e}\n\n"
+                f"**Failed to initialize agent.**{detail}\n\n"
                 "Please check your configuration and refresh."
             )
         ).send()
@@ -539,9 +547,10 @@ async def on_settings_update(settings_dict: dict) -> None:
         if agent is not None and hasattr(agent, "cleanup"):
             await agent.cleanup()
         logger.exception("Failed to rebuild agent after settings update")
+        detail = "" if current.public_demo_mode else f" {e}"
         await cl.Message(
             content=(
-                f"**Failed to update settings:** {e}\n\n"
+                f"**Failed to update settings.**{detail}\n\n"
                 "Your previous agent is still available. "
                 "Please check your configuration and try again."
             )
@@ -617,7 +626,11 @@ async def on_message(msg: cl.Message) -> None:
                     await _render_tool_result(message, tool_step)
     except Exception as exc:
         logger.exception("Agent streaming error")
-        response.content = f"**Error:** {exc}"
+        settings = cl.user_session.get("settings")
+        if settings and getattr(settings, "public_demo_mode", False):
+            response.content = "**Error:** Something went wrong. Please try again."
+        else:
+            response.content = f"**Error:** {exc}"
     finally:
         await response.update()
 
@@ -799,11 +812,14 @@ def _track_code(code: str, tool: str, lang: str) -> None:
 
 def _build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str:
     """Generate a self-contained HTML file with an AG Grid editable spreadsheet."""
+    safe_name = _html.escape(name)
+    safe_rows = rows_json.replace("</", "<\\/")
+    safe_cols = columns_json.replace("</", "<\\/")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{name} — NBA Data Spreadsheet</title>
+<title>{safe_name} — NBA Data Spreadsheet</title>
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
 <style>
   body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
@@ -820,7 +836,7 @@ def _build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str
 </style>
 </head>
 <body>
-<h1>{name}</h1>
+<h1>{safe_name}</h1>
 <div class="toolbar">
   <button onclick="exportCSV()">Export CSV</button>
   <button onclick="exportJSON()">Export JSON</button>
@@ -829,8 +845,8 @@ def _build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str
 </div>
 <div id="grid" class="ag-theme-alpine"></div>
 <script>
-const originalData = {rows_json};
-const columnDefs = {columns_json};
+const originalData = {safe_rows};
+const columnDefs = {safe_cols};
 const gridOptions = {{
   columnDefs: columnDefs,
   rowData: JSON.parse(JSON.stringify(originalData)),
@@ -852,10 +868,10 @@ function exportCSV() {{
   const body = rows.map(r => cols.map(c =>
     JSON.stringify(r[c] ?? "")).join(","));
   const csv = [hdr, ...body].join("\\n");
-  download(csv, "{name}.csv", "text/csv");
+  download(csv, "{safe_name}.csv", "text/csv");
 }}
 function exportJSON() {{
-  download(JSON.stringify(getRows(), null, 2), "{name}.json", "application/json");
+  download(JSON.stringify(getRows(), null, 2), "{safe_name}.json", "application/json");
 }}
 function resetData() {{
   api.setGridOption("rowData", JSON.parse(JSON.stringify(originalData)));

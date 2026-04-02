@@ -164,6 +164,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => setSidebarOpen(true)}
             className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground"
+            aria-label="Open navigation menu"
           >
             <Menu className="size-5" />
           </button>

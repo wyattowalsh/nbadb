@@ -7,6 +7,7 @@ from pathlib import Path
 _PREAMBLE_TEMPLATE = '''\
 import sys
 import json
+import html as _html
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -234,7 +235,7 @@ def to_thread(insights, _json=json, _b64_mod=_b64):
                        "content": _b64_mod.b64encode(
                            thread.encode()).decode()}))
 
-def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
+def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64, _html_mod=_html):
     """Generate a self-contained HTML file with an editable spreadsheet.
 
     The HTML file embeds AG Grid (community) for in-browser editing with
@@ -244,11 +245,14 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
     columns_json = _json.dumps([{"field": c, "editable": True, "sortable": True,
                                   "filter": True} for c in df.columns])
     rows_json = df.to_json(orient="records")
+    safe_name = _html_mod.escape(name)
+    safe_rows = rows_json.replace("</", "<\\/")
+    safe_cols = columns_json.replace("</", "<\\/")
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{name} — NBA Data Spreadsheet</title>
+<title>{safe_name} — NBA Data Spreadsheet</title>
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
 <style>
   body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
@@ -265,7 +269,7 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
 </style>
 </head>
 <body>
-<h1>{name}</h1>
+<h1>{safe_name}</h1>
 <div class="toolbar">
   <button onclick="exportCSV()">Export CSV</button>
   <button onclick="exportJSON()">Export JSON</button>
@@ -274,8 +278,8 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
 </div>
 <div id="grid" class="ag-theme-alpine"></div>
 <script>
-const originalData = {rows_json};
-const columnDefs = {columns_json};
+const originalData = {safe_rows};
+const columnDefs = {safe_cols};
 const gridOptions = {{
   columnDefs: columnDefs,
   rowData: JSON.parse(JSON.stringify(originalData)),
@@ -297,10 +301,10 @@ function exportCSV() {{
   const body = rows.map(r => cols.map(c =>
     JSON.stringify(r[c] ?? "")).join(","));
   const csv = [hdr, ...body].join("\\n");
-  download(csv, "{name}.csv", "text/csv");
+  download(csv, "{safe_name}.csv", "text/csv");
 }}
 function exportJSON() {{
-  download(JSON.stringify(getRows(), null, 2), "{name}.json", "application/json");
+  download(JSON.stringify(getRows(), null, 2), "{safe_name}.json", "application/json");
 }}
 function resetData() {{
   api.setGridOption("rowData", JSON.parse(JSON.stringify(originalData)));
@@ -324,6 +328,7 @@ del sys
 del warnings
 del _io
 del _b64
+del _html
 del _ReadOnlyGuard
 del _READ_ONLY_GUARD
 del _READ_ONLY_MAX_ROWS

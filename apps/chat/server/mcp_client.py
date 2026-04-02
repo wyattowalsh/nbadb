@@ -32,14 +32,21 @@ async def setup_mcp_tools(
             "transport": "stdio",
         },
     }
-    # Merge user-configured MCP servers
-    servers.update(settings.extra_mcp_servers)
+    # Merge user-configured MCP servers (reject collisions with built-in names)
+    builtin_names = frozenset(servers.keys())
+    for key, val in settings.extra_mcp_servers.items():
+        if key in builtin_names:
+            from loguru import logger as _mcplog
+
+            _mcplog.warning("Ignoring extra_mcp_server {!r} — collides with built-in name", key)
+            continue
+        servers[key] = val
 
     if settings.extra_mcp_servers:
-        import logging
+        from loguru import logger as _mcplog
 
-        logging.getLogger(__name__).warning(
-            "Loading %d extra MCP server(s) from config: %s",
+        _mcplog.info(
+            "Loaded {} extra MCP server(s) from config: {}",
             len(settings.extra_mcp_servers),
             list(settings.extra_mcp_servers.keys()),
         )

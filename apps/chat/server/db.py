@@ -7,6 +7,7 @@ which conflicts with chainlit's aiofiles version cap.
 
 from __future__ import annotations
 
+import re
 import shutil
 from functools import lru_cache
 from pathlib import Path
@@ -29,10 +30,7 @@ def ensure_database(
     try:
         import kagglehub
     except ImportError:
-        msg = (
-            "kagglehub is required for first-run data download. "
-            "Install it with: pip install kagglehub"
-        )
+        msg = "kagglehub is required for first-run data download. Install it with: uv add kagglehub"
         raise ImportError(msg) from None
 
     download_path = kagglehub.dataset_download(kaggle_dataset)
@@ -54,12 +52,16 @@ def ensure_database(
     sqlite_path = sqlite_files[0]
     logger.info(f"Converting {sqlite_path.name} to DuckDB...")
     with duckdb.connect(str(duckdb_path)) as conn:
-        conn.execute(f"ATTACH '{sqlite_path}' AS sqlite_db (TYPE sqlite)")
+        safe_path = str(sqlite_path).replace("'", "''")
+        conn.execute(f"ATTACH '{safe_path}' AS sqlite_db (TYPE sqlite, READ_ONLY)")
         # Copy all tables from SQLite to DuckDB
         tables = conn.execute(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'sqlite_db'"
         ).fetchall()
         for (table_name,) in tables:
+            if not re.match(r"^[a-zA-Z0-9_]+$", table_name):
+                logger.warning(f"Skipping suspicious table name: {table_name!r}")
+                continue
             conn.execute(f'CREATE TABLE "{table_name}" AS SELECT * FROM sqlite_db."{table_name}"')
         conn.execute("DETACH sqlite_db")
     logger.info(f"Converted {len(tables)} tables to DuckDB at {duckdb_path}")

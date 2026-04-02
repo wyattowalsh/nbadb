@@ -47,10 +47,8 @@ class NbaAgentWrapper:
         # Copilot wrapper has its own cleanup
         if hasattr(self._agent, "cleanup"):
             await self._agent.cleanup()
-        # Close MCP client (MultiServerMCPClient context manager)
-        if self._mcp_client is not None:
-            await self._mcp_client.__aexit__(None, None, None)
-            self._mcp_client = None
+        # MCP client is stateless (each tool call creates/destroys its own session)
+        self._mcp_client = None
 
 
 async def create_nba_agent(

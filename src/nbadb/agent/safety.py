@@ -27,6 +27,7 @@ _WRITE_KEYWORDS: set[str] = {
     "SET",
     "CALL",
     "EXECUTE",
+    "RESET",
 }
 
 _WRITE_PATTERN: re.Pattern[str] = re.compile(
@@ -36,12 +37,17 @@ _WRITE_PATTERN: re.Pattern[str] = re.compile(
 
 _DANGEROUS_FUNCTIONS: re.Pattern[str] = re.compile(
     r"\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|"
-    r"glob|read_csv_auto|read_ndjson|http_get)\s*\(",
+    r"read_xlsx|glob|read_csv_auto|read_ndjson|http_get|"
+    r"scan_csv|scan_csv_auto|scan_parquet|scan_json|"
+    r"getenv|current_setting|query_table)\s*\(",
     re.IGNORECASE,
 )
 
 _BLOCK_COMMENT: re.Pattern[str] = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT: re.Pattern[str] = re.compile(r"--[^\n]*")
+
+_WRAPPED_PREFIXES: tuple[str, ...] = ("SELECT", "WITH")
+_PASSTHROUGH_PREFIXES: tuple[str, ...] = ("EXPLAIN", "SHOW", "DESCRIBE")
 
 MAX_RESULT_ROWS: int = 10_000
 QUERY_TIMEOUT_SECONDS: float = 30.0
@@ -65,6 +71,14 @@ def _normalize_sql(sql: str) -> str:
     stripped = _strip_comments(normalized)
     collapsed = re.sub(r"\s+", " ", stripped).strip()
     return collapsed
+
+
+def _statement_prefix(sql: str) -> str:
+    """Return the normalized leading SQL keyword for *sql*."""
+    normalized = _normalize_sql(sql)
+    if not normalized:
+        return ""
+    return normalized.split(" ", 1)[0].upper()
 
 
 def _enforce_limit(sql: str, max_rows: int) -> str:
@@ -93,11 +107,13 @@ class ReadOnlyGuard:
             return f"File access function not allowed: {func_match.group(1)}"
 
         upper = normalized.upper()
-        if not upper.startswith(("SELECT", "WITH", "EXPLAIN", "SHOW", "DESCRIBE")):
+        if not upper.startswith((*_WRAPPED_PREFIXES, *_PASSTHROUGH_PREFIXES)):
             return f"Only SELECT queries are allowed, got: {normalized.split()[0]}"
 
         return None
 
     def wrap_with_limit(self, sql: str, max_rows: int = MAX_RESULT_ROWS) -> str:
         stripped = sql.strip().rstrip(";")
+        if _statement_prefix(stripped) in _PASSTHROUGH_PREFIXES:
+            return stripped
         return _enforce_limit(stripped, max_rows)
