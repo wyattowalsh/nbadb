@@ -150,8 +150,12 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq openvpn > /dev/null
 
           # Get 4 recommended US OpenVPN servers; each shard picks its own
-          server=$(curl -sf 'https://api.nordvpn.com/v1/servers/recommendations?limit=4&filters[country_id]=228&filters[servers_technologies][identifier]=openvpn_udp' \
+          server=$(curl -s --globoff 'https://api.nordvpn.com/v1/servers/recommendations?limit=4&filters[country_id]=228&filters[servers_technologies][identifier]=openvpn_udp' \
             | jq -r ".[$SHARD_INDEX].hostname")
+          if [ -z "$server" ] || [ "$server" = "null" ]; then
+            echo "::error::Failed to get NordVPN server recommendation"
+            exit 1
+          fi
           echo "::notice::Shard $SHARD_INDEX connecting to $server"
 
           # Download config and connect
