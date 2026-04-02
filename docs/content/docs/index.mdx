@@ -1,119 +1,48 @@
 ---
 title: Getting Started
-description: The tip-off and control tower for nbadb's public analytical surface.
+description: Install nbadb, seed your data, and find the right docs for your role.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-# nbadb Documentation
+# Getting Started
 
-Welcome to the **Arena Data Lab** for nbadb: the control tower for getting from first install to first query, first refresh, and first production handoff.
-
-nbadb turns the NBA stats surface into a **public analytical model** with DuckDB staging, SQL-first transforms, and exports for DuckDB, SQLite, Parquet, and CSV.
-
-<StatGrid columns={4}>
-  <StatPill
-    label="Public surface"
-    value="Star schema"
-    note="dimensions, facts, bridges, aggregates, and analytics outputs"
-  />
-  <StatPill
-    label="Extractors"
-    value="Full coverage"
-    note="registered wrappers around the current nba_api runtime surface"
-  />
-  <StatPill
-    label="Core run modes"
-    value="4"
-    note="init, daily, monthly, and backfill"
-  />
-  <StatPill
-    label="Export formats"
-    value="4"
-    note="sqlite, duckdb, csv, and parquet by default"
-  />
-</StatGrid>
-
-## Quick navigation
-
-<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-  <ScoutCard title="Install and verify" label="Start here">
-    Jump to <a href="/docs/installation">Installation</a> for prerequisites,
-    install routes, env defaults, and first-run checks.
-  </ScoutCard>
-  <ScoutCard title="Understand the pipeline" label="How it works">
-    Open <a href="/docs/architecture">Architecture</a> for the raw, staging,
-    star flow, validation tiers, and design decisions.
-  </ScoutCard>
-  <ScoutCard title="Find commands and flags" label="Operate">
-    Use <a href="/docs/cli-reference">CLI Reference</a> for the exact command
-    surface, shared behaviors, and current signatures.
-  </ScoutCard>
-  <ScoutCard title="Query the data" label="Analyze">
-    Start with <a href="/docs/playground">SQL Playground</a> (browser-only) or{" "}
-    <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>{" "}
-    (local), then use <a href="/docs/schema">Schema Reference</a> for table
-    discovery.
-  </ScoutCard>
-</div>
-
-## Pick your lane
-
-| Reader                               | Start here                                                                                      | Then move to                                                                                                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| First-time installer or evaluator    | [Installation](/docs/installation)                                                              | [CLI Reference](/docs/cli-reference)                                                                            |
-| Analyst looking for usable tables    | [SQL Playground](/docs/playground) or [Analytics Quickstart](/docs/guides/analytics-quickstart) | [DuckDB Query Examples](/docs/guides/duckdb-queries) and [Schema Reference](/docs/schema)                       |
-| Builder changing pipeline or docs    | [Architecture](/docs/architecture)                                                              | [CLI Reference](/docs/cli-reference) and [Data Dictionary](/docs/data-dictionary)                               |
-| Operator running recurring refreshes | [Daily Updates](/docs/guides/daily-updates)                                                     | [Kaggle Setup](/docs/guides/kaggle-setup) and [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
-
-<CourtDivider label="First-five-minutes route" />
+nbadb turns the NBA stats surface into a **public analytical model** — DuckDB staging, SQL-first transforms, and exports to DuckDB, SQLite, Parquet, and CSV.
 
 ## First five minutes
 
 ```bash
 pip install nbadb
-nbadb download       # fastest: pull a published dataset
-nbadb schema         # confirm public tables are visible
+nbadb download       # pull the latest published dataset
+nbadb schema         # confirm tables are visible
 ```
 
 <Callout type="info">
   `nbadb download` pulls the latest published Kaggle dataset. For a full
   historical build from source, use `nbadb init` instead (takes hours, not
-  minutes). Once your data directory is seeded, `nbadb daily` becomes the
-  standard game-day refresh.
+  minutes). Once seeded, `nbadb daily` is the standard game-day refresh.
 </Callout>
 
-## What's on the floor
+## Where to go next
 
-| Surface           | Read it as…                          | Reach for it when…                                                                                | Start here                                      |
-| ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Dimensions        | `dim_*` identity and lookup context  | You need stable entities like players, teams, games, seasons, and history-aware reference context | [Dimensions](/docs/schema/dimensions)           |
-| Facts             | `fact_*` event and measurement grain | You need player, team, game, play, shot, tracking, or standings data at its working grain         | [Facts & Bridges](/docs/schema/facts)           |
-| Bridges           | `bridge_*` connectors                | You are resolving many-to-many relationships between public entities                              | [Facts & Bridges](/docs/schema/facts)           |
-| Aggregates        | `agg_*` reusable rollups             | You want pre-rolled summaries instead of rebuilding the same season or career SQL repeatedly      | [Derived Aggregations](/docs/schema/derived)    |
-| Analytics outputs | `analytics_*` convenience surfaces   | You want the shortest route to analysis-ready tables and views                                    | [Analytics Views](/docs/schema/analytics-views) |
+| You are…                             | Start here                                                                                      | Then                                                                                                           |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Installing or evaluating             | [Installation](/docs/installation)                                                              | [CLI Reference](/docs/cli-reference)                                                                           |
+| Analyzing tables and writing queries | [SQL Playground](/docs/playground) or [Analytics Quickstart](/docs/guides/analytics-quickstart) | [DuckDB Query Examples](/docs/guides/duckdb-queries) · [Schema Reference](/docs/schema)                       |
+| Building on the pipeline             | [Architecture](/docs/architecture)                                                              | [CLI Reference](/docs/cli-reference) · [Data Dictionary](/docs/data-dictionary)                               |
+| Running recurring refreshes          | [Daily Updates](/docs/guides/daily-updates)                                                     | [Kaggle Setup](/docs/guides/kaggle-setup) · [Troubleshooting](/docs/guides/troubleshooting-playbook)          |
 
-<CourtDivider label="Guides and references" />
+## Key references
 
-## Generated vs. hand-written docs
+| Section                                              | What's inside                                                                             |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [Schema Reference](/docs/schema)                     | Table families, join patterns, dimensions, facts, bridges, aggregates, and analytics views |
+| [Data Dictionary](/docs/data-dictionary)             | Column-level definitions and glossary                                                     |
+| [Endpoints](/docs/endpoints)                         | Upstream endpoint grouping and extraction coverage                                        |
+| [Guides](/docs/guides/role-based-onboarding-hub)     | Onboarding, recurring ops, and analysis walkthroughs                                      |
 
-Some docs pages are generated from schema metadata and lineage information. See the [Docs boundary](/docs/architecture#docs-boundary-curated-vs-generated) section on the Architecture page for the full list of generated artifacts and how to regenerate them.
-
-## Jump to the rest of the arena
-
-### Core entry pages
-
-- **[Installation](/docs/installation)** — prerequisites, install routes, config defaults, and first checks
-- **[Architecture](/docs/architecture)** — pipeline stages, validation tiers, internal state, and design decisions
-- **[CLI Reference](/docs/cli-reference)** — exact command signatures plus operator and CI notes
-
-### Reference surfaces
-
-- **[Schema Reference](/docs/schema)** — table families, join lanes, and generated reference coverage
-- **[Data Dictionary](/docs/data-dictionary)** — column-level definitions and glossary terms
-- **[Endpoints](/docs/endpoints)** — upstream endpoint grouping and extraction coverage
-
-### Guided routes
-
-- **[Guides](/docs/guides/role-based-onboarding-hub)** — onboarding, recurring ops, and analysis drills
-- **[Visual Asset Prompt Pack](/docs/guides/visual-asset-prompt-pack)** — basketball-native prompts for hero art, Open Graph cards, icons, and subtle atmosphere assets
+<Callout type="info">
+  Some docs pages are generated from schema metadata and lineage. See
+  [Docs boundary](/docs/architecture#docs-boundary-curated-vs-generated) on
+  the Architecture page for the full list and regeneration instructions.
+</Callout>

@@ -5,26 +5,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Counter } from "@/components/site/counter";
 import { siteMetrics } from "@/lib/site-metrics.generated";
-import { audienceLanes, docsSections, heroSignals } from "@/lib/site-config";
+import { docsSections, heroSignals } from "@/lib/site-config";
 
 const quickStart = [
   {
     step: "01",
-    label: "Explore the schema",
+    label: "Browse the schema",
     href: "/docs/schema",
-    note: "dimensions, facts, bridges, analytics views",
+    note: "dimensions, facts, bridges, and analytics views",
   },
   {
     step: "02",
-    label: "Scout endpoint coverage",
+    label: "Check endpoint coverage",
     href: "/docs/endpoints",
     note: "NBA API extractors mapped to staging tables",
   },
   {
     step: "03",
-    label: "Launch the browser explorer",
+    label: "Try the playground",
     href: "/docs/playground",
-    note: "DuckDB-WASM sandbox with NBA-flavored sample drills",
+    note: "DuckDB-WASM sandbox with sample queries",
   },
 ];
 
@@ -72,9 +72,9 @@ export default function HomePage() {
             </div>
 
             <p className="nba-hero-lede mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              NBA warehouse docs with an actual court view: endpoint coverage,
-              possession-level lineage, and analyst-ready tables laid out like a
-              scouting board instead of a generic software landing page.
+              Documentation for the nbadb star-schema warehouse: endpoint
+              coverage, table lineage, and analyst-ready references for every
+              stage of the pipeline.
             </p>
 
             <div className="mt-6 grid gap-px border border-border bg-border sm:grid-cols-3 nba-delay-1">
@@ -112,12 +112,6 @@ export default function HomePage() {
                 <Link href="/docs/playground">Browser playground</Link>
               </Button>
             </div>
-
-            <p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground nba-delay-2">
-              Pick the first route by job to be done: quick analyst reps, daily
-              pipeline operations, table scouting, or a no-install DuckDB
-              warmup.
-            </p>
           </div>
 
           <div className="nba-court-panel nba-delay-1" aria-hidden="true">
@@ -151,11 +145,10 @@ export default function HomePage() {
             </div>
 
             <div className="nba-court-caption">
-              <span className="nba-kicker">From tip-off to final horn</span>
+              <span className="nba-kicker">Pipeline flow</span>
               <p>
                 Raw nba_api feeds staged in DuckDB, transformed into star-schema
-                tables, then routed into docs pages that explain where every
-                play and model came from.
+                tables, and documented end-to-end.
               </p>
             </div>
           </div>
@@ -201,10 +194,10 @@ export default function HomePage() {
       >
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="nba-kicker">Choose by question</h2>
+            <h2 className="nba-kicker">Browse by topic</h2>
             <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
-              Start with the warehouse shape, source feeds, dependency replay,
-              or execution guides depending on what you need to answer next.
+              Schema, endpoints, lineage, guides, and more — organized by what
+              you need to look up.
             </p>
           </div>
         </div>
@@ -245,40 +238,6 @@ export default function HomePage() {
                   </span>
                 ))}
               </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Audience lanes ─────────────────────────── */}
-      <section
-        id="lanes"
-        className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6 lg:px-8 nba-reveal nba-delay-3"
-      >
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <h2 className="nba-kicker">Choose your lane</h2>
-          <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-            Three clean entries depending on whether you are scouting the model,
-            running the pipeline, or jumping straight into analysis.
-          </p>
-        </div>
-        <div className="grid gap-px border border-border md:grid-cols-3">
-          {audienceLanes.map((lane) => (
-            <Link
-              key={lane.label}
-              href={lane.href}
-              className="nba-lane-card group bg-card px-4 py-5 transition-colors hover:bg-muted"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="nba-kicker">{lane.label}</span>
-                <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-              </div>
-              <div className="mt-3 text-base font-semibold text-foreground">
-                {lane.title}
-              </div>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {lane.description}
-              </p>
             </Link>
           ))}
         </div>

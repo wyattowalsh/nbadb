@@ -636,28 +636,6 @@ kbd {
   );
 }
 
-.nba-lane-card {
-  position: relative;
-}
-
-.nba-lane-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    145deg,
-    color-mix(in oklch, var(--primary) 9%, transparent),
-    transparent 58%
-  );
-  opacity: 0;
-  transition: opacity 180ms ease;
-  pointer-events: none;
-}
-
-.nba-lane-card:hover::before {
-  opacity: 1;
-}
-
 /* ── Reveal animation ──────────────────────────────── */
 .nba-reveal {
   opacity: 0;
@@ -920,41 +898,6 @@ kbd {
 .nba-page-hero-link:hover {
   border-color: color-mix(in oklch, var(--primary) 40%, transparent);
   color: var(--primary);
-}
-
-.nba-page-hero-stats {
-  display: grid;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-@media (min-width: 640px) {
-  .nba-page-hero-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.nba-page-hero-stat-card {
-  display: grid;
-  gap: 0.18rem;
-  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
-  border-radius: var(--radius-2xl);
-  background: color-mix(in oklch, var(--background) 82%, transparent);
-  padding: 0.75rem 0.85rem;
-}
-
-.nba-page-hero-stat-value {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--foreground);
-}
-
-.nba-page-hero-stat-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
 }
 
 /* ── Breadcrumbs ───────────────────────────────────── */
@@ -1468,54 +1411,6 @@ kbd {
       color-mix(in oklch, var(--card) 98%, transparent),
       var(--card)
     );
-}
-
-.nba-sidebar-stat {
-  display: inline-grid;
-  gap: 0.08rem;
-  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--background) 82%, transparent);
-  padding: 0.45rem 0.65rem;
-}
-
-.nba-sidebar-stat-value {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--foreground);
-}
-
-.nba-sidebar-stat-label {
-  font-size: 0.58rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-
-.nba-sidebar-route-link {
-  display: block;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: color-mix(in oklch, var(--background) 82%, transparent);
-  padding: 0.75rem 0.85rem;
-  text-decoration: none;
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease;
-}
-
-.nba-sidebar-route-link:hover {
-  border-color: color-mix(in oklch, var(--primary) 40%, transparent);
-  background: color-mix(in oklch, var(--muted) 65%, var(--background));
-}
-
-.nba-sidebar-route-eyebrow {
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--primary);
 }
 
 .nba-sidebar-footer {

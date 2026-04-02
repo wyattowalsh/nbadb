@@ -54,7 +54,6 @@ export default async function Page(props: {
     page.data.toc as TOCItem[],
     page.data.title,
   );
-  const tocCount = toc.length;
 
   return (
     <DocsPage toc={toc} full={page.data.full}>
@@ -63,7 +62,6 @@ export default async function Page(props: {
           slug={params.slug}
           title={page.data.title}
           description={page.data.description}
-          tocCount={tocCount}
         />
         <DocsGeneratedEntrySurface slug={params.slug} />
         <DocsGeneratedScanSurface slug={params.slug} toc={toc} />

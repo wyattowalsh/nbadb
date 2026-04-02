@@ -1,20 +1,21 @@
 {
-  "title": "Practice Facility",
+  "title": "Guides",
   "pages": [
-    "---Opening Drill---",
+    "---Onboarding---",
     "role-based-onboarding-hub",
-    "---Skill Work---",
+    "---Tutorials---",
     "reading-the-schema",
     "analytics-quickstart",
     "duckdb-queries",
     "player-comparison",
     "shot-chart-analysis",
     "parquet-usage",
-    "---Game-Day Operations---",
+    "---Operations---",
     "kaggle-setup",
     "daily-updates",
-    "---Film Room & Recovery---",
+    "---Troubleshooting---",
     "troubleshooting-playbook",
+    "---Maintainers---",
     "strategic-shift-rollout",
     "visual-asset-prompt-pack"
   ]

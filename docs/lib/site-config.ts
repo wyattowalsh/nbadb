@@ -33,13 +33,6 @@ type SearchPrompt = {
   description: string;
 };
 
-type AudienceLane = {
-  label: string;
-  title: string;
-  href: string;
-  description: string;
-};
-
 type SectionStat = {
   label: string;
   value: string;
@@ -58,8 +51,6 @@ type SectionMeta = {
 };
 
 export type DocsContextRailMeta = {
-  eyebrow: string;
-  title: string;
   description: string;
   hubHref: string;
   hubLabel: string;
@@ -141,38 +132,14 @@ export const searchPrompts: SearchPrompt[] = [
   },
 ];
 
-export const audienceLanes: AudienceLane[] = [
-  {
-    label: "Analyst",
-    title: "Get from schema to SQL fast",
-    href: "/docs/guides/analytics-quickstart",
-    description:
-      "Use the warehouse map, then drop straight into DuckDB recipes and comparison workflows.",
-  },
-  {
-    label: "Operator",
-    title: "Run daily updates with fewer surprises",
-    href: "/docs/guides/daily-updates",
-    description:
-      "Treat the pipeline like a gameday checklist with status, quality, and recovery guidance.",
-  },
-  {
-    label: "Explorer",
-    title: "Try live DuckDB in the browser",
-    href: "/docs/playground",
-    description:
-      "Warm up with DuckDB-WASM, self-contained NBA-flavored sample queries, and a no-install route into the docs.",
-  },
-];
-
 const sectionMeta: Record<SectionId, SectionMeta> = {
   core: {
     id: "core",
     label: "Core Docs",
-    eyebrow: "Jump Ball",
-    cue: "Arena Map",
+    eyebrow: "Start here",
+    cue: "Overview",
     blurb:
-      "Start here for setup, architecture, command references, and the fastest route into the warehouse.",
+      "Setup, architecture, CLI reference, and the fastest route into the warehouse.",
     hubHref: "/docs",
     stats: [
       { label: "Entry Pages", value: "4" },
@@ -202,7 +169,7 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
       {
         label: "Search",
         query: "installation architecture cli reference",
-        description: "The fastest way to locate the docs front door surfaces.",
+        description: "Locate the docs home pages.",
       },
       {
         label: "Start here",
@@ -219,10 +186,10 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
   schema: {
     id: "schema",
     label: "Schema Reference",
-    eyebrow: "Court Geometry",
-    cue: "Half-Court Map",
+    eyebrow: "Schema",
+    cue: "Table Map",
     blurb:
-      "Trace the warehouse shape: dimensions, facts, derived tables, analytics views, and structural relationships.",
+      "Dimensions, facts, derived tables, analytics views, and structural relationships.",
     hubHref: "/docs/schema",
     stats: [
       { label: "Layers", value: "5" },
@@ -270,10 +237,10 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
   "data-dictionary": {
     id: "data-dictionary",
     label: "Data Dictionary",
-    eyebrow: "Stat Legend",
-    cue: "Scoreboard Key",
+    eyebrow: "Fields",
+    cue: "Column Lookup",
     blurb:
-      "Look up field meaning across raw, staging, and star layers with clearer naming and semantic framing.",
+      "Field names, types, and semantics across raw, staging, and star layers.",
     hubHref: "/docs/data-dictionary",
     stats: [
       { label: "Reference Tiers", value: "3" },
@@ -319,10 +286,10 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
   diagrams: {
     id: "diagrams",
     label: "Diagrams",
-    eyebrow: "Playbook Board",
-    cue: "Telestrator",
+    eyebrow: "Visual",
+    cue: "ER & Flow",
     blurb:
-      "Visualize ER structure, pipeline flow, and endpoint coverage like a coach’s board layered over warehouse detail.",
+      "ER structure, pipeline flow, and endpoint coverage in visual form.",
     hubHref: "/docs/diagrams",
     stats: [
       { label: "Diagram Pages", value: "5" },
@@ -369,10 +336,10 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
   endpoints: {
     id: "endpoints",
     label: "Endpoints",
-    eyebrow: "Coverage Board",
-    cue: "Scouting Report",
+    eyebrow: "Endpoints",
+    cue: "API Coverage",
     blurb:
-      "Browse extractor families with stronger route cues, better grouping, and more basketball-native framing.",
+      "Browse extractor families grouped by NBA API endpoint.",
     hubHref: "/docs/endpoints",
     stats: [
       { label: "Coverage", value: "Full league" },
@@ -419,10 +386,10 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
   lineage: {
     id: "lineage",
     label: "Lineage",
-    eyebrow: "Ball Movement",
-    cue: "Possession Chain",
+    eyebrow: "Lineage",
+    cue: "Dependencies",
     blurb:
-      "Track how tables and columns move through the pipeline with clearer ancestry, dependency, and handoff surfaces.",
+      "Table and column ancestry, dependency chains, and transform handoffs.",
     hubHref: "/docs/lineage",
     stats: [
       { label: "Lineage Views", value: "4" },
@@ -469,10 +436,10 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
   guides: {
     id: "guides",
     label: "Guides",
-    eyebrow: "Playbook",
-    cue: "Set Menu",
+    eyebrow: "Guides",
+    cue: "Walkthroughs",
     blurb:
-      "Hands-on workflows for analysts and operators, with stronger progression cues and basketball-informed framing.",
+      "Hands-on workflows for analysts and operators.",
     hubHref: "/docs/guides",
     stats: [
       { label: "Guides", value: "11" },
@@ -531,7 +498,7 @@ const sectionOrder: SectionId[] = [
 export const docsSections = sectionOrder.map((id) => sectionMeta[id]);
 
 const defaultContextRailDescription =
-  "Keep the mental model warm with adjacent pages, section hubs, and search-friendly routes into the same topic cluster.";
+  "Adjacent pages and search routes for the same topic area.";
 
 const docsAutogenCommand =
   "uv run nbadb docs-autogen --docs-root docs/content/docs";
@@ -1113,8 +1080,6 @@ const generatedPageContextRails: Record<
   Partial<DocsContextRailMeta> & Pick<DocsContextRailMeta, "links" | "prompts">
 > = {
   "schema/raw-reference": {
-    eyebrow: "Next possession",
-    title: "From inbound feed to warehouse context",
     description:
       "Raw contracts tell you exactly what arrived from nba_api. These next stops explain how those source-native fields map to endpoint families, naming conventions, and pipeline stages.",
     links: [
@@ -1159,8 +1124,6 @@ const generatedPageContextRails: Record<
     ],
   },
   "schema/staging-reference": {
-    eyebrow: "Next possession",
-    title: "Translate staging cleanup into join intent",
     description:
       "Staging contracts show the half-court set: renamed columns, normalized types, and load-ready keys. Use these pages to move from cleanup details into joins, dependencies, and reader-facing naming.",
     links: [
@@ -1205,8 +1168,6 @@ const generatedPageContextRails: Record<
     ],
   },
   "schema/star-reference": {
-    eyebrow: "Next possession",
-    title: "Turn exact star contracts into working analysis",
     description:
       "The generated star reference is the scorebook. These curated pages help you decide which public tables to start with, how they join, and where analyst-friendly shortcuts already exist.",
     links: [
@@ -1251,8 +1212,6 @@ const generatedPageContextRails: Record<
     ],
   },
   "data-dictionary/raw": {
-    eyebrow: "Next possession",
-    title: "Decode source-native fields before you keep reading",
     description:
       "The raw dictionary is exhaustive by design. Use these pages to translate unfamiliar terms, connect fields back to source families, and understand where raw names fit in the pipeline.",
     links: [
@@ -1297,8 +1256,6 @@ const generatedPageContextRails: Record<
     ],
   },
   "data-dictionary/staging": {
-    eyebrow: "Next possession",
-    title: "Use staging names as the translation layer",
     description:
       "Staging fields are where raw payloads start sounding like a warehouse. These next stops help you decode normalized names, trace upstream sources, and turn cleaned columns into join decisions.",
     links: [
@@ -1343,8 +1300,6 @@ const generatedPageContextRails: Record<
     ],
   },
   "data-dictionary/star": {
-    eyebrow: "Next possession",
-    title: "Move from column meaning to analyst usage",
     description:
       "The star dictionary tells you what the public fields are. These next pages tell you which table families own them, how analysts usually join them, and where the fastest workflows already live.",
     links: [
@@ -1389,8 +1344,6 @@ const generatedPageContextRails: Record<
     ],
   },
   "diagrams/er-auto": {
-    eyebrow: "Next possession",
-    title: "Use the full board, then switch to the coach's cut",
     description:
       "The generated ER board is exhaustive. These curated pages help you turn that full inventory into the joins, table families, and model-level decisions you actually need next.",
     links: [
@@ -1435,8 +1388,6 @@ const generatedPageContextRails: Record<
     ],
   },
   "lineage/lineage-auto": {
-    eyebrow: "Next possession",
-    title: "Turn exhaustive lineage into practical debugging",
     description:
       "The generated lineage page gives you code-sourced coverage. These curated follow-ups help you replay the dependency chain at the table level, slow it down to a single field, or reconnect it to the source feed.",
     links: [
@@ -1514,8 +1465,6 @@ export function getDocsContextRail(slug?: string[]): DocsContextRailMeta {
   const customRail = generatedPageContextRails[pageKey];
 
   return {
-    eyebrow: customRail?.eyebrow ?? "Keep moving",
-    title: customRail?.title ?? "Stay in the same possession",
     description: customRail?.description ?? defaultContextRailDescription,
     hubHref: customRail?.hubHref ?? section.hubHref,
     hubLabel: customRail?.hubLabel ?? "Section hub",

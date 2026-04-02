@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { TOCItemType } from "fumadocs-core/toc";
-import { ArrowRight, Blocks, Command, Search } from "lucide-react";
+import { ArrowRight, Blocks, Command, ExternalLink, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +28,6 @@ type DocsChromeProps = {
   slug?: string[];
   title: string;
   description?: string;
-  tocCount?: number;
 };
 
 type DocsChromeSlugProps = {
@@ -84,31 +83,19 @@ export function DocsSidebarBanner({ slug }: DocsChromeSlugProps) {
         </span>
         <Badge variant="default">{section.cue}</Badge>
       </div>
-      <div className="mt-3 space-y-3">
-        <div>
-          <p className="nba-kicker">{section.eyebrow}</p>
-          <h2 className="mt-2 text-base font-semibold tracking-tight text-foreground">
-            {section.label}
-          </h2>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            {section.blurb}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {section.stats.slice(0, 2).map((stat) => (
-            <div key={stat.label} className="nba-sidebar-stat">
-              <span className="nba-sidebar-stat-value">{stat.value}</span>
-              <span className="nba-sidebar-stat-label">{stat.label}</span>
-            </div>
-          ))}
-        </div>
+      <div className="mt-3">
+        <h2 className="text-base font-semibold tracking-tight text-foreground">
+          {section.label}
+        </h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          {section.blurb}
+        </p>
       </div>
 
-      <div className="mt-4 grid gap-2">
+      <div className="mt-3 grid gap-2">
         <Button asChild size="sm" className="justify-between">
           <Link href={section.hubHref}>
-            {section.id === "core" ? "Docs front door" : "Section hub"}
+            {section.id === "core" ? "Docs home" : "Section hub"}
             <ArrowRight className="size-3.5" />
           </Link>
         </Button>
@@ -117,20 +104,10 @@ export function DocsSidebarBanner({ slug }: DocsChromeSlugProps) {
           <Link
             key={link.href}
             href={link.href}
-            className="nba-sidebar-route-link"
+            className="flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="nba-sidebar-route-eyebrow">Quick route</div>
-                <div className="mt-1 text-sm font-semibold text-foreground">
-                  {link.title}
-                </div>
-              </div>
-              <ArrowRight className="mt-0.5 size-3.5 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
-            </div>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              {link.description}
-            </p>
+            <span>{link.title}</span>
+            <ArrowRight className="size-3 shrink-0" />
           </Link>
         ))}
       </div>
@@ -144,54 +121,36 @@ export function DocsSidebarFooter({ slug }: DocsChromeSlugProps) {
 
   return (
     <div className="nba-sidebar-footer space-y-2 text-xs">
-      <div className="flex flex-wrap gap-2">
-        <Badge variant="default">{section.label}</Badge>
-        <Badge variant="muted">{section.cue}</Badge>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <a
-          href="https://github.com/wyattowalsh/nbadb"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img
-            src="https://img.shields.io/github/stars/wyattowalsh/nbadb?style=flat-square&label=stars&color=orange"
-            alt="GitHub stars"
-            className="h-5"
-            width={80}
-            height={20}
-            loading="lazy"
-          />
-        </a>
-        <a
-          href="https://pypi.org/project/nbadb/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img
-            src="https://img.shields.io/pypi/v/nbadb?style=flat-square&label=pypi"
-            alt="PyPI version"
-            className="h-5"
-            width={80}
-            height={20}
-            loading="lazy"
-          />
-        </a>
-      </div>
       <SearchTrigger
         query={searchPrompt.query}
         className="nba-sidebar-prompt w-full cursor-pointer text-left transition-colors hover:bg-muted"
       >
-        <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-primary">
-          Try in search
-        </div>
         <div className="mt-1 font-mono text-[0.78rem] text-foreground">
+          <kbd className="text-muted-foreground">⌘K</kbd>{" "}
           {searchPrompt.query}
         </div>
       </SearchTrigger>
-      <p className="text-muted-foreground">
-        <kbd>⌘K</kbd> to search tables, endpoints, guides, and diagrams.
-      </p>
+      <div className="flex items-center gap-3 text-muted-foreground">
+        <a
+          href="https://github.com/wyattowalsh/nbadb"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+        >
+          GitHub
+          <ExternalLink className="size-3" aria-hidden="true" />
+        </a>
+        <span aria-hidden="true" className="text-border">·</span>
+        <a
+          href="https://pypi.org/project/nbadb/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+        >
+          PyPI
+          <ExternalLink className="size-3" aria-hidden="true" />
+        </a>
+      </div>
     </div>
   );
 }
@@ -200,7 +159,6 @@ export function DocsPageHero({
   slug,
   title,
   description,
-  tocCount = 0,
 }: DocsChromeProps) {
   const section = getSectionMeta(slug);
   const breadcrumbs = getDocBreadcrumbs(slug);
@@ -212,7 +170,7 @@ export function DocsPageHero({
     currentPath === section.hubHref
       ? section.quickLinks[0]
       : {
-          title: section.id === "core" ? "Docs front door" : "Section hub",
+          title: section.id === "core" ? "Docs home" : "Section hub",
           href: section.hubHref,
           description: section.blurb,
         };
@@ -259,20 +217,11 @@ export function DocsPageHero({
           </nav>
 
           <div className="mt-4 space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="primary">{section.label}</Badge>
-              <Badge variant="default">{section.cue}</Badge>
-              {tocCount > 0 ? (
-                <Badge variant="muted">{tocCount} guideposts</Badge>
-              ) : null}
-            </div>
+            <Badge variant="primary">{section.label}</Badge>
 
-            <div>
-              <p className="nba-kicker">{section.eyebrow}</p>
-              <h1 className="mt-3 text-balance text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-                {title}
-              </h1>
-            </div>
+            <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              {title}
+            </h1>
             {description ? (
               <p
                 className="max-w-3xl text-sm leading-7 text-muted-foreground"
@@ -303,15 +252,6 @@ export function DocsPageHero({
                   <span>{link.title}</span>
                   <ArrowRight className="size-3.5" />
                 </Link>
-              ))}
-            </div>
-
-            <div className="nba-page-hero-stats">
-              {section.stats.map((stat) => (
-                <div key={stat.label} className="nba-page-hero-stat-card">
-                  <span className="nba-page-hero-stat-value">{stat.value}</span>
-                  <span className="nba-page-hero-stat-label">{stat.label}</span>
-                </div>
               ))}
             </div>
           </div>
@@ -347,13 +287,11 @@ export function DocsGeneratedEntrySurface({ slug }: { slug?: string[] }) {
     <section className="mt-8 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="border border-border bg-card p-4 md:p-5">
         <div className="flex flex-wrap gap-2">
-          <Badge variant="primary">Generated page</Badge>
-          <Badge variant="default">Command-owned</Badge>
+          <Badge variant="primary">Generated</Badge>
           <Badge variant="muted">{frame.generatorLabel}</Badge>
         </div>
 
         <div className="mt-4 space-y-3">
-          <p className="nba-kicker">{frame.eyebrow}</p>
           <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
             {frame.title}
           </h2>
@@ -897,9 +835,8 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
     <section className="mt-12 space-y-4">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="nba-kicker">{contextRail.eyebrow}</p>
           <h2 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-            {contextRail.title}
+            Related pages
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             {contextRail.description}
@@ -934,16 +871,13 @@ export function DocsContextRail({ slug }: { slug?: string[] }) {
 
         <aside className="nba-discovery-panel border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="nba-kicker">Search and discovery</p>
-              <h3 className="mt-2 text-xl font-semibold tracking-tight text-foreground">
-                Prompt the surface
-              </h3>
-            </div>
+            <h3 className="text-lg font-semibold tracking-tight text-foreground">
+              Search this area
+            </h3>
             <Search className="size-5 text-primary" />
           </div>
           <div className="mt-4 space-y-3">
-            {contextRail.prompts.map((prompt) => (
+            {contextRail.prompts.slice(0, 1).map((prompt) => (
               <SearchTrigger
                 key={prompt.query}
                 query={prompt.query}

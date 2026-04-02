@@ -17,7 +17,7 @@
 ```text
 docs/
 ├── app/
-│   ├── (home)/page.tsx              # Landing page (scoreboard, sections, audience lanes)
+│   ├── (home)/page.tsx              # Landing page (hero, scoreboard, topic grid, quick start)
 │   ├── (admin)/admin/               # Admin route group (auth-gated)
 │   │   ├── layout.tsx               # Admin shell layout
 │   │   ├── login/page.tsx           # Login page
@@ -53,7 +53,7 @@ docs/
 │       ├── bar-list.tsx, content-freshness.tsx, freshness-heatmap.tsx
 │       ├── status-dot.tsx, data-table.tsx
 ├── content/docs/                    # MDX content (7 sections, 49 pages)
-│   ├── meta.json                    # Root nav ordering (Tip-Off / Scouting Reports / Practice)
+│   ├── meta.json                    # Root nav ordering (Getting Started / Reference / Guides)
 │   ├── index.mdx                    # Docs landing
 │   ├── installation.mdx, architecture.mdx, cli-reference.mdx
 │   ├── playground.mdx               # DuckDB-WASM SQL sandbox page
@@ -64,7 +64,7 @@ docs/
 │   ├── lineage/                     # Data lineage traces (4 pages + lineage.json)
 │   └── guides/                      # User and operator guides (13 pages)
 ├── lib/
-│   ├── site-config.ts               # Section metadata, hero signals, audience lanes
+│   ├── site-config.ts               # Section metadata, hero signals, and context-rail data
 │   ├── site-metrics.generated.ts    # Auto-generated homepage scoreboard metrics
 │   ├── source.ts                    # Content loader (fumadocs-core/source)
 │   ├── duckdb.ts                    # DuckDB-WASM singleton, query runner, Parquet loader
@@ -83,10 +83,11 @@ docs/
 
 - Sidebar ordering is controlled by `meta.json` files in each content directory
 - Root `meta.json` defines three section groups with `---Separator---` syntax:
-  - **Tip-Off** — index, installation, architecture, cli-reference
-  - **Scouting Reports** — schema, data-dictionary, diagrams, endpoints, lineage
-  - **Practice Facility** — playground, guides
+  - **Getting Started** — index, installation, architecture, cli-reference
+  - **Reference** — schema, data-dictionary, diagrams, endpoints, lineage
+  - **Guides** — playground, guides
 - Subsection `meta.json` uses `pages` arrays with `---` separators for ordering
+- `guides/meta.json` groups content into **Onboarding**, **Tutorials**, **Operations**, **Troubleshooting**, and **Maintainers**
 - Prefix `...` references a subfolder (e.g., `...schema` expands `schema/` contents)
 
 ## 4. Auto-Generated Pages — DO NOT HAND-EDIT
@@ -300,7 +301,7 @@ Helper functions:
 | `getGeneratedPageFrame(slug?)` | `GeneratedPageFrameMeta \| null` | Frame config for auto-generated pages         |
 | `getDocsContextRail(slug?)`    | `DocsContextRailMeta`            | Related links and prompts for context rail    |
 
-Exported data objects: `heroSignals`, `searchPrompts`, `audienceLanes`, `docsSections`.
+Exported data objects: `heroSignals`, `searchPrompts`, `docsSections`.
 
 Site-wide constants: `siteOrigin` (`https://nbadb.w4w.dev`), `siteName`, `siteTitle`, `siteDescription`.
 

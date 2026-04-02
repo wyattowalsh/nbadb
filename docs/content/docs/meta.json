@@ -1,18 +1,18 @@
 {
   "title": "Arena Data Lab",
   "pages": [
-    "---Tip-Off---",
+    "---Getting Started---",
     "index",
     "installation",
     "architecture",
     "cli-reference",
-    "---Scouting Reports---",
+    "---Reference---",
     "...schema",
     "...data-dictionary",
     "...diagrams",
     "...endpoints",
     "...lineage",
-    "---Practice Facility---",
+    "---Guides---",
     "playground",
     "...guides"
   ]
