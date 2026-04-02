@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 
-from nbadb.orchestrate.orchestrator import Orchestrator, PipelineResult
+from nbadb.orchestrate.orchestrator import ExtractionOutcome, Orchestrator, PipelineResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -52,6 +52,10 @@ def _mock_runner(**overrides):
     """Create a MagicMock runner that supports ``async with``."""
     runner = MagicMock()
     runner.run_pattern = AsyncMock(return_value={})
+    runner.skipped = 0
+    runner.skipped_due_to_journal = 0
+    runner.planned_calls = 0
+    runner.failed_current_run = 0
     runner.__aenter__ = AsyncMock(return_value=runner)
     runner.__aexit__ = AsyncMock(return_value=False)
     for k, v in overrides.items():
@@ -264,7 +268,7 @@ class TestExtractAllPatterns:
             return mapping.get(pattern, [])
 
         with patch(_GET_BY_PATTERN, side_effect=_entries):
-            asyncio.run(
+            outcome = asyncio.run(
                 orch._extract_all_patterns(
                     runner,
                     seasons=["2024-25"],
@@ -276,6 +280,7 @@ class TestExtractAllPatterns:
                 )
             )
 
+        assert outcome.pattern_failures == 0
         # Static (tier 0) must come before season (tier 1) which must
         # come before game (tier 4)
         assert call_order.index("static") < call_order.index("season")
@@ -305,7 +310,7 @@ class TestExtractAllPatterns:
             return mapping.get(pattern, [])
 
         with patch(_GET_BY_PATTERN, side_effect=_entries):
-            asyncio.run(
+            outcome = asyncio.run(
                 orch._extract_all_patterns(
                     runner,
                     seasons=["2024-25", "2025-26"],
@@ -321,6 +326,8 @@ class TestExtractAllPatterns:
                 )
             )
 
+        assert outcome.pattern_failures == 0
+        assert outcome.raw == {}
         runner.run_pattern.assert_any_await(
             "player_season",
             [
@@ -415,6 +422,90 @@ class TestRunInit:
         # Journal should NOT be cleared — resume skips done entries
         journal.clear_journal.assert_not_called()
 
+    def test_run_init_loads_persisted_staging_when_resume_only_has_discovery_seed(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
+
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2024-10-22"],
+            }
+        )
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
+        mock_discovery.discover_all_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        recovered_raw = {"stg_box_score_traditional": pl.DataFrame({"game_id": ["0022400001"]})}
+        mock_runner = _mock_runner(planned_calls=3, skipped=3, skipped_due_to_journal=3)
+        mock_extract = AsyncMock(
+            return_value=ExtractionOutcome(raw={"stg_league_game_log": game_log_df})
+        )
+
+        with (
+            patch(_SEASON_RANGE, return_value=["2024-25"]),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(
+                orch, "_load_staging_from_duckdb", return_value=recovered_raw
+            ) as mock_load,
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+        ):
+            result = asyncio.run(orch.run_init())
+
+        mock_load.assert_called_once_with(db)
+        assert mock_transform.call_args.args[1] is recovered_raw
+        assert result.tables_updated == 1
+
+    def test_run_init_does_not_reload_persisted_staging_after_current_run_failures(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
+
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2024-10-22"],
+            }
+        )
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
+        mock_discovery.discover_all_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        mock_runner = _mock_runner(
+            planned_calls=3,
+            skipped=2,
+            skipped_due_to_journal=2,
+            failed_current_run=1,
+        )
+        mock_extract = AsyncMock(
+            return_value=ExtractionOutcome(
+                raw={"stg_league_game_log": game_log_df},
+                pattern_failures=0,
+            )
+        )
+
+        with (
+            patch(_SEASON_RANGE, return_value=["2024-25"]),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(orch, "_load_staging_from_duckdb") as mock_load,
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+        ):
+            asyncio.run(orch.run_init())
+
+        mock_load.assert_not_called()
+        assert mock_transform.call_args.args[1] == {"stg_league_game_log": game_log_df}
+
 
 # ---------------------------------------------------------------------------
 # run_daily tests
@@ -463,7 +554,7 @@ class TestRunDaily:
         mock_discovery.discover_player_team_season_params.return_value = []
 
         mock_runner = _mock_runner(skipped=0)
-        mock_extract = AsyncMock(return_value={})
+        mock_extract = AsyncMock(return_value=ExtractionOutcome(raw={}))
 
         with (
             patch(_CURRENT_SEASON, return_value="2025-26"),
@@ -479,9 +570,16 @@ class TestRunDaily:
 
     def test_run_daily_loads_persisted_staging_when_extraction_is_empty(self):
         orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
 
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
         mock_discovery = AsyncMock()
-        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_player_team_season_params.return_value = []
@@ -491,8 +589,8 @@ class TestRunDaily:
                 {"game_id": ["0022400001"], "game_date": ["2026-02-28"]}
             )
         }
-        mock_runner = _mock_runner(skipped=1)
-        mock_extract = AsyncMock(return_value={})
+        mock_runner = _mock_runner(planned_calls=1, skipped=1, skipped_due_to_journal=1)
+        mock_extract = AsyncMock(return_value=ExtractionOutcome(raw={}))
 
         with (
             patch(_CURRENT_SEASON, return_value="2025-26"),
@@ -510,6 +608,46 @@ class TestRunDaily:
         mock_load.assert_called_once_with(db)
         assert mock_transform.call_args.args[1] is recovered_raw
         assert result.tables_updated == 1
+
+    def test_run_daily_does_not_reload_persisted_staging_after_current_run_failure(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
+
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
+        mock_discovery.discover_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        mock_runner = _mock_runner(
+            planned_calls=1,
+            skipped=0,
+            skipped_due_to_journal=0,
+            failed_current_run=1,
+        )
+        mock_extract = AsyncMock(
+            return_value=ExtractionOutcome(raw={"stg_league_game_log": game_log_df})
+        )
+
+        with (
+            patch(_CURRENT_SEASON, return_value="2025-26"),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(orch, "_load_staging_from_duckdb") as mock_load,
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+        ):
+            asyncio.run(orch.run_daily())
+
+        mock_load.assert_not_called()
+        assert mock_transform.call_args.args[1]["stg_league_game_log"].equals(game_log_df)
 
 
 # ---------------------------------------------------------------------------
@@ -580,12 +718,19 @@ class TestRunMonthly:
 
     def test_run_monthly_loads_persisted_staging_when_extraction_is_empty(self):
         orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
 
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
         mock_discovery = AsyncMock()
-        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
-        mock_discovery.discover_game_dates.return_value = []
+        mock_discovery.discover_game_dates.return_value = ["2026-02-28"]
         mock_discovery.discover_player_team_season_params.return_value = []
 
         recovered_raw = {
@@ -593,8 +738,10 @@ class TestRunMonthly:
                 {"game_id": ["0022400001"], "game_date": ["2026-02-28"]}
             )
         }
-        mock_runner = _mock_runner(skipped=1)
-        mock_extract = AsyncMock(return_value={})
+        mock_runner = _mock_runner(planned_calls=1, skipped=1, skipped_due_to_journal=1)
+        mock_extract = AsyncMock(
+            return_value=ExtractionOutcome(raw={"stg_league_game_log": game_log_df})
+        )
 
         with (
             patch(_RECENT_SEASONS, return_value=["2025-26"]),
@@ -657,12 +804,19 @@ class TestRunFull:
 
     def test_run_retry_loads_persisted_staging_when_extraction_is_empty(self):
         orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
 
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
         mock_discovery = AsyncMock()
-        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
-        mock_discovery.discover_game_dates.return_value = []
+        mock_discovery.discover_game_dates.return_value = ["2026-02-28"]
         mock_discovery.discover_player_team_season_params.return_value = []
 
         recovered_raw = {
@@ -670,8 +824,8 @@ class TestRunFull:
                 {"game_id": ["0022400001"], "game_date": ["2026-02-28"]}
             )
         }
-        mock_runner = _mock_runner(skipped=1)
-        mock_extract = AsyncMock(return_value={})
+        mock_runner = _mock_runner(planned_calls=1, skipped=1, skipped_due_to_journal=1)
+        mock_extract = AsyncMock(return_value=ExtractionOutcome(raw={}))
 
         with (
             patch(_SEASON_RANGE, return_value=[]),

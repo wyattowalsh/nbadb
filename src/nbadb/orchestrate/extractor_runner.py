@@ -117,6 +117,12 @@ class ExtractorRunner:
         self._multi_cache: dict[tuple[str, str], list[pl.DataFrame]] = {}
         # Count of extractions skipped because already done in journal
         self.skipped: int = 0
+        # Count only journal-driven skips for the current run.
+        self.skipped_due_to_journal: int = 0
+        # Count of extraction calls scheduled after runtime eligibility checks.
+        self.planned_calls: int = 0
+        # Count of extraction calls that failed in the current run after retries.
+        self.failed_current_run: int = 0
 
     def shutdown(self) -> None:
         """Shut down the thread pool to release worker threads."""
@@ -278,6 +284,7 @@ class ExtractorRunner:
                     if on_progress is not None:
                         on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
                     continue
+                self.planned_calls += 1
                 tasks.append(
                     asyncio.create_task(
                         self._extract_single(
@@ -310,6 +317,7 @@ class ExtractorRunner:
                         for _ in ep_entries:
                             on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
                     continue
+                self.planned_calls += 1
                 tasks.append(
                     asyncio.create_task(
                         self._extract_multi(
@@ -522,6 +530,7 @@ class ExtractorRunner:
         # All retries exhausted
         duration = time.perf_counter() - t0
         exc_name = type(last_exc).__name__ if last_exc else "Unknown"
+        self.failed_current_run += 1
         self._journal.record_failure(endpoint_name, params_json, exc_name)
         self._journal.record_metric(endpoint_name, duration, 0, errors=1)
         self._circuit_breaker.record_failure(endpoint_name)
@@ -566,6 +575,7 @@ class ExtractorRunner:
         )
         if is_done:
             self.skipped += 1
+            self.skipped_due_to_journal += 1
             if on_progress is not None:
                 on_progress.record_skip()  # type: ignore[union-attr]
             logger.debug(
@@ -618,6 +628,7 @@ class ExtractorRunner:
         )
         if is_done:
             self.skipped += 1
+            self.skipped_due_to_journal += 1
             if on_progress is not None:
                 on_progress.record_skip()  # type: ignore[union-attr]
             logger.debug(

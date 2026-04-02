@@ -345,7 +345,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   merge:
     needs: extract
-    if: ${{ !cancelled() }}
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -487,7 +487,7 @@ jobs:
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: uv run nbadb upload --data-dir nbadb -m "Full extraction $(date +%Y-%m-%d)"
+        run: uv run nbadb upload --data-dir data/nbadb -m "Full extraction $(date +%Y-%m-%d)"
 
       - name: Upload final database
         if: always()
@@ -507,7 +507,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   chain:
     needs: [extract, merge]
-    if: ${{ !cancelled() && needs.extract.result != 'success' }}
+    if: ${{ always() && !cancelled() && needs.merge.result == 'success' && needs.extract.result != 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -516,10 +516,14 @@ jobs:
       - name: Chain next iteration
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_REF: ${{ github.ref_name }}
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           USE_PROXY: ${{ inputs.use_proxy }}
           CONCURRENCY: ${{ inputs.concurrency }}
+          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
+          BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
+          FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           CHAIN_ID: ${{ inputs.chain_id || github.run_id }}
         run: |
           current=$ITERATION
@@ -534,8 +538,12 @@ jobs:
 
           echo "::notice::Some shards incomplete — triggering iteration $next/$max (chain $CHAIN_ID)"
           gh workflow run full-extraction.yml \
+            --ref "$WORKFLOW_REF" \
             -f use_proxy="$USE_PROXY" \
             -f concurrency="$CONCURRENCY" \
             -f iteration="$next" \
             -f max_iterations="$max" \
+            -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
+            -f backfill_patterns="$BACKFILL_PATTERNS" \
+            -f force_reextract="$FORCE_REEXTRACT" \
             -f chain_id="$CHAIN_ID"

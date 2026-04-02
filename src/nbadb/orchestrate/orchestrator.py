@@ -48,6 +48,14 @@ class PipelineResult:
     errors: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True, slots=True)
+class ExtractionOutcome:
+    """Raw extraction output plus current-run recovery signals."""
+
+    raw: dict[str, pl.DataFrame]
+    pattern_failures: int = 0
+
+
 class _ProgressReporter(Protocol):
     """Minimal progress surface used by the orchestrator stack."""
 
@@ -271,6 +279,34 @@ class Orchestrator:
                     db.duckdb.unregister("_staging_tmp")
         logger.info("persisted {} staging tables to DuckDB", count)
 
+    def _should_reload_persisted_staging(
+        self,
+        outcome: ExtractionOutcome,
+        *,
+        runner: ExtractorRunner,
+        journal: PipelineJournal,
+    ) -> bool:
+        """Return ``True`` only for skip-based recovery-safe extraction outcomes.
+
+        ``stg_league_game_log`` is discovery-seeded outside the journal-aware
+        extraction path, so it may be the only in-memory table even when a prior
+        run already persisted the full staging snapshot. Reloading DuckDB staging
+        is only safe when the current run resumed prior completed work, all
+        scheduled extraction calls were journal-skipped, and no extractor or
+        pattern-level failures occurred in this run.
+        """
+        non_empty_keys = {key for key, df in outcome.raw.items() if not df.is_empty()}
+        discovery_only = not non_empty_keys or non_empty_keys == {"stg_league_game_log"}
+        if not discovery_only:
+            return False
+        if not journal.has_done_entries():
+            return False
+        if runner.planned_calls <= 0:
+            return False
+        if runner.skipped_due_to_journal != runner.planned_calls:
+            return False
+        return runner.failed_current_run <= 0 and outcome.pattern_failures <= 0
+
     def close(self) -> None:
         """Close DB connections. Safe to call multiple times."""
         if self._db is not None:
@@ -362,7 +398,7 @@ class Orchestrator:
         game_log_df: pl.DataFrame,
         include_static: bool = True,
         season_types: list[str] | None = None,
-    ) -> dict[str, pl.DataFrame]:
+    ) -> ExtractionOutcome:
         """Run all extraction patterns concurrently and return combined
         raw staging data.
 
@@ -388,6 +424,7 @@ class Orchestrator:
 
         # Compute total extraction tasks for the progress bar
         total_tasks = sum(item.task_count for item in plan)
+        pattern_failures = 0
         if pp is not None:
             pp.start_phase("Extraction", total=total_tasks)
 
@@ -427,6 +464,7 @@ class Orchestrator:
             for j, result in enumerate(tier_results):
                 if isinstance(result, BaseException):
                     failed_label = tier_items[j][1].label
+                    pattern_failures += 1
                     logger.error(
                         "pattern {} failed: {}",
                         failed_label,
@@ -438,7 +476,7 @@ class Orchestrator:
         if pp is not None:
             pp.complete_phase()
 
-        return raw
+        return ExtractionOutcome(raw=raw, pattern_failures=pattern_failures)
 
     # ── run modes ──────────────────────────────────────────────
 
@@ -512,7 +550,7 @@ class Orchestrator:
             )
 
             # -- 2. Extract by pattern ------------------------------
-            raw = await self._extract_all_patterns(
+            extraction = await self._extract_all_patterns(
                 runner,
                 seasons=seasons,
                 game_ids=game_ids,
@@ -523,6 +561,7 @@ class Orchestrator:
                 game_log_df=game_log_df,
                 season_types=season_types,
             )
+            raw = extraction.raw
 
             # -- 2b. Persist staging (crash recovery) ------------------
             bound_log.info("persisting {} staging tables to DuckDB", len(raw))
@@ -530,7 +569,7 @@ class Orchestrator:
 
             # If extraction produced no new data (all skipped via journal),
             # reload staging from DuckDB (recovery after prior crash).
-            if not raw or all(df.is_empty() for df in raw.values()):
+            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
                 bound_log.info("extraction produced no new data; loading staging from DuckDB")
                 raw = self._load_staging_from_duckdb(db)
                 bound_log.info("loaded {} staging tables from DuckDB", len(raw))
@@ -636,20 +675,19 @@ class Orchestrator:
             )
 
             # -- 3. Game + season + date + player/team extraction
-            raw.update(
-                await self._extract_all_patterns(
-                    runner,
-                    seasons=[season],
-                    game_ids=game_ids,
-                    player_ids=player_ids,
-                    team_ids=team_ids,
-                    game_dates=game_dates,
-                    player_team_season_params=player_team_season_params,
-                    game_log_df=pl.DataFrame(),  # already seeded above
-                    include_static=False,
-                    season_types=_daily_st,
-                )
+            extraction = await self._extract_all_patterns(
+                runner,
+                seasons=[season],
+                game_ids=game_ids,
+                player_ids=player_ids,
+                team_ids=team_ids,
+                game_dates=game_dates,
+                player_team_season_params=player_team_season_params,
+                game_log_df=pl.DataFrame(),  # already seeded above
+                include_static=False,
+                season_types=_daily_st,
             )
+            raw.update(extraction.raw)
             # Keep the seeded game_log_df (update may have cleared it)
             if not game_log_df.is_empty():
                 raw.setdefault("stg_league_game_log", game_log_df)
@@ -659,7 +697,7 @@ class Orchestrator:
 
             # If extraction produced no new data (all skipped via journal),
             # reload staging from DuckDB (recovery after prior crash).
-            if not raw or all(df.is_empty() for df in raw.values()):
+            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
                 bound_log.info("daily extraction produced no new data; loading staging from DuckDB")
                 raw = self._load_staging_from_duckdb(db)
                 bound_log.info("daily loaded {} staging tables from DuckDB", len(raw))
@@ -714,7 +752,7 @@ class Orchestrator:
             player_team_season_params = await discovery.discover_player_team_season_params(seasons)
 
             # -- 2. Extract all patterns ----------------------------
-            raw = await self._extract_all_patterns(
+            extraction = await self._extract_all_patterns(
                 runner,
                 seasons=seasons,
                 game_ids=game_ids,
@@ -725,13 +763,14 @@ class Orchestrator:
                 game_log_df=game_log_df,
                 season_types=_monthly_st,
             )
+            raw = extraction.raw
 
             # Persist staging before transform (crash recovery)
             self._persist_staging_to_duckdb(db, raw)
 
             # If extraction produced no new data (all skipped via journal),
             # reload staging from DuckDB (recovery after prior crash).
-            if not raw or all(df.is_empty() for df in raw.values()):
+            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
                 bound_log.info(
                     "monthly extraction produced no new data; loading staging from DuckDB"
                 )
@@ -848,7 +887,7 @@ class Orchestrator:
                 raw.setdefault("stg_league_game_log", game_log_df)
 
             # Run all patterns — runner will skip already-extracted via journal
-            gap_raw = await self._extract_all_patterns(
+            extraction = await self._extract_all_patterns(
                 runner,
                 seasons=seasons,
                 game_ids=game_ids,
@@ -859,14 +898,14 @@ class Orchestrator:
                 game_log_df=game_log_df,
                 season_types=_full_st,
             )
-            raw.update(gap_raw)
+            raw.update(extraction.raw)
 
             # Persist staging before transform (crash recovery)
             self._persist_staging_to_duckdb(db, raw)
 
             # If extraction produced no new data (all skipped via journal),
             # reload staging from DuckDB (recovery after prior crash).
-            if not raw or all(df.is_empty() for df in raw.values()):
+            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
                 bound_log.info("retry extraction produced no new data; loading staging from DuckDB")
                 raw = self._load_staging_from_duckdb(db)
                 bound_log.info("retry loaded {} staging tables from DuckDB", len(raw))
