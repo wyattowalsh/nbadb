@@ -25,12 +25,11 @@ from nbadb.core.endpoint_coverage import (
     EndpointCoverageGenerator,
     _runtime_class_to_surface_name,
 )
-from nbadb.core.proxy import build_proxy_pool
 from nbadb.core.types import validate_sql_identifier
 from nbadb.docs_gen.lineage import LineageGenerator
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.discovery import EntityDiscovery
-from nbadb.orchestrate.extractor_runner import _assign_proxy, _sync_extract, _sync_extract_all
+from nbadb.orchestrate.extractor_runner import _sync_extract, _sync_extract_all
 from nbadb.orchestrate.seasons import current_season, season_string
 from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry
 from nbadb.orchestrate.transformers import discover_all_transformers
@@ -894,8 +893,7 @@ class ModelAuditEngine:
         extractors = self._discover_extractors()
         extractor_classes = extractors.extractor_classes
 
-        proxy_pool = build_proxy_pool(self.settings)
-        discovery = EntityDiscovery(registry, proxy_pool=proxy_pool)
+        discovery = EntityDiscovery(registry)
 
         current = current_season()
         current_regular_games, current_regular_log = await discovery.discover_game_ids(
@@ -1244,7 +1242,6 @@ class ModelAuditEngine:
     async def _execute_probe(self, request: ProbeRequest) -> ProbeExecution:
         extractor_cls = registry.get(request.endpoint_name)
         extractor = extractor_cls()
-        _assign_proxy(extractor, build_proxy_pool(self.settings))
         loop = asyncio.get_running_loop()
 
         try:

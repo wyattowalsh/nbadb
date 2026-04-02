@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
 
-from nbadb.orchestrate.extractor_runner import _assign_proxy, _sync_extract
+from nbadb.orchestrate.extractor_runner import _sync_extract
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
     import polars as pl
 
-    from nbadb.core.proxy import ProxyUrlProvider
     from nbadb.extract.registry import EndpointRegistry
 
 
@@ -81,11 +80,9 @@ class EntityDiscovery:
     def __init__(
         self,
         registry: EndpointRegistry,
-        proxy_pool: ProxyUrlProvider | None = None,
         thread_pool: ThreadPoolExecutor | None = None,
     ) -> None:
         self._registry = registry
-        self._proxy_pool = proxy_pool
         self._thread_pool = thread_pool
 
     async def discover_game_ids(
@@ -126,7 +123,6 @@ class EntityDiscovery:
                 logger.info("discovering game IDs: {}", label)
                 extractor = extractor_cls()
                 try:
-                    _assign_proxy(extractor, self._proxy_pool)
                     df = await _extract_with_retry(
                         extractor,
                         label,
@@ -188,7 +184,6 @@ class EntityDiscovery:
         extractor = extractor_cls()
 
         try:
-            _assign_proxy(extractor, self._proxy_pool)
             df = await _extract_with_retry(
                 extractor, staging_key, thread_pool=self._thread_pool, **params
             )
@@ -261,7 +256,6 @@ class EntityDiscovery:
                 logger.info("discovering player/team pairs: {}", label)
                 extractor = extractor_cls()
                 try:
-                    _assign_proxy(extractor, self._proxy_pool)
                     df = await _extract_with_retry(
                         extractor, label, thread_pool=self._thread_pool, season=season
                     )

@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     import polars as pl
 
     from nbadb.core.config import NbaDbSettings
-    from nbadb.core.proxy import ProxyUrlProvider
     from nbadb.extract.registry import EndpointRegistry
     from nbadb.orchestrate.journal import PipelineJournal
 
@@ -64,13 +63,6 @@ def _sync_extract_all(extractor: object, **kwargs: object) -> list[pl.DataFrame]
     return _drive_coroutine(extractor.extract_all(**kwargs))  # type: ignore[union-attr,return-value]
 
 
-def _assign_proxy(extractor: object, proxy_pool: ProxyUrlProvider | None) -> None:
-    """Assign a proxy URL to an extractor if a pool is available."""
-    if proxy_pool is not None:
-        url = proxy_pool.get_proxy_url()
-        extractor._proxy_url = url  # type: ignore[attr-defined]
-
-
 class ExtractorRunner:
     """Runs extractors concurrently with semaphore gating and journal
     tracking.
@@ -85,14 +77,12 @@ class ExtractorRunner:
         registry: EndpointRegistry,
         settings: NbaDbSettings,
         journal: PipelineJournal,
-        proxy_pool: ProxyUrlProvider | None = None,
         rate_limit: float = 10.0,
         progress: object | None = None,
     ) -> None:
         self._registry = registry
         self._settings = settings
         self._journal = journal
-        self._proxy_pool = proxy_pool
         self._progress = progress
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._rate_limiter = AsyncLimiter(max_rate=rate_limit, time_period=1.0)
@@ -397,23 +387,15 @@ class ExtractorRunner:
     def _get_semaphore(self, category: str) -> asyncio.Semaphore:
         """Lazily create a semaphore for the given category."""
         if category not in self._semaphores:
-            base_limit = self._settings.semaphore_tiers.get(
+            limit = self._settings.semaphore_tiers.get(
                 category,
                 self._settings.semaphore_tiers.get("default", 10),
             )
-            if self._proxy_pool is not None:
-                limit = max(
-                    1,
-                    int(base_limit * self._settings.proxy_semaphore_multiplier),
-                )
-            else:
-                limit = base_limit
             self._semaphores[category] = asyncio.Semaphore(limit)
         return self._semaphores[category]
 
     def _prepare_extractor(self, extractor: object) -> None:
-        """Set proxy URL on an extractor instance before extraction."""
-        _assign_proxy(extractor, self._proxy_pool)
+        """Prepare an extractor instance before extraction."""
 
     # Exception types that warrant a retry (transient network / rate-limit errors)
     _RETRYABLE_ERRORS: tuple[type[Exception], ...] = ()
@@ -422,9 +404,9 @@ class ExtractorRunner:
     def _is_retryable(exc: Exception) -> bool:
         """Return True if the exception is transient and worth retrying."""
         # Import-safe: check by name so we don't require requests at import time.
-        # KeyError can occur when proxy returns garbage and nba_api fails
-        # to find expected result set keys. Retrying is cheap since the
-        # circuit breaker caps repeated failures.
+        # KeyError can occur when nba_api fails to find expected result set
+        # keys. Retrying is cheap since the circuit breaker caps repeated
+        # failures.
         return type(exc).__name__ in (
             "ReadTimeout",
             "ConnectTimeout",
@@ -433,7 +415,6 @@ class ExtractorRunner:
             "JSONDecodeError",
             "ChunkedEncodingError",
             "RemoteDisconnected",
-            "ProxyError",
             "KeyError",
             "ArrowTypeError",
         )

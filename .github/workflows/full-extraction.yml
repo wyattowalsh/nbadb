@@ -3,10 +3,6 @@ name: Full Extraction
 on:
   workflow_dispatch:
     inputs:
-      use_proxy:
-        description: "Use NordVPN Docker proxy fleet"
-        type: boolean
-        default: true
       concurrency:
         description: "Max concurrent requests per category"
         type: choice
@@ -43,7 +39,6 @@ on:
 env:
   NBADB_DATA_DIR: data/nbadb
   NBADB_PBP_CHUNK_SIZE: "1000"
-  NBADB_PROXY_TIMEOUT: "30"
   CACHE_KEY: full-extraction-state
 
 permissions:
@@ -73,34 +68,26 @@ jobs:
             season_end: "1979"
             name: "early"
             patterns: "season,game,date,player_season,player_team_season,team_season"
-            vpn_services: "vpn-us-east vpn-us-south"
-            control_ports: "19001 19002"
-            http_ports: "18881 18882"
+            vpn_server: "us-new-york"
           - shard: 1
             season_start: "1980"
             season_end: "1999"
             name: "growth"
             patterns: "season,game,date,player_season,player_team_season,team_season"
-            vpn_services: "vpn-us-central vpn-us-south2"
-            control_ports: "19003 19004"
-            http_ports: "18883 18884"
+            vpn_server: "us-atlanta"
           - shard: 2
             season_start: "2000"
             season_end: "2014"
             name: "modern"
             patterns: "season,game,date,player_season,player_team_season,team_season"
-            vpn_services: "vpn-us-west vpn-us-west2"
-            control_ports: "19005 19006"
-            http_ports: "18885 18886"
+            vpn_server: "us-chicago"
           # Shard 3: ALL patterns (season-scoped for 2015-2025 + global player/team/static)
           - shard: 3
             season_start: "2015"
             season_end: "2025"
             name: "recent"
             patterns: ""
-            vpn_services: "vpn-us-east vpn-us-central"
-            control_ports: "19001 19003"
-            http_ports: "18881 18883"
+            vpn_server: "us-los-angeles"
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -145,125 +132,69 @@ jobs:
             echo "::notice::Fresh start"
           fi
 
-      # ── Set OpenVPN credentials ──
-      - name: Set OpenVPN credentials
-        if: inputs.use_proxy
+      # ── Connect NordVPN tunnel ──
+      - name: Connect NordVPN tunnel
         env:
-          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
-          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          VPN_SERVER: ${{ matrix.vpn_server }}
         run: |
-          if [ -z "$OPENVPN_USER" ] || [ -z "$OPENVPN_PASSWORD" ]; then
-            echo "::error::OPENVPN_USER and OPENVPN_PASSWORD secrets must be set"
+          # Derive OpenVPN credentials from NordVPN token
+          creds=$(curl -sf -u "token:$NORDVPN_TOKEN" \
+            https://api.nordvpn.com/v1/users/services/credentials)
+          user=$(echo "$creds" | jq -r .username)
+          pass=$(echo "$creds" | jq -r .password)
+          if [ -z "$user" ] || [ "$user" = "null" ]; then
+            echo "::error::Failed to derive NordVPN credentials"
             exit 1
           fi
-          echo "::add-mask::$OPENVPN_USER"
-          echo "::add-mask::$OPENVPN_PASSWORD"
-          echo "OPENVPN_USER=$OPENVPN_USER" >> $GITHUB_ENV
-          echo "OPENVPN_PASSWORD=$OPENVPN_PASSWORD" >> $GITHUB_ENV
+          echo "::add-mask::$user"
+          echo "::add-mask::$pass"
 
-      # ── Start shard-specific proxy fleet (2 of 6 VPN services) ──
-      - name: Start proxy fleet
-        if: inputs.use_proxy
-        env:
-          VPN_SERVICES: ${{ matrix.vpn_services }}
-          CONTROL_PORTS: ${{ matrix.control_ports }}
-          HTTP_PORTS: ${{ matrix.http_ports }}
-        run: |
-          docker compose -f docker-compose.proxy.yml up -d $VPN_SERVICES
-          echo "Waiting for OpenVPN tunnels ($VPN_SERVICES)..."
+          # Install OpenVPN
+          sudo apt-get update -qq && sudo apt-get install -y -qq openvpn > /dev/null
 
-          # Phase 1: Wait for VPN tunnels (up to 5 min)
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            sleep 30
-            ok=0
-            for port in $CONTROL_PORTS; do
-              ip=$(curl -sf http://localhost:$port/v1/publicip/ip 2>/dev/null | jq -r .public_ip 2>/dev/null)
-              if [ -n "$ip" ] && [ "$ip" != "null" ]; then
-                echo "  ✓ tunnel :$port -> $ip"
-                ok=$((ok + 1))
-              else
-                echo "  ✗ tunnel :$port not ready"
-              fi
-            done
-            echo "Attempt $attempt: $ok/2 tunnels active"
-            if [ "$ok" -ge 1 ]; then
-              break
-            fi
+          # Get recommended US server filtered by city
+          server=$(curl -sf "https://api.nordvpn.com/v1/servers/recommendations?limit=1&filters[country_id]=228&filters[servers_technologies][identifier]=openvpn_udp&filters[servers.hostname]=${VPN_SERVER}" \
+            | jq -r '.[0].hostname')
+          echo "::notice::Connecting to $server (requested: $VPN_SERVER)"
+
+          # Download config and connect
+          curl -sf "https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/${server}.udp.ovpn" \
+            -o /tmp/nordvpn.ovpn
+          printf '%s\n%s' "$user" "$pass" > /tmp/vpn-auth.txt
+          chmod 600 /tmp/vpn-auth.txt
+          sudo openvpn --config /tmp/nordvpn.ovpn \
+            --auth-user-pass /tmp/vpn-auth.txt \
+            --daemon --log /tmp/vpn.log
+
+          # Wait for tunnel (up to 60s)
+          for i in $(seq 1 30); do
+            ip addr show tun0 > /dev/null 2>&1 && break
+            sleep 2
           done
 
-          if [ "$ok" -eq 0 ]; then
-            echo "::error::No VPN tunnels healthy after 300s"
-            docker compose -f docker-compose.proxy.yml logs --tail 30 $VPN_SERVICES
+          # Verify
+          exit_ip=$(curl -sf --max-time 10 https://httpbin.org/ip | jq -r .origin)
+          if [ -z "$exit_ip" ]; then
+            echo "::error::VPN tunnel failed to establish"
+            sudo cat /tmp/vpn.log | tail -20
             exit 1
           fi
-          echo "::notice::$ok/2 VPN tunnels active"
+          echo "::notice::VPN connected — exit IP: $exit_ip"
 
-          # Phase 2: Warm-up
-          sleep 15
-
-          # Phase 3: Validate HTTP proxies
-          working=0
-          for port in $HTTP_PORTS; do
-            if curl -sf -x "http://localhost:$port" --max-time 15 https://httpbin.org/ip >/dev/null 2>&1; then
-              echo "  ✓ proxy :$port OK"
-              working=$((working + 1))
-            else
-              echo "  ✗ proxy :$port FAILED"
-            fi
-          done
-          echo "::notice::$working/2 HTTP proxies validated"
-          if [ "$working" -eq 0 ]; then
-            echo "::error::No HTTP proxies functional"
-            docker compose -f docker-compose.proxy.yml logs --tail 30 $VPN_SERVICES
-            exit 1
-          fi
+          # Cleanup auth file
+          rm -f /tmp/vpn-auth.txt
 
       # ── Configure environment ──
       - name: Configure extraction environment
         env:
-          USE_PROXY: ${{ inputs.use_proxy }}
           CONCURRENCY: ${{ inputs.concurrency }}
-          HTTP_PORTS: ${{ matrix.http_ports }}
         run: |
-          if [ "$USE_PROXY" = "true" ]; then
-            # Build proxy URL list from shard-specific ports
-            proxy_urls="["
-            first=true
-            for port in $HTTP_PORTS; do
-              $first || proxy_urls="$proxy_urls,"
-              proxy_urls="$proxy_urls\"http://localhost:$port\""
-              first=false
-            done
-            proxy_urls="$proxy_urls]"
-
-            echo 'NBADB_PROXY_ENABLED=true' >> $GITHUB_ENV
-            echo 'NBADB_PROXY_BOOTSTRAP=false' >> $GITHUB_ENV
-            echo "NBADB_PROXY_URLS=$proxy_urls" >> $GITHUB_ENV
-          else
-            echo 'NBADB_PROXY_ENABLED=false' >> $GITHUB_ENV
-          fi
-
           case "$CONCURRENCY" in
-            conservative)
-              echo 'NBADB_SEMAPHORE_TIERS={"box_score": 10, "play_by_play": 5, "game_log": 15, "player_info": 10, "default": 10}' >> $GITHUB_ENV
-              echo 'NBADB_RATE_LIMIT=10' >> $GITHUB_ENV
-              ;;
-            moderate)
-              echo 'NBADB_SEMAPHORE_TIERS={"box_score": 30, "play_by_play": 15, "game_log": 50, "player_info": 30, "default": 25}' >> $GITHUB_ENV
-              echo 'NBADB_RATE_LIMIT=60' >> $GITHUB_ENV
-              ;;
-            aggressive)
-              echo 'NBADB_SEMAPHORE_TIERS={"box_score": 100, "play_by_play": 50, "game_log": 150, "player_info": 100, "default": 75}' >> $GITHUB_ENV
-              echo 'NBADB_RATE_LIMIT=120' >> $GITHUB_ENV
-              ;;
+            conservative) echo 'NBADB_RATE_LIMIT=2' >> $GITHUB_ENV ;;
+            moderate) echo 'NBADB_RATE_LIMIT=5' >> $GITHUB_ENV ;;
+            aggressive) echo 'NBADB_RATE_LIMIT=10' >> $GITHUB_ENV ;;
           esac
-
-          # Scale concurrency for proxy fleet (2 proxies per shard)
-          if [ "$USE_PROXY" = "true" ]; then
-            echo 'NBADB_PROXY_SEMAPHORE_MULTIPLIER=1.5' >> $GITHUB_ENV
-            echo 'NBADB_THREAD_POOL_SIZE=32' >> $GITHUB_ENV
-            echo 'NBADB_PROXY_TIMEOUT=60' >> $GITHUB_ENV
-          fi
 
       # ── Run extraction ──
       - name: Run extraction
@@ -330,15 +261,9 @@ jobs:
           compression-level: 6
 
       # ── Cleanup ──
-      - name: Proxy fleet logs
-        if: failure() && inputs.use_proxy
-        env:
-          VPN_SERVICES: ${{ matrix.vpn_services }}
-        run: docker compose -f docker-compose.proxy.yml logs --tail 50 $VPN_SERVICES
-
-      - name: Stop proxy fleet
-        if: always() && inputs.use_proxy
-        run: docker compose -f docker-compose.proxy.yml down
+      - name: Disconnect VPN
+        if: always()
+        run: sudo killall openvpn 2>/dev/null || true
 
   # ─────────────────────────────────────────────────────────────
   #  Merge shards → transform → export → upload
@@ -519,7 +444,6 @@ jobs:
           WORKFLOW_REF: ${{ github.ref_name }}
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
-          USE_PROXY: ${{ inputs.use_proxy }}
           CONCURRENCY: ${{ inputs.concurrency }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
@@ -539,7 +463,6 @@ jobs:
           echo "::notice::Some shards incomplete — triggering iteration $next/$max (chain $CHAIN_ID)"
           gh workflow run full-extraction.yml \
             --ref "$WORKFLOW_REF" \
-            -f use_proxy="$USE_PROXY" \
             -f concurrency="$CONCURRENCY" \
             -f iteration="$next" \
             -f max_iterations="$max" \

@@ -20,9 +20,7 @@ def _mock_settings():
     s.duckdb_path.exists.return_value = True
     s.sqlite_path = MagicMock()
     s.semaphore_tiers = {"default": 5}
-    s.proxy_semaphore_multiplier = 1.0
     s.pbp_chunk_size = 50
-    s.proxy_urls = []
     s.daily_lookback_days = 7
     s.default_chunk_size = 500
     s.thread_pool_size = 4
@@ -33,7 +31,6 @@ def _mock_settings():
 
 
 # Common patch targets
-_PROXY = "nbadb.orchestrate.orchestrator.build_proxy_pool"
 _DB_MANAGER = "nbadb.orchestrate.orchestrator.DBManager"
 _JOURNAL = "nbadb.orchestrate.orchestrator.PipelineJournal"
 _REGISTRY = "nbadb.orchestrate.orchestrator._global_registry"
@@ -67,8 +64,7 @@ def _build_orchestrator_with_mocks():
     """Set up Orchestrator with all external deps mocked."""
     settings = _mock_settings()
 
-    with patch(_PROXY, return_value=None):
-        orch = Orchestrator(settings=settings)
+    orch = Orchestrator(settings=settings)
 
     # Mock DB + Journal
     db = MagicMock()
@@ -110,18 +106,10 @@ class TestPipelineResult:
 
 
 class TestOrchestratorInit:
-    def test_creates_without_proxy(self):
+    def test_creates_successfully(self):
         settings = _mock_settings()
-        with patch(_PROXY, return_value=None):
-            orch = Orchestrator(settings=settings)
-        assert orch._proxy_pool is None
-
-    def test_creates_with_proxy(self):
-        settings = _mock_settings()
-        mock_pool = MagicMock()
-        with patch(_PROXY, return_value=mock_pool):
-            orch = Orchestrator(settings=settings)
-        assert orch._proxy_pool is mock_pool
+        orch = Orchestrator(settings=settings)
+        assert orch._settings is settings
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +126,7 @@ class TestInitDb:
 
     def test_creates_db_when_none(self):
         settings = _mock_settings()
-        with patch(_PROXY, return_value=None):
-            orch = Orchestrator(settings=settings)
+        orch = Orchestrator(settings=settings)
 
         mock_db = MagicMock()
         mock_db.duckdb = MagicMock()

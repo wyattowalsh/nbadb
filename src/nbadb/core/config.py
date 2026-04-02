@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,26 +37,13 @@ class NbaDbSettings(BaseSettings):
     rate_limit: float = 10.0  # max requests per second (global across all patterns)
     adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff
     adaptive_rate_recovery: int = 50  # consecutive successes before rate recovery
-    extract_max_retries: int = 6  # per-extraction retry attempts; 6 guarantees cycling all proxies
+    extract_max_retries: int = 6  # per-extraction retry attempts
     extract_retry_base_delay: float = 2.0  # base delay in seconds (exponential backoff)
 
     sqlite_path: Path | None = None
     duckdb_path: Path | None = None
 
     kaggle_dataset: str = "wyattowalsh/basketball"
-
-    # ── proxy support (requires proxywhirl) ─────────────────
-    proxy_enabled: bool = False
-    proxy_urls: list[str] = Field(default=[], repr=False)
-    proxy_user: str = Field(default="", repr=False)
-    proxy_pass: str = Field(default="", repr=False)
-    proxy_bootstrap: bool = True
-    proxy_bootstrap_sample_size: int = 5
-    proxy_strategy: str = "round_robin"
-    proxy_timeout: int = 30
-    proxy_max_retries: int = 3
-    proxy_use_all_sources: bool = True
-    proxy_semaphore_multiplier: float = 1.0
 
     @model_validator(mode="after")
     def _default_db_paths(self) -> NbaDbSettings:

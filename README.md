@@ -154,7 +154,6 @@ flowchart LR
 - **SCD Type 2** for `dim_player` and `dim_team_history` (surrogate keys, `valid_from`/`valid_to`)
 - **Checkpoint/resume** for interrupted transform runs
 - **Watermark tracking** for incremental extraction
-- **Proxy rotation** via proxywhirl with circuit-breaker failover
 
 Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architecture)**.
 
@@ -168,7 +167,6 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 | Validation | [Pandera](https://pandera.readthedocs.io/) (Polars backend) |
 | Analytics DB | [DuckDB](https://duckdb.org/) 1.4 |
 | Relational DB | [SQLModel](https://sqlmodel.tiangolo.com/) + SQLite |
-| HTTP / Proxy | [proxywhirl](https://github.com/wyattowalsh/proxywhirl) |
 | CLI | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
 | Type Checking | [ty](https://github.com/astral-sh/ty) |
 | Linting | [Ruff](https://docs.astral.sh/ruff/) |

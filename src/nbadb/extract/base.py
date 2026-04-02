@@ -78,19 +78,14 @@ class BaseExtractor(ABC):
     endpoint_name: ClassVar[str]
     category: ClassVar[str] = "default"
 
-    def __init__(self) -> None:
-        self._proxy_url: str | None = None
-
     @abstractmethod
     async def extract(self, **params: Any) -> pl.DataFrame: ...
 
-    def _inject_proxy(self, kwargs: dict[str, Any]) -> None:
-        """Add timeout/proxy kwargs for nba_api endpoint calls.
+    def _inject_timeout(self, kwargs: dict[str, Any]) -> None:
+        """Apply timeout override for nba_api endpoint calls.
 
-        - If NBADB_REQUEST_TIMEOUT is set, apply it to all calls unless a
-          timeout was explicitly provided.
-        - If a proxy URL is configured, inject proxy and preserve the prior
-          default timeout behavior (60s) when no timeout is present.
+        If NBADB_REQUEST_TIMEOUT is set, apply it to all calls unless a
+        timeout was explicitly provided.
         """
         timeout_override = os.getenv("NBADB_REQUEST_TIMEOUT")
         if timeout_override and "timeout" not in kwargs:
@@ -99,19 +94,15 @@ class BaseExtractor(ABC):
             except ValueError:
                 logger.warning("invalid NBADB_REQUEST_TIMEOUT={!r}; ignoring", timeout_override)
 
-        if self._proxy_url is not None:
-            kwargs.setdefault("proxy", self._proxy_url)
-            kwargs.setdefault("timeout", 60)
-
     def _call_nba_api(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
         """Call nba_api endpoint and return all result sets as Polars DataFrames.
 
-        Handles proxy injection, column snake_case normalization, and
+        Handles timeout injection, column snake_case normalization, and
         ``season_type`` column injection.  Shared by both single and
         multi-result helpers.
         """
         season_type = _extract_season_type(kwargs)
-        self._inject_proxy(kwargs)
+        self._inject_timeout(kwargs)
         result = endpoint_cls(**kwargs)
         dfs = result.get_data_frames()
         converted = []
@@ -169,7 +160,7 @@ class BaseExtractor(ABC):
 
     def _from_nba_live(self, endpoint_cls: type, attr: str, **kwargs: Any) -> pl.DataFrame:
         """Call nba_api live endpoint and convert a single dataset to Polars."""
-        self._inject_proxy(kwargs)
+        self._inject_timeout(kwargs)
         result = endpoint_cls(**kwargs)
         dataset = getattr(result, attr, None)
         if dataset is None:
@@ -184,7 +175,7 @@ class BaseExtractor(ABC):
         **kwargs: Any,
     ) -> list[pl.DataFrame]:
         """Call nba_api live endpoint and convert multiple datasets to Polars."""
-        self._inject_proxy(kwargs)
+        self._inject_timeout(kwargs)
         result = endpoint_cls(**kwargs)
         frames: list[pl.DataFrame] = []
         for attr in attrs:

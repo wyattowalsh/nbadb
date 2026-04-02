@@ -94,7 +94,7 @@ class TestDiscoverPlayerIds:
         df = pl.DataFrame({"person_id": [1, 2, 3], "is_active": [1, 0, 1]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -105,7 +105,7 @@ class TestDiscoverPlayerIds:
 
     async def test_returns_empty_on_failure(self):
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -122,7 +122,7 @@ class TestDiscoverPlayerIds:
         df = pl.DataFrame({"person_id": [10, 20, 30]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -137,7 +137,7 @@ class TestDiscoverAllPlayerIds:
         df = pl.DataFrame({"person_id": [1, 2, 3], "is_active": [1, 0, 1]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -160,7 +160,7 @@ class TestDiscoverPlayerTeamSeasonParams:
         }
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -180,7 +180,7 @@ class TestDiscoverPlayerTeamSeasonParams:
 
     async def test_returns_empty_on_failure(self):
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -198,7 +198,7 @@ class TestDiscoverTeamIds:
         df = pl.DataFrame({"team_id": [10, 20]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -209,7 +209,7 @@ class TestDiscoverTeamIds:
 
     async def test_empty_result(self):
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -227,7 +227,7 @@ class TestDiscoverGameIds:
         df = pl.DataFrame({"game_id": ["001", "002", "001"]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -239,7 +239,7 @@ class TestDiscoverGameIds:
 
     async def test_empty_result(self):
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -261,7 +261,7 @@ class TestDiscoverGameIds:
             return pl.DataFrame({"game_id": [f"00{call_count}"]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -280,7 +280,7 @@ class TestDiscoverGameIds:
             return pl.DataFrame({"game_id": [f"00{call_count}"]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -304,7 +304,7 @@ class TestDiscoverGameIds:
             return pl.DataFrame({"game_id": ["002"]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext
@@ -318,7 +318,7 @@ class TestDiscoverGameIds:
         df = pl.DataFrame({"game_id": ["001"]})
 
         class _Ext:
-            _proxy_url = None
+            pass
 
         reg = MagicMock()
         reg.get.return_value = _Ext

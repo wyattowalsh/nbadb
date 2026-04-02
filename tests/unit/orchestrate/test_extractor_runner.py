@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import polars as pl
 import pytest
 
-from nbadb.orchestrate.extractor_runner import ExtractorRunner, _AdaptiveThrottle, _assign_proxy
+from nbadb.orchestrate.extractor_runner import ExtractorRunner, _AdaptiveThrottle
 from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
 from nbadb.orchestrate.staging_map import StagingEntry
 
@@ -25,7 +25,6 @@ def _make_extractor(
 
     class _Ext:
         category = "default"
-        _proxy_url = None
 
         async def extract(self, **kwargs):
             if exc:
@@ -50,7 +49,6 @@ def _make_journal(*, already_done: bool = False, failed: list | None = None):
 def _make_settings(**overrides):
     s = MagicMock()
     s.semaphore_tiers = {"default": 5}
-    s.proxy_semaphore_multiplier = 2.0
     s.pbp_chunk_size = 50
     s.default_chunk_size = 500
     s.thread_pool_size = 4
@@ -69,26 +67,6 @@ def _make_registry(extractor_cls):
     r = MagicMock()
     r.get.return_value = extractor_cls
     return r
-
-
-# ---------------------------------------------------------------------------
-# _assign_proxy tests
-# ---------------------------------------------------------------------------
-
-
-class TestAssignProxy:
-    def test_assigns_url_when_pool_provided(self):
-        ext = MagicMock()
-        pool = MagicMock()
-        pool.get_proxy_url.return_value = "http://proxy:8080"
-        _assign_proxy(ext, pool)
-        assert ext._proxy_url == "http://proxy:8080"
-
-    def test_noop_when_pool_is_none(self):
-        ext = MagicMock()
-        _assign_proxy(ext, None)
-        pool_calls = [c for c in ext.method_calls if "proxy" in str(c)]
-        assert pool_calls == []
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +127,6 @@ class TestExtractSingle:
         class _FlakyExt:
             endpoint_name = "ep1"
             category = "default"
-            _proxy_url = None
 
             async def extract(self, **kwargs):
                 nonlocal call_count
@@ -293,7 +270,6 @@ class TestRunPattern:
     async def test_run_pattern_tolerates_schema_drift_across_param_sets(self):
         class _SchemaDriftExtractor:
             category = "default"
-            _proxy_url = None
 
             async def extract(self, **kwargs):
                 season = kwargs.get("season")
@@ -316,39 +292,6 @@ class TestRunPattern:
         assert "stg_ep1" in result
         assert result["stg_ep1"].shape[0] == 2
         assert set(result["stg_ep1"].columns) == {"a", "b", "c"}
-
-
-# ---------------------------------------------------------------------------
-# Proxy integration in runner
-# ---------------------------------------------------------------------------
-
-
-class TestRunnerProxy:
-    @pytest.mark.asyncio
-    async def test_proxy_assigned_to_extractor(self):
-        df = pl.DataFrame({"a": [1]})
-        journal = _make_journal(already_done=False)
-        settings = _make_settings()
-        ext_cls = _make_extractor(df=df)
-        registry = _make_registry(ext_cls)
-        pool = MagicMock()
-        pool.get_proxy_url.return_value = "http://proxy:8080"
-        runner = ExtractorRunner(registry, settings, journal, proxy_pool=pool)
-
-        entry = StagingEntry("ep1", "stg_ep1", "season")
-        await runner._extract_single(entry, {})
-        pool.get_proxy_url.assert_called_once()
-
-    def test_semaphore_multiplied_with_proxy(self):
-        journal = _make_journal()
-        settings = _make_settings()
-        settings.semaphore_tiers = {"default": 5}
-        settings.proxy_semaphore_multiplier = 3.0
-        pool = MagicMock()
-        runner = ExtractorRunner(MagicMock(), settings, journal, proxy_pool=pool)
-
-        sem = runner._get_semaphore("default")
-        assert sem._value == 15
 
 
 # ---------------------------------------------------------------------------

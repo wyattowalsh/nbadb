@@ -11,7 +11,6 @@ from loguru import logger
 
 from nbadb.core.config import NbaDbSettings, get_settings
 from nbadb.core.db import DBManager
-from nbadb.core.proxy import ProxyUrlProvider, build_proxy_pool
 from nbadb.extract.registry import registry as _global_registry
 from nbadb.load.multi import create_multi_loader
 from nbadb.orchestrate.discovery import EntityDiscovery
@@ -99,9 +98,6 @@ class Orchestrator:
         progress: _ProgressReporter | None = None,
     ) -> None:
         self._settings: NbaDbSettings = settings if settings is not None else get_settings()
-        self._proxy_pool: ProxyUrlProvider | None = build_proxy_pool(self._settings)
-        if self._proxy_pool is None:
-            logger.debug("proxy pool: disabled")
         self._db: DBManager | None = None
         self._journal: PipelineJournal | None = None
         self._progress: _ProgressReporter | None = progress
@@ -136,7 +132,6 @@ class Orchestrator:
             registry=_global_registry,
             settings=self._settings,
             journal=journal,
-            proxy_pool=self._proxy_pool,
             rate_limit=self._settings.rate_limit,
             progress=self._progress,
         )
@@ -145,7 +140,6 @@ class Orchestrator:
         """Create an EntityDiscovery wired to the global registry."""
         return EntityDiscovery(
             _global_registry,
-            proxy_pool=self._proxy_pool,
             thread_pool=thread_pool,
         )
 

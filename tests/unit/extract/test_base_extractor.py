@@ -65,57 +65,8 @@ class TestFromNbaApiMulti:
         assert "team_id" in results[1].columns
 
 
-class TestProxyInjection:
-    def test_proxy_url_injected_into_kwargs(self) -> None:
-        ext = _StubExtractor()
-        ext._proxy_url = "http://proxy:8080"
-
-        mock_endpoint = MagicMock()
-        import pandas as pd
-
-        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
-        ext._from_nba_api(mock_endpoint)
-        call_kwargs = mock_endpoint.call_args[1]
-        assert call_kwargs["proxy"] == "http://proxy:8080"
-        assert call_kwargs["timeout"] == 60
-
-    def test_no_proxy_when_none(self) -> None:
-        ext = _StubExtractor()
-        assert ext._proxy_url is None
-
-        mock_endpoint = MagicMock()
-        import pandas as pd
-
-        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
-        ext._from_nba_api(mock_endpoint)
-        call_kwargs = mock_endpoint.call_args[1]
-        assert "proxy" not in call_kwargs
-
-    def test_explicit_proxy_not_overridden(self) -> None:
-        ext = _StubExtractor()
-        ext._proxy_url = "http://proxy:8080"
-
-        mock_endpoint = MagicMock()
-        import pandas as pd
-
-        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
-        ext._from_nba_api(mock_endpoint, proxy="http://other:9090")
-        call_kwargs = mock_endpoint.call_args[1]
-        assert call_kwargs["proxy"] == "http://other:9090"
-
-    def test_proxy_injected_in_multi(self) -> None:
-        ext = _StubExtractor()
-        ext._proxy_url = "http://proxy:8080"
-
-        mock_endpoint = MagicMock()
-        import pandas as pd
-
-        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
-        ext._from_nba_api_multi(mock_endpoint)
-        call_kwargs = mock_endpoint.call_args[1]
-        assert call_kwargs["proxy"] == "http://proxy:8080"
-
-    def test_timeout_override_injected_without_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+class TestTimeoutInjection:
+    def test_timeout_override_injected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("NBADB_REQUEST_TIMEOUT", "15")
         ext = _StubExtractor()
 
@@ -126,7 +77,6 @@ class TestProxyInjection:
         ext._from_nba_api(mock_endpoint)
         call_kwargs = mock_endpoint.call_args[1]
         assert call_kwargs["timeout"] == 15
-        assert "proxy" not in call_kwargs
 
     def test_invalid_timeout_override_is_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("NBADB_REQUEST_TIMEOUT", "abc")

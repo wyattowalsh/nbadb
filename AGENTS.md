@@ -14,7 +14,6 @@ analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 - DuckDB 1.4 (staging engine, zero-copy Arrow interchange)
 - Pandera[polars] 0.29 (3-tier schema validation: raw → staging → star)
 - SQLModel 0.0.37
-- proxywhirl 0.3.3 (proxy rotation for extraction)
 - ty 0.0.19 (type checker), ruff (lint/format)
 - Docs: Fumadocs 16 + Next.js 16 + pnpm + Tailwind v4
 
@@ -38,7 +37,7 @@ src/nbadb/
 ├── load/             # SQLite/DuckDB/Parquet/CSV loaders
 ├── orchestrate/      # Pipeline orchestration + staging map
 ├── cli/              # Typer CLI + Textual TUI surface
-├── core/             # Config, database, logging, proxy, coverage helpers
+├── core/             # Config, database, logging, coverage helpers
 ├── agent/            # Natural-language query agent
 ├── kaggle/           # Kaggle download/upload integration
 └── docs_gen/         # Auto-generates schema/data-dictionary/ER/lineage artifacts
@@ -151,8 +150,6 @@ These DuckDB tables track pipeline state — do not modify directly:
 - **Pipeline UI**: `init`, `daily`, `monthly`, and `full` use the Textual TUI when stdout is a TTY and `--verbose` is not set; CI/non-interactive runs get plain output
 - **Graceful stop**: first `Ctrl+C` during pipeline commands cancels cleanly and preserves journal/checkpoint state; second `Ctrl+C` forces exit
 - **ReadOnlyGuard**: Strips SQL comments, normalizes Unicode (NFKC), always wraps queries in LIMIT, uses word-boundary keyword matching
-- **Proxy credentials**: `SimpleProxyRotator.__repr__` redacts credentials — safe to log
-- **proxywhirl fallback**: Private API calls wrapped with `AttributeError` fallback to public API
 - **Season params**: `season_type` param format varies by endpoint; `DraftBoard` uses `season_year` (int), `PlayoffPicture` uses `season_id` (str "2YYYY")
 - **SCD2 dimensions**: `dim_player` and `dim_team_history` use SCD Type 2 (surrogate keys, valid_from/valid_to/is_current); all other dimensions use Type 1
 - **Transform naming**: `fact_box_score_*` is team-level, `fact_player_game_*` is player-level — intentional
