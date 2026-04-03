@@ -264,7 +264,8 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
   onerror="document.getElementById('grid').textContent='AG Grid failed to load.'"></script>
 <style>
   body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
-         padding: 16px; background: #fafafa; }}
+         padding: 16px; background: #fafafa;
+         display:flex;flex-direction:column;height:100vh; }}
   h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
   .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }}
   .toolbar button {{
@@ -272,17 +273,17 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
     background: #fff; cursor: pointer; font-size: 0.875rem;
   }}
   .toolbar button:hover, .toolbar button:focus-visible {{ background: #f0f0f0; }}
-  #grid {{ height: calc(100vh - 100px); width: 100%; }}
+  #grid {{ flex:1;min-height:0;width:100%; }}
   .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
 </style>
 </head>
 <body>
 <h1>{safe_name}</h1>
 <div class="toolbar">
-  <button onclick="exportCSV()">Export CSV</button>
-  <button onclick="exportJSON()">Export JSON</button>
-  <button onclick="resetData()">Reset</button>
-  <span id="status" style="line-height:32px;color:#666;font-size:0.8rem;"></span>
+  <button type="button" onclick="exportCSV()">Export CSV</button>
+  <button type="button" onclick="exportJSON()">Export JSON</button>
+  <button type="button" onclick="resetData()">Reset</button>
+  <span id="status" role="status" style="line-height:32px;color:#666;font-size:0.8rem;"></span>
 </div>
 <div id="grid" class="ag-theme-alpine"></div>
 <script>
