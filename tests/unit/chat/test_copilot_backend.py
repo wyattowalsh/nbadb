@@ -58,7 +58,7 @@ def test_copilot_no_inline_sql_execution():
 def test_copilot_sanitizes_session_id():
     """Session ID is sanitized before use in paths."""
     content = COPILOT_MODULE.read_text()
-    assert "re.sub" in content
+    assert "sanitize_session_id" in content
 
 
 def test_copilot_has_error_handling():
