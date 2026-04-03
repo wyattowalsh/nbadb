@@ -6,19 +6,21 @@ delegate to this module so the template is maintained in one place.
 
 from __future__ import annotations
 
+import html
 import json
 
 
 def build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str:
     """Generate a self-contained HTML file with an AG Grid editable spreadsheet."""
     safe_name = json.dumps(name)[1:-1]  # JSON-encode, strip quotes -- safe for JS string literal
+    html_safe_name = html.escape(safe_name)  # Safe for HTML contexts
     safe_rows = rows_json.replace("</", "<\\/")
     safe_cols = columns_json.replace("</", "<\\/")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{safe_name} — NBA Data Spreadsheet</title>
+<title>{html_safe_name} — NBA Data Spreadsheet</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.2.4/dist/ag-grid-community.min.js"
   onerror="document.getElementById('grid').textContent='AG Grid failed to load.'"></script>
@@ -38,7 +40,7 @@ def build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str:
 </style>
 </head>
 <body>
-<h1>{safe_name}</h1>
+<h1>{html_safe_name}</h1>
 <div class="toolbar">
   <button type="button" onclick="exportCSV()">Export CSV</button>
   <button type="button" onclick="exportJSON()">Export JSON</button>

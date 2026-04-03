@@ -141,6 +141,11 @@ class TestSpreadsheetHtmlXSS:
         result = self.build("test", cols, "[]")
         assert '"field": "</script>"' not in result
 
+    def test_html_injection_in_title(self):
+        result = self.build("<img src=x onerror=alert(1)>", "[]", "[]")
+        assert "<img" not in result.split("<title>")[1].split("</title>")[0]
+        assert "&lt;img" in result  # HTML-escaped
+
     def test_safe_name_in_download_filenames(self):
         # JSON encoding preserves & as-is (safe in JS string context)
         result = self.build("test&file", "[]", "[]")
