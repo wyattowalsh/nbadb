@@ -95,6 +95,7 @@ def query(sql: str) -> pd.DataFrame:
     return conn.execute(sql).fetchdf()
 
 # --- Session state (last_result persistence across tool calls) ---------------
+# pathlib imported in preamble only (not subject to AST check) for session state
 from pathlib import Path as _SessionPath
 
 _LAST_RESULT_PATH = _SessionPath(__SESSION_DIR__) / "last_result.parquet"

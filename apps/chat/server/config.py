@@ -41,7 +41,7 @@ class ChatSettings(BaseSettings):
 
     @model_validator(mode="after")
     def _expand_paths(self) -> ChatSettings:
-        object.__setattr__(self, "duckdb_path", self.duckdb_path.expanduser().resolve())
+        self.duckdb_path = self.duckdb_path.expanduser().resolve()
         return self
 
     extra_mcp_servers: dict[str, dict] = Field(default_factory=dict)

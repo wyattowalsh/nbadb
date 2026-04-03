@@ -20,8 +20,8 @@ def setup_tracing(settings: ChatSettings) -> list[Any]:
     Returns a list of LangChain-compatible callback handlers.
     Empty list means no external tracing (Chainlit Step tracing still active).
 
-    Uses a lock around os.environ mutations to prevent races when
-    multiple sessions update tracing concurrently.
+    Uses a lock to protect multi-variable atomicity when setting
+    LANGCHAIN_TRACING_V2 and LANGCHAIN_PROJECT together.
     """
     with _tracing_lock:
         return _setup_tracing_inner(settings)
@@ -31,9 +31,8 @@ def _setup_tracing_inner(settings: ChatSettings) -> list[Any]:
     """Inner tracing setup (must be called under _tracing_lock)."""
     match settings.tracing_provider:
         case "none":
-            # Ensure LangSmith env vars are cleared if previously set
-            os.environ.pop("LANGCHAIN_TRACING_V2", None)
-            os.environ.pop("LANGCHAIN_PROJECT", None)
+            # Don't remove LangSmith env vars — that would race with other
+            # sessions that may have set them for their own tracing.
             return []
 
         case "langsmith":
@@ -92,6 +91,6 @@ def _setup_tracing_inner(settings: ChatSettings) -> list[Any]:
             ]
 
         case _:
-            os.environ.pop("LANGCHAIN_TRACING_V2", None)
-            os.environ.pop("LANGCHAIN_PROJECT", None)
+            # Don't remove LangSmith env vars — that would race with other
+            # sessions that may have set them for their own tracing.
             return []

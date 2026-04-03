@@ -33,23 +33,26 @@ async def setup_mcp_tools(
             "transport": "stdio",
         },
     }
+    # extra_mcp_servers are trusted — the config file (~/.nbadb/chat.json) is user-owned
     # Merge user-configured MCP servers (reject in demo mode and on name collisions)
     if settings.public_demo_mode and settings.extra_mcp_servers:
         logger.info("Ignoring extra_mcp_servers in public demo mode")
     elif settings.extra_mcp_servers:
         builtin_names = frozenset(servers.keys())
+        merged = 0
         for key, val in settings.extra_mcp_servers.items():
             if key in builtin_names:
                 logger.warning("Ignoring extra_mcp_server {!r} — collides with built-in name", key)
                 continue
             servers[key] = val
+            merged += 1
 
-    if settings.extra_mcp_servers and not settings.public_demo_mode:
-        logger.info(
-            "Loaded {} extra MCP server(s) from config: {}",
-            len(settings.extra_mcp_servers),
-            list(settings.extra_mcp_servers.keys()),
-        )
+        if merged:
+            logger.info(
+                "Loaded {} extra MCP server(s) from config: {}",
+                merged,
+                [k for k in settings.extra_mcp_servers if k not in builtin_names],
+            )
 
     client = MultiServerMCPClient(servers)
     tools = await client.get_tools()
