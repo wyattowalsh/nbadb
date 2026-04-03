@@ -133,7 +133,8 @@ function toHex(cssColor: string): string {
   if (typeof document === "undefined") return cssColor;
   if (/^#[0-9a-f]{3,8}$/i.test(cssColor)) return cssColor;
 
-  if (!_probeCtx) {
+  if (!_probeCtx || _probeCtx.canvas.width === 0) {
+    _probeCtx = null;
     const c = document.createElement("canvas");
     c.width = c.height = 1;
     _probeCtx = c.getContext("2d", { willReadFrequently: true });

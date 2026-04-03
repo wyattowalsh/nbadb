@@ -117,20 +117,22 @@ class SchemaDocsGenerator:
                 for check in getattr(col, "checks", []):
                     name = getattr(check, "name", "")
                     stats = getattr(check, "statistics", {})
-                    if name == "greater_than":
-                        constraints.append(f"gt={stats.get('min_value')}")
-                    elif name == "greater_or_equal":
-                        constraints.append(f"ge={stats.get('min_value')}")
-                    elif name == "less_than":
-                        constraints.append(f"lt={stats.get('max_value')}")
-                    elif name == "less_or_equal":
-                        constraints.append(f"le={stats.get('max_value')}")
+                    val = None
+                    if name == "greater_than" and (val := stats.get("min_value")) is not None:
+                        constraints.append(f"gt={val}")
+                    elif name == "greater_or_equal" and (val := stats.get("min_value")) is not None:
+                        constraints.append(f"ge={val}")
+                    elif name == "less_than" and (val := stats.get("max_value")) is not None:
+                        constraints.append(f"lt={val}")
+                    elif name == "less_or_equal" and (val := stats.get("max_value")) is not None:
+                        constraints.append(f"le={val}")
                     elif name == "in_range":
                         lo = stats.get("min_value")
                         hi = stats.get("max_value")
-                        constraints.append(f"range=[{lo}, {hi}]")
-                    elif name == "isin":
-                        constraints.append(f"in={stats.get('allowed_values')}")
+                        if lo is not None and hi is not None:
+                            constraints.append(f"range=[{lo}, {hi}]")
+                    elif name == "isin" and (val := stats.get("allowed_values")) is not None:
+                        constraints.append(f"in={val}")
                     elif name == "unique_values":
                         constraints.append("unique")
                 if fk:
@@ -175,20 +177,22 @@ class SchemaDocsGenerator:
                 for check in getattr(col, "checks", []):
                     name = getattr(check, "name", "")
                     stats = getattr(check, "statistics", {})
-                    if name == "greater_than":
-                        constraints.append(f"gt={stats.get('min_value')}")
-                    elif name == "greater_or_equal":
-                        constraints.append(f"ge={stats.get('min_value')}")
-                    elif name == "less_than":
-                        constraints.append(f"lt={stats.get('max_value')}")
-                    elif name == "less_or_equal":
-                        constraints.append(f"le={stats.get('max_value')}")
+                    val = None
+                    if name == "greater_than" and (val := stats.get("min_value")) is not None:
+                        constraints.append(f"gt={val}")
+                    elif name == "greater_or_equal" and (val := stats.get("min_value")) is not None:
+                        constraints.append(f"ge={val}")
+                    elif name == "less_than" and (val := stats.get("max_value")) is not None:
+                        constraints.append(f"lt={val}")
+                    elif name == "less_or_equal" and (val := stats.get("max_value")) is not None:
+                        constraints.append(f"le={val}")
                     elif name == "in_range":
                         lo = stats.get("min_value")
                         hi = stats.get("max_value")
-                        constraints.append(f"range=[{lo}, {hi}]")
-                    elif name == "isin":
-                        constraints.append(f"in={stats.get('allowed_values')}")
+                        if lo is not None and hi is not None:
+                            constraints.append(f"range=[{lo}, {hi}]")
+                    elif name == "isin" and (val := stats.get("allowed_values")) is not None:
+                        constraints.append(f"in={val}")
                     elif name == "unique_values":
                         constraints.append("unique")
                 if fk:
