@@ -110,6 +110,7 @@ export default async function Page(props: {
         </div>
         <DocsGeneratedModules slug={params.slug} />
         <DocsContextRail slug={params.slug} />
+        {/* Site footer in content column — intentional (matches docs layout flow) */}
         <DocsFooter />
       </div>
     </DocsPage>
