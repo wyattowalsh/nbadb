@@ -854,6 +854,25 @@ kbd {
   .nba-court-key {
     height: 8rem;
   }
+
+  /* Court-line watermark on mobile hero (replaces hidden court panel) */
+  .nba-hero-bg::after {
+    background:
+      radial-gradient(
+        circle at 80% 30%,
+        color-mix(in oklch, var(--foreground) 6%, transparent) 3rem,
+        transparent 3.15rem
+      ),
+      linear-gradient(
+        0deg,
+        transparent calc(30% - 1px),
+        color-mix(in oklch, var(--foreground) 6%, transparent) 30%,
+        color-mix(in oklch, var(--foreground) 6%, transparent) calc(30% + 1px),
+        transparent calc(30% + 2px)
+      );
+    animation: none;
+    opacity: 1;
+  }
 }
 
 /* ── Page hero (docs pages) ────────────────────────── */
