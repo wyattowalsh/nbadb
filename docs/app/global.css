@@ -112,6 +112,12 @@
 }
 
 .dark {
+  --layer-stg: #FFB74D;
+  --layer-dim: #66BB6A;
+  --layer-fact: #EF5350;
+  --layer-bridge: #42A5F5;
+  --layer-agg: #AB47BC;
+  --layer-analytics: #26C6DA;
   --layer-stg-bg: color-mix(in oklch, #ef6c00 15%, var(--card));
   --layer-dim-bg: color-mix(in oklch, #2e7d32 15%, var(--card));
   --layer-fact-bg: color-mix(in oklch, #c62828 15%, var(--card));
