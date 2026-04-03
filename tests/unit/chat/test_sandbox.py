@@ -681,6 +681,18 @@ class TestASTCodeSafety:
         """savefig attribute access (not a call) is allowed."""
         assert self.check("x = fig.savefig") is None
 
+    def test_blocks_vars_builtin(self):
+        """vars() is blocked as a builtin."""
+        assert self.check("vars(obj)") is not None
+
+    def test_blocks_globals_dunder(self):
+        """__globals__ attribute access is blocked."""
+        assert self.check("f.__globals__") is not None
+
+    def test_blocks_code_dunder(self):
+        """__code__ attribute access is blocked."""
+        assert self.check("f.__code__") is not None
+
     # --- round 3 audit: SafeConn uses closures ---
 
     def test_safe_conn_uses_closures(self):
@@ -841,6 +853,21 @@ class TestMultiOutput:
     def test_classify_unknown_returns_none(self):
         """Unknown dict structure returns None."""
         assert self.classify({"random": "stuff"}) is None
+
+    def test_invalid_json_line_treated_as_plain(self):
+        """Invalid JSON lines should not crash the parser."""
+        stdout = '{"columns": ["x"], "data": [[1]]}\n{broken json\nmore text'
+        result = self.parse(stdout, "")
+        # Single valid output → backward compatible (no _multi)
+        assert "columns" in result
+
+    def test_deeply_nested_json(self):
+        """Deeply nested Plotly figure should classify correctly."""
+        import json as _json
+
+        stdout = _json.dumps({"data": [{"x": [{"nested": [1]}]}], "layout": {"title": "t"}})
+        result = self.parse(stdout, "")
+        assert "_raw" in result
 
     def test_empty_stdout(self):
         """Empty stdout returns plain stdout/stderr dict."""
