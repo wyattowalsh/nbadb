@@ -1,0 +1,44 @@
+---
+title: What's New
+description: Recent changes to the nbadb warehouse and documentation
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+# What's New
+
+Recent changes to nbadb — warehouse updates, new documentation, and site improvements.
+
+<Callout>
+This page tracks notable changes. For the full commit history, see the [GitHub repository](https://github.com/wyattowalsh/nba-db).
+</Callout>
+
+## 2026-04 — Documentation Refinement
+
+- **Dark mode polish** — layer colors, chart colors, and section accents now adapt to dark mode via CSS custom properties
+- **Error boundaries** — docs pages now show themed error, 404, and loading states
+- **Schema table UX** — hover highlights and row striping on all reference tables
+- **Mobile hero** — court-line watermark visible on small screens
+- **Performance** — explicit `font-display: swap`, OG image cache headers
+
+## 2026-03 — Coverage Expansion
+
+- **16 new fact transforms** — cumulative stats, clutch detail, shooting splits, and more
+- **4 new analytics views** — clutch performance, player matchup, shooting efficiency, team game complete
+- **8 extended transforms** — dashboard detail families across splits categories
+- **Full test suite** — 1846+ tests passing, ruff lint clean
+- **Docs autogen** — ER diagrams, lineage traces, schema references, and data dictionaries auto-generated from code
+
+## 2026-03 — Multi-Skill Audit
+
+- **Security fixes** — SQL safety (semicolon detection, NFKC normalization, external access disabled)
+- **Pipeline hardening** — O(N+M) registration, error logging, connection leak guards
+- **Schema versioning** — hash includes column types, not just names
+- **CI improvements** — all GitHub Actions SHA-pinned, permissions/timeouts/concurrency on all workflows
+
+## 2026-02 — Initial Launch
+
+- **Star schema design** — dimensions, facts, bridges, aggregations, analytics views
+- **49 documentation pages** — schema reference, data dictionary, diagrams, endpoints, lineage, guides
+- **Interactive components** — SQL playground (DuckDB-WASM), shot charts, game flow, player comparison
+- **NBA-themed design** — custom court panel, section-colored navigation, animated scoreboard

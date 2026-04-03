@@ -448,6 +448,12 @@ const sectionMeta: Record<SectionId, SectionMeta> = {
     ],
     quickLinks: [
       {
+        title: "What's New",
+        href: "/docs/guides/whats-new",
+        description:
+          "Recent changes to the warehouse and docs.",
+      },
+      {
         title: "Analytics Quickstart",
         href: "/docs/guides/analytics-quickstart",
         description:
