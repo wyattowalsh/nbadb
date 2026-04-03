@@ -7,6 +7,7 @@ import {
   DocsGeneratedScanSurface,
   DocsPageHero,
 } from "@/components/site/docs-shell";
+import { DocsFooter } from "@/components/site/footer";
 import { source } from "@/lib/source";
 import { siteName, siteOrigin } from "@/lib/site-config";
 import type { ReactNode } from "react";
@@ -109,6 +110,7 @@ export default async function Page(props: {
         </div>
         <DocsGeneratedModules slug={params.slug} />
         <DocsContextRail slug={params.slug} />
+        <DocsFooter />
       </div>
     </DocsPage>
   );
