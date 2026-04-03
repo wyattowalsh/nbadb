@@ -215,7 +215,7 @@ def to_social(
                  fontfamily="monospace", color="white",
                  transform=_fig.transFigure,
                  verticalalignment="bottom")
-    _fig.text(0.95, 0.02, "nbadb", fontsize=10, color="#666",
+    _fig.text(0.95, 0.02, "nbadb", fontsize=10, color="#9999AA",
              ha="right", transform=_fig.transFigure)
     _ax.axis("off")
     buf = _io_mod.BytesIO()
@@ -247,92 +247,11 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
     built-in sorting, filtering, and export buttons (CSV, XLSX).
     Users download the HTML file and open it in any browser to edit.
     """
+    from _spreadsheet_template import build_spreadsheet_html as _build_html
     columns_json = _json.dumps([{"field": c, "editable": True, "sortable": True,
                                   "filter": True} for c in df.columns])
     rows_json = df.to_json(orient="records") or "[]"
-    # JSON-encode then strip quotes — safe for JS string literals
-    safe_name = _json.dumps(name)[1:-1]
-    safe_rows = rows_json.replace("</", "<\\/")
-    safe_cols = columns_json.replace("</", "<\\/")
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>{safe_name} — NBA Data Spreadsheet</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.2.4/dist/ag-grid-community.min.js"
-  onerror="document.getElementById('grid').textContent='AG Grid failed to load.'"></script>
-<style>
-  body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
-         padding: 16px; background: #fafafa;
-         display:flex;flex-direction:column;height:100vh; }}
-  h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
-  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }}
-  .toolbar button {{
-    padding: 6px 16px; border: 1px solid #ddd; border-radius: 6px;
-    background: #fff; cursor: pointer; font-size: 0.875rem;
-  }}
-  .toolbar button:hover, .toolbar button:focus-visible {{ background: #f0f0f0; }}
-  #grid {{ flex:1;min-height:0;width:100%; }}
-  .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
-</style>
-</head>
-<body>
-<h1>{safe_name}</h1>
-<div class="toolbar">
-  <button type="button" onclick="exportCSV()">Export CSV</button>
-  <button type="button" onclick="exportJSON()">Export JSON</button>
-  <button type="button" onclick="resetData()">Reset</button>
-  <span id="status" role="status" style="line-height:32px;color:#666;font-size:0.8rem;"></span>
-</div>
-<div id="grid" class="ag-theme-alpine"></div>
-<script>
-const originalData = {safe_rows};
-const columnDefs = {safe_cols};
-const gridOptions = {{
-  columnDefs: columnDefs,
-  rowData: JSON.parse(JSON.stringify(originalData)),
-  defaultColDef: {{ resizable: true, editable: true, sortable: true, filter: true }},
-  onCellValueChanged: () => document.getElementById("status").textContent = "Modified",
-}};
-const gridDiv = document.getElementById("grid");
-const api = agGrid.createGrid(gridDiv, gridOptions);
-
-function getRows() {{
-  const rows = [];
-  api.forEachNode(n => rows.push(n.data));
-  return rows;
-}}
-function csvEscape(val) {{
-  const s = String(val ?? "");
-  return /[",\\n\\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}}
-function exportCSV() {{
-  const rows = getRows();
-  const cols = columnDefs.map(c => c.field);
-  const hdr = cols.map(csvEscape).join(",");
-  const body = rows.map(r => cols.map(c => csvEscape(r[c])).join(","));
-  const csv = [hdr, ...body].join("\\n");
-  download(csv, "{safe_name}.csv", "text/csv");
-}}
-function exportJSON() {{
-  download(JSON.stringify(getRows(), null, 2), "{safe_name}.json", "application/json");
-}}
-function resetData() {{
-  api.setGridOption("rowData", JSON.parse(JSON.stringify(originalData)));
-  document.getElementById("status").textContent = "Reset";
-}}
-function download(content, filename, type) {{
-  const blob = new Blob([content], {{ type }});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}}
-</script>
-</body>
-</html>"""
+    html = _build_html(name, columns_json, rows_json)
     print(_json.dumps({{"export_file": name + ".html", "format": "spreadsheet",
                         "content": _b64_mod.b64encode(html.encode()).decode()}}))
 
