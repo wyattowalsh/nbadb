@@ -7,7 +7,6 @@ import io
 import json
 import re
 import sys
-import uuid
 from pathlib import Path
 
 import chainlit as cl
@@ -366,6 +365,8 @@ async def on_export_session_notebook(action: cl.Action) -> None:
 
 def _nb_cell(cell_type: str, source: str) -> dict:
     """Build a Jupyter notebook cell dict."""
+    import uuid
+
     cell = {
         "id": uuid.uuid4().hex[:8],
         "cell_type": cell_type,
