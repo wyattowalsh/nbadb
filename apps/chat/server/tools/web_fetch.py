@@ -56,26 +56,31 @@ def web_fetch(url: str) -> str:
         return f"URL blocked: {error}"
 
     try:
-        response = httpx.get(
-            url,
-            timeout=15.0,
-            follow_redirects=False,
-            headers={"User-Agent": "nbadb-chat/1.0"},
-        )
-        # Check redirect target for SSRF bypass
-        if response.is_redirect:
-            location = response.headers.get("location", "")
-            redirect_error = _is_safe_url(location)
-            if redirect_error:
-                return f"Redirect blocked: {redirect_error}"
+        max_redirects = 3
+        for _ in range(max_redirects + 1):
             response = httpx.get(
-                location,
+                url,
                 timeout=15.0,
                 follow_redirects=False,
                 headers={"User-Agent": "nbadb-chat/1.0"},
             )
+            if not response.is_redirect:
+                break
+            location = response.headers.get("location", "")
+            redirect_error = _is_safe_url(location)
+            if redirect_error:
+                return f"Redirect blocked: {redirect_error}"
+            url = location
+        else:
+            return "Too many redirects"
+
         response.raise_for_status()
+
+        content_type = response.headers.get("content-type", "")
+        if not any(t in content_type for t in ("text/", "application/json", "application/xml")):
+            return f"Cannot extract text from content-type: {content_type.split(';')[0]}"
+
         text = extract(response.text) or response.text[:10000]
         return text[:10000]
     except httpx.HTTPError as exc:
-        return f"Failed to fetch URL: {type(exc).__name__}: {exc}"
+        return f"Failed to fetch URL: {type(exc).__name__}"

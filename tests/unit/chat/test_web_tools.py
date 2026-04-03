@@ -171,6 +171,62 @@ class TestWebFetch:
         result = web_fetch(url="http://169.254.169.254/latest/meta-data/")
         assert "blocked" in result.lower()
 
+    def test_redirect_loop_max_hops(self):
+        """Verify 'Too many redirects' when redirect chain exceeds MAX_REDIRECTS."""
+        import httpx as _real_httpx
+
+        redirect_response = MagicMock()
+        redirect_response.is_redirect = True
+        redirect_response.headers = {"location": "https://example.com/loop"}
+
+        httpx_mod = sys.modules["httpx"]
+        httpx_mod.get = MagicMock(return_value=redirect_response)
+        httpx_mod.HTTPError = (
+            _real_httpx.HTTPError if hasattr(_real_httpx, "HTTPError") else Exception
+        )
+
+        from apps.chat.server.tools.web_fetch import web_fetch
+
+        result = web_fetch(url="https://example.com/start")
+        assert result == "Too many redirects"
+
+    def test_error_message_sanitized(self):
+        """Verify internal error details are not leaked in the response."""
+        httpx_mod = sys.modules["httpx"]
+
+        class FakeHTTPError(Exception):
+            pass
+
+        httpx_mod.HTTPError = FakeHTTPError
+        httpx_mod.get = MagicMock(
+            side_effect=FakeHTTPError("Connection to 10.0.0.5:3306 refused"),
+        )
+
+        from apps.chat.server.tools.web_fetch import web_fetch
+
+        result = web_fetch(url="https://example.com/page")
+        assert "FakeHTTPError" in result
+        assert "10.0.0.5" not in result
+        assert "refused" not in result
+
+    def test_content_type_rejection(self):
+        """Verify binary content types are rejected."""
+        httpx_mod = sys.modules["httpx"]
+
+        ok_response = MagicMock()
+        ok_response.is_redirect = False
+        ok_response.raise_for_status = MagicMock()
+        ok_response.headers = {"content-type": "application/octet-stream"}
+
+        httpx_mod.get = MagicMock(return_value=ok_response)
+        httpx_mod.HTTPError = Exception
+
+        from apps.chat.server.tools.web_fetch import web_fetch
+
+        result = web_fetch(url="https://example.com/file.bin")
+        assert "Cannot extract text" in result
+        assert "application/octet-stream" in result
+
 
 # ── web_search as a plain function ─────────────────────────────────────────
 
