@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
 CHAINLIT_APP = Path(__file__).resolve().parents[3] / "apps" / "chat" / "chainlit_app.py"
+_SERVER_DIR = str(Path(__file__).resolve().parents[3] / "apps" / "chat" / "server")
+
+# Make the shared server module importable for tests.
+if _SERVER_DIR not in sys.path:
+    sys.path.insert(0, _SERVER_DIR)
 
 
 class TestBuildTemplateScript:
@@ -63,27 +69,13 @@ class TestBuildTemplateScript:
 
 
 class TestBuildSpreadsheetHtml:
-    """Test the _build_spreadsheet_html helper."""
+    """Test the build_spreadsheet_html shared template."""
 
     @pytest.fixture(autouse=True)
     def _load_helper(self):
-        source = CHAINLIT_APP.read_text()
-        start = source.index("def _build_spreadsheet_html(")
-        lines = source[start:].split("\n")
-        func_lines = []
-        for i, line in enumerate(lines):
-            if (
-                i > 0
-                and line
-                and not line[0].isspace()
-                and line.startswith(("def ", "class ", "@"))
-            ):
-                break
-            func_lines.append(line)
-        func_source = "\n".join(func_lines)
-        ns = {"json": json}
-        exec(func_source, ns)  # noqa: S102
-        self.build = ns["_build_spreadsheet_html"]
+        from _spreadsheet_template import build_spreadsheet_html
+
+        self.build = build_spreadsheet_html
 
     def test_returns_html(self):
         result = self.build("test", "[]", "[]")
@@ -110,30 +102,25 @@ class TestBuildSpreadsheetHtml:
         result = self.build("test", cols, rows)
         assert "LeBron" in result
 
+    def test_chainlit_app_delegates(self):
+        """Verify chainlit_app._build_spreadsheet_html delegates to shared module."""
+        source = CHAINLIT_APP.read_text()
+        assert "from server._spreadsheet_template import build_spreadsheet_html" in source
+
+    def test_preamble_delegates(self):
+        """Verify _preamble.py to_spreadsheet delegates to shared module."""
+        preamble = (CHAINLIT_APP.parent / "server" / "_preamble.py").read_text()
+        assert "from _spreadsheet_template import build_spreadsheet_html" in preamble
+
 
 class TestSpreadsheetHtmlXSS:
-    """Test XSS escaping in _build_spreadsheet_html."""
+    """Test XSS escaping in build_spreadsheet_html."""
 
     @pytest.fixture(autouse=True)
     def _load_helper(self):
-        source = CHAINLIT_APP.read_text()
-        start = source.index("def _build_spreadsheet_html(")
-        lines = source[start:].split("\n")
-        func_lines = []
-        for i, line in enumerate(lines):
-            if (
-                i > 0
-                and line
-                and not line[0].isspace()
-                and line.startswith(("def ", "class ", "@"))
-            ):
-                break
-            func_lines.append(line)
+        from _spreadsheet_template import build_spreadsheet_html
 
-        func_source = "\n".join(func_lines)
-        ns = {"json": json}
-        exec(func_source, ns)  # noqa: S102
-        self.build = ns["_build_spreadsheet_html"]
+        self.build = build_spreadsheet_html
 
     def test_name_js_string_escaped(self):
         # JSON encoding handles quotes, backslashes, newlines — safe for JS strings
