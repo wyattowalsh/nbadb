@@ -118,7 +118,7 @@ button[class*="starter"]:active,
 /* ── Standard scrollbar (Firefox, future browsers) ─────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.5) transparent;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.75) transparent;
 }
 
 /* ── Scrollbar styling ──────────────────────────────────────────── */
@@ -130,11 +130,11 @@ button[class*="starter"]:active,
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: hsl(var(--muted-foreground) / 0.75);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.7);
+  background: hsl(var(--muted-foreground) / 0.9);
 }
 
 /* ── Mobile-responsive tables ──────────────────────────────────── */
