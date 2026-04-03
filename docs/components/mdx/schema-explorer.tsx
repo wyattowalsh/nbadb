@@ -28,29 +28,29 @@ const FAMILY_COLORS: Record<
   { border: string; bg: string; text: string }
 > = {
   dim: {
-    border: "border-green-500",
-    bg: "bg-green-500/10",
-    text: "text-green-700 dark:text-green-400",
+    border: "var(--layer-dim)",
+    bg: "var(--layer-dim-bg)",
+    text: "var(--layer-dim)",
   },
   fact: {
-    border: "border-pink-500",
-    bg: "bg-pink-500/10",
-    text: "text-pink-700 dark:text-pink-400",
+    border: "var(--layer-fact)",
+    bg: "var(--layer-fact-bg)",
+    text: "var(--layer-fact)",
   },
   bridge: {
-    border: "border-blue-500",
-    bg: "bg-blue-500/10",
-    text: "text-blue-700 dark:text-blue-400",
+    border: "var(--layer-bridge)",
+    bg: "var(--layer-bridge-bg)",
+    text: "var(--layer-bridge)",
   },
   agg: {
-    border: "border-purple-500",
-    bg: "bg-purple-500/10",
-    text: "text-purple-700 dark:text-purple-400",
+    border: "var(--layer-agg)",
+    bg: "var(--layer-agg-bg)",
+    text: "var(--layer-agg)",
   },
   analytics: {
-    border: "border-cyan-500",
-    bg: "bg-cyan-500/10",
-    text: "text-cyan-700 dark:text-cyan-400",
+    border: "var(--layer-analytics)",
+    bg: "var(--layer-analytics-bg)",
+    text: "var(--layer-analytics)",
   },
 };
 
@@ -144,9 +144,18 @@ export function SchemaExplorer({ data }: { data: SchemaData }) {
               onClick={() => toggleFilter(f)}
               className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
                 active
-                  ? `${c.border} ${c.bg} ${c.text}`
+                  ? ""
                   : "border-border text-muted-foreground hover:border-foreground/30"
               }`}
+              style={
+                active
+                  ? {
+                      borderColor: c.border,
+                      backgroundColor: c.bg,
+                      color: c.text,
+                    }
+                  : undefined
+              }
             >
               {f}
             </button>
@@ -168,7 +177,8 @@ export function SchemaExplorer({ data }: { data: SchemaData }) {
             return (
               <div key={family}>
                 <div
-                  className={`sticky top-0 z-10 border-b border-border px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-widest ${c.bg} ${c.text}`}
+                  className="sticky top-0 z-10 border-b border-border px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-widest"
+                  style={{ backgroundColor: c.bg, color: c.text }}
                 >
                   {family}
                 </div>
@@ -228,7 +238,12 @@ function TableDetail({
       {/* header */}
       <div className="flex items-center gap-2">
         <span
-          className={`inline-block rounded-full border px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider ${c.border} ${c.bg} ${c.text}`}
+          className="inline-block rounded-full border px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider"
+          style={{
+            borderColor: c.border,
+            backgroundColor: c.bg,
+            color: c.text,
+          }}
         >
           {table.family}
         </span>
