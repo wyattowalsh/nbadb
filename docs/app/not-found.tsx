@@ -68,7 +68,7 @@ export default function NotFound() {
         <p className="mt-6 text-xs text-muted-foreground">
           If you followed a link here, please{" "}
           <a
-            href="https://github.com/wyattowalsh/nba-db/issues/new?template=bug_report.yml"
+            href="https://github.com/wyattowalsh/nbadb/issues/new?template=bug_report.yml"
             className="text-primary underline underline-offset-2 hover:text-foreground"
             target="_blank"
             rel="noopener noreferrer"

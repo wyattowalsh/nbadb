@@ -132,7 +132,7 @@ export function DocsSidebarFooter({ slug }: DocsChromeSlugProps) {
       </SearchTrigger>
       <div className="flex items-center gap-3 text-muted-foreground">
         <a
-          href="https://github.com/wyattowalsh/nba-db"
+          href="https://github.com/wyattowalsh/nbadb"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 transition-colors hover:text-foreground"

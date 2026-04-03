@@ -61,7 +61,7 @@ export function DocsFooter() {
               <span className="nba-kicker">Resources</span>
               <div className="flex flex-col gap-1.5">
                 <a
-                  href="https://github.com/wyattowalsh/nba-db"
+                  href="https://github.com/wyattowalsh/nbadb"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                   target="_blank"
                   rel="noopener noreferrer"
