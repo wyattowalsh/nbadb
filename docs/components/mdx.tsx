@@ -1,7 +1,6 @@
 import type { ComponentProps, ComponentType, ReactNode } from "react";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Mermaid } from "@/components/mdx/mermaid";
-import { SqlPlayground } from "@/components/mdx/sql-playground";
 import { Badge } from "@/components/ui/badge";
 import {
   DistributionPlot,
@@ -13,6 +12,7 @@ import {
   SchemaExplorer,
   SeasonTrend,
   ShotChart,
+  SqlPlayground,
 } from "@/components/mdx/dynamic-charts";
 
 type MDXComponentMap = Record<
@@ -218,7 +218,7 @@ const mdxComponents = {
   SchemaExplorer: asMdxComponent(SchemaExplorer),
   SeasonTrend: asMdxComponent(SeasonTrend),
   ShotChart: asMdxComponent(ShotChart),
-  SqlPlayground,
+  SqlPlayground: asMdxComponent(SqlPlayground),
   WarningCard: (props: ComponentProps<typeof AlertCard>) => (
     <AlertCard variant="warning" {...props} />
   ),
