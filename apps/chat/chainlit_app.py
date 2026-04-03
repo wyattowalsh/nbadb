@@ -15,6 +15,7 @@ from chainlit.input_widget import Select, Slider, TextInput
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from loguru import logger
 from pydantic import SecretStr
+from server._session import sanitize_session_id as _sanitize_session_id
 from server.agent import create_nba_agent
 from server.config import ChatSettings
 from server.tracing import setup_tracing
@@ -24,12 +25,6 @@ logger.remove()
 logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
 
 _KEY_REQUIRED_PROVIDERS = frozenset({"openai", "anthropic", "google", "custom", "copilot"})
-_SESSION_ID_RE = re.compile(r"[^a-zA-Z0-9_-]")
-
-
-def _sanitize_session_id(raw: str) -> str:
-    """Strip unsafe characters from session ID to prevent path traversal."""
-    return _SESSION_ID_RE.sub("", raw)[:128] or "default"
 
 
 _PUBLIC_DEMO_SETUP_MESSAGE = (

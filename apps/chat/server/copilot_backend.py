@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -110,13 +109,12 @@ def _build_tools(db_path: Path, session_id: str) -> list:
 
     from server._preamble import build_preamble
     from server._sandbox_exec import check_code_safety, run_sandboxed
+    from server._session import sanitize_session_id
 
     preamble = build_preamble(
         db_path=str(db_path),
         skills_dir=str(skills_dir),
-        session_dir=str(
-            Path("~/.nbadb/session").expanduser() / re.sub(r"[^a-zA-Z0-9_-]", "", session_id)[:128]
-        ),
+        session_dir=str(Path("~/.nbadb/session").expanduser() / sanitize_session_id(session_id)),
     )
 
     @define_tool(

@@ -36,14 +36,13 @@ def _extract_callable_source(name: str) -> str:
 
 def _load_helpers(*names: str) -> dict[str, object]:
     """Exec selected helpers from chainlit_app.py into a namespace."""
-    import re as _re
+    from apps.chat.server._session import sanitize_session_id
 
     ns: dict[str, object] = {
         "ChatSettings": ChatSettings,
         "SecretStr": SecretStr,
         # session ID sanitization used by on_chat_start / on_settings_update
-        "_SESSION_ID_RE": _re.compile(r"[^a-zA-Z0-9_-]"),
-        "_sanitize_session_id": lambda raw: _re.sub(r"[^a-zA-Z0-9_-]", "", raw)[:128] or "default",
+        "_sanitize_session_id": sanitize_session_id,
     }
     for name in names:
         exec(_extract_callable_source(name), ns)  # noqa: S102

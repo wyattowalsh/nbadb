@@ -764,7 +764,7 @@ class TestSessionIdSanitization:
     def test_sandbox_mcp_sanitizes_session_id(self):
         """sandbox.py must sanitize the session ID from CLI args."""
         content = SANDBOX_MODULE.read_text()
-        assert "re.sub" in content
+        assert "sanitize_session_id" in content
 
     def test_cleanup_guards_path_traversal(self):
         """_cleanup_session_state must check is_relative_to before rmtree."""
