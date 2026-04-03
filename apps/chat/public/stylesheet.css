@@ -2,6 +2,7 @@
 
 /* ── Tool Steps — glassmorphism card ────────────────────────────── */
 [id^="step-"] {
+  /* !important needed to override Chainlit's built-in step border */
   border-left: 3px solid hsl(var(--primary)) !important;
   padding-left: 12px;
   margin: 8px 0;
@@ -67,7 +68,9 @@ button[class*="starter"],
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 button[class*="starter"]:hover,
-[data-testid="starter"]:hover {
+button[class*="starter"]:focus-visible,
+[data-testid="starter"]:hover,
+[data-testid="starter"]:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px hsl(var(--primary) / 0.15);
 }
@@ -127,4 +130,10 @@ button[class*="starter"]:hover,
 }
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* ── Mobile-responsive tables ──────────────────────────────────── */
+@media (max-width: 640px) {
+  .dataframe { overflow-x: auto; }
+  [id^="step-"] { padding-left: 8px; }
 }

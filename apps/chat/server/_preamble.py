@@ -256,17 +256,19 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64, _html_mod=_html):
 <head>
 <meta charset="utf-8">
 <title>{safe_name} — NBA Data Spreadsheet</title>
-<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.2.4/dist/ag-grid-community.min.js"
+  onerror="document.getElementById('grid').textContent='AG Grid failed to load.'"></script>
 <style>
   body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
          padding: 16px; background: #fafafa; }}
   h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
-  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; }}
+  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }}
   .toolbar button {{
     padding: 6px 16px; border: 1px solid #ddd; border-radius: 6px;
     background: #fff; cursor: pointer; font-size: 0.875rem;
   }}
-  .toolbar button:hover {{ background: #f0f0f0; }}
+  .toolbar button:hover, .toolbar button:focus-visible {{ background: #f0f0f0; }}
   #grid {{ height: calc(100vh - 100px); width: 100%; }}
   .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
 </style>
@@ -297,12 +299,15 @@ function getRows() {{
   api.forEachNode(n => rows.push(n.data));
   return rows;
 }}
+function csvEscape(val) {{
+  const s = String(val ?? "");
+  return /[",\\n\\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}}
 function exportCSV() {{
   const rows = getRows();
   const cols = columnDefs.map(c => c.field);
-  const hdr = cols.join(",");
-  const body = rows.map(r => cols.map(c =>
-    JSON.stringify(r[c] ?? "")).join(","));
+  const hdr = cols.map(csvEscape).join(",");
+  const body = rows.map(r => cols.map(c => csvEscape(r[c])).join(","));
   const csv = [hdr, ...body].join("\\n");
   download(csv, "{safe_name}.csv", "text/csv");
 }}
@@ -319,6 +324,7 @@ function download(content, filename, type) {{
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }}
 </script>
 </body>

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import html as _html
+import io
 import json
 import re
 import sys
@@ -196,8 +198,6 @@ async def on_download_csv(action: cl.Action) -> None:
 @cl.action_callback("download_xlsx")
 async def on_download_xlsx(action: cl.Action) -> None:
     """Generate and send an XLSX file from query results."""
-    import io
-
     raw = action.payload.get("data", "{}")
     data = json.loads(raw) if isinstance(raw, str) else raw
     df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
@@ -734,9 +734,7 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
 
     # File export from sandbox helpers (to_csv, to_xlsx, to_json)
     if "export_file" in data and "content" in data:
-        import base64 as _b64
-
-        file_bytes = _b64.b64decode(data["content"])
+        file_bytes = base64.b64decode(data["content"])
         step.elements = [cl.File(name=data["export_file"], content=file_bytes, display="inline")]
         step.output = f"Exported: **{data['export_file']}**"
         if step_input:
@@ -745,8 +743,6 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
 
     # Matplotlib base64 PNG images
     if "image_base64" in data:
-        import base64
-
         img_bytes = base64.b64decode(data["image_base64"])
         step.elements = [cl.Image(name="chart", content=img_bytes, display="inline")]
         step.output = "Chart"
@@ -820,17 +816,19 @@ def _build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str
 <head>
 <meta charset="utf-8">
 <title>{safe_name} — NBA Data Spreadsheet</title>
-<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.2.4/dist/ag-grid-community.min.js"
+  onerror="document.getElementById('grid').textContent='AG Grid failed to load.'"></script>
 <style>
   body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
          padding: 16px; background: #fafafa; }}
   h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
-  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; }}
+  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }}
   .toolbar button {{
     padding: 6px 16px; border: 1px solid #ddd; border-radius: 6px;
     background: #fff; cursor: pointer; font-size: 0.875rem;
   }}
-  .toolbar button:hover {{ background: #f0f0f0; }}
+  .toolbar button:hover, .toolbar button:focus-visible {{ background: #f0f0f0; }}
   #grid {{ height: calc(100vh - 100px); width: 100%; }}
   .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
 </style>
@@ -861,12 +859,15 @@ function getRows() {{
   api.forEachNode(n => rows.push(n.data));
   return rows;
 }}
+function csvEscape(val) {{
+  const s = String(val ?? "");
+  return /[",\\n\\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}}
 function exportCSV() {{
   const rows = getRows();
   const cols = columnDefs.map(c => c.field);
-  const hdr = cols.join(",");
-  const body = rows.map(r => cols.map(c =>
-    JSON.stringify(r[c] ?? "")).join(","));
+  const hdr = cols.map(csvEscape).join(",");
+  const body = rows.map(r => cols.map(c => csvEscape(r[c])).join(","));
   const csv = [hdr, ...body].join("\\n");
   download(csv, "{safe_name}.csv", "text/csv");
 }}
@@ -883,6 +884,7 @@ function download(content, filename, type) {{
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }}
 </script>
 </body>
