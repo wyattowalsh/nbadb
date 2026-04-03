@@ -74,6 +74,11 @@ button[class*="starter"]:focus-visible,
   transform: translateY(-2px);
   box-shadow: 0 4px 12px hsl(var(--primary) / 0.15);
 }
+button[class*="starter"]:active,
+[data-testid="starter"]:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px hsl(var(--primary) / 0.1);
+}
 
 /* ── Message appearance animation ───────────────────────────────── */
 [class*="message-content"],
@@ -113,7 +118,7 @@ button[class*="starter"]:focus-visible,
 /* ── Standard scrollbar (Firefox, future browsers) ─────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.5) transparent;
 }
 
 /* ── Scrollbar styling ──────────────────────────────────────────── */
@@ -125,11 +130,11 @@ button[class*="starter"]:focus-visible,
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.5);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: hsl(var(--muted-foreground) / 0.7);
 }
 
 /* ── Mobile-responsive tables ──────────────────────────────────── */

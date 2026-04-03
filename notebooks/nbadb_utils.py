@@ -19,7 +19,7 @@ COLORS = {
     "primary": "#C8102E",
     "secondary": "#1D428A",
     "accent": "#FDB927",
-    "accent_viz": "#C99700",  # Darker gold for WCAG-compliant data viz
+    "accent_viz": "#A07B00",  # Darker gold for WCAG-compliant data viz (3.94:1 on white)
     "positive": "#00A651",
     "negative": "#C8102E",
     "neutral": "#999999",
