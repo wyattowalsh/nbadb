@@ -1,3 +1,5 @@
+import { statSync } from "node:fs";
+import { join } from "node:path";
 import { MDXContent } from "@/components/mdx";
 import {
   DocsContextRail,
@@ -10,6 +12,7 @@ import { source } from "@/lib/source";
 import { siteName, siteOrigin } from "@/lib/site-config";
 import type { ReactNode } from "react";
 import { DocsBody, DocsPage } from "fumadocs-ui/page";
+import { findNeighbour } from "fumadocs-core/page-tree";
 import { notFound } from "next/navigation";
 
 type TOCItem = {
@@ -42,6 +45,39 @@ function stripDuplicateTitleHeading(toc: TOCItem[], pageTitle: string) {
   });
 }
 
+const contentDir = join(process.cwd(), "content/docs");
+
+/**
+ * Resolve a page's file-system mtime for the "last updated" display.
+ */
+function getLastModified(page: {
+  slugs: string[];
+  absolutePath?: string;
+}): Date | undefined {
+  if (page.absolutePath) {
+    try {
+      return statSync(page.absolutePath).mtime;
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const slug = page.slugs.join("/");
+  const candidates = slug
+    ? [join(contentDir, `${slug}.mdx`), join(contentDir, slug, "index.mdx")]
+    : [join(contentDir, "index.mdx")];
+
+  for (const candidate of candidates) {
+    try {
+      return statSync(candidate).mtime;
+    } catch {
+      /* try next candidate */
+    }
+  }
+
+  return undefined;
+}
+
 export default async function Page(props: {
   params: Promise<{ slug?: string[] }>;
 }) {
@@ -55,8 +91,22 @@ export default async function Page(props: {
     page.data.title,
   );
 
+  const neighbours = findNeighbour(source.pageTree, page.url);
+  const lastModified = getLastModified(page);
+
   return (
-    <DocsPage toc={toc} full={page.data.full}>
+    <DocsPage
+      toc={toc}
+      full={page.data.full}
+      footer={{ items: neighbours }}
+      editOnGithub={{
+        owner: "wyattowalsh",
+        repo: "nba-db",
+        sha: "main",
+        path: `docs/content/docs/${page.path}`,
+      }}
+      lastUpdate={lastModified}
+    >
       <div className="nba-docs-page">
         <DocsPageHero
           slug={params.slug}
