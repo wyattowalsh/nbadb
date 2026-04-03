@@ -11,6 +11,16 @@ import {
 
 export type { PlotOptions } from "@/components/mdx/plot-mount";
 
+/** Read a CSS custom property value at render time (client-only). */
+function getCSSVar(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
+  return (
+    getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim() || fallback
+  );
+}
+
 /**
  * Generic Observable Plot wrapper for MDX.
  *
@@ -51,7 +61,7 @@ export function ObservablePlot({
           </div>
         </div>
       ) : null}
-      <PlotMount createPlot={createPlot} className="overflow-x-auto px-2 py-3" />
+      <PlotMount createPlot={createPlot} className="overflow-x-auto px-2 py-3" ariaLabel={title} />
     </div>
   );
 }
@@ -102,7 +112,10 @@ export function ShotChart({
       Plot.dot(data, {
         x: "loc_x",
         y: "loc_y",
-        fill: (d: { made?: boolean }) => (d.made ? "#00A651" : "#C8102E"),
+        fill: (d: { made?: boolean }) =>
+          d.made
+            ? getCSSVar("--chart-made", "#00A651")
+            : getCSSVar("--chart-missed", "#C8102E"),
         fillOpacity: 0.5,
         r: 3,
         tip: true,
@@ -155,11 +168,14 @@ export function GameFlow({
     y: { label: "Score Differential", grid: true },
     x: { label: "Game Time" },
     marks: [
-      Plot.ruleY([0], { stroke: "#999", strokeDasharray: "4,4" }),
+      Plot.ruleY([0], {
+        stroke: getCSSVar("--chart-rule", "#999"),
+        strokeDasharray: "4,4",
+      }),
       Plot.line(data, {
         x: "time",
         y: "score_diff",
-        stroke: "#1D428A",
+        stroke: getCSSVar("--chart-nba-blue", "#1D428A"),
         strokeWidth: 2,
         tip: true,
       }),
@@ -167,7 +183,9 @@ export function GameFlow({
         x: "time",
         y: "score_diff",
         fill: (d: { score_diff: number }) =>
-          d.score_diff >= 0 ? "#00A65120" : "#C8102E20",
+          d.score_diff >= 0
+            ? getCSSVar("--chart-made", "#00A651") + "20"
+            : getCSSVar("--chart-missed", "#C8102E") + "20",
       }),
     ],
   };
@@ -251,7 +269,9 @@ export function SeasonTrend({
       Plot.line(data, {
         x: "season",
         y: "value",
-        ...(hasGroup ? { stroke: "group" } : { stroke: "#1D428A" }),
+        ...(hasGroup
+          ? { stroke: "group" }
+          : { stroke: getCSSVar("--chart-nba-blue", "#1D428A") }),
         strokeWidth: 2,
         marker: "circle",
         tip: true,
@@ -266,7 +286,7 @@ export function SeasonTrend({
  * Pre-configured histogram for stat distributions.
  *
  * When a `group` field is present the histogram is stacked by group.
- * Otherwise all bars use NBA blue (#1D428A).
+ * Otherwise all bars use the chart NBA-blue token.
  */
 export function DistributionPlot({
   data,
@@ -299,7 +319,7 @@ export function DistributionPlot({
         data,
         Plot.binX({ y: "count" }, {
           x: "value",
-          fill: hasGroup ? "group" : "#1D428A",
+          fill: hasGroup ? "group" : getCSSVar("--chart-nba-blue", "#1D428A"),
           thresholds: bins,
         } as Record<string, unknown>),
       ),

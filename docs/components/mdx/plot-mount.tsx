@@ -28,9 +28,11 @@ export function withDefaultPlotStyle(options: PlotOptions): PlotOptions {
 export function PlotMount({
   createPlot,
   className,
+  ariaLabel,
 }: {
   createPlot: () => PlotElement | null;
   className: string;
+  ariaLabel?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -45,5 +47,12 @@ export function PlotMount({
     return () => plot.remove();
   }, [createPlot]);
 
-  return <div ref={containerRef} className={className} />;
+  return (
+    <div
+      ref={containerRef}
+      className={className}
+      role={ariaLabel ? "img" : undefined}
+      aria-label={ariaLabel}
+    />
+  );
 }
