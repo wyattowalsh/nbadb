@@ -36,7 +36,15 @@ def _extract_callable_source(name: str) -> str:
 
 def _load_helpers(*names: str) -> dict[str, object]:
     """Exec selected helpers from chainlit_app.py into a namespace."""
-    ns: dict[str, object] = {"ChatSettings": ChatSettings, "SecretStr": SecretStr}
+    import re as _re
+
+    ns: dict[str, object] = {
+        "ChatSettings": ChatSettings,
+        "SecretStr": SecretStr,
+        # session ID sanitization used by on_chat_start / on_settings_update
+        "_SESSION_ID_RE": _re.compile(r"[^a-zA-Z0-9_-]"),
+        "_sanitize_session_id": lambda raw: _re.sub(r"[^a-zA-Z0-9_-]", "", raw)[:128] or "default",
+    }
     for name in names:
         exec(_extract_callable_source(name), ns)  # noqa: S102
     return ns
@@ -117,7 +125,9 @@ class TestCleanupSessionState:
 
     @pytest.fixture(autouse=True)
     def _load_helper(self) -> None:
-        ns: dict[str, object] = {"Path": Path}
+        from loguru import logger
+
+        ns: dict[str, object] = {"Path": Path, "logger": logger}
         exec(_extract_callable_source("_cleanup_session_state"), ns)  # noqa: S102
         self.cleanup = ns["_cleanup_session_state"]
 
