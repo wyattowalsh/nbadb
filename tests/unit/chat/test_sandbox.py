@@ -760,3 +760,23 @@ class TestProcessIsolation:
         """The shared module uses start_new_session=True."""
         content = SANDBOX_EXEC_MODULE.read_text()
         assert "start_new_session=True" in content
+
+    def test_no_preexec_fn(self):
+        """preexec_fn is NOT used (deprecated and conflicts with start_new_session)."""
+        content = SANDBOX_EXEC_MODULE.read_text()
+        assert "preexec_fn" not in content
+
+    def test_resource_limits_code_constant_exists(self):
+        """_RESOURCE_LIMITS_CODE string constant exists in the module."""
+        content = SANDBOX_EXEC_MODULE.read_text()
+        assert "_RESOURCE_LIMITS_CODE" in content
+
+    def test_resource_limits_code_contains_rlimit_cpu(self):
+        """Resource limits include RLIMIT_CPU."""
+        content = SANDBOX_EXEC_MODULE.read_text()
+        assert "RLIMIT_CPU" in content
+
+    def test_resource_limits_code_contains_rlimit_nproc(self):
+        """Resource limits include RLIMIT_NPROC to prevent forking."""
+        content = SANDBOX_EXEC_MODULE.read_text()
+        assert "RLIMIT_NPROC" in content

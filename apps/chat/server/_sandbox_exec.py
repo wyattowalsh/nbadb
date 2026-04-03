@@ -303,16 +303,19 @@ def build_clean_env() -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def _set_resource_limits() -> None:
-    """Set resource limits for the sandbox subprocess (best-effort)."""
-    import resource
-
-    # 512 MB virtual memory
-    with contextlib.suppress(ValueError, OSError):
-        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
-    # 10 MB max file size
-    with contextlib.suppress(ValueError, OSError):
-        resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
+_RESOURCE_LIMITS_CODE = """\
+import contextlib as _ctx, resource as _res
+with _ctx.suppress(ValueError, OSError):
+    _res.setrlimit(_res.RLIMIT_AS, (536870912, 536870912))  # 512 MB
+with _ctx.suppress(ValueError, OSError):
+    _res.setrlimit(_res.RLIMIT_FSIZE, (10485760, 10485760))  # 10 MB
+with _ctx.suppress(ValueError, OSError):
+    _res.setrlimit(_res.RLIMIT_CPU, (65, 65))  # 65s (slightly above 60s timeout)
+# Note: RLIMIT_AS and RLIMIT_NPROC may not be enforced on macOS
+with _ctx.suppress(ValueError, OSError):
+    _res.setrlimit(_res.RLIMIT_NPROC, (0, 0))  # No forking
+del _ctx, _res
+"""
 
 
 def run_sandboxed(
@@ -333,7 +336,7 @@ def run_sandboxed(
             mode="w",
             delete=False,
         ) as f:
-            f.write(full_code)
+            f.write(_RESOURCE_LIMITS_CODE + full_code)
             script_path = f.name
 
         # Restrict file permissions (HR-9)
@@ -349,7 +352,6 @@ def run_sandboxed(
             cwd=str(cwd),
             env=clean_env,
             start_new_session=True,
-            preexec_fn=_set_resource_limits,
         )
 
         stdout = result.stdout.strip()
