@@ -370,27 +370,77 @@ def run_sandboxed(
                 os.unlink(script_path)
 
 
-def _parse_structured_output(stdout: str, stderr: str) -> dict:
-    """Detect structured output (Plotly, DataFrame, image) in *stdout*."""
-    if stdout:
-        last_line = stdout.rstrip().rsplit("\n", 1)[-1]
+def _classify_output(parsed: dict) -> dict | None:
+    """Classify a parsed JSON dict as a known structured output type."""
+    # Matplotlib base64 PNG
+    if "image_base64" in parsed and "format" in parsed:
+        return {"_type": "matplotlib", "_raw": json.dumps(parsed)}
+    # Plotly figure
+    if "data" in parsed and "layout" in parsed:
+        return {"_type": "plotly", "_raw": json.dumps(parsed)}
+    # DataFrame (split orient)
+    if "columns" in parsed and "data" in parsed:
+        columns = parsed["columns"]
+        rows = parsed["data"]
+        return {
+            "_type": "dataframe",
+            "columns": columns,
+            "rows": rows,
+            "row_count": len(rows),
+        }
+    # Export / embed / spreadsheet / social / thread
+    if "format" in parsed and "content" in parsed:
+        return {"_type": parsed["format"], "_raw": json.dumps(parsed)}
+    return None
+
+
+def _parse_all_structured_outputs(stdout: str) -> tuple[list[dict], str]:
+    """Scan all stdout lines for structured JSON outputs.
+
+    Returns (results, plain_text) where results is a list of classified
+    outputs and plain_text is the remaining non-structured text.
+    """
+    results: list[dict] = []
+    plain_lines: list[str] = []
+    for line in stdout.strip().splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
         try:
-            parsed = json.loads(last_line)
+            parsed = json.loads(stripped)
             if isinstance(parsed, dict):
-                # Matplotlib base64 PNG
-                if "image_base64" in parsed and "format" in parsed:
-                    return {"_raw": last_line}
-                # Plotly figure
-                if "data" in parsed and "layout" in parsed:
-                    return {"_raw": last_line}
-                # DataFrame (split orient)
-                if "columns" in parsed and "data" in parsed:
-                    return {
-                        "columns": parsed["columns"],
-                        "rows": parsed["data"],
-                        "row_count": len(parsed["data"]),
-                    }
+                result = _classify_output(parsed)
+                if result is not None:
+                    results.append(result)
+                    continue
         except json.JSONDecodeError:
             pass
+        plain_lines.append(line)
+    return results, "\n".join(plain_lines)
 
-    return {"stdout": stdout, "stderr": stderr}
+
+def _parse_structured_output(stdout: str, stderr: str) -> dict:
+    """Detect structured output (Plotly, DataFrame, image) in *stdout*.
+
+    Supports multiple structured outputs from a single execution.
+    When multiple outputs are found, returns ``{"_multi": [...]}``
+    so the rendering layer can display all of them.
+    """
+    if not stdout:
+        return {"stdout": stdout, "stderr": stderr}
+
+    results, plain_text = _parse_all_structured_outputs(stdout)
+
+    if len(results) == 0:
+        return {"stdout": stdout, "stderr": stderr}
+
+    if len(results) == 1:
+        # Backward-compatible: single result without _multi wrapper
+        single = results[0]
+        # Preserve legacy format for _raw results
+        if "_raw" in single:
+            return {"_raw": single["_raw"]}
+        return single
+
+    # Multiple results
+    return {"_multi": results, "stdout": plain_text, "stderr": stderr}

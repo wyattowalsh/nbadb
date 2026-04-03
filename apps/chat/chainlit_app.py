@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import html as _html
 import io
 import json
 import re
@@ -459,6 +458,31 @@ async def _send_settings_panel(settings: ChatSettings) -> None:
     ).send()
 
 
+_gc_ran = False
+
+
+def _gc_old_sessions(session_root: Path | None = None, max_age_hours: int = 24) -> None:
+    """Remove session directories older than max_age_hours. Runs once per process."""
+    global _gc_ran
+    if _gc_ran:
+        return
+    _gc_ran = True
+    import shutil
+    import time
+
+    root = session_root or (Path.home() / ".nbadb" / "session")
+    if not root.exists():
+        return
+    cutoff = time.time() - max_age_hours * 3600
+    for d in root.iterdir():
+        if d.is_dir():
+            try:
+                if d.stat().st_mtime < cutoff:
+                    shutil.rmtree(d, ignore_errors=True)
+            except OSError:
+                pass
+
+
 def _cleanup_session_state(
     session_id: str | None = None,
     session_root: Path | None = None,
@@ -490,6 +514,7 @@ async def on_chat_start() -> None:
     """Initialize the agent when a new chat session starts."""
     session_id = _sanitize_session_id(str(cl.user_session.get("id") or "default"))
     cl.user_session.set("session_id", session_id)
+    _gc_old_sessions()
 
     # Adjust settings based on selected profile
     profile = cl.user_session.get("chat_profile")
@@ -651,6 +676,44 @@ async def on_message(msg: cl.Message) -> None:
 # -- Tool result rendering ------------------------------------------------------
 
 
+async def _render_single_output(data: dict, step: cl.Step) -> None:
+    """Render a single structured output from multi-output sandbox execution."""
+    output_type = data.get("_type", "")
+
+    if output_type == "dataframe" and "columns" in data and "rows" in data:
+        df = pd.DataFrame(data["rows"], columns=data["columns"])
+        el = cl.Dataframe(name="result", data=df, display="inline")
+        step.elements = list(step.elements or []) + [el]
+
+    elif output_type in ("matplotlib", "plotly") and "_raw" in data:
+        parsed = json.loads(data["_raw"])
+        if output_type == "matplotlib" and "image_base64" in parsed:
+            img_bytes = base64.b64decode(parsed["image_base64"])
+            el = cl.Image(name="chart", content=img_bytes, display="inline")
+            step.elements = list(step.elements or []) + [el]
+        elif output_type == "plotly":
+            import plotly.io as pio
+
+            fig = pio.from_json(data["_raw"])
+            buf = io.BytesIO()
+            fig.write_image(buf, format="png", scale=2)
+            buf.seek(0)
+            el = cl.Image(name="chart", content=buf.read(), display="inline")
+            step.elements = list(step.elements or []) + [el]
+
+    elif "_raw" in data:
+        # Export-type outputs (embed, spreadsheet, social, thread)
+        parsed = json.loads(data["_raw"])
+        if "content" in parsed and "export_file" in parsed:
+            file_bytes = base64.b64decode(parsed["content"])
+            el = cl.File(
+                name=parsed["export_file"],
+                content=file_bytes,
+                display="inline",
+            )
+            step.elements = list(step.elements or []) + [el]
+
+
 async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
     """Render tool results into the already-open Chainlit step."""
     content = message.content
@@ -666,6 +729,12 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
 
     if not isinstance(data, dict):
         step.output = json.dumps(data, indent=2, default=str)
+        return
+
+    # Multi-output: render each structured result in sequence
+    if "_multi" in data:
+        for sub in data["_multi"]:
+            await _render_single_output(sub, step)
         return
 
     # Extract code from step input for Copy Code / session tracking
@@ -821,7 +890,8 @@ def _track_code(code: str, tool: str, lang: str) -> None:
 
 def _build_spreadsheet_html(name: str, columns_json: str, rows_json: str) -> str:
     """Generate a self-contained HTML file with an AG Grid editable spreadsheet."""
-    safe_name = _html.escape(name)
+    # JSON-encode then strip quotes — safe for JS string literals
+    safe_name = json.dumps(name)[1:-1]
     safe_rows = rows_json.replace("</", "<\\/")
     safe_cols = columns_json.replace("</", "<\\/")
     return f"""<!DOCTYPE html>

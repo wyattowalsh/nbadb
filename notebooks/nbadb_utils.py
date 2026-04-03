@@ -80,19 +80,29 @@ DB_PATHS = [
 ]
 
 
+_conn: duckdb.DuckDBPyConnection | None = None
+
+
 def get_connection(read_only: bool = True) -> duckdb.DuckDBPyConnection:
     """Open a DuckDB connection with Kaggle/local path fallback.
 
-    The connection is registered with ``atexit`` for automatic cleanup.
+    The connection is cached and registered with ``atexit`` for automatic cleanup.
     Callers should **not** call ``conn.close()`` manually.
     """
+    global _conn
+    if _conn is not None:
+        try:
+            _conn.execute("SELECT 1")
+            return _conn
+        except Exception:
+            _conn = None
     db_path = next((p for p in DB_PATHS if p.exists()), None)
     if db_path is None:
         raise FileNotFoundError(f"NBA database not found. Searched: {[str(p) for p in DB_PATHS]}")
-    conn = duckdb.connect(str(db_path), read_only=read_only)
-    atexit.register(conn.close)
+    _conn = duckdb.connect(str(db_path), read_only=read_only)
+    atexit.register(_conn.close)
     print(f"Connected to {db_path}")
-    return conn
+    return _conn
 
 
 # ---------------------------------------------------------------------------

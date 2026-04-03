@@ -188,6 +188,7 @@ async def test_public_demo_chat_start_shows_settings_and_skips_initial_agent(
                 {"openai", "anthropic", "google", "custom", "copilot"}
             ),
             "_PUBLIC_DEMO_SETUP_MESSAGE": public_msg,
+            "_gc_old_sessions": lambda **kwargs: None,
         }
     )
 

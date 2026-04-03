@@ -753,6 +753,76 @@ class TestSessionIdSanitization:
         assert ".." not in result
 
 
+class TestMultiOutput:
+    """Test multi-output sandbox rendering support."""
+
+    @pytest.fixture(autouse=True)
+    def _load_parser(self):
+        mod = _load_module(SANDBOX_EXEC_MODULE, "_sandbox_exec_multi")
+        self.parse = mod._parse_structured_output
+        self.parse_all = mod._parse_all_structured_outputs
+        self.classify = mod._classify_output
+
+    def test_single_dataframe_backward_compatible(self):
+        """Single DataFrame output returns legacy format (no _multi wrapper)."""
+        stdout = '{"columns": ["a", "b"], "data": [[1, 2], [3, 4]]}'
+        result = self.parse(stdout, "")
+        assert "columns" in result
+        assert result["columns"] == ["a", "b"]
+        assert "_multi" not in result
+
+    def test_single_plotly_backward_compatible(self):
+        """Single Plotly output returns legacy _raw format."""
+        stdout = '{"data": [{"x": [1]}], "layout": {"title": "test"}}'
+        result = self.parse(stdout, "")
+        assert "_raw" in result
+        assert "_multi" not in result
+
+    def test_multi_output_table_and_chart(self):
+        """Multiple structured outputs return _multi list."""
+        table_line = '{"columns": ["x"], "data": [[1], [2]]}'
+        chart_line = '{"data": [{"x": [1]}], "layout": {"title": "t"}}'
+        stdout = f"{table_line}\n{chart_line}"
+        result = self.parse(stdout, "")
+        assert "_multi" in result
+        assert len(result["_multi"]) == 2
+        assert result["_multi"][0]["_type"] == "dataframe"
+        assert result["_multi"][1]["_type"] == "plotly"
+
+    def test_multi_output_preserves_plain_text(self):
+        """Non-JSON lines are preserved as plain text."""
+        stdout = 'Hello world\n{"columns": ["x"], "data": [[1]]}\nDone'
+        result = self.parse(stdout, "")
+        # Single structured output → no _multi
+        assert "columns" in result
+        # But if we test parse_all directly:
+        results, plain = self.parse_all(stdout)
+        assert len(results) == 1
+        assert "Hello world" in plain
+        assert "Done" in plain
+
+    def test_classify_matplotlib(self):
+        """Matplotlib output is correctly classified."""
+        parsed = {"image_base64": "abc", "format": "png"}
+        result = self.classify(parsed)
+        assert result["_type"] == "matplotlib"
+
+    def test_classify_export(self):
+        """Export outputs (csv, embed, etc.) are correctly classified."""
+        parsed = {"format": "csv", "content": "base64data", "export_file": "out.csv"}
+        result = self.classify(parsed)
+        assert result["_type"] == "csv"
+
+    def test_classify_unknown_returns_none(self):
+        """Unknown dict structure returns None."""
+        assert self.classify({"random": "stuff"}) is None
+
+    def test_empty_stdout(self):
+        """Empty stdout returns plain stdout/stderr dict."""
+        result = self.parse("", "some warning")
+        assert result == {"stdout": "", "stderr": "some warning"}
+
+
 class TestProcessIsolation:
     """Test that the shared module uses process group isolation."""
 
