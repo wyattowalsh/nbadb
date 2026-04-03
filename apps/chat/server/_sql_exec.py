@@ -47,7 +47,7 @@ def execute_safe_sql(
                 "row_count": len(rows),
                 "sql": query,
             }
-    except duckdb.Error as exc:
+    except (duckdb.Error, OSError) as exc:
         return {"error": f"Query failed: {type(exc).__name__}"}
 
 

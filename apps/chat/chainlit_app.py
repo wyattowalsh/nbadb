@@ -7,6 +7,7 @@ import io
 import json
 import re
 import sys
+import uuid
 from pathlib import Path
 
 import chainlit as cl
@@ -366,6 +367,7 @@ async def on_export_session_notebook(action: cl.Action) -> None:
 def _nb_cell(cell_type: str, source: str) -> dict:
     """Build a Jupyter notebook cell dict."""
     cell = {
+        "id": uuid.uuid4().hex[:8],
         "cell_type": cell_type,
         "metadata": {},
         "source": [line + "\n" for line in source.splitlines()],
@@ -553,7 +555,9 @@ def _gc_old_sessions(session_root: Path | None = None, max_age_hours: int = 24) 
         return
     cutoff = time.time() - max_age_hours * 3600
     for d in root.iterdir():
-        if d.is_dir():
+        if d.is_symlink():
+            d.unlink()  # Remove symlink itself, don't follow
+        elif d.is_dir():
             try:
                 if d.stat().st_mtime < cutoff:
                     shutil.rmtree(d, ignore_errors=True)
