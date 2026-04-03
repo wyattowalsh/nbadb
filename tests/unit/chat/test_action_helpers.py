@@ -253,3 +253,43 @@ class TestTrackCode:
     def test_track_code_appends(self):
         content = CHAINLIT_APP.read_text()
         assert "code_log.append(" in content
+
+
+class TestNotebookExport:
+    """Test the _nb_cell helper and notebook export structure."""
+
+    @pytest.fixture(autouse=True)
+    def _load_helper(self):
+        source = CHAINLIT_APP.read_text()
+        start = source.index("def _nb_cell(")
+        lines = source[start:].split("\n")
+        func_lines = []
+        for i, line in enumerate(lines):
+            if i > 0 and line and not line[0].isspace() and not line.startswith("#"):
+                break
+            func_lines.append(line)
+        ns: dict = {}
+        exec("\n".join(func_lines), ns)  # noqa: S102
+        self.nb_cell = ns["_nb_cell"]
+
+    def test_markdown_cell_structure(self):
+        cell = self.nb_cell("markdown", "# Hello")
+        assert cell["cell_type"] == "markdown"
+        assert cell["source"] == ["# Hello\n"]
+        assert "execution_count" not in cell
+
+    def test_code_cell_structure(self):
+        cell = self.nb_cell("code", "x = 1\ny = 2")
+        assert cell["cell_type"] == "code"
+        assert cell["source"] == ["x = 1\n", "y = 2\n"]
+        assert cell["execution_count"] is None
+        assert cell["outputs"] == []
+
+    def test_notebook_export_callback_exists(self):
+        content = CHAINLIT_APP.read_text()
+        assert "export_session_notebook" in content
+        assert "nbformat" in content
+
+    def test_export_button_added(self):
+        content = CHAINLIT_APP.read_text()
+        assert "Export as Notebook" in content

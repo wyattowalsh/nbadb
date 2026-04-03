@@ -190,11 +190,22 @@ async def on_copy_code(action: cl.Action) -> None:
     await action.remove()
 
 
+def _get_export_data(action: cl.Action) -> dict | None:
+    """Retrieve export data from session using the action's ref payload."""
+    ref = action.payload.get("ref", "")
+    data_payload = cl.user_session.get(f"export_{ref}")
+    if not data_payload:
+        return None
+    return json.loads(data_payload) if isinstance(data_payload, str) else data_payload
+
+
 @cl.action_callback("download_csv")
 async def on_download_csv(action: cl.Action) -> None:
     """Generate and send a CSV file from query results."""
-    raw = action.payload.get("data", "{}")
-    data = json.loads(raw) if isinstance(raw, str) else raw
+    data = _get_export_data(action)
+    if not data:
+        await cl.Message(content="Export data expired. Please re-run the query.").send()
+        return
     df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
     csv_bytes = df.to_csv(index=False).encode()
     elements = [cl.File(name="query_result.csv", content=csv_bytes, display="inline")]
@@ -205,8 +216,10 @@ async def on_download_csv(action: cl.Action) -> None:
 @cl.action_callback("download_xlsx")
 async def on_download_xlsx(action: cl.Action) -> None:
     """Generate and send an XLSX file from query results."""
-    raw = action.payload.get("data", "{}")
-    data = json.loads(raw) if isinstance(raw, str) else raw
+    data = _get_export_data(action)
+    if not data:
+        await cl.Message(content="Export data expired. Please re-run the query.").send()
+        return
     df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
     buf = io.BytesIO()
     df.to_excel(buf, index=False, engine="openpyxl")
@@ -218,8 +231,10 @@ async def on_download_xlsx(action: cl.Action) -> None:
 @cl.action_callback("download_json")
 async def on_download_json(action: cl.Action) -> None:
     """Generate and send a JSON file from query results."""
-    raw = action.payload.get("data", "{}")
-    data = json.loads(raw) if isinstance(raw, str) else raw
+    data = _get_export_data(action)
+    if not data:
+        await cl.Message(content="Export data expired. Please re-run the query.").send()
+        return
     df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
     json_str = df.to_json(orient="records", indent=2) or "[]"
     json_bytes = json_str.encode()
@@ -231,8 +246,10 @@ async def on_download_json(action: cl.Action) -> None:
 @cl.action_callback("edit_spreadsheet")
 async def on_edit_spreadsheet(action: cl.Action) -> None:
     """Generate an editable HTML spreadsheet from query results."""
-    raw = action.payload.get("data", "{}")
-    data = json.loads(raw) if isinstance(raw, str) else raw
+    data = _get_export_data(action)
+    if not data:
+        await cl.Message(content="Export data expired. Please re-run the query.").send()
+        return
     df = pd.DataFrame(data.get("rows", []), columns=data.get("columns", []))
 
     # Generate AG Grid HTML spreadsheet
@@ -296,6 +313,72 @@ async def on_export_session_code(action: cl.Action) -> None:
     script = "\n".join(lines)
     elements = [cl.File(name="session_code.py", content=script.encode(), display="inline")]
     await cl.Message(content="Exported session code:", elements=elements).send()
+
+
+@cl.action_callback("export_session_notebook")
+async def on_export_session_notebook(action: cl.Action) -> None:
+    """Export all code from the session as a Jupyter notebook (.ipynb)."""
+    code_log: list[dict] = cl.user_session.get("code_log") or []
+    if not code_log:
+        await cl.Message(content="No code has been executed in this session yet.").send()
+        return
+
+    cells = [
+        _nb_cell(
+            "markdown",
+            "# NBA Data Analytics — Session Export\n\n"
+            "Auto-generated notebook from your nbadb chat session.\n\n"
+            "**Setup:** Run the first cell to connect to the database.",
+        ),
+        _nb_cell(
+            "code",
+            "import pandas as pd\nimport numpy as np\nimport duckdb\n"
+            "import plotly.express as px\nimport plotly.graph_objects as go\n\n"
+            "# Connect to database (update path as needed)\n"
+            'conn = duckdb.connect("~/.nbadb/data/nba.duckdb", read_only=True)\n\n'
+            "def query(sql: str) -> pd.DataFrame:\n"
+            '    """Run SQL and return a DataFrame."""\n'
+            "    return conn.execute(sql).fetchdf()",
+        ),
+    ]
+
+    for i, entry in enumerate(code_log, 1):
+        cells.append(_nb_cell("markdown", f"## Step {i}: {entry['tool']}"))
+        if entry["lang"] == "sql":
+            cells.append(_nb_cell("code", f"df_{i} = query({entry['code']!r})\ndf_{i}"))
+        else:
+            cells.append(_nb_cell("code", entry["code"]))
+
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3",
+            },
+            "language_info": {"name": "python", "version": "3.12.0"},
+        },
+        "cells": cells,
+    }
+
+    nb_bytes = json.dumps(notebook, indent=1).encode()
+    elements = [cl.File(name="session_analysis.ipynb", content=nb_bytes, display="inline")]
+    await cl.Message(content="Exported session as Jupyter notebook:", elements=elements).send()
+
+
+def _nb_cell(cell_type: str, source: str) -> dict:
+    """Build a Jupyter notebook cell dict."""
+    cell = {
+        "cell_type": cell_type,
+        "metadata": {},
+        "source": [line + "\n" for line in source.splitlines()],
+    }
+    if cell_type == "code":
+        cell["execution_count"] = None
+        cell["outputs"] = []
+    return cell
 
 
 @cl.action_callback("save_template")
@@ -771,15 +854,19 @@ async def _render_tool_result(message: ToolMessage, step: cl.Step) -> None:
         payload_rows = data["rows"][:100]
         data_payload = json.dumps({"columns": data["columns"], "rows": payload_rows}, default=str)
 
+        # Store payload once in session; actions carry only a lightweight ref
+        export_key = f"export_{step.id}"
+        cl.user_session.set(export_key, data_payload)
+
         step.actions = [
             cl.Action(name="copy_sql", label="Copy SQL", payload={"sql": sql}),
-            cl.Action(name="download_csv", label="CSV", payload={"data": data_payload}),
-            cl.Action(name="download_xlsx", label="XLSX", payload={"data": data_payload}),
-            cl.Action(name="download_json", label="JSON", payload={"data": data_payload}),
+            cl.Action(name="download_csv", label="CSV", payload={"ref": step.id}),
+            cl.Action(name="download_xlsx", label="XLSX", payload={"ref": step.id}),
+            cl.Action(name="download_json", label="JSON", payload={"ref": step.id}),
             cl.Action(
                 name="edit_spreadsheet",
                 label="Edit as Spreadsheet",
-                payload={"data": data_payload},
+                payload={"ref": step.id},
             ),
         ]
         if sql:
@@ -873,6 +960,11 @@ def _add_code_actions(step: cl.Step, code: str, tool_name: str) -> None:
             cl.Action(
                 name="export_session_code",
                 label="Export All Code",
+                payload={},
+            ),
+            cl.Action(
+                name="export_session_notebook",
+                label="Export as Notebook",
                 payload={},
             ),
         ]
