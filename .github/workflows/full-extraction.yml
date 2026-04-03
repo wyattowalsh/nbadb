@@ -467,6 +467,7 @@ jobs:
 
           echo "::notice::Some shards incomplete — triggering iteration $next/$max (chain $CHAIN_ID)"
           gh workflow run full-extraction.yml \
+            --repo "${{ github.repository }}" \
             --ref "$WORKFLOW_REF" \
             -f concurrency="$CONCURRENCY" \
             -f iteration="$next" \
