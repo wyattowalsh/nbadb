@@ -178,9 +178,12 @@ def to_embed(fig, title="", _json=json, _b64_mod=_b64):
     import plotly.io as _pio
     html = _pio.to_html(fig, full_html=False, include_plotlyjs="cdn")
     if title:
-        html = f"<h3>{title}</h3>\\n" + html
+        html = f"<h3>{_html.escape(title)}</h3>\\n" + html
     full = f"<div class='nbadb-embed'>\\n{html}\\n</div>"
-    print(_json.dumps({"export_file": (title or "chart") + ".html",
+    import re as _re_embed
+    _safe_fn = _re_embed.sub(r'[^\\w\\s-]', '', title or "chart").strip()[:50] or "chart"
+    del _re_embed
+    print(_json.dumps({"export_file": _safe_fn + ".html",
                        "format": "embed",
                        "content": _b64_mod.b64encode(
                            full.encode()).decode()}))
@@ -338,6 +341,7 @@ del _safe_sql
 del _SafeConn
 del _patched_show
 del _save_last_result
+del _LAST_RESULT_PATH
 '''
 
 
