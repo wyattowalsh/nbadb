@@ -1141,7 +1141,7 @@ kbd {
 .nba-docs-page :where(pre, .shiki) {
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border);
-  border-left: 3px solid oklch(0.66 0.2 45 / 0.15);
+  border-left: 3px solid color-mix(in oklch, var(--primary) 15%, transparent);
   background: color-mix(in oklch, var(--card) 96%, transparent);
 }
 
@@ -1392,14 +1392,14 @@ kbd {
 
 /* ── Card hover accent ────────────────────────────── */
 .nba-home-shell a[class*="bg-card"] {
-  border-left: 3px solid transparent;
+  box-shadow: inset 3px 0 0 transparent;
   transition:
-    border-color 200ms,
+    box-shadow 200ms,
     background-color 200ms;
 }
 
 .nba-home-shell a[class*="bg-card"]:hover {
-  border-left-color: var(--primary);
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 /* ── Button glow ──────────────────────────────────── */
@@ -1452,7 +1452,7 @@ kbd {
   background:
     radial-gradient(
       circle at top right,
-      color-mix(in oklch, var(--primary) 12%, transparent),
+      color-mix(in oklch, var(--section-accent, var(--primary)) 12%, transparent),
       transparent 38%
     ),
     linear-gradient(

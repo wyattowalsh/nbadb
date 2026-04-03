@@ -68,7 +68,7 @@ export function DocsSidebarBanner({ slug }: DocsChromeSlugProps) {
   return (
     <div
       className="nba-sidebar-banner border border-border bg-card p-3"
-      style={{ borderLeftWidth: 3, borderLeftColor: accentColor }}
+      style={{ borderLeftWidth: 3, borderLeftColor: accentColor, "--section-accent": accentColor } as Record<string, string | number>}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
