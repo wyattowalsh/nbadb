@@ -87,6 +87,9 @@ export interface DictionaryEntry {
 const TH_CLASS =
   "px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground";
 
+const TR_CLASS =
+  "border-b border-border/50 transition-colors duration-150 even:bg-muted hover:bg-[color-mix(in_oklch,var(--primary)_6%,transparent)]";
+
 /* ── Schema Reference ─────────────────────────────────── */
 
 function SchemaEntryView({ entry }: { entry: SchemaEntry }) {
@@ -118,7 +121,7 @@ function SchemaEntryView({ entry }: { entry: SchemaEntry }) {
           </thead>
           <tbody>
             {entry.columns.map((col) => (
-              <tr key={col.name} className="border-b border-border/50">
+              <tr key={col.name} className={TR_CLASS}>
                 <td className="px-2 py-1"><code>{col.name}</code></td>
                 <td className="px-2 py-1"><code>{col.type}</code></td>
                 <td className="px-2 py-1">{col.nullable ? "Yes" : "No"}</td>
@@ -165,7 +168,7 @@ function DictionaryEntryView({ entry }: { entry: DictionaryEntry }) {
           </thead>
           <tbody>
             {entry.fields.map((f) => (
-              <tr key={f.name} className="border-b border-border/50">
+              <tr key={f.name} className={TR_CLASS}>
                 <td className="px-2 py-1"><code>{f.name}</code></td>
                 <td className="px-2 py-1"><code>{f.type}</code></td>
                 <td className="px-2 py-1">{f.nullable ? "Yes" : "No"}</td>
