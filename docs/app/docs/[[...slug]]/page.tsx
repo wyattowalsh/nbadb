@@ -1,5 +1,4 @@
-import { statSync } from "node:fs";
-import { join } from "node:path";
+import { execSync } from "node:child_process";
 import { MDXContent } from "@/components/mdx";
 import {
   DocsContextRail,
@@ -45,37 +44,20 @@ function stripDuplicateTitleHeading(toc: TOCItem[], pageTitle: string) {
   });
 }
 
-const contentDir = join(process.cwd(), "content/docs");
-
 /**
- * Resolve a page's file-system mtime for the "last updated" display.
+ * Resolve a page's last-modified date from git history.
+ * Uses git log instead of filesystem mtime so timestamps survive CI builds.
  */
-function getLastModified(page: {
-  slugs: string[];
-  absolutePath?: string;
-}): Date | undefined {
-  if (page.absolutePath) {
-    try {
-      return statSync(page.absolutePath).mtime;
-    } catch {
-      /* fall through */
-    }
+function getGitLastModified(filePath: string): Date | undefined {
+  try {
+    const result = execSync(
+      `git log --format=%aI -1 -- "${filePath}"`,
+      { encoding: "utf-8", timeout: 5000 },
+    ).trim();
+    return result ? new Date(result) : undefined;
+  } catch {
+    return undefined;
   }
-
-  const slug = page.slugs.join("/");
-  const candidates = slug
-    ? [join(contentDir, `${slug}.mdx`), join(contentDir, slug, "index.mdx")]
-    : [join(contentDir, "index.mdx")];
-
-  for (const candidate of candidates) {
-    try {
-      return statSync(candidate).mtime;
-    } catch {
-      /* try next candidate */
-    }
-  }
-
-  return undefined;
 }
 
 export default async function Page(props: {
@@ -92,7 +74,10 @@ export default async function Page(props: {
   );
 
   const neighbours = findNeighbour(source.pageTree, page.url);
-  const lastModified = getLastModified(page);
+  const contentPath = params.slug?.length
+    ? `docs/content/docs/${params.slug.join("/")}.mdx`
+    : "docs/content/docs/index.mdx";
+  const lastModified = getGitLastModified(contentPath);
 
   return (
     <DocsPage

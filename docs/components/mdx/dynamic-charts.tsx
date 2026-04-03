@@ -54,6 +54,12 @@ class WidgetErrorBoundary extends Component<
           <p className="text-xs text-muted-foreground">
             {this.state.error?.message ?? "An unexpected error occurred."}
           </p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-2 rounded-[var(--radius-md)] border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Retry
+          </button>
         </div>
       );
     }
@@ -78,33 +84,33 @@ function withErrorBoundary<T extends object>(
   };
 }
 
-export const ObservablePlot = dynamic(
-  () => import("./observable-plot").then((m) => m.ObservablePlot),
-  { ssr: false },
+export const ObservablePlot = withErrorBoundary(
+  "Observable Plot",
+  dynamic(() => import("./observable-plot").then((m) => m.ObservablePlot), { ssr: false }),
 );
-export const ShotChart = dynamic(
-  () => import("./observable-plot").then((m) => m.ShotChart),
-  { ssr: false },
+export const ShotChart = withErrorBoundary(
+  "Shot Chart",
+  dynamic(() => import("./observable-plot").then((m) => m.ShotChart), { ssr: false }),
 );
-export const GameFlow = dynamic(
-  () => import("./observable-plot").then((m) => m.GameFlow),
-  { ssr: false },
+export const GameFlow = withErrorBoundary(
+  "Game Flow",
+  dynamic(() => import("./observable-plot").then((m) => m.GameFlow), { ssr: false }),
 );
-export const PlayerCompare = dynamic(
-  () => import("./observable-plot").then((m) => m.PlayerCompare),
-  { ssr: false },
+export const PlayerCompare = withErrorBoundary(
+  "Player Compare",
+  dynamic(() => import("./observable-plot").then((m) => m.PlayerCompare), { ssr: false }),
 );
-export const SeasonTrend = dynamic(
-  () => import("./observable-plot").then((m) => m.SeasonTrend),
-  { ssr: false },
+export const SeasonTrend = withErrorBoundary(
+  "Season Trend",
+  dynamic(() => import("./observable-plot").then((m) => m.SeasonTrend), { ssr: false }),
 );
-export const DistributionPlot = dynamic(
-  () => import("./observable-plot").then((m) => m.DistributionPlot),
-  { ssr: false },
+export const DistributionPlot = withErrorBoundary(
+  "Distribution Plot",
+  dynamic(() => import("./observable-plot").then((m) => m.DistributionPlot), { ssr: false }),
 );
-export const HeatmapGrid = dynamic(
-  () => import("./observable-plot").then((m) => m.HeatmapGrid),
-  { ssr: false },
+export const HeatmapGrid = withErrorBoundary(
+  "Heatmap Grid",
+  dynamic(() => import("./observable-plot").then((m) => m.HeatmapGrid), { ssr: false }),
 );
 /* ── Heavy interactive components (lazy + error-bounded) ── */
 
