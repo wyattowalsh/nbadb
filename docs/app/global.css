@@ -147,13 +147,13 @@ body {
     ),
     linear-gradient(
       180deg,
-      color-mix(in oklch, var(--background) 92%, white),
+      color-mix(in oklch, var(--background) 92%, transparent),
       var(--background)
     );
 }
 
 ::selection {
-  background: oklch(0.66 0.2 45 / 0.3);
+  background: color-mix(in oklch, var(--primary) 30%, transparent);
   color: var(--foreground);
 }
 
@@ -724,6 +724,16 @@ kbd {
   to {
     opacity: 1;
     transform: scale(1.05);
+  }
+}
+
+@variant dark {
+  .nba-hero-bg::before {
+    opacity: 0.95;
+  }
+
+  .nba-court-panel::after {
+    opacity: 0.12;
   }
 }
 
