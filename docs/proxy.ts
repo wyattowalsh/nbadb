@@ -57,7 +57,7 @@ async function isValidSession(
   return timingSafeEqual(mac, expected);
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = normalizePathname(request.nextUrl.pathname);
   const password = process.env.ADMIN_PASSWORD;
 
