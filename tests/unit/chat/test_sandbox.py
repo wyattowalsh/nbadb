@@ -606,6 +606,66 @@ class TestASTCodeSafety:
         assert self.check("arr = np.array([1, 2, 3])") is None
         assert self.check("y = np.std(arr)") is None
 
+    # --- round 3 audit: blocked builtins ---
+
+    def test_blocks_type_builtin(self):
+        """type() 3-arg form is a sandbox escape primitive."""
+        assert self.check('type("X", (object,), {})') is not None
+
+    def test_blocks_help_builtin(self):
+        """help() leaks function signatures including default args."""
+        assert self.check("help(conn.execute)") is not None
+
+    def test_blocks_dir_builtin(self):
+        """dir() leaks namespace information."""
+        assert self.check("dir(conn)") is not None
+
+    def test_blocks_memoryview_builtin(self):
+        """memoryview() allows raw memory access."""
+        assert self.check("memoryview(b'abc')") is not None
+
+    # --- round 3 audit: descriptor dunders ---
+
+    def test_blocks_getattr_dunder(self):
+        assert self.check("x.__getattr__") is not None
+
+    def test_blocks_getattribute_dunder(self):
+        assert self.check("x.__getattribute__") is not None
+
+    def test_blocks_setattr_dunder(self):
+        assert self.check("x.__setattr__") is not None
+
+    def test_blocks_delattr_dunder(self):
+        assert self.check("x.__delattr__") is not None
+
+    def test_blocks_get_descriptor(self):
+        assert self.check("x.__get__") is not None
+
+    def test_blocks_set_descriptor(self):
+        assert self.check("x.__set__") is not None
+
+    def test_blocks_delete_descriptor(self):
+        assert self.check("x.__delete__") is not None
+
+    # --- round 3 audit: savefig moved to calls-only ---
+
+    def test_blocks_savefig_call(self):
+        """savefig() call is blocked (file I/O)."""
+        assert self.check('fig.savefig("/tmp/x.png")') is not None
+
+    def test_allows_savefig_attr_access(self):
+        """savefig attribute access (not a call) is allowed."""
+        assert self.check("x = fig.savefig") is None
+
+    # --- round 3 audit: SafeConn uses closures ---
+
+    def test_safe_conn_uses_closures(self):
+        """_SafeConn methods must NOT use default-arg capture (info leak via __defaults__)."""
+        content = PREAMBLE_MODULE.read_text()
+        assert "_executor=_safe_execute" not in content
+        assert "_executor=_safe_sql" not in content
+        assert "_raw_conn=_RAW_CONN" not in content
+
 
 class TestEnvScrubbing:
     """Test that the shared module scrubs sensitive env vars."""

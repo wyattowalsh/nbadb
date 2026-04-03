@@ -58,18 +58,19 @@ def _prepare_sql(sql: str) -> str:
         raise ValueError(error)
     return _READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)
 
-def _safe_execute(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
-    return _raw_conn.execute(_prepare_sql(sql), *args, **kwargs)
+def _safe_execute(sql: str, *args, **kwargs):
+    return _RAW_CONN.execute(_prepare_sql(sql), *args, **kwargs)
 
-def _safe_sql(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
-    return _raw_conn.sql(_prepare_sql(sql), *args, **kwargs)
+def _safe_sql(sql: str, *args, **kwargs):
+    return _RAW_CONN.sql(_prepare_sql(sql), *args, **kwargs)
 
 class _SafeConn:
-    def execute(self, sql: str, *args, _executor=_safe_execute, **kwargs):
-        return _executor(sql, *args, **kwargs)
-
-    def sql(self, sql: str, *args, _executor=_safe_sql, **kwargs):
-        return _executor(sql, *args, **kwargs)
+    """Proxy that delegates to closure-captured safe executors."""
+    __slots__ = ()
+    def execute(self, sql: str, *args, **kwargs):
+        return _safe_execute(sql, *args, **kwargs)
+    def sql(self, sql: str, *args, **kwargs):
+        return _safe_sql(sql, *args, **kwargs)
 
 conn = _SafeConn()
 del _RAW_CONN

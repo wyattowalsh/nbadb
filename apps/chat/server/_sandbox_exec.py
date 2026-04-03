@@ -68,6 +68,13 @@ _BLOCKED_BUILTINS: frozenset[str] = frozenset(
         "vars",
         "open",
         "breakpoint",
+        # Dynamic class creation (3-arg type() is a sandbox escape primitive)
+        "type",
+        # Information leaks
+        "dir",
+        "help",
+        # Raw memory access
+        "memoryview",
     }
 )
 
@@ -119,6 +126,8 @@ _BLOCKED_ATTRIBUTE_CALLS: frozenset[str] = frozenset(
         "write_html",
         "write_image",
         "write_json",
+        # matplotlib file I/O (only dangerous when called, not accessed)
+        "savefig",
     }
 )
 
@@ -162,7 +171,14 @@ _BLOCKED_ATTRS: frozenset[str] = frozenset(
         "__closure__",
         "__wrapped__",
         "__self__",
-        "savefig",
+        # Descriptor protocol — prevents overriding attribute access
+        "__getattr__",
+        "__getattribute__",
+        "__setattr__",
+        "__delattr__",
+        "__get__",
+        "__set__",
+        "__delete__",
     }
 )
 
