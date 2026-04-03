@@ -89,7 +89,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <body className="flex min-h-screen flex-col bg-background text-foreground antialiased">
         <RootProvider
-          search={{ enabled: true }}
+          search={{
+            enabled: true,
+            links: [
+              ["Schema Reference", "/docs/schema"],
+              ["Endpoint Coverage", "/docs/endpoints"],
+              ["Data Dictionary", "/docs/data-dictionary"],
+              ["Lineage Explorer", "/docs/lineage"],
+              ["Guides", "/docs/guides"],
+            ],
+            options: {
+              delayMs: 100,
+              allowClear: true,
+            },
+          }}
           theme={{
             attribute: "class",
             defaultTheme: "dark",
