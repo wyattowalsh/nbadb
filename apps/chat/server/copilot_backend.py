@@ -58,6 +58,11 @@ def _build_tools(db_path: Path, session_id: str) -> list:
     class RunSqlParams(BaseModel):
         query: str = Field(description="DuckDB SQL query to execute")
 
+    import duckdb
+    from server._safety import ReadOnlyGuard
+
+    guard = ReadOnlyGuard()
+
     @define_tool(
         description=(
             "Execute a read-only SQL query against the NBA DuckDB database. "
@@ -65,23 +70,22 @@ def _build_tools(db_path: Path, session_id: str) -> list:
         ),
     )
     def run_sql(params: RunSqlParams) -> str:
-        import duckdb
-        from server._safety import ReadOnlyGuard
-
-        guard = ReadOnlyGuard()
         error = guard.validate(params.query)
         if error:
             return json.dumps({"error": f"Query blocked: {error}"})
         safe_query = guard.wrap_with_limit(params.query, max_rows=1000)
 
-        with duckdb.connect(str(db_path), read_only=True) as conn:
-            conn.execute("SET enable_external_access = false")
-            with contextlib.suppress(duckdb.CatalogException):
-                conn.execute("SET statement_timeout = '30s'")
+        try:
+            with duckdb.connect(str(db_path), read_only=True) as conn:
+                conn.execute("SET enable_external_access = false")
+                with contextlib.suppress(duckdb.CatalogException):
+                    conn.execute("SET statement_timeout = '30s'")
 
-            cursor = conn.execute(safe_query)
-            columns = [desc[0] for desc in cursor.description]
-            result = cursor.fetchall()
+                cursor = conn.execute(safe_query)
+                columns = [desc[0] for desc in cursor.description]
+                result = cursor.fetchall()
+        except duckdb.Error as exc:
+            return json.dumps({"error": f"Query failed: {type(exc).__name__}"})
 
         return json.dumps(
             {
@@ -97,15 +101,15 @@ def _build_tools(db_path: Path, session_id: str) -> list:
 
     @define_tool(description="List all tables in the NBA database.")
     def list_tables() -> str:
-        import duckdb as _db
-
-        with _db.connect(str(db_path), read_only=True) as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT table_name FROM information_schema.columns "
-                "WHERE table_schema = 'main' ORDER BY table_name"
-            ).fetchall()
-        tables = [r[0] for r in rows]
-        return json.dumps({"tables": tables, "count": len(tables)})
+        try:
+            with duckdb.connect(str(db_path), read_only=True) as conn:
+                rows = conn.execute(
+                    "SELECT DISTINCT table_name FROM information_schema.columns "
+                    "WHERE table_schema = 'main' ORDER BY table_name"
+                ).fetchall()
+        except duckdb.Error as exc:
+            return json.dumps({"error": f"Failed to list tables: {type(exc).__name__}"})
+        return json.dumps([r[0] for r in rows])
 
     # -- describe_table --------------------------------------------------------
 
@@ -114,15 +118,16 @@ def _build_tools(db_path: Path, session_id: str) -> list:
 
     @define_tool(description="Get column names and types for a database table.")
     def describe_table(params: DescribeTableParams) -> str:
-        import duckdb as _db
-
-        with _db.connect(str(db_path), read_only=True) as conn:
-            rows = conn.execute(
-                "SELECT column_name, data_type FROM information_schema.columns "
-                "WHERE table_schema = 'main' AND table_name = ? "
-                "ORDER BY ordinal_position",
-                [params.table_name],
-            ).fetchall()
+        try:
+            with duckdb.connect(str(db_path), read_only=True) as conn:
+                rows = conn.execute(
+                    "SELECT column_name, data_type FROM information_schema.columns "
+                    "WHERE table_schema = 'main' AND table_name = ? "
+                    "ORDER BY ordinal_position",
+                    [params.table_name],
+                ).fetchall()
+        except duckdb.Error as exc:
+            return json.dumps({"error": f"Failed to describe table: {type(exc).__name__}"})
         return json.dumps(
             {
                 "table": params.table_name,

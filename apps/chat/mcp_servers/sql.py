@@ -52,7 +52,7 @@ def run_sql(query: str) -> str:
                     "columns": columns,
                     "rows": [list(row) for row in rows],
                     "row_count": len(rows),
-                    "sql": safe_sql,
+                    "sql": query,
                 },
                 default=str,
             )
