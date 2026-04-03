@@ -82,6 +82,45 @@
   --sidebar-primary: oklch(0.769 0.188 70.08);
 }
 
+/* ── Layer / section / chart accent tokens ────────── */
+:root {
+  --layer-stg: #ef6c00;
+  --layer-stg-bg: #fff3e0;
+  --layer-dim: #2e7d32;
+  --layer-dim-bg: #e8f5e9;
+  --layer-fact: #c62828;
+  --layer-fact-bg: #fce4ec;
+  --layer-bridge: #1565c0;
+  --layer-bridge-bg: #e3f2fd;
+  --layer-agg: #6a1b9a;
+  --layer-agg-bg: #f3e5f5;
+  --layer-analytics: #00838f;
+  --layer-analytics-bg: #e0f7fa;
+  --section-core: #1D428A;
+  --section-schema: #00A651;
+  --section-dict: #FDB927;
+  --section-diagrams: #C8102E;
+  --section-endpoints: #552583;
+  --section-lineage: #006BB6;
+  --section-guides: #E56020;
+  --chart-nba-blue: #1D428A;
+  --chart-made: #00A651;
+  --chart-missed: #C8102E;
+  --chart-rule: color-mix(in oklch, var(--foreground) 20%, transparent);
+}
+
+.dark {
+  --layer-stg-bg: color-mix(in oklch, #ef6c00 15%, var(--card));
+  --layer-dim-bg: color-mix(in oklch, #2e7d32 15%, var(--card));
+  --layer-fact-bg: color-mix(in oklch, #c62828 15%, var(--card));
+  --layer-bridge-bg: color-mix(in oklch, #1565c0 15%, var(--card));
+  --layer-agg-bg: color-mix(in oklch, #6a1b9a 15%, var(--card));
+  --layer-analytics-bg: color-mix(in oklch, #00838f 15%, var(--card));
+  --chart-nba-blue: #5B8FD4;
+  --chart-made: #4CAF50;
+  --chart-missed: #EF5350;
+}
+
 /* ── Tailwind v4 theme bridge ──────────────────────── */
 @theme inline {
   --color-background: var(--background);

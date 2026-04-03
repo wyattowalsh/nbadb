@@ -15,13 +15,13 @@ import { SearchTrigger } from "@/components/site/search-trigger";
 
 /** Per-section accent color used for the sidebar banner left-border indicator. */
 const sectionAccentColor: Record<SectionId, string> = {
-  core: "#1D428A",
-  schema: "#00A651",
-  "data-dictionary": "#FDB927",
-  diagrams: "#C8102E",
-  endpoints: "#552583",
-  lineage: "#006BB6",
-  guides: "#E56020",
+  core: "var(--section-core)",
+  schema: "var(--section-schema)",
+  "data-dictionary": "var(--section-dict)",
+  diagrams: "var(--section-diagrams)",
+  endpoints: "var(--section-endpoints)",
+  lineage: "var(--section-lineage)",
+  guides: "var(--section-guides)",
 };
 
 type DocsChromeProps = {
