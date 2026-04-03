@@ -4,6 +4,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from loguru import logger
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -36,16 +37,12 @@ async def setup_mcp_tools(
     builtin_names = frozenset(servers.keys())
     for key, val in settings.extra_mcp_servers.items():
         if key in builtin_names:
-            from loguru import logger as _mcplog
-
-            _mcplog.warning("Ignoring extra_mcp_server {!r} — collides with built-in name", key)
+            logger.warning("Ignoring extra_mcp_server {!r} — collides with built-in name", key)
             continue
         servers[key] = val
 
     if settings.extra_mcp_servers:
-        from loguru import logger as _mcplog
-
-        _mcplog.info(
+        logger.info(
             "Loaded {} extra MCP server(s) from config: {}",
             len(settings.extra_mcp_servers),
             list(settings.extra_mcp_servers.keys()),

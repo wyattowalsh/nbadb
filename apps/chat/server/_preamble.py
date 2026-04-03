@@ -244,7 +244,7 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64, _html_mod=_html):
     """
     columns_json = _json.dumps([{"field": c, "editable": True, "sortable": True,
                                   "filter": True} for c in df.columns])
-    rows_json = df.to_json(orient="records")
+    rows_json = df.to_json(orient="records") or "[]"
     safe_name = _html_mod.escape(name)
     safe_rows = rows_json.replace("</", "<\\/")
     safe_cols = columns_json.replace("</", "<\\/")

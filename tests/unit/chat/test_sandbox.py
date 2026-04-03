@@ -504,6 +504,44 @@ class TestASTCodeSafety:
     def test_allows_f_string(self):
         assert self.check('name = "LeBron"; print(f"{name}")') is None
 
+    # --- Blocked dunder attributes (audit fix: CVE-2026-27577) ---
+
+    def test_blocks_objclass_access(self):
+        assert self.check("x.__objclass__") is not None
+
+    def test_blocks_reduce_access(self):
+        assert self.check("x.__reduce__") is not None
+
+    def test_blocks_reduce_ex_access(self):
+        assert self.check("x.__reduce_ex__") is not None
+
+    def test_blocks_init_subclass_access(self):
+        assert self.check("x.__init_subclass__") is not None
+
+    def test_blocks_set_name_access(self):
+        assert self.check("x.__set_name__") is not None
+
+    def test_blocks_class_getitem_access(self):
+        assert self.check("x.__class_getitem__") is not None
+
+    # --- Decorator expression guard ---
+
+    def test_blocks_eval_in_decorator(self):
+        code = "@eval(\"__import__('os')\")\ndef f(): pass"
+        assert self.check(code) is not None
+
+    def test_blocks_exec_in_decorator(self):
+        code = '@exec("import os")\ndef f(): pass'
+        assert self.check(code) is not None
+
+    def test_blocks_compile_in_decorator(self):
+        code = '@compile("x", "<>", "exec")\ndef f(): pass'
+        assert self.check(code) is not None
+
+    def test_allows_safe_decorator(self):
+        code = "@property\ndef x(self): return 1"
+        assert self.check(code) is None
+
 
 class TestEnvScrubbing:
     """Test that the shared module scrubs sensitive env vars."""

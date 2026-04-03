@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessage, ToolMessage
+from loguru import logger
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -209,6 +210,9 @@ class CopilotAgentWrapper:
 
             def _scoped_permission_handler(request: Any) -> bool:
                 tool_name = getattr(request, "name", None) or getattr(request, "tool_name", None)
+                if tool_name is None:
+                    logger.warning("Permission request has no name attribute: {!r}", request)
+                    return False
                 return tool_name in _allowed_tools
 
             self._session = await self._client.create_session(
