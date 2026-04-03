@@ -183,8 +183,8 @@ _BLOCKED_ATTRS: frozenset[str] = frozenset(
 )
 
 
-def _attribute_chain(node: ast.AST) -> tuple[str, ...]:
-    """Return the dotted attribute chain for *node* if possible."""
+def _attribute_chain(node: ast.AST) -> str:
+    """Return the dotted attribute chain for *node* as a string."""
     parts: list[str] = []
     current = node
     while isinstance(current, ast.Attribute):
@@ -192,7 +192,7 @@ def _attribute_chain(node: ast.AST) -> tuple[str, ...]:
         current = current.value
     if isinstance(current, ast.Name):
         parts.append(current.id)
-    return tuple(reversed(parts))
+    return ".".join(reversed(parts))
 
 
 def check_code_safety(code: str) -> str | None:
@@ -226,7 +226,7 @@ def check_code_safety(code: str) -> str | None:
             if isinstance(func, ast.Name) and func.id in _BLOCKED_BUILTINS:
                 return f"Blocked builtin call: {func.id}()"
             if isinstance(func, ast.Attribute):
-                chain = ".".join(_attribute_chain(func))
+                chain = _attribute_chain(func)
                 if chain in _BLOCKED_ATTRIBUTE_CHAINS:
                     return f"Blocked DuckDB access call: {chain}()"
                 if func.attr in _BLOCKED_BUILTINS:
@@ -390,7 +390,7 @@ def _parse_structured_output(stdout: str, stderr: str) -> dict:
                         "rows": parsed["data"],
                         "row_count": len(parsed["data"]),
                     }
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError:
             pass
 
     return {"stdout": stdout, "stderr": stderr}
