@@ -169,23 +169,25 @@ export function GameFlow({
     x: { label: "Game Time" },
     marks: [
       Plot.ruleY([0], {
-        stroke: getCSSVar("--chart-rule", "#999"),
+        stroke: "var(--chart-rule)",
         strokeDasharray: "4,4",
       }),
       Plot.line(data, {
         x: "time",
         y: "score_diff",
-        stroke: getCSSVar("--chart-nba-blue", "#1D428A"),
+        stroke: "var(--chart-nba-blue)",
         strokeWidth: 2,
         tip: true,
       }),
+      // getCSSVar resolves at render time — function accessors won't
+      // reactively update on theme toggle (requires remount).
       Plot.areaY(data, {
         x: "time",
         y: "score_diff",
         fill: (d: { score_diff: number }) =>
           d.score_diff >= 0
-            ? getCSSVar("--chart-made", "#00A651") + "20"
-            : getCSSVar("--chart-missed", "#C8102E") + "20",
+            ? getCSSVar("--chart-made-area", "#00A65120")
+            : getCSSVar("--chart-missed-area", "#C8102E20"),
       }),
     ],
   };
@@ -271,7 +273,7 @@ export function SeasonTrend({
         y: "value",
         ...(hasGroup
           ? { stroke: "group" }
-          : { stroke: getCSSVar("--chart-nba-blue", "#1D428A") }),
+          : { stroke: "var(--chart-nba-blue)" }),
         strokeWidth: 2,
         marker: "circle",
         tip: true,
@@ -319,7 +321,7 @@ export function DistributionPlot({
         data,
         Plot.binX({ y: "count" }, {
           x: "value",
-          fill: hasGroup ? "group" : getCSSVar("--chart-nba-blue", "#1D428A"),
+          fill: hasGroup ? "group" : "var(--chart-nba-blue)",
           thresholds: bins,
         } as Record<string, unknown>),
       ),

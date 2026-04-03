@@ -107,6 +107,8 @@
   --chart-made: #00A651;
   --chart-missed: #C8102E;
   --chart-rule: color-mix(in oklch, var(--foreground) 20%, transparent);
+  --chart-made-area: color-mix(in oklch, var(--chart-made) 12%, transparent);
+  --chart-missed-area: color-mix(in oklch, var(--chart-missed) 12%, transparent);
 }
 
 .dark {
