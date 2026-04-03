@@ -610,14 +610,44 @@ class TestASTCodeSafety:
 class TestEnvScrubbing:
     """Test that the shared module scrubs sensitive env vars."""
 
-    def test_shared_module_scrubs_env_vars(self):
-        """The shared execution module filters sensitive env vars."""
-        content = SANDBOX_EXEC_MODULE.read_text()
-        assert "build_clean_env" in content
-        assert "API_KEY" in content
-        assert "SECRET" in content
-        assert "TOKEN" in content
-        assert "PASSWORD" in content
+    @pytest.fixture(autouse=True)
+    def _load_env_builder(self):
+        mod = _load_module(SANDBOX_EXEC_MODULE, "_sandbox_exec_env")
+        self.build_clean_env = mod.build_clean_env
+        self.safe_vars = mod._SAFE_ENV_VARS
+
+    def test_uses_allowlist_approach(self):
+        """The env scrubber uses an allowlist, not a blocklist."""
+        assert "PATH" in self.safe_vars
+        assert "HOME" in self.safe_vars
+
+    def test_blocks_api_keys(self, monkeypatch):
+        monkeypatch.setenv("MY_API_KEY", "secret123")
+        monkeypatch.setenv("PATH", "/usr/bin")
+        env = self.build_clean_env()
+        assert "MY_API_KEY" not in env
+        assert "PATH" in env
+
+    def test_blocks_database_url(self, monkeypatch):
+        monkeypatch.setenv("DATABASE_URL", "postgres://...")
+        env = self.build_clean_env()
+        assert "DATABASE_URL" not in env
+
+    def test_blocks_aws_credentials(self, monkeypatch):
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA...")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+        env = self.build_clean_env()
+        assert "AWS_ACCESS_KEY_ID" not in env
+        assert "AWS_SECRET_ACCESS_KEY" not in env
+
+    def test_passes_safe_vars(self, monkeypatch):
+        monkeypatch.setenv("HOME", "/home/user")
+        monkeypatch.setenv("LANG", "en_US.UTF-8")
+        monkeypatch.setenv("VIRTUAL_ENV", "/venv")
+        env = self.build_clean_env()
+        assert env.get("HOME") == "/home/user"
+        assert env.get("LANG") == "en_US.UTF-8"
+        assert env.get("VIRTUAL_ENV") == "/venv"
 
     def test_sandbox_uses_shared_scrubbing(self):
         """sandbox.py delegates to the shared module for execution."""

@@ -246,25 +246,57 @@ def check_code_safety(code: str) -> str | None:
 # Environment scrubbing
 # ---------------------------------------------------------------------------
 
-_SECRET_TOKENS: tuple[str, ...] = (
-    "API_KEY",
-    "SECRET",
-    "TOKEN",
-    "PASSWORD",
-    "LANGCHAIN_API",
-    "LANGFUSE",
-    "COPILOT",
+_SAFE_ENV_VARS: frozenset[str] = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TZ",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "VIRTUAL_ENV",
+        "CONDA_PREFIX",
+        "PYTHONPATH",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONUNBUFFERED",
+        "DISPLAY",
+        "TERM",
+        "COLORTERM",
+    }
 )
 
 
 def build_clean_env() -> dict[str, str]:
-    """Return a copy of ``os.environ`` with sensitive variables stripped."""
-    return {k: v for k, v in os.environ.items() if not any(s in k.upper() for s in _SECRET_TOKENS)}
+    """Return a minimal environment with only known-safe variables.
+
+    Uses an allowlist rather than a blocklist so that new sensitive
+    variables (DATABASE_URL, AWS_ACCESS_KEY_ID, etc.) are excluded
+    by default.
+    """
+    return {k: v for k, v in os.environ.items() if k in _SAFE_ENV_VARS}
 
 
 # ---------------------------------------------------------------------------
 # Sandboxed execution
 # ---------------------------------------------------------------------------
+
+
+def _set_resource_limits() -> None:
+    """Set resource limits for the sandbox subprocess (best-effort)."""
+    import resource
+
+    # 512 MB virtual memory
+    with contextlib.suppress(ValueError, OSError):
+        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
+    # 10 MB max file size
+    with contextlib.suppress(ValueError, OSError):
+        resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
 
 
 def run_sandboxed(
@@ -301,6 +333,7 @@ def run_sandboxed(
             cwd=str(cwd),
             env=clean_env,
             start_new_session=True,
+            preexec_fn=_set_resource_limits,
         )
 
         stdout = result.stdout.strip()
