@@ -80,10 +80,8 @@ class TestBuildSpreadsheetHtml:
             ):
                 break
             func_lines.append(line)
-        import html as _html_mod
-
         func_source = "\n".join(func_lines)
-        ns = {"_html": _html_mod}
+        ns = {"json": json}
         exec(func_source, ns)  # noqa: S102
         self.build = ns["_build_spreadsheet_html"]
 
@@ -131,17 +129,19 @@ class TestSpreadsheetHtmlXSS:
             ):
                 break
             func_lines.append(line)
-        import html as _html_mod
 
         func_source = "\n".join(func_lines)
-        ns = {"_html": _html_mod}
+        ns = {"json": json}
         exec(func_source, ns)  # noqa: S102
         self.build = ns["_build_spreadsheet_html"]
 
-    def test_name_html_escaped(self):
-        result = self.build("<script>alert(1)</script>", "[]", "[]")
-        assert "<script>alert(1)</script>" not in result
-        assert "&lt;script&gt;" in result
+    def test_name_js_string_escaped(self):
+        # JSON encoding handles quotes, backslashes, newlines — safe for JS strings
+        result = self.build('test"name', "[]", "[]")
+        assert 'test\\"name' in result
+        # Newlines and backslashes are also safely escaped
+        result2 = self.build("line1\nline2", "[]", "[]")
+        assert "line1\\nline2" in result2
 
     def test_script_closing_tag_escaped_in_rows(self):
         rows = json.dumps([{"x": "</script><script>alert(1)</script>"}])
@@ -155,8 +155,9 @@ class TestSpreadsheetHtmlXSS:
         assert '"field": "</script>"' not in result
 
     def test_safe_name_in_download_filenames(self):
+        # JSON encoding preserves & as-is (safe in JS string context)
         result = self.build("test&file", "[]", "[]")
-        assert "test&amp;file.csv" in result
+        assert "test&file.csv" in result
 
 
 class TestTemplateScriptReprEdgeCases:

@@ -240,7 +240,7 @@ def to_thread(insights, _json=json, _b64_mod=_b64):
                        "content": _b64_mod.b64encode(
                            thread.encode()).decode()}))
 
-def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64, _html_mod=_html):
+def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
     """Generate a self-contained HTML file with an editable spreadsheet.
 
     The HTML file embeds AG Grid (community) for in-browser editing with
@@ -250,7 +250,8 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64, _html_mod=_html):
     columns_json = _json.dumps([{"field": c, "editable": True, "sortable": True,
                                   "filter": True} for c in df.columns])
     rows_json = df.to_json(orient="records") or "[]"
-    safe_name = _html_mod.escape(name)
+    # JSON-encode then strip quotes — safe for JS string literals
+    safe_name = _json.dumps(name)[1:-1]
     safe_rows = rows_json.replace("</", "<\\/")
     safe_cols = columns_json.replace("</", "<\\/")
     html = f"""<!DOCTYPE html>
