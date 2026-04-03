@@ -8,7 +8,6 @@ Our NBA tools are registered as Copilot tools via @define_tool.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import re
 from pathlib import Path
@@ -61,6 +60,7 @@ def _build_tools(db_path: Path, session_id: str) -> list:
 
     import duckdb
     from server._safety import ReadOnlyGuard
+    from server._sql_exec import describe_single_table, execute_safe_sql, list_all_tables
 
     guard = ReadOnlyGuard()
 
@@ -71,46 +71,16 @@ def _build_tools(db_path: Path, session_id: str) -> list:
         ),
     )
     def run_sql(params: RunSqlParams) -> str:
-        error = guard.validate(params.query)
-        if error:
-            return json.dumps({"error": f"Query blocked: {error}"})
-        safe_query = guard.wrap_with_limit(params.query, max_rows=1000)
-
-        try:
-            with duckdb.connect(str(db_path), read_only=True) as conn:
-                conn.execute("SET enable_external_access = false")
-                with contextlib.suppress(duckdb.CatalogException):
-                    conn.execute("SET statement_timeout = '30s'")
-
-                cursor = conn.execute(safe_query)
-                columns = [desc[0] for desc in cursor.description]
-                result = cursor.fetchall()
-        except duckdb.Error as exc:
-            return json.dumps({"error": f"Query failed: {type(exc).__name__}"})
-
-        return json.dumps(
-            {
-                "columns": columns,
-                "rows": [list(row) for row in result],
-                "row_count": len(result),
-                "sql": params.query,
-            },
-            default=str,
-        )
+        return json.dumps(execute_safe_sql(db_path, params.query, guard), default=str)
 
     # -- list_tables -----------------------------------------------------------
 
     @define_tool(description="List all tables in the NBA database.")
     def list_tables() -> str:
         try:
-            with duckdb.connect(str(db_path), read_only=True) as conn:
-                rows = conn.execute(
-                    "SELECT DISTINCT table_name FROM information_schema.columns "
-                    "WHERE table_schema = 'main' ORDER BY table_name"
-                ).fetchall()
+            return json.dumps(list_all_tables(db_path))
         except duckdb.Error as exc:
             return json.dumps({"error": f"Failed to list tables: {type(exc).__name__}"})
-        return json.dumps([r[0] for r in rows])
 
     # -- describe_table --------------------------------------------------------
 
@@ -120,21 +90,9 @@ def _build_tools(db_path: Path, session_id: str) -> list:
     @define_tool(description="Get column names and types for a database table.")
     def describe_table(params: DescribeTableParams) -> str:
         try:
-            with duckdb.connect(str(db_path), read_only=True) as conn:
-                rows = conn.execute(
-                    "SELECT column_name, data_type FROM information_schema.columns "
-                    "WHERE table_schema = 'main' AND table_name = ? "
-                    "ORDER BY ordinal_position",
-                    [params.table_name],
-                ).fetchall()
+            return json.dumps(describe_single_table(db_path, params.table_name))
         except duckdb.Error as exc:
             return json.dumps({"error": f"Failed to describe table: {type(exc).__name__}"})
-        return json.dumps(
-            {
-                "table": params.table_name,
-                "columns": [{"name": c[0], "type": c[1]} for c in rows],
-            },
-        )
 
     # -- run_python ------------------------------------------------------------
 

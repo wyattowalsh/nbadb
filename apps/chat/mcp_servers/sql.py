@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 import sys
 from pathlib import Path
@@ -17,10 +16,10 @@ DUCKDB_PATH = (
 
 mcp = FastMCP("nbadb-sql")
 
-# Import ReadOnlyGuard from the chat app's shared copy
-# (avoids importing full nbadb which has heavy deps)
+# Import shared modules from the chat app's server directory
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
 from _safety import ReadOnlyGuard  # noqa: E402
+from _sql_exec import describe_single_table, execute_safe_sql, list_all_tables  # noqa: E402
 
 _guard = ReadOnlyGuard()
 
@@ -34,42 +33,14 @@ def run_sql(query: str) -> str:
 
     Returns JSON with columns and rows.
     """
-    error = _guard.validate(query)
-    if error:
-        return json.dumps({"error": f"Query blocked: {error}"})
-
-    safe_sql = _guard.wrap_with_limit(query, max_rows=1000)
-    try:
-        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-            conn.execute("SET enable_external_access = false")
-            with contextlib.suppress(duckdb.CatalogException):
-                conn.execute("SET statement_timeout = '30s'")
-            result = conn.execute(safe_sql)
-            columns = [desc[0] for desc in result.description]
-            rows = result.fetchall()
-            return json.dumps(
-                {
-                    "columns": columns,
-                    "rows": [list(row) for row in rows],
-                    "row_count": len(rows),
-                    "sql": query,
-                },
-                default=str,
-            )
-    except duckdb.Error as exc:
-        return json.dumps({"error": f"Query failed: {type(exc).__name__}"})
+    return json.dumps(execute_safe_sql(DUCKDB_PATH, query, _guard), default=str)
 
 
 @mcp.tool()
 def list_tables() -> str:
     """List all user tables in the NBA database."""
     try:
-        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT table_name FROM information_schema.columns "
-                "WHERE table_schema = 'main' ORDER BY table_name"
-            ).fetchall()
-        return json.dumps([r[0] for r in rows])
+        return json.dumps(list_all_tables(DUCKDB_PATH))
     except duckdb.Error as exc:
         return json.dumps({"error": f"Failed to list tables: {type(exc).__name__}"})
 
@@ -78,14 +49,7 @@ def list_tables() -> str:
 def describe_table(table_name: str) -> str:
     """Get column names and types for a specific table."""
     try:
-        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-            rows = conn.execute(
-                "SELECT column_name, data_type FROM information_schema.columns "
-                "WHERE table_schema = 'main' AND table_name = ? "
-                "ORDER BY ordinal_position",
-                [table_name],
-            ).fetchall()
-        return json.dumps([{"name": name, "type": dtype} for name, dtype in rows])
+        return json.dumps(describe_single_table(DUCKDB_PATH, table_name))
     except duckdb.Error as exc:
         return json.dumps({"error": f"Failed to describe table: {type(exc).__name__}"})
 
