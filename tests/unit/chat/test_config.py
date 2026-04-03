@@ -18,7 +18,6 @@ def test_default_settings():
     assert settings.model == "gpt-4.1"
     assert settings.temperature == 0.1
     assert settings.api_key is None
-    assert settings.sandbox == "local"
     assert settings.extra_mcp_servers == {}
 
 

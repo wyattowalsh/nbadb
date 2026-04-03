@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import logging
 import os
+import threading
 from typing import TYPE_CHECKING, Any
+
+from loguru import logger
 
 if TYPE_CHECKING:
     from server.config import ChatSettings
 
-logger = logging.getLogger(__name__)
+_tracing_lock = threading.Lock()
 
 
 def setup_tracing(settings: ChatSettings) -> list[Any]:
@@ -17,7 +19,16 @@ def setup_tracing(settings: ChatSettings) -> list[Any]:
 
     Returns a list of LangChain-compatible callback handlers.
     Empty list means no external tracing (Chainlit Step tracing still active).
+
+    Uses a lock around os.environ mutations to prevent races when
+    multiple sessions update tracing concurrently.
     """
+    with _tracing_lock:
+        return _setup_tracing_inner(settings)
+
+
+def _setup_tracing_inner(settings: ChatSettings) -> list[Any]:
+    """Inner tracing setup (must be called under _tracing_lock)."""
     match settings.tracing_provider:
         case "none":
             # Ensure LangSmith env vars are cleared if previously set

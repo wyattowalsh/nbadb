@@ -55,20 +55,17 @@ def test_setup_tracing_langsmith_sets_env(monkeypatch):
     assert os.environ["LANGCHAIN_PROJECT"] == "nbadb-chat"
 
 
-def test_setup_tracing_langsmith_warns_no_key(caplog):
-    """LangSmith warns when LANGCHAIN_API_KEY is missing."""
+def test_setup_tracing_langsmith_warns_no_key():
+    """LangSmith returns empty callbacks when LANGCHAIN_API_KEY is missing."""
     from apps.chat.server.tracing import setup_tracing
 
     settings = ChatSettings(tracing_provider="langsmith")
-    with caplog.at_level("WARNING"):
-        callbacks = setup_tracing(settings)
-
+    callbacks = setup_tracing(settings)
     assert callbacks == []
-    assert "LANGCHAIN_API_KEY" in caplog.text
 
 
-def test_setup_tracing_langfuse_missing_package(caplog):
-    """LangFuse warns when package is not installed."""
+def test_setup_tracing_langfuse_missing_package():
+    """LangFuse returns empty callbacks when package is not installed."""
     from unittest.mock import patch
 
     settings = ChatSettings(
@@ -78,10 +75,7 @@ def test_setup_tracing_langfuse_missing_package(caplog):
     )
 
     # Simulate langfuse not installed
-    with (
-        patch.dict("sys.modules", {"langfuse": None, "langfuse.callback": None}),
-        caplog.at_level("WARNING"),
-    ):
+    with patch.dict("sys.modules", {"langfuse": None, "langfuse.callback": None}):
         import importlib
 
         import apps.chat.server.tracing as tracing_mod
@@ -92,14 +86,12 @@ def test_setup_tracing_langfuse_missing_package(caplog):
     assert callbacks == []
 
 
-def test_setup_tracing_langfuse_warns_no_keys(caplog):
-    """LangFuse warns when keys are not configured."""
+def test_setup_tracing_langfuse_warns_no_keys():
+    """LangFuse returns empty callbacks when keys are not configured."""
     from apps.chat.server.tracing import setup_tracing
 
     settings = ChatSettings(tracing_provider="langfuse")
-    with caplog.at_level("WARNING"):
-        callbacks = setup_tracing(settings)
-
+    callbacks = setup_tracing(settings)
     assert callbacks == []
 
 

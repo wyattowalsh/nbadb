@@ -44,9 +44,6 @@ class ChatSettings(BaseSettings):
         object.__setattr__(self, "duckdb_path", self.duckdb_path.expanduser().resolve())
         return self
 
-    sandbox: Literal["local", "e2b"] = "local"
-    e2b_api_key: SecretStr | None = None
-
     extra_mcp_servers: dict[str, dict] = Field(default_factory=dict)
 
     @classmethod
