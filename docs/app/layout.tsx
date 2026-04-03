@@ -16,14 +16,16 @@ import { cn } from "@/lib/utils";
 const ibmPlexSansHeading = IBM_Plex_Sans({
   subsets: ["latin"],
   variable: "--font-heading",
+  display: "swap",
 });
 
-const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans" });
+const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   variable: "--font-mono-var",
   weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
