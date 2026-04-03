@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import html as _html_mod
 from pathlib import Path
 
 import duckdb
@@ -18,6 +19,7 @@ COLORS = {
     "primary": "#C8102E",
     "secondary": "#1D428A",
     "accent": "#FDB927",
+    "accent_viz": "#C99700",  # Darker gold for WCAG-compliant data viz
     "positive": "#00A651",
     "negative": "#C8102E",
     "neutral": "#999999",
@@ -56,7 +58,7 @@ TEMPLATE = go.layout.Template(
         colorway=[
             COLORS["primary"],
             COLORS["secondary"],
-            COLORS["accent"],
+            COLORS["accent_viz"],
             COLORS["positive"],
             COLORS["purple"],
             COLORS["teal"],
@@ -103,7 +105,7 @@ def takeaway(text: str) -> None:
             f'<div style="background:#fffbe6; border-left:4px solid {COLORS["accent"]}; '
             f"padding:12px 16px; margin:16px 0; border-radius:4px; "
             f'font-size:14px; line-height:1.5;">'
-            f"<strong>Key Takeaway:</strong> {text}</div>"
+            f"<strong>Key Takeaway:</strong> {_html_mod.escape(text)}</div>"
         )
     )
 
