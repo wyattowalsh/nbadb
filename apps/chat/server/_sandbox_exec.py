@@ -250,10 +250,11 @@ def check_code_safety(code: str) -> str | None:
         elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_ATTRS:
             return f"Blocked attribute access: .{node.attr}"
 
-        # Block bare __builtins__ access (enables subscript bypass like
-        # __builtins__.__dict__["open"] or __builtins__["open"])
-        elif isinstance(node, ast.Name) and node.id == "__builtins__":
-            return "Blocked access to __builtins__"
+        # Block bare references to blocked builtins — not just calls.
+        # Without this, `imp = __import__; imp("os")` bypasses the call-site check.
+        # Also covers __builtins__ (subscript bypass like __builtins__["open"]).
+        elif isinstance(node, ast.Name) and node.id in (_BLOCKED_BUILTINS | {"__builtins__"}):
+            return f"Blocked builtin reference: {node.id}"
 
     return None
 

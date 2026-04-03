@@ -624,6 +624,30 @@ class TestASTCodeSafety:
         """memoryview() allows raw memory access."""
         assert self.check("memoryview(b'abc')") is not None
 
+    # --- honest-review: bare builtin reference aliasing ---
+
+    def test_blocked_builtin_aliasing_import(self):
+        """imp = __import__ must be blocked (not just __import__() calls)."""
+        assert self.check("imp = __import__") is not None
+
+    def test_blocked_builtin_aliasing_in_list(self):
+        """[__import__][0] must be blocked."""
+        assert self.check("imp = [__import__][0]") is not None
+
+    def test_blocked_builtin_aliasing_eval(self):
+        """ev = eval must be blocked."""
+        assert self.check("ev = eval") is not None
+
+    def test_blocked_builtin_aliasing_open(self):
+        """op = open must be blocked."""
+        assert self.check("op = open") is not None
+
+    def test_allowed_name_not_blocked(self):
+        """Normal names like pd, np, conn must still be allowed."""
+        assert self.check("x = pd.DataFrame()") is None
+        assert self.check("y = np.array([1, 2])") is None
+        assert self.check("z = conn") is None
+
     # --- round 3 audit: descriptor dunders ---
 
     def test_blocks_getattr_dunder(self):
