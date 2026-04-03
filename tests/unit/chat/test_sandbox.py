@@ -715,6 +715,44 @@ class TestEnvScrubbing:
         assert "run_sandboxed" in content
 
 
+class TestSessionIdSanitization:
+    """Test that session IDs are sanitized to prevent path traversal."""
+
+    def test_chainlit_app_sanitizes_session_id(self):
+        """chainlit_app.py must use _sanitize_session_id."""
+        app_path = Path(__file__).resolve().parents[3] / "apps" / "chat" / "chainlit_app.py"
+        content = app_path.read_text()
+        assert "_sanitize_session_id" in content
+
+    def test_sandbox_mcp_sanitizes_session_id(self):
+        """sandbox.py must sanitize the session ID from CLI args."""
+        content = SANDBOX_MODULE.read_text()
+        assert "re.sub" in content
+
+    def test_cleanup_guards_path_traversal(self):
+        """_cleanup_session_state must check is_relative_to before rmtree."""
+        app_path = Path(__file__).resolve().parents[3] / "apps" / "chat" / "chainlit_app.py"
+        content = app_path.read_text()
+        assert "is_relative_to" in content
+
+    def test_sanitize_strips_path_chars(self):
+        """The sanitizer regex removes dots, slashes, and other path chars."""
+        import re
+
+        pattern = re.compile(r"[^a-zA-Z0-9_-]")
+
+        def _sanitize(raw: str) -> str:
+            return pattern.sub("", raw)[:128] or "default"
+
+        assert _sanitize("../../etc/passwd") == "etcpasswd"
+        assert _sanitize("normal-session_123") == "normal-session_123"
+        assert _sanitize("") == "default"
+        assert _sanitize("../..") == "default"  # all chars stripped → fallback
+        result = _sanitize("../../../important")
+        assert "/" not in result
+        assert ".." not in result
+
+
 class TestProcessIsolation:
     """Test that the shared module uses process group isolation."""
 

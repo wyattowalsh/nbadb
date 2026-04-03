@@ -9,12 +9,15 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
+import re  # noqa: E402
+
 from _preamble import build_preamble  # noqa: E402
 from _sandbox_exec import check_code_safety, run_sandboxed  # noqa: E402
 
 _DEFAULT_DB = Path("~/.nbadb/data/nba.duckdb").expanduser()
 DB_PATH = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 else _DEFAULT_DB
-SESSION_ID = sys.argv[2] if len(sys.argv) > 2 else "default"
+_raw_session_id = sys.argv[2] if len(sys.argv) > 2 else "default"
+SESSION_ID = re.sub(r"[^a-zA-Z0-9_-]", "", _raw_session_id)[:128] or "default"
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills" / "nba-data-analytics" / "scripts"
 SESSION_DIR = Path("~/.nbadb/session").expanduser() / SESSION_ID

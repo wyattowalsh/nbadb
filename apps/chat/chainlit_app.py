@@ -25,6 +25,14 @@ logger.remove()
 logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
 
 _KEY_REQUIRED_PROVIDERS = frozenset({"openai", "anthropic", "google", "custom", "copilot"})
+_SESSION_ID_RE = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+def _sanitize_session_id(raw: str) -> str:
+    """Strip unsafe characters from session ID to prevent path traversal."""
+    return _SESSION_ID_RE.sub("", raw)[:128] or "default"
+
+
 _PUBLIC_DEMO_SETUP_MESSAGE = (
     "**Public demo: bring your own API key.**\n\n"
     "This anonymous URL exposes the full open-source app. Open the gear icon, "
@@ -466,6 +474,10 @@ def _cleanup_session_state(
 
     resolved_session_root = session_root or (Path.home() / ".nbadb" / "session")
     session_dir = resolved_session_root / str(resolved_session_id)
+    # Guard against path traversal — session_dir must be inside session_root
+    if not session_dir.resolve().is_relative_to(resolved_session_root.resolve()):
+        logger.warning("Session dir outside root — skipping cleanup: {}", session_dir)
+        return
     if session_dir.exists():
         shutil.rmtree(session_dir, ignore_errors=True)
 
@@ -476,7 +488,7 @@ def _cleanup_session_state(
 @cl.on_chat_start
 async def on_chat_start() -> None:
     """Initialize the agent when a new chat session starts."""
-    session_id = str(cl.user_session.get("id") or "default")
+    session_id = _sanitize_session_id(str(cl.user_session.get("id") or "default"))
     cl.user_session.set("session_id", session_id)
 
     # Adjust settings based on selected profile
@@ -521,7 +533,8 @@ async def on_settings_update(settings_dict: dict) -> None:
         current = _prepare_session_settings(ChatSettings(), None)
 
     profile = cl.user_session.get("chat_profile") or cl.user_session.get("chat_profile_name")
-    session_id = str(cl.user_session.get("session_id") or cl.user_session.get("id") or "default")
+    raw_sid = str(cl.user_session.get("session_id") or cl.user_session.get("id") or "default")
+    session_id = _sanitize_session_id(raw_sid)
     old_agent = cl.user_session.get("agent")
     agent = None
     try:
