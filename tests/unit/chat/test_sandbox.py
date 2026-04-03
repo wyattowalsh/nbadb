@@ -542,6 +542,70 @@ class TestASTCodeSafety:
         code = "@property\ndef x(self): return 1"
         assert self.check(code) is None
 
+    # --- __dict__ / introspection dunder attrs (round 2 audit) ---
+
+    def test_blocks_dict_attr(self):
+        assert self.check("x.__dict__") is not None
+
+    def test_blocks_defaults_attr(self):
+        assert self.check("f.__defaults__") is not None
+
+    def test_blocks_func_attr(self):
+        assert self.check("m.__func__") is not None
+
+    def test_blocks_closure_attr(self):
+        assert self.check("f.__closure__") is not None
+
+    def test_blocks_wrapped_attr(self):
+        assert self.check("f.__wrapped__") is not None
+
+    def test_blocks_self_attr(self):
+        assert self.check("m.__self__") is not None
+
+    def test_blocks_builtins_dict_subscript(self):
+        """__builtins__.__dict__["open"] bypass vector."""
+        code = '__builtins__.__dict__["open"]("/etc/passwd")'
+        assert self.check(code) is not None
+
+    def test_blocks_bare_builtins_access(self):
+        """Bare __builtins__ name access (subscript bypass enabler)."""
+        assert self.check("x = __builtins__") is not None
+
+    # --- numpy/plotly file I/O bypass (round 2 audit) ---
+
+    def test_blocks_np_save(self):
+        assert self.check('np.save("/tmp/d.npy", arr)') is not None
+
+    def test_blocks_np_load(self):
+        assert self.check('np.load("/tmp/d.npy")') is not None
+
+    def test_blocks_np_loadtxt(self):
+        assert self.check('np.loadtxt("/etc/passwd")') is not None
+
+    def test_blocks_np_genfromtxt(self):
+        assert self.check('np.genfromtxt("/etc/passwd")') is not None
+
+    def test_blocks_np_fromfile(self):
+        assert self.check('np.fromfile("/etc/passwd")') is not None
+
+    def test_blocks_np_savetxt(self):
+        assert self.check('np.savetxt("/tmp/o.txt", arr)') is not None
+
+    def test_blocks_write_html(self):
+        assert self.check('fig.write_html("/tmp/x.html")') is not None
+
+    def test_blocks_write_image(self):
+        assert self.check('fig.write_image("/tmp/x.png")') is not None
+
+    def test_blocks_write_json_plotly(self):
+        assert self.check('fig.write_json("/tmp/x.json")') is not None
+
+    def test_allows_safe_numpy_ops(self):
+        """Common numpy operations must still work."""
+        assert self.check("x = np.mean([1, 2, 3])") is None
+        assert self.check("arr = np.array([1, 2, 3])") is None
+        assert self.check("y = np.std(arr)") is None
+
 
 class TestEnvScrubbing:
     """Test that the shared module scrubs sensitive env vars."""

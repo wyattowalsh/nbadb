@@ -108,6 +108,17 @@ _BLOCKED_ATTRIBUTE_CALLS: frozenset[str] = frozenset(
         "rglob",
         "iterdir",
         "connect",
+        # numpy file I/O
+        "save",
+        "load",
+        "loadtxt",
+        "genfromtxt",
+        "fromfile",
+        "savetxt",
+        # plotly file I/O
+        "write_html",
+        "write_image",
+        "write_json",
     }
 )
 
@@ -144,6 +155,13 @@ _BLOCKED_ATTRS: frozenset[str] = frozenset(
         "__class_getitem__",
         "__reduce__",
         "__reduce_ex__",
+        # Introspection attrs that leak internals (e.g. raw DB conn via defaults)
+        "__dict__",
+        "__defaults__",
+        "__func__",
+        "__closure__",
+        "__wrapped__",
+        "__self__",
         "savefig",
     }
 )
@@ -215,6 +233,11 @@ def check_code_safety(code: str) -> str | None:
         # Block dunder attribute access for class hierarchy traversal
         elif isinstance(node, ast.Attribute) and node.attr in _BLOCKED_ATTRS:
             return f"Blocked attribute access: .{node.attr}"
+
+        # Block bare __builtins__ access (enables subscript bypass like
+        # __builtins__.__dict__["open"] or __builtins__["open"])
+        elif isinstance(node, ast.Name) and node.id == "__builtins__":
+            return "Blocked access to __builtins__"
 
     return None
 
