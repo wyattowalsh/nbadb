@@ -252,8 +252,8 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
                                   "filter": True} for c in df.columns])
     rows_json = df.to_json(orient="records") or "[]"
     html = _build_html(name, columns_json, rows_json)
-    print(_json.dumps({{"export_file": name + ".html", "format": "spreadsheet",
-                        "content": _b64_mod.b64encode(html.encode()).decode()}}))
+    print(_json.dumps({"export_file": name + ".html", "format": "spreadsheet",
+                        "content": _b64_mod.b64encode(html.encode()).decode()}))
 
 # Reduce the executed namespace to intended analytics helpers only.
 del sys
