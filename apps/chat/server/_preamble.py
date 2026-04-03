@@ -52,27 +52,24 @@ del _duckdb
 _READ_ONLY_GUARD = _ReadOnlyGuard()
 _READ_ONLY_MAX_ROWS = 1000
 
-def _prepare_sql(sql: str) -> str:
-    error = _READ_ONLY_GUARD.validate(sql)
-    if error:
-        raise ValueError(error)
-    return _READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)
+def _make_safe_conn(_raw_conn, _guard, _max_rows):
+    """Factory creating a safe connection proxy with closure-captured refs."""
+    def _prepare(sql):
+        error = _guard.validate(sql)
+        if error:
+            raise ValueError(error)
+        return _guard.wrap_with_limit(sql, max_rows=_max_rows)
 
-def _safe_execute(sql: str, *args, **kwargs):
-    return _RAW_CONN.execute(_prepare_sql(sql), *args, **kwargs)
+    class _Conn:
+        __slots__ = ()
+        def execute(self, sql, *args, **kwargs):
+            return _raw_conn.execute(_prepare(sql), *args, **kwargs)
+        def sql(self, sql, *args, **kwargs):
+            return _raw_conn.sql(_prepare(sql), *args, **kwargs)
 
-def _safe_sql(sql: str, *args, **kwargs):
-    return _RAW_CONN.sql(_prepare_sql(sql), *args, **kwargs)
+    return _Conn()
 
-class _SafeConn:
-    """Proxy that delegates to closure-captured safe executors."""
-    __slots__ = ()
-    def execute(self, sql: str, *args, **kwargs):
-        return _safe_execute(sql, *args, **kwargs)
-    def sql(self, sql: str, *args, **kwargs):
-        return _safe_sql(sql, *args, **kwargs)
-
-conn = _SafeConn()
+conn = _make_safe_conn(_RAW_CONN, _READ_ONLY_GUARD, _READ_ONLY_MAX_ROWS)
 del _RAW_CONN
 
 # NBA metric calculator and skill scripts
@@ -264,10 +261,7 @@ del _html
 del _ReadOnlyGuard
 del _READ_ONLY_GUARD
 del _READ_ONLY_MAX_ROWS
-del _prepare_sql
-del _safe_execute
-del _safe_sql
-del _SafeConn
+del _make_safe_conn
 del _patched_show
 del _save_last_result
 del _LAST_RESULT_PATH

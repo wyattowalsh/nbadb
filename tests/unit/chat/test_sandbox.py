@@ -80,9 +80,9 @@ def test_sandbox_preamble_has_query_helper():
 def test_sandbox_preamble_uses_safe_conn_wrapper():
     """The preamble exposes a safe SQL wrapper instead of a raw connection."""
     content = PREAMBLE_MODULE.read_text()
-    assert "class _SafeConn" in content
+    assert "_make_safe_conn" in content
     assert "from _safety import ReadOnlyGuard as _ReadOnlyGuard" in content
-    assert "_READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)" in content
+    assert "_guard.wrap_with_limit(sql, max_rows=_max_rows)" in content
 
 
 def test_sandbox_preamble_has_metric_calculator():
@@ -684,8 +684,9 @@ class TestASTCodeSafety:
     # --- round 3 audit: SafeConn uses closures ---
 
     def test_safe_conn_uses_closures(self):
-        """_SafeConn methods must NOT use default-arg capture (info leak via __defaults__)."""
+        """_SafeConn must use factory-function closures (no default-param info leak)."""
         content = PREAMBLE_MODULE.read_text()
+        assert "_make_safe_conn" in content
         assert "_executor=_safe_execute" not in content
         assert "_executor=_safe_sql" not in content
         assert "_raw_conn=_RAW_CONN" not in content
