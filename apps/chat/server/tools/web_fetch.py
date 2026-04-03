@@ -14,6 +14,15 @@ _BLOCKED_NETWORKS = [
     ip_network("127.0.0.0/8"),
     ip_network("100.64.0.0/10"),
     ip_network("::1/128"),
+    # IPv4-mapped IPv6 (e.g., ::ffff:127.0.0.1)
+    ip_network("::ffff:0:0/96"),
+    # IPv6 private ranges
+    ip_network("fc00::/7"),  # unique local
+    ip_network("fe80::/10"),  # link-local
+    # Additional IPv4 reserved
+    ip_network("0.0.0.0/8"),  # current network
+    ip_network("198.18.0.0/15"),  # benchmarking
+    ip_network("240.0.0.0/4"),  # reserved
 ]
 
 

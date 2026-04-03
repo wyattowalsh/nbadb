@@ -107,6 +107,32 @@ class TestIsSafeUrl:
 
         assert _is_safe_url("http://100.64.0.1/") is not None
 
+    def test_blocks_ipv4_mapped_ipv6(self):
+        """IPv4-mapped IPv6 addresses like ::ffff:127.0.0.1 must be blocked."""
+        import socket
+        from unittest.mock import patch
+
+        from apps.chat.server.tools.web_fetch import _is_safe_url
+
+        fake_result = [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::ffff:127.0.0.1", 80, 0, 0))]
+        with patch("apps.chat.server.tools.web_fetch.socket.getaddrinfo", return_value=fake_result):
+            err = _is_safe_url("http://evil.example.com/")
+        assert err is not None
+        assert "private" in err.lower()
+
+    def test_blocks_ipv6_unique_local(self):
+        """IPv6 unique-local addresses (fd00::1) must be blocked."""
+        import socket
+        from unittest.mock import patch
+
+        from apps.chat.server.tools.web_fetch import _is_safe_url
+
+        fake_result = [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("fd00::1", 80, 0, 0))]
+        with patch("apps.chat.server.tools.web_fetch.socket.getaddrinfo", return_value=fake_result):
+            err = _is_safe_url("http://evil.example.com/")
+        assert err is not None
+        assert "private" in err.lower()
+
     def test_allows_public_ip(self):
         from apps.chat.server.tools.web_fetch import _is_safe_url
 
