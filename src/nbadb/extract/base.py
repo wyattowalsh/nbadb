@@ -21,6 +21,20 @@ _SEASON_TYPE_KEYS = (
     "season_type_all_star_nullable",
 )
 
+_RETRYABLE_ERROR_NAMES = frozenset(
+    {
+        "ReadTimeout",
+        "ConnectTimeout",
+        "ConnectionError",
+        "ConnectionResetError",
+        "JSONDecodeError",
+        "ChunkedEncodingError",
+        "RemoteDisconnected",
+        "KeyError",
+        "ArrowTypeError",
+    }
+)
+
 
 def _extract_season_type(kwargs: dict[str, Any]) -> str | None:
     """Extract the season_type value from nba_api kwargs.
@@ -45,6 +59,11 @@ def _to_snake_case(name: str) -> str:
     if _UPPER_TOKEN_RE.fullmatch(name):
         return name.lower()
     return _CAMEL_RE.sub(r"\1_\2", name).lower()
+
+
+def is_retryable_error(exc: Exception) -> bool:
+    """Return True if *exc* looks transient and worth retrying."""
+    return type(exc).__name__ in _RETRYABLE_ERROR_NAMES
 
 
 def _safe_from_pandas(pdf: Any) -> pl.DataFrame:

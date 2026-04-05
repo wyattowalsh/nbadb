@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from aiolimiter import AsyncLimiter
 from loguru import logger
 
+from nbadb.extract.base import is_retryable_error
 from nbadb.orchestrate.resilience import _AdaptiveThrottle, _CircuitBreaker, _LatencyTracker
 from nbadb.orchestrate.staging_map import StagingEntry, get_multi_entries
 
@@ -403,21 +404,7 @@ class ExtractorRunner:
     @staticmethod
     def _is_retryable(exc: Exception) -> bool:
         """Return True if the exception is transient and worth retrying."""
-        # Import-safe: check by name so we don't require requests at import time.
-        # KeyError can occur when nba_api fails to find expected result set
-        # keys. Retrying is cheap since the circuit breaker caps repeated
-        # failures.
-        return type(exc).__name__ in (
-            "ReadTimeout",
-            "ConnectTimeout",
-            "ConnectionError",
-            "ConnectionResetError",
-            "JSONDecodeError",
-            "ChunkedEncodingError",
-            "RemoteDisconnected",
-            "KeyError",
-            "ArrowTypeError",
-        )
+        return is_retryable_error(exc)
 
     async def _run_with_journal(
         self,

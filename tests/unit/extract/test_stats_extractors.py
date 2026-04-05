@@ -1122,14 +1122,14 @@ class TestSynergyPlayTypesExtractor:
         assert result.shape[0] == 44
 
     @pytest.mark.asyncio
-    async def test_individual_failure_continues(self, synergy_ext, monkeypatch):
+    async def test_non_retryable_failure_continues(self, synergy_ext, monkeypatch):
         call_count = 0
 
         def _fake(endpoint_cls, **kw):
             nonlocal call_count
             call_count += 1
             if call_count == 5:
-                raise ConnectionError("test failure")
+                raise ValueError("test failure")
             return pl.DataFrame({"val": [1]})
 
         monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
@@ -1140,9 +1140,64 @@ class TestSynergyPlayTypesExtractor:
         assert call_count == 44  # all combinations still attempted
 
     @pytest.mark.asyncio
+    async def test_retryable_failure_retries_combo_and_succeeds(self, synergy_ext, monkeypatch):
+        calls: list[tuple[str, str, str]] = []
+        reset_calls: list[None] = []
+
+        def _fake(endpoint_cls, **kw):
+            combo = (
+                kw["play_type_nullable"],
+                kw["player_or_team_abbreviation"],
+                kw["type_grouping_nullable"],
+            )
+            calls.append(combo)
+            if len(calls) == 5:
+                raise ConnectionError("test failure")
+            return pl.DataFrame({"val": [1]})
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.synergy._reset_nba_stats_session",
+            lambda: reset_calls.append(None),
+        )
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+
+        result = await synergy_ext.extract(season="2024-25")
+
+        assert result.shape[0] == 44
+        assert len(calls) == 45
+        assert calls[4] == calls[5]
+        assert len(reset_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_retryable_failure_after_local_retry_raises(self, synergy_ext, monkeypatch):
+        call_count = 0
+        reset_calls: list[None] = []
+
+        def _fake(endpoint_cls, **kw):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 5:
+                raise ConnectionError("still failing")
+            return pl.DataFrame({"val": [1]})
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.synergy._reset_nba_stats_session",
+            lambda: reset_calls.append(None),
+        )
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+
+        with pytest.raises(ConnectionError, match="still failing"):
+            await synergy_ext.extract(season="2024-25")
+
+        assert call_count == 6
+        assert len(reset_calls) == 1
+
+    @pytest.mark.asyncio
     async def test_all_failures_raises(self, synergy_ext, monkeypatch):
         def _fake(endpoint_cls, **kw):
-            raise ConnectionError("all fail")
+            raise ValueError("all fail")
 
         monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
         monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
