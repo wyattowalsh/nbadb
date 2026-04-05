@@ -29,6 +29,7 @@ class NbaDbSettings(BaseSettings):
         "player_info": 15,
         "default": 10,
     }
+    discovery_concurrency: int = 2
 
     daily_lookback_days: int = 7
     pbp_chunk_size: int = 500

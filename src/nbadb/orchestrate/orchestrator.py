@@ -141,6 +141,7 @@ class Orchestrator:
         return EntityDiscovery(
             _global_registry,
             thread_pool=thread_pool,
+            settings=self._settings,
         )
 
     def _build_result(

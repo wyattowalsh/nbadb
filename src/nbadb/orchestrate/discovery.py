@@ -4,8 +4,10 @@ import asyncio
 import random
 from typing import TYPE_CHECKING, Protocol
 
+from aiolimiter import AsyncLimiter
 from loguru import logger
 
+from nbadb.core.config import get_settings
 from nbadb.orchestrate.extractor_runner import _sync_extract
 
 if TYPE_CHECKING:
@@ -14,6 +16,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+    from nbadb.core.config import NbaDbSettings
     from nbadb.extract.registry import EndpointRegistry
 
 
@@ -33,6 +36,9 @@ async def _extract_with_retry(
     label: str,
     *,
     thread_pool: ThreadPoolExecutor | None = None,
+    attempts: int | None = None,
+    base_delay: float | None = None,
+    rate_limiter: AsyncLimiter | None = None,
     **kwargs: object,
 ) -> pl.DataFrame:
     """Extract with retries and inter-call delay for rate limiting.
@@ -44,21 +50,30 @@ async def _extract_with_retry(
     """
     import polars as pl
 
-    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+    attempts = _RETRY_ATTEMPTS if attempts is None else max(1, attempts)
+    base_delay = _RETRY_DELAY if base_delay is None else base_delay
+
+    for attempt in range(1, attempts + 1):
         try:
             loop = asyncio.get_running_loop()
-            df: pl.DataFrame = await loop.run_in_executor(
-                thread_pool, lambda: _sync_extract(extractor, **kwargs)
-            )
+            if rate_limiter is None:
+                df: pl.DataFrame = await loop.run_in_executor(
+                    thread_pool, lambda: _sync_extract(extractor, **kwargs)
+                )
+            else:
+                async with rate_limiter:
+                    df = await loop.run_in_executor(
+                        thread_pool, lambda: _sync_extract(extractor, **kwargs)
+                    )
             return df
         except Exception as exc:
-            if attempt < _RETRY_ATTEMPTS:
-                delay = _RETRY_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
+            if attempt < attempts:
+                delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
                 logger.warning(
                     "{}: attempt {}/{} failed ({}), retrying in {:.0f}s",
                     label,
                     attempt,
-                    _RETRY_ATTEMPTS,
+                    attempts,
                     type(exc).__name__,
                     delay,
                 )
@@ -67,7 +82,7 @@ async def _extract_with_retry(
                 logger.error(
                     "{}: all {} attempts failed: {}",
                     label,
-                    _RETRY_ATTEMPTS,
+                    attempts,
                     type(exc).__name__,
                 )
                 raise
@@ -81,9 +96,15 @@ class EntityDiscovery:
         self,
         registry: EndpointRegistry,
         thread_pool: ThreadPoolExecutor | None = None,
+        settings: NbaDbSettings | None = None,
     ) -> None:
         self._registry = registry
         self._thread_pool = thread_pool
+        self._settings = settings or get_settings()
+        self._rate_limiter = AsyncLimiter(max_rate=self._settings.rate_limit, time_period=1.0)
+        self._discovery_concurrency = max(1, int(self._settings.discovery_concurrency))
+        self._retry_attempts = max(1, int(self._settings.extract_max_retries) + 1)
+        self._retry_delay = float(self._settings.extract_retry_base_delay)
 
     async def discover_game_ids(
         self,
@@ -115,7 +136,7 @@ class EntityDiscovery:
         if on_progress is not None:
             on_progress.start_pattern(f"game discovery ({len(combos)} combos)", len(combos))
 
-        semaphore = asyncio.Semaphore(_DISCOVERY_CONCURRENCY)
+        semaphore = asyncio.Semaphore(self._discovery_concurrency)
 
         async def _fetch(season: str, season_type: str) -> pl.DataFrame | None:
             async with semaphore:
@@ -127,6 +148,9 @@ class EntityDiscovery:
                         extractor,
                         label,
                         thread_pool=self._thread_pool,
+                        attempts=self._retry_attempts,
+                        base_delay=self._retry_delay,
+                        rate_limiter=self._rate_limiter,
                         season=season,
                         season_type=season_type,
                     )
@@ -185,7 +209,13 @@ class EntityDiscovery:
 
         try:
             df = await _extract_with_retry(
-                extractor, staging_key, thread_pool=self._thread_pool, **params
+                extractor,
+                staging_key,
+                thread_pool=self._thread_pool,
+                attempts=self._retry_attempts,
+                base_delay=self._retry_delay,
+                rate_limiter=self._rate_limiter,
+                **params,
             )
         except Exception as exc:
             logger.error(
@@ -250,7 +280,7 @@ class EntityDiscovery:
             return []
 
         extractor_cls = self._registry.get("common_all_players")
-        semaphore = asyncio.Semaphore(_DISCOVERY_CONCURRENCY)
+        semaphore = asyncio.Semaphore(self._discovery_concurrency)
 
         async def _fetch(season: str) -> pl.DataFrame | None:
             async with semaphore:
@@ -259,7 +289,13 @@ class EntityDiscovery:
                 extractor = extractor_cls()
                 try:
                     df = await _extract_with_retry(
-                        extractor, label, thread_pool=self._thread_pool, season=season
+                        extractor,
+                        label,
+                        thread_pool=self._thread_pool,
+                        attempts=self._retry_attempts,
+                        base_delay=self._retry_delay,
+                        rate_limiter=self._rate_limiter,
+                        season=season,
                     )
                 except Exception as exc:
                     logger.error(

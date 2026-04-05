@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import polars as pl
@@ -14,6 +15,16 @@ from nbadb.orchestrate.discovery import EntityDiscovery, _extract_with_retry
 def _fast_retry(monkeypatch):
     """Patch retry delay to 0 for fast tests."""
     monkeypatch.setattr("nbadb.orchestrate.discovery._RETRY_DELAY", 0.0)
+    monkeypatch.setattr("nbadb.orchestrate.discovery.random.uniform", lambda *_args: 0.0)
+    monkeypatch.setattr(
+        "nbadb.orchestrate.discovery.get_settings",
+        lambda: SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=1,
+            extract_max_retries=2,
+            extract_retry_base_delay=0.0,
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +316,34 @@ class TestDiscoverGameIds:
             )
         assert len(ids) == 2
         assert call_count == 2
+
+    async def test_uses_configured_retry_budget(self):
+        call_count = 0
+
+        def _side_effect(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 5:
+                raise ConnectionError("fail")
+            return pl.DataFrame({"game_id": ["001"]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=1,
+            extract_max_retries=4,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            ids, combined = await disc.discover_game_ids(["2024-25"])
+        assert ids == ["001"]
+        assert combined.shape[0] == 1
+        assert call_count == 5
 
     async def test_failure_in_one_season_does_not_cancel_others(self):
         call_count = 0
