@@ -255,6 +255,53 @@ class TestDiscoverPlayerTeamSeasonParams:
             "2025-26": 1,
         }
 
+    @pytest.mark.parametrize(
+        ("invalid_frames", "valid_frame"),
+        [
+            (
+                [pl.DataFrame()],
+                pl.DataFrame({"person_id": [1], "team_id": [10]}),
+            ),
+            (
+                [pl.DataFrame({"person_id": [1]})],
+                pl.DataFrame({"person_id": [1], "team_id": [10]}),
+            ),
+        ],
+    )
+    async def test_recovers_empty_or_malformed_seasons_sequentially(
+        self,
+        invalid_frames: list[pl.DataFrame],
+        valid_frame: pl.DataFrame,
+    ):
+        season_frames = {
+            "2024-25": [*invalid_frames, valid_frame],
+            "2025-26": [pl.DataFrame({"person_id": [2], "team_id": [20]})],
+        }
+        call_counts: dict[str, int] = {}
+
+        def _side_effect(*_args, **kwargs):
+            season = kwargs["season"]
+            call_counts[season] = call_counts.get(season, 0) + 1
+            return season_frames[season].pop(0)
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
+
+        assert result == [
+            {"player_id": 1, "team_id": 10, "season": "2024-25"},
+            {"player_id": 2, "team_id": 20, "season": "2025-26"},
+        ]
+        assert call_counts == {
+            "2024-25": 2,
+            "2025-26": 1,
+        }
+
 
 class TestDiscoverTeamIds:
     async def test_returns_team_ids(self):

@@ -382,7 +382,7 @@ class EntityDiscovery:
                     logger.info("recovered player/team pairs for {}", label)
                 if df.is_empty():
                     logger.warning("no common_all_players data returned for {}", season)
-                    return season, None, True
+                    return season, None, False
 
                 required = {"person_id", "team_id"}
                 missing = required - set(df.columns)
@@ -392,7 +392,7 @@ class EntityDiscovery:
                         sorted(missing),
                         season,
                     )
-                    return season, None, True
+                    return season, None, False
 
                 return (
                     season,
