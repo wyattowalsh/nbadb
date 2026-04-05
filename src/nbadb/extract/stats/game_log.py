@@ -27,7 +27,14 @@ class LeagueGameLogExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         logger.debug(f"Extracting league game log for {season} ({season_type})")
-        return self._from_nba_api(LeagueGameLog, season=season, season_type_all_star=season_type)
+        request_kwargs: dict[str, Any] = {
+            "season": season,
+            "season_type_all_star": season_type,
+        }
+        timeout = params.get("timeout")
+        if timeout is not None:
+            request_kwargs["timeout"] = timeout
+        return self._from_nba_api(LeagueGameLog, **request_kwargs)
 
 
 @registry.register

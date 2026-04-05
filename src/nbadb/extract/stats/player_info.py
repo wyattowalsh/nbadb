@@ -87,6 +87,9 @@ class CommonAllPlayersExtractor(BaseExtractor):
         kwargs: dict[str, Any] = {"is_only_current_season": is_only_current}
         if season is not None:
             kwargs["season"] = season
+        timeout = params.get("timeout")
+        if timeout is not None:
+            kwargs["timeout"] = timeout
 
         try:
             return self._from_nba_api(CommonAllPlayers, **kwargs)

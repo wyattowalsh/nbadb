@@ -587,6 +587,25 @@ class TestCrossProductParameterHandling:
         assert "season" not in kwargs
 
     @pytest.mark.asyncio
+    async def test_league_game_log_forwards_timeout_override(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = LeagueGameLogExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(season="2024-25", season_type="Playoffs", timeout=(3.05, 10.0))
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["timeout"] == (3.05, 10.0)
+
+    @pytest.mark.asyncio
     async def test_player_index_season_is_optional(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ext = PlayerIndexExtractor()
         captured: dict[str, object] = {}
@@ -621,6 +640,25 @@ class TestCrossProductParameterHandling:
         assert isinstance(kwargs, dict)
         assert kwargs["is_only_current_season"] == 0
         assert "season" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_common_all_players_forwards_timeout_override(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(season="2024-25", timeout=(3.05, 10.0))
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["timeout"] == (3.05, 10.0)
 
     @pytest.mark.asyncio
     async def test_common_all_players_falls_back_to_static_players_when_unscoped_json_fails(
