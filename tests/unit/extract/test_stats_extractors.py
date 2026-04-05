@@ -762,6 +762,34 @@ class TestCrossProductParameterHandling:
         assert result.get_column("person_id").to_list() == [1]
 
     @pytest.mark.asyncio
+    async def test_common_all_players_falls_back_to_static_players_after_retryable_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise ConnectionError("transient failure")
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.player_info.static_players.get_players",
+            lambda: [
+                {
+                    "id": 1,
+                    "full_name": "A One",
+                    "first_name": "A",
+                    "last_name": "One",
+                    "is_active": True,
+                }
+            ],
+        )
+
+        result = await ext.extract()
+
+        assert result.get_column("person_id").to_list() == [1]
+
+    @pytest.mark.asyncio
     async def test_common_all_players_re_raises_json_error_for_season_scoped_requests(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -775,6 +803,243 @@ class TestCrossProductParameterHandling:
 
         with pytest.raises(json.JSONDecodeError, match="bad json"):
             await ext.extract(season="2024-25")
+
+    @pytest.mark.asyncio
+    async def test_common_all_players_re_raises_structural_error_for_unscoped_requests(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise KeyError("resultSet")
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+
+        with pytest.raises(KeyError, match="resultSet"):
+            await ext.extract()
+
+
+class TestScheduleIntExtractor:
+    @staticmethod
+    def _payload() -> dict[str, object]:
+        return {
+            "meta": {
+                "version": 1,
+                "request": "http://nba.cloud/league/00/2023-24/scheduleleaguev2?Format=json",
+                "time": "2025-08-11T11:51:01.511Z",
+            },
+            "leagueSchedule": {
+                "seasonYear": "2023-24",
+                "leagueId": "00",
+                "gameDates": [
+                    {
+                        "gameDate": "10/05/2023 00:00:00",
+                        "games": [
+                            {
+                                "gameId": "0012300001",
+                                "gameCode": "20231005/DALMIN",
+                                "gameStatus": 3,
+                                "gameStatusText": "Final",
+                                "gameSequence": 1,
+                                "gameDateEst": "2023-10-05T00:00:00Z",
+                                "gameTimeEst": "1900-01-01T12:00:00Z",
+                                "gameDateTimeEst": "2023-10-05T12:00:00Z",
+                                "gameDateUTC": "2023-10-05T04:00:00Z",
+                                "gameTimeUTC": "1900-01-01T16:00:00Z",
+                                "gameDateTimeUTC": "2023-10-05T16:00:00Z",
+                                "awayTeamTime": "2023-10-05T11:00:00Z",
+                                "homeTeamTime": "2023-10-05T11:00:00Z",
+                                "day": "Thu",
+                                "monthNum": 10,
+                                "weekNumber": 0,
+                                "weekName": "",
+                                "ifNecessary": False,
+                                "seriesGameNumber": "",
+                                "gameLabel": "",
+                                "gameSubLabel": "",
+                                "seriesText": "Preseason",
+                                "arenaName": "Etihad Arena",
+                                "arenaState": "",
+                                "arenaCity": "Abu Dhabi",
+                                "postponedStatus": "N",
+                                "branchLink": "https://app.link.nba.com/sTXDSduQ8Db",
+                                "gameSubtype": "",
+                                "isNeutral": False,
+                                "homeTeam": {
+                                    "teamId": 1610612750,
+                                    "teamName": "Timberwolves",
+                                    "teamCity": "Minnesota",
+                                    "teamTricode": "MIN",
+                                    "teamSlug": "timberwolves",
+                                    "wins": 0,
+                                    "losses": 1,
+                                    "score": 99,
+                                    "seed": 0,
+                                },
+                                "awayTeam": {
+                                    "teamId": 1610612742,
+                                    "teamName": "Mavericks",
+                                    "teamCity": "Dallas",
+                                    "teamTricode": "DAL",
+                                    "teamSlug": "mavericks",
+                                    "wins": 1,
+                                    "losses": 0,
+                                    "score": 111,
+                                    "seed": 0,
+                                },
+                            }
+                        ],
+                    }
+                ],
+                "weeks": [
+                    {
+                        "weekNumber": 0,
+                        "weekName": "",
+                        "startDate": "2023-10-05",
+                        "endDate": "2023-10-11",
+                    }
+                ],
+                "broadcasterList": [],
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_extract_all_falls_back_to_raw_league_schedule_payload(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = ScheduleIntExtractor()
+
+        class _FakeResponse:
+            def get_dict(self) -> dict[str, object]:
+                return TestScheduleIntExtractor._payload()
+
+        def _boom(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
+            raise ValueError("AssertionError('962 columns passed, passed data had 961 columns')")
+
+        def _fake_send_api_request(
+            self,
+            *,
+            endpoint: str,
+            parameters: dict[str, object],
+            proxy: object | None = None,
+            headers: object | None = None,
+            timeout: object | None = None,
+        ) -> _FakeResponse:
+            return _FakeResponse()
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.schedule.NBAStatsHTTP.send_api_request",
+            _fake_send_api_request,
+        )
+
+        games, weeks = await ext.extract_all(season="2023-24")
+
+        assert games.to_dicts() == [
+            {
+                "league_id": "00",
+                "season_year": "2023-24",
+                "game_date": "10/05/2023 00:00:00",
+                "game_id": "0012300001",
+                "game_code": "20231005/DALMIN",
+                "game_status": 3,
+                "game_status_text": "Final",
+                "game_sequence": 1,
+                "game_date_est": "2023-10-05T00:00:00Z",
+                "game_time_est": "1900-01-01T12:00:00Z",
+                "game_date_time_est": "2023-10-05T12:00:00Z",
+                "game_date_utc": "2023-10-05T04:00:00Z",
+                "game_time_utc": "1900-01-01T16:00:00Z",
+                "game_date_time_utc": "2023-10-05T16:00:00Z",
+                "away_team_time": "2023-10-05T11:00:00Z",
+                "home_team_time": "2023-10-05T11:00:00Z",
+                "day": "Thu",
+                "month_num": 10,
+                "week_number": 0,
+                "week_name": "",
+                "if_necessary": False,
+                "series_game_number": "",
+                "game_label": "",
+                "game_sub_label": "",
+                "series_text": "Preseason",
+                "arena_name": "Etihad Arena",
+                "arena_state": "",
+                "arena_city": "Abu Dhabi",
+                "postponed_status": "N",
+                "branch_link": "https://app.link.nba.com/sTXDSduQ8Db",
+                "game_subtype": "",
+                "is_neutral": False,
+                "home_team_team_id": 1610612750,
+                "home_team_team_name": "Timberwolves",
+                "home_team_team_city": "Minnesota",
+                "home_team_team_tricode": "MIN",
+                "home_team_team_slug": "timberwolves",
+                "home_team_wins": 0,
+                "home_team_losses": 1,
+                "home_team_score": 99,
+                "home_team_seed": 0,
+                "away_team_team_id": 1610612742,
+                "away_team_team_name": "Mavericks",
+                "away_team_team_city": "Dallas",
+                "away_team_team_tricode": "DAL",
+                "away_team_team_slug": "mavericks",
+                "away_team_wins": 1,
+                "away_team_losses": 0,
+                "away_team_score": 111,
+                "away_team_seed": 0,
+            }
+        ]
+        assert weeks.to_dicts() == [
+            {
+                "league_id": "00",
+                "season_year": "2023-24",
+                "week_number": 0,
+                "week_name": "",
+                "start_date": "2023-10-05",
+                "end_date": "2023-10-11",
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_extract_returns_first_frame_when_shape_error_occurs(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = ScheduleIntExtractor()
+
+        class _FakeResponse:
+            def get_dict(self) -> dict[str, object]:
+                return TestScheduleIntExtractor._payload()
+
+        def _boom_single(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise ValueError("AssertionError('1094 columns passed, passed data had 1093 columns')")
+
+        def _boom_multi(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
+            raise ValueError("AssertionError('1094 columns passed, passed data had 1093 columns')")
+
+        def _fake_send_api_request(
+            self,
+            *,
+            endpoint: str,
+            parameters: dict[str, object],
+            proxy: object | None = None,
+            headers: object | None = None,
+            timeout: object | None = None,
+        ) -> _FakeResponse:
+            return _FakeResponse()
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom_single)
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom_multi)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.schedule.NBAStatsHTTP.send_api_request",
+            _fake_send_api_request,
+        )
+
+        result = await ext.extract(season="2023-24")
+
+        assert result.get_column("game_id").to_list() == ["0012300001"]
 
 
 # Per-endpoint param overrides — only entries that differ from the category default.
@@ -1150,7 +1415,7 @@ class TestSynergyPlayTypesExtractor:
         ]
 
     @pytest.mark.asyncio
-    async def test_known_invalid_parameter_skips_combo_via_fetch_path(
+    async def test_known_invalid_parameter_skips_all_putbacks_combos_via_fetch_path(
         self,
         synergy_ext,
         monkeypatch,
@@ -1165,11 +1430,7 @@ class TestSynergyPlayTypesExtractor:
                 return self._payload
 
         def _fake_from_nba_api(endpoint_cls, **kwargs):
-            if (
-                kwargs["play_type_nullable"] == "Putbacks"
-                and kwargs["player_or_team_abbreviation"] == "P"
-                and kwargs["type_grouping_nullable"] == "offensive"
-            ):
+            if kwargs["play_type_nullable"] == "Putbacks":
                 raise KeyError("resultSet")
             return pl.DataFrame({"val": [1]})
 
@@ -1182,11 +1443,7 @@ class TestSynergyPlayTypesExtractor:
             headers=None,
             timeout=None,
         ):
-            if (
-                parameters["PlayType"] == "Putbacks"
-                and parameters["PlayerOrTeam"] == "P"
-                and parameters["TypeGrouping"] == "offensive"
-            ):
+            if parameters["PlayType"] == "Putbacks":
                 return _FakeResponse({"PlayType": ["Invalid Parameter"]})
             return _FakeResponse(
                 {
@@ -1213,7 +1470,7 @@ class TestSynergyPlayTypesExtractor:
 
         result = await synergy_ext.extract(season="2024-25")
 
-        assert result.shape[0] == 43
+        assert result.shape[0] == 40
         assert not reset_calls
 
     @pytest.mark.asyncio

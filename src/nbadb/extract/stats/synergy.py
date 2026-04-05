@@ -28,7 +28,11 @@ _SYNERGY_PLAY_TYPES = [
 
 _SYNERGY_ENTITY_TYPES = ["P", "T"]  # Player, Team
 _SYNERGY_GROUPINGS = ["offensive", "defensive"]
-_UNSUPPORTED_INVALID_PARAMETER_COMBOS = frozenset({("Putbacks", "P", "offensive")})
+_UNSUPPORTED_INVALID_PARAMETER_COMBOS = frozenset(
+    ("Putbacks", entity_type, grouping)
+    for entity_type in _SYNERGY_ENTITY_TYPES
+    for grouping in _SYNERGY_GROUPINGS
+)
 _RETRYABLE_SUBREQUEST_ATTEMPTS = 2
 _RETRYABLE_SUBREQUEST_BACKOFF_SECONDS = 2.0
 

@@ -22,6 +22,18 @@ from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.seasons import current_season
 
+_UNSCOPED_COMMON_ALL_PLAYERS_FALLBACK_ERRORS = frozenset(
+    {
+        "JSONDecodeError",
+        "ReadTimeout",
+        "ConnectTimeout",
+        "ConnectionError",
+        "ConnectionResetError",
+        "ChunkedEncodingError",
+        "RemoteDisconnected",
+    }
+)
+
 
 @registry.register
 class CommonPlayerInfoExtractor(BaseExtractor):
@@ -93,13 +105,22 @@ class CommonAllPlayersExtractor(BaseExtractor):
 
         try:
             return self._from_nba_api(CommonAllPlayers, **kwargs)
-        except json.JSONDecodeError:
+        except Exception as exc:
             if season is not None:
                 raise
-            logger.warning(
-                "common_all_players: falling back to nba_api static players after JSONDecodeError"
-            )
-            return self._fallback_from_static_players(is_only_current=is_only_current)
+            if isinstance(exc, json.JSONDecodeError):
+                logger.warning(
+                    "common_all_players: falling back to nba_api static players "
+                    "after JSONDecodeError"
+                )
+                return self._fallback_from_static_players(is_only_current=is_only_current)
+            if type(exc).__name__ in _UNSCOPED_COMMON_ALL_PLAYERS_FALLBACK_ERRORS:
+                logger.warning(
+                    "common_all_players: falling back to nba_api static players after {}",
+                    type(exc).__name__,
+                )
+                return self._fallback_from_static_players(is_only_current=is_only_current)
+            raise
 
     @staticmethod
     def _fallback_from_static_players(*, is_only_current: int) -> pl.DataFrame:
