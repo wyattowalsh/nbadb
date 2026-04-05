@@ -103,6 +103,19 @@ class TestDiscoverPlayerIds:
             result = await disc.discover_player_ids(season="2024-25")
         assert result == [1, 3]
 
+    async def test_filters_active_players_from_roster_status(self):
+        df = pl.DataFrame({"person_id": [1, 2, 3], "roster_status": [1, 0, 1]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_ids(season="2024-25")
+        assert result == [1, 3]
+
     async def test_returns_empty_on_failure(self):
         class _Ext:
             pass

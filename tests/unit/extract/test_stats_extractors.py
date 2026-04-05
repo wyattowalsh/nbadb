@@ -6,6 +6,8 @@ Verifies endpoint_name, category, and registry presence for every
 
 from __future__ import annotations
 
+import json
+
 import polars as pl
 import pytest
 
@@ -583,6 +585,158 @@ class TestCrossProductParameterHandling:
         assert isinstance(kwargs, dict)
         assert kwargs["team_id"] == 1610612744
         assert "season" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_player_index_season_is_optional(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = PlayerIndexExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract()
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert "season" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_common_all_players_omits_empty_season_param(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract()
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["is_only_current_season"] == 0
+        assert "season" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_common_all_players_falls_back_to_static_players_when_unscoped_json_fails(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise json.JSONDecodeError("bad json", "", 0)
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.player_info.static_players.get_players",
+            lambda: [
+                {
+                    "id": 1,
+                    "full_name": "A One",
+                    "first_name": "A",
+                    "last_name": "One",
+                    "is_active": True,
+                },
+                {
+                    "id": 2,
+                    "full_name": "B Two",
+                    "first_name": "B",
+                    "last_name": "Two",
+                    "is_active": False,
+                },
+            ],
+        )
+
+        result = await ext.extract()
+
+        assert result.to_dicts() == [
+            {
+                "person_id": 1,
+                "display_last_comma_first": "One, A",
+                "display_first_last": "A One",
+                "roster_status": 1,
+                "from_year": None,
+                "to_year": None,
+                "playercode": None,
+                "team_id": None,
+                "team_city": None,
+                "team_name": None,
+                "team_abbreviation": None,
+                "team_code": None,
+                "games_played_flag": None,
+            },
+            {
+                "person_id": 2,
+                "display_last_comma_first": "Two, B",
+                "display_first_last": "B Two",
+                "roster_status": 0,
+                "from_year": None,
+                "to_year": None,
+                "playercode": None,
+                "team_id": None,
+                "team_city": None,
+                "team_name": None,
+                "team_abbreviation": None,
+                "team_code": None,
+                "games_played_flag": None,
+            },
+        ]
+
+    @pytest.mark.asyncio
+    async def test_common_all_players_fallback_can_limit_to_active_players(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise json.JSONDecodeError("bad json", "", 0)
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.player_info.static_players.get_players",
+            lambda: [
+                {
+                    "id": 1,
+                    "full_name": "A One",
+                    "first_name": "A",
+                    "last_name": "One",
+                    "is_active": True,
+                },
+                {
+                    "id": 2,
+                    "full_name": "B Two",
+                    "first_name": "B",
+                    "last_name": "Two",
+                    "is_active": False,
+                },
+            ],
+        )
+
+        result = await ext.extract(is_only_current_season=1)
+
+        assert result.get_column("person_id").to_list() == [1]
+
+    @pytest.mark.asyncio
+    async def test_common_all_players_re_raises_json_error_for_season_scoped_requests(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise json.JSONDecodeError("bad json", "", 0)
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+
+        with pytest.raises(json.JSONDecodeError, match="bad json"):
+            await ext.extract(season="2024-25")
 
 
 # Per-endpoint param overrides — only entries that differ from the category default.

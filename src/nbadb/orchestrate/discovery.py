@@ -210,6 +210,8 @@ class EntityDiscovery:
         """Get active player IDs from common_all_players."""
 
         def _active_only(df: pl.DataFrame) -> pl.DataFrame:
+            if "roster_status" in df.columns:
+                return df.filter(df["roster_status"] == 1)
             if "is_active" in df.columns:
                 return df.filter(df["is_active"] == 1)
             return df

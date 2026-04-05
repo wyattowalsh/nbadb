@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -15,6 +16,7 @@ from nba_api.stats.endpoints import (
     PlayerNextNGames,
     PlayerProfileV2,
 )
+from nba_api.stats.static import players as static_players
 
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
@@ -67,8 +69,11 @@ class PlayerIndexExtractor(BaseExtractor):
     category = "player_info"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params.get("season", "")
-        return self._from_nba_api(PlayerIndex, season=season)
+        season = params.get("season") or None
+        kwargs: dict[str, Any] = {}
+        if season is not None:
+            kwargs["season"] = season
+        return self._from_nba_api(PlayerIndex, **kwargs)
 
 
 @registry.register
@@ -77,12 +82,65 @@ class CommonAllPlayersExtractor(BaseExtractor):
     category = "player_info"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        season: str = params.get("season", "")
+        season = params.get("season") or None
         is_only_current: int = params.get("is_only_current_season", 0)
-        return self._from_nba_api(
-            CommonAllPlayers,
-            season=season,
-            is_only_current_season=is_only_current,
+        kwargs: dict[str, Any] = {"is_only_current_season": is_only_current}
+        if season is not None:
+            kwargs["season"] = season
+
+        try:
+            return self._from_nba_api(CommonAllPlayers, **kwargs)
+        except json.JSONDecodeError:
+            if season is not None:
+                raise
+            logger.warning(
+                "common_all_players: falling back to nba_api static players after JSONDecodeError"
+            )
+            return self._fallback_from_static_players(is_only_current=is_only_current)
+
+    @staticmethod
+    def _fallback_from_static_players(*, is_only_current: int) -> pl.DataFrame:
+        import polars as pl
+
+        df = pl.from_records(static_players.get_players())
+        if df.is_empty():
+            return df
+
+        if is_only_current:
+            df = df.filter(pl.col("is_active"))
+
+        return df.with_columns(
+            pl.col("id").cast(pl.Int64, strict=False).alias("person_id"),
+            pl.when(pl.col("last_name").is_not_null() & pl.col("first_name").is_not_null())
+            .then(pl.format("{}, {}", pl.col("last_name"), pl.col("first_name")))
+            .otherwise(pl.col("full_name"))
+            .cast(pl.Utf8, strict=False)
+            .alias("display_last_comma_first"),
+            pl.col("full_name").cast(pl.Utf8, strict=False).alias("display_first_last"),
+            pl.col("is_active").cast(pl.Int64, strict=False).alias("roster_status"),
+            pl.lit(None, dtype=pl.Utf8).alias("from_year"),
+            pl.lit(None, dtype=pl.Utf8).alias("to_year"),
+            pl.lit(None, dtype=pl.Utf8).alias("playercode"),
+            pl.lit(None, dtype=pl.Int64).alias("team_id"),
+            pl.lit(None, dtype=pl.Utf8).alias("team_city"),
+            pl.lit(None, dtype=pl.Utf8).alias("team_name"),
+            pl.lit(None, dtype=pl.Utf8).alias("team_abbreviation"),
+            pl.lit(None, dtype=pl.Utf8).alias("team_code"),
+            pl.lit(None, dtype=pl.Utf8).alias("games_played_flag"),
+        ).select(
+            "person_id",
+            "display_last_comma_first",
+            "display_first_last",
+            "roster_status",
+            "from_year",
+            "to_year",
+            "playercode",
+            "team_id",
+            "team_city",
+            "team_name",
+            "team_abbreviation",
+            "team_code",
+            "games_played_flag",
         )
 
 
