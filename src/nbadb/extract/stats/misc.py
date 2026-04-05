@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import json
+from typing import Any
 
+import polars as pl
+from loguru import logger
 from nba_api.stats.endpoints import (
     CumeStatsPlayer,
     CumeStatsPlayerGames,
@@ -20,13 +23,11 @@ from nba_api.stats.endpoints import (
     VideoEvents,
     VideoStatus,
 )
+from nba_api.stats.library.http import NBAStatsHTTP
 
-from nbadb.extract.base import BaseExtractor
+from nbadb.extract.base import BaseExtractor, _to_snake_case
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.seasons import current_season
-
-if TYPE_CHECKING:
-    import polars as pl
 
 
 def _season_start_year(season: str | int | None) -> int:
@@ -35,6 +36,29 @@ def _season_start_year(season: str | int | None) -> int:
     if isinstance(season, str) and season:
         return int(season.split("-", 1)[0])
     return int(current_season().split("-", 1)[0])
+
+
+def _payload_rows_to_frame(rows: list[dict[str, Any]]) -> pl.DataFrame:
+    if not rows:
+        return pl.DataFrame()
+    df = pl.DataFrame(rows)
+    if df.columns:
+        df = df.rename({c: _to_snake_case(c) for c in df.columns})
+    return df
+
+
+def _response_text(response: Any) -> str:
+    raw = response.get_response()
+    if isinstance(raw, str):
+        return raw
+    return getattr(raw, "text", str(raw))
+
+
+def _is_unavailable_response(text: str) -> bool:
+    normalized = text.strip()
+    return (
+        not normalized or "(403) Forbidden" in normalized or "System.Net.WebException" in normalized
+    )
 
 
 @registry.register
@@ -180,11 +204,37 @@ class DunkScoreLeadersExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            DunkScoreLeaders,
-            season=season,
-            season_type_all_star=season_type,
+        request_kwargs: dict[str, Any] = {
+            "season": season,
+            "season_type_all_star": season_type,
+            "player_id_nullable": "0",
+            "team_id_nullable": "0",
+        }
+        self._inject_timeout(request_kwargs)
+        endpoint = DunkScoreLeaders(get_request=False, **request_kwargs)
+        response = NBAStatsHTTP().send_api_request(
+            endpoint=endpoint.endpoint,
+            parameters=endpoint.parameters,
+            proxy=endpoint.proxy,
+            headers=endpoint.headers,
+            timeout=endpoint.timeout,
         )
+        try:
+            payload = response.get_dict()
+        except json.JSONDecodeError:
+            if _is_unavailable_response(_response_text(response)):
+                logger.info(
+                    "dunk_score_leaders unavailable for {} ({}); returning empty frame",
+                    season,
+                    season_type,
+                )
+                return pl.DataFrame()
+            raise
+
+        rows = payload.get("dunks")
+        if not isinstance(rows, list):
+            raise KeyError("dunks")
+        return _payload_rows_to_frame(rows)
 
 
 @registry.register
@@ -195,11 +245,35 @@ class GravityLeadersExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
-            GravityLeaders,
-            season=season,
-            season_type_all_star=season_type,
+        request_kwargs: dict[str, Any] = {
+            "season": season,
+            "season_type_all_star": season_type,
+        }
+        self._inject_timeout(request_kwargs)
+        endpoint = GravityLeaders(get_request=False, **request_kwargs)
+        response = NBAStatsHTTP().send_api_request(
+            endpoint=endpoint.endpoint,
+            parameters=endpoint.parameters,
+            proxy=endpoint.proxy,
+            headers=endpoint.headers,
+            timeout=endpoint.timeout,
         )
+        try:
+            payload = response.get_dict()
+        except json.JSONDecodeError:
+            if _is_unavailable_response(_response_text(response)):
+                logger.info(
+                    "gravity_leaders unavailable for {} ({}); returning empty frame",
+                    season,
+                    season_type,
+                )
+                return pl.DataFrame()
+            raise
+
+        rows = payload.get("leaders")
+        if not isinstance(rows, list):
+            raise KeyError("leaders")
+        return _payload_rows_to_frame(rows)
 
 
 @registry.register

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import json
+from typing import Any
 
+import polars as pl
 from loguru import logger
 from nba_api.stats.endpoints import (
     CommonPlayoffSeries,
@@ -9,12 +11,10 @@ from nba_api.stats.endpoints import (
     LeagueStandingsV3,
     PlayoffPicture,
 )
+from nba_api.stats.library.http import NBAStatsHTTP
 
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
-
-if TYPE_CHECKING:
-    import polars as pl
 
 
 @registry.register
@@ -64,4 +64,33 @@ class ISTStandingsExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         season: str = params["season"]
-        return self._from_nba_api(ISTStandings, season=season)
+        try:
+            return self._from_nba_api(ISTStandings, season=season)
+        except json.JSONDecodeError:
+            if season != "2021-22":
+                raise
+
+        request_kwargs = {"season": season}
+        self._inject_timeout(request_kwargs)
+        endpoint = ISTStandings(get_request=False, **request_kwargs)
+        response = NBAStatsHTTP().send_api_request(
+            endpoint=endpoint.endpoint,
+            parameters=endpoint.parameters,
+            proxy=endpoint.proxy,
+            headers=endpoint.headers,
+            timeout=endpoint.timeout,
+        )
+        raw_response = response.get_response()
+        text = (
+            raw_response
+            if isinstance(raw_response, str)
+            else getattr(raw_response, "text", str(raw_response))
+        )
+        normalized = text.strip()
+        if normalized and (
+            "(403) Forbidden" not in normalized or "System.Net.WebException" not in normalized
+        ):
+            raise json.JSONDecodeError("Expecting value", text, 0)
+
+        logger.info("ist_standings unavailable for {}; returning empty frame", season)
+        return pl.DataFrame()

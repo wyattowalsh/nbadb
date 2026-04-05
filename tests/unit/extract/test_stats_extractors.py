@@ -820,6 +820,177 @@ class TestCrossProductParameterHandling:
             await ext.extract()
 
 
+class TestMiscLeadersExtractors:
+    class _FakeResponse:
+        def __init__(self, payload: object = None, raw_response: object = "") -> None:
+            self._payload = payload
+            self._raw_response = raw_response
+
+        def get_dict(self) -> dict[str, object]:
+            if isinstance(self._payload, Exception):
+                raise self._payload
+            assert isinstance(self._payload, dict)
+            return self._payload
+
+        def get_response(self) -> object:
+            return self._raw_response
+
+    @pytest.mark.asyncio
+    async def test_dunk_score_leaders_parses_raw_payload_with_zero_ids(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = DunkScoreLeadersExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake_send_api_request(
+            self,
+            **kwargs: object,
+        ) -> TestMiscLeadersExtractors._FakeResponse:
+            captured.update(kwargs)
+            return TestMiscLeadersExtractors._FakeResponse(
+                payload={
+                    "params": {"Season": "2025-26"},
+                    "dunks": [{"playerId": 1, "dunkScore": 8.5}],
+                }
+            )
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
+            _fake_send_api_request,
+        )
+
+        result = await ext.extract(season="2025-26", season_type="Regular Season")
+
+        assert result.to_dicts() == [{"player_id": 1, "dunk_score": 8.5}]
+        parameters = captured["parameters"]
+        assert isinstance(parameters, dict)
+        assert parameters["PlayerID"] == "0"
+        assert parameters["TeamID"] == "0"
+        assert parameters["Season"] == "2025-26"
+        assert parameters["SeasonType"] == "Regular Season"
+
+    @pytest.mark.asyncio
+    async def test_dunk_score_leaders_returns_empty_for_unavailable_raw_response(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = DunkScoreLeadersExtractor()
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
+            lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
+                payload=json.JSONDecodeError("bad json", "", 0),
+                raw_response="",
+            ),
+        )
+
+        result = await ext.extract(season="2025-26", season_type="Playoffs")
+
+        assert result.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_gravity_leaders_parses_raw_payload(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = GravityLeadersExtractor()
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
+            lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
+                payload={
+                    "params": {"Season": "2025-26"},
+                    "leaders": [{"PLAYERID": 1, "GRAVITYSCORE": 1.5}],
+                }
+            ),
+        )
+
+        result = await ext.extract(season="2025-26", season_type="Regular Season")
+
+        assert result.to_dicts() == [{"playerid": 1, "gravityscore": 1.5}]
+
+    @pytest.mark.asyncio
+    async def test_gravity_leaders_returns_empty_for_forbidden_raw_response(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = GravityLeadersExtractor()
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
+            lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
+                payload=json.JSONDecodeError("bad json", "", 0),
+                raw_response=(
+                    "System.Net.WebException: The remote server returned an error: (403) Forbidden."
+                ),
+            ),
+        )
+
+        result = await ext.extract(season="2024-25", season_type="Regular Season")
+
+        assert result.is_empty()
+
+
+class TestISTStandingsExtractor:
+    class _FakeResponse:
+        def __init__(self, raw_response: object) -> None:
+            self._raw_response = raw_response
+
+        def get_response(self) -> object:
+            return self._raw_response
+
+    @pytest.mark.parametrize(
+        "raw_response",
+        [
+            "",
+            "System.Net.WebException: The remote server returned an error: (403) Forbidden.",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_known_unavailable_season_returns_empty_frame(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        raw_response: str,
+    ) -> None:
+        ext = ISTStandingsExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise json.JSONDecodeError("bad json", "", 0)
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.standings.NBAStatsHTTP.send_api_request",
+            lambda self, **_kwargs: TestISTStandingsExtractor._FakeResponse(raw_response),
+        )
+
+        result = await ext.extract(season="2021-22")
+
+        assert result.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_other_seasons_still_raise_jsondecodeerror(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = ISTStandingsExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise json.JSONDecodeError("bad json", "", 0)
+
+        def _unexpected_raw_fallback(*_args: object, **_kwargs: object) -> object:
+            raise AssertionError("unexpected raw fallback")
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.standings.NBAStatsHTTP.send_api_request",
+            _unexpected_raw_fallback,
+        )
+
+        with pytest.raises(json.JSONDecodeError, match="bad json"):
+            await ext.extract(season="2022-23")
+
+
 class TestScheduleIntExtractor:
     @staticmethod
     def _payload() -> dict[str, object]:
@@ -1607,3 +1778,15 @@ class TestSynergyPlayTypesExtractor:
 
         with pytest.raises(RuntimeError, match="all 44 synergy combinations failed"):
             await synergy_ext.extract(season="2024-25")
+
+    @pytest.mark.asyncio
+    async def test_all_empty_combinations_return_empty_frame(self, synergy_ext, monkeypatch):
+        def _fake_fetch(**kw):
+            return pl.DataFrame(schema={"val": pl.Int64})
+
+        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+
+        result = await synergy_ext.extract(season="2025-26", season_type="Playoffs")
+
+        assert result.is_empty()

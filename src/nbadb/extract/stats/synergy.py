@@ -149,6 +149,7 @@ class SynergyPlayTypesExtractor(BaseExtractor):
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
         frames: list[pl.DataFrame] = []
+        non_retryable_failures = 0
 
         for play_type in _SYNERGY_PLAY_TYPES:
             for entity_type in _SYNERGY_ENTITY_TYPES:
@@ -216,6 +217,7 @@ class SynergyPlayTypesExtractor(BaseExtractor):
                                 season_type,
                                 type(exc).__name__,
                             )
+                            non_retryable_failures += 1
                             break
                         else:
                             if not df.is_empty():
@@ -232,5 +234,15 @@ class SynergyPlayTypesExtractor(BaseExtractor):
 
         total = len(_SYNERGY_PLAY_TYPES) * len(_SYNERGY_ENTITY_TYPES) * len(_SYNERGY_GROUPINGS)
         if not frames:
-            raise RuntimeError(f"all {total} synergy combinations failed for {season}")
+            if non_retryable_failures:
+                raise RuntimeError(
+                    f"all {total} synergy combinations failed for {season} ({season_type})"
+                )
+            logger.info(
+                "synergy_play_types for {} ({}) returned no rows across all {} combinations",
+                season,
+                season_type,
+                total,
+            )
+            return pl.DataFrame()
         return pl.concat(frames, how="diagonal_relaxed")
