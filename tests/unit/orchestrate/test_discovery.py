@@ -345,6 +345,43 @@ class TestDiscoverGameIds:
         assert combined.shape[0] == 1
         assert call_count == 5
 
+    async def test_recovers_failed_combos_sequentially(self):
+        call_counts: dict[tuple[str, str], int] = {}
+
+        def _side_effect(*_args, **kwargs):
+            key = (kwargs["season"], kwargs["season_type"])
+            call_counts[key] = call_counts.get(key, 0) + 1
+            if key == ("2024-25", "Regular Season") and call_counts[key] <= 3:
+                raise ConnectionError("fail")
+            game_id = "001" if key[1] == "Regular Season" else "002"
+            return pl.DataFrame({"game_id": [game_id]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        progress = MagicMock()
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg)
+            ids, combined = await disc.discover_game_ids(
+                ["2024-25"],
+                on_progress=progress,
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert ids == ["001", "002"]
+        assert combined.shape[0] == 2
+        assert call_counts == {
+            ("2024-25", "Regular Season"): 4,
+            ("2024-25", "Playoffs"): 1,
+        }
+        assert progress.start_pattern.call_args_list[0].args == ("game discovery (2 combos)", 2)
+        assert progress.start_pattern.call_args_list[1].args == (
+            "game discovery recovery (1 combos)",
+            1,
+        )
+
     async def test_failure_in_one_season_does_not_cancel_others(self):
         call_count = 0
 

@@ -138,10 +138,18 @@ class EntityDiscovery:
 
         semaphore = asyncio.Semaphore(self._discovery_concurrency)
 
-        async def _fetch(season: str, season_type: str) -> pl.DataFrame | None:
-            async with semaphore:
-                label = f"league_game_log({season}, {season_type})"
-                logger.info("discovering game IDs: {}", label)
+        async def _fetch(
+            season: str,
+            season_type: str,
+            *,
+            progress: _PatternProgress | None,
+            use_semaphore: bool,
+            phase: str,
+        ) -> tuple[tuple[str, str], pl.DataFrame | None, bool]:
+            label = f"league_game_log({season}, {season_type})"
+
+            async def _run() -> tuple[tuple[str, str], pl.DataFrame | None, bool]:
+                logger.info("{} game IDs: {}", phase, label)
                 extractor = extractor_cls()
                 try:
                     df = await _extract_with_retry(
@@ -154,23 +162,81 @@ class EntityDiscovery:
                         season=season,
                         season_type=season_type,
                     )
-                    if on_progress is not None:
-                        on_progress.advance_pattern(success=True)
-                    if not df.is_empty():
-                        return df
-                    return None
                 except Exception as exc:
-                    logger.error(
-                        "failed to extract game log for {}: {}",
-                        label,
-                        type(exc).__name__,
+                    message = (
+                        "failed to recover game log for {}: {}"
+                        if phase == "recovering"
+                        else "failed to extract game log for {}: {}"
                     )
-                    if on_progress is not None:
-                        on_progress.advance_pattern(success=False)
-                    return None
+                    logger.error(message, label, type(exc).__name__)
+                    if progress is not None:
+                        progress.advance_pattern(success=False)
+                    return (season, season_type), None, False
 
-        results = await asyncio.gather(*[_fetch(s, st) for s, st in combos])
-        frames: list[pl.DataFrame] = [df for df in results if df is not None]
+                if progress is not None:
+                    progress.advance_pattern(success=True)
+                if phase == "recovering":
+                    logger.info("recovered game log for {}", label)
+                if df.is_empty():
+                    return (season, season_type), None, True
+                return (season, season_type), df, True
+
+            if not use_semaphore:
+                return await _run()
+
+            async with semaphore:
+                return await _run()
+
+        initial_results = await asyncio.gather(
+            *[
+                _fetch(
+                    season,
+                    season_type,
+                    progress=on_progress,
+                    use_semaphore=True,
+                    phase="discovering",
+                )
+                for season, season_type in combos
+            ]
+        )
+
+        frames: list[pl.DataFrame] = [
+            df for _combo, df, success in initial_results if success and df is not None
+        ]
+        failed_combos = [combo for combo, _df, success in initial_results if not success]
+
+        if failed_combos:
+            logger.warning(
+                "retrying {} failed game discovery combos sequentially",
+                len(failed_combos),
+            )
+            if on_progress is not None:
+                on_progress.start_pattern(
+                    f"game discovery recovery ({len(failed_combos)} combos)",
+                    len(failed_combos),
+                )
+
+            recovered = 0
+            for season, season_type in failed_combos:
+                _combo, df, success = await _fetch(
+                    season,
+                    season_type,
+                    progress=on_progress,
+                    use_semaphore=False,
+                    phase="recovering",
+                )
+                if success:
+                    recovered += 1
+                    if df is not None:
+                        frames.append(df)
+
+            if recovered == len(failed_combos):
+                logger.info("recovered all {} failed game discovery combos", recovered)
+            else:
+                logger.warning(
+                    "game discovery finished with {} unrecovered combo failures",
+                    len(failed_combos) - recovered,
+                )
 
         if not frames:
             logger.warning("no game log data returned")
