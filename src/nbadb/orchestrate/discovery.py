@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
+from nba_api.stats.library.http import NBAStatsHTTP
 
 from nbadb.core.config import get_settings
 from nbadb.orchestrate.extractor_runner import _sync_extract
@@ -31,6 +32,11 @@ _RETRY_DELAY = 2.0  # seconds between retries
 _DISCOVERY_CONCURRENCY = 10
 _CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 1
 _CONCURRENT_DISCOVERY_TIMEOUT = (3.05, 10.0)
+
+
+def _reset_nba_stats_session() -> None:
+    """Drop the shared nba_api session so recovery starts from a fresh client."""
+    NBAStatsHTTP.set_session(None)
 
 
 async def _extract_with_retry(
@@ -156,6 +162,8 @@ class EntityDiscovery:
 
             async def _run() -> tuple[tuple[str, str], pl.DataFrame | None, bool]:
                 logger.info("{} game IDs: {}", phase, label)
+                if phase == "recovering":
+                    _reset_nba_stats_session()
                 extractor = extractor_cls()
                 request_params: dict[str, object] = {
                     "season": season,
@@ -373,6 +381,8 @@ class EntityDiscovery:
 
             async def _run() -> tuple[str, pl.DataFrame | None, bool]:
                 logger.info("{} player/team pairs: {}", phase, label)
+                if phase == "recovering":
+                    _reset_nba_stats_session()
                 extractor = extractor_cls()
                 request_params: dict[str, object] = {"season": season}
                 if phase != "recovering":

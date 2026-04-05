@@ -246,7 +246,10 @@ class TestDiscoverPlayerTeamSeasonParams:
             extract_max_retries=2,
             extract_retry_base_delay=0.0,
         )
-        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+        with (
+            patch("nbadb.orchestrate.discovery._reset_nba_stats_session") as reset_session,
+            patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
+        ):
             disc = EntityDiscovery(reg, settings=settings)
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
@@ -258,6 +261,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             "2024-25": 4,
             "2025-26": 1,
         }
+        reset_session.assert_called_once()
 
     @pytest.mark.parametrize(
         ("invalid_frames", "valid_frame"),
@@ -522,7 +526,10 @@ class TestDiscoverGameIds:
         reg = MagicMock()
         reg.get.return_value = _Ext
         progress = MagicMock()
-        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+        with (
+            patch("nbadb.orchestrate.discovery._reset_nba_stats_session") as reset_session,
+            patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
+        ):
             disc = EntityDiscovery(reg)
             ids, combined = await disc.discover_game_ids(
                 ["2024-25"],
@@ -541,6 +548,7 @@ class TestDiscoverGameIds:
             "game discovery recovery (1 combos)",
             1,
         )
+        reset_session.assert_called_once()
 
     async def test_defers_failed_combos_to_recovery_before_full_budget(self):
         call_counts: dict[tuple[str, str], int] = {}
