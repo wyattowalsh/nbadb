@@ -348,10 +348,16 @@ class EntityDiscovery:
         extractor_cls = self._registry.get("common_all_players")
         semaphore = asyncio.Semaphore(self._discovery_concurrency)
 
-        async def _fetch(season: str) -> pl.DataFrame | None:
-            async with semaphore:
-                label = f"common_all_players({season})"
-                logger.info("discovering player/team pairs: {}", label)
+        async def _fetch(
+            season: str,
+            *,
+            use_semaphore: bool,
+            phase: str,
+        ) -> tuple[str, pl.DataFrame | None, bool]:
+            label = f"common_all_players({season})"
+
+            async def _run() -> tuple[str, pl.DataFrame | None, bool]:
+                logger.info("{} player/team pairs: {}", phase, label)
                 extractor = extractor_cls()
                 try:
                     df = await _extract_with_retry(
@@ -364,16 +370,19 @@ class EntityDiscovery:
                         season=season,
                     )
                 except Exception as exc:
-                    logger.error(
-                        "failed to discover player/team pairs for {}: {}",
-                        label,
-                        type(exc).__name__,
+                    message = (
+                        "failed to recover player/team pairs for {}: {}"
+                        if phase == "recovering"
+                        else "failed to discover player/team pairs for {}: {}"
                     )
-                    return None
+                    logger.error(message, label, type(exc).__name__)
+                    return season, None, False
 
+                if phase == "recovering":
+                    logger.info("recovered player/team pairs for {}", label)
                 if df.is_empty():
                     logger.warning("no common_all_players data returned for {}", season)
-                    return None
+                    return season, None, True
 
                 required = {"person_id", "team_id"}
                 missing = required - set(df.columns)
@@ -383,9 +392,10 @@ class EntityDiscovery:
                         sorted(missing),
                         season,
                     )
-                    return None
+                    return season, None, True
 
                 return (
+                    season,
                     df.select(
                         pl.col("person_id").cast(pl.Int64, strict=False).alias("player_id"),
                         pl.col("team_id").cast(pl.Int64, strict=False).alias("team_id"),
@@ -396,11 +406,58 @@ class EntityDiscovery:
                         & (pl.col("team_id") > 0)
                     )
                     .with_columns(pl.lit(season).alias("season"))
-                    .unique()
+                    .unique(),
+                    True,
                 )
 
-        results = await asyncio.gather(*[_fetch(season) for season in seasons])
-        frames = [df for df in results if df is not None]
+            if not use_semaphore:
+                return await _run()
+
+            async with semaphore:
+                return await _run()
+
+        initial_results = await asyncio.gather(
+            *[
+                _fetch(
+                    season,
+                    use_semaphore=True,
+                    phase="discovering",
+                )
+                for season in seasons
+            ]
+        )
+
+        frames = [df for _season, df, success in initial_results if success and df is not None]
+        failed_seasons = [season for season, _df, success in initial_results if not success]
+
+        if failed_seasons:
+            logger.warning(
+                "retrying {} failed player/team discovery seasons sequentially",
+                len(failed_seasons),
+            )
+            recovered = 0
+            for season in failed_seasons:
+                _season, df, success = await _fetch(
+                    season,
+                    use_semaphore=False,
+                    phase="recovering",
+                )
+                if success:
+                    recovered += 1
+                    if df is not None:
+                        frames.append(df)
+
+            if recovered == len(failed_seasons):
+                logger.info(
+                    "recovered all {} failed player/team discovery seasons",
+                    recovered,
+                )
+            else:
+                logger.warning(
+                    "player/team discovery finished with {} unrecovered seasons",
+                    len(failed_seasons) - recovered,
+                )
+
         if not frames:
             return []
 
