@@ -1102,15 +1102,161 @@ class TestSynergyPlayTypesExtractor:
 
         return SynergyPlayTypesExtractor()
 
+    def test_tabular_payload_normalizes_columns(self):
+        from nbadb.extract.stats.synergy import _synergy_payload_to_frame
+
+        result = _synergy_payload_to_frame(
+            {
+                "resultSets": [
+                    {
+                        "name": "SynergyPlayType",
+                        "headers": ["PLAYER_ID", "PLAY_TYPE", "TYPE_GROUPING"],
+                        "rowSet": [[1, "Isolation", "offensive"]],
+                    }
+                ]
+            },
+            season_type="Playoffs",
+        )
+
+        assert result.to_dicts() == [
+            {
+                "player_id": 1,
+                "play_type": "Isolation",
+                "type_grouping": "offensive",
+                "season_type": "Playoffs",
+            }
+        ]
+
+    def test_result_set_payload_normalizes_columns(self):
+        from nbadb.extract.stats.synergy import _synergy_payload_to_frame
+
+        result = _synergy_payload_to_frame(
+            {
+                "resultSet": {
+                    "name": "SynergyPlayType",
+                    "headers": ["PLAYER_ID", "PLAY_TYPE"],
+                    "rowSet": [[1, "Isolation"]],
+                }
+            },
+            season_type="Playoffs",
+        )
+
+        assert result.to_dicts() == [
+            {
+                "player_id": 1,
+                "play_type": "Isolation",
+                "season_type": "Playoffs",
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_known_invalid_parameter_skips_combo_via_fetch_path(
+        self,
+        synergy_ext,
+        monkeypatch,
+    ):
+        reset_calls: list[None] = []
+
+        class _FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+
+            def get_dict(self):
+                return self._payload
+
+        def _fake_from_nba_api(endpoint_cls, **kwargs):
+            if (
+                kwargs["play_type_nullable"] == "Putbacks"
+                and kwargs["player_or_team_abbreviation"] == "P"
+                and kwargs["type_grouping_nullable"] == "offensive"
+            ):
+                raise KeyError("resultSet")
+            return pl.DataFrame({"val": [1]})
+
+        def _fake_send_api_request(
+            self,
+            *,
+            endpoint,
+            parameters,
+            proxy=None,
+            headers=None,
+            timeout=None,
+        ):
+            if (
+                parameters["PlayType"] == "Putbacks"
+                and parameters["PlayerOrTeam"] == "P"
+                and parameters["TypeGrouping"] == "offensive"
+            ):
+                return _FakeResponse({"PlayType": ["Invalid Parameter"]})
+            return _FakeResponse(
+                {
+                    "resultSets": [
+                        {
+                            "name": "SynergyPlayType",
+                            "headers": ["VAL"],
+                            "rowSet": [[1]],
+                        }
+                    ]
+                }
+            )
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake_from_nba_api)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.synergy.NBAStatsHTTP.send_api_request",
+            _fake_send_api_request,
+        )
+        monkeypatch.setattr(
+            "nbadb.extract.stats.synergy._reset_nba_stats_session",
+            lambda: reset_calls.append(None),
+        )
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+
+        result = await synergy_ext.extract(season="2024-25")
+
+        assert result.shape[0] == 43
+        assert not reset_calls
+
+    @pytest.mark.asyncio
+    async def test_unknown_invalid_parameter_raises_specific_error(self, synergy_ext, monkeypatch):
+        from nbadb.extract.stats.synergy import SynergyInvalidParameterError
+
+        class _FakeResponse:
+            def get_dict(self):
+                return {"PlayType": ["Invalid Parameter"]}
+
+        def _fake_from_nba_api(endpoint_cls, **kwargs):
+            raise KeyError("resultSet")
+
+        def _fake_send_api_request(
+            self,
+            *,
+            endpoint,
+            parameters,
+            proxy=None,
+            headers=None,
+            timeout=None,
+        ):
+            return _FakeResponse()
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake_from_nba_api)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.synergy.NBAStatsHTTP.send_api_request",
+            _fake_send_api_request,
+        )
+        monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
+
+        with pytest.raises(SynergyInvalidParameterError, match="Isolation/P/offensive"):
+            await synergy_ext.extract(season="2024-25")
+
     @pytest.mark.asyncio
     async def test_iterates_all_combinations(self, synergy_ext, monkeypatch):
         calls: list[dict] = []
 
-        def _fake(endpoint_cls, **kw):
-            calls.append(kw)
-            return pl.DataFrame({"val": [1]})
-
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr(
+            synergy_ext,
+            "_fetch_synergy_frame",
+            lambda **kw: calls.append(kw) or pl.DataFrame({"val": [1]}),
+        )
         # Disable the inter-call sleep for test speed
         monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
         result = await synergy_ext.extract(season="2024-25")
@@ -1125,14 +1271,14 @@ class TestSynergyPlayTypesExtractor:
     async def test_non_retryable_failure_continues(self, synergy_ext, monkeypatch):
         call_count = 0
 
-        def _fake(endpoint_cls, **kw):
+        def _fake_fetch(**kw):
             nonlocal call_count
             call_count += 1
             if call_count == 5:
                 raise ValueError("test failure")
             return pl.DataFrame({"val": [1]})
 
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
         monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
         result = await synergy_ext.extract(season="2024-25")
 
@@ -1144,18 +1290,18 @@ class TestSynergyPlayTypesExtractor:
         calls: list[tuple[str, str, str]] = []
         reset_calls: list[None] = []
 
-        def _fake(endpoint_cls, **kw):
+        def _fake_fetch(**kw):
             combo = (
-                kw["play_type_nullable"],
-                kw["player_or_team_abbreviation"],
-                kw["type_grouping_nullable"],
+                kw["play_type"],
+                kw["entity_type"],
+                kw["grouping"],
             )
             calls.append(combo)
             if len(calls) == 5:
                 raise ConnectionError("test failure")
             return pl.DataFrame({"val": [1]})
 
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
         monkeypatch.setattr(
             "nbadb.extract.stats.synergy._reset_nba_stats_session",
             lambda: reset_calls.append(None),
@@ -1174,14 +1320,14 @@ class TestSynergyPlayTypesExtractor:
         call_count = 0
         reset_calls: list[None] = []
 
-        def _fake(endpoint_cls, **kw):
+        def _fake_fetch(**kw):
             nonlocal call_count
             call_count += 1
             if call_count >= 5:
                 raise ConnectionError("still failing")
             return pl.DataFrame({"val": [1]})
 
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
         monkeypatch.setattr(
             "nbadb.extract.stats.synergy._reset_nba_stats_session",
             lambda: reset_calls.append(None),
@@ -1196,10 +1342,10 @@ class TestSynergyPlayTypesExtractor:
 
     @pytest.mark.asyncio
     async def test_all_failures_raises(self, synergy_ext, monkeypatch):
-        def _fake(endpoint_cls, **kw):
+        def _fake_fetch(**kw):
             raise ValueError("all fail")
 
-        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake)
+        monkeypatch.setattr(synergy_ext, "_fetch_synergy_frame", _fake_fetch)
         monkeypatch.setattr("nbadb.extract.stats.synergy.time.sleep", lambda _: None)
 
         with pytest.raises(RuntimeError, match="all 44 synergy combinations failed"):
