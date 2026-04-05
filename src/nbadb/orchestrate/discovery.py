@@ -158,6 +158,7 @@ class EntityDiscovery:
             progress: _PatternProgress | None,
             use_semaphore: bool,
             phase: str,
+            attempts: int | None = None,
         ) -> tuple[tuple[str, str], pl.DataFrame | None, bool]:
             label = f"league_game_log({season}, {season_type})"
 
@@ -178,9 +179,13 @@ class EntityDiscovery:
                         label,
                         thread_pool=self._thread_pool,
                         attempts=(
-                            self._retry_attempts
-                            if phase == "recovering"
-                            else self._concurrent_retry_attempts
+                            attempts
+                            if attempts is not None
+                            else (
+                                self._retry_attempts
+                                if phase == "recovering"
+                                else self._concurrent_retry_attempts
+                            )
                         ),
                         base_delay=self._retry_delay,
                         rate_limiter=self._rate_limiter,
@@ -232,23 +237,35 @@ class EntityDiscovery:
         if failed_combos:
             unresolved_combos = failed_combos
             total_recovered = 0
+            remaining_recovery_attempts = self._retry_attempts
 
             for wave in range(1, _SERIAL_DISCOVERY_RECOVERY_WAVES + 1):
-                if not unresolved_combos:
+                if not unresolved_combos or remaining_recovery_attempts <= 0:
                     break
+
+                wave_attempts = max(
+                    1,
+                    remaining_recovery_attempts - (_SERIAL_DISCOVERY_RECOVERY_WAVES - wave),
+                )
+                remaining_recovery_attempts -= wave_attempts
 
                 if wave == 1:
                     logger.warning(
-                        "retrying {} failed game discovery combos sequentially",
+                        "retrying {} failed game discovery combos sequentially ({} attempts each)",
                         len(unresolved_combos),
+                        wave_attempts,
                     )
                     progress_label = f"game discovery recovery ({len(unresolved_combos)} combos)"
                 else:
                     logger.warning(
-                        "retrying {} unrecovered game discovery combos sequentially (wave {}/{})",
+                        (
+                            "retrying {} unrecovered game discovery combos sequentially "
+                            "(wave {}/{}, {} attempts each)"
+                        ),
                         len(unresolved_combos),
                         wave,
                         _SERIAL_DISCOVERY_RECOVERY_WAVES,
+                        wave_attempts,
                     )
                     progress_label = (
                         f"game discovery recovery wave {wave} ({len(unresolved_combos)} combos)"
@@ -258,7 +275,6 @@ class EntityDiscovery:
                     on_progress.start_pattern(progress_label, len(unresolved_combos))
 
                 next_unresolved: list[tuple[str, str]] = []
-                recovered_this_wave = 0
                 for season, season_type in unresolved_combos:
                     _combo, df, success = await _fetch(
                         season,
@@ -266,9 +282,9 @@ class EntityDiscovery:
                         progress=on_progress,
                         use_semaphore=False,
                         phase="recovering",
+                        attempts=wave_attempts,
                     )
                     if success:
-                        recovered_this_wave += 1
                         total_recovered += 1
                         if df is not None:
                             frames.append(df)
@@ -290,8 +306,9 @@ class EntityDiscovery:
 
             if unresolved_combos:
                 logger.warning(
-                    "game discovery finished with {} unrecovered combo failures",
+                    "game discovery finished with {} unrecovered combo failures: {}",
                     len(unresolved_combos),
+                    unresolved_combos,
                 )
 
         if not frames:
@@ -409,6 +426,7 @@ class EntityDiscovery:
             *,
             use_semaphore: bool,
             phase: str,
+            attempts: int | None = None,
         ) -> tuple[str, pl.DataFrame | None, bool]:
             label = f"common_all_players({season})"
 
@@ -426,9 +444,13 @@ class EntityDiscovery:
                         label,
                         thread_pool=self._thread_pool,
                         attempts=(
-                            self._retry_attempts
-                            if phase == "recovering"
-                            else self._concurrent_retry_attempts
+                            attempts
+                            if attempts is not None
+                            else (
+                                self._retry_attempts
+                                if phase == "recovering"
+                                else self._concurrent_retry_attempts
+                            )
                         ),
                         base_delay=self._retry_delay,
                         rate_limiter=self._rate_limiter,
@@ -498,25 +520,37 @@ class EntityDiscovery:
         if failed_seasons:
             unresolved_seasons = failed_seasons
             total_recovered = 0
+            remaining_recovery_attempts = self._retry_attempts
 
             for wave in range(1, _SERIAL_DISCOVERY_RECOVERY_WAVES + 1):
-                if not unresolved_seasons:
+                if not unresolved_seasons or remaining_recovery_attempts <= 0:
                     break
+
+                wave_attempts = max(
+                    1,
+                    remaining_recovery_attempts - (_SERIAL_DISCOVERY_RECOVERY_WAVES - wave),
+                )
+                remaining_recovery_attempts -= wave_attempts
 
                 if wave == 1:
                     logger.warning(
-                        "retrying {} failed player/team discovery seasons sequentially",
+                        (
+                            "retrying {} failed player/team discovery seasons "
+                            "sequentially ({} attempts each)"
+                        ),
                         len(unresolved_seasons),
+                        wave_attempts,
                     )
                 else:
                     logger.warning(
                         (
                             "retrying {} unrecovered player/team discovery seasons "
-                            "sequentially (wave {}/{})"
+                            "sequentially (wave {}/{}, {} attempts each)"
                         ),
                         len(unresolved_seasons),
                         wave,
                         _SERIAL_DISCOVERY_RECOVERY_WAVES,
+                        wave_attempts,
                     )
 
                 next_unresolved: list[str] = []
@@ -525,6 +559,7 @@ class EntityDiscovery:
                         season,
                         use_semaphore=False,
                         phase="recovering",
+                        attempts=wave_attempts,
                     )
                     if success:
                         total_recovered += 1
@@ -548,8 +583,9 @@ class EntityDiscovery:
 
             if unresolved_seasons:
                 logger.warning(
-                    "player/team discovery finished with {} unrecovered seasons",
+                    "player/team discovery finished with {} unrecovered seasons: {}",
                     len(unresolved_seasons),
+                    unresolved_seasons,
                 )
 
         if not frames:

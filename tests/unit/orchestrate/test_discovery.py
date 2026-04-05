@@ -226,7 +226,7 @@ class TestDiscoverPlayerTeamSeasonParams:
         def _side_effect(*_args, **kwargs):
             season = kwargs["season"]
             call_counts[season] = call_counts.get(season, 0) + 1
-            if season == "2024-25" and call_counts[season] <= 3:
+            if season == "2024-25" and call_counts[season] <= 2:
                 raise ConnectionError("fail")
             return pl.DataFrame(
                 {
@@ -258,7 +258,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             {"player_id": 2, "team_id": 20, "season": "2025-26"},
         ]
         assert call_counts == {
-            "2024-25": 4,
+            "2024-25": 3,
             "2025-26": 1,
         }
         reset_session.assert_called_once()
@@ -355,7 +355,7 @@ class TestDiscoverPlayerTeamSeasonParams:
         def _side_effect(*_args, **kwargs):
             season = kwargs["season"]
             call_counts[season] = call_counts.get(season, 0) + 1
-            if season == "2024-25" and call_counts[season] <= 4:
+            if season == "2024-25" and call_counts[season] <= 3:
                 raise ConnectionError("fail")
             return pl.DataFrame(
                 {
@@ -387,7 +387,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             {"player_id": 2, "team_id": 20, "season": "2025-26"},
         ]
         assert call_counts == {
-            "2024-25": 5,
+            "2024-25": 4,
             "2025-26": 1,
         }
         assert reset_session.call_count == 2
@@ -558,7 +558,7 @@ class TestDiscoverGameIds:
         def _side_effect(*_args, **kwargs):
             key = (kwargs["season"], kwargs["season_type"])
             call_counts[key] = call_counts.get(key, 0) + 1
-            if key == ("2024-25", "Regular Season") and call_counts[key] <= 3:
+            if key == ("2024-25", "Regular Season") and call_counts[key] <= 2:
                 raise ConnectionError("fail")
             game_id = "001" if key[1] == "Regular Season" else "002"
             return pl.DataFrame({"game_id": [game_id]})
@@ -583,7 +583,7 @@ class TestDiscoverGameIds:
         assert ids == ["001", "002"]
         assert combined.shape[0] == 2
         assert call_counts == {
-            ("2024-25", "Regular Season"): 4,
+            ("2024-25", "Regular Season"): 3,
             ("2024-25", "Playoffs"): 1,
         }
         assert progress.start_pattern.call_args_list[0].args == ("game discovery (2 combos)", 2)
@@ -641,7 +641,7 @@ class TestDiscoverGameIds:
         def _side_effect(*_args, **kwargs):
             key = (kwargs["season"], kwargs["season_type"])
             call_counts[key] = call_counts.get(key, 0) + 1
-            if key == ("2024-25", "Regular Season") and call_counts[key] <= 4:
+            if key == ("2024-25", "Regular Season") and call_counts[key] <= 3:
                 raise ConnectionError("fail")
             game_id = "001" if key[1] == "Regular Season" else "002"
             return pl.DataFrame({"game_id": [game_id]})
@@ -672,7 +672,52 @@ class TestDiscoverGameIds:
         assert ids == ["001", "002"]
         assert combined.shape[0] == 2
         assert call_counts == {
-            ("2024-25", "Regular Season"): 5,
+            ("2024-25", "Regular Season"): 4,
+            ("2024-25", "Playoffs"): 1,
+        }
+        assert progress.start_pattern.call_args_list[2].args == (
+            "game discovery recovery wave 2 (1 combos)",
+            1,
+        )
+        assert reset_session.call_count == 2
+
+    async def test_keeps_total_recovery_budget_across_later_recovery_wave(self):
+        call_counts: dict[tuple[str, str], int] = {}
+
+        def _side_effect(*_args, **kwargs):
+            key = (kwargs["season"], kwargs["season_type"])
+            call_counts[key] = call_counts.get(key, 0) + 1
+            if key == ("2024-25", "Regular Season"):
+                raise ConnectionError("fail")
+            return pl.DataFrame({"game_id": ["002"]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        progress = MagicMock()
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=2,
+            extract_retry_base_delay=0.0,
+        )
+        with (
+            patch("nbadb.orchestrate.discovery._reset_nba_stats_session") as reset_session,
+            patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
+        ):
+            disc = EntityDiscovery(reg, settings=settings)
+            ids, combined = await disc.discover_game_ids(
+                ["2024-25"],
+                on_progress=progress,
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert ids == ["002"]
+        assert combined.shape[0] == 1
+        assert call_counts == {
+            ("2024-25", "Regular Season"): 4,
             ("2024-25", "Playoffs"): 1,
         }
         assert progress.start_pattern.call_args_list[2].args == (
