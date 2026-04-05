@@ -349,6 +349,49 @@ class TestDiscoverPlayerTeamSeasonParams:
             "2025-26": 1,
         }
 
+    async def test_retries_unrecovered_seasons_in_later_recovery_wave(self):
+        call_counts: dict[str, int] = {}
+
+        def _side_effect(*_args, **kwargs):
+            season = kwargs["season"]
+            call_counts[season] = call_counts.get(season, 0) + 1
+            if season == "2024-25" and call_counts[season] <= 4:
+                raise ConnectionError("fail")
+            return pl.DataFrame(
+                {
+                    "person_id": [1 if season == "2024-25" else 2],
+                    "team_id": [10 if season == "2024-25" else 20],
+                }
+            )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=2,
+            extract_retry_base_delay=0.0,
+        )
+        with (
+            patch("nbadb.orchestrate.discovery._reset_nba_stats_session") as reset_session,
+            patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
+        ):
+            disc = EntityDiscovery(reg, settings=settings)
+            result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
+
+        assert result == [
+            {"player_id": 1, "team_id": 10, "season": "2024-25"},
+            {"player_id": 2, "team_id": 20, "season": "2025-26"},
+        ]
+        assert call_counts == {
+            "2024-25": 5,
+            "2025-26": 1,
+        }
+        assert reset_session.call_count == 2
+
     async def test_uses_shorter_timeout_during_concurrent_season_sweep(self):
         call_kwargs: list[dict[str, object]] = []
 
@@ -591,6 +634,52 @@ class TestDiscoverGameIds:
             "game discovery recovery (1 combos)",
             1,
         )
+
+    async def test_retries_unrecovered_combos_in_later_recovery_wave(self):
+        call_counts: dict[tuple[str, str], int] = {}
+
+        def _side_effect(*_args, **kwargs):
+            key = (kwargs["season"], kwargs["season_type"])
+            call_counts[key] = call_counts.get(key, 0) + 1
+            if key == ("2024-25", "Regular Season") and call_counts[key] <= 4:
+                raise ConnectionError("fail")
+            game_id = "001" if key[1] == "Regular Season" else "002"
+            return pl.DataFrame({"game_id": [game_id]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        progress = MagicMock()
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=2,
+            extract_retry_base_delay=0.0,
+        )
+        with (
+            patch("nbadb.orchestrate.discovery._reset_nba_stats_session") as reset_session,
+            patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect),
+        ):
+            disc = EntityDiscovery(reg, settings=settings)
+            ids, combined = await disc.discover_game_ids(
+                ["2024-25"],
+                on_progress=progress,
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert ids == ["001", "002"]
+        assert combined.shape[0] == 2
+        assert call_counts == {
+            ("2024-25", "Regular Season"): 5,
+            ("2024-25", "Playoffs"): 1,
+        }
+        assert progress.start_pattern.call_args_list[2].args == (
+            "game discovery recovery wave 2 (1 combos)",
+            1,
+        )
+        assert reset_session.call_count == 2
 
     async def test_uses_shorter_timeout_during_concurrent_game_sweep(self):
         call_kwargs: list[dict[str, object]] = []

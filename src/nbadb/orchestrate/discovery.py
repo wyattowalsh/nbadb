@@ -32,6 +32,7 @@ _RETRY_DELAY = 2.0  # seconds between retries
 _DISCOVERY_CONCURRENCY = 10
 _CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 1
 _CONCURRENT_DISCOVERY_TIMEOUT = (3.05, 10.0)
+_SERIAL_DISCOVERY_RECOVERY_WAVES = 2
 
 
 def _reset_nba_stats_session() -> None:
@@ -229,36 +230,68 @@ class EntityDiscovery:
         failed_combos = [combo for combo, _df, success in initial_results if not success]
 
         if failed_combos:
-            logger.warning(
-                "retrying {} failed game discovery combos sequentially",
-                len(failed_combos),
-            )
-            if on_progress is not None:
-                on_progress.start_pattern(
-                    f"game discovery recovery ({len(failed_combos)} combos)",
-                    len(failed_combos),
-                )
+            unresolved_combos = failed_combos
+            total_recovered = 0
 
-            recovered = 0
-            for season, season_type in failed_combos:
-                _combo, df, success = await _fetch(
-                    season,
-                    season_type,
-                    progress=on_progress,
-                    use_semaphore=False,
-                    phase="recovering",
-                )
-                if success:
-                    recovered += 1
-                    if df is not None:
-                        frames.append(df)
+            for wave in range(1, _SERIAL_DISCOVERY_RECOVERY_WAVES + 1):
+                if not unresolved_combos:
+                    break
 
-            if recovered == len(failed_combos):
-                logger.info("recovered all {} failed game discovery combos", recovered)
-            else:
+                if wave == 1:
+                    logger.warning(
+                        "retrying {} failed game discovery combos sequentially",
+                        len(unresolved_combos),
+                    )
+                    progress_label = f"game discovery recovery ({len(unresolved_combos)} combos)"
+                else:
+                    logger.warning(
+                        "retrying {} unrecovered game discovery combos sequentially (wave {}/{})",
+                        len(unresolved_combos),
+                        wave,
+                        _SERIAL_DISCOVERY_RECOVERY_WAVES,
+                    )
+                    progress_label = (
+                        f"game discovery recovery wave {wave} ({len(unresolved_combos)} combos)"
+                    )
+
+                if on_progress is not None:
+                    on_progress.start_pattern(progress_label, len(unresolved_combos))
+
+                next_unresolved: list[tuple[str, str]] = []
+                recovered_this_wave = 0
+                for season, season_type in unresolved_combos:
+                    _combo, df, success = await _fetch(
+                        season,
+                        season_type,
+                        progress=on_progress,
+                        use_semaphore=False,
+                        phase="recovering",
+                    )
+                    if success:
+                        recovered_this_wave += 1
+                        total_recovered += 1
+                        if df is not None:
+                            frames.append(df)
+                    else:
+                        next_unresolved.append((season, season_type))
+
+                unresolved_combos = next_unresolved
+                if not unresolved_combos:
+                    logger.info(
+                        "recovered all {} failed game discovery combos",
+                        total_recovered,
+                    )
+                elif wave < _SERIAL_DISCOVERY_RECOVERY_WAVES:
+                    logger.warning(
+                        "game discovery recovery wave {} left {} unresolved combos",
+                        wave,
+                        len(unresolved_combos),
+                    )
+
+            if unresolved_combos:
                 logger.warning(
                     "game discovery finished with {} unrecovered combo failures",
-                    len(failed_combos) - recovered,
+                    len(unresolved_combos),
                 )
 
         if not frames:
@@ -463,31 +496,60 @@ class EntityDiscovery:
         failed_seasons = [season for season, _df, success in initial_results if not success]
 
         if failed_seasons:
-            logger.warning(
-                "retrying {} failed player/team discovery seasons sequentially",
-                len(failed_seasons),
-            )
-            recovered = 0
-            for season in failed_seasons:
-                _season, df, success = await _fetch(
-                    season,
-                    use_semaphore=False,
-                    phase="recovering",
-                )
-                if success:
-                    recovered += 1
-                    if df is not None:
-                        frames.append(df)
+            unresolved_seasons = failed_seasons
+            total_recovered = 0
 
-            if recovered == len(failed_seasons):
-                logger.info(
-                    "recovered all {} failed player/team discovery seasons",
-                    recovered,
-                )
-            else:
+            for wave in range(1, _SERIAL_DISCOVERY_RECOVERY_WAVES + 1):
+                if not unresolved_seasons:
+                    break
+
+                if wave == 1:
+                    logger.warning(
+                        "retrying {} failed player/team discovery seasons sequentially",
+                        len(unresolved_seasons),
+                    )
+                else:
+                    logger.warning(
+                        (
+                            "retrying {} unrecovered player/team discovery seasons "
+                            "sequentially (wave {}/{})"
+                        ),
+                        len(unresolved_seasons),
+                        wave,
+                        _SERIAL_DISCOVERY_RECOVERY_WAVES,
+                    )
+
+                next_unresolved: list[str] = []
+                for season in unresolved_seasons:
+                    _season, df, success = await _fetch(
+                        season,
+                        use_semaphore=False,
+                        phase="recovering",
+                    )
+                    if success:
+                        total_recovered += 1
+                        if df is not None:
+                            frames.append(df)
+                    else:
+                        next_unresolved.append(season)
+
+                unresolved_seasons = next_unresolved
+                if not unresolved_seasons:
+                    logger.info(
+                        "recovered all {} failed player/team discovery seasons",
+                        total_recovered,
+                    )
+                elif wave < _SERIAL_DISCOVERY_RECOVERY_WAVES:
+                    logger.warning(
+                        "player/team discovery recovery wave {} left {} unresolved seasons",
+                        wave,
+                        len(unresolved_seasons),
+                    )
+
+            if unresolved_seasons:
                 logger.warning(
                     "player/team discovery finished with {} unrecovered seasons",
-                    len(failed_seasons) - recovered,
+                    len(unresolved_seasons),
                 )
 
         if not frames:
