@@ -30,6 +30,7 @@ _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
 _DISCOVERY_CONCURRENCY = 10
 _CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 2
+_CONCURRENT_DISCOVERY_TIMEOUT_SECONDS = 30
 
 
 async def _extract_with_retry(
@@ -156,6 +157,12 @@ class EntityDiscovery:
             async def _run() -> tuple[tuple[str, str], pl.DataFrame | None, bool]:
                 logger.info("{} game IDs: {}", phase, label)
                 extractor = extractor_cls()
+                request_params: dict[str, object] = {
+                    "season": season,
+                    "season_type": season_type,
+                }
+                if phase != "recovering":
+                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS
                 try:
                     df = await _extract_with_retry(
                         extractor,
@@ -168,8 +175,7 @@ class EntityDiscovery:
                         ),
                         base_delay=self._retry_delay,
                         rate_limiter=self._rate_limiter,
-                        season=season,
-                        season_type=season_type,
+                        **request_params,
                     )
                 except Exception as exc:
                     message = (
@@ -368,6 +374,9 @@ class EntityDiscovery:
             async def _run() -> tuple[str, pl.DataFrame | None, bool]:
                 logger.info("{} player/team pairs: {}", phase, label)
                 extractor = extractor_cls()
+                request_params: dict[str, object] = {"season": season}
+                if phase != "recovering":
+                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS
                 try:
                     df = await _extract_with_retry(
                         extractor,
@@ -380,7 +389,7 @@ class EntityDiscovery:
                         ),
                         base_delay=self._retry_delay,
                         rate_limiter=self._rate_limiter,
-                        season=season,
+                        **request_params,
                     )
                 except Exception as exc:
                     message = (

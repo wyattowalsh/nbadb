@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, patch
 import polars as pl
 import pytest
 
-from nbadb.orchestrate.discovery import EntityDiscovery, _extract_with_retry
+from nbadb.orchestrate.discovery import (
+    _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+    EntityDiscovery,
+    _extract_with_retry,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -341,6 +345,37 @@ class TestDiscoverPlayerTeamSeasonParams:
             "2025-26": 1,
         }
 
+    async def test_uses_shorter_timeout_during_concurrent_season_sweep(self):
+        call_kwargs: list[dict[str, object]] = []
+
+        def _side_effect(*_args, **kwargs):
+            call_kwargs.append(dict(kwargs))
+            if len(call_kwargs) <= 2:
+                raise ConnectionError("fail")
+            return pl.DataFrame({"person_id": [1], "team_id": [10]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=1,
+            extract_max_retries=4,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            result = await disc.discover_player_team_season_params(["2024-25"])
+
+        assert result == [{"player_id": 1, "team_id": 10, "season": "2024-25"}]
+        assert [kwargs.get("timeout") for kwargs in call_kwargs] == [
+            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+            None,
+        ]
+
 
 class TestDiscoverTeamIds:
     async def test_returns_team_ids(self):
@@ -548,6 +583,41 @@ class TestDiscoverGameIds:
             "game discovery recovery (1 combos)",
             1,
         )
+
+    async def test_uses_shorter_timeout_during_concurrent_game_sweep(self):
+        call_kwargs: list[dict[str, object]] = []
+
+        def _side_effect(*_args, **kwargs):
+            call_kwargs.append(dict(kwargs))
+            if len(call_kwargs) <= 2:
+                raise ConnectionError("fail")
+            return pl.DataFrame({"game_id": ["001"]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=1,
+            extract_max_retries=4,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            ids, combined = await disc.discover_game_ids(
+                ["2024-25"],
+                season_types=["Regular Season"],
+            )
+
+        assert ids == ["001"]
+        assert combined.shape[0] == 1
+        assert [kwargs.get("timeout") for kwargs in call_kwargs] == [
+            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+            None,
+        ]
 
     async def test_failure_in_one_season_does_not_cancel_others(self):
         call_count = 0
