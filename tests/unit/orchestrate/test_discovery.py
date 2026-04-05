@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 
 from nbadb.orchestrate.discovery import (
-    _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+    _CONCURRENT_DISCOVERY_TIMEOUT,
     EntityDiscovery,
     _extract_with_retry,
 )
@@ -371,8 +371,8 @@ class TestDiscoverPlayerTeamSeasonParams:
 
         assert result == [{"player_id": 1, "team_id": 10, "season": "2024-25"}]
         assert [kwargs.get("timeout") for kwargs in call_kwargs] == [
-            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
-            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+            _CONCURRENT_DISCOVERY_TIMEOUT,
+            None,
             None,
         ]
 
@@ -614,8 +614,8 @@ class TestDiscoverGameIds:
         assert ids == ["001"]
         assert combined.shape[0] == 1
         assert [kwargs.get("timeout") for kwargs in call_kwargs] == [
-            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
-            _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS,
+            _CONCURRENT_DISCOVERY_TIMEOUT,
+            None,
             None,
         ]
 

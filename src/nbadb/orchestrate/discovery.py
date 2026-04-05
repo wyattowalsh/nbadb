@@ -29,8 +29,8 @@ class _PatternProgress(Protocol):
 _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
 _DISCOVERY_CONCURRENCY = 10
-_CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 2
-_CONCURRENT_DISCOVERY_TIMEOUT_SECONDS = 30
+_CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 1
+_CONCURRENT_DISCOVERY_TIMEOUT = (3.05, 10.0)
 
 
 async def _extract_with_retry(
@@ -162,7 +162,7 @@ class EntityDiscovery:
                     "season_type": season_type,
                 }
                 if phase != "recovering":
-                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS
+                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT
                 try:
                     df = await _extract_with_retry(
                         extractor,
@@ -376,7 +376,7 @@ class EntityDiscovery:
                 extractor = extractor_cls()
                 request_params: dict[str, object] = {"season": season}
                 if phase != "recovering":
-                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT_SECONDS
+                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT
                 try:
                     df = await _extract_with_retry(
                         extractor,
