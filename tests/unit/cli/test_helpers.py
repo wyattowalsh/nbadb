@@ -250,6 +250,7 @@ def test_run_pipeline_non_tty_exception_raises_exit() -> None:
             side_effect=RuntimeError("boom"),
         ),
         patch("nbadb.cli.commands._helpers._setup_logging"),
+        patch("nbadb.cli.commands._helpers.typer.echo") as mock_echo,
     ):
         mock_stdout.isatty.return_value = False
         settings = _build_settings()
@@ -262,6 +263,7 @@ def test_run_pipeline_non_tty_exception_raises_exit() -> None:
                 orchestrator_cls=FakeOrchCls,
             )
         assert exc_info.value.exit_code == 1
+        mock_echo.assert_any_call("test failed: RuntimeError: boom", err=True)
 
 
 def test_run_pipeline_non_tty_cancelled_error_raises_exit_0() -> None:
@@ -405,6 +407,7 @@ def test_run_pipeline_tui_path_error() -> None:
             "nbadb.cli.tui.run_with_tui",
             return_value=(None, RuntimeError("tui failed"), None),
         ),
+        patch("nbadb.cli.commands._helpers.typer.echo") as mock_echo,
     ):
         mock_stdout.isatty.return_value = True
         settings = _build_settings()
@@ -417,6 +420,7 @@ def test_run_pipeline_tui_path_error() -> None:
                 orchestrator_cls=type("FakeOrch", (), {}),
             )
         assert exc_info.value.exit_code == 1
+        mock_echo.assert_any_call("test failed: RuntimeError: tui failed", err=True)
 
 
 def test_run_pipeline_tui_path_none_result() -> None:

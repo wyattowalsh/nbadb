@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
@@ -13,12 +14,36 @@ if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 
+    import duckdb as _duckdb_type
+
 try:
     from loguru import logger
 except ImportError:
     import logging
 
     logger = logging.getLogger(__name__)  # ty: ignore[invalid-assignment]
+
+
+_DUCKDB_LOCK_ERROR_FRAGMENT = "Could not set lock on file"
+_DUCKDB_LOCK_RETRY_ATTEMPTS = 4
+_DUCKDB_LOCK_RETRY_BASE_DELAY_SECONDS = 0.5
+
+
+class DuckDBLockError(RuntimeError):
+    """Raised when the writable DuckDB file is locked by another process."""
+
+
+def _is_duckdb_lock_error(exc: duckdb.IOException) -> bool:
+    return _DUCKDB_LOCK_ERROR_FRAGMENT in str(exc)
+
+
+def _format_duckdb_lock_error(path: Path, exc: duckdb.IOException) -> str:
+    return (
+        f"DuckDB database is locked at {path}. "
+        "Close other nbadb or DuckDB processes using this file, "
+        "or use a different data directory. "
+        f"Original error: {exc}"
+    )
 
 
 class DBManager:
@@ -31,7 +56,7 @@ class DBManager:
         self._sqlite_path = sqlite_path or settings.sqlite_path
         self._duckdb_path = duckdb_path or settings.duckdb_path
         self._engine: Engine | None = None
-        self._duckdb_conn: duckdb.DuckDBPyConnection | None = None
+        self._duckdb_conn: _duckdb_type.DuckDBPyConnection | None = None
 
     def init(self) -> None:
         if self._sqlite_path is None:
@@ -43,10 +68,40 @@ class DBManager:
         self._engine = create_engine(f"sqlite:///{self._sqlite_path}", echo=False)
         self._apply_sqlite_pragmas()
         SQLModel.metadata.create_all(self._engine)
-        self._duckdb_conn = duckdb.connect(str(self._duckdb_path))
+        self._duckdb_conn = self._connect_duckdb()
         self._duckdb_conn.execute("SET preserve_insertion_order = false")
         self._create_pipeline_tables()
         logger.info(f"DB initialized: SQLite={self._sqlite_path}, DuckDB={self._duckdb_path}")
+
+    def _connect_duckdb(self) -> _duckdb_type.DuckDBPyConnection:
+        if self._duckdb_path is None:
+            raise ValueError("duckdb_path required")
+
+        last_lock_error: duckdb.IOException | None = None
+        for attempt in range(1, _DUCKDB_LOCK_RETRY_ATTEMPTS + 1):
+            try:
+                return duckdb.connect(str(self._duckdb_path))
+            except duckdb.IOException as exc:
+                if not _is_duckdb_lock_error(exc):
+                    raise
+                last_lock_error = exc
+                if attempt == _DUCKDB_LOCK_RETRY_ATTEMPTS:
+                    break
+                delay_seconds = _DUCKDB_LOCK_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
+                logger.warning(
+                    "duckdb lock conflict on {} (attempt {}/{}), retrying in {:.1f}s",
+                    self._duckdb_path,
+                    attempt,
+                    _DUCKDB_LOCK_RETRY_ATTEMPTS,
+                    delay_seconds,
+                )
+                time.sleep(delay_seconds)
+
+        if last_lock_error is None:
+            raise RuntimeError("duckdb connection failed without a captured lock error")
+        raise DuckDBLockError(
+            _format_duckdb_lock_error(self._duckdb_path, last_lock_error)
+        ) from last_lock_error
 
     def _apply_sqlite_pragmas(self) -> None:
         if self._engine is None:

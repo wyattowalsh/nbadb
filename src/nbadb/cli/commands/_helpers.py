@@ -106,6 +106,17 @@ def _pattern_duration(values: Mapping[str, object]) -> float:
     return _coerce_float(values.get("duration", 0.0))
 
 
+def _format_pipeline_exception(exc: BaseException) -> str:
+    """Render an exception with its message when one is available."""
+    message = str(exc).strip()
+    if not message:
+        return type(exc).__name__
+    typed_prefix = f"{type(exc).__name__}:"
+    if message.startswith(typed_prefix):
+        return message
+    return f"{typed_prefix} {message}"
+
+
 def _print_result(
     mode: str,
     result: PipelineResult,
@@ -331,7 +342,7 @@ def _run_pipeline(
         result_obj, error, summary_obj = run_with_tui(mode, run_fn, settings, orchestrator_cls)
         summary = cast("Any", summary_obj)
         if error is not None:
-            typer.echo(f"{mode} failed: {type(error).__name__}", err=True)
+            typer.echo(f"{mode} failed: {_format_pipeline_exception(error)}", err=True)
             raise typer.Exit(1)
         if result_obj is None:
             typer.echo(f"{mode}: stopped — progress saved in journal (resume-safe)", err=True)
@@ -377,7 +388,7 @@ def _run_pipeline(
                     )
                     raise typer.Exit(0) from None
                 except Exception as exc:
-                    typer.echo(f"{mode} failed: {type(exc).__name__}", err=True)
+                    typer.echo(f"{mode} failed: {_format_pipeline_exception(exc)}", err=True)
                     raise typer.Exit(1) from exc
         finally:
             if orch is not None and hasattr(orch, "close"):

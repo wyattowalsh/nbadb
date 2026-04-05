@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import duckdb
 import pytest
 from sqlalchemy import Engine, text
 from sqlmodel import Session
 
-from nbadb.core.db import DBManager
+from nbadb.core.db import DBManager, DuckDBLockError
 
 
 @pytest.fixture()
@@ -30,6 +31,38 @@ class TestDBManagerInit:
         db.close()
         assert (tmp_path / "test.sqlite").exists()
         assert (tmp_path / "test.duckdb").exists()
+
+    def test_init_retries_duckdb_lock_then_succeeds(self, db):
+        mock_conn = MagicMock()
+        lock_error = duckdb.IOException('IO Error: Could not set lock on file "/tmp/test.duckdb"')
+
+        with (
+            patch("nbadb.core.db.duckdb.connect", side_effect=[lock_error, mock_conn]),
+            patch("nbadb.core.db.time.sleep") as mock_sleep,
+        ):
+            db.init()
+        try:
+            assert db.duckdb is mock_conn
+            mock_sleep.assert_called_once_with(0.5)
+        finally:
+            db.close()
+
+    def test_init_raises_helpful_error_after_repeated_duckdb_lock_conflicts(self, db):
+        lock_error = duckdb.IOException(
+            'IO Error: Could not set lock on file "/tmp/test.duckdb": Conflicting lock is held'
+        )
+
+        with (
+            patch("nbadb.core.db.duckdb.connect", side_effect=lock_error),
+            patch("nbadb.core.db.time.sleep") as mock_sleep,
+        ):
+            try:
+                with pytest.raises(DuckDBLockError, match="DuckDB database is locked"):
+                    db.init()
+            finally:
+                db.close()
+
+        assert mock_sleep.call_count == 3
 
     def test_engine_returns_after_init(self, initialized_db):
         assert initialized_db.engine is not None
