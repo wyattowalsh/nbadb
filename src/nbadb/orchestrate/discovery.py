@@ -29,6 +29,7 @@ class _PatternProgress(Protocol):
 _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
 _DISCOVERY_CONCURRENCY = 10
+_CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 2
 
 
 async def _extract_with_retry(
@@ -104,6 +105,10 @@ class EntityDiscovery:
         self._rate_limiter = AsyncLimiter(max_rate=self._settings.rate_limit, time_period=1.0)
         self._discovery_concurrency = max(1, int(self._settings.discovery_concurrency))
         self._retry_attempts = max(1, int(self._settings.extract_max_retries) + 1)
+        self._concurrent_retry_attempts = min(
+            self._retry_attempts,
+            _CONCURRENT_DISCOVERY_ATTEMPTS_CAP,
+        )
         self._retry_delay = float(self._settings.extract_retry_base_delay)
 
     async def discover_game_ids(
@@ -156,7 +161,11 @@ class EntityDiscovery:
                         extractor,
                         label,
                         thread_pool=self._thread_pool,
-                        attempts=self._retry_attempts,
+                        attempts=(
+                            self._retry_attempts
+                            if phase == "recovering"
+                            else self._concurrent_retry_attempts
+                        ),
                         base_delay=self._retry_delay,
                         rate_limiter=self._rate_limiter,
                         season=season,
@@ -364,7 +373,11 @@ class EntityDiscovery:
                         extractor,
                         label,
                         thread_pool=self._thread_pool,
-                        attempts=self._retry_attempts,
+                        attempts=(
+                            self._retry_attempts
+                            if phase == "recovering"
+                            else self._concurrent_retry_attempts
+                        ),
                         base_delay=self._retry_delay,
                         rate_limiter=self._rate_limiter,
                         season=season,

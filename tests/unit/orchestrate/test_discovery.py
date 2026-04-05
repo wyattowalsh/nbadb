@@ -302,6 +302,45 @@ class TestDiscoverPlayerTeamSeasonParams:
             "2025-26": 1,
         }
 
+    async def test_defers_failed_seasons_to_recovery_before_full_budget(self):
+        call_counts: dict[str, int] = {}
+
+        def _side_effect(*_args, **kwargs):
+            season = kwargs["season"]
+            call_counts[season] = call_counts.get(season, 0) + 1
+            if season == "2024-25" and call_counts[season] <= 2:
+                raise ConnectionError("fail")
+            return pl.DataFrame(
+                {
+                    "person_id": [1 if season == "2024-25" else 2],
+                    "team_id": [10 if season == "2024-25" else 20],
+                }
+            )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=4,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
+
+        assert result == [
+            {"player_id": 1, "team_id": 10, "season": "2024-25"},
+            {"player_id": 2, "team_id": 20, "season": "2025-26"},
+        ]
+        assert call_counts == {
+            "2024-25": 3,
+            "2025-26": 1,
+        }
+
 
 class TestDiscoverTeamIds:
     async def test_returns_team_ids(self):
@@ -463,6 +502,48 @@ class TestDiscoverGameIds:
             ("2024-25", "Playoffs"): 1,
         }
         assert progress.start_pattern.call_args_list[0].args == ("game discovery (2 combos)", 2)
+        assert progress.start_pattern.call_args_list[1].args == (
+            "game discovery recovery (1 combos)",
+            1,
+        )
+
+    async def test_defers_failed_combos_to_recovery_before_full_budget(self):
+        call_counts: dict[tuple[str, str], int] = {}
+
+        def _side_effect(*_args, **kwargs):
+            key = (kwargs["season"], kwargs["season_type"])
+            call_counts[key] = call_counts.get(key, 0) + 1
+            if key == ("2024-25", "Regular Season") and call_counts[key] <= 2:
+                raise ConnectionError("fail")
+            game_id = "001" if key[1] == "Regular Season" else "002"
+            return pl.DataFrame({"game_id": [game_id]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        progress = MagicMock()
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=4,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            ids, combined = await disc.discover_game_ids(
+                ["2024-25"],
+                on_progress=progress,
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert ids == ["001", "002"]
+        assert combined.shape[0] == 2
+        assert call_counts == {
+            ("2024-25", "Regular Season"): 3,
+            ("2024-25", "Playoffs"): 1,
+        }
         assert progress.start_pattern.call_args_list[1].args == (
             "game discovery recovery (1 combos)",
             1,
