@@ -989,6 +989,7 @@ class TestDraftBoardExtractor:
         "raw_response",
         [
             "",
+            "System.Net.WebException: The remote server returned an error: (403) Forbidden.",
             (
                 "Sap.Data.Hana.HanaException (0x80004005): Connection failed "
                 "(RTE:[89013] Socket closed by peer)"
@@ -1461,7 +1462,20 @@ class TestExtractMethodCoverage:
         def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
             return dummy_df
 
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        if cls is DraftBoardExtractor:
+            monkeypatch.setattr(
+                "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
+                lambda self, **_kwargs: TestDraftBoardExtractor._FakeResponse(
+                    data_sets={
+                        "DraftBoard": {
+                            "headers": ["COL"],
+                            "data": [[1], [2], [3]],
+                        }
+                    }
+                ),
+            )
+        else:
+            monkeypatch.setattr(ext, "_from_nba_api", _fake)
         params = _get_params(endpoint_name, category)
         result = await ext.extract(**params)
         assert isinstance(result, pl.DataFrame)
