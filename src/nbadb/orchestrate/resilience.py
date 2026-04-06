@@ -128,6 +128,14 @@ class _CircuitBreaker:
         else:
             self._state[endpoint] = (failures, None)
 
+    def retry_after(self, endpoint: str) -> float:
+        """Return how long the caller should wait before probing again."""
+        _failures, tripped_at = self._state.get(endpoint, (0, None))
+        if tripped_at is None:
+            return 1.0 if endpoint in self._half_open_probing else 0.0
+        remaining = self._recovery_seconds - (time.monotonic() - tripped_at)
+        return max(remaining, 0.0)
+
     def tripped_endpoints(self) -> list[str]:
         """Return list of currently tripped endpoint names."""
         return [

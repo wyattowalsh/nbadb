@@ -128,7 +128,12 @@ STAGING_MAP: list[StagingEntry] = [
         "box_score_advanced", "stg_box_score_advanced", "game", result_set_index=0, use_multi=True
     ),
     StagingEntry(
-        "box_score_misc", "stg_box_score_misc", "game", result_set_index=0, use_multi=True
+        "box_score_misc",
+        "stg_box_score_misc",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+        min_season=1996,
     ),
     StagingEntry(
         "box_score_scoring", "stg_box_score_scoring", "game", result_set_index=0, use_multi=True
@@ -1210,6 +1215,7 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
+        min_season=1996,
     ),
     StagingEntry(
         "box_score_scoring",

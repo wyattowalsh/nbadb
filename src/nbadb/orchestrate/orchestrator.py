@@ -107,8 +107,9 @@ class Orchestrator:
     def _init_db(self) -> tuple[DBManager, PipelineJournal]:
         """Ensure DB + journal are ready, re-using if already init'd.
 
-        Only resets stale *running* entries — completed entries are
-        preserved so that resume works correctly (QUAL-003).
+        Completed entries are preserved so resume stays idempotent, while any
+        lingering in-progress rows from a prior process are made replayable.
+        This recovery assumes a single active writer per pipeline DB/journal.
         """
         if self._db is not None and self._journal is not None:
             return self._db, self._journal
@@ -119,8 +120,7 @@ class Orchestrator:
         )
         db.init()
         journal = PipelineJournal(db.duckdb)
-        # Only reset stale running entries — never clear completed ones
-        journal.reset_stale_running()
+        journal.recover_interrupted_running()
 
         self._db = db
         self._journal = journal
@@ -152,9 +152,17 @@ class Orchestrator:
         failed_loads: int,
         journal: PipelineJournal,
         extra_errors: list[str] | None = None,
+        *,
+        include_exhausted: bool = False,
+        include_abandoned: bool = False,
     ) -> PipelineResult:
         """Assemble a PipelineResult from collected counters."""
-        failed = journal.get_failed()
+        failed_kwargs: dict[str, bool] = {}
+        if include_exhausted:
+            failed_kwargs["include_exhausted"] = True
+        if include_abandoned:
+            failed_kwargs["include_abandoned"] = True
+        failed = journal.get_failed(**failed_kwargs)
         errors = [f"{ep}[{p}]: {err}" for ep, p, err in failed]
         if extra_errors:
             errors.extend(extra_errors)
@@ -393,6 +401,7 @@ class Orchestrator:
         game_log_df: pl.DataFrame,
         include_static: bool = True,
         season_types: list[str] | None = None,
+        skip_items: set[tuple[str, str]] | None = None,
     ) -> ExtractionOutcome:
         """Run all extraction patterns concurrently and return combined
         raw staging data.
@@ -436,6 +445,14 @@ class Orchestrator:
             logger.info("Step {}/{}: {} ({} tasks)", idx, len(plan), label, n_tasks)
             if pp is not None:
                 pp.start_pattern(f"{label} ({n_tasks:,})", total=n_tasks)
+            if skip_items:
+                return await runner.run_pattern(
+                    pattern,
+                    params,
+                    entries,
+                    on_progress=pp,
+                    skip_items=skip_items,
+                )
             return await runner.run_pattern(pattern, params, entries, on_progress=pp)
 
         # Group plan items by priority tier and run tiers sequentially.
@@ -488,9 +505,11 @@ class Orchestrator:
         - If interrupted, re-running skips all successful work
         - Failed extractions are retried on the next run
 
-        Only stale *running* entries are reset (via ``reset_stale_running``).
-        Completed entries are never cleared, preserving progress from
-        prior partial runs (QUAL-003).
+        On startup, lingering ``running`` rows are recovered to replayable
+        failures so interrupted work can be resumed without manual SQL repair.
+        This assumes a single active writer per pipeline DB/journal.
+        Completed entries are never cleared, preserving progress from prior
+        partial runs (QUAL-003).
 
         *season_types* controls which season types are extracted.
         Defaults to ``["Regular Season", "Playoffs"]``.
@@ -817,7 +836,7 @@ class Orchestrator:
             discovery = self._build_discovery(thread_pool=runner._thread_pool)
 
             # -- 1. Retry failed extractions ------------------------
-            failed = journal.get_failed()
+            failed = journal.get_failed(include_exhausted=True, include_abandoned=True)
             bound_log.info(
                 "retry: {} failed extractions to retry",
                 len(failed),
@@ -825,6 +844,7 @@ class Orchestrator:
 
             # Group failed by pattern for batched re-extraction
             failed_by_entry: dict[str, list[dict]] = {}  # endpoint -> params
+            attempted_retry_items: set[tuple[str, str]] = set()
             for endpoint, params_json, _error in failed:
                 try:
                     params = json.loads(params_json)
@@ -848,6 +868,8 @@ class Orchestrator:
                         quarantine_error,
                     )
                     continue
+                normalized_params_json = json.dumps(params, sort_keys=True)
+                attempted_retry_items.add((endpoint, normalized_params_json))
                 failed_by_entry.setdefault(endpoint, []).append(params)
 
             # Build a lookup from endpoint_name -> StagingEntry(s)
@@ -892,6 +914,7 @@ class Orchestrator:
                 player_team_season_params=player_team_season_params,
                 game_log_df=game_log_df,
                 season_types=_full_st,
+                skip_items=attempted_retry_items,
             )
             raw.update(extraction.raw)
 
@@ -920,6 +943,8 @@ class Orchestrator:
                 rows_total,
                 failed_loads,
                 journal=journal,
+                include_exhausted=True,
+                include_abandoned=True,
             )
             result.skipped_extractions = runner.skipped
             runner.log_latency_summary()

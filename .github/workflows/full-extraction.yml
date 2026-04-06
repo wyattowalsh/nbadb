@@ -324,6 +324,7 @@ jobs:
             echo "::error::Shard 3 artifact missing — cannot merge without global data"
             exit 1
           fi
+          mkdir -p data/nbadb
           cp -r shards/extraction-shard-3/. data/nbadb/
 
           uv run python -c "

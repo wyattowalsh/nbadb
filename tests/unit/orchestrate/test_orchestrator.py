@@ -20,11 +20,13 @@ def _mock_settings():
     s.duckdb_path.exists.return_value = True
     s.sqlite_path = MagicMock()
     s.semaphore_tiers = {"default": 5}
+    s.endpoint_semaphore_limits = {}
     s.pbp_chunk_size = 50
     s.daily_lookback_days = 7
     s.default_chunk_size = 500
     s.thread_pool_size = 4
     s.rate_limit = 10.0
+    s.endpoint_rate_limits = {}
     s.adaptive_rate_min = 1.0
     s.adaptive_rate_recovery = 50
     return s
@@ -130,14 +132,17 @@ class TestInitDb:
 
         mock_db = MagicMock()
         mock_db.duckdb = MagicMock()
+        mock_journal = MagicMock()
         with (
             patch(_DB_MANAGER, return_value=mock_db),
-            patch(_JOURNAL, return_value=MagicMock()),
+            patch(_JOURNAL, return_value=mock_journal),
         ):
             db, journal = orch._init_db()
 
         mock_db.init.assert_called_once()
+        mock_journal.recover_interrupted_running.assert_called_once()
         assert orch._db is mock_db
+        assert journal is mock_journal
 
 
 # ---------------------------------------------------------------------------
@@ -785,6 +790,10 @@ class TestRunFull:
 
         assert isinstance(result, PipelineResult)
         assert result.failed_extractions == 0
+        assert journal.get_failed.call_args_list[0].kwargs == {
+            "include_exhausted": True,
+            "include_abandoned": True,
+        }
         mock_runner.run_pattern.assert_awaited_once()
         assert mock_runner.run_pattern.await_args.args[0] == "season"
         assert mock_runner.run_pattern.await_args.args[1] == [{"season": "2024-25"}]
@@ -847,15 +856,28 @@ class TestRunFull:
         mock_discovery.discover_player_team_season_params.return_value = []
 
         mock_runner = _mock_runner()
+        mock_extract = AsyncMock(return_value=ExtractionOutcome(raw={}))
 
         with (
             patch(_SEASON_RANGE, return_value=["2024-25"]),
             patch(_DISCOVERY, return_value=mock_discovery),
             patch(_REGISTRY),
             patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
             patch.object(orch, "_transform_and_load", return_value=(0, 0, 0)),
         ):
             result = asyncio.run(orch.run_retry())
 
         assert isinstance(result, PipelineResult)
         assert result.failed_extractions == 0
+        assert journal.get_failed.call_args_list[0].kwargs == {
+            "include_exhausted": True,
+            "include_abandoned": True,
+        }
+        assert journal.get_failed.call_args_list[1].kwargs == {
+            "include_exhausted": True,
+            "include_abandoned": True,
+        }
+        assert mock_extract.await_args.kwargs["skip_items"] == {
+            ("ep1", '{"season": "2024-25"}'),
+        }

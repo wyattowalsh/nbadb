@@ -29,13 +29,43 @@ class NbaDbSettings(BaseSettings):
         "player_info": 15,
         "default": 10,
     }
+    endpoint_semaphore_limits: dict[str, int] = {
+        "scoreboard_v2": 1,
+        "scoreboard_v3": 1,
+        "box_score_summary": 2,
+        "box_score_summary_v3": 2,
+        "box_score_usage": 2,
+        "box_score_four_factors": 2,
+        "box_score_hustle": 2,
+        "win_probability": 1,
+    }
     discovery_concurrency: int = 2
 
     daily_lookback_days: int = 7
     pbp_chunk_size: int = 500
     default_chunk_size: int = 500
     thread_pool_size: int = 32
-    rate_limit: float = 10.0  # max requests per second (global across all patterns)
+    rate_limit: float = 10.0  # shared requests/second cap for non-isolated endpoints
+    endpoint_rate_limits: dict[str, float] = {
+        "scoreboard_v2": 2.0,
+        "scoreboard_v3": 2.0,
+        "box_score_summary": 3.0,
+        "box_score_summary_v3": 3.0,
+        "box_score_usage": 3.0,
+        "box_score_four_factors": 3.0,
+        "box_score_hustle": 2.0,
+        "win_probability": 1.5,
+    }
+    endpoint_request_timeouts: dict[str, int] = {
+        "box_score_summary": 60,
+        "box_score_summary_v3": 60,
+        "box_score_usage": 60,
+        "box_score_four_factors": 60,
+        "box_score_hustle": 60,
+        "play_by_play": 60,
+        "play_by_play_v2": 60,
+        "win_probability": 60,
+    }
     adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff
     adaptive_rate_recovery: int = 50  # consecutive successes before rate recovery
     extract_max_retries: int = 6  # per-extraction retry attempts

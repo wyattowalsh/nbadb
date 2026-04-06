@@ -97,9 +97,11 @@ class TestJournalExtraction:
         assert not journal.was_extracted("ep", "p")
 
     def test_resume_skips_done(self, journal: PipelineJournal) -> None:
-        """Verify was_extracted returns True only for 'done' status."""
+        """Verify only successful rows are treated as complete."""
         journal.record_start("ep", "p")
         assert not journal.was_extracted("ep", "p")  # running
+        journal.record_failure("ep", "p", "err")
+        assert not journal.was_extracted("ep", "p")  # failed
         journal.record_success("ep", "p", 5)
         assert journal.was_extracted("ep", "p")  # done
 
@@ -137,22 +139,46 @@ class TestJournalRetryCap:
             [PipelineJournal.MAX_RETRIES],
         )
         journal.abandon_exhausted()
-        assert journal.was_extracted("ep", "p")
+        row = journal._conn.execute(
+            "SELECT status FROM _extraction_journal WHERE endpoint = 'ep' AND params = 'p'"
+        ).fetchone()
+        assert row[0] == "abandoned"
+        assert not journal.was_extracted("ep", "p")
 
-    def test_was_extracted_skips_abandoned(self, journal: PipelineJournal) -> None:
+    def test_was_extracted_does_not_skip_abandoned(self, journal: PipelineJournal) -> None:
         journal._conn.execute(
             "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
             "VALUES ('ep', 'p', 'abandoned', 0)"
         )
-        assert journal.was_extracted("ep", "p")
+        assert not journal.was_extracted("ep", "p")
 
-    def test_was_extracted_skips_exhausted_failed(self, journal: PipelineJournal) -> None:
+    def test_was_extracted_does_not_skip_exhausted_failed(self, journal: PipelineJournal) -> None:
         journal._conn.execute(
             "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
             "VALUES ('ep', 'p', 'failed', ?)",
             [PipelineJournal.MAX_RETRIES],
         )
-        assert journal.was_extracted("ep", "p")
+        assert not journal.was_extracted("ep", "p")
+
+    def test_get_failed_includes_exhausted_when_requested(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal "
+            "(endpoint, params, status, retry_count, error_message) "
+            "VALUES ('ep', 'p', 'failed', ?, 'err')",
+            [PipelineJournal.MAX_RETRIES],
+        )
+        assert journal.get_failed() == []
+        assert journal.get_failed(include_exhausted=True) == [("ep", "p", "err")]
+
+    def test_get_failed_includes_abandoned_when_requested(self, journal: PipelineJournal) -> None:
+        journal._conn.execute(
+            "INSERT INTO _extraction_journal "
+            "(endpoint, params, status, retry_count, error_message) "
+            "VALUES ('ep', 'p', 'abandoned', ?, 'err')",
+            [PipelineJournal.MAX_RETRIES],
+        )
+        assert journal.get_failed() == []
+        assert journal.get_failed(include_abandoned=True) == [("ep", "p", "err")]
 
 
 class TestJournalMetrics:
@@ -186,22 +212,22 @@ class TestJournalBatch:
         assert ("ep1", "p1") in result
         assert ("ep2", "p2") not in result
 
-    def test_was_extracted_batch_includes_abandoned(self, journal: PipelineJournal) -> None:
+    def test_was_extracted_batch_excludes_abandoned(self, journal: PipelineJournal) -> None:
         journal._conn.execute(
             "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
             "VALUES ('ep1', 'p1', 'abandoned', 0)"
         )
         result = journal.was_extracted_batch([("ep1", "p1")])
-        assert ("ep1", "p1") in result
+        assert ("ep1", "p1") not in result
 
-    def test_was_extracted_batch_includes_exhausted(self, journal: PipelineJournal) -> None:
+    def test_was_extracted_batch_excludes_exhausted(self, journal: PipelineJournal) -> None:
         journal._conn.execute(
             "INSERT INTO _extraction_journal (endpoint, params, status, retry_count) "
             "VALUES ('ep1', 'p1', 'failed', ?)",
             [PipelineJournal.MAX_RETRIES],
         )
         result = journal.was_extracted_batch([("ep1", "p1")])
-        assert ("ep1", "p1") in result
+        assert ("ep1", "p1") not in result
 
     def test_was_extracted_batch_multiple_items(self, journal: PipelineJournal) -> None:
         journal.record_start("ep1", "p1")
@@ -291,4 +317,32 @@ class TestJournalStaleRunning:
         row = journal._conn.execute(
             "SELECT status FROM _extraction_journal WHERE endpoint='ep1' AND params='p1'"
         ).fetchone()
+        assert row[0] == "done"
+
+    def test_recover_interrupted_running_marks_recent_rows_failed(
+        self, journal: PipelineJournal
+    ) -> None:
+        journal.record_start("ep1", "p1")
+        count = journal.recover_interrupted_running()
+
+        row = journal._conn.execute(
+            "SELECT status, error_message, completed_at FROM _extraction_journal "
+            "WHERE endpoint='ep1' AND params='p1'"
+        ).fetchone()
+        assert count == 1
+        assert row[0] == "failed"
+        assert row[1] == "interrupted_resume"
+        assert row[2] is not None
+
+    def test_recover_interrupted_running_does_not_affect_done(
+        self, journal: PipelineJournal
+    ) -> None:
+        journal.record_start("ep1", "p1")
+        journal.record_success("ep1", "p1", 10)
+
+        count = journal.recover_interrupted_running()
+        row = journal._conn.execute(
+            "SELECT status FROM _extraction_journal WHERE endpoint='ep1' AND params='p1'"
+        ).fetchone()
+        assert count == 0
         assert row[0] == "done"

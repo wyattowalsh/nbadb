@@ -4,13 +4,14 @@ import asyncio
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
 
-from nbadb.extract.base import is_retryable_error
+from nbadb.extract.base import BaseExtractor, is_retryable_error
 from nbadb.orchestrate.resilience import _AdaptiveThrottle, _CircuitBreaker, _LatencyTracker
 from nbadb.orchestrate.staging_map import StagingEntry, get_multi_entries
 
@@ -64,6 +65,14 @@ def _sync_extract_all(extractor: object, **kwargs: object) -> list[pl.DataFrame]
     return _drive_coroutine(extractor.extract_all(**kwargs))  # type: ignore[union-attr,return-value]
 
 
+@dataclass(frozen=True, slots=True)
+class _DeferredExtraction:
+    endpoint_name: str
+    params: dict[str, object]
+    wait_seconds: float
+    staging_key: str | None = None
+
+
 class ExtractorRunner:
     """Runs extractors concurrently with semaphore gating and journal
     tracking.
@@ -72,6 +81,8 @@ class ExtractorRunner:
     deduplication for ``use_multi`` entries, and chunked processing
     for game-level extractions.
     """
+
+    _LATE_RECOVERY_ENDPOINTS = frozenset({"scoreboard_v2", "scoreboard_v3"})
 
     def __init__(
         self,
@@ -87,6 +98,7 @@ class ExtractorRunner:
         self._progress = progress
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._rate_limiter = AsyncLimiter(max_rate=rate_limit, time_period=1.0)
+        self._endpoint_rate_limiters: dict[str, AsyncLimiter] = {}
         self._adaptive = _AdaptiveThrottle(
             base_rate=rate_limit,
             min_rate=getattr(settings, "adaptive_rate_min", 1.0),
@@ -153,6 +165,8 @@ class ExtractorRunner:
         param_sets: list[dict],
         entries: list[StagingEntry],
         on_progress: object | None = None,
+        *,
+        skip_items: set[tuple[str, str]] | None = None,
     ) -> dict[str, pl.DataFrame]:
         """Extract all *entries* across every *param_set*.
 
@@ -163,6 +177,9 @@ class ExtractorRunner:
 
         multi_entries, single_entries, multi_by_ep = self._classify_entries(entries)
         accum: dict[str, list[pl.DataFrame]] = {e.staging_key: [] for e in entries}
+        single_by_key = {
+            (entry.endpoint_name, entry.staging_key): entry for entry in single_entries
+        }
 
         if pattern == "game":
             chunk_size = self._settings.pbp_chunk_size
@@ -179,11 +196,32 @@ class ExtractorRunner:
                 multi_by_ep,
                 chunk,
                 already_done,
-                on_progress,
+                on_progress=on_progress,
+                skip_items=skip_items,
             )
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            self._collect_results(results, accum, on_progress)
+            delayed = [r for r in results if isinstance(r, _DeferredExtraction)]
+            immediate = [r for r in results if not isinstance(r, _DeferredExtraction)]
+            self._collect_results(immediate, accum, on_progress)
+            if delayed:
+                replay_results = await self._replay_deferred_chunk(
+                    delayed,
+                    single_by_key=single_by_key,
+                    multi_by_ep=multi_by_ep,
+                    on_progress=on_progress,
+                )
+                replay_deferred = [r for r in replay_results if isinstance(r, _DeferredExtraction)]
+                if replay_deferred:
+                    logger.error(
+                        "late recovery replay returned deferred extractions unexpectedly: {}",
+                        len(replay_deferred),
+                    )
+                self._collect_results(
+                    [r for r in replay_results if not isinstance(r, _DeferredExtraction)],
+                    accum,
+                    on_progress,
+                )
 
             # HR-A-007: free multi-endpoint cache between chunks to
             # prevent unbounded memory growth on large historical runs.
@@ -233,16 +271,28 @@ class ExtractorRunner:
     def _season_year(params: dict) -> int | None:
         """Extract the integer season year from param sets.
 
-        Handles formats: ``"2024-25"`` → 2024, ``"2024"`` → 2024.
-        Returns ``None`` when no season key is present (e.g. game-level).
+        Handles formats:
+        - ``"2024-25"`` → 2024
+        - ``"2024"`` → 2024
+        - ``"0024800127"`` → 1948
+        - ``"0020000730"`` → 2000
+
+        Returns ``None`` when no season hint can be derived.
         """
         season = params.get("season")
-        if season is None:
+        if season is not None:
+            try:
+                return int(str(season)[:4])
+            except (ValueError, TypeError):
+                return None
+        game_id = params.get("game_id")
+        game_id_str = str(game_id) if game_id is not None else ""
+        if len(game_id_str) < 5 or not game_id_str[3:5].isdigit():
             return None
-        try:
-            return int(str(season)[:4])
-        except (ValueError, TypeError):
-            return None
+        season_suffix = int(game_id_str[3:5])
+        if season_suffix <= 30:
+            return 2000 + season_suffix
+        return 1900 + season_suffix
 
     def _build_chunk_tasks(
         self,
@@ -250,10 +300,11 @@ class ExtractorRunner:
         multi_by_ep: dict[str, list[StagingEntry]],
         chunk: list[dict],
         already_done: set[tuple[str, str]],
-        on_progress: object | None,
-    ) -> list[asyncio.Task[dict[str, pl.DataFrame] | None]]:
+        on_progress: object | None = None,
+        skip_items: set[tuple[str, str]] | None = None,
+    ) -> list[asyncio.Task[dict[str, pl.DataFrame] | _DeferredExtraction | None]]:
         """Create asyncio tasks for all entries in a chunk."""
-        tasks: list[asyncio.Task[dict[str, pl.DataFrame] | None]] = []
+        tasks: list[asyncio.Task[dict[str, pl.DataFrame] | _DeferredExtraction | None]] = []
         today = date.today()
 
         for entry in single_entries:
@@ -282,7 +333,9 @@ class ExtractorRunner:
                             entry,
                             params,
                             already_done=already_done,
+                            skip_items=skip_items,
                             on_progress=on_progress,
+                            allow_late_recovery=True,
                         )
                     )
                 )
@@ -316,12 +369,87 @@ class ExtractorRunner:
                             eligible,
                             params,
                             already_done=already_done,
+                            skip_items=skip_items,
                             on_progress=on_progress,
+                            allow_late_recovery=True,
                         )
                     )
                 )
 
         return tasks
+
+    async def _replay_deferred_chunk(
+        self,
+        deferred: list[_DeferredExtraction],
+        *,
+        single_by_key: dict[tuple[str, str], StagingEntry],
+        multi_by_ep: dict[str, list[StagingEntry]],
+        on_progress: object | None,
+    ) -> list[dict[str, pl.DataFrame] | BaseException | _DeferredExtraction | None]:
+        deduped: dict[tuple[str, str, str | None], _DeferredExtraction] = {}
+        for item in deferred:
+            params_json = json.dumps(item.params, sort_keys=True)
+            key = (item.endpoint_name, params_json, item.staging_key)
+            existing = deduped.get(key)
+            if existing is None or item.wait_seconds > existing.wait_seconds:
+                deduped[key] = item
+
+        replay_items = list(deduped.values())
+        wait_seconds = max(item.wait_seconds for item in replay_items)
+        logger.warning(
+            "replaying {} deferred date extractions after {:.1f}s cooldown",
+            len(replay_items),
+            wait_seconds,
+        )
+        await asyncio.sleep(wait_seconds)
+
+        tasks: list[asyncio.Task[dict[str, pl.DataFrame] | _DeferredExtraction | None]] = []
+        for item in replay_items:
+            if item.staging_key is None:
+                entries = multi_by_ep.get(item.endpoint_name)
+                if not entries:
+                    logger.error(
+                        "late recovery missing multi entries for endpoint: {}",
+                        item.endpoint_name,
+                    )
+                    continue
+                tasks.append(
+                    asyncio.create_task(
+                        self._extract_multi(
+                            item.endpoint_name,
+                            entries,
+                            item.params,
+                            on_progress=on_progress,
+                            allow_late_recovery=False,
+                            late_recovery_replay=True,
+                        )
+                    )
+                )
+                continue
+
+            entry = single_by_key.get((item.endpoint_name, item.staging_key))
+            if entry is None:
+                logger.error(
+                    "late recovery missing single entry for endpoint {} staging {}",
+                    item.endpoint_name,
+                    item.staging_key,
+                )
+                continue
+            tasks.append(
+                asyncio.create_task(
+                    self._extract_single(
+                        entry,
+                        item.params,
+                        on_progress=on_progress,
+                        allow_late_recovery=False,
+                        late_recovery_replay=True,
+                    )
+                )
+            )
+
+        if not tasks:
+            return []
+        return await asyncio.gather(*tasks, return_exceptions=True)
 
     @staticmethod
     def _collect_results(
@@ -385,18 +513,51 @@ class ExtractorRunner:
 
     # ── private helpers ────────────────────────────────────────
 
-    def _get_semaphore(self, category: str) -> asyncio.Semaphore:
-        """Lazily create a semaphore for the given category."""
-        if category not in self._semaphores:
-            limit = self._settings.semaphore_tiers.get(
-                category,
-                self._settings.semaphore_tiers.get("default", 10),
+    def _get_endpoint_rate_limiter(self, endpoint_name: str) -> AsyncLimiter | None:
+        endpoint_limits = getattr(self._settings, "endpoint_rate_limits", {})
+        if endpoint_name not in endpoint_limits:
+            return None
+        if endpoint_name not in self._endpoint_rate_limiters:
+            self._endpoint_rate_limiters[endpoint_name] = AsyncLimiter(
+                max_rate=endpoint_limits[endpoint_name],
+                time_period=1.0,
             )
-            self._semaphores[category] = asyncio.Semaphore(limit)
-        return self._semaphores[category]
+        return self._endpoint_rate_limiters[endpoint_name]
+
+    def _get_semaphore(self, endpoint_name: str, category: str) -> asyncio.Semaphore:
+        """Lazily create a semaphore for the given endpoint/category lane."""
+        endpoint_limits = getattr(self._settings, "endpoint_semaphore_limits", {})
+        key = endpoint_name if endpoint_name in endpoint_limits else category
+        if key not in self._semaphores:
+            limit = endpoint_limits.get(
+                endpoint_name,
+                self._settings.semaphore_tiers.get(
+                    category,
+                    self._settings.semaphore_tiers.get("default", 10),
+                ),
+            )
+            self._semaphores[key] = asyncio.Semaphore(limit)
+        return self._semaphores[key]
 
     def _prepare_extractor(self, extractor: object) -> None:
         """Prepare an extractor instance before extraction."""
+        if not isinstance(extractor, BaseExtractor):
+            return
+        endpoint_timeouts = getattr(self._settings, "endpoint_request_timeouts", {})
+        timeout = endpoint_timeouts.get(extractor.endpoint_name)
+        if timeout is not None:
+            extractor._request_timeout_override = timeout
+
+    async def _wait_for_circuit_breaker(self, endpoint_name: str, params_json: str) -> None:
+        while self._circuit_breaker.is_open(endpoint_name):
+            wait_seconds = max(self._circuit_breaker.retry_after(endpoint_name), 1.0)
+            logger.debug(
+                "circuit breaker OPEN, delaying: {} [{}] ({:.1f}s)",
+                endpoint_name,
+                params_json,
+                wait_seconds,
+            )
+            await asyncio.sleep(wait_seconds)
 
     # Exception types that warrant a retry (transient network / rate-limit errors)
     _RETRYABLE_ERRORS: tuple[type[Exception], ...] = ()
@@ -406,28 +567,72 @@ class ExtractorRunner:
         """Return True if the exception is transient and worth retrying."""
         return is_retryable_error(exc)
 
+    def _should_delay_replay(
+        self,
+        endpoint_name: str,
+        params: dict[str, object] | None,
+        exc: Exception | None,
+        *,
+        allow_late_recovery: bool,
+    ) -> bool:
+        if not allow_late_recovery or exc is None or not self._is_retryable(exc):
+            return False
+        if endpoint_name not in self._LATE_RECOVERY_ENDPOINTS:
+            return False
+        if params is None:
+            return False
+        return "game_date" in params
+
+    def _late_recovery_wait_seconds(self, endpoint_name: str) -> float:
+        backoff_wait = 0.0
+        if self._settings.extract_retry_base_delay > 0:
+            backoff_wait = self._settings.extract_retry_base_delay * (
+                2 ** max(self._settings.extract_max_retries, 0)
+            )
+        return max(self._circuit_breaker.retry_after(endpoint_name), backoff_wait, 1.0)
+
+    def _record_runtime_failure(
+        self,
+        endpoint_name: str,
+        duration: float,
+        *,
+        isolated_rate: bool,
+    ) -> None:
+        self._journal.record_metric(endpoint_name, duration, 0, errors=1)
+        self._circuit_breaker.record_failure(endpoint_name)
+        tripped = self._circuit_breaker.tripped_endpoints()
+        if tripped and self._progress is not None:
+            self._progress.update_circuit_breakers(tripped)  # type: ignore[union-attr]
+        self._latency.record(endpoint_name, duration)
+        if not isolated_rate:
+            new_rate = self._adaptive.record_failure()
+            if new_rate is not None:
+                self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
+                logger.warning("adaptive rate: backing off to {:.1f} req/s", new_rate)
+                if self._progress is not None:
+                    self._progress.update_rate_info(  # type: ignore[union-attr]
+                        self._adaptive.current_rate,
+                        self._adaptive._base_rate,
+                    )
+
     async def _run_with_journal(
         self,
         endpoint_name: str,
         params_json: str,
         *,
+        params: dict[str, object] | None,
         fn: Callable,
-    ) -> pl.DataFrame | list[pl.DataFrame] | None:
+        allow_late_recovery: bool = True,
+        late_recovery_replay: bool = False,
+    ) -> pl.DataFrame | list[pl.DataFrame] | _DeferredExtraction | None:
         """Execute an extraction call with full journal tracking and retries.
 
         *fn* is a one-arg async-compatible callable ``fn(extractor)``
         that performs the actual extraction (params captured via
-        closure).  Returns ``None`` on failure after all retries exhausted.
+        closure). Returns ``None`` on terminal failure and a deferred
+        replay sentinel when a retryable date extraction should cool
+        down before one final in-run replay.
         """
-        # Circuit breaker: skip endpoint if it's been failing too much
-        if self._circuit_breaker.is_open(endpoint_name):
-            logger.debug(
-                "circuit breaker OPEN, skipping: {} [{}]",
-                endpoint_name,
-                params_json,
-            )
-            return None
-
         try:
             extractor_cls = self._registry.get(endpoint_name)
         except KeyError:
@@ -440,14 +645,18 @@ class ExtractorRunner:
 
         self._journal.record_start(endpoint_name, params_json)
         t0 = time.perf_counter()
+        endpoint_limiter = self._get_endpoint_rate_limiter(endpoint_name)
+        isolated_rate = endpoint_limiter is not None
 
         for attempt in range(max_retries + 1):
             extractor = extractor_cls()
             self._prepare_extractor(extractor)
-            sem = self._get_semaphore(extractor.category)
+            sem = self._get_semaphore(endpoint_name, extractor.category)
+            rate_limiter = endpoint_limiter or self._rate_limiter
 
             try:
-                async with self._rate_limiter, sem:
+                await self._wait_for_circuit_breaker(endpoint_name, params_json)
+                async with sem, rate_limiter:
                     result = await fn(extractor)
             except Exception as exc:
                 last_exc = exc
@@ -477,15 +686,16 @@ class ExtractorRunner:
                 self._journal.record_metric(endpoint_name, duration, rows)
                 self._circuit_breaker.record_success(endpoint_name)
                 self._latency.record(endpoint_name, duration)
-                new_rate = self._adaptive.record_success()
-                if new_rate is not None:
-                    self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
-                    logger.info("adaptive rate: recovering to {:.1f} req/s", new_rate)
-                    if self._progress is not None:
-                        self._progress.update_rate_info(  # type: ignore[union-attr]
-                            self._adaptive.current_rate,
-                            self._adaptive._base_rate,
-                        )
+                if not isolated_rate:
+                    new_rate = self._adaptive.record_success()
+                    if new_rate is not None:
+                        self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
+                        logger.info("adaptive rate: recovering to {:.1f} req/s", new_rate)
+                        if self._progress is not None:
+                            self._progress.update_rate_info(  # type: ignore[union-attr]
+                                self._adaptive.current_rate,
+                                self._adaptive._base_rate,
+                            )
                 if attempt > 0:
                     logger.info(
                         "extract succeeded on retry {}: {} [{}]",
@@ -498,23 +708,39 @@ class ExtractorRunner:
         # All retries exhausted
         duration = time.perf_counter() - t0
         exc_name = type(last_exc).__name__ if last_exc else "Unknown"
+        if self._should_delay_replay(
+            endpoint_name,
+            params,
+            last_exc,
+            allow_late_recovery=allow_late_recovery,
+        ):
+            self._record_runtime_failure(
+                endpoint_name,
+                duration,
+                isolated_rate=isolated_rate,
+            )
+            wait_seconds = self._late_recovery_wait_seconds(endpoint_name)
+            logger.warning(
+                "deferring retryable date extraction for late replay: {} [{}] -> {} ({:.1f}s)",
+                endpoint_name,
+                params_json,
+                exc_name,
+                wait_seconds,
+            )
+            return _DeferredExtraction(
+                endpoint_name=endpoint_name,
+                params=dict(params or {}),
+                wait_seconds=wait_seconds,
+            )
+
         self.failed_current_run += 1
         self._journal.record_failure(endpoint_name, params_json, exc_name)
-        self._journal.record_metric(endpoint_name, duration, 0, errors=1)
-        self._circuit_breaker.record_failure(endpoint_name)
-        tripped = self._circuit_breaker.tripped_endpoints()
-        if tripped and self._progress is not None:
-            self._progress.update_circuit_breakers(tripped)  # type: ignore[union-attr]
-        self._latency.record(endpoint_name, duration)
-        new_rate = self._adaptive.record_failure()
-        if new_rate is not None:
-            self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
-            logger.warning("adaptive rate: backing off to {:.1f} req/s", new_rate)
-            if self._progress is not None:
-                self._progress.update_rate_info(  # type: ignore[union-attr]
-                    self._adaptive.current_rate,
-                    self._adaptive._base_rate,
-                )
+        if not late_recovery_replay:
+            self._record_runtime_failure(
+                endpoint_name,
+                duration,
+                isolated_rate=isolated_rate,
+            )
         logger.error(
             "extract failed after {} attempts: {} [{}] -> {}",
             max_retries + 1,
@@ -530,24 +756,32 @@ class ExtractorRunner:
         params: dict,
         *,
         already_done: set[tuple[str, str]] | None = None,
+        skip_items: set[tuple[str, str]] | None = None,
         on_progress: object | None = None,
-    ) -> dict[str, pl.DataFrame] | None:
+        allow_late_recovery: bool = True,
+        late_recovery_replay: bool = False,
+    ) -> dict[str, pl.DataFrame] | _DeferredExtraction | None:
         """Extract a single (non-multi) entry for one param set."""
         params_json = json.dumps(params, sort_keys=True)
 
         # Resume: skip if already extracted (use pre-fetched set when available)
-        is_done = (
+        journal_done = (
             (entry.endpoint_name, params_json) in already_done
             if already_done is not None
             else self._journal.was_extracted(entry.endpoint_name, params_json)
         )
-        if is_done:
+        retry_skip = (
+            (entry.endpoint_name, params_json) in skip_items if skip_items is not None else False
+        )
+        if journal_done or retry_skip:
             self.skipped += 1
-            self.skipped_due_to_journal += 1
+            if journal_done:
+                self.skipped_due_to_journal += 1
             if on_progress is not None:
                 on_progress.record_skip()  # type: ignore[union-attr]
             logger.debug(
-                "skip (already done): {} [{}]",
+                "skip ({}): {} [{}]",
+                "already done" if journal_done else "already attempted this run",
                 entry.endpoint_name,
                 params_json,
             )
@@ -559,9 +793,23 @@ class ExtractorRunner:
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(pool, lambda: _sync_extract(ext, **params))
 
-        df = await self._run_with_journal(entry.endpoint_name, params_json, fn=_do)
+        df = await self._run_with_journal(
+            entry.endpoint_name,
+            params_json,
+            params=params,
+            fn=_do,
+            allow_late_recovery=allow_late_recovery,
+            late_recovery_replay=late_recovery_replay,
+        )
         if df is None:
             return None
+        if isinstance(df, _DeferredExtraction):
+            return _DeferredExtraction(
+                endpoint_name=df.endpoint_name,
+                params=df.params,
+                wait_seconds=df.wait_seconds,
+                staging_key=entry.staging_key,
+            )
         if isinstance(df, list):
             logger.error("unexpected list result for single extraction: {}", entry.endpoint_name)
             return None
@@ -574,8 +822,11 @@ class ExtractorRunner:
         params: dict,
         *,
         already_done: set[tuple[str, str]] | None = None,
+        skip_items: set[tuple[str, str]] | None = None,
         on_progress: object | None = None,
-    ) -> dict[str, pl.DataFrame] | None:
+        allow_late_recovery: bool = True,
+        late_recovery_replay: bool = False,
+    ) -> dict[str, pl.DataFrame] | _DeferredExtraction | None:
         """Extract a multi-result endpoint once and fan out by
         ``result_set_index``.
 
@@ -589,18 +840,21 @@ class ExtractorRunner:
 
         # Single check: all entries share the same endpoint call
         # (use pre-fetched set when available)
-        is_done = (
+        journal_done = (
             (endpoint_name, params_json) in already_done
             if already_done is not None
             else self._journal.was_extracted(endpoint_name, params_json)
         )
-        if is_done:
+        retry_skip = (endpoint_name, params_json) in skip_items if skip_items is not None else False
+        if journal_done or retry_skip:
             self.skipped += 1
-            self.skipped_due_to_journal += 1
+            if journal_done:
+                self.skipped_due_to_journal += 1
             if on_progress is not None:
                 on_progress.record_skip()  # type: ignore[union-attr]
             logger.debug(
-                "skip (already done): {} [{}]",
+                "skip ({}): {} [{}]",
+                "already done" if journal_done else "already attempted this run",
                 endpoint_name,
                 params_json,
             )
@@ -614,9 +868,18 @@ class ExtractorRunner:
                 loop = asyncio.get_running_loop()
                 return await loop.run_in_executor(pool, lambda: _sync_extract_all(ext, **params))
 
-            all_dfs = await self._run_with_journal(endpoint_name, params_json, fn=_do)
+            all_dfs = await self._run_with_journal(
+                endpoint_name,
+                params_json,
+                params=params,
+                fn=_do,
+                allow_late_recovery=allow_late_recovery,
+                late_recovery_replay=late_recovery_replay,
+            )
             if all_dfs is None:
                 return None
+            if isinstance(all_dfs, _DeferredExtraction):
+                return all_dfs
             if not isinstance(all_dfs, list):
                 logger.error("unexpected non-list result for multi extraction: {}", endpoint_name)
                 return None

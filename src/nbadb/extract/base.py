@@ -96,6 +96,7 @@ def _safe_from_pandas(pdf: Any) -> pl.DataFrame:
 class BaseExtractor(ABC):
     endpoint_name: ClassVar[str]
     category: ClassVar[str] = "default"
+    _request_timeout_override: int | None = None
 
     @abstractmethod
     async def extract(self, **params: Any) -> pl.DataFrame: ...
@@ -103,15 +104,20 @@ class BaseExtractor(ABC):
     def _inject_timeout(self, kwargs: dict[str, Any]) -> None:
         """Apply timeout override for nba_api endpoint calls.
 
-        If NBADB_REQUEST_TIMEOUT is set, apply it to all calls unless a
-        timeout was explicitly provided.
+        Per-endpoint overrides set by the runner take precedence over the
+        global NBADB_REQUEST_TIMEOUT environment variable.
         """
-        timeout_override = os.getenv("NBADB_REQUEST_TIMEOUT")
-        if timeout_override and "timeout" not in kwargs:
-            try:
-                kwargs["timeout"] = int(timeout_override)
-            except ValueError:
-                logger.warning("invalid NBADB_REQUEST_TIMEOUT={!r}; ignoring", timeout_override)
+        if "timeout" in kwargs:
+            return
+        timeout_override: int | str | None = self._request_timeout_override
+        if timeout_override is None:
+            timeout_override = os.getenv("NBADB_REQUEST_TIMEOUT")
+        if timeout_override is None:
+            return
+        try:
+            kwargs["timeout"] = int(timeout_override)
+        except (TypeError, ValueError):
+            logger.warning("invalid request timeout override={!r}; ignoring", timeout_override)
 
     def _call_nba_api(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
         """Call nba_api endpoint and return all result sets as Polars DataFrames.

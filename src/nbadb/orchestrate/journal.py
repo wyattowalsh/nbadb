@@ -130,17 +130,17 @@ class PipelineJournal:
     def was_extracted(self, endpoint: str, params: str) -> bool:
         """Return True if this (endpoint, params) should be skipped.
 
-        Skips entries that are done, abandoned, or have exhausted the retry cap
-        (retry_count >= MAX_RETRIES) even before abandon_exhausted() is called.
+        Only successful extractions are terminal. Failed, abandoned, and
+        retry-capped rows remain replayable after a code fix or resume.
         """
         row = self._conn.execute(
             """
             SELECT 1 FROM _extraction_journal
             WHERE endpoint = $1
               AND params = $2
-              AND (status IN ('done', 'abandoned') OR retry_count >= $3)
+              AND status = 'done'
             """,
-            [endpoint, params, self.MAX_RETRIES],
+            [endpoint, params],
         ).fetchone()
         return row is not None
 
@@ -159,8 +159,8 @@ class PipelineJournal:
     def was_extracted_batch(self, items: list[tuple[str, str]]) -> set[tuple[str, str]]:
         """Return the subset of (endpoint, params) pairs already done.
 
-        Fetches all completed/abandoned/exhausted items from the journal
-        in a single scan, then intersects with the requested set in Python.
+        Fetches all completed items from the journal in a single scan, then
+        intersects with the requested set in Python.
         """
         if not items:
             return set()
@@ -169,27 +169,43 @@ class PipelineJournal:
             """
             SELECT endpoint, params
             FROM _extraction_journal
-            WHERE status IN ('done', 'abandoned')
-               OR retry_count >= $1
+            WHERE status = 'done'
             """,
-            [self.MAX_RETRIES],
         ).fetchall()
         all_done = {(r[0], r[1]) for r in rows}
         return all_done & set(items)
 
     MAX_RETRIES = 5
 
-    def get_failed(self) -> list[tuple[str, str, str]]:
-        """Return failed extractions that haven't exceeded the retry cap."""
+    def get_failed(
+        self,
+        *,
+        include_exhausted: bool = False,
+        include_abandoned: bool = False,
+    ) -> list[tuple[str, str, str]]:
+        """Return journal rows that should be retried.
+
+        By default this returns non-exhausted failed rows only. Callers can opt
+        into retry-capped failed rows and abandoned rows when they explicitly
+        want a full replay pass.
+        """
+        params: list[object] = []
+        failed_clause = "status = 'failed'"
+        if not include_exhausted:
+            failed_clause += " AND retry_count < $1"
+            params.append(self.MAX_RETRIES)
+
+        status_clauses = [f"({failed_clause})"]
+        if include_abandoned:
+            status_clauses.append("(status = 'abandoned')")
         rows = self._conn.execute(
-            """
+            f"""
             SELECT endpoint, params, error_message
             FROM _extraction_journal
-            WHERE status = 'failed'
-              AND retry_count < $1
+            WHERE {" OR ".join(status_clauses)}
             ORDER BY started_at
             """,
-            [self.MAX_RETRIES],
+            params,
         ).fetchall()
         return [(r[0], r[1], r[2] or "") for r in rows]
 
@@ -226,6 +242,37 @@ class PipelineJournal:
         count = row[0] if row else 0
         if count:
             logger.info("reset {} stale running entries to failed", count)
+        return count
+
+    def recover_interrupted_running(self, error: str = "interrupted_resume") -> int:
+        """Convert lingering running rows into replayable failures.
+
+        This is intended for single-runner resume flows where any leftover
+        ``running`` rows necessarily belong to a prior interrupted process.
+        """
+        row = self._conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM _extraction_journal
+            WHERE status = 'running'
+            """
+        ).fetchone()
+        count = int(row[0]) if row else 0
+        if count <= 0:
+            return 0
+
+        now = datetime.now(UTC).isoformat()
+        self._conn.execute(
+            """
+            UPDATE _extraction_journal
+            SET status = 'failed',
+                completed_at = $1,
+                error_message = $2
+            WHERE status = 'running'
+            """,
+            [now, error],
+        )
+        logger.info("recovered {} interrupted running entries", count)
         return count
 
     def resume_summary(self) -> dict[str, int]:

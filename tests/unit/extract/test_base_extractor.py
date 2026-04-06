@@ -90,6 +90,18 @@ class TestTimeoutInjection:
         call_kwargs = mock_endpoint.call_args[1]
         assert "timeout" not in call_kwargs
 
+    def test_runner_timeout_override_takes_precedence(self) -> None:
+        ext = _StubExtractor()
+        ext._request_timeout_override = 45
+
+        mock_endpoint = MagicMock()
+        import pandas as pd
+
+        mock_endpoint.return_value.get_data_frames.return_value = [pd.DataFrame({"COL": [1]})]
+        ext._from_nba_api(mock_endpoint)
+        call_kwargs = mock_endpoint.call_args[1]
+        assert call_kwargs["timeout"] == 45
+
 
 class TestExtractIsAbstract:
     def test_cannot_instantiate_base(self) -> None:

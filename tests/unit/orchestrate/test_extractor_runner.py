@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
 
+from nbadb.extract.base import BaseExtractor
 from nbadb.orchestrate.extractor_runner import ExtractorRunner, _AdaptiveThrottle
 from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
 from nbadb.orchestrate.staging_map import StagingEntry
@@ -42,6 +43,7 @@ def _make_extractor(
 def _make_journal(*, already_done: bool = False, failed: list | None = None):
     j = MagicMock()
     j.was_extracted.return_value = already_done
+    j.was_extracted_batch.return_value = set()
     j.get_failed.return_value = failed or []
     return j
 
@@ -49,11 +51,14 @@ def _make_journal(*, already_done: bool = False, failed: list | None = None):
 def _make_settings(**overrides):
     s = MagicMock()
     s.semaphore_tiers = {"default": 5}
+    s.endpoint_semaphore_limits = {}
     s.pbp_chunk_size = 50
     s.default_chunk_size = 500
     s.thread_pool_size = 4
     s.adaptive_rate_min = 1.0
     s.adaptive_rate_recovery = 50
+    s.endpoint_rate_limits = {}
+    s.endpoint_request_timeouts = {}
     s.extract_max_retries = 0  # disable retries in unit tests by default
     s.extract_retry_base_delay = 0.0
     s.circuit_breaker_threshold = 5
@@ -293,6 +298,148 @@ class TestRunPattern:
         assert result["stg_ep1"].shape[0] == 2
         assert set(result["stg_ep1"].columns) == {"a", "b", "c"}
 
+    @pytest.mark.asyncio
+    async def test_run_pattern_explicit_skip_does_not_increment_journal_skip_counter(self):
+        df = pl.DataFrame({"col": [10, 20]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings()
+        registry = _make_registry(_make_extractor(df=df))
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner.run_pattern(
+            "season",
+            [{"season": "2024-25"}],
+            [entry],
+            skip_items={("ep1", '{"season": "2024-25"}')},
+        )
+
+        assert result.get("stg_ep1", pl.DataFrame()).is_empty()
+        assert runner.skipped == 1
+        assert runner.skipped_due_to_journal == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("endpoint_name", "staging_key"),
+        [
+            ("scoreboard_v2", "stg_scoreboard"),
+            ("scoreboard_v3", "stg_scoreboard_v3_metadata"),
+        ],
+    )
+    async def test_run_pattern_replays_retryable_scoreboard_date_after_cooldown(
+        self, endpoint_name: str, staging_key: str
+    ):
+        call_count = 0
+        df = pl.DataFrame({"col": [10, 20]})
+
+        class _ScoreboardExt:
+            category = "game_log"
+
+            async def extract_all(self, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    raise ConnectionError("transient")
+                return [df]
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(extract_max_retries=0, extract_retry_base_delay=0.0)
+        registry = _make_registry(_ScoreboardExt)
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry(
+            endpoint_name,
+            staging_key,
+            "date",
+            result_set_index=0,
+            use_multi=True,
+        )
+        with patch(
+            "nbadb.orchestrate.extractor_runner.asyncio.sleep",
+            new=AsyncMock(),
+        ) as mock_sleep:
+            result = await runner.run_pattern("date", [{"game_date": "02/11/1968"}], [entry])
+
+        assert result[staging_key].shape[0] == 2
+        assert call_count == 2
+        assert runner.failed_current_run == 0
+        journal.record_success.assert_called_once()
+        journal.record_failure.assert_not_called()
+        mock_sleep.assert_awaited_once_with(1.0)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("endpoint_name", "staging_key"),
+        [
+            ("scoreboard_v2", "stg_scoreboard"),
+            ("scoreboard_v3", "stg_scoreboard_v3_metadata"),
+        ],
+    )
+    async def test_run_pattern_final_late_recovery_failure_records_once(
+        self, endpoint_name: str, staging_key: str
+    ):
+        call_count = 0
+
+        class _ScoreboardExt:
+            category = "game_log"
+
+            async def extract_all(self, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                raise ConnectionError("still transient")
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(extract_max_retries=0, extract_retry_base_delay=0.0)
+        registry = _make_registry(_ScoreboardExt)
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry(
+            endpoint_name,
+            staging_key,
+            "date",
+            result_set_index=0,
+            use_multi=True,
+        )
+        with patch(
+            "nbadb.orchestrate.extractor_runner.asyncio.sleep",
+            new=AsyncMock(),
+        ) as mock_sleep:
+            result = await runner.run_pattern("date", [{"game_date": "02/11/1968"}], [entry])
+
+        assert result == {}
+        assert call_count == 2
+        assert runner.failed_current_run == 1
+        journal.record_success.assert_not_called()
+        journal.record_failure.assert_called_once_with(
+            endpoint_name,
+            '{"game_date": "02/11/1968"}',
+            "ConnectionError",
+        )
+        mock_sleep.assert_awaited_once_with(1.0)
+
+    @pytest.mark.asyncio
+    async def test_non_scoreboard_date_failure_does_not_defer(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(extract_max_retries=0, extract_retry_base_delay=0.0)
+        registry = _make_registry(_make_extractor(exc=ConnectionError("boom")))
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry("video_status", "stg_video_status", "date")
+        with patch(
+            "nbadb.orchestrate.extractor_runner.asyncio.sleep",
+            new=AsyncMock(),
+        ) as mock_sleep:
+            result = await runner.run_pattern("date", [{"game_date": "02/11/1968"}], [entry])
+
+        assert result == {}
+        assert runner.failed_current_run == 1
+        journal.record_failure.assert_called_once_with(
+            "video_status",
+            '{"game_date": "02/11/1968"}',
+            "ConnectionError",
+        )
+        mock_sleep.assert_not_awaited()
+
 
 # ---------------------------------------------------------------------------
 # _AdaptiveThrottle tests
@@ -374,6 +521,27 @@ class TestAdaptiveThrottleIntegration:
         assert runner._adaptive.current_rate < 10.0
 
     @pytest.mark.asyncio
+    async def test_prepare_extractor_sets_endpoint_timeout_override(self):
+        class _Ext(BaseExtractor):
+            endpoint_name = "ep1"
+            category = "default"
+
+            async def extract(self, **kwargs):
+                return pl.DataFrame({"timeout": [self._request_timeout_override]})
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(endpoint_request_timeouts={"ep1": 45})
+        registry = MagicMock()
+        registry.get.return_value = _Ext
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert result is not None
+        assert result["stg_ep1"]["timeout"][0] == 45
+
+    @pytest.mark.asyncio
     async def test_runner_recovers_after_sustained_success(self):
         """Verify the runner increases rate after consecutive successes."""
         df = pl.DataFrame({"a": [1]})
@@ -393,6 +561,85 @@ class TestAdaptiveThrottleIntegration:
             await runner._extract_single(entry, {"season": "2024-25"})
 
         assert runner._adaptive.current_rate > low_rate
+
+    @pytest.mark.asyncio
+    async def test_isolated_endpoint_failure_does_not_back_off_global_rate(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(endpoint_rate_limits={"ep1": 2.0})
+        registry = _make_registry(_make_extractor(exc=TimeoutError("boom")))
+        runner = ExtractorRunner(registry, settings, journal, rate_limit=10.0)
+        original_limiter = runner._rate_limiter
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert runner._rate_limiter is original_limiter
+        assert runner._adaptive.current_rate == 10.0
+
+    @pytest.mark.asyncio
+    async def test_isolated_endpoint_uses_endpoint_limiter_instead_of_global_limiter(self):
+        class _TrackedAsyncContext:
+            def __init__(self):
+                self.entered = 0
+
+            async def __aenter__(self):
+                self.entered += 1
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        df = pl.DataFrame({"a": [1]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(endpoint_rate_limits={"ep1": 2.0})
+        registry = _make_registry(_make_extractor(df=df))
+        runner = ExtractorRunner(registry, settings, journal, rate_limit=10.0)
+        global_limiter = _TrackedAsyncContext()
+        endpoint_limiter = _TrackedAsyncContext()
+        runner._rate_limiter = global_limiter
+        runner._endpoint_rate_limiters["ep1"] = endpoint_limiter
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert result is not None
+        assert global_limiter.entered == 0
+        assert endpoint_limiter.entered == 1
+
+    def test_endpoint_semaphore_override_takes_precedence(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(endpoint_semaphore_limits={"ep1": 1})
+        runner = ExtractorRunner(_make_registry(_make_extractor()), settings, journal)
+
+        semaphore = runner._get_semaphore("ep1", "default")
+        assert semaphore._value == 1
+
+    @pytest.mark.asyncio
+    async def test_waits_for_open_circuit_breaker_instead_of_skipping(self):
+        df = pl.DataFrame({"a": [1]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings()
+        registry = _make_registry(_make_extractor(df=df))
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        with (
+            patch(
+                "nbadb.orchestrate.resilience._CircuitBreaker.is_open",
+                side_effect=[True, False],
+            ),
+            patch("nbadb.orchestrate.resilience._CircuitBreaker.retry_after", return_value=0.0),
+            patch(
+                "nbadb.orchestrate.extractor_runner.asyncio.sleep",
+                new=AsyncMock(),
+            ) as mock_sleep,
+        ):
+            result = await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert result is not None
+        assert result["stg_ep1"].shape[0] == 1
+        mock_sleep.assert_awaited_once_with(1.0)
+        journal.record_success.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +882,14 @@ class TestCircuitBreaker:
         assert "ep1" not in cb._half_open_probing
         assert cb.is_open("ep1") is True  # re-tripped
 
+    def test_retry_after_returns_remaining_cooldown(self):
+        cb = _CircuitBreaker(threshold=2, recovery_seconds=10.0)
+        with patch("nbadb.orchestrate.resilience.time.monotonic", return_value=100.0):
+            cb.record_failure("ep1")
+            cb.record_failure("ep1")
+        with patch("nbadb.orchestrate.resilience.time.monotonic", return_value=104.0):
+            assert cb.retry_after("ep1") == pytest.approx(6.0)
+
 
 # ---------------------------------------------------------------------------
 # deprecated_after enforcement (HR-T-003)
@@ -702,6 +957,60 @@ class TestBuildChunkTasksDeprecated:
         tasks = asyncio.run(_run())
         assert len(tasks) == 1
         assert runner.skipped == 0
+
+
+class TestSeasonYear:
+    @pytest.mark.parametrize(
+        ("params", "expected"),
+        [
+            ({"season": "2024-25"}, 2024),
+            ({"season": "2024"}, 2024),
+            ({"game_id": "0024800127"}, 1948),
+            ({"game_id": "0020000730"}, 2000),
+            ({"game_id": "0021500232"}, 2015),
+            ({"game_id": "001"}, None),
+        ],
+    )
+    def test_extracts_season_year_from_params(self, params, expected):
+        assert ExtractorRunner._season_year(params) == expected
+
+
+class TestBuildChunkTasksMinSeason:
+    def test_game_entry_min_season_uses_game_id_year(self):
+        import asyncio
+
+        settings = _make_settings()
+        journal = _make_journal()
+        registry = MagicMock()
+        runner = ExtractorRunner(
+            registry=registry,
+            settings=settings,
+            journal=journal,
+            rate_limit=10.0,
+        )
+
+        entry = StagingEntry(
+            "box_score_misc",
+            "stg_box_score_misc",
+            "game",
+            result_set_index=0,
+            use_multi=True,
+            min_season=1996,
+        )
+
+        async def _run():
+            return runner._build_chunk_tasks(
+                single_entries=[],
+                multi_by_ep={"box_score_misc": [entry]},
+                chunk=[{"game_id": "0024800127"}],
+                already_done=set(),
+                on_progress=None,
+            )
+
+        tasks = asyncio.run(_run())
+
+        assert tasks == []
+        assert runner.skipped == 1
 
 
 # ---------------------------------------------------------------------------
