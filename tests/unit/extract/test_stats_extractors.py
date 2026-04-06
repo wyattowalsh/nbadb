@@ -932,6 +932,108 @@ class TestMiscLeadersExtractors:
         assert result.is_empty()
 
 
+class TestDraftBoardExtractor:
+    class _FakeResponse:
+        def __init__(
+            self,
+            data_sets: dict[str, object] | Exception,
+            raw_response: object = "",
+        ) -> None:
+            self._data_sets = data_sets
+            self._raw_response = raw_response
+
+        def get_data_sets(self) -> dict[str, object]:
+            if isinstance(self._data_sets, Exception):
+                raise self._data_sets
+            return self._data_sets
+
+        def get_response(self) -> object:
+            return self._raw_response
+
+    @pytest.mark.asyncio
+    async def test_draft_board_parses_tabular_payload(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = DraftBoardExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake_send_api_request(
+            self,
+            **kwargs: object,
+        ) -> TestDraftBoardExtractor._FakeResponse:
+            captured.update(kwargs)
+            return TestDraftBoardExtractor._FakeResponse(
+                data_sets={
+                    "DraftBoard": {
+                        "headers": ["PERSON_ID", "PLAYER_NAME"],
+                        "data": [[1, "Prospect"]],
+                    }
+                }
+            )
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
+            _fake_send_api_request,
+        )
+
+        result = await ext.extract(season="2025-26", season_type="Regular Season")
+
+        assert result.to_dicts() == [{"person_id": 1, "player_name": "Prospect"}]
+        parameters = captured["parameters"]
+        assert isinstance(parameters, dict)
+        assert parameters["Season"] == 2025
+        assert "SeasonType" not in parameters
+
+    @pytest.mark.parametrize(
+        "raw_response",
+        [
+            "",
+            (
+                "Sap.Data.Hana.HanaException (0x80004005): Connection failed "
+                "(RTE:[89013] Socket closed by peer)"
+            ),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_draft_board_returns_empty_for_unavailable_response(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        raw_response: str,
+    ) -> None:
+        ext = DraftBoardExtractor()
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
+            lambda self, **_kwargs: TestDraftBoardExtractor._FakeResponse(
+                data_sets=json.JSONDecodeError("bad json", "", 0),
+                raw_response=raw_response,
+            ),
+        )
+
+        result = await ext.extract(season="2025-26", season_type="Playoffs")
+
+        assert result.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_draft_board_reraises_unknown_jsondecodeerror(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = DraftBoardExtractor()
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.draft.NBAStatsHTTP.send_api_request",
+            lambda self, **_kwargs: TestDraftBoardExtractor._FakeResponse(
+                data_sets=json.JSONDecodeError("bad json", "", 0),
+                raw_response='{"unexpected":',
+            ),
+        )
+
+        with pytest.raises(json.JSONDecodeError, match="bad json"):
+            await ext.extract(season="2025-26", season_type="Regular Season")
+
+
 class TestISTStandingsExtractor:
     class _FakeResponse:
         def __init__(self, raw_response: object) -> None:
