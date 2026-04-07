@@ -42,6 +42,8 @@ class PlayByPlayV2Extractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         frames = await self.extract_all(**params)
+        if not frames:
+            return pl.DataFrame()
         return frames[0]
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:

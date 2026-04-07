@@ -1485,6 +1485,8 @@ class TestExtractMethodCoverage:
         params = _get_params(endpoint_name, category)
         result = await ext.extract(**params)
         assert isinstance(result, pl.DataFrame)
+        if cls is PlayByPlayV2Extractor:
+            assert result.equals(dummy_df)
 
 
 # ---------------------------------------------------------------------------
@@ -1677,6 +1679,23 @@ class TestPlayByPlayV2Extractor:
 
         def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
             raise KeyError("AvailableVideo")
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
+
+        result = await ext.extract(game_id="0020000945")
+
+        assert isinstance(result, pl.DataFrame)
+        assert result.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_extract_returns_empty_frame_when_no_result_sets(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayByPlayV2Extractor()
+
+        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
+            return []
 
         monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
 
