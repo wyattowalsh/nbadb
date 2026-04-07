@@ -1474,6 +1474,12 @@ class TestExtractMethodCoverage:
                     }
                 ),
             )
+        elif cls is PlayByPlayV2Extractor:
+            monkeypatch.setattr(
+                ext,
+                "_from_nba_api_multi",
+                lambda endpoint_cls, **kwargs: [dummy_df, pl.DataFrame()],
+            )
         else:
             monkeypatch.setattr(ext, "_from_nba_api", _fake)
         params = _get_params(endpoint_name, category)
@@ -1640,6 +1646,56 @@ class TestPlayerGameLogV2Extractors:
         assert isinstance(result, pl.DataFrame)
         assert captured["player_id_nullable"] == 2544
         assert captured["season_nullable"] == "2024-25"
+
+
+class TestPlayByPlayV2Extractor:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("missing_key", ["AvailableVideo", "PlayByPlay"])
+    async def test_deprecated_empty_payload_returns_empty_result_sets(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        missing_key: str,
+    ) -> None:
+        ext = PlayByPlayV2Extractor()
+
+        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
+            raise KeyError(missing_key)
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
+
+        result = await ext.extract_all(game_id="0020000945")
+
+        assert len(result) == 2
+        assert all(isinstance(df, pl.DataFrame) and df.is_empty() for df in result)
+
+    @pytest.mark.asyncio
+    async def test_extract_returns_first_empty_frame_for_deprecated_payload(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayByPlayV2Extractor()
+
+        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
+            raise KeyError("AvailableVideo")
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
+
+        result = await ext.extract(game_id="0020000945")
+
+        assert isinstance(result, pl.DataFrame)
+        assert result.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_unexpected_keyerror_still_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = PlayByPlayV2Extractor()
+
+        def _fake(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
+            raise KeyError("unexpected")
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake)
+
+        with pytest.raises(KeyError, match="unexpected"):
+            await ext.extract_all(game_id="0020000945")
 
 
 # ---------------------------------------------------------------------------
