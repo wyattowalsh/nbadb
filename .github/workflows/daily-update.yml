@@ -38,6 +38,8 @@ jobs:
           path: artifacts/health/daily/dependency-inventory.json
       - name: Connect NordVPN tunnel
         env:
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
           SHARD_INDEX: "0"
           SERVER_LIMIT: "1"
@@ -89,15 +91,29 @@ jobs:
           shard_index="${SHARD_INDEX:-0}"
           server_limit="${SERVER_LIMIT:-1}"
 
-          # Derive OpenVPN credentials from NordVPN token
           creds_file=/tmp/nordvpn-creds.json
-          retry_http_get \
-            "NordVPN credentials request" \
-            "$creds_file" \
-            "https://api.nordvpn.com/v1/users/services/credentials" \
-            -u "token:$NORDVPN_TOKEN"
-          user=$(jq -r '.username // empty' "$creds_file")
-          pass=$(jq -r '.password // empty' "$creds_file")
+          # Prefer direct OpenVPN tunnel credentials when configured; fall back to the
+          # NordVPN token API so existing secret setups keep working.
+          if [ -n "${OPENVPN_USER:-}" ] || [ -n "${OPENVPN_PASSWORD:-}" ]; then
+            if [ -z "${OPENVPN_USER:-}" ] || [ -z "${OPENVPN_PASSWORD:-}" ]; then
+              echo "::error::Both OPENVPN_USER and OPENVPN_PASSWORD secrets are required"
+              exit 1
+            fi
+            user="$OPENVPN_USER"
+            pass="$OPENVPN_PASSWORD"
+            echo "::notice::Using configured OpenVPN tunnel credentials"
+          elif [ -n "${NORDVPN_TOKEN:-}" ]; then
+            retry_http_get \
+              "NordVPN credentials request" \
+              "$creds_file" \
+              "https://api.nordvpn.com/v1/users/services/credentials" \
+              -u "token:$NORDVPN_TOKEN"
+            user=$(jq -r '.username // empty' "$creds_file")
+            pass=$(jq -r '.password // empty' "$creds_file")
+          else
+            echo "::error::Provide OPENVPN_USER and OPENVPN_PASSWORD secrets or NORDVPN_TOKEN"
+            exit 1
+          fi
           if [ -z "$user" ] || [ -z "$pass" ]; then
             echo "::error::Failed to derive NordVPN credentials"
             exit 1
