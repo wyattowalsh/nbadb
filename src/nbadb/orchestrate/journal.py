@@ -81,6 +81,7 @@ class PipelineJournal:
                 completed_at = NULL,
                 rows_extracted = NULL,
                 error_message = NULL
+            WHERE _extraction_journal.status != 'done'
             """,
             [endpoint, params, now],
         )

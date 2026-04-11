@@ -264,7 +264,8 @@ class Orchestrator:
         """Persist in-memory staging DataFrames to DuckDB tables.
 
         Ensures staging data survives process crashes between extraction
-        and transform phases.  Uses CREATE OR REPLACE to be idempotent.
+        and transform phases without dropping prior persisted rows from
+        earlier iterations or resumed shards.
         """
         from nbadb.core.types import validate_sql_identifier
 
@@ -274,9 +275,13 @@ class Orchestrator:
                 safe_key = validate_sql_identifier(key)
                 db.duckdb.register("_staging_tmp", df)
                 try:
-                    db.duckdb.execute(
-                        f"CREATE OR REPLACE TABLE {safe_key} AS SELECT * FROM _staging_tmp"
-                    )
+                    try:
+                        db.duckdb.execute(
+                            f"INSERT INTO {safe_key} "
+                            f"SELECT * FROM _staging_tmp EXCEPT ALL SELECT * FROM {safe_key}"
+                        )
+                    except duckdb.CatalogException:
+                        db.duckdb.execute(f"CREATE TABLE {safe_key} AS SELECT * FROM _staging_tmp")
                     count += 1
                 finally:
                     db.duckdb.unregister("_staging_tmp")

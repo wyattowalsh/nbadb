@@ -1652,8 +1652,11 @@ class TestPlayerGameLogV2Extractors:
 
 class TestPlayByPlayV2Extractor:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("missing_key", ["AvailableVideo", "PlayByPlay"])
-    async def test_deprecated_empty_payload_returns_empty_result_sets(
+    @pytest.mark.parametrize(
+        "missing_key",
+        ["AvailableVideo", "PlayByPlay", "resultSet", "resultSets"],
+    )
+    async def test_structural_empty_payload_returns_empty_result_sets(
         self,
         monkeypatch: pytest.MonkeyPatch,
         missing_key: str,

@@ -308,7 +308,7 @@ jobs:
           CMD="$CMD --verbose"
 
           echo "::notice::Running: $CMD"
-          timeout 20400 bash -c "$CMD"
+          timeout --signal=INT --kill-after=60 20400 bash -c "$CMD"
           exit_code=$?
           set -e
 
@@ -397,18 +397,6 @@ jobs:
           for d in shards/extraction-shard-*; do
             echo "  $d:"
             ls -lh "$d/" 2>/dev/null || echo "    (empty)"
-          done
-
-      # Clean stale caches after all shards complete (avoids race with parallel restores)
-      - name: Clean stale caches
-        if: inputs.iteration == '1'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Cleaning old extraction caches..."
-          gh cache list --key "${{ env.CACHE_KEY }}-" --json id,key --jq '.[].key' | while read key; do
-            echo "  Deleting: $key"
-            gh cache delete "$key" 2>/dev/null || true
           done
 
       # Use shard 3 as base (has global player/team/static data)
@@ -547,7 +535,6 @@ jobs:
           CONCURRENCY: ${{ inputs.concurrency }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
-          FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           CHAIN_ID: ${{ inputs.chain_id || github.run_id }}
         run: |
           current=$ITERATION
@@ -555,9 +542,9 @@ jobs:
           next=$((current + 1))
 
           if [ "$next" -gt "$max" ]; then
-            echo "::warning::Reached max iterations ($max). Extraction may be incomplete."
-            echo "::warning::Re-trigger manually to continue."
-            exit 0
+            echo "::error::Reached max iterations ($max) with incomplete extraction."
+            echo "::error::Re-trigger manually after fixing the underlying shard failures."
+            exit 1
           fi
 
           echo "::notice::Some shards incomplete — triggering iteration $next/$max (chain $CHAIN_ID)"
@@ -569,5 +556,5 @@ jobs:
             -f max_iterations="$max" \
             -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
             -f backfill_patterns="$BACKFILL_PATTERNS" \
-            -f force_reextract="$FORCE_REEXTRACT" \
+            -f force_reextract=false \
             -f chain_id="$CHAIN_ID"

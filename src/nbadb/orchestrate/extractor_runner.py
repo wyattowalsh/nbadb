@@ -73,6 +73,10 @@ class _DeferredExtraction:
     staging_key: str | None = None
 
 
+class _CircuitBreakerTimeoutError(RuntimeError):
+    """Raised when an endpoint remains breaker-open past the configured budget."""
+
+
 class ExtractorRunner:
     """Runs extractors concurrently with semaphore gating and journal
     tracking.
@@ -549,8 +553,21 @@ class ExtractorRunner:
             extractor._request_timeout_override = timeout
 
     async def _wait_for_circuit_breaker(self, endpoint_name: str, params_json: str) -> None:
+        max_wait = max(float(getattr(self._settings, "circuit_breaker_max_wait", 600.0)), 0.0)
+        deadline = time.monotonic() + max_wait
         while self._circuit_breaker.is_open(endpoint_name):
             wait_seconds = max(self._circuit_breaker.retry_after(endpoint_name), 1.0)
+            if max_wait > 0:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    logger.error(
+                        "circuit breaker wait budget exhausted: {} [{}] ({:.1f}s)",
+                        endpoint_name,
+                        params_json,
+                        max_wait,
+                    )
+                    raise _CircuitBreakerTimeoutError(endpoint_name)
+                wait_seconds = min(wait_seconds, remaining)
             logger.debug(
                 "circuit breaker OPEN, delaying: {} [{}] ({:.1f}s)",
                 endpoint_name,

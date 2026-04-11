@@ -62,6 +62,7 @@ def _make_settings(**overrides):
     s.extract_max_retries = 0  # disable retries in unit tests by default
     s.extract_retry_base_delay = 0.0
     s.circuit_breaker_threshold = 5
+    s.circuit_breaker_max_wait = 600.0
     s.latency_window_size = 10
     for k, v in overrides.items():
         setattr(s, k, v)
@@ -640,6 +641,34 @@ class TestAdaptiveThrottleIntegration:
         assert result["stg_ep1"].shape[0] == 1
         mock_sleep.assert_awaited_once_with(1.0)
         journal.record_success.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_open_circuit_breaker_timeout_records_failure(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(circuit_breaker_max_wait=5.0)
+        registry = _make_registry(_make_extractor(df=pl.DataFrame({"a": [1]})))
+        runner = ExtractorRunner(registry, settings, journal)
+        runner._circuit_breaker = MagicMock()
+        runner._circuit_breaker.is_open.side_effect = [True, True]
+        runner._circuit_breaker.retry_after.return_value = 10.0
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        with (
+            patch(
+                "nbadb.orchestrate.extractor_runner.time.monotonic",
+                side_effect=[0.0, 0.0, 5.1],
+            ),
+            patch(
+                "nbadb.orchestrate.extractor_runner.asyncio.sleep",
+                new=AsyncMock(),
+            ) as mock_sleep,
+        ):
+            result = await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert result is None
+        mock_sleep.assert_awaited_once_with(5.0)
+        journal.record_failure.assert_called_once()
+        assert journal.record_failure.call_args.args[2] == "_CircuitBreakerTimeoutError"
 
 
 # ---------------------------------------------------------------------------

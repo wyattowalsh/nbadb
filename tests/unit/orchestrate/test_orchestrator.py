@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import duckdb
 import polars as pl
 
 from nbadb.orchestrate.orchestrator import ExtractionOutcome, Orchestrator, PipelineResult
@@ -497,6 +499,50 @@ class TestRunInit:
 
         mock_load.assert_not_called()
         assert mock_transform.call_args.args[1] == {"stg_league_game_log": game_log_df}
+
+
+class TestPersistStagingToDuckdb:
+    def test_persist_staging_appends_without_replacing_existing_rows(self):
+        orch = Orchestrator(settings=_mock_settings())
+        conn = duckdb.connect(":memory:")
+        db = SimpleNamespace(duckdb=conn)
+
+        try:
+            orch._persist_staging_to_duckdb(
+                db,
+                {"stg_sample": pl.DataFrame({"game_id": ["001"], "value": [1]})},
+            )
+            orch._persist_staging_to_duckdb(
+                db,
+                {"stg_sample": pl.DataFrame({"game_id": ["001", "002"], "value": [1, 2]})},
+            )
+
+            rows = conn.execute("SELECT game_id, value FROM stg_sample ORDER BY game_id").fetchall()
+        finally:
+            conn.close()
+
+        assert rows == [("001", 1), ("002", 2)]
+
+    def test_persist_staging_preserves_duplicate_rows(self):
+        orch = Orchestrator(settings=_mock_settings())
+        conn = duckdb.connect(":memory:")
+        db = SimpleNamespace(duckdb=conn)
+
+        try:
+            orch._persist_staging_to_duckdb(
+                db,
+                {"stg_sample": pl.DataFrame({"game_id": ["001", "001"], "value": [1, 1]})},
+            )
+            orch._persist_staging_to_duckdb(
+                db,
+                {"stg_sample": pl.DataFrame({"game_id": ["001", "001"], "value": [1, 1]})},
+            )
+
+            rows = conn.execute("SELECT game_id, value FROM stg_sample ORDER BY game_id").fetchall()
+        finally:
+            conn.close()
+
+        assert rows == [("001", 1), ("001", 1)]
 
 
 # ---------------------------------------------------------------------------

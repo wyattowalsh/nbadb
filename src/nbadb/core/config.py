@@ -68,6 +68,7 @@ class NbaDbSettings(BaseSettings):
     }
     adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff
     adaptive_rate_recovery: int = 50  # consecutive successes before rate recovery
+    circuit_breaker_max_wait: float = 600.0  # cap breaker-open waiting before failing fast
     extract_max_retries: int = 6  # per-extraction retry attempts
     extract_retry_base_delay: float = 2.0  # base delay in seconds (exponential backoff)
 

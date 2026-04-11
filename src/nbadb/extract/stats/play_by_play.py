@@ -29,7 +29,7 @@ class PlayByPlayExtractor(BaseExtractor):
 class PlayByPlayV2Extractor(BaseExtractor):
     endpoint_name = "play_by_play_v2"
     category = "play_by_play"
-    _DEPRECATED_EMPTY_RESULT_KEYS = {"AvailableVideo", "PlayByPlay"}
+    _EMPTY_RESULT_KEYS = {"AvailableVideo", "PlayByPlay", "resultSet", "resultSets"}
 
     @classmethod
     def _empty_result_sets(cls, game_id: str) -> list[pl.DataFrame]:
@@ -52,6 +52,6 @@ class PlayByPlayV2Extractor(BaseExtractor):
             return self._from_nba_api_multi(PlayByPlayV2, game_id=game_id)
         except KeyError as exc:
             missing_key = exc.args[0] if exc.args else None
-            if missing_key not in self._DEPRECATED_EMPTY_RESULT_KEYS:
+            if missing_key not in self._EMPTY_RESULT_KEYS:
                 raise
             return self._empty_result_sets(game_id)

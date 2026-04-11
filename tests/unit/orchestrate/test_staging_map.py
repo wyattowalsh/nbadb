@@ -191,6 +191,15 @@ class TestStagingMap:
         assert entry is not None
         assert entry.endpoint_name == "league_game_log"
 
+    def test_play_by_play_v2_has_min_season_guard(self) -> None:
+        for staging_key in (
+            "stg_play_by_play_v2",
+            "stg_play_by_play_v2_video_available",
+        ):
+            entry = get_by_staging_key(staging_key)
+            assert entry is not None
+            assert entry.min_season == 1996
+
     def test_get_by_staging_key_not_found(self) -> None:
         assert get_by_staging_key("stg_nonexistent") is None
 

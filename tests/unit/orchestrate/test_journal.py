@@ -112,6 +112,20 @@ class TestJournalExtraction:
         journal.record_success("ep", "p", 5)
         assert journal.has_done_entries()
 
+    def test_record_start_does_not_overwrite_done(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep", "p")
+        journal.record_success("ep", "p", 5)
+
+        journal.record_start("ep", "p")
+
+        row = journal._conn.execute(
+            "SELECT status, rows_extracted, completed_at FROM _extraction_journal "
+            "WHERE endpoint = 'ep' AND params = 'p'"
+        ).fetchone()
+        assert row[0] == "done"
+        assert row[1] == 5
+        assert row[2] is not None
+
 
 class TestJournalRetryCap:
     def test_retry_count_increments(self, journal: PipelineJournal) -> None:

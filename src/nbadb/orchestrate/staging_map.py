@@ -716,7 +716,12 @@ STAGING_MAP: list[StagingEntry] = [
         min_season=2016,
     ),
     StagingEntry(
-        "play_by_play_v2", "stg_play_by_play_v2", "game", result_set_index=0, use_multi=True
+        "play_by_play_v2",
+        "stg_play_by_play_v2",
+        "game",
+        result_set_index=0,
+        use_multi=True,
+        min_season=1996,
     ),
     # Player-level additions — PlayerCareerStats multi-result
     StagingEntry(
@@ -2311,6 +2316,7 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
+        min_season=1996,
     ),
     # ScoreboardV2 — missing index 9 (WinProbability)
     StagingEntry(
