@@ -6,7 +6,7 @@ on:
       concurrency:
         description: "Max concurrent requests per category"
         type: choice
-        default: "aggressive"
+        default: "conservative"
         options:
           - conservative
           - moderate
@@ -540,6 +540,7 @@ jobs:
           current=$ITERATION
           max=$MAX_ITERATIONS
           next=$((current + 1))
+          next_concurrency="$CONCURRENCY"
 
           if [ "$next" -gt "$max" ]; then
             echo "::error::Reached max iterations ($max) with incomplete extraction."
@@ -547,11 +548,20 @@ jobs:
             exit 1
           fi
 
-          echo "::notice::Some shards incomplete — triggering iteration $next/$max (chain $CHAIN_ID)"
+          case "$CONCURRENCY" in
+            aggressive) next_concurrency=moderate ;;
+            moderate) next_concurrency=conservative ;;
+          esac
+
+          if [ "$next_concurrency" != "$CONCURRENCY" ]; then
+            echo "::notice::Some shards incomplete — downshifting concurrency from $CONCURRENCY to $next_concurrency for iteration $next/$max (chain $CHAIN_ID)"
+          else
+            echo "::notice::Some shards incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
+          fi
           gh workflow run full-extraction.yml \
             --repo "${{ github.repository }}" \
             --ref "$WORKFLOW_REF" \
-            -f concurrency="$CONCURRENCY" \
+            -f concurrency="$next_concurrency" \
             -f iteration="$next" \
             -f max_iterations="$max" \
             -f backfill_endpoints="$BACKFILL_ENDPOINTS" \

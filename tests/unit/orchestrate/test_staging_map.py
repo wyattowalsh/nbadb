@@ -200,6 +200,21 @@ class TestStagingMap:
             assert entry is not None
             assert entry.min_season == 1996
 
+    def test_box_score_v3_game_packet_has_1996_min_season_guards(self) -> None:
+        for staging_key in (
+            "stg_box_score_advanced",
+            "stg_box_score_scoring",
+            "stg_box_score_usage",
+            "stg_box_score_four_factors_player",
+            "stg_box_score_advanced_team",
+            "stg_box_score_scoring_team",
+            "stg_box_score_usage_team",
+            "stg_box_score_four_factors_team",
+        ):
+            entry = get_by_staging_key(staging_key)
+            assert entry is not None
+            assert entry.min_season == 1996
+
     def test_get_by_staging_key_not_found(self) -> None:
         assert get_by_staging_key("stg_nonexistent") is None
 
