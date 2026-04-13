@@ -18,6 +18,8 @@ type ColumnKind = "categorical" | "temporal" | "quantitative";
 
 const TEMPORAL_NAME_PATTERNS =
   /(?:^|_)(date|year|season|month|quarter|week)(?:$|_)/i;
+const CATEGORICAL_NUMERIC_NAME_PATTERNS =
+  /(?:^|_)(id|key|rank|seed|pick|num|number|code|index)(?:$|_)/i;
 
 const DATE_VALUE_PATTERN = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?$/;
 
@@ -135,12 +137,14 @@ function classifyColumn(
   );
 
   if (numericValues.length === values.length) {
-    // All numeric — categorical if < 15 distinct, otherwise quantitative
-    const distinct = new Set(numericValues.map(Number));
-    // Also treat integers-only with few distinct values as categorical
-    const allIntegers = numericValues.every((v) => Number.isInteger(Number(v)));
-    if (allIntegers && distinct.size < 15) return "categorical";
-    return distinct.size < 15 ? "categorical" : "quantitative";
+    if (CATEGORICAL_NUMERIC_NAME_PATTERNS.test(name)) {
+      return "categorical";
+    }
+
+    // All numeric — keep obvious identifier/rank columns categorical, but
+    // treat common measures like pts/reb/ast as quantitative even in short
+    // result sets.
+    return "quantitative";
   }
 
   // String values → categorical

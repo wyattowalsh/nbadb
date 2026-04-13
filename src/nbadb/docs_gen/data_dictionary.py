@@ -54,6 +54,7 @@ class DataDictionaryGenerator:
                     issubclass(obj, pa.DataFrameModel)
                     and obj is not pa.DataFrameModel
                     and obj.__module__ == module_name
+                    and not name.startswith("_")
                 ):
                     schemas.append((name, obj))
         return schemas

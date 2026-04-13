@@ -1,48 +1,208 @@
 ---
 title: Getting Started
-description: Install nbadb, seed your data, and find the right docs for your role.
+description: The tip-off and control tower for nbadb's public analytical surface.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-# Getting Started
+# nbadb Documentation
 
-nbadb turns the NBA stats surface into a **public analytical model** — DuckDB staging, SQL-first transforms, and exports to DuckDB, SQLite, Parquet, and CSV.
+Welcome to the **Arena Data Lab** for nbadb: the control tower for getting from first install to first query, first refresh, and first production handoff.
+
+nbadb turns the NBA stats surface into a **public analytical model** with DuckDB staging, SQL-first transforms, and exports for DuckDB, SQLite, Parquet, and CSV.
+
+<StatGrid columns={4}>
+  <StatPill
+    label="Public surface"
+    value="Star schema"
+    note="dimensions, facts, bridges, aggregates, and analytics outputs"
+  />
+  <StatPill
+    label="Extractors"
+    value="Full coverage"
+    note="registered wrappers around the current nba_api runtime surface"
+  />
+  <StatPill
+    label="Core run modes"
+    value="4"
+    note="init, daily, monthly, and backfill run"
+  />
+  <StatPill
+    label="Export formats"
+    value="4"
+    note="sqlite, duckdb, csv, and parquet by default"
+  />
+</StatGrid>
+
+## Quick navigation
+
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+  <ScoutCard title="Start the install" label="Entry surface">
+    Jump to <a href="/docs/installation">Installation</a> for prerequisites,
+    install routes, env defaults, and the first sanity checks.
+  </ScoutCard>
+  <ScoutCard title="Understand the pipeline" label="Entry surface">
+    Open <a href="/docs/architecture">Architecture</a> for the raw → staging →
+    star flow, internal state boundaries, and why the warehouse is shaped this
+    way.
+  </ScoutCard>
+  <ScoutCard title="Find the right command" label="Entry surface">
+    Use <a href="/docs/cli-reference">CLI Reference</a> when the question is
+    "what command does this?" or "what flags are accepted right now?"
+  </ScoutCard>
+  <ScoutCard title="Try the browser explorer" label="No install">
+    Open <a href="/docs/playground">SQL Playground</a> when you want to rehearse
+    DuckDB query shapes in-browser before you pull the full dataset locally.
+  </ScoutCard>
+  <ScoutCard title="Find the right table" label="Entry surface">
+    Start with <a href="/docs/schema">Schema Reference</a>, then move to the{" "}
+    <a href="/docs/data-dictionary">Data Dictionary</a> when you need exact
+    fields and meanings.
+  </ScoutCard>
+</div>
+
+## Use this page when…
+
+| If you need to…                                                  | Go here first                                                                 | Why this is the shortest route                                                                           |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Get nbadb onto a machine and prove it works                      | [Installation](/docs/installation)                                            | It covers prerequisites, install paths, `NBADB_` defaults, and first-run checks                          |
+| Understand how raw extraction becomes queryable warehouse tables | [Architecture](/docs/architecture)                                            | It explains the raw → staging → star flow, validation tiers, and internal state boundaries               |
+| Find the exact command or flag surface                           | [CLI Reference](/docs/cli-reference)                                          | It maps command intent, shared behaviors, and current signatures in one place                            |
+| Rehearse SQL in the browser before local setup                   | [SQL Playground](/docs/playground)                                            | It loads DuckDB-WASM with self-contained NBA-flavored examples so you can practice the query shape first |
+| Find the right public table family or field                      | [Schema Reference](/docs/schema) and [Data Dictionary](/docs/data-dictionary) | Use schema pages for table discovery, then switch to field-level definitions                             |
+
+<CourtDivider label="First-five-minutes route" />
 
 ## First five minutes
 
+If you just want to get oriented without reading the whole site, take this route:
+
+1. Install nbadb from <a href="/docs/installation">Installation</a>.
+2. Run a first build or pull a published dataset.
+3. Check <a href="/docs/cli-reference">CLI Reference</a> for the exact command surface.
+4. Use <a href="/docs/playground">SQL Playground</a> to rehearse the query shape if you want a browser-only warm-up.
+5. Use <a href="/docs/schema">Schema Reference</a> to find the right table family.
+6. Move into the <a href="/docs/guides">guide lane</a> that matches your job.
+
 ```bash
 pip install nbadb
-nbadb download       # pull the latest published dataset
-nbadb schema         # confirm tables are visible
+nbadb init
+nbadb schema
 ```
 
 <Callout type="info">
-  `nbadb download` pulls the latest published Kaggle dataset. For a full
-  historical build from source, use `nbadb init` instead (takes hours, not
-  minutes). Once seeded, `nbadb daily` is the standard game-day refresh.
+  `nbadb init` is the full historical build and usually takes hours, not
+  minutes. Once your data directory is seeded, `nbadb daily` becomes the
+  standard game-day possession for refreshing the current season.
 </Callout>
 
-## Where to go next
+## Choose your route
 
-| You are…                             | Start here                                                                                      | Then                                                                                                           |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Installing or evaluating             | [Installation](/docs/installation)                                                              | [CLI Reference](/docs/cli-reference)                                                                           |
-| Analyzing tables and writing queries | [SQL Playground](/docs/playground) or [Analytics Quickstart](/docs/guides/analytics-quickstart) | [DuckDB Query Examples](/docs/guides/duckdb-queries) · [Schema Reference](/docs/schema)                       |
-| Building on the pipeline             | [Architecture](/docs/architecture)                                                              | [CLI Reference](/docs/cli-reference) · [Data Dictionary](/docs/data-dictionary)                               |
-| Running recurring refreshes          | [Daily Updates](/docs/guides/daily-updates)                                                     | [Kaggle Setup](/docs/guides/kaggle-setup) · [Troubleshooting](/docs/guides/troubleshooting-playbook)          |
+<DataColumns>
+  <ScoutCard title="I am installing or evaluating nbadb" label="Reader lane">
+    Start with <a href="/docs/installation">Installation</a>. It covers the PyPI
+    route, the source route, the `NBADB_` settings that matter first, and what
+    should appear in your data directory when things work.
+  </ScoutCard>
+  <ScoutCard
+    title="I need to understand how the warehouse works"
+    label="Reader lane"
+  >
+    Read <a href="/docs/architecture">Architecture</a> next. That page explains
+    the pipeline stages, validation tiers, internal pipeline tables, export
+    lanes, and the design choices behind the public model.
+  </ScoutCard>
+  <ScoutCard
+    title="I need to query or model against the data"
+    label="Reader lane"
+  >
+    Use <a href="/docs/playground">SQL Playground</a> when you want a
+    browser-only warm-up, then move to{" "}
+    <a href="/docs/schema">Schema Reference</a> for table discovery, the{" "}
+    <a href="/docs/data-dictionary">Data Dictionary</a> for field-level meaning,
+    and <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a> for
+    working SQL against the real model.
+  </ScoutCard>
+  <ScoutCard title="I need recurring operator workflows" label="Reader lane">
+    Keep <a href="/docs/guides/daily-updates">Daily Updates</a>,{" "}
+    <a href="/docs/guides/kaggle-setup">Kaggle Setup</a>, and the{" "}
+    <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a>{" "}
+    open together. Those are the practical runbook pages.
+  </ScoutCard>
+</DataColumns>
 
-## Key references
+### Reader routes in one glance
 
-| Section                                              | What's inside                                                                             |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [Schema Reference](/docs/schema)                     | Table families, join patterns, dimensions, facts, bridges, aggregates, and analytics views |
-| [Data Dictionary](/docs/data-dictionary)             | Column-level definitions and glossary                                                     |
-| [Endpoints](/docs/endpoints)                         | Upstream endpoint grouping and extraction coverage                                        |
-| [Guides](/docs/guides/role-based-onboarding-hub)     | Onboarding, recurring ops, and analysis walkthroughs                                      |
+| Reader                                     | Start here                                                             | Keep this open next                                               |
+| ------------------------------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Evaluator or first-time installer          | [Installation](/docs/installation)                                     | [CLI Reference](/docs/cli-reference)                              |
+| Analyst looking for usable tables fast     | [SQL Playground](/docs/playground) or [Schema Reference](/docs/schema) | [DuckDB Query Examples](/docs/guides/duckdb-queries)              |
+| Builder changing pipeline or docs behavior | [Architecture](/docs/architecture)                                     | [CLI Reference](/docs/cli-reference)                              |
+| Operator running recurring refreshes       | [Daily Updates](/docs/guides/daily-updates)                            | [Troubleshooting Playbook](/docs/guides/troubleshooting-playbook) |
 
-<Callout type="info">
-  Some docs pages are generated from schema metadata and lineage. See
-  [Docs boundary](/docs/architecture#docs-boundary-curated-vs-generated) on
-  the Architecture page for the full list and regeneration instructions.
+## What's on the floor
+
+| Surface           | Read it as…                          | Reach for it when…                                                                                | Start here                                      |
+| ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Dimensions        | `dim_*` identity and lookup context  | You need stable entities like players, teams, games, seasons, and history-aware reference context | [Dimensions](/docs/schema/dimensions)           |
+| Facts             | `fact_*` event and measurement grain | You need player, team, game, play, shot, tracking, or standings data at its working grain         | [Facts & Bridges](/docs/schema/facts)           |
+| Bridges           | `bridge_*` connectors                | You are resolving many-to-many relationships between public entities                              | [Facts & Bridges](/docs/schema/facts)           |
+| Aggregates        | `agg_*` reusable rollups             | You want pre-rolled summaries instead of rebuilding the same season or career SQL repeatedly      | [Derived Aggregations](/docs/schema/derived)    |
+| Analytics outputs | `analytics_*` convenience surfaces   | You want the shortest route to analysis-ready tables and views                                    | [Analytics Views](/docs/schema/analytics-views) |
+
+<CourtDivider label="Role-based lanes" />
+
+## Fast lanes by reader
+
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+  <ScoutCard title="Analyst lane" label="Who should start here">
+    Begin with <a href="/docs/playground">SQL Playground</a> if you want a
+    browser-only warm-up, then keep{" "}
+    <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a> and{" "}
+    <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a> open for
+    real warehouse reads.
+  </ScoutCard>
+  <ScoutCard title="Builder lane" label="Who should start here">
+    Start with <a href="/docs/installation">Installation</a>, then read{" "}
+    <a href="/docs/cli-reference">CLI Reference</a> and{" "}
+    <a href="/docs/architecture">Architecture</a> before changing pipeline
+    behavior, schemas, or docs generation flows.
+  </ScoutCard>
+  <ScoutCard title="Operator lane" label="Who should start here">
+    Use <a href="/docs/guides/daily-updates">Daily Updates</a> for the recurring
+    refresh cadence, <a href="/docs/guides/kaggle-setup">Kaggle Setup</a> for
+    distribution handoffs, and the{" "}
+    <a href="/docs/guides/troubleshooting-playbook">Troubleshooting Playbook</a>{" "}
+    when artifacts or CI go sideways.
+  </ScoutCard>
+</div>
+
+## Generated vs. hand-written docs
+
+Some docs pages are hand-authored. Others are generated from schema metadata and lineage information.
+
+```bash
+uv run nbadb docs-autogen --docs-root docs/content/docs
+```
+
+<Callout>
+That command owns `schema/{raw,staging,star}-reference.mdx`, `data-dictionary/{raw,staging,star}.mdx`, `diagrams/er-auto.mdx`, `lineage/lineage-auto.mdx`, `docs/lib/generated/{schema,lineage,schema-coverage}.json`, and `docs/lib/site-metrics.generated.ts`. Regenerate those outputs when code changes; do not hand-edit them.
 </Callout>
+
+## Jump to the rest of the arena
+
+### Core entry pages
+
+- **[Installation](/docs/installation)** — prerequisites, install routes, config defaults, and first checks
+- **[Architecture](/docs/architecture)** — pipeline stages, validation tiers, internal state, and design decisions
+- **[CLI Reference](/docs/cli-reference)** — exact command signatures plus operator and CI notes
+
+### Reference surfaces
+
+- **[Schema Reference](/docs/schema)** — table families, join lanes, and generated reference coverage
+- **[Data Dictionary](/docs/data-dictionary)** — column-level definitions and glossary terms
+- **[Endpoints](/docs/endpoints)** — upstream endpoint grouping and extraction coverage
+
+### Guided routes
+
+- **[Guides](/docs/guides)** — practice-facility hub for analysis drills, recurring ops, onboarding, and recovery workflows

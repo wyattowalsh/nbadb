@@ -4,6 +4,7 @@ description: How to navigate the nbadb star schema -- dimensions, facts, bridges
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { siteInventory } from "@/lib/site-metrics.generated";
 
 # Reading the Schema
 
@@ -11,39 +12,38 @@ The nbadb warehouse follows a **star schema** design. Every table has a prefix t
 
 <StatGrid columns={4}>
   <StatPill
-    label="Table types"
-    value="4"
-    note="dim, fact, agg, analytics"
+    label="Public families"
+    value={`${Object.keys(siteInventory.tableFamilyCounts).length}`}
+    note="dim, fact, bridge, agg, analytics"
   />
   <StatPill
-    label="Star tables"
-    value="190"
-    note="across all layers"
+    label="Public outputs"
+    value={siteInventory.publicOutputCount}
+    note="source-discovered dim/fact/bridge/agg/analytics outputs"
   />
   <StatPill
     label="Bridge tables"
-    value="5"
+    value={siteInventory.tableFamilyCounts.bridges}
     note="many-to-many resolvers"
   />
   <StatPill
     label="SCD2 dimensions"
-    value="2"
-    note="dim_player, dim_team_history"
+    value={`${siteInventory.scdType2Dimensions.length}`}
+    note={siteInventory.scdType2Dimensions.join(", ")}
   />
 </StatGrid>
 
 <CourtDivider label="Table anatomy" />
 
-## The four table types
+## The warehouse table families
 
-| Prefix    | Role          | Example                        | What it stores                                                       |
-| --------- | ------------- | ------------------------------ | -------------------------------------------------------------------- |
-| `dim_`    | **Dimension** | `dim_player`                   | Slowly changing descriptors -- who, what, where. One row per entity. |
-| `fact_`   | **Fact**      | `fact_player_game_traditional` | Measured events -- one row per occurrence (player-game, shot, play). |
-| `bridge_` | **Bridge**    | `bridge_game_official`         | Many-to-many links between dimensions and facts.                     |
-| `agg_`    | **Aggregate** | `agg_player_season`            | Pre-computed roll-ups built from facts and dimensions.               |
-
-In addition, **analytics views** (`analytics_*`) combine multiple facts and dimensions into wide, query-ready surfaces for common analysis patterns.
+| Prefix       | Role                 | Example                          | What it stores                                                       |
+| ------------ | -------------------- | -------------------------------- | -------------------------------------------------------------------- |
+| `dim_`       | **Dimension**        | `dim_player`                     | Slowly changing descriptors -- who, what, where. One row per entity. |
+| `fact_`      | **Fact**             | `fact_player_game_traditional`   | Measured events -- one row per occurrence (player-game, shot, play). |
+| `bridge_`    | **Bridge**           | `bridge_game_official`           | Many-to-many links between dimensions and facts.                     |
+| `agg_`       | **Aggregate**        | `agg_player_season`              | Pre-computed roll-ups built from facts and dimensions.               |
+| `analytics_` | **Analytics output** | `analytics_player_game_complete` | Wide, query-ready surfaces built for common analysis patterns.       |
 
 <CourtDivider label="Joins and keys" />
 
@@ -52,7 +52,7 @@ In addition, **analytics views** (`analytics_*`) combine multiple facts and dime
 Dimensions sit at the tips of a star; facts sit in the centre. You always join **from a fact outward to dimensions** using surrogate keys like `player_id` or `team_id`.
 
 ```sql
-SELECT p.player_name, t.abbreviation, f.pts, f.reb, f.ast
+SELECT p.full_name, t.abbreviation, f.pts, f.reb, f.ast
 FROM   fact_player_game_traditional f
 JOIN   dim_player p ON f.player_id = p.player_id
 JOIN   dim_team   t ON f.team_id   = t.team_id;
@@ -67,12 +67,12 @@ Bridges resolve many-to-many relationships -- for example, `bridge_game_official
   pages for exact column contracts.
 </Callout>
 
-| Page                                      | When to use it                                                     |
-| ----------------------------------------- | ------------------------------------------------------------------ |
-| [Schema Reference](/docs/schema)          | Understand which table tiers exist and how they relate.            |
-| [Data Dictionary](/docs/data-dictionary)  | Look up a column name, suffix convention, or stat abbreviation.    |
-| [ER Diagram](/docs/diagrams/endpoint-map) | Visualise foreign-key relationships between tables.                |
-| [Table Lineage](/docs/lineage)            | Trace a table back through staging to its NBA API source endpoint. |
+| Page                                     | When to use it                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| [Schema Reference](/docs/schema)         | Understand which table tiers exist and how they relate.            |
+| [Data Dictionary](/docs/data-dictionary) | Look up a column name, suffix convention, or stat abbreviation.    |
+| [ER Diagram](/docs/diagrams/er-diagram)  | Visualise foreign-key relationships between tables.                |
+| [Table Lineage](/docs/lineage)           | Trace a table back through staging to its NBA API source endpoint. |
 
 ## Reading the ER diagram
 
@@ -90,37 +90,38 @@ Start from a fact table you care about and follow every line outward to discover
 
 Every column name in the warehouse encodes its purpose through a suffix. Learn the suffixes and you can read any table without checking the data dictionary first.
 
-| Suffix | Meaning | Example column | Notes |
-| --- | --- | --- | --- |
-| `_id` | Surrogate key | `player_id`, `team_id` | Integer assigned by nbadb. Use for joins. |
-| `_name` | Human-readable label | `player_name`, `arena_name` | Display text -- never join on these. |
-| `_pct` | Percentage (0--100) | `fg_pct`, `win_pct` | Stored as a float. `0.456` means 45.6%. |
-| `_per48` | Per-48-minute rate | `pts_per48`, `reb_per48` | Pace-adjusted counting stat. |
-| `_rank` | Ordinal rank | `pts_rank`, `conf_rank` | Integer. Lower is better (1 = first). |
-| `_flag` | Boolean indicator | `is_active`, `is_current` | `true` / `false`. Often used in WHERE clauses. |
-| `_date` | Calendar date | `game_date`, `birth_date` | `DATE` type, no time component. |
-| `_ts` | Timestamp | `created_ts`, `updated_ts` | Full datetime with timezone. |
-| `_sk` | Surrogate key (SCD2) | `player_sk` | Versioned key for slowly changing dimensions. |
+| Suffix   | Meaning              | Example column              | Notes                                          |
+| -------- | -------------------- | --------------------------- | ---------------------------------------------- |
+| `_id`    | Surrogate key        | `player_id`, `team_id`      | Integer assigned by nbadb. Use for joins.      |
+| `_name`  | Human-readable label | `player_name`, `arena_name` | Display text -- never join on these.           |
+| `_pct`   | Percentage (0--100)  | `fg_pct`, `win_pct`         | Stored as a float. `0.456` means 45.6%.        |
+| `_per48` | Per-48-minute rate   | `pts_per48`, `reb_per48`    | Pace-adjusted counting stat.                   |
+| `_rank`  | Ordinal rank         | `pts_rank`, `conf_rank`     | Integer. Lower is better (1 = first).          |
+| `_flag`  | Boolean indicator    | `is_active`, `is_current`   | `true` / `false`. Often used in WHERE clauses. |
+| `_date`  | Calendar date        | `game_date`, `birth_date`   | `DATE` type, no time component.                |
+| `_ts`    | Timestamp            | `created_ts`, `updated_ts`  | Full datetime with timezone.                   |
+| `_sk`    | Surrogate key (SCD2) | `player_sk`                 | Versioned key for slowly changing dimensions.  |
 
 <Callout type="info">
-  When you see both `player_id` and `player_sk` on the same dimension, `player_id` is the
-  **durable business key** (same across all versions of that player) and `player_sk` is the
-  **version-specific surrogate** (unique per SCD2 row). Facts join on `player_id`; use
-  `player_sk` only when you need a specific historical snapshot.
+  When you see both `player_id` and `player_sk` on the same dimension,
+  `player_id` is the **durable business key** (same across all versions of that
+  player) and `player_sk` is the **version-specific surrogate** (unique per SCD2
+  row). Facts join on `player_id`; use `player_sk` only when you need a specific
+  historical snapshot.
 </Callout>
 
 ### Stat abbreviations in measure columns
 
 Fact and aggregate tables use NBA-standard stat abbreviations as column names. Here are the most common ones:
 
-| Column | Stat | Column | Stat |
-| --- | --- | --- | --- |
-| `pts` | Points | `blk` | Blocks |
-| `reb` | Rebounds | `tov` | Turnovers |
-| `ast` | Assists | `pf` | Personal fouls |
-| `stl` | Steals | `min` | Minutes played |
+| Column        | Stat                         | Column          | Stat                            |
+| ------------- | ---------------------------- | --------------- | ------------------------------- |
+| `pts`         | Points                       | `blk`           | Blocks                          |
+| `reb`         | Rebounds                     | `tov`           | Turnovers                       |
+| `ast`         | Assists                      | `pf`            | Personal fouls                  |
+| `stl`         | Steals                       | `min`           | Minutes played                  |
 | `fgm` / `fga` | Field goals made / attempted | `fg3m` / `fg3a` | Three-pointers made / attempted |
-| `ftm` / `fta` | Free throws made / attempted | `plus_minus` | Plus/minus differential |
+| `ftm` / `fta` | Free throws made / attempted | `plus_minus`    | Plus/minus differential         |
 
 <CourtDivider label="Watch your step" />
 
@@ -149,7 +150,7 @@ Two dimensions use **Slowly Changing Dimension Type 2** tracking: `dim_player` a
 
 ```sql
 -- Always filter unless you want historical versions
-SELECT player_name, team_id, position
+SELECT full_name, team_id, position
 FROM   dim_player
 WHERE  is_current = true;
 ```
@@ -160,14 +161,15 @@ If you omit the `is_current` filter, you will double- or triple-count players wh
 
 The warehouse mints its own integer surrogate keys (`player_id`, `team_id`, `game_id`). The NBA API also assigns natural keys (`person_id` for players, `team_id` from the API). They are **not the same value**.
 
-| Key type | Column example | Source | Use for |
-| --- | --- | --- | --- |
-| Surrogate | `player_id` (nbadb) | nbadb pipeline | All warehouse joins |
-| Natural | `person_id` (NBA API) | stats.nba.com | Cross-referencing external data |
+| Key type  | Column example        | Source         | Use for                         |
+| --------- | --------------------- | -------------- | ------------------------------- |
+| Surrogate | `player_id` (nbadb)   | nbadb pipeline | All warehouse joins             |
+| Natural   | `person_id` (NBA API) | stats.nba.com  | Cross-referencing external data |
 
 <Callout type="warn">
-  Never join a fact to a dimension using the NBA natural key. Use the nbadb surrogate key that
-  both tables share. The natural key exists solely for traceability back to the source API.
+  Never join a fact to a dimension using the NBA natural key. Use the nbadb
+  surrogate key that both tables share. The natural key exists solely for
+  traceability back to the source API.
 </Callout>
 
 ### 4. Season year format
@@ -192,7 +194,7 @@ If you are new to nbadb, walk through these five stops in order. Each one builds
 
 **Stop 1 -- Read a dimension: `dim_player`**
 
-Open the schema page and scan the columns. Identify the surrogate key (`player_id`), the SCD2 versioning columns (`player_sk`, `valid_from`, `valid_to`, `is_current`), and the descriptive fields (`player_name`, `position`, `is_active`). This is your template for every dimension in the warehouse.
+Open the schema page and scan the columns. Identify the surrogate key (`player_id`), the SCD2 versioning columns (`player_sk`, `valid_from`, `valid_to`, `is_current`), and the descriptive fields (`full_name`, `position`, `is_active`). This is your template for every dimension in the warehouse.
 
 **Stop 2 -- Read a fact: `fact_player_game_traditional`**
 
@@ -203,12 +205,13 @@ This is the core box-score fact table. Find the foreign keys (`player_id`, `team
 Write a two-table join in the [SQL Playground](/docs/playground):
 
 ```sql
-SELECT p.player_name, f.game_date, f.pts, f.reb, f.ast
+SELECT p.full_name, g.game_date, f.pts, f.reb, f.ast
 FROM   fact_player_game_traditional f
 JOIN   dim_player p ON f.player_id = p.player_id
+JOIN   dim_game   g ON f.game_id   = g.game_id
 WHERE  p.is_current = true
-  AND  p.player_name = 'LeBron James'
-ORDER  BY f.game_date DESC
+  AND  p.full_name = 'LeBron James'
+ORDER  BY g.game_date DESC
 LIMIT  10;
 ```
 

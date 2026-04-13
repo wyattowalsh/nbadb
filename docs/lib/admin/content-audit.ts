@@ -3,16 +3,30 @@ import { resolve } from "node:path";
 import { source } from "@/lib/source";
 import type { ContentPageMeta } from "./types";
 
-const CONTENT_DIR = resolve(process.cwd(), "content/docs");
+const CONTENT_DIR = resolve(
+  /* turbopackIgnore: true */ process.cwd(),
+  "content",
+  "docs",
+);
 
 async function getFileModifiedDate(
   slugParts: string[],
 ): Promise<string | null> {
-  // Try index file first (e.g. content/docs/guides/index.mdx), then leaf file
-  const candidates = [
-    resolve(CONTENT_DIR, ...slugParts, "index.mdx"),
-    resolve(CONTENT_DIR, `${slugParts.join("/")}.mdx`),
-  ];
+  // Try index file first (e.g. content/docs/guides/index.mdx), then leaf file.
+  // The docs landing page is represented by an empty slug array.
+  const candidates = slugParts.length
+    ? [
+        resolve(
+          /* turbopackIgnore: true */ CONTENT_DIR,
+          ...slugParts,
+          "index.mdx",
+        ),
+        resolve(
+          /* turbopackIgnore: true */ CONTENT_DIR,
+          `${slugParts.join("/")}.mdx`,
+        ),
+      ]
+    : [resolve(/* turbopackIgnore: true */ CONTENT_DIR, "index.mdx")];
   for (const filePath of candidates) {
     try {
       const info = await stat(filePath);
@@ -22,6 +36,12 @@ async function getFileModifiedDate(
     }
   }
   return null;
+}
+
+export async function getPageLastModified(
+  slugParts: string[],
+): Promise<string | null> {
+  return getFileModifiedDate(slugParts);
 }
 
 export async function getContentPages(): Promise<ContentPageMeta[]> {

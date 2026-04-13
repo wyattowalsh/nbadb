@@ -8,9 +8,9 @@ export type ParquetTableEntry = {
 
 /**
  * Whether sample Parquet files are deployed and available for loading.
- * Set to `true` once the sample data pipeline publishes files to /samples/.
+ * The docs site now ships the sample files directly from /samples/.
  */
-export const SAMPLE_DATA_AVAILABLE = false;
+export const SAMPLE_DATA_AVAILABLE = true;
 
 export const PARQUET_CATALOG: ParquetTableEntry[] = [
   {

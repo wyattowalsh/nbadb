@@ -1,9 +1,10 @@
 ---
 title: Dimensions
-description: Playbook for the 17 dimension outputs that define identity, calendar, venue, and lookup context
+description: Playbook for the current dimension outputs that define identity, calendar, venue, and lookup context
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { siteInventory } from "@/lib/site-metrics.generated";
 
 # Dimension Tables
 
@@ -12,7 +13,7 @@ Dimensions are the lineup card for the warehouse: they tell you who is on the fl
 <StatGrid columns={3}>
   <StatPill
     label="Dimension tables"
-    value="17"
+    value={siteInventory.tableFamilyCounts.dimensions}
     note="identity, history, calendar, and lookup context"
   />
   <StatPill

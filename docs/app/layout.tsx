@@ -2,8 +2,8 @@ import "./global.css";
 import Script from "next/script";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { IBM_Plex_Mono, Noto_Sans, IBM_Plex_Sans } from "next/font/google";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter, Space_Grotesk } from "next/font/google";
 import type { ReactNode } from "react";
 import {
   siteDescription,
@@ -11,21 +11,18 @@ import {
   siteOrigin,
   siteTitle,
 } from "@/lib/site-config";
-import { cn } from "@/lib/utils";
 
-const ibmPlexSansHeading = IBM_Plex_Sans({
+const bodyFont = Inter({
   subsets: ["latin"],
-  variable: "--font-heading",
   display: "swap",
+  variable: "--font-body",
 });
 
-const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-
-const ibmPlexMono = IBM_Plex_Mono({
+const headingFont = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-mono-var",
-  weight: ["400", "500", "600", "700"],
   display: "swap",
+  variable: "--font-display",
+  weight: ["500", "700"],
 });
 
 export const metadata: Metadata = {
@@ -62,10 +59,10 @@ export const metadata: Metadata = {
     url: siteOrigin,
     images: [
       {
-        url: `${siteOrigin}/opengraph-image.png`,
+        url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: `${siteName} documentation`,
+        alt: `${siteName} warehouse documentation overview`,
       },
     ],
   },
@@ -73,38 +70,36 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: [`${siteOrigin}/opengraph-image.png`],
+    images: ["/opengraph-image"],
   },
 };
 
+export const viewport: Viewport = {
+  colorScheme: "dark light",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+  ],
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const showSpeedInsights = process.env.VERCEL === "1";
+
   return (
     <html
       lang="en"
-      className={cn(
-        ibmPlexMono.variable,
-        notoSans.variable,
-        ibmPlexSansHeading.variable,
-        "font-sans",
-      )}
+      className={`${bodyFont.variable} ${headingFont.variable} font-sans`}
       suppressHydrationWarning
     >
       <body className="flex min-h-screen flex-col bg-background text-foreground antialiased">
+        <a
+          href="#main-content"
+          className="sr-only fixed left-4 top-4 z-[100] rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg focus:not-sr-only"
+        >
+          Skip to main content
+        </a>
         <RootProvider
-          search={{
-            enabled: true,
-            links: [
-              ["Schema Reference", "/docs/schema"],
-              ["Endpoint Coverage", "/docs/endpoints"],
-              ["Data Dictionary", "/docs/data-dictionary"],
-              ["Lineage Explorer", "/docs/lineage"],
-              ["Guides", "/docs/guides"],
-            ],
-            options: {
-              delayMs: 100,
-              allowClear: true,
-            },
-          }}
+          search={{ enabled: true }}
           theme={{
             attribute: "class",
             defaultTheme: "dark",
@@ -125,7 +120,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             }
           />
         )}
-        <SpeedInsights />
+        {showSpeedInsights && <SpeedInsights />}
       </body>
     </html>
   );

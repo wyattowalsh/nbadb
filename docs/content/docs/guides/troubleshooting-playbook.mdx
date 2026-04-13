@@ -69,7 +69,7 @@ PY
 ### 1) Generate
 
 ```bash
-uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
+nbadb scan --report-path artifacts/health/local/data-quality-report.json
 ```
 
 ### 2) Diagnose
@@ -88,9 +88,9 @@ PY
 
 - If you see `Error: database not found. Run 'nbadb init' first.`, seed the data directory first with `nbadb init` or `nbadb download` plus a refresh command.
 - If `summary.total` is `0`, verify the DuckDB file exists at the configured `--data-dir`.
-- If checks fail, inspect the reported tables/columns and rerun the refresh command that matches the scope you need (`daily`, `monthly`, or `full`).
+- If checks fail, inspect the reported tables/columns and rerun the refresh command that matches the scope you need (`daily`, `monthly`, or `backfill run`).
 
-**Known issue:** `nbadb run-quality` reports failed checks but does not fail the process when checks ran. Gate on `summary.failed > 0` in CI if strict enforcement matters.
+**Tip:** `nbadb scan` supports `--fail-on error` for strict CI enforcement and `--category` to focus on specific check families (e.g. `data_quality`, `missing_table`).
 
 ## Endpoint coverage artifacts (`artifacts/endpoint-coverage/*`)
 
@@ -138,7 +138,7 @@ PY
 - If `extractor_only` rows appear, either add the endpoint to the staging map or normalize the coverage aliasing.
 - If `schema_missing_transform_outputs` is non-zero, the pipeline is producing transform outputs without a matching `nbadb.schemas.star` contract. Treat that as a data-modeling gap, not an extractor/staging gap.
 
-## Docs-autogen artifacts (`docs/content/docs/*`)
+## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)
 
 **Best for:** generated docs drift, stale auto pages, or docs build failures after schema changes.
 
@@ -154,7 +154,10 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 - `data-dictionary/{raw,staging,star}.mdx`
 - `diagrams/er-auto.mdx`
 - `lineage/lineage-auto.mdx`
-- `lineage/lineage.json`
+- `docs/lib/generated/schema.json`
+- `docs/lib/generated/lineage.json`
+- `docs/lib/generated/schema-coverage.json`
+- `docs/lib/site-metrics.generated.ts`
 
 ### 3) Diagnose + remediate
 
@@ -164,13 +167,13 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 
 ## Kaggle and common CLI/CI misses
 
-| Command or area                              | Symptom                                      | Fix                                                                                        |
-| -------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `uv sync`                                    | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                        |
-| `uv run nbadb download` / `upload`           | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct |
-| `uv run nbadb run-quality --report-path ...` | `database not found`                         | Initialize or download the dataset before running quality checks                           |
-| `actions/upload-artifact`                    | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects           |
-| docs install/build step                      | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                         |
+| Command or area                    | Symptom                                      | Fix                                                                                        |
+| ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `uv sync`                          | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                        |
+| `uv run nbadb download` / `upload` | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct |
+| `nbadb scan --report-path ...`     | `database not found`                         | Initialize or download the dataset before running quality checks                           |
+| `actions/upload-artifact`          | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects           |
+| docs install/build step            | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                         |
 
 ## Best next move after a fix
 

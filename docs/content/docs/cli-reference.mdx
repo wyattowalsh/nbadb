@@ -329,7 +329,8 @@ It regenerates:
 - `data-dictionary/{raw,staging,star}.mdx`
 - `diagrams/er-auto.mdx`
 - `lineage/lineage-auto.mdx`
-- `lineage/lineage.json`
+- `docs/lib/generated/{schema,lineage,schema-coverage}.json`
+- `docs/lib/site-metrics.generated.ts`
 
 The same generator is also available via:
 
@@ -410,16 +411,16 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 
 ### Distribution and artifact commands
 
-| Command                      | What it does                                                     | Positional args | Options                                                           |
-| ---------------------------- | ---------------------------------------------------------------- | --------------- | ----------------------------------------------------------------- |
-| `nbadb export`               | Re-export user tables from DuckDB into configured output formats | —               | `--data-dir/-d`, `--format/-f` (repeatable)                       |
-| `nbadb download`             | Download the latest Kaggle dataset into the data directory       | —               | `--data-dir/-d`                                                   |
-| `nbadb upload`               | Upload the dataset directory to Kaggle                           | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`)   |
-| `nbadb migrate`              | Create or migrate pipeline tables                                | —               | `--data-dir/-d`                                                   |
-| `nbadb docs-autogen`         | Regenerate generated docs artifacts under the docs content tree  | —               | `--docs-root` (default: `docs/content/docs`)                      |
-| `nbadb extract-completeness` | Generate endpoint coverage artifacts                             | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`   |
-| `nbadb audit-models`         | Generate end-to-end model audit artifacts                        | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`         |
-| `nbadb metadata`             | Generate Kaggle `dataset-metadata.json` from table catalog       | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d` |
+| Command                      | What it does                                                                           | Positional args | Options                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------- |
+| `nbadb export`               | Re-export user tables from DuckDB into configured output formats                       | —               | `--data-dir/-d`, `--format/-f` (repeatable)                       |
+| `nbadb download`             | Download the latest Kaggle dataset into the data directory                             | —               | `--data-dir/-d`                                                   |
+| `nbadb upload`               | Upload the dataset directory to Kaggle                                                 | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`)   |
+| `nbadb migrate`              | Create or migrate pipeline tables                                                      | —               | `--data-dir/-d`                                                   |
+| `nbadb docs-autogen`         | Regenerate generated docs artifacts under `docs/content/docs` and `docs/lib/generated` | —               | `--docs-root` (default: `docs/content/docs`)                      |
+| `nbadb extract-completeness` | Generate endpoint coverage artifacts                                                   | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`   |
+| `nbadb audit-models`         | Generate end-to-end model audit artifacts                                              | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`         |
+| `nbadb metadata`             | Generate Kaggle `dataset-metadata.json` from table catalog                             | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d` |
 
 ## Related guides
 

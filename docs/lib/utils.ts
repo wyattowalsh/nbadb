@@ -29,6 +29,19 @@ export function buildDocHref(parts: string[]): string {
   return parts.length ? `/docs/${parts.join("/")}` : "/docs";
 }
 
+export function getDocSlugFromHref(href: string): string[] | undefined {
+  if (!href.startsWith("/docs")) {
+    return undefined;
+  }
+
+  const slug = href.replace(/^\/docs\/?/, "").split("/").filter(Boolean);
+  return slug.length ? slug : undefined;
+}
+
+export function serializeJsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
 export type DocBreadcrumb = {
   label: string;
   href: string;

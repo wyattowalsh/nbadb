@@ -1,44 +1,32 @@
 import type { Metadata } from "next";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { KpiCard } from "@/components/admin/kpi-card";
+import { readFirstJson } from "@/lib/admin/files";
+import type { TableProfile } from "@/lib/admin/types";
 import { ProfilingLayerTable } from "./profiling-layer-table";
 
 export const metadata: Metadata = { title: "Profiling" };
 export const dynamic = "force-dynamic";
 
-type ColumnProfile = {
-  name: string;
-  type: string;
-  nullPct: number;
-};
-
-type TableProfile = {
-  table: string;
-  layer: string;
-  rowCount: number;
-  columnCount: number;
-  columns: ColumnProfile[];
-};
-
 const PROFILE_PATHS = [
-  resolve(process.cwd(), "table-profile.generated.json"),
-  resolve(process.cwd(), "../table-profile.generated.json"),
-  resolve(process.cwd(), "lib/admin/table-profile.generated.json"),
+  resolve(
+    /* turbopackIgnore: true */ process.cwd(),
+    "table-profile.generated.json",
+  ),
+  resolve(
+    /* turbopackIgnore: true */ process.cwd(),
+    "../table-profile.generated.json",
+  ),
+  resolve(
+    /* turbopackIgnore: true */ process.cwd(),
+    "lib/admin/table-profile.generated.json",
+  ),
 ];
 
 async function getTableProfiles(): Promise<TableProfile[]> {
-  for (const filePath of PROFILE_PATHS) {
-    try {
-      const raw = await readFile(filePath, "utf-8");
-      return JSON.parse(raw) as TableProfile[];
-    } catch {
-      continue;
-    }
-  }
-  return [];
+  return (await readFirstJson<TableProfile[]>(PROFILE_PATHS)) ?? [];
 }
 
 export default async function ProfilingPage() {

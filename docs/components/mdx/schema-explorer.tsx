@@ -140,8 +140,11 @@ export function SchemaExplorer({ data }: { data: SchemaData }) {
           const active = activeFilters.has(f);
           return (
             <button
+              type="button"
               key={f}
               onClick={() => toggleFilter(f)}
+              aria-pressed={active}
+              aria-label={`${active ? "Hide" : "Show"} ${f} tables`}
               className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${
                 active
                   ? ""

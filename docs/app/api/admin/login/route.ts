@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
-
-const COOKIE_NAME = "nbadb-admin-session";
+import {
+  createAdminSessionToken,
+  setAdminSessionCookie,
+} from "@/lib/admin/session";
 
 /* ------------------------------------------------------------------ */
 /*  Rate limiter (in-memory, per-process)                             */
@@ -147,24 +149,6 @@ async function timingSafePasswordEqual(
   return result === 0;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Session token creation                                            */
-/* ------------------------------------------------------------------ */
-async function hmacSign(timestamp: string, secret: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(timestamp));
-  return Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function jsonResponse(body: object, init?: ResponseInit) {
   const response = NextResponse.json(body, init);
   response.headers.set("Cache-Control", "no-store");
@@ -179,8 +163,10 @@ export async function POST(request: NextRequest) {
 
   if (!password) {
     return jsonResponse(
-      { error: "No admin password configured" },
-      { status: 500 },
+      {
+        error: "Admin auth is unavailable until ADMIN_PASSWORD is configured.",
+      },
+      { status: 503 },
     );
   }
 
@@ -201,10 +187,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return jsonResponse(
-      { error: "Invalid request body" },
-      { status: 400 },
-    );
+    return jsonResponse({ error: "Invalid request body" }, { status: 400 });
   }
 
   if (
@@ -217,20 +200,9 @@ export async function POST(request: NextRequest) {
 
   clearFailedAttempts(rateLimitKey);
 
-  const timestamp = String(Date.now());
-  const mac = await hmacSign(timestamp, password);
-  const cookieValue = `${timestamp}.${mac}`;
-
-  const isProduction = process.env.NODE_ENV === "production";
-
+  const cookieValue = await createAdminSessionToken(password);
   const response = jsonResponse({ ok: true });
-  response.cookies.set(COOKIE_NAME, cookieValue, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: 86_400, // 24 hours
-  });
+  setAdminSessionCookie(response, cookieValue);
 
   return response;
 }

@@ -1,19 +1,21 @@
-import { execSync } from "node:child_process";
 import { MDXContent } from "@/components/mdx";
 import {
   DocsContextRail,
   DocsGeneratedEntrySurface,
   DocsGeneratedModules,
   DocsGeneratedScanSurface,
+  DocsSchemaCoverageSurface,
   DocsPageHero,
 } from "@/components/site/docs-shell";
-import { DocsFooter } from "@/components/site/footer";
+import { getPageLastModified } from "@/lib/admin/content-audit";
 import { source } from "@/lib/source";
-import { siteName, siteOrigin } from "@/lib/site-config";
+import { getGeneratedPageFrame, siteName, siteOrigin } from "@/lib/site-config";
+import { getDocBreadcrumbs, serializeJsonLd } from "@/lib/utils";
 import type { ReactNode } from "react";
 import { DocsBody, DocsPage } from "fumadocs-ui/page";
-import { findNeighbour } from "fumadocs-core/page-tree";
 import { notFound } from "next/navigation";
+
+export const dynamicParams = false;
 
 type TOCItem = {
   title: ReactNode;
@@ -33,6 +35,16 @@ function normalizeHeading(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function formatLastUpdated(isoDate: string | null): string | null {
+  if (!isoDate) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+  }).format(new Date(isoDate));
+}
+
 function stripDuplicateTitleHeading(toc: TOCItem[], pageTitle: string) {
   const normalizedPageTitle = normalizeHeading(pageTitle);
 
@@ -45,62 +57,81 @@ function stripDuplicateTitleHeading(toc: TOCItem[], pageTitle: string) {
   });
 }
 
-/**
- * Resolve a page's last-modified date from git history.
- * Uses git log instead of filesystem mtime so timestamps survive CI builds.
- */
-function getGitLastModified(filePath: string): Date | undefined {
-  try {
-    const result = execSync(
-      `git log --format=%aI -1 -- "${filePath}"`,
-      { encoding: "utf-8", timeout: 5000 },
-    ).trim();
-    return result ? new Date(result) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export default async function Page(props: {
   params: Promise<{ slug?: string[] }>;
 }) {
   const params = await props.params;
   const page = source.getPage(params.slug);
   if (!page) notFound();
+  const slug = params.slug ?? [];
+  const breadcrumbs = getDocBreadcrumbs(slug);
 
   const MDX = page.data.body;
   const toc = stripDuplicateTitleHeading(
     page.data.toc as TOCItem[],
     page.data.title,
   );
-
-  const neighbours = findNeighbour(source.pageTree, page.url);
-  const contentPath = params.slug?.length
-    ? `docs/content/docs/${params.slug.join("/")}.mdx`
-    : "docs/content/docs/index.mdx";
-  const lastModified = getGitLastModified(contentPath);
+  const tocCount = toc.length;
+  const frame = getGeneratedPageFrame(params.slug);
+  const isGeneratedPage = Boolean(frame);
+  const lastUpdatedLabel = formatLastUpdated(await getPageLastModified(slug));
+  const ownershipLabel = frame ? "Command-owned" : "Hand-authored";
+  const ownershipHint = frame
+    ? frame.ownershipNote
+    : "Edit this page directly when the narrative needs to change.";
+  const canonical = page.url;
+  const canonicalUrl = `${siteOrigin}${canonical}`;
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbs.map((crumb, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: crumb.label,
+      item: `${siteOrigin}${crumb.href}`,
+    })),
+  };
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": frame ? "TechArticle" : "Article",
+    headline: page.data.title,
+    description: page.data.description,
+    url: canonicalUrl,
+    isPartOf: {
+      "@type": "WebSite",
+      name: siteName,
+      url: siteOrigin,
+    },
+  };
 
   return (
-    <DocsPage
-      toc={toc}
-      full={page.data.full}
-      footer={{ items: neighbours }}
-      editOnGithub={{
-        owner: "wyattowalsh",
-        repo: "nba-db",
-        sha: "main",
-        path: `docs/content/docs/${page.path}`,
-      }}
-      lastUpdate={lastModified}
-    >
+    <DocsPage toc={toc} full={page.data.full}>
       <div className="nba-docs-page">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(breadcrumbJsonLd),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
+        />
         <DocsPageHero
           slug={params.slug}
           title={page.data.title}
           description={page.data.description}
+          tocCount={tocCount}
+          lastUpdatedLabel={lastUpdatedLabel}
+          ownershipLabel={ownershipLabel}
+          ownershipHint={ownershipHint}
         />
         <DocsGeneratedEntrySurface slug={params.slug} />
+        <DocsSchemaCoverageSurface slug={params.slug} />
         <DocsGeneratedScanSurface slug={params.slug} toc={toc} />
+        {isGeneratedPage ? (
+          <DocsContextRail slug={params.slug} priority />
+        ) : null}
         <div className="nba-reading-lane">
           <DocsBody>
             <div className="nba-mdx-body">
@@ -109,9 +140,7 @@ export default async function Page(props: {
           </DocsBody>
         </div>
         <DocsGeneratedModules slug={params.slug} />
-        <DocsContextRail slug={params.slug} />
-        {/* Site footer in content column — intentional (matches docs layout flow) */}
-        <DocsFooter />
+        {!isGeneratedPage ? <DocsContextRail slug={params.slug} /> : null}
       </div>
     </DocsPage>
   );

@@ -11,13 +11,18 @@ import {
   getPipelineSummary,
   overallPipelineStatus,
 } from "@/lib/admin/pipeline";
+import { getStats } from "@/lib/admin/umami";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminOverviewPage() {
-  const [audit, pipeline] = await Promise.all([
+  const analyticsEnabled = Boolean(
+    process.env.UMAMI_API_TOKEN && process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID,
+  );
+  const [audit, pipeline, stats] = await Promise.all([
     getContentAudit(),
     getPipelineSummary(),
+    analyticsEnabled ? getStats("7d") : Promise.resolve(null),
   ]);
   const pipelineStatus = overallPipelineStatus(pipeline);
 
@@ -47,9 +52,6 @@ export default async function AdminOverviewPage() {
       },
     },
   };
-  // Umami stats require an external API call — show placeholder until wired
-  const stats = null as { visitors: number; pageviews: number } | null;
-
   return (
     <div className="space-y-6 nba-reveal">
       <div>
@@ -79,7 +81,7 @@ export default async function AdminOverviewPage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,1fr)] nba-delay-2">
         {/* Sparklines */}
-        <OverviewSparklines />
+        <OverviewSparklines analyticsEnabled={analyticsEnabled} />
 
         {/* Health summary */}
         <Card>

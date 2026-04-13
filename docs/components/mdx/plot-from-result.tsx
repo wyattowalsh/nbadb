@@ -38,7 +38,11 @@ export function PlotFromResult({
           <p className="nba-kicker">{inference.label}</p>
         </div>
       </div>
-      <PlotMount createPlot={createPlot} className="overflow-x-auto px-2 py-3" />
+      <PlotMount
+        createPlot={createPlot}
+        className="overflow-x-auto px-2 py-3"
+        ariaLabel={`${inference.label} chart generated from SQL query results`}
+      />
     </div>
   );
 }

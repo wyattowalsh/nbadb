@@ -5,6 +5,7 @@ import { getContentPages } from "@/lib/admin/content-audit";
 import {
   getPipelineSummary,
   overallPipelineStatus,
+  pipelineToHealth,
 } from "@/lib/admin/pipeline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,13 @@ async function readPackageVersions(): Promise<
   Array<{ name: string; version: string }>
 > {
   try {
-    const raw = await readFile(resolve(process.cwd(), "package.json"), "utf-8");
+    const raw = await readFile(
+      /* turbopackIgnore: true */ resolve(
+        /* turbopackIgnore: true */ process.cwd(),
+        "package.json",
+      ),
+      "utf-8",
+    );
     const pkg = JSON.parse(raw) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
@@ -44,12 +51,6 @@ async function readPackageVersions(): Promise<
   }
 }
 
-function pipelineToHealth(status: string): SubsystemStatus {
-  if (status === "done" || status === "running") return "healthy";
-  if (status === "failed") return "degraded";
-  return "unknown";
-}
-
 export default async function HealthPage() {
   const [pages, pipeline] = await Promise.all([
     getContentPages(),
@@ -67,8 +68,8 @@ export default async function HealthPage() {
     },
     {
       key: "Search",
-      status: "unknown" as SubsystemStatus,
-      detail: "Orama search — status not verified at build time",
+      status: "healthy" as SubsystemStatus,
+      detail: "Docs search API is published from the generated Fumadocs source",
     },
     {
       key: "Pipeline",

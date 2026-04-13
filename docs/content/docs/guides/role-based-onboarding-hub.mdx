@@ -35,13 +35,13 @@ Welcome to the **coaching staff room** for nbadb. Use this page to pick your rol
 
 ## Route board in one glance
 
-| Role today                  | Start here                                                | First useful action                                                                                                   | Leave with                                                    |
-| --------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Contributor                 | [Installation](/docs/installation)                        | Run `uv sync --extra dev` so the local toolchain is real before you touch code or docs                                | A working dev environment and the right follow-up page        |
-| Analyst without local setup | [SQL Playground](/docs/playground)                        | Run one sample query in the browser and change a filter, aggregate, or sort                                           | A query shape you can port to live data                       |
-| Analyst with live data      | [Analytics Quickstart](/docs/guides/analytics-quickstart) | Connect to `nba.duckdb` and stop once `SHOW TABLES` confirms the floor                                                | One working answer or reusable notebook cell                  |
-| Operator                    | [Daily Updates](/docs/guides/daily-updates)               | Run `nbadb status --output-format json` so you know the current state before you choose `daily`, `monthly`, or `full` | A clean run, a deliberate rerun, or an isolated failure lane  |
-| Stakeholder                 | [Architecture](/docs/architecture)                        | Run `nbadb schema` for the fastest public-model snapshot                                                              | A clear picture of what the dataset contains and how it moves |
+| Role today                  | Start here                                                | First useful action                                                                                                           | Leave with                                                    |
+| --------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Contributor                 | [Installation](/docs/installation)                        | Run `uv sync --extra dev` so the local toolchain is real before you touch code or docs                                        | A working dev environment and the right follow-up page        |
+| Analyst without local setup | [SQL Playground](/docs/playground)                        | Run one sample query in the browser and change a filter, aggregate, or sort                                                   | A query shape you can port to live data                       |
+| Analyst with live data      | [Analytics Quickstart](/docs/guides/analytics-quickstart) | Connect to `nba.duckdb` and stop once `SHOW TABLES` confirms the floor                                                        | One working answer or reusable notebook cell                  |
+| Operator                    | [Daily Updates](/docs/guides/daily-updates)               | Run `nbadb status --output-format json` so you know the current state before you choose `daily`, `monthly`, or `backfill run` | A clean run, a deliberate rerun, or an isolated failure lane  |
+| Stakeholder                 | [Architecture](/docs/architecture)                        | Run `nbadb schema` for the fastest public-model snapshot                                                                      | A clear picture of what the dataset contains and how it moves |
 
 ## Quick route board
 
@@ -190,7 +190,7 @@ Each tab gives you the same scan path:
     <CommandBlock label="Check current pipeline state" command="nbadb status --output-format json" />
 
     1. If the state looks clean and you are on the recurring cadence, run <code>nbadb daily</code> next.
-    2. Review what each run mode actually does: <code>daily</code>, <code>monthly</code>, <code>full</code>, <code>status</code>, <code>run-quality</code>.
+    2. Review what each run mode actually does: <code>daily</code>, <code>monthly</code>, <code>backfill run</code>, <code>status</code>, <code>scan</code>.
     3. Confirm your data directory and output expectations.
     4. Keep the latest health artifacts in view:
        - <code>artifacts/health/daily/dependency-inventory.json</code>
@@ -218,7 +218,7 @@ Each tab gives you the same scan path:
 
     <InsightCard title="Watch for">
       <ul>
-        <li><code>daily</code>, <code>monthly</code>, and <code>full</code> end by rebuilding downstream tables in <code>replace</code> mode.</li>
+        <li><code>daily</code> and <code>monthly</code> end by rebuilding downstream tables in <code>replace</code> mode. <code>backfill run</code> provides targeted extraction with optional <code>--transform-only</code> and <code>--extract-only</code> modes.</li>
         <li>A single <code>Ctrl+C</code> is the graceful stop; a second interrupt forces exit.</li>
         <li>When something breaks, start with the exact artifact or command named in the failure message.</li>
       </ul>

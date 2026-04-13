@@ -144,14 +144,15 @@ Pick one of these three reads before you branch out. Each one gives you a reusab
 ```python
 df = conn.sql("""
     SELECT
-        p.first_name || ' ' || p.last_name AS player,
+        p.full_name AS player,
         COUNT(*) AS games,
         SUM(b.pts) AS total_points,
         ROUND(AVG(b.pts), 1) AS ppg
     FROM fact_player_game_traditional b
     JOIN dim_player p ON b.player_id = p.player_id
     JOIN dim_game g ON b.game_id = g.game_id
-    WHERE g.season_type = 'Regular Season'
+    WHERE p.is_current = true
+      AND g.season_type = 'Regular Season'
     GROUP BY 1
     ORDER BY total_points DESC
     LIMIT 10
@@ -174,10 +175,9 @@ shots = conn.sql("""
         sc.shot_zone_basic
     FROM fact_shot_chart sc
     JOIN dim_player p ON sc.player_id = p.player_id
-    JOIN dim_game g ON sc.game_id = g.game_id
-    WHERE p.last_name = 'James'
-      AND p.first_name = 'LeBron'
-      AND g.season_year = 2024
+    WHERE p.is_current = true
+      AND p.full_name = 'LeBron James'
+      AND sc.season_year = '2024-25'
 """).pl()
 
 print(f"Total shots: {len(shots)}")
@@ -194,15 +194,16 @@ Use this pattern when you need a **player-level slice** with location columns yo
 ```python
 standings = conn.sql("""
     SELECT
-        t.city || ' ' || t.nickname AS team,
+        t.full_name AS team,
         s.conference,
         s.wins, s.losses,
         ROUND(s.win_pct, 3) AS pct,
-        s.conference_rank
+        s.conf_rank
     FROM fact_standings s
     JOIN dim_team t ON s.team_id = t.team_id
     WHERE s.season_year = '2024-25'
-    ORDER BY s.conference, s.conference_rank
+      AND s.season_type = 'Regular Season'
+    ORDER BY s.conference, s.conf_rank
 """).pl()
 
 print(standings)

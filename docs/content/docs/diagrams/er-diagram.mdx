@@ -4,6 +4,7 @@ description: Whiteboard view of the nbadb star schema
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { siteInventory } from "@/lib/site-metrics.generated";
 
 # Entity-Relationship Diagram
 
@@ -51,67 +52,39 @@ This curated page is the whiteboard version of the nbadb star surface: enough st
 | “How many dimensions, facts, bridges, aggregates, and views exist?” | [Schema categories](#schema-categories)         |
 | “Where is the full schema-derived roster of entities?”              | [Auto ER Diagram](/docs/diagrams/er-auto)       |
 
-The nbadb star schema consists of **17 dimensions**, **72 fact tables**, and **2 bridge tables**.
+The current source-backed inventory includes **{siteInventory.tableFamilyCounts.dimensions} dimensions**, **{siteInventory.tableFamilyCounts.facts} fact tables**, **{siteInventory.tableFamilyCounts.bridges} bridge tables**, **{siteInventory.tableFamilyCounts.aggregates} aggregate tables**, and **{siteInventory.tableFamilyCounts.analytics} analytics outputs**.
 
 ```mermaid
 erDiagram
     dim_player {
-        int player_id PK
-        string first_name
-        string last_name
+        int player_sk PK
+        int player_id
+        string full_name
+        int team_id FK
         string position
-        string height
-        string weight
-        date birthdate
-        string country
-        string school
-        int draft_year
-        int draft_round
-        int draft_number
         boolean is_active
+        boolean is_current
     }
 
     dim_team {
         int team_id PK
         string abbreviation
-        string nickname
-        string city
         string full_name
+        string city
         string conference
         string division
         string arena
-        int year_founded
     }
 
     dim_game {
         string game_id PK
         date game_date
-        int season_year
+        string season_year
         string season_type
         int home_team_id FK
-        int away_team_id FK
-        int home_score
-        int away_score
+        int visitor_team_id FK
+        string matchup
         string arena_name
-    }
-
-    dim_season {
-        string season_id PK
-        int year_start
-        int year_end
-        string season_type
-        date start_date
-        date end_date
-    }
-
-    dim_date {
-        date date_id PK
-        int year
-        int month
-        int day
-        int day_of_week
-        string month_name
-        boolean is_weekend
     }
 
     dim_official {
@@ -121,139 +94,81 @@ erDiagram
         string jersey_num
     }
 
-    dim_coach {
-        int coach_id PK
-        string first_name
-        string last_name
-        string coach_type
-        boolean is_assistant
-    }
-
-    dim_arena {
-        int arena_id PK
-        string arena_name
-        string arena_city
-        string arena_state
-        int capacity
-    }
-
-    dim_draft {
-        int draft_id PK
-        int season
-        int round_number
-        int round_pick
-        int overall_pick
-        string draft_type
-    }
-
-    dim_action_type {
-        int action_type_id PK
-        string action_type
-        string sub_type
-        boolean is_field_goal
-    }
-
-    dim_shot_zone {
-        int zone_id PK
-        string zone_basic
-        string zone_area
-        string zone_range
-    }
-
-    dim_play_type {
-        int play_type_id PK
-        string play_type
-        string type_grouping
-    }
-
-    dim_lineup {
-        int lineup_id PK
-        string lineup_hash
+    dim_team_history {
+        int team_history_sk PK
         int team_id FK
+        string city
+        string nickname
+        string abbreviation
+        boolean is_current
     }
 
-    fact_box_score_player ||--o{ dim_player : "player_id"
-    fact_box_score_player ||--o{ dim_team : "team_id"
-    fact_box_score_player ||--o{ dim_game : "game_id"
-
-    fact_box_score_team ||--o{ dim_team : "team_id"
-    fact_box_score_team ||--o{ dim_game : "game_id"
-
-    fact_play_by_play ||--o{ dim_game : "game_id"
-    fact_play_by_play ||--o{ dim_player : "person_id"
-    fact_play_by_play ||--o{ dim_team : "team_id"
-    fact_play_by_play ||--o{ dim_action_type : "action_type_id"
-
-    fact_shot_chart ||--o{ dim_game : "game_id"
-    fact_shot_chart ||--o{ dim_player : "player_id"
-    fact_shot_chart ||--o{ dim_team : "team_id"
-    fact_shot_chart ||--o{ dim_shot_zone : "zone_id"
-
-    fact_game_log ||--o{ dim_game : "game_id"
-    fact_game_log ||--o{ dim_team : "team_id"
-    fact_game_log ||--o{ dim_season : "season_id"
-
-    fact_player_game_log ||--o{ dim_game : "game_id"
-    fact_player_game_log ||--o{ dim_player : "player_id"
-    fact_player_game_log ||--o{ dim_season : "season_id"
-
-    fact_standings ||--o{ dim_team : "team_id"
-    fact_standings ||--o{ dim_season : "season_id"
-
-    fact_matchup ||--o{ dim_game : "game_id"
-    fact_matchup ||--o{ dim_player : "off_player_id"
-    fact_matchup ||--o{ dim_player : "def_player_id"
-
-    fact_rotation ||--o{ dim_game : "game_id"
-    fact_rotation ||--o{ dim_player : "person_id"
-    fact_rotation ||--o{ dim_team : "team_id"
-
-    fact_win_probability ||--o{ dim_game : "game_id"
-    fact_win_probability ||--o{ dim_team : "home_team_id"
-
-    fact_draft ||--o{ dim_player : "person_id"
-    fact_draft ||--o{ dim_team : "team_id"
-    fact_draft ||--o{ dim_draft : "draft_id"
-
-    fact_synergy ||--o{ dim_player : "player_id"
-    fact_synergy ||--o{ dim_team : "team_id"
-    fact_synergy ||--o{ dim_play_type : "play_type_id"
-
-    bridge_game_official ||--o{ dim_game : "game_id"
-    bridge_game_official ||--o{ dim_official : "official_id"
-
-    bridge_play_player ||--o{ dim_game : "game_id"
-    bridge_play_player ||--o{ dim_player : "player_id"
-
-    fact_box_score_player {
+    fact_player_game_traditional {
         string game_id FK
         int player_id FK
         int team_id FK
-        float min
         float pts
         float reb
         float ast
-        float stl
-        float blk
-        float fgm
-        float fga
-        float fg3m
-        float fg3a
-        float ftm
-        float fta
         float plus_minus
+        string season_year
     }
 
-    fact_box_score_team {
+    fact_team_game {
         string game_id FK
         int team_id FK
         float pts
         float reb
         float ast
-        float fgm
-        float fga
         float fg_pct
+        string season_year
     }
+
+    fact_shot_chart {
+        string game_id FK
+        int player_id FK
+        int team_id FK
+        string shot_zone_basic
+        float shot_distance
+        float loc_x
+        float loc_y
+        boolean shot_made_flag
+        string season_year
+    }
+
+    fact_standings {
+        int team_id FK
+        string conference
+        int wins
+        int losses
+        float win_pct
+        int conf_rank
+        string season_year
+        string season_type
+    }
+
+    bridge_game_official {
+        string game_id FK
+        int official_id FK
+        string jersey_num
+    }
+
+    dim_player ||--o{ fact_player_game_traditional : "player_id"
+    dim_team ||--o{ fact_player_game_traditional : "team_id"
+    dim_game ||--o{ fact_player_game_traditional : "game_id"
+
+    dim_team ||--o{ fact_team_game : "team_id"
+    dim_game ||--o{ fact_team_game : "game_id"
+
+    dim_player ||--o{ fact_shot_chart : "player_id"
+    dim_team ||--o{ fact_shot_chart : "team_id"
+    dim_game ||--o{ fact_shot_chart : "game_id"
+
+    dim_team ||--o{ fact_standings : "team_id"
+    dim_team ||--o{ dim_team_history : "team_id"
+
+    dim_game ||--o{ bridge_game_official : "game_id"
+    dim_official ||--o{ bridge_game_official : "official_id"
 ```
 
 ## How to Read the Board
@@ -276,13 +191,42 @@ out into fact neighborhoods, then finish with bridges and history-aware dimensio
 
 ## Schema Categories
 
-| Category   | Count | Description                    |
-| ---------- | ----- | ------------------------------ |
-| Dimensions | 17    | Slowly changing reference data |
-| Facts      | 72    | Event-level transactional data |
-| Bridges    | 2     | Many-to-many associations      |
-| Derived    | 16    | Pre-aggregated rollups         |
-| Views      | 4     | Denormalized analytics views   |
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Count</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Dimensions</td>
+      <td>{siteInventory.tableFamilyCounts.dimensions}</td>
+      <td>Slowly changing reference data</td>
+    </tr>
+    <tr>
+      <td>Facts</td>
+      <td>{siteInventory.tableFamilyCounts.facts}</td>
+      <td>Event-level transactional data</td>
+    </tr>
+    <tr>
+      <td>Bridges</td>
+      <td>{siteInventory.tableFamilyCounts.bridges}</td>
+      <td>Many-to-many associations</td>
+    </tr>
+    <tr>
+      <td>Aggregates</td>
+      <td>{siteInventory.tableFamilyCounts.aggregates}</td>
+      <td>Pre-aggregated rollups</td>
+    </tr>
+    <tr>
+      <td>Analytics outputs</td>
+      <td>{siteInventory.tableFamilyCounts.analytics}</td>
+      <td>Denormalized analysis-ready surfaces</td>
+    </tr>
+  </tbody>
+</table>
 
 <CourtDivider label="Next board cut" />
 

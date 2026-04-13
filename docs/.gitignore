@@ -2,3 +2,5 @@ node_modules/
 .next/
 .source/
 next-env.d.ts
+lib/admin/pipeline-status.json
+lib/admin/pipeline-telemetry.generated.json

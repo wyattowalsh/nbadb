@@ -1,32 +1,39 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import type { MetadataRoute } from "next";
-import { siteOrigin } from "@/lib/site-config";
+import { getGeneratedPageFrame, siteOrigin } from "@/lib/site-config";
 import { source } from "@/lib/source";
 
 const contentDir = join(process.cwd(), "content/docs");
 
-/** Known section-index paths that deserve elevated priority. */
-const sectionIndexPaths = new Set([
-  "/docs",
-  "/docs/schema",
-  "/docs/endpoints",
-  "/docs/guides",
-  "/docs/lineage",
-  "/docs/diagrams",
-  "/docs/data-dictionary",
+const priorityMap = new Map<string, number>([
+  ["/docs", 0.95],
+  ["/docs/installation", 0.9],
+  ["/docs/architecture", 0.9],
+  ["/docs/cli-reference", 0.88],
+  ["/docs/playground", 0.88],
+  ["/docs/schema", 0.86],
+  ["/docs/endpoints", 0.84],
+  ["/docs/guides", 0.84],
+  ["/docs/lineage", 0.78],
+  ["/docs/diagrams", 0.76],
+  ["/docs/data-dictionary", 0.76],
 ]);
 
 /**
  * Resolve a page's URL to a priority tier:
- * - /docs (landing): 0.9
- * - Section index pages: 0.8
- * - Regular pages: 0.7
+ * - Primary landing/route pages: 0.84-0.95
+ * - Guide pages and curated references: 0.75-0.8
+ * - Heavy generated reference/detail pages: 0.58-0.68
  */
-function pagePriority(url: string): number {
-  if (url === "/docs") return 0.9;
-  if (sectionIndexPaths.has(url)) return 0.8;
-  return 0.7;
+function pagePriority(page: { url: string; slugs: string[] }): number {
+  const { url, slugs } = page;
+  const explicit = priorityMap.get(url);
+  if (explicit) return explicit;
+  if (url.startsWith("/docs/guides/")) return 0.8;
+  if (getGeneratedPageFrame(slugs)) return 0.62;
+  if (url.startsWith("/docs/schema/")) return 0.74;
+  return 0.72;
 }
 
 /**
@@ -68,7 +75,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `${siteOrigin}${page.url}`,
     lastModified: pageLastModified(page),
     changeFrequency: "weekly" as const,
-    priority: pagePriority(page.url),
+    priority: pagePriority(page),
   }));
 
   return [

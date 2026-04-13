@@ -29,6 +29,8 @@ export function DataTable<TData>({
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // TanStack Table's mutable table instance is not React Compiler-compatible yet.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
@@ -39,6 +41,8 @@ export function DataTable<TData>({
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 20 } },
   });
+  const rowModel = table.getRowModel();
+  const visibleColumnCount = table.getVisibleLeafColumns().length || 1;
 
   return (
     <div
@@ -58,6 +62,15 @@ export function DataTable<TData>({
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
+                    aria-sort={
+                      header.column.getCanSort()
+                        ? header.column.getIsSorted() === "asc"
+                          ? "ascending"
+                          : header.column.getIsSorted() === "desc"
+                            ? "descending"
+                            : "none"
+                        : undefined
+                    }
                     className={cn(
                       "px-4 py-3 text-left text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground",
                       header.column.getCanSort() &&
@@ -90,21 +103,35 @@ export function DataTable<TData>({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr
-                key={row.id}
-                className="border-b border-border/40 transition-colors hover:bg-muted/20"
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    className="px-4 py-3 text-sm text-foreground"
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
+            {rowModel.rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={visibleColumnCount}
+                  className="px-4 py-8 text-center text-sm text-muted-foreground"
+                >
+                  No rows are available for this view yet.
+                </td>
               </tr>
-            ))}
+            ) : (
+              rowModel.rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-border/40 transition-colors hover:bg-muted/20"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td
+                      key={cell.id}
+                      className="px-4 py-3 text-sm text-foreground"
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

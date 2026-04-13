@@ -92,7 +92,7 @@ uv run pytest --import-mode=importlib tests/      # All tests
 uv run nbadb init --season-start 1946             # Full rebuild (resume-safe)
 uv run nbadb daily                                # Incremental update
 uv run nbadb monthly                              # Recent-season refresh
-uv run nbadb backfill                              # Targeted gap backfill
+uv run nbadb backfill run                          # Targeted gap backfill
 uv run nbadb full                                 # Fill gaps (deprecated — use backfill)
 uv run nbadb status --output-format json          # Machine-readable pipeline status
 uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
@@ -126,7 +126,7 @@ cd docs && pnpm format:check     # Docs formatting check
   - `docs/content/docs/data-dictionary/{raw,staging,star}.mdx`
   - `docs/content/docs/diagrams/er-auto.mdx`
   - `docs/content/docs/lineage/lineage-auto.mdx`
-  - `docs/content/docs/lineage/lineage.json`
+  - `docs/lib/generated/lineage.json`
 - `nbadb docs-autogen` prints `updated:` / `unchanged:` lines for each generated artifact.
 - The docs site lives in `docs/` and uses Fumadocs 16 + Next.js 16 via pnpm.
 

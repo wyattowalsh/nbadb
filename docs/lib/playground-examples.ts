@@ -87,18 +87,21 @@ export const PARQUET_TABLES = PARQUET_CATALOG.map(({ tableName, url }) => ({
   url,
 }));
 
+export const CURRENT_SEASON = "2025-26";
+
 export const PARQUET_DEFAULT_QUERY = `SELECT
-  p.player_name,
-  t.abbreviation AS team,
-  s.season,
-  s.ppg,
-  s.rpg,
-  s.apg
+  p.full_name,
+  s.team_abbreviation AS team,
+  s.season_year,
+  s.avg_pts,
+  s.avg_reb,
+  s.avg_ast
 FROM agg_player_season s
 JOIN dim_player p ON s.player_id = p.player_id
-JOIN dim_team t ON s.team_id = t.team_id
-WHERE s.season = '2025-26'
-ORDER BY s.ppg DESC
+WHERE s.season_year = '${CURRENT_SEASON}'
+  AND s.season_type = 'Regular Season'
+  AND p.is_current = true
+ORDER BY s.avg_pts DESC
 LIMIT 10;`;
 
 export const PARQUET_EXAMPLES = [
@@ -125,16 +128,17 @@ ORDER BY attempts DESC;`,
     label: "Conference standings",
     description: "Rank teams within each conference for the latest season.",
     sql: `SELECT
-  conference,
-  t.nickname,
+  s.conference,
+  t.full_name,
   s.wins,
   s.losses,
   s.win_pct,
   s.conf_rank
 FROM fact_standings s
 JOIN dim_team t ON s.team_id = t.team_id
-WHERE s.season = '2025-26'
-ORDER BY conference, conf_rank;`,
+WHERE s.season_year = '${CURRENT_SEASON}'
+  AND s.season_type = 'Regular Season'
+ORDER BY s.conference, s.conf_rank;`,
   },
 ];
 
@@ -145,38 +149,39 @@ export const PARQUET_FALLBACK_DEFAULT_QUERY = `WITH dim_player AS (
       (203999, 'Nikola Jokic', true),
       (1628983, 'Shai Gilgeous-Alexander', true),
       (1628369, 'Jayson Tatum', true)
-  ) AS t(player_id, player_name, is_active)
+  ) AS t(player_id, full_name, is_current)
 ),
 dim_team AS (
   SELECT *
   FROM (
     VALUES
-      (1610612743, 'DEN', 'Nuggets', 'West'),
-      (1610612760, 'OKC', 'Thunder', 'West'),
-      (1610612738, 'BOS', 'Celtics', 'East')
-  ) AS t(team_id, abbreviation, nickname, conference)
+      (1610612743, 'DEN', 'Denver Nuggets', 'West'),
+      (1610612760, 'OKC', 'Oklahoma City Thunder', 'West'),
+      (1610612738, 'BOS', 'Boston Celtics', 'East')
+  ) AS t(team_id, abbreviation, full_name, conference)
 ),
 agg_player_season AS (
   SELECT *
   FROM (
     VALUES
-      (203999, 1610612743, '2025-26', 29.4, 12.1, 9.8),
-      (1628983, 1610612760, '2025-26', 31.7, 5.6, 6.4),
-      (1628369, 1610612738, '2025-26', 27.9, 8.4, 5.1)
-  ) AS t(player_id, team_id, season, ppg, rpg, apg)
+      (203999, 1610612743, 'DEN', '${CURRENT_SEASON}', 'Regular Season', 29.4, 12.1, 9.8),
+      (1628983, 1610612760, 'OKC', '${CURRENT_SEASON}', 'Regular Season', 31.7, 5.6, 6.4),
+      (1628369, 1610612738, 'BOS', '${CURRENT_SEASON}', 'Regular Season', 27.9, 8.4, 5.1)
+  ) AS t(player_id, team_id, team_abbreviation, season_year, season_type, avg_pts, avg_reb, avg_ast)
 )
 SELECT
-  p.player_name,
-  t.abbreviation AS team,
-  s.season,
-  s.ppg,
-  s.rpg,
-  s.apg
+  p.full_name,
+  s.team_abbreviation AS team,
+  s.season_year,
+  s.avg_pts,
+  s.avg_reb,
+  s.avg_ast
 FROM agg_player_season s
 JOIN dim_player p ON s.player_id = p.player_id
-JOIN dim_team t ON s.team_id = t.team_id
-WHERE s.season = '2025-26'
-ORDER BY s.ppg DESC
+WHERE s.season_year = '${CURRENT_SEASON}'
+  AND s.season_type = 'Regular Season'
+  AND p.is_current = true
+ORDER BY s.avg_pts DESC
 LIMIT 10;`;
 
 export const PARQUET_FALLBACK_EXAMPLES = [
@@ -219,32 +224,33 @@ ORDER BY attempts DESC;`,
   SELECT *
   FROM (
     VALUES
-      (1610612738, 'Celtics', 'East'),
-      (1610612749, 'Bucks', 'East'),
-      (1610612760, 'Thunder', 'West'),
-      (1610612743, 'Nuggets', 'West')
-  ) AS t(team_id, nickname, conference)
+      (1610612738, 'Boston Celtics', 'East'),
+      (1610612749, 'Milwaukee Bucks', 'East'),
+      (1610612760, 'Oklahoma City Thunder', 'West'),
+      (1610612743, 'Denver Nuggets', 'West')
+  ) AS t(team_id, full_name, conference)
 ),
 fact_standings AS (
   SELECT *
   FROM (
     VALUES
-      (1610612738, '2025-26', 61, 21, 0.744, 1),
-      (1610612749, '2025-26', 49, 33, 0.598, 2),
-      (1610612760, '2025-26', 57, 25, 0.695, 1),
-      (1610612743, '2025-26', 56, 26, 0.683, 2)
-  ) AS t(team_id, season, wins, losses, win_pct, conf_rank)
+      (1610612738, '${CURRENT_SEASON}', 'Regular Season', 61, 21, 0.744, 1),
+      (1610612749, '${CURRENT_SEASON}', 'Regular Season', 49, 33, 0.598, 2),
+      (1610612760, '${CURRENT_SEASON}', 'Regular Season', 57, 25, 0.695, 1),
+      (1610612743, '${CURRENT_SEASON}', 'Regular Season', 56, 26, 0.683, 2)
+  ) AS t(team_id, season_year, season_type, wins, losses, win_pct, conf_rank)
 )
 SELECT
   t.conference,
-  t.nickname,
+  t.full_name,
   s.wins,
   s.losses,
   s.win_pct,
   s.conf_rank
 FROM fact_standings s
 JOIN dim_team t ON s.team_id = t.team_id
-WHERE s.season = '2025-26'
-ORDER BY conference, conf_rank;`,
+WHERE s.season_year = '${CURRENT_SEASON}'
+  AND s.season_type = 'Regular Season'
+ORDER BY t.conference, s.conf_rank;`,
   },
 ];

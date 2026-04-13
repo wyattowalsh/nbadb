@@ -32,7 +32,10 @@ Notes
 - The icon/favicon set now uses the full logo mark fitted into a square.
 - The favicon is less simplified than the cropped-ball version, by request.
 - `texture-docs-ambient.png` is the Draw Things-generated ambient plate used in the docs shell.
-- `polish-plate-base.png` is the second-wave Draw Things master plate used to push the hero and social suite further.
-- `hero-homepage.png` and `backplate-social-1344x704.png` are the current master backplates for the docs hero and social compositions.
-- `og-image-1200x630.png` and `social-preview-wide.png` are branded derivatives composed with the existing unchanged full logo.
+- `polish-plate-base.png` is deprecated and should not be reused; it contains artifacted/generated text and is kept only as process history.
+- `hero-homepage.png` and `backplate-social-1344x704.png` remain the source masters for the homepage/social backplates.
+- The live homepage court panel now layers `hero-homepage.png` at low opacity under the court treatment instead of leaving the master unused in `docs/public/`.
+- `og-image-1200x630.png` and `social-preview-wide.png` are legacy branded derivatives; the live root metadata now prefers the generated `docs/app/opengraph-image.tsx` route.
+- The legacy `section-*.png` plate set was retired once homepage cards switched to deterministic CSS gradients.
+- `.github/assets/img/` is the source-of-truth asset workspace; `docs/public/` mirrors shipped copies when filenames overlap.
 - The two latest dev-doc concept images remain excluded.

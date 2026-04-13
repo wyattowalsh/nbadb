@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  isValidAdminSession,
+} from "@/lib/admin/session";
 
-const COOKIE_NAME = "nbadb-admin-session";
 const PUBLIC_ADMIN_PATHS = new Set([
   "/admin/login",
   "/api/admin/login",
@@ -14,81 +17,50 @@ function normalizePathname(pathname: string): string {
   return pathname;
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const maxLen = Math.max(a.length, b.length);
-  const paddedA = a.padEnd(maxLen, "\0");
-  const paddedB = b.padEnd(maxLen, "\0");
-  let result = a.length ^ b.length; // non-zero if lengths differ
-  for (let i = 0; i < maxLen; i++) {
-    result |= paddedA.charCodeAt(i) ^ paddedB.charCodeAt(i);
-  }
-  return result === 0;
-}
-
-async function hmacSign(timestamp: string, secret: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(timestamp));
-  return Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function isValidSession(
-  cookie: string,
-  secret: string,
-): Promise<boolean> {
-  const dotIndex = cookie.indexOf(".");
-  if (dotIndex === -1) return false;
-
-  const timestamp = cookie.slice(0, dotIndex);
-  const mac = cookie.slice(dotIndex + 1);
-
-  const age = Date.now() - Number(timestamp);
-  if (Number.isNaN(age) || age < 0 || age > 86_400_000) return false;
-
-  const expected = await hmacSign(timestamp, secret);
-  return timingSafeEqual(mac, expected);
+function jsonResponse(body: object, status: number) {
+  const response = NextResponse.json(body, { status });
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
 
 export async function proxy(request: NextRequest) {
   const pathname = normalizePathname(request.nextUrl.pathname);
   const password = process.env.ADMIN_PASSWORD;
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/admin/login";
+
+  if (!password) {
+    if (pathname.startsWith("/api/admin")) {
+      return jsonResponse(
+        {
+          error:
+            "Admin auth is unavailable until ADMIN_PASSWORD is configured.",
+        },
+        503,
+      );
+    }
+
+    if (pathname === "/admin/login") {
+      return NextResponse.next();
+    }
+
+    return NextResponse.redirect(loginUrl);
+  }
 
   if (PUBLIC_ADMIN_PATHS.has(pathname)) {
     return NextResponse.next();
   }
 
-  if (!password) {
-    if (pathname.startsWith("/api/admin")) {
-      return NextResponse.json(
-        { error: "Admin not configured" },
-        { status: 503 },
-      );
-    }
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/admin/login";
-    return NextResponse.redirect(loginUrl);
-  }
+  const cookie = request.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value;
 
-  const cookie = request.cookies.get(COOKIE_NAME)?.value;
-
-  if (cookie && (await isValidSession(cookie, password))) {
+  if (cookie && (await isValidAdminSession(cookie, password))) {
     return NextResponse.next();
   }
 
   if (pathname.startsWith("/api/admin")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = "/admin/login";
   return NextResponse.redirect(loginUrl);
 }
 
