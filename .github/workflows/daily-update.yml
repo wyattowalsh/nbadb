@@ -46,7 +46,7 @@ jobs:
           shard-index: "0"
           server-limit: "3"
       - name: Set rate limit for daily runs
-        run: echo 'NBADB_RATE_LIMIT=2' >> $GITHUB_ENV
+        run: echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV"
       - name: Download latest from Kaggle
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}

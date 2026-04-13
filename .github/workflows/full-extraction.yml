@@ -163,9 +163,9 @@ jobs:
           CONCURRENCY: ${{ inputs.concurrency }}
         run: |
           case "$CONCURRENCY" in
-            conservative) echo 'NBADB_RATE_LIMIT=2' >> $GITHUB_ENV ;;
-            moderate) echo 'NBADB_RATE_LIMIT=5' >> $GITHUB_ENV ;;
-            aggressive) echo 'NBADB_RATE_LIMIT=10' >> $GITHUB_ENV ;;
+            conservative) echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV" ;;
+            moderate) echo 'NBADB_RATE_LIMIT=5' >> "$GITHUB_ENV" ;;
+            aggressive) echo 'NBADB_RATE_LIMIT=10' >> "$GITHUB_ENV" ;;
           esac
 
       # ── Run extraction ──
@@ -191,9 +191,9 @@ jobs:
           set -e
 
           if [ "$exit_code" -eq 0 ]; then
-            echo "status=complete" >> $GITHUB_OUTPUT
+            echo "status=complete" >> "$GITHUB_OUTPUT"
           else
-            echo "status=incomplete" >> $GITHUB_OUTPUT
+            echo "status=incomplete" >> "$GITHUB_OUTPUT"
           fi
           # Propagate exit code so the chain job can detect incomplete shards.
           # fail-fast: false ensures other shards still complete.
@@ -214,16 +214,18 @@ jobs:
           CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
         run: |
-          echo "## Shard $SHARD ($NAME) — Iteration $ITERATION" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** $STATUS" >> $GITHUB_STEP_SUMMARY
-          echo "**Chain ID:** $CHAIN_ID" >> $GITHUB_STEP_SUMMARY
-          echo "**Cache hit:** ${CACHE_HIT:-false}" >> $GITHUB_STEP_SUMMARY
-          echo "**VPN server:** ${VPN_SERVER:-n/a}" >> $GITHUB_STEP_SUMMARY
-          echo "**VPN interface:** ${VPN_INTERFACE:-n/a}" >> $GITHUB_STEP_SUMMARY
-          echo "**VPN IP:** ${VPN_BASELINE_IP:-unknown} → ${VPN_EXIT_IP:-unknown}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -lh data/nbadb/ 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No data directory" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Shard $SHARD ($NAME) — Iteration $ITERATION"
+            echo "**Status:** $STATUS"
+            echo "**Chain ID:** $CHAIN_ID"
+            echo "**Cache hit:** ${CACHE_HIT:-false}"
+            echo "**VPN server:** ${VPN_SERVER:-n/a}"
+            echo "**VPN interface:** ${VPN_INTERFACE:-n/a}"
+            echo "**VPN IP:** ${VPN_BASELINE_IP:-unknown} → ${VPN_EXIT_IP:-unknown}"
+            echo '```'
+            ls -lh data/nbadb/ 2>/dev/null || echo "No data directory"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write shard metadata
         if: always()
@@ -427,13 +429,15 @@ jobs:
       - name: Merge summary
         if: always()
         run: |
-          echo "## Merge — Iteration ${{ inputs.iteration }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Chain ID:** ${{ env.ACTIVE_CHAIN_ID }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Source ref:** ${{ env.WORKFLOW_SOURCE_REF }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Source SHA:** ${{ env.WORKFLOW_SOURCE_SHA }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -lh data/nbadb/ 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "No data directory" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Merge — Iteration ${{ inputs.iteration }}"
+            echo "**Chain ID:** ${{ env.ACTIVE_CHAIN_ID }}"
+            echo "**Source ref:** ${{ env.WORKFLOW_SOURCE_REF }}"
+            echo "**Source SHA:** ${{ env.WORKFLOW_SOURCE_SHA }}"
+            echo '```'
+            ls -lh data/nbadb/ 2>/dev/null || echo "No data directory"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Scan, export, upload — only when all shards completed
       - name: Scan data quality
