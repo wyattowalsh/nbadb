@@ -143,6 +143,11 @@ runs:
         mkdir -p "$work_dir"
         chmod 700 "$work_dir"
 
+        cleanup_sensitive() {
+          rm -f "$auth_file" "$creds_file" "$servers_file" "$verify_file" "$baseline_file"
+        }
+        trap cleanup_sensitive EXIT
+
         sudo apt-get update -qq
         sudo apt-get install -y -qq jq openvpn > /dev/null
 
@@ -221,7 +226,7 @@ runs:
           "https://api.nordvpn.com/v1/servers/recommendations?limit=${server_limit}&filters[country_id]=${COUNTRY_ID}&filters[servers_technologies][identifier]=${TECHNOLOGY}" \
           --globoff
 
-        mapfile -t servers < <(jq -r '.[].hostname // empty' "$servers_file" | awk 'NF && !seen[$0]++')
+        mapfile -t servers < <(jq -r 'map(.hostname // empty) | unique | .[] | select(length > 0)' "$servers_file")
         if [ "${#servers[@]}" -eq 0 ]; then
           echo "::error::Failed to get NordVPN server recommendations"
           exit 1
@@ -301,7 +306,6 @@ runs:
               echo "exit-ip=$exit_ip" >> "$GITHUB_OUTPUT"
               echo "interface=$interface" >> "$GITHUB_OUTPUT"
               echo "pid=$pid" >> "$GITHUB_OUTPUT"
-              rm -f "$auth_file" "$creds_file" "$servers_file" "$verify_file" "$baseline_file"
               exit 0
             fi
           fi

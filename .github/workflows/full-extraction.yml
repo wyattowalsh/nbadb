@@ -166,6 +166,10 @@ jobs:
             conservative) echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV" ;;
             moderate) echo 'NBADB_RATE_LIMIT=5' >> "$GITHUB_ENV" ;;
             aggressive) echo 'NBADB_RATE_LIMIT=10' >> "$GITHUB_ENV" ;;
+            *)
+              echo "::error::Unsupported concurrency setting: $CONCURRENCY"
+              exit 1
+              ;;
           esac
 
       # ── Run extraction ──
