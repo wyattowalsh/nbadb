@@ -37,152 +37,16 @@ jobs:
           name: monthly-health-inventory
           path: artifacts/health/monthly/dependency-inventory.json
       - name: Connect NordVPN tunnel
-        env:
-          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
-          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
-          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
-          SHARD_INDEX: "0"
-          SERVER_LIMIT: "1"
-        run: |
-          set -euo pipefail
-
-          retry_http_get() {
-            local label="$1"
-            local output="$2"
-            local url="$3"
-            shift 3
-
-            local attempt http_code curl_exit sleep_for status_text
-            for attempt in 1 2 3 4 5; do
-              set +e
-              http_code="$(
-                curl -sS \
-                  --connect-timeout 10 \
-                  --max-time 30 \
-                  -o "$output" \
-                  -w '%{http_code}' \
-                  "$@" \
-                  "$url"
-              )"
-              curl_exit=$?
-              set -e
-
-              if [ "$curl_exit" -eq 0 ] && [ -n "$http_code" ] && [ "${http_code#2}" != "$http_code" ]; then
-                return 0
-              fi
-
-              if [ "$curl_exit" -ne 0 ]; then
-                status_text="curl exit $curl_exit"
-              else
-                status_text="HTTP $http_code"
-              fi
-
-              if [ "$attempt" -eq 5 ]; then
-                echo "::error::$label failed after $attempt attempts ($status_text)"
-                return 1
-              fi
-
-              sleep_for=$((attempt * 5))
-              echo "::warning::$label failed ($status_text); retrying in ${sleep_for}s (${attempt}/5)"
-              sleep "$sleep_for"
-            done
-          }
-
-          shard_index="${SHARD_INDEX:-0}"
-          server_limit="${SERVER_LIMIT:-1}"
-
-          creds_file=/tmp/nordvpn-creds.json
-          # Prefer direct OpenVPN tunnel credentials when configured; fall back to the
-          # NordVPN token API so existing secret setups keep working.
-          if [ -n "${OPENVPN_USER:-}" ] || [ -n "${OPENVPN_PASSWORD:-}" ]; then
-            if [ -z "${OPENVPN_USER:-}" ] || [ -z "${OPENVPN_PASSWORD:-}" ]; then
-              echo "::error::Both OPENVPN_USER and OPENVPN_PASSWORD secrets are required"
-              exit 1
-            fi
-            user="$OPENVPN_USER"
-            pass="$OPENVPN_PASSWORD"
-            echo "::notice::Using configured OpenVPN tunnel credentials"
-          elif [ -n "${NORDVPN_TOKEN:-}" ]; then
-            retry_http_get \
-              "NordVPN credentials request" \
-              "$creds_file" \
-              "https://api.nordvpn.com/v1/users/services/credentials" \
-              -u "token:$NORDVPN_TOKEN"
-            user=$(jq -r '.username // empty' "$creds_file")
-            pass=$(jq -r '.password // empty' "$creds_file")
-          else
-            echo "::error::Provide OPENVPN_USER and OPENVPN_PASSWORD secrets or NORDVPN_TOKEN"
-            exit 1
-          fi
-          if [ -z "$user" ] || [ -z "$pass" ]; then
-            echo "::error::Failed to derive NordVPN credentials"
-            exit 1
-          fi
-          echo "::add-mask::$user"
-          echo "::add-mask::$pass"
-
-          # Install OpenVPN
-          sudo apt-get update -qq && sudo apt-get install -y -qq openvpn > /dev/null
-
-          # Get recommended US server
-          servers_file=/tmp/nordvpn-servers.json
-          retry_http_get \
-            "NordVPN server recommendations request" \
-            "$servers_file" \
-            "https://api.nordvpn.com/v1/servers/recommendations?limit=${server_limit}&filters[country_id]=228&filters[servers_technologies][identifier]=openvpn_udp" \
-            --globoff
-          server=$(jq -r ".[$shard_index].hostname // empty" "$servers_file")
-          if [ -z "$server" ]; then
-            echo "::error::Failed to get NordVPN server recommendation"
-            exit 1
-          fi
-          echo "::notice::Connecting to $server"
-
-          # Download config and connect
-          retry_http_get \
-            "NordVPN OpenVPN config download for $server" \
-            /tmp/nordvpn.ovpn \
-            "https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/${server}.udp.ovpn"
-          printf '%s\n%s' "$user" "$pass" > /tmp/vpn-auth.txt
-          chmod 600 /tmp/vpn-auth.txt
-          sudo openvpn --config /tmp/nordvpn.ovpn \
-            --auth-user-pass /tmp/vpn-auth.txt \
-            --daemon --log /tmp/vpn.log
-
-          # Wait for tunnel (up to 60s)
-          tunnel_ready=0
-          for i in $(seq 1 30); do
-            if ip addr show tun0 > /dev/null 2>&1; then
-              tunnel_ready=1
-              break
-            fi
-            sleep 2
-          done
-
-          # Verify
-          exit_ip=""
-          if [ "$tunnel_ready" -eq 1 ]; then
-            verify_file=/tmp/vpn-exit-ip.json
-            if retry_http_get \
-              "VPN verification probe" \
-              "$verify_file" \
-              "https://api.ipify.org?format=json" \
-              --max-time 10; then
-              exit_ip=$(jq -r '.ip // empty' "$verify_file")
-            fi
-          fi
-          if [ -z "$exit_ip" ]; then
-            echo "::error::VPN tunnel failed to establish"
-            sudo tail -20 /tmp/vpn.log || true
-            exit 1
-          fi
-          echo "::notice::VPN connected — exit IP: $exit_ip"
-
-          # Cleanup auth file
-          rm -f /tmp/vpn-auth.txt "$creds_file" "$servers_file" /tmp/vpn-exit-ip.json
-
-          # Set rate limit for monthly runs
-          echo 'NBADB_RATE_LIMIT=2' >> $GITHUB_ENV
+        id: vpn
+        uses: ./.github/actions/nordvpn-connect
+        with:
+          openvpn-user: ${{ secrets.OPENVPN_USER }}
+          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
+          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
+          shard-index: "0"
+          server-limit: "3"
+      - name: Set rate limit for monthly runs
+        run: echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV"
       - name: Download latest from Kaggle
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
@@ -217,4 +81,17 @@ jobs:
         run: uv run nbadb upload
       - name: Disconnect VPN
         if: always()
-        run: sudo killall openvpn 2>/dev/null || true
+        uses: ./.github/actions/nordvpn-disconnect
+        with:
+          pid: ${{ steps.vpn.outputs.pid }}
+          pid-file: ${{ steps.vpn.outputs.pid-file }}
+          work-dir: ${{ steps.vpn.outputs.work-dir }}
+      - name: Upload VPN diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: monthly-vpn-diagnostics
+          path: ${{ runner.temp }}/nordvpn/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
