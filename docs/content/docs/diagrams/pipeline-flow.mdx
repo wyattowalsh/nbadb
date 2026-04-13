@@ -4,6 +4,7 @@ description: Playbook view of the ELT pipeline from extraction to export
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { siteInventory } from "@/lib/site-metrics.generated";
 
 # Pipeline Flow
 
@@ -13,7 +14,7 @@ This page reads like a set play: bring the ball in from the NBA API, validate ea
 
 <Callout type="info">
   The shape of the play stays the same across `init`, `daily`, `monthly`,
-  `full`, and `export`; only the scope and runtime change.
+  `backfill run`, and `export`; only the scope and runtime change.
 </Callout>
 
 ## Quick navigation
@@ -46,12 +47,12 @@ This page reads like a set play: bring the ball in from the NBA API, validate ea
 
 ## Use this page when…
 
-| If you need to answer…                                                            | Start here                                                              |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| “Where does validation happen?”                                                   | [Read the possession left to right](#read-the-possession-left-to-right) |
-| “What actually changes between `init`, `daily`, `monthly`, `full`, and `export`?” | [Pipeline commands](#pipeline-commands)                                 |
-| “Which stages produce the public warehouse surface?”                              | [Read the possession left to right](#read-the-possession-left-to-right) |
-| “Where should I go after the stage map?”                                          | [Next steps from pipeline flow](#next-steps-from-pipeline-flow)         |
+| If you need to answer…                                                                    | Start here                                                              |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| “Where does validation happen?”                                                           | [Read the possession left to right](#read-the-possession-left-to-right) |
+| “What actually changes between `init`, `daily`, `monthly`, `backfill run`, and `export`?” | [Pipeline commands](#pipeline-commands)                                 |
+| “Which stages produce the public warehouse surface?”                                      | [Read the possession left to right](#read-the-possession-left-to-right) |
+| “Where should I go after the stage map?”                                                  | [Next steps from pipeline flow](#next-steps-from-pipeline-flow)         |
 
 nbadb follows an **ELT (Extract, Load, Transform)** pipeline pattern.
 
@@ -75,12 +76,12 @@ flowchart TD
     end
 
     subgraph Transform["5. Transform"]
-        StagingSchema --> Dims["Build 17\nDimensions"]
-        StagingSchema --> Facts["Build 72\nFact Tables"]
-        StagingSchema --> Bridges["Build 2\nBridge Tables"]
-        Dims --> Derived["Build 16\nDerived Aggs"]
+        StagingSchema --> Dims["Dimension\nbuilders"]
+        StagingSchema --> Facts["Fact\nbuilders"]
+        StagingSchema --> Bridges["Bridge\nbuilders"]
+        Dims --> Derived["Aggregate\nbuilders"]
         Facts --> Derived
-        Derived --> Views["Build 4\nAnalytics Views"]
+        Derived --> Views["Analytics\nviews"]
     end
 
     subgraph Validate3["6. Star Validation"]
@@ -118,6 +119,8 @@ flowchart TD
     class Upload upload
 ```
 
+The current source-backed inventory is **{siteInventory.tableFamilyCounts.dimensions} dimensions**, **{siteInventory.tableFamilyCounts.facts} facts**, **{siteInventory.tableFamilyCounts.bridges} bridges**, **{siteInventory.tableFamilyCounts.aggregates} aggregate tables**, and **{siteInventory.tableFamilyCounts.analytics} analytics outputs**.
+
 <CourtDivider label="Call the stages" />
 
 ## Read the possession left to right
@@ -141,13 +144,13 @@ flowchart TD
 
 ## Pipeline commands
 
-| Command         | Stages                             | Duration |
-| --------------- | ---------------------------------- | -------- |
-| `nbadb init`    | 1-8 (full rebuild)                 | ~2-4h    |
-| `nbadb daily`   | 1-7 (incremental, 7-day lookback)  | ~5-15m   |
-| `nbadb monthly` | 1-7 (dimension refresh)            | ~30-60m  |
-| `nbadb full`    | 1-7 (fill gaps, preserve existing) | ~2-4h    |
-| `nbadb export`  | 7-8 (re-export only)               | ~5-10m   |
+| Command              | Stages                                     | Duration |
+| -------------------- | ------------------------------------------ | -------- |
+| `nbadb init`         | 1-8 (full rebuild)                         | ~2-4h    |
+| `nbadb daily`        | 1-7 (incremental, 7-day lookback)          | ~5-15m   |
+| `nbadb monthly`      | 1-7 (dimension refresh)                    | ~30-60m  |
+| `nbadb backfill run` | 1-7 (targeted gap-fill by season/endpoint) | varies   |
+| `nbadb export`       | 7-8 (re-export only)                       | ~5-10m   |
 
 ## Key Technologies
 

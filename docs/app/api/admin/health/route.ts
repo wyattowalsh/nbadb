@@ -3,17 +3,11 @@ import { getContentPages } from "@/lib/admin/content-audit";
 import {
   getPipelineSummary,
   overallPipelineStatus,
+  pipelineToHealth,
 } from "@/lib/admin/pipeline";
 import type { HealthCheck, SubsystemStatus } from "@/lib/admin/types";
 
 export const revalidate = 300;
-
-function pipelineToHealth(status: string): SubsystemStatus {
-  if (status === "done") return "healthy";
-  if (status === "running") return "healthy";
-  if (status === "failed") return "degraded";
-  return "unknown";
-}
 
 export async function GET() {
   const [pages, pipeline] = await Promise.all([
@@ -33,7 +27,7 @@ export async function GET() {
     },
     search: {
       status: "healthy",
-      detail: "Orama search active",
+      detail: "Fumadocs source search active",
     },
     pipeline: {
       status: pipelineToHealth(pipelineStatus),

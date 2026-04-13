@@ -1,15 +1,16 @@
 "use client";
 
-import React, {
+import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from "react";
 import {
   BarChart3,
-  ClipboardCopy,
+  Copy,
   Loader2,
   Play,
   RotateCcw,
@@ -18,6 +19,7 @@ import {
 import { type ChartInference, inferChart } from "@/lib/chart-inference";
 
 const DEFAULT_QUERY = `SELECT 42 AS answer, 'Hello from DuckDB-WASM!' AS message;`;
+const QUERY_TIMEOUT_MS = 15_000;
 
 type SqlPlaygroundExample = {
   label: string;
@@ -29,6 +31,34 @@ type ParquetTable = {
   tableName: string;
   url: string;
 };
+
+type CopyStatus = {
+  tone: "default" | "destructive";
+  message: string;
+};
+
+function rowsToCsv(columns: string[], rows: Record<string, unknown>[]): string {
+  const escapeCell = (value: unknown) =>
+    `"${String(value ?? "").replaceAll('"', '""')}"`;
+
+  return [
+    columns.map(escapeCell).join(","),
+    ...rows.map((row) =>
+      columns.map((column) => escapeCell(row[column])).join(","),
+    ),
+  ].join("\n");
+}
+
+function formatResultSummary(rowCount: number, executionTimeMs: number | null) {
+  const summary =
+    rowCount >= 1000
+      ? "Showing first 1,000 rows"
+      : `${rowCount} row${rowCount !== 1 ? "s" : ""}`;
+
+  return executionTimeMs !== null
+    ? `${summary} • ${executionTimeMs.toFixed(0)}ms`
+    : summary;
+}
 
 export function SqlPlayground({
   defaultQuery,
@@ -60,17 +90,38 @@ export function SqlPlayground({
   const [ready, setReady] = useState(false);
   const [loadProgress, setLoadProgress] = useState("");
   const [resultView, setResultView] = useState<"table" | "chart">("table");
+  const [executionTimeMs, setExecutionTimeMs] = useState<number | null>(null);
+  const [copyStatus, setCopyStatus] = useState<CopyStatus | null>(null);
   const [activeExample, setActiveExample] = useState<string | null>(
     examples?.find((example) => example.sql === initialQuery)?.label ?? null,
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initRef = useRef(false);
+  const runIdRef = useRef(0);
+  const copyStatusTimeoutRef = useRef<number | null>(null);
+  const textareaId = useId();
+  const helperTextId = useId();
 
   const tableNames = useMemo(() => {
     if (tables?.length) return tables.map((t) => t.tableName);
     if (tableName) return [tableName];
     return [];
   }, [tables, tableName]);
+  const csv = useMemo(() => rowsToCsv(columns, rows), [columns, rows]);
+
+  const clearResults = useCallback((nextError: string | null = null) => {
+    setError(nextError);
+    setColumns([]);
+    setRows([]);
+    setExecutionTimeMs(null);
+  }, []);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 480)}px`;
+  }, [query]);
 
   const initDb = useCallback(async () => {
     if (initRef.current) return;
@@ -104,23 +155,49 @@ export function SqlPlayground({
   }, [parquetUrl, tableName, tables]);
 
   const runQuery = useCallback(async () => {
-    setError(null);
+    const runId = ++runIdRef.current;
+    clearResults();
     setLoading(true);
     setResultView("table");
     try {
       if (!ready) await initDb();
+      const startedAt = performance.now();
       const { runQuery: exec } = await import("@/lib/duckdb");
-      const result = await exec(query);
+      const result = await exec(query, { timeoutMs: QUERY_TIMEOUT_MS });
+      if (runIdRef.current !== runId) return;
       setColumns(result.columns);
       setRows(result.rows.slice(0, 1000));
+      setExecutionTimeMs(performance.now() - startedAt);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Query failed");
-      setColumns([]);
-      setRows([]);
+      if (runIdRef.current !== runId) return;
+      clearResults(err instanceof Error ? err.message : "Query failed");
     } finally {
-      setLoading(false);
+      if (runIdRef.current === runId) {
+        setLoading(false);
+      }
     }
-  }, [query, ready, initDb]);
+  }, [clearResults, query, ready, initDb]);
+
+  const cancelQuery = useCallback(async () => {
+    runIdRef.current += 1;
+    const { destroyDb } = await import("@/lib/duckdb");
+    await destroyDb();
+    initRef.current = false;
+    setReady(false);
+    setLoading(false);
+    setLoadProgress("");
+    clearResults("Query cancelled. The in-browser DuckDB session was reset.");
+  }, [clearResults]);
+
+  const loadQueryState = useCallback(
+    (nextQuery: string, nextExample: string | null) => {
+      setQuery(nextQuery);
+      setActiveExample(nextExample);
+      clearResults();
+      textareaRef.current?.focus();
+    },
+    [clearResults],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -133,24 +210,60 @@ export function SqlPlayground({
   );
 
   const loadExample = useCallback((example: SqlPlaygroundExample) => {
-    setQuery(example.sql);
-    setActiveExample(example.label);
-    setError(null);
-    setColumns([]);
-    setRows([]);
-    textareaRef.current?.focus();
-  }, []);
+    loadQueryState(example.sql, example.label);
+  }, [loadQueryState]);
 
   const resetQuery = useCallback(() => {
-    setQuery(initialQuery);
-    setActiveExample(
+    loadQueryState(
+      initialQuery,
       examples?.find((example) => example.sql === initialQuery)?.label ?? null,
     );
-    setError(null);
-    setColumns([]);
-    setRows([]);
-    textareaRef.current?.focus();
-  }, [examples, initialQuery]);
+  }, [examples, initialQuery, loadQueryState]);
+
+  const setTimedCopyStatus = useCallback((status: CopyStatus) => {
+    if (copyStatusTimeoutRef.current) {
+      window.clearTimeout(copyStatusTimeoutRef.current);
+    }
+
+    setCopyStatus(status);
+    copyStatusTimeoutRef.current = window.setTimeout(() => {
+      setCopyStatus(null);
+      copyStatusTimeoutRef.current = null;
+    }, 2400);
+  }, []);
+
+  const copyText = useCallback(
+    async (text: string, label: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setTimedCopyStatus({
+          tone: "default",
+          message: `Copied ${label} to clipboard.`,
+        });
+      } catch {
+        setTimedCopyStatus({
+          tone: "destructive",
+          message: `Couldn't copy ${label}. Your browser blocked clipboard access.`,
+        });
+      }
+    },
+    [setTimedCopyStatus],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (copyStatusTimeoutRef.current) {
+        window.clearTimeout(copyStatusTimeoutRef.current);
+      }
+      runIdRef.current += 1;
+      initRef.current = false;
+      void import("@/lib/duckdb")
+        .then(({ destroyDb }) => destroyDb())
+        .catch((error: unknown) => {
+          console.error("[SQL Playground] Cleanup failed", error);
+        });
+    };
+  }, []);
 
   return (
     <div className="nba-viz-shell">
@@ -170,7 +283,11 @@ export function SqlPlayground({
 
       {/* Query editor */}
       <div className="border-t border-border">
+        <label htmlFor={textareaId} className="sr-only">
+          SQL query editor
+        </label>
         <textarea
+          id={textareaId}
           ref={textareaRef}
           value={query}
           onChange={(e) => {
@@ -180,9 +297,9 @@ export function SqlPlayground({
           onKeyDown={handleKeyDown}
           rows={10}
           spellCheck={false}
+          aria-describedby={helperTextId}
           className="w-full resize-y bg-card px-4 py-3 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-inset focus:ring-primary/40 transition-shadow duration-150"
           placeholder="Enter SQL query..."
-          aria-label="SQL query editor"
         />
         {examples && examples.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-border bg-card px-4 py-3">
@@ -222,6 +339,25 @@ export function SqlPlayground({
           </button>
           <button
             type="button"
+            onClick={cancelQuery}
+            disabled={!loading}
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-background disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void copyText(query, "SQL");
+            }}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-background disabled:opacity-50"
+          >
+            <Copy className="size-3.5" />
+            Copy SQL
+          </button>
+          <button
+            type="button"
             onClick={resetQuery}
             disabled={loading}
             className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-background disabled:opacity-50"
@@ -229,9 +365,22 @@ export function SqlPlayground({
             <RotateCcw className="size-3.5" />
             Reset
           </button>
-          <span className="text-xs text-muted-foreground">
-            {"\u2318"}+Enter to run
+          <span id={helperTextId} className="text-xs text-muted-foreground">
+            Cmd/Ctrl+Enter to run • {QUERY_TIMEOUT_MS / 1000}s timeout
           </span>
+          {copyStatus ? (
+            <span
+              role="status"
+              aria-live="polite"
+              className={`text-xs ${
+                copyStatus.tone === "destructive"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {copyStatus.message}
+            </span>
+          ) : null}
           <span className="text-xs text-muted-foreground max-sm:hidden">
             {tableNames.length > 0
               ? `Tables: ${tableNames.join(", ")}`
@@ -242,7 +391,10 @@ export function SqlPlayground({
 
       {/* Error */}
       {error ? (
-        <div className="border-t border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="border-t border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
           {error}
         </div>
       ) : null}
@@ -255,6 +407,9 @@ export function SqlPlayground({
             setResultView={setResultView}
             columns={columns}
             rows={rows}
+            onCopyCsv={() => {
+              void copyText(csv, "CSV");
+            }}
           />
           {resultView === "chart" ? (
             <ChartView columns={columns} rows={rows} />
@@ -291,47 +446,20 @@ export function SqlPlayground({
                   ))}
                 </tbody>
               </table>
-              {rows.length >= 1000 ? (
-                <div className="border-t border-border bg-muted px-4 py-2 text-xs text-muted-foreground">
-                  Showing first 1,000 rows
-                </div>
-              ) : (
-                <div className="border-t border-border bg-muted px-4 py-2 text-xs text-muted-foreground">
-                  {rows.length} row{rows.length !== 1 ? "s" : ""}
-                </div>
-              )}
+              <div className="border-t border-border bg-muted px-4 py-2 text-xs text-muted-foreground">
+                {formatResultSummary(rows.length, executionTimeMs)}
+              </div>
             </div>
           )}
         </div>
       ) : !error && !loading ? (
         <div className="border-t border-border bg-muted/40 px-4 py-4 text-sm text-muted-foreground">
-          <p>
-            Pick an example or write your own SQL, then press Run to initialize
-            DuckDB-WASM in this tab.
-          </p>
-          {!ready ? (
-            <p className="mt-1 text-xs text-muted-foreground/70">
-              First run downloads ~4 MB DuckDB engine (cached for future runs).
-            </p>
-          ) : null}
+          Pick an example or write your own SQL, then press Run to initialize
+          DuckDB-WASM in this tab.
         </div>
       ) : null}
     </div>
   );
-}
-
-function toCsv(columns: string[], rows: Record<string, unknown>[]): string {
-  const escape = (v: unknown) => {
-    const s = String(v ?? "");
-    return s.includes(",") || s.includes('"') || s.includes("\n")
-      ? `"${s.replace(/"/g, '""')}"`
-      : s;
-  };
-  const header = columns.map(escape).join(",");
-  const body = rows.map((row) =>
-    columns.map((col) => escape(row[col])).join(","),
-  );
-  return [header, ...body].join("\n");
 }
 
 function ResultToolbar({
@@ -339,89 +467,57 @@ function ResultToolbar({
   setResultView,
   columns,
   rows,
+  onCopyCsv,
 }: {
   resultView: "table" | "chart";
   setResultView: (v: "table" | "chart") => void;
   columns: string[];
   rows: Record<string, unknown>[];
+  onCopyCsv: () => void;
 }) {
   const inference = useMemo(() => inferChart(columns, rows), [columns, rows]);
   const canChart = inference.type !== "none";
-  const [copied, setCopied] = useState(false);
-
-  const copyAsCsv = useCallback(() => {
-    const csv = toCsv(columns, rows);
-    navigator.clipboard.writeText(csv).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [columns, rows]);
 
   return (
-    <div className="flex items-center gap-1 border-b border-border bg-muted px-3 py-1">
-      <button
-        type="button"
-        onClick={() => setResultView("table")}
-        className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-          resultView === "table"
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        <Table2 className="size-3" />
-        Table
-      </button>
-      {canChart ? (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted px-3 py-1.5">
+      <div className="flex items-center gap-1">
         <button
           type="button"
-          onClick={() => setResultView("chart")}
+          onClick={() => setResultView("table")}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            resultView === "chart"
+            resultView === "table"
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <BarChart3 className="size-3" />
-          {inference.label}
+          <Table2 className="size-3" />
+          Table
         </button>
-      ) : null}
-      <span className="mx-1 h-4 w-px bg-border" />
+        {canChart ? (
+          <button
+            type="button"
+            onClick={() => setResultView("chart")}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+              resultView === "chart"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <BarChart3 className="size-3" />
+            {inference.label}
+          </button>
+        ) : null}
+      </div>
       <button
         type="button"
-        onClick={copyAsCsv}
-        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        title="Copy results as CSV to clipboard"
+        onClick={onCopyCsv}
+        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
       >
-        <ClipboardCopy className="size-3" />
-        {copied ? "Copied!" : "Copy CSV"}
+        <Copy className="size-3" />
+        CSV
       </button>
     </div>
   );
-}
-
-class ChartErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(): { hasError: boolean } {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex items-center justify-center py-12 text-sm text-destructive">
-          Chart rendering failed. Try a different query or switch to table view.
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }
 
 function ChartView({
@@ -432,6 +528,7 @@ function ChartView({
   rows: Record<string, unknown>[];
 }) {
   const [PlotComponent, setPlotComponent] = useState<React.ComponentType<{
+    columns: string[];
     rows: Record<string, unknown>[];
     inference: ChartInference;
   }> | null>(null);
@@ -453,9 +550,5 @@ function ChartView({
     );
   }
 
-  return (
-    <ChartErrorBoundary>
-      <PlotComponent rows={rows} inference={inference} />
-    </ChartErrorBoundary>
-  );
+  return <PlotComponent columns={columns} rows={rows} inference={inference} />;
 }

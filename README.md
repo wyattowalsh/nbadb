@@ -15,13 +15,9 @@
 [![Kaggle](https://img.shields.io/badge/Kaggle-Dataset-blue?logo=kaggle&style=for-the-badge)](https://www.kaggle.com/datasets/wyattowalsh/basketball)
 [![Data Coverage](https://img.shields.io/badge/1946–present-data_coverage-orange?style=for-the-badge)](https://nbadb.w4w.dev/docs/schema)
 
-![nbadb warehouse preview](.github/assets/img/social-preview-wide.png)
-
-> Basketball-native docs, lineage, and warehouse storytelling built around the unchanged `nbadb` mark.
-
-| Extractors | Warehouse Models | Derived Outputs | Docs Pages |
-| ---------- | ---------------- | --------------- | ---------- |
-| 154 | 96 | 24 | 49 |
+| Extractor coverage | Public model | Derived outputs | Docs site |
+| ------------------ | ------------ | --------------- | --------- |
+| Current `nba_api` runtime surface | Generated star-schema outputs | Generated `agg_*` and `analytics_*` surfaces | Guides, references, diagrams, and lineage pages |
 
 ## 📊 What's Inside
 
@@ -85,9 +81,9 @@ All data spans from the **1946-47 season to present** (auto-updating via the dai
 | `nbadb init` | Full pipeline — extract all endpoints, stage, transform, export |
 | `nbadb daily` | Incremental update for recent games |
 | `nbadb monthly` | Dimension refresh + recent data |
-| `nbadb full` | Full re-extraction without export |
+| `nbadb backfill` | Retry failed work and fill extraction gaps |
 | `nbadb migrate` | Run schema migrations |
-| `nbadb audit-models` | Inventory consistency, column lineage, and validation gap audit |
+| `nbadb run-quality` | Execute data quality checks and generate a report |
 | `nbadb export` | Re-export DuckDB → SQLite / Parquet / CSV |
 | `nbadb upload` | Push the dataset to Kaggle |
 | `nbadb download` | Pull the Kaggle dataset and seed local DuckDB |
@@ -154,6 +150,7 @@ flowchart LR
 - **SCD Type 2** for `dim_player` and `dim_team_history` (surrogate keys, `valid_from`/`valid_to`)
 - **Checkpoint/resume** for interrupted transform runs
 - **Watermark tracking** for incremental extraction
+- **Proxy rotation** via proxywhirl with circuit-breaker failover
 
 Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architecture)**.
 
@@ -161,12 +158,13 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 
 | Component | Technology |
 | --------- | ---------- |
-| Language | Python 3.12 |
+| Language | Python 3.13 |
 | Package Manager | [uv](https://docs.astral.sh/uv/) |
 | DataFrames | [Polars](https://pola.rs/) 1.38 |
 | Validation | [Pandera](https://pandera.readthedocs.io/) (Polars backend) |
 | Analytics DB | [DuckDB](https://duckdb.org/) 1.4 |
 | Relational DB | [SQLModel](https://sqlmodel.tiangolo.com/) + SQLite |
+| HTTP / Proxy | [proxywhirl](https://github.com/wyattowalsh/proxywhirl) |
 | CLI | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
 | Type Checking | [ty](https://github.com/astral-sh/ty) |
 | Linting | [Ruff](https://docs.astral.sh/ruff/) |

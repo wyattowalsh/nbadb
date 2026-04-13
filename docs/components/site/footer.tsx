@@ -2,6 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 
+const footerLinkClassName =
+  "text-muted-foreground transition-colors hover:text-foreground";
+const externalLinkProps = {
+  target: "_blank",
+  rel: "noopener noreferrer",
+} as const;
+
 export function DocsFooter() {
   return (
     <footer className="mx-auto w-full max-w-5xl px-4 pb-12 sm:px-6 lg:px-8">
@@ -27,33 +34,36 @@ export function DocsFooter() {
             </p>
           </div>
 
-          <div className="flex gap-10 text-xs">
+          <nav
+            aria-label="Documentation footer"
+            className="flex gap-10 text-xs"
+          >
             <div className="space-y-2">
               <span className="nba-kicker">Docs</span>
               <div className="flex flex-col gap-1.5">
                 <Link
-                  href="/docs/schema"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  href="/docs/guides/role-based-onboarding-hub"
+                  className={footerLinkClassName}
                 >
+                  Start here
+                </Link>
+                <Link href="/docs/schema" className={footerLinkClassName}>
                   Schema
                 </Link>
-                <Link
-                  href="/docs/endpoints"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <Link href="/docs/endpoints" className={footerLinkClassName}>
                   Endpoints
                 </Link>
-                <Link
-                  href="/docs/lineage"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <Link href="/docs/lineage" className={footerLinkClassName}>
                   Lineage
                 </Link>
-                <Link
-                  href="/docs/guides"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <Link href="/docs/guides" className={footerLinkClassName}>
                   Guides
+                </Link>
+                <Link
+                  href="/docs/guides/whats-new"
+                  className={footerLinkClassName}
+                >
+                  What&apos;s new
                 </Link>
               </div>
             </div>
@@ -62,25 +72,22 @@ export function DocsFooter() {
               <div className="flex flex-col gap-1.5">
                 <a
                   href="https://github.com/wyattowalsh/nbadb"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  className={footerLinkClassName}
+                  {...externalLinkProps}
                 >
                   GitHub
                 </a>
                 <a
                   href="https://www.kaggle.com/datasets/wyattowalsh/basketball"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  className={footerLinkClassName}
+                  {...externalLinkProps}
                 >
                   Kaggle
                 </a>
                 <a
                   href="https://pypi.org/project/nbadb/"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  className={footerLinkClassName}
+                  {...externalLinkProps}
                 >
                   PyPI
                 </a>
@@ -91,31 +98,28 @@ export function DocsFooter() {
               <div className="flex flex-col gap-1.5">
                 <a
                   href="https://duckdb.org"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  className={footerLinkClassName}
+                  {...externalLinkProps}
                 >
                   DuckDB
                 </a>
                 <a
                   href="https://pola.rs"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  className={footerLinkClassName}
+                  {...externalLinkProps}
                 >
                   Polars
                 </a>
                 <a
                   href="https://github.com/swar/nba_api"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  className={footerLinkClassName}
+                  {...externalLinkProps}
                 >
                   nba_api
                 </a>
               </div>
             </div>
-          </div>
+          </nav>
         </div>
 
         <div className="mt-8 border-t border-border pt-4">

@@ -8,6 +8,7 @@ _PREAMBLE_TEMPLATE = '''\
 import sys
 import json
 import html as _html
+import re as _re
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -52,24 +53,26 @@ del _duckdb
 _READ_ONLY_GUARD = _ReadOnlyGuard()
 _READ_ONLY_MAX_ROWS = 1000
 
-def _make_safe_conn(_raw_conn, _guard, _max_rows):
-    """Factory creating a safe connection proxy with closure-captured refs."""
-    def _prepare(sql):
-        error = _guard.validate(sql)
-        if error:
-            raise ValueError(error)
-        return _guard.wrap_with_limit(sql, max_rows=_max_rows)
+def _prepare_sql(sql: str) -> str:
+    error = _READ_ONLY_GUARD.validate(sql)
+    if error:
+        raise ValueError(error)
+    return _READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)
 
-    class _Conn:
-        __slots__ = ()
-        def execute(self, sql, *args, **kwargs):
-            return _raw_conn.execute(_prepare(sql), *args, **kwargs)
-        def sql(self, sql, *args, **kwargs):
-            return _raw_conn.sql(_prepare(sql), *args, **kwargs)
+def _safe_execute(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
+    return _raw_conn.execute(_prepare_sql(sql), *args, **kwargs)
 
-    return _Conn()
+def _safe_sql(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
+    return _raw_conn.sql(_prepare_sql(sql), *args, **kwargs)
 
-conn = _make_safe_conn(_RAW_CONN, _READ_ONLY_GUARD, _READ_ONLY_MAX_ROWS)
+class _SafeConn:
+    def execute(self, sql: str, *args, _executor=_safe_execute, **kwargs):
+        return _executor(sql, *args, **kwargs)
+
+    def sql(self, sql: str, *args, _executor=_safe_sql, **kwargs):
+        return _executor(sql, *args, **kwargs)
+
+conn = _SafeConn()
 del _RAW_CONN
 
 # NBA metric calculator and skill scripts
@@ -92,7 +95,6 @@ def query(sql: str) -> pd.DataFrame:
     return conn.execute(sql).fetchdf()
 
 # --- Session state (last_result persistence across tool calls) ---------------
-# pathlib imported in preamble only (not subject to AST check) for session state
 from pathlib import Path as _SessionPath
 
 _LAST_RESULT_PATH = _SessionPath(__SESSION_DIR__) / "last_result.parquet"
@@ -179,13 +181,11 @@ def to_embed(fig, title="", _json=json, _b64_mod=_b64):
     if title:
         html = f"<h3>{_html.escape(title)}</h3>\\n" + html
     full = f"<div class='nbadb-embed'>\\n{html}\\n</div>"
-    import re as _re_embed
-    _safe_fn = _re_embed.sub(r'[^\\w\\s-]', '', title or "chart").strip()[:50] or "chart"
-    del _re_embed
+    _safe_fn = _re.sub(r'[^\\w\\s-]', '', title or "chart").strip()[:50] or "chart"
     print(_json.dumps({"export_file": _safe_fn + ".html",
                        "format": "embed",
                        "content": _b64_mod.b64encode(
-                           full.encode()).decode()}))
+                            full.encode()).decode()}))
 
 def to_social(
     fig_or_df,
@@ -212,7 +212,7 @@ def to_social(
                  fontfamily="monospace", color="white",
                  transform=_fig.transFigure,
                  verticalalignment="bottom")
-    _fig.text(0.95, 0.02, "nbadb", fontsize=10, color="#9999AA",
+    _fig.text(0.95, 0.02, "nbadb", fontsize=10, color="#666",
              ha="right", transform=_fig.transFigure)
     _ax.axis("off")
     buf = _io_mod.BytesIO()
@@ -244,24 +244,100 @@ def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
     built-in sorting, filtering, and export buttons (CSV, XLSX).
     Users download the HTML file and open it in any browser to edit.
     """
-    from _spreadsheet_template import build_spreadsheet_html as _build_html
     columns_json = _json.dumps([{"field": c, "editable": True, "sortable": True,
-                                  "filter": True} for c in df.columns])
-    rows_json = df.to_json(orient="records") or "[]"
-    html = _build_html(name, columns_json, rows_json)
-    print(_json.dumps({"export_file": name + ".html", "format": "spreadsheet",
-                        "content": _b64_mod.b64encode(html.encode()).decode()}))
+                                  "filter": True} for c in df.columns]).replace("<", "\\u003c")
+    rows_json = (df.to_json(orient="records") or "[]").replace("<", "\\u003c")
+    _safe_title = _html.escape(name)
+    _safe_file_stem = _re.sub(r'[^\\w\\s-]', '', name or "data").strip()[:50] or "data"
+    _csv_filename = _json.dumps(_safe_file_stem + ".csv")
+    _json_filename = _json.dumps(_safe_file_stem + ".json")
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{_safe_title} — NBA Data Spreadsheet</title>
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
+<style>
+  body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
+         padding: 16px; background: #fafafa; }}
+  h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
+  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; }}
+  .toolbar button {{
+    padding: 6px 16px; border: 1px solid #ddd; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 0.875rem;
+  }}
+  .toolbar button:hover {{ background: #f0f0f0; }}
+  #grid {{ height: calc(100vh - 100px); width: 100%; }}
+  .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
+</style>
+</head>
+<body>
+<h1>{_safe_title}</h1>
+<div class="toolbar">
+  <button onclick="exportCSV()">Export CSV</button>
+  <button onclick="exportJSON()">Export JSON</button>
+  <button onclick="resetData()">Reset</button>
+  <span id="status" style="line-height:32px;color:#666;font-size:0.8rem;"></span>
+</div>
+<div id="grid" class="ag-theme-alpine"></div>
+<script>
+const originalData = {rows_json};
+const columnDefs = {columns_json};
+const gridOptions = {{
+  columnDefs: columnDefs,
+  rowData: JSON.parse(JSON.stringify(originalData)),
+  defaultColDef: {{ resizable: true, editable: true, sortable: true, filter: true }},
+  onCellValueChanged: () => document.getElementById("status").textContent = "Modified",
+}};
+const gridDiv = document.getElementById("grid");
+const api = agGrid.createGrid(gridDiv, gridOptions);
+
+function getRows() {{
+  const rows = [];
+  api.forEachNode(n => rows.push(n.data));
+  return rows;
+}}
+function exportCSV() {{
+  const rows = getRows();
+  const cols = columnDefs.map(c => c.field);
+  const hdr = cols.join(",");
+  const body = rows.map(r => cols.map(c =>
+    JSON.stringify(r[c] ?? "")).join(","));
+  const csv = [hdr, ...body].join("\\n");
+  download(csv, {_csv_filename}, "text/csv");
+}}
+function exportJSON() {{
+  download(JSON.stringify(getRows(), null, 2), {_json_filename}, "application/json");
+}}
+function resetData() {{
+  api.setGridOption("rowData", JSON.parse(JSON.stringify(originalData)));
+  document.getElementById("status").textContent = "Reset";
+}}
+function download(content, filename, type) {{
+  const blob = new Blob([content], {{ type }});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}}
+</script>
+</body>
+</html>"""
+    print(_json.dumps({{"export_file": _safe_file_stem + ".html", "format": "spreadsheet",
+                        "content": _b64_mod.b64encode(html.encode()).decode()}}))
 
 # Reduce the executed namespace to intended analytics helpers only.
 del sys
 del warnings
 del _io
 del _b64
-del _html
 del _ReadOnlyGuard
 del _READ_ONLY_GUARD
 del _READ_ONLY_MAX_ROWS
-del _make_safe_conn
+del _prepare_sql
+del _safe_execute
+del _safe_sql
+del _SafeConn
 del _patched_show
 del _save_last_result
 del _LAST_RESULT_PATH

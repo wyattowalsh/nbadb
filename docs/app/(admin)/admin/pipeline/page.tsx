@@ -40,6 +40,9 @@ export default async function PipelinePage() {
     ? ((summary.totals.errorCount / summary.totals.runs) * 100).toFixed(1)
     : "0.0";
   const lastBucket = summary.daily.at(-1) ?? null;
+  const historyReferenceTime = summary.generatedAt
+    ? new Date(summary.generatedAt).getTime()
+    : null;
 
   const statusLabel: Record<string, string> = {
     done: "Healthy",
@@ -47,6 +50,35 @@ export default async function PipelinePage() {
     running: "Running now",
     abandoned: "No data",
   };
+  const historyProps =
+    summary.slowEndpoints.length > 0
+      ? {
+          freshness: summary.slowEndpoints.map((item) => ({
+            endpoint: item.endpoint,
+            layer: "telemetry",
+            lastSuccess: item.lastRun,
+            hoursSinceSuccess:
+              item.lastRun && historyReferenceTime
+                ? Math.max(
+                    0,
+                    (historyReferenceTime - new Date(item.lastRun).getTime()) /
+                      3_600_000,
+                  )
+                : null,
+          })),
+          healthScores: summary.slowEndpoints.map((item) => {
+            const score = Math.max(0, Math.round(100 - item.errorRate * 100));
+            const status: "healthy" | "degraded" | "unhealthy" =
+              score >= 85 ? "healthy" : score >= 60 ? "degraded" : "unhealthy";
+
+            return {
+              endpoint: item.endpoint,
+              score,
+              status,
+            };
+          }),
+        }
+      : undefined;
 
   return (
     <div className="space-y-6 nba-reveal">
@@ -214,6 +246,7 @@ export default async function PipelinePage() {
               counts: summary.counts,
               slowEndpoints: summary.slowEndpoints,
             }}
+            historyProps={historyProps}
           />
 
           <div className="grid gap-4 lg:grid-cols-2 nba-delay-3">
@@ -285,7 +318,8 @@ export default async function PipelinePage() {
             <p className="mt-2 text-sm text-muted-foreground">
               Export pipeline status with{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                uv run nbadb journal-summary --output-path pipeline-status.json
+                uv run nbadb journal-summary --output-path
+                docs/lib/admin/pipeline-status.json
               </code>
             </p>
           </CardContent>

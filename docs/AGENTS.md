@@ -61,7 +61,7 @@ docs/
 │   ├── data-dictionary/             # Field-level documentation (6 pages + glossary)
 │   ├── diagrams/                    # ER, pipeline, endpoint diagrams (5 pages)
 │   ├── endpoints/                   # API endpoint documentation (8 pages)
-│   ├── lineage/                     # Data lineage traces (4 pages + lineage.json)
+│   ├── lineage/                     # Data lineage traces (4 pages; machine JSON lives in lib/generated/)
 │   └── guides/                      # User and operator guides (13 pages)
 ├── lib/
 │   ├── site-config.ts               # Section metadata, hero signals, and context-rail data
@@ -73,7 +73,7 @@ docs/
 │   └── admin/                       # Admin data fetchers and types
 │       ├── pipeline.ts
 │       └── types.ts
-├── middleware.ts                    # Admin auth guard (HMAC session cookie, 24h TTL)
+├── proxy.ts                         # Admin auth guard / request interception (HMAC session cookie, 24h TTL)
 ├── source.config.ts                 # fumadocs-mdx config (remarkMdxMermaid plugin)
 ├── next.config.mjs                  # Next.js config (createMDX wrapper)
 └── package.json
@@ -274,7 +274,6 @@ type SectionMeta = {
   stats: SectionStat[];
   quickLinks: QuickLink[];
   prompts: SearchPrompt[];
-  toneClass: string;
 };
 
 type GeneratedPageFrameMeta = {
@@ -295,11 +294,12 @@ type GeneratedPageFrameMeta = {
 
 Helper functions:
 
-| Function                       | Returns                          | Description                                   |
-| ------------------------------ | -------------------------------- | --------------------------------------------- |
-| `getSectionMeta(slug?)`        | `SectionMeta`                    | Resolves the current section from a docs slug |
-| `getGeneratedPageFrame(slug?)` | `GeneratedPageFrameMeta \| null` | Frame config for auto-generated pages         |
-| `getDocsContextRail(slug?)`    | `DocsContextRailMeta`            | Related links and prompts for context rail    |
+| Function                        | Returns                          | Description                                            |
+| ------------------------------- | -------------------------------- | ------------------------------------------------------ |
+| `getSectionMeta(slug?)`         | `SectionMeta`                    | Resolves the current section from a docs slug          |
+| `getGeneratedPageConfig(slug?)` | `GeneratedPageConfig \| null`    | Unified generated-page config accessor                 |
+| `getGeneratedPageFrame(slug?)`  | `GeneratedPageFrameMeta \| null` | Frame config for auto-generated pages                  |
+| `getDocsContextRail(slug?)`     | `DocsContextRailMeta`            | Related links and prompts for the generated context rail |
 
 Exported data objects: `heroSignals`, `searchPrompts`, `docsSections`.
 
@@ -324,17 +324,19 @@ React hook for zoom/pan interactions on Mermaid diagrams. Returns transform stat
 ### `lib/utils.ts`
 
 - `cn()` — Tailwind class merge helper (`clsx` + `tailwind-merge`)
+- `buildDocHref()` — Canonical `/docs/...` href builder from slug parts
+- `getDocSlugFromHref()` — Parse a docs href back into slug parts when needed
 - `getDocBreadcrumbs()` — Build breadcrumb trail from slug
 - `humanizeSlug()` — Convert slug segments to human-readable labels
 
 ## 11. Admin Area
 
 - **Route group**: `app/(admin)/admin/`
-- **Auth**: `middleware.ts` — HMAC-signed session cookie (`nbadb-admin-session`) with 24h TTL, timing-safe comparison
-- Requires `ADMIN_PASSWORD` env var. Without it, middleware passes through.
+- **Auth**: `proxy.ts` guards admin requests, and `lib/admin/session.ts` holds the shared HMAC-signed session creation/validation helpers plus cookie constants and cookie helpers used by the login, logout, and proxy flows.
+- Requires `ADMIN_PASSWORD` env var. Without it, page routes stay unavailable and admin API routes return a 503 misconfiguration response.
 - **Matcher**: `/admin/:path*` and `/api/admin/:path*`
 - **Unauthenticated behavior**: redirects to `/admin/login` (pages) or returns 401 (API routes)
-- **Login/logout bypass**: `/admin/login`, `/api/admin/login`, `/api/admin/logout` are always accessible
+- **Login/logout bypass**: `/admin/login`, `/api/admin/login`, `/api/admin/logout` remain public only when a password is configured; missing config never creates an implicit bypass
 - **Metadata**: `robots: { index: false, follow: false }` on admin routes
 
 ### Admin Pages
@@ -367,6 +369,17 @@ Located in `components/admin/`:
 ## 12. Design System — `nba-*` CSS Namespace
 
 Custom CSS classes in `app/global.css` (~1190 lines). These extend the Fumadocs `fd-*` design tokens with project-specific chrome.
+
+### Token guardrails
+
+- `app/global.css` has a top-level token stack:
+  1. foundation tokens from Fumadocs/shadcn (`--background`, `--primary`, `--border`, etc.)
+  2. docs semantic aliases (`--nba-*`, `--layer-*`, `--section-*`, `--chart-*`)
+  3. component selectors (`.nba-*`)
+- Repeated docs-only color mixes should be promoted into the semantic token layer before reuse in selectors.
+- Keep dark-mode overrides in the token layer; avoid per-component `.dark` color forks unless a component truly needs a unique visual treatment.
+- Section tokens `--section-core`, `--section-schema`, and `--section-diagrams` intentionally alias chart tokens so dark-mode updates stay in sync.
+- Layer background tokens should stay derived from their layer color tokens in dark mode to reduce drift when palette values change.
 
 ### Layout Shells
 
@@ -472,6 +485,7 @@ This runs generators from `src/nbadb/docs_gen/`:
 
 - Use Fumadocs `fd-*` design tokens for colors/spacing (not raw Tailwind colors)
 - Use `nba-*` classes for custom chrome components (see section 12)
+- Prefer existing `--nba-*` semantic tokens in `app/global.css` before introducing a new `color-mix()` in a selector
 - Use `var(--primary)` via `color-mix()` for any new theme-aware colors
 - Mermaid diagrams: use `style` directives for color-coding sections
 - Tables for structured data, Mermaid for relationships/flows

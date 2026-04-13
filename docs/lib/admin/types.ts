@@ -8,6 +8,20 @@ export type ContentPageMeta = {
   lastModified: string | null;
 };
 
+export type ColumnProfile = {
+  name: string;
+  type: string;
+  nullPct: number;
+};
+
+export type TableProfile = {
+  table: string;
+  layer: string;
+  rowCount: number;
+  columnCount: number;
+  columns: ColumnProfile[];
+};
+
 export type PipelineRunStatus = "done" | "failed" | "running" | "abandoned";
 
 export type PipelineRun = {

@@ -15,9 +15,8 @@ export type { PlotOptions } from "@/components/mdx/plot-mount";
 function getCSSVar(name: string, fallback: string): string {
   if (typeof document === "undefined") return fallback;
   return (
-    getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim() || fallback
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() ||
+    fallback
   );
 }
 
@@ -61,7 +60,11 @@ export function ObservablePlot({
           </div>
         </div>
       ) : null}
-      <PlotMount createPlot={createPlot} className="overflow-x-auto px-2 py-3" ariaLabel={title} />
+      <PlotMount
+        createPlot={createPlot}
+        className="overflow-x-auto px-2 py-3"
+        ariaLabel={title}
+      />
     </div>
   );
 }

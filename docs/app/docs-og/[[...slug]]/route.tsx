@@ -95,6 +95,9 @@ const sectionThemes: Record<SectionId, SectionTheme> = {
   },
 };
 
+const OG_FONT_STACK =
+  "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
 export async function GET(
   request: Request,
   props: { params: Promise<{ slug?: string[] }> },
@@ -125,7 +128,7 @@ export async function GET(
         height: "100%",
         background: `linear-gradient(135deg, ${theme.bgStart} 0%, ${theme.bgMid} 48%, ${theme.bgEnd} 100%)`,
         color: "#EBECF1",
-        fontFamily: '"IBM Plex Sans", "SF Pro Display", "Helvetica Neue", Arial, sans-serif',
+        fontFamily: OG_FONT_STACK,
         position: "relative",
         overflow: "hidden",
       }}

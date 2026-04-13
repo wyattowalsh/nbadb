@@ -6,8 +6,27 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Design-token guardrails
+ * 1. Foundation tokens (`--background`, `--primary`, `--border`, etc.) stay aligned
+ *    with the active Fumadocs/shadcn layer.
+ * 2. Shared docs-only semantics live in the `--nba-*`, `--layer-*`, `--section-*`,
+ *    and `--chart-*` tokens below.
+ * 3. If a new docs color mix repeats, needs a dark override, or becomes component
+ *    chrome, promote it into this token layer before reusing it in selectors.
+ */
+
 /* ── Light palette (secondary) ─────────────────────── */
 :root {
+  --font-sans:
+    var(--font-body), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading:
+    var(--font-display), var(--font-body), ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono-var:
+    ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
   --muted: oklch(0.967 0.001 286.375);
   --muted-foreground: oklch(0.552 0.016 285.938);
   --popover: oklch(1 0 0);
@@ -32,11 +51,6 @@
   --sidebar-primary-foreground: oklch(0.987 0.022 95.277);
   --sidebar-ring: oklch(0.705 0.015 286.067);
   --radius: 0.625rem;
-  --focus-ring-color: var(--primary);
-  --focus-ring-width: 2px;
-  --focus-ring-offset: 2px;
-  --focus-ring-shadow: 0 0 0 4px
-    color-mix(in oklch, var(--primary) 20%, transparent);
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --chart-1: oklch(0.837 0.128 66.29);
@@ -82,8 +96,18 @@
   --sidebar-primary: oklch(0.769 0.188 70.08);
 }
 
-/* ── Layer / section / chart accent tokens ────────── */
+/* ── Docs semantic tokens (dark-mode aware) ───────── */
 :root {
+  --nba-selection: oklch(0.66 0.2 45 / 0.3);
+  --nba-focus-ring: color-mix(in oklch, var(--primary) 20%, transparent);
+  --nba-border-subtle: color-mix(in oklch, var(--foreground) 8%, transparent);
+  --nba-border-soft: color-mix(in oklch, var(--foreground) 10%, transparent);
+  --nba-border-strong: color-mix(in oklch, var(--foreground) 18%, transparent);
+  --nba-surface-subtle: color-mix(in oklch, var(--background) 82%, transparent);
+  --nba-surface-soft: color-mix(in oklch, var(--background) 86%, transparent);
+  --nba-surface-muted: color-mix(in oklch, var(--background) 88%, var(--muted));
+  --nba-surface-card: color-mix(in oklch, var(--background) 84%, var(--card));
+  --nba-code-accent: color-mix(in oklch, var(--primary) 15%, transparent);
   --layer-stg: #ef6c00;
   --layer-stg-bg: #fff3e0;
   --layer-dim: #2e7d32;
@@ -96,37 +120,45 @@
   --layer-agg-bg: #f3e5f5;
   --layer-analytics: #00838f;
   --layer-analytics-bg: #e0f7fa;
-  --section-core: #1D428A;
-  --section-schema: #00A651;
-  --section-dict: #FDB927;
-  --section-diagrams: #C8102E;
-  --section-endpoints: #552583;
-  --section-lineage: #006BB6;
-  --section-guides: #E56020;
-  --chart-nba-blue: #1D428A;
-  --chart-made: #00A651;
-  --chart-missed: #C8102E;
+  --chart-nba-blue: #1d428a;
+  --chart-made: #00a651;
+  --chart-missed: #c8102e;
   --chart-rule: color-mix(in oklch, var(--foreground) 20%, transparent);
   --chart-made-area: color-mix(in oklch, var(--chart-made) 12%, transparent);
-  --chart-missed-area: color-mix(in oklch, var(--chart-missed) 12%, transparent);
+  --chart-missed-area: color-mix(
+    in oklch,
+    var(--chart-missed) 12%,
+    transparent
+  );
+  --section-core: var(--chart-nba-blue);
+  --section-schema: var(--chart-made);
+  --section-dict: #fdb927;
+  --section-diagrams: var(--chart-missed);
+  --section-endpoints: #552583;
+  --section-lineage: #006bb6;
+  --section-guides: #e56020;
 }
 
 .dark {
-  --layer-stg: #FFB74D;
-  --layer-dim: #66BB6A;
-  --layer-fact: #EF5350;
-  --layer-bridge: #42A5F5;
-  --layer-agg: #AB47BC;
-  --layer-analytics: #26C6DA;
-  --layer-stg-bg: color-mix(in oklch, #ef6c00 15%, var(--card));
-  --layer-dim-bg: color-mix(in oklch, #2e7d32 15%, var(--card));
-  --layer-fact-bg: color-mix(in oklch, #c62828 15%, var(--card));
-  --layer-bridge-bg: color-mix(in oklch, #1565c0 15%, var(--card));
-  --layer-agg-bg: color-mix(in oklch, #6a1b9a 15%, var(--card));
-  --layer-analytics-bg: color-mix(in oklch, #00838f 15%, var(--card));
-  --chart-nba-blue: #5B8FD4;
-  --chart-made: #4CAF50;
-  --chart-missed: #EF5350;
+  --layer-stg: #ffb74d;
+  --layer-dim: #66bb6a;
+  --layer-fact: #ef5350;
+  --layer-bridge: #42a5f5;
+  --layer-agg: #ab47bc;
+  --layer-analytics: #26c6da;
+  --layer-stg-bg: color-mix(in oklch, var(--layer-stg) 15%, var(--card));
+  --layer-dim-bg: color-mix(in oklch, var(--layer-dim) 15%, var(--card));
+  --layer-fact-bg: color-mix(in oklch, var(--layer-fact) 15%, var(--card));
+  --layer-bridge-bg: color-mix(in oklch, var(--layer-bridge) 15%, var(--card));
+  --layer-agg-bg: color-mix(in oklch, var(--layer-agg) 15%, var(--card));
+  --layer-analytics-bg: color-mix(
+    in oklch,
+    var(--layer-analytics) 15%,
+    var(--card)
+  );
+  --chart-nba-blue: #5b8fd4;
+  --chart-made: #4caf50;
+  --chart-missed: #ef5350;
 }
 
 /* ── Tailwind v4 theme bridge ──────────────────────── */
@@ -194,21 +226,26 @@ body {
     ),
     linear-gradient(
       180deg,
-      color-mix(in oklch, var(--background) 92%, transparent),
+      color-mix(in oklch, var(--background) 92%, white),
       var(--background)
     );
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+  font-feature-settings:
+    "liga" 1,
+    "calt" 1,
+    "ss01" 1;
 }
 
 ::selection {
-  background: color-mix(in oklch, var(--primary) 30%, transparent);
+  background: var(--nba-selection);
   color: var(--foreground);
 }
 
 /* ── Scrollbar ─────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent)
-    transparent;
+  scrollbar-color: var(--nba-border-strong) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -221,12 +258,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--foreground) 18%, transparent);
+  background: var(--nba-border-strong);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklch, var(--foreground) 24%, transparent);
+  background: color-mix(in oklch, var(--foreground) 28%, transparent);
 }
 
 a,
@@ -236,9 +273,9 @@ button,
 }
 
 :focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-  box-shadow: var(--focus-ring-shadow);
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--nba-focus-ring);
 }
 
 a {
@@ -272,12 +309,6 @@ kbd {
   backdrop-filter: blur(12px);
 }
 
-/* ── Active nav link (stronger indicator) ─────────── */
-#nd-sidebar [data-active="true"] {
-  background: color-mix(in oklch, var(--primary) 14%, transparent);
-  font-weight: 600;
-}
-
 /* ── Layout shells ─────────────────────────────────── */
 .nba-home-shell,
 .nba-docs-layout,
@@ -293,12 +324,6 @@ kbd {
   inset: 0;
   background:
     radial-gradient(
-      circle at top left,
-      color-mix(in oklch, var(--accent) 11%, transparent),
-      transparent 24%
-    ),
-    url("/texture-docs-ambient.png") center/cover no-repeat,
-    radial-gradient(
       circle at top right,
       color-mix(in oklch, var(--primary) 11%, transparent),
       transparent 28%
@@ -310,11 +335,8 @@ kbd {
     );
   background-size:
     auto,
-    cover,
-    auto,
     100% 2.75rem;
-  background-blend-mode: screen, soft-light, normal, normal;
-  opacity: 0.88;
+  opacity: 0.7;
   pointer-events: none;
   z-index: -1;
 }
@@ -324,14 +346,6 @@ kbd {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(
-      120deg,
-      color-mix(in oklch, var(--background) 78%, transparent) 0%,
-      color-mix(in oklch, var(--background) 42%, transparent) 46%,
-      transparent 100%
-    ),
-    url("/hero-homepage.png") center top / cover no-repeat,
-    url("/texture-docs-ambient.png") center top / cover no-repeat,
     radial-gradient(
       circle at top right,
       color-mix(in oklch, var(--primary) 24%, transparent) 0,
@@ -347,7 +361,6 @@ kbd {
       color-mix(in oklch, var(--primary) 4%, var(--background)) 0%,
       var(--background) 30%
     );
-  background-blend-mode: normal, soft-light, soft-light, screen, screen, normal;
   opacity: 0.95;
   pointer-events: none;
   z-index: -2;
@@ -357,20 +370,12 @@ kbd {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--border) 65%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      145deg,
-      color-mix(in oklch, var(--primary) 10%, transparent),
-      transparent 42%
-    );
-  background-size:
-    96px 96px,
-    auto;
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--border) 65%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 96px 96px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 45%);
   pointer-events: none;
   z-index: -1;
@@ -424,17 +429,12 @@ kbd {
 
 .nba-court-panel {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   border: none;
   border-radius: var(--radius-3xl);
-  min-height: 16rem;
+  min-height: 22rem;
   background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--background) 34%, transparent),
-      color-mix(in oklch, var(--background) 8%, transparent)
-    ),
-    url("/hero-homepage.png") center/cover no-repeat,
     radial-gradient(
       circle at top,
       color-mix(in oklch, var(--chart-2) 26%, transparent),
@@ -452,7 +452,6 @@ kbd {
       color-mix(in oklch, var(--primary) 10%, var(--background)) 2.25rem,
       color-mix(in oklch, var(--primary) 10%, var(--background)) 4.5rem
     );
-  background-blend-mode: screen, soft-light, screen, normal, normal;
   box-shadow: inset 0 1px 0
     color-mix(in oklch, var(--background) 80%, transparent);
 }
@@ -464,7 +463,7 @@ kbd {
   border-radius: inherit;
   border: 1.5px solid transparent;
   background:
-    linear-gradient(var(--background), var(--background)) padding-box,
+    linear-gradient(transparent, transparent) padding-box,
     linear-gradient(
         135deg,
         var(--primary),
@@ -478,6 +477,14 @@ kbd {
     300% 300%;
   animation: nba-border-shift 8s ease-in-out infinite;
   pointer-events: none;
+  z-index: 0;
+}
+
+.nba-court-panel > .pointer-events-none,
+.nba-court-markings,
+.nba-hero-mark,
+.nba-hero-board,
+.nba-court-caption {
   z-index: 1;
 }
 
@@ -498,7 +505,7 @@ kbd {
 .nba-court-markings {
   position: absolute;
   inset: 1rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
+  border: 2px solid var(--nba-border-strong);
   border-radius: 1.25rem;
 }
 
@@ -507,7 +514,7 @@ kbd {
 .nba-court-key,
 .nba-court-arc {
   position: absolute;
-  border-color: color-mix(in oklch, var(--foreground) 28%, transparent);
+  border-color: var(--nba-border-strong);
 }
 
 .nba-court-midline {
@@ -515,7 +522,7 @@ kbd {
   bottom: -2px;
   left: 50%;
   width: 0;
-  border-left: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
+  border-left: 2px solid var(--nba-border-strong);
   transform: translateX(-50%);
 }
 
@@ -524,7 +531,7 @@ kbd {
   left: 50%;
   width: 8rem;
   height: 8rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
+  border: 2px solid var(--nba-border-strong);
   border-radius: 999px;
   transform: translate(-50%, -50%);
 }
@@ -533,7 +540,7 @@ kbd {
   top: 50%;
   width: 4.75rem;
   height: 10rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
+  border: 2px solid var(--nba-border-strong);
   transform: translateY(-50%);
 }
 
@@ -553,7 +560,7 @@ kbd {
   top: 50%;
   width: 11rem;
   height: 11rem;
-  border: 2px solid color-mix(in oklch, var(--foreground) 28%, transparent);
+  border: 2px solid var(--nba-border-strong);
   border-radius: 999px;
   transform: translateY(-50%);
 }
@@ -586,39 +593,12 @@ kbd {
   animation: nba-court-pulse 4s ease-in-out infinite alternate;
 }
 
-.nba-hero-ball {
-  position: absolute;
-  right: 1.5rem;
-  top: 1.5rem;
-  width: 7.5rem;
-  height: 7.5rem;
-  filter: drop-shadow(
-    0 0.9rem 1.5rem color-mix(in oklch, var(--foreground) 12%, transparent)
-  );
-  transform: rotate(-12deg);
-}
-
-.nba-ball-shell {
-  fill: color-mix(in oklch, var(--primary) 90%, #f97316);
-  stroke: color-mix(in oklch, var(--foreground) 26%, transparent);
-  stroke-width: 6;
-}
-
-.nba-ball-seam {
-  fill: none;
-  stroke: color-mix(in oklch, var(--foreground) 30%, transparent);
-  stroke-linecap: round;
-  stroke-width: 6;
-}
-
 .nba-hero-mark {
   position: absolute;
   right: clamp(1rem, 3vw, 1.5rem);
   top: clamp(1.5rem, 10vw, 3rem);
   width: min(24rem, 78%);
-  filter: drop-shadow(
-    0 1.25rem 2rem color-mix(in oklch, var(--foreground) 18%, transparent)
-  );
+  filter: drop-shadow(0 1.25rem 2rem var(--nba-border-strong));
 }
 
 .nba-hero-board {
@@ -633,9 +613,9 @@ kbd {
 .nba-hero-board-chip {
   display: grid;
   gap: 0.2rem;
-  border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+  border: 1px solid var(--nba-border-soft);
   border-radius: var(--radius-xl);
-  background: color-mix(in oklch, var(--background) 86%, transparent);
+  background: var(--nba-surface-soft);
   padding: 0.65rem 0.8rem;
   backdrop-filter: blur(12px);
 }
@@ -651,7 +631,7 @@ kbd {
   left: 1.25rem;
   right: 1.25rem;
   bottom: 1.25rem;
-  border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+  border: 1px solid var(--nba-border-soft);
   border-radius: var(--radius-2xl);
   background: color-mix(in oklch, var(--background) 88%, transparent);
   padding: 0.9rem 1rem;
@@ -681,6 +661,28 @@ kbd {
     var(--primary),
     color-mix(in oklch, var(--primary) 20%, transparent)
   );
+}
+
+.nba-lane-card {
+  position: relative;
+}
+
+.nba-lane-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklch, var(--primary) 9%, transparent),
+    transparent 58%
+  );
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.nba-lane-card:hover::before {
+  opacity: 1;
 }
 
 /* ── Reveal animation ──────────────────────────────── */
@@ -715,44 +717,12 @@ kbd {
 /* ── Hero glow ────────────────────────────────────── */
 .nba-hero-bg {
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border-radius: calc(var(--radius-3xl) + 0.25rem);
-}
-
-.nba-hero-bg > * {
-  position: relative;
-  z-index: 1;
-}
-
-.nba-hero-bg::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklch, var(--background) 70%, transparent) 0%,
-      color-mix(in oklch, var(--background) 28%, transparent) 44%,
-      color-mix(in oklch, var(--primary) 12%, transparent) 100%
-    ),
-    radial-gradient(
-      circle at 78% 18%,
-      color-mix(in oklch, var(--accent) 14%, transparent),
-      transparent 34%
-    ),
-    url("/hero-homepage.png") center/cover no-repeat;
-  opacity: 0.88;
-  pointer-events: none;
-  z-index: -2;
 }
 
 .nba-hero-bg::after {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: inherit;
   background: radial-gradient(
     ellipse 80% 60% at 50% -10%,
     color-mix(in oklch, var(--primary) 12%, transparent),
@@ -771,16 +741,6 @@ kbd {
   to {
     opacity: 1;
     transform: scale(1.05);
-  }
-}
-
-@variant dark {
-  .nba-hero-bg::before {
-    opacity: 0.95;
-  }
-
-  .nba-court-panel::after {
-    opacity: 0.12;
   }
 }
 
@@ -810,7 +770,7 @@ kbd {
 
 .nba-display {
   font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.035em;
   text-wrap: balance;
 }
 
@@ -846,12 +806,7 @@ kbd {
 
 @media (max-width: 640px) {
   .nba-court-panel {
-    display: none;
-  }
-
-  .nba-hero-ball {
-    width: 6rem;
-    height: 6rem;
+    min-height: 18rem;
   }
 
   .nba-court-circle {
@@ -861,25 +816,6 @@ kbd {
 
   .nba-court-key {
     height: 8rem;
-  }
-
-  /* Court-line watermark on mobile hero (replaces hidden court panel) */
-  .nba-hero-bg::after {
-    background:
-      radial-gradient(
-        circle at 80% 30%,
-        color-mix(in oklch, var(--foreground) 6%, transparent) 3rem,
-        transparent 3.15rem
-      ),
-      linear-gradient(
-        0deg,
-        transparent calc(30% - 1px),
-        color-mix(in oklch, var(--foreground) 6%, transparent) 30%,
-        color-mix(in oklch, var(--foreground) 6%, transparent) calc(30% + 1px),
-        transparent calc(30% + 2px)
-      );
-    animation: none;
-    opacity: 1;
   }
 }
 
@@ -935,9 +871,9 @@ kbd {
   bottom: 0.75rem;
   display: grid;
   gap: 0.15rem;
-  border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
+  border: 1px solid var(--nba-border-soft);
   border-radius: var(--radius-xl);
-  background: color-mix(in oklch, var(--background) 86%, transparent);
+  background: var(--nba-surface-soft);
   padding: 0.65rem 0.75rem;
   backdrop-filter: blur(10px);
 }
@@ -961,7 +897,7 @@ kbd {
   gap: 0.45rem;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: color-mix(in oklch, var(--background) 88%, var(--muted));
+  background: var(--nba-surface-muted);
   padding: 0.45rem 0.8rem;
   font-size: 0.74rem;
   font-weight: 600;
@@ -974,6 +910,41 @@ kbd {
 .nba-page-hero-link:hover {
   border-color: color-mix(in oklch, var(--primary) 40%, transparent);
   color: var(--primary);
+}
+
+.nba-page-hero-stats {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 640px) {
+  .nba-page-hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.nba-page-hero-stat-card {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px solid var(--nba-border-subtle);
+  border-radius: var(--radius-2xl);
+  background: var(--nba-surface-subtle);
+  padding: 0.75rem 0.85rem;
+}
+
+.nba-page-hero-stat-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.nba-page-hero-stat-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
 }
 
 /* ── Breadcrumbs ───────────────────────────────────── */
@@ -1019,9 +990,9 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border: 1px solid var(--nba-border-subtle);
   border-radius: 999px;
-  background: color-mix(in oklch, var(--background) 84%, var(--card));
+  background: var(--nba-surface-card);
   padding: 0.22rem 0.6rem;
   text-decoration: none;
 }
@@ -1071,11 +1042,6 @@ kbd {
   display: none;
 }
 
-/* ── Anchor scroll offset (headings override with 6rem below) ── */
-[id] {
-  scroll-margin-top: 5rem;
-}
-
 /* ── Headings ──────────────────────────────────────── */
 .nba-docs-page :where(h1, h2, h3, h4) {
   font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
@@ -1103,11 +1069,11 @@ kbd {
   padding-inline-start: 1.25rem;
 }
 
-.nba-reading-lane :where(a:not(.nba-crumb-link)) {
+.nba-docs-page :where(a:not(.nba-crumb-link)) {
   color: var(--primary);
 }
 
-.nba-reading-lane :where(a:not(.nba-crumb-link)):hover {
+.nba-docs-page :where(a:not(.nba-crumb-link)):hover {
   color: var(--foreground);
 }
 
@@ -1168,7 +1134,7 @@ kbd {
 .nba-docs-page :where(pre, .shiki) {
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border);
-  border-left: 3px solid color-mix(in oklch, var(--primary) 15%, transparent);
+  border-left: 3px solid var(--nba-code-accent);
   background: color-mix(in oklch, var(--card) 96%, transparent);
 }
 
@@ -1180,12 +1146,6 @@ kbd {
 .nba-stat-grid,
 .nba-data-columns {
   margin-block: 1.5rem;
-}
-
-.nba-analyst-note {
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--primary);
-  background: var(--muted);
 }
 
 /* ── Mermaid ───────────────────────────────────────── */
@@ -1235,9 +1195,8 @@ kbd {
 }
 
 .nba-mermaid-viewport:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline: 2px solid var(--ring);
   outline-offset: -2px;
-  box-shadow: var(--focus-ring-shadow);
 }
 
 .nba-mermaid-canvas {
@@ -1314,9 +1273,8 @@ kbd {
 }
 
 .nba-zoom-controls button:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline: 2px solid var(--ring);
   outline-offset: -2px;
-  box-shadow: var(--focus-ring-shadow);
 }
 
 .nba-zoom-pct {
@@ -1344,9 +1302,9 @@ kbd {
   height: 1em;
   background: linear-gradient(
     90deg,
-    color-mix(in oklch, var(--foreground) 8%, transparent) 25%,
+    var(--nba-border-subtle) 25%,
     color-mix(in oklch, var(--foreground) 16%, transparent) 50%,
-    color-mix(in oklch, var(--foreground) 8%, transparent) 75%
+    var(--nba-border-subtle) 75%
   );
   background-size: 200% 100%;
   border-radius: 0.2rem;
@@ -1377,14 +1335,6 @@ kbd {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .nba-reveal,
-  .nba-reveal.nba-delay-1,
-  .nba-reveal.nba-delay-2,
-  .nba-reveal.nba-delay-3 {
-    opacity: 1 !important;
-    animation: none !important;
   }
 }
 
@@ -1419,14 +1369,14 @@ kbd {
 
 /* ── Card hover accent ────────────────────────────── */
 .nba-home-shell a[class*="bg-card"] {
-  box-shadow: inset 3px 0 0 transparent;
+  border-left: 3px solid transparent;
   transition:
-    box-shadow 200ms,
+    border-color 200ms,
     background-color 200ms;
 }
 
 .nba-home-shell a[class*="bg-card"]:hover {
-  box-shadow: inset 3px 0 0 var(--primary);
+  border-left-color: var(--primary);
 }
 
 /* ── Button glow ──────────────────────────────────── */
@@ -1454,7 +1404,7 @@ kbd {
   transform: translateY(-2px);
   box-shadow:
     0 1px 0 color-mix(in oklch, var(--background) 75%, transparent) inset,
-    0 1.5rem 3rem color-mix(in oklch, var(--foreground) 8%, transparent);
+    0 1.5rem 3rem var(--nba-border-subtle);
 }
 
 .nba-nav-brand {
@@ -1469,7 +1419,7 @@ kbd {
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
-  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border: 1px solid var(--nba-border-subtle);
   border-radius: 0.9rem;
   background: color-mix(in oklch, var(--background) 86%, var(--card));
 }
@@ -1479,7 +1429,7 @@ kbd {
   background:
     radial-gradient(
       circle at top right,
-      color-mix(in oklch, var(--section-accent, var(--primary)) 12%, transparent),
+      color-mix(in oklch, var(--primary) 12%, transparent),
       transparent 38%
     ),
     linear-gradient(
@@ -1487,6 +1437,54 @@ kbd {
       color-mix(in oklch, var(--card) 98%, transparent),
       var(--card)
     );
+}
+
+.nba-sidebar-stat {
+  display: inline-grid;
+  gap: 0.08rem;
+  border: 1px solid var(--nba-border-subtle);
+  border-radius: 999px;
+  background: var(--nba-surface-subtle);
+  padding: 0.45rem 0.65rem;
+}
+
+.nba-sidebar-stat-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.nba-sidebar-stat-label {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.nba-sidebar-route-link {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--nba-surface-subtle);
+  padding: 0.75rem 0.85rem;
+  text-decoration: none;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.nba-sidebar-route-link:hover {
+  border-color: color-mix(in oklch, var(--primary) 40%, transparent);
+  background: color-mix(in oklch, var(--muted) 65%, var(--background));
+}
+
+.nba-sidebar-route-eyebrow {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--primary);
 }
 
 .nba-sidebar-footer {
@@ -1497,9 +1495,9 @@ kbd {
 }
 
 .nba-sidebar-prompt {
-  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  border: 1px solid var(--nba-border-subtle);
   border-radius: var(--radius-xl);
-  background: color-mix(in oklch, var(--background) 82%, transparent);
+  background: var(--nba-surface-subtle);
   padding: 0.65rem 0.75rem;
 }
 

@@ -1,9 +1,10 @@
 ---
 title: Facts & Bridges
-description: Scouting report for the 118+ fact outputs and 5 bridge tables in the nbadb warehouse
+description: Scouting report for the current fact and bridge tables in the nbadb warehouse
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { siteInventory } from "@/lib/site-metrics.generated";
 
 # Facts & Bridges
 
@@ -12,12 +13,12 @@ Facts hold the possessions: the measurable events, summaries, dashboards, and sp
 <StatGrid columns={3}>
   <StatPill
     label="Fact outputs"
-    value="118+"
-    note="game, season, event, dashboard, and specialty measurements (128 transform files, some with multiple outputs)"
+    value={siteInventory.tableFamilyCounts.facts}
+    note="game, season, event, dashboard, and specialty fact tables"
   />
   <StatPill
     label="Bridge tables"
-    value="5"
+    value={siteInventory.tableFamilyCounts.bridges}
     note="many-to-many connectors for crews, play participants, game-team, lineup-player, and player-team-season"
   />
   <StatPill

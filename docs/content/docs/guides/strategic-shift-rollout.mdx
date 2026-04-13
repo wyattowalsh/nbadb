@@ -9,6 +9,11 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 This document defines the **strategic migration tracks** and **phased rollout sequence** without changing runtime behavior today.
 
+<Callout type="warn">
+  **Maintainers only:** this rollout clipboard exists for internal sequencing
+  and future migration planning, not for everyday reader workflows.
+</Callout>
+
 ## Read this page as a rollout clipboard
 
 | If you need…                      | Start here                                      |
@@ -75,14 +80,14 @@ All flags default to `false`, preserving current behavior until explicitly enabl
 
 Each strategic track and phased gate was chosen for a specific reason. This section captures the rationale so future contributors understand **why**, not just **what**.
 
-| Decision | Rationale | Alternatives considered |
-| --- | --- | --- |
-| **Four parallel tracks** (ingestion, storage, schema, serving) | Tracks are orthogonal -- an ingestion change should never block a schema migration. Parallel lanes let different contributors advance independently. | Single monolithic migration (rejected: too much blast radius per PR). |
-| **Phase 0 starts with scaffolding only** | Introducing config placeholders and docs first ensures the team has a shared vocabulary before any runtime behavior changes. It also makes code review easier -- reviewers see the shape of the change before it does anything. | Jump straight to shadow mode (rejected: no shared understanding of flag semantics). |
-| **Shadow mode before dual-write** | Phase 1 reads both paths in parallel but writes nothing new. This lets the team observe parity metrics with zero risk to production data. | Dual-write from the start (rejected: write-path bugs are harder to roll back than read-path bugs). |
-| **Dual-write with parity validation** | Phase 2 writes to both legacy and strategic paths simultaneously, then compares outputs. The overlap period is intentionally long to catch edge cases that appear only during specific game schedules or season phases. | Cut over in one atomic switch (rejected: NBA data has seasonal patterns that take weeks to surface). |
-| **Feature flags per track and per phase** | Granular flags let operators enable one track (e.g., storage) in one phase (e.g., shadow mode) without affecting other tracks. This avoids the "big bang" activation anti-pattern. | Single global "v2 enabled" flag (rejected: all-or-nothing toggles make rollback coarser). |
-| **Legacy retirement last** | Removing fallback code only after sustained parity and operational sign-off ensures there is always a quick rollback path during the transition. | Remove legacy as soon as parity is confirmed (rejected: parity over a short window can miss long-tail data issues). |
+| Decision                                                       | Rationale                                                                                                                                                                                                                       | Alternatives considered                                                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Four parallel tracks** (ingestion, storage, schema, serving) | Tracks are orthogonal -- an ingestion change should never block a schema migration. Parallel lanes let different contributors advance independently.                                                                            | Single monolithic migration (rejected: too much blast radius per PR).                                               |
+| **Phase 0 starts with scaffolding only**                       | Introducing config placeholders and docs first ensures the team has a shared vocabulary before any runtime behavior changes. It also makes code review easier -- reviewers see the shape of the change before it does anything. | Jump straight to shadow mode (rejected: no shared understanding of flag semantics).                                 |
+| **Shadow mode before dual-write**                              | Phase 1 reads both paths in parallel but writes nothing new. This lets the team observe parity metrics with zero risk to production data.                                                                                       | Dual-write from the start (rejected: write-path bugs are harder to roll back than read-path bugs).                  |
+| **Dual-write with parity validation**                          | Phase 2 writes to both legacy and strategic paths simultaneously, then compares outputs. The overlap period is intentionally long to catch edge cases that appear only during specific game schedules or season phases.         | Cut over in one atomic switch (rejected: NBA data has seasonal patterns that take weeks to surface).                |
+| **Feature flags per track and per phase**                      | Granular flags let operators enable one track (e.g., storage) in one phase (e.g., shadow mode) without affecting other tracks. This avoids the "big bang" activation anti-pattern.                                              | Single global "v2 enabled" flag (rejected: all-or-nothing toggles make rollback coarser).                           |
+| **Legacy retirement last**                                     | Removing fallback code only after sustained parity and operational sign-off ensures there is always a quick rollback path during the transition.                                                                                | Remove legacy as soon as parity is confirmed (rejected: parity over a short window can miss long-tail data issues). |
 
 <CourtDivider label="Phase compatibility" />
 
@@ -90,12 +95,12 @@ Each strategic track and phased gate was chosen for a specific reason. This sect
 
 Not all phases and tracks can advance at the same time. The matrix below shows which combinations are safe to run in parallel and which require sequential gating.
 
-| | Ingestion | Storage | Schema | Serving |
-| --- | --- | --- | --- | --- |
-| **Phase 0 (scaffolding)** | Parallel | Parallel | Parallel | Parallel |
-| **Phase 1 (shadow mode)** | Parallel | Parallel | Sequential after ingestion | Sequential after schema |
-| **Phase 2 (dual-write)** | Parallel | Sequential after ingestion | Sequential after storage | Sequential after schema |
-| **Phase 3 (legacy retirement)** | Sequential (last) | Sequential (last) | Sequential (last) | Sequential (last) |
+|                                 | Ingestion         | Storage                    | Schema                     | Serving                 |
+| ------------------------------- | ----------------- | -------------------------- | -------------------------- | ----------------------- |
+| **Phase 0 (scaffolding)**       | Parallel          | Parallel                   | Parallel                   | Parallel                |
+| **Phase 1 (shadow mode)**       | Parallel          | Parallel                   | Sequential after ingestion | Sequential after schema |
+| **Phase 2 (dual-write)**        | Parallel          | Sequential after ingestion | Sequential after storage   | Sequential after schema |
+| **Phase 3 (legacy retirement)** | Sequential (last) | Sequential (last)          | Sequential (last)          | Sequential (last)       |
 
 **Reading the matrix:**
 
@@ -104,10 +109,10 @@ Not all phases and tracks can advance at the same time. The matrix below shows w
 - Phase 3 is always sequential across all tracks -- legacy code is removed one track at a time after sustained parity confirmation.
 
 <Callout type="info">
-  **Rule of thumb:** Within Phase 0 and Phase 1, tracks can generally move independently.
-  Once dual-write begins in Phase 2, downstream tracks must wait for upstream tracks to
-  stabilize. Legacy retirement in Phase 3 always proceeds one track at a time to limit
-  blast radius.
+  **Rule of thumb:** Within Phase 0 and Phase 1, tracks can generally move
+  independently. Once dual-write begins in Phase 2, downstream tracks must wait
+  for upstream tracks to stabilize. Legacy retirement in Phase 3 always proceeds
+  one track at a time to limit blast radius.
 </Callout>
 
 <CourtDivider label="Monitoring checklist" />

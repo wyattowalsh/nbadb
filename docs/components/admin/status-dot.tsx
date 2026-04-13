@@ -34,7 +34,7 @@ export function StatusDot({
         {status !== "healthy" && (
           <span
             className={cn(
-              "absolute inline-flex size-full animate-ping rounded-full opacity-40",
+              "absolute inline-flex size-full rounded-full opacity-40 motion-safe:animate-ping",
               dotColors[status],
             )}
           />

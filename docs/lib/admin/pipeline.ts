@@ -1,11 +1,24 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { PipelineSummary, PipelineRunStatus } from "./types";
+import { readFirstJson } from "./files";
+import type {
+  PipelineSummary,
+  PipelineRunStatus,
+  SubsystemStatus,
+} from "./types";
 
 const PIPELINE_STATUS_PATHS = [
-  resolve(process.cwd(), "pipeline-status.json"),
-  resolve(process.cwd(), "../pipeline-status.json"),
-  resolve(process.cwd(), "lib/admin/pipeline-telemetry.generated.json"),
+  resolve(
+    /* turbopackIgnore: true */ process.cwd(),
+    "lib",
+    "admin",
+    "pipeline-status.json",
+  ),
+  resolve(
+    /* turbopackIgnore: true */ process.cwd(),
+    "lib",
+    "admin",
+    "pipeline-telemetry.generated.json",
+  ),
 ];
 
 const EMPTY_SUMMARY: PipelineSummary = {
@@ -30,27 +43,24 @@ const EMPTY_SUMMARY: PipelineSummary = {
 };
 
 export async function getPipelineSummary(): Promise<PipelineSummary> {
-  for (const filePath of PIPELINE_STATUS_PATHS) {
-    try {
-      const raw = await readFile(filePath, "utf-8");
-      const data = JSON.parse(raw) as Partial<PipelineSummary>;
-      return {
-        ...EMPTY_SUMMARY,
-        ...data,
-        counts: { ...EMPTY_SUMMARY.counts, ...data.counts },
-        totals: { ...EMPTY_SUMMARY.totals, ...data.totals },
-        runs: data.runs ?? EMPTY_SUMMARY.runs,
-        daily: data.daily ?? EMPTY_SUMMARY.daily,
-        slowEndpoints: data.slowEndpoints ?? EMPTY_SUMMARY.slowEndpoints,
-        failureHotspots: data.failureHotspots ?? EMPTY_SUMMARY.failureHotspots,
-        recentErrors: data.recentErrors ?? EMPTY_SUMMARY.recentErrors,
-      };
-    } catch {
-      continue;
-    }
+  const data = await readFirstJson<Partial<PipelineSummary>>(
+    PIPELINE_STATUS_PATHS,
+  );
+  if (!data) {
+    return EMPTY_SUMMARY;
   }
 
-  return EMPTY_SUMMARY;
+  return {
+    ...EMPTY_SUMMARY,
+    ...data,
+    counts: { ...EMPTY_SUMMARY.counts, ...data.counts },
+    totals: { ...EMPTY_SUMMARY.totals, ...data.totals },
+    runs: data.runs ?? EMPTY_SUMMARY.runs,
+    daily: data.daily ?? EMPTY_SUMMARY.daily,
+    slowEndpoints: data.slowEndpoints ?? EMPTY_SUMMARY.slowEndpoints,
+    failureHotspots: data.failureHotspots ?? EMPTY_SUMMARY.failureHotspots,
+    recentErrors: data.recentErrors ?? EMPTY_SUMMARY.recentErrors,
+  };
 }
 
 export function overallPipelineStatus(
@@ -60,4 +70,10 @@ export function overallPipelineStatus(
   if (summary.counts.running > 0) return "running";
   if (summary.counts.failed > 0) return "failed";
   return "done";
+}
+
+export function pipelineToHealth(status: PipelineRunStatus): SubsystemStatus {
+  if (status === "done" || status === "running") return "healthy";
+  if (status === "failed") return "degraded";
+  return "unknown";
 }

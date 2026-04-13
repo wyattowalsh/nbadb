@@ -1,6 +1,11 @@
 "use client";
 
-import { Component, type ReactNode } from "react";
+import {
+  Component,
+  type ComponentType,
+  type ReactNode,
+  type JSX,
+} from "react";
 import dynamic from "next/dynamic";
 
 /* ── Shared loading placeholder ─────────────────────── */
@@ -84,74 +89,71 @@ function withErrorBoundary<T extends object>(
   };
 }
 
-export const ObservablePlot = withErrorBoundary(
+function createDynamicWidget<T extends object>(
+  name: string,
+  load: () => Promise<ComponentType<T>>,
+  loadingMessage?: string,
+) {
+  const Comp = dynamic(load, {
+    ssr: false,
+    ...(loadingMessage
+      ? {
+          loading: (): JSX.Element => (
+            <VizShellPlaceholder message={loadingMessage} />
+          ),
+        }
+      : {}),
+  });
+
+  return withErrorBoundary(name, Comp);
+}
+
+const loadObservablePlotModule = () => import("./observable-plot");
+
+export const ObservablePlot = createDynamicWidget(
   "Observable Plot",
-  dynamic(() => import("./observable-plot").then((m) => m.ObservablePlot), { ssr: false }),
+  () => loadObservablePlotModule().then((module) => module.ObservablePlot),
 );
-export const ShotChart = withErrorBoundary(
+export const ShotChart = createDynamicWidget(
   "Shot Chart",
-  dynamic(() => import("./observable-plot").then((m) => m.ShotChart), { ssr: false }),
+  () => loadObservablePlotModule().then((module) => module.ShotChart),
 );
-export const GameFlow = withErrorBoundary(
+export const GameFlow = createDynamicWidget(
   "Game Flow",
-  dynamic(() => import("./observable-plot").then((m) => m.GameFlow), { ssr: false }),
+  () => loadObservablePlotModule().then((module) => module.GameFlow),
 );
-export const PlayerCompare = withErrorBoundary(
+export const PlayerCompare = createDynamicWidget(
   "Player Compare",
-  dynamic(() => import("./observable-plot").then((m) => m.PlayerCompare), { ssr: false }),
+  () => loadObservablePlotModule().then((module) => module.PlayerCompare),
 );
-export const SeasonTrend = withErrorBoundary(
+export const SeasonTrend = createDynamicWidget(
   "Season Trend",
-  dynamic(() => import("./observable-plot").then((m) => m.SeasonTrend), { ssr: false }),
+  () => loadObservablePlotModule().then((module) => module.SeasonTrend),
 );
-export const DistributionPlot = withErrorBoundary(
+export const DistributionPlot = createDynamicWidget(
   "Distribution Plot",
-  dynamic(() => import("./observable-plot").then((m) => m.DistributionPlot), { ssr: false }),
+  () => loadObservablePlotModule().then((module) => module.DistributionPlot),
 );
-export const HeatmapGrid = withErrorBoundary(
+export const HeatmapGrid = createDynamicWidget(
   "Heatmap Grid",
-  dynamic(() => import("./observable-plot").then((m) => m.HeatmapGrid), { ssr: false }),
+  () => loadObservablePlotModule().then((module) => module.HeatmapGrid),
 );
 /* ── Heavy interactive components (lazy + error-bounded) ── */
 
-const _SchemaExplorer = dynamic(
-  () => import("./schema-explorer").then((m) => m.SchemaExplorer),
-  {
-    ssr: false,
-    loading: () => (
-      <VizShellPlaceholder message="Loading schema explorer\u2026" />
-    ),
-  },
-);
-export const SchemaExplorer = withErrorBoundary(
+export const SchemaExplorer = createDynamicWidget(
   "Schema Explorer",
-  _SchemaExplorer,
+  () => import("./schema-explorer").then((module) => module.SchemaExplorer),
+  "Loading schema explorer\u2026",
 );
 
-const _LineageExplorer = dynamic(
-  () => import("./lineage-explorer").then((m) => m.LineageExplorer),
-  {
-    ssr: false,
-    loading: () => (
-      <VizShellPlaceholder message="Loading lineage explorer\u2026" />
-    ),
-  },
-);
-export const LineageExplorer = withErrorBoundary(
+export const LineageExplorer = createDynamicWidget(
   "Lineage Explorer",
-  _LineageExplorer,
+  () => import("./lineage-explorer").then((module) => module.LineageExplorer),
+  "Loading lineage explorer\u2026",
 );
 
-const _SqlPlayground = dynamic(
-  () => import("./sql-playground").then((m) => m.SqlPlayground),
-  {
-    ssr: false,
-    loading: () => (
-      <VizShellPlaceholder message="Loading SQL playground\u2026" />
-    ),
-  },
-);
-export const SqlPlayground = withErrorBoundary(
+export const SqlPlayground = createDynamicWidget(
   "SQL Playground",
-  _SqlPlayground,
+  () => import("./sql-playground").then((module) => module.SqlPlayground),
+  "Loading SQL playground\u2026",
 );

@@ -51,7 +51,8 @@ export default function LoginPage() {
           Enter password
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This area is password-protected.
+          This area is password-protected. If sign-in is unavailable, confirm{" "}
+          <code>ADMIN_PASSWORD</code> is configured for this deployment.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">

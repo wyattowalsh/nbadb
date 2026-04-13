@@ -4,6 +4,7 @@ description: Control-tower view of the nbadb pipeline, public surface, and opera
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { siteInventory } from "@/lib/site-metrics.generated";
 
 # Architecture
 
@@ -12,12 +13,12 @@ Think of nbadb as an **arena control tower** for NBA data: extraction brings the
 <StatGrid columns={4}>
   <StatPill
     label="Extractors"
-    value="Full coverage"
+    value={siteInventory.extractorCount}
     note="registered wrappers over the current nba_api runtime surface"
   />
   <StatPill
     label="Public outputs"
-    value="Star schema"
+    value={siteInventory.publicOutputCount}
     note="dimensions, facts, bridges, aggregates, and analytics surfaces"
   />
   <StatPill
@@ -146,7 +147,7 @@ flowchart TD
   CURRENT -- Yes --> DAILY["nbadb daily\nrecent games + active surfaces"]
   CURRENT -- No --> RECENT{"Need a broader recent-history sweep?"}
   RECENT -- Yes --> MONTHLY["nbadb monthly\nlast 3 seasons"]
-  RECENT -- No --> GAP["nbadb backfill run\ntargeted gap fill"]
+  RECENT -- No --> GAP["nbadb backfill run\nretry failed work + gap fill"]
 
   style INIT fill:#e1f5fe
   style DAILY fill:#e8f5e9
@@ -154,24 +155,17 @@ flowchart TD
   style GAP fill:#fce4ec
 ```
 
-| Command              | Primary intent                   | Scope                                                                                                   |
-| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `nbadb init`         | Full historical build            | Historical seasons from `--season-start` through `--season-end`                                         |
-| `nbadb daily`        | Current-season refresh play      | Current season, recent games within `NBADB_DAILY_LOOKBACK_DAYS`, plus active player/team refresh        |
-| `nbadb monthly`      | Broader roster-and-history sweep | The last 3 seasons                                                                                      |
-| `nbadb backfill run` | Targeted gap fill                | Extracts specific endpoints/seasons with filters, supports `--force`, `--extract-only`, and `--dry-run` |
-
-<Callout type="warn">
-  **Deprecated commands:** `nbadb full` has been deprecated in favor of `nbadb
-  backfill run`, which provides finer-grained control over gap detection and
-  targeted re-extraction. `nbadb run-quality` has been deprecated in favor of
-  `nbadb scan`.
-</Callout>
+| Command              | Primary intent                   | Scope                                                                                                       |
+| -------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `nbadb init`         | Full historical build            | Historical seasons from `--season-start` through `--season-end`                                             |
+| `nbadb daily`        | Current-season refresh play      | Current season, recent games within `NBADB_DAILY_LOOKBACK_DAYS`, plus active player/team refresh            |
+| `nbadb monthly`      | Broader roster-and-history sweep | The last 3 seasons                                                                                          |
+| `nbadb backfill run` | Recovery and gap-fill run        | Retries failed journal entries, then scans the requested season range while skipping already-extracted work |
 
 <Callout type="info">
-  One subtle but important behavior: `daily` and `monthly` finish by rebuilding
-  downstream tables in <strong>replace</strong> mode. They are not row-level
-  upsert commands against the public star surface.
+  One subtle but important behavior: `daily`, `monthly`, and `backfill` all
+  finish by rebuilding downstream tables in <strong>replace</strong> mode. They
+  are not row-level upsert commands against the public star surface.
 </Callout>
 
 ## If the run goes sideways
@@ -209,13 +203,58 @@ flowchart TD
 
 ## Public model families
 
-| Family            | Count | Prefix       | What it gives you                                        |
-| ----------------- | ----: | ------------ | -------------------------------------------------------- |
-| Dimensions        |    18 | `dim_`       | Core entities such as players, teams, games, and seasons |
-| Facts             |   128 | `fact_`      | Grain-specific measurements and events                   |
-| Bridges           |     5 | `bridge_`    | Join helpers for many-to-many relationships              |
-| Aggregates        |    19 | `agg_`       | Reusable rollups for repeated analysis                   |
-| Analytics outputs |    12 | `analytics_` | Analysis-ready convenience surfaces                      |
+<table>
+  <thead>
+    <tr>
+      <th>Family</th>
+      <th>Count</th>
+      <th>Prefix</th>
+      <th>What it gives you</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Dimensions</td>
+      <td>{siteInventory.tableFamilyCounts.dimensions}</td>
+      <td>
+        <code>dim_</code>
+      </td>
+      <td>Core entities such as players, teams, games, and seasons</td>
+    </tr>
+    <tr>
+      <td>Facts</td>
+      <td>{siteInventory.tableFamilyCounts.facts}</td>
+      <td>
+        <code>fact_</code>
+      </td>
+      <td>Grain-specific measurements and events</td>
+    </tr>
+    <tr>
+      <td>Bridges</td>
+      <td>{siteInventory.tableFamilyCounts.bridges}</td>
+      <td>
+        <code>bridge_</code>
+      </td>
+      <td>Join helpers for many-to-many relationships</td>
+    </tr>
+    <tr>
+      <td>Aggregates</td>
+      <td>{siteInventory.tableFamilyCounts.aggregates}</td>
+      <td>
+        <code>agg_</code>
+      </td>
+      <td>Reusable rollups for repeated analysis</td>
+    </tr>
+    <tr>
+      <td>Analytics outputs</td>
+      <td>{siteInventory.tableFamilyCounts.analytics}</td>
+      <td>
+        <code>analytics_</code>
+      </td>
+      <td>Analysis-ready convenience surfaces</td>
+    </tr>
+  </tbody>
+</table>
 
 Most transforms are SQL-first and run in dependency order, which keeps the model readable and predictable for maintainers.
 
@@ -307,7 +346,9 @@ That command owns these outputs:
 - `data-dictionary/star.mdx`
 - `diagrams/er-auto.mdx`
 - `lineage/lineage-auto.mdx`
-- `lineage/lineage.json`
+- `docs/lib/generated/schema.json`
+- `docs/lib/generated/lineage.json`
+- `docs/lib/generated/schema-coverage.json`
 
 | If the page is…                                                                               | Treat it as…                                        |
 | --------------------------------------------------------------------------------------------- | --------------------------------------------------- |

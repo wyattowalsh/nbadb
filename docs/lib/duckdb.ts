@@ -2,6 +2,11 @@ import * as duckdb from "@duckdb/duckdb-wasm";
 
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
+let initGeneration = 0;
+
+type QueryOptions = {
+  timeoutMs?: number;
+};
 
 /**
  * Get or create a shared DuckDB-WASM instance.
@@ -11,6 +16,7 @@ export async function getDb(): Promise<duckdb.AsyncDuckDB> {
   if (dbInstance) return dbInstance;
   if (initPromise) return initPromise;
 
+  const pendingGeneration = initGeneration;
   const pendingInit = (async () => {
     const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
     const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
@@ -30,6 +36,11 @@ export async function getDb(): Promise<duckdb.AsyncDuckDB> {
       db = new duckdb.AsyncDuckDB(logger, worker);
 
       await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      if (pendingGeneration !== initGeneration) {
+        throw new Error(
+          "DuckDB initialization was cancelled because the session was reset.",
+        );
+      }
 
       dbInstance = db;
       return db;
@@ -62,12 +73,34 @@ export async function getDb(): Promise<duckdb.AsyncDuckDB> {
  */
 export async function runQuery(
   sql: string,
+  options: QueryOptions = {},
 ): Promise<{ columns: string[]; rows: Record<string, unknown>[] }> {
   const db = await getDb();
   const conn = await db.connect();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let destroyedByTimeout = false;
 
   try {
-    const result = await conn.query(sql);
+    const queryPromise = conn.query(sql);
+    const result = options.timeoutMs
+      ? await Promise.race([
+          queryPromise,
+          new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => {
+              destroyedByTimeout = true;
+              void destroyDb().then(
+                () =>
+                  reject(
+                    new Error(
+                      `Query timed out after ${options.timeoutMs}ms. The in-browser DuckDB session was reset.`,
+                    ),
+                  ),
+                reject,
+              );
+            }, options.timeoutMs);
+          }),
+        ])
+      : await queryPromise;
     const columns = result.schema.fields.map((f) => f.name);
     const rows = result.toArray().map((row) => {
       const obj: Record<string, unknown> = {};
@@ -78,7 +111,12 @@ export async function runQuery(
     });
     return { columns, rows };
   } finally {
-    await conn.close();
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    if (!destroyedByTimeout) {
+      await conn.close();
+    }
   }
 }
 
@@ -124,10 +162,12 @@ export async function registerMultipleParquet(
  * Tear down the shared DuckDB-WASM instance.
  * Call on page navigation to release the Web Worker and memory.
  */
-export function destroyDb(): void {
-  if (dbInstance) {
-    dbInstance.terminate();
-    dbInstance = null;
-  }
+export async function destroyDb(): Promise<void> {
+  initGeneration += 1;
   initPromise = null;
+  if (dbInstance) {
+    const current = dbInstance;
+    dbInstance = null;
+    await current.terminate();
+  }
 }

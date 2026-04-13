@@ -11,6 +11,12 @@ Use this guide as the **art department bench** for nbadb. It is the prompt libra
 
 The goal is not maximum spectacle. The goal is a repeatable visual language: hardwood geometry, scoreboard hierarchy, film-room annotation energy, and enough restraint that the data still leads the possession.
 
+<Callout type="warn">
+  **Maintainers only:** this prompt pack is for people generating or replacing
+  shipped nbadb design assets. It is not part of the normal reader onboarding
+  path.
+</Callout>
+
 <StatGrid columns={4}>
   <StatPill
     label="Prompt families"
@@ -262,6 +268,15 @@ Requirements:
 3. Generate 4 to 8 candidates, then reject anything that breaks text-safe composition.
 4. Downshift contrast and reduce detail before shipping into the docs shell.
 5. Crop once for the destination surface instead of forcing a single image to do every job.
+
+<Callout type="info">
+  If the model keeps drifting into literal courts, hoops, or poster energy, use
+  a hybrid workflow instead: keep the Draw Things plate as the texture or
+  lighting source, then compose the final section asset with deterministic
+  overlays for court lines, table clusters, route arrows, and scoreboard
+  framing. That keeps the result inside the nbadb system even when the raw
+  generations are too literal.
+</Callout>
 
 ## Review checklist
 

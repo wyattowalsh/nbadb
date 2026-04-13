@@ -27,6 +27,8 @@ export function CourtSvg({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       style={{ width: "100%", height: "auto" }}
+      aria-hidden="true"
+      focusable="false"
     >
       <g fill="none" stroke={stroke} strokeWidth={lineWidth}>
         {/* Court outline */}

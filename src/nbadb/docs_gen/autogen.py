@@ -102,6 +102,12 @@ def generate_docs_artifacts(
         )
 
     er_gen = ERDiagramGenerator(output_dir=docs_root / "diagrams")
+    schema_data = er_gen.generate_json()
+    tables_data = schema_data.get("tables")
+    if not isinstance(tables_data, dict):
+        msg = "ER diagram generator returned invalid schema data"
+        raise TypeError(msg)
+    schema_tables = set(tables_data)
     _write_artifact(
         docs_root / "diagrams" / "er-auto.mdx",
         er_gen.generate_mdx(),
@@ -109,32 +115,64 @@ def generate_docs_artifacts(
         unchanged_paths,
     )
     schema_json = json.dumps(
-        er_gen.generate_json(),
+        schema_data,
         indent=2,
         sort_keys=True,
     )
     _write_artifact(
-        docs_root / "schema" / "schema.json",
+        gen_data_dir / "schema.json",
         schema_json,
         updated_paths,
         unchanged_paths,
     )
 
     lineage_gen = LineageGenerator(output_dir=docs_root / "lineage")
+    lineage_data = lineage_gen.generate_dict()
+    lineage_outputs = set(lineage_data.keys())
+    missing_schema_outputs = sorted(lineage_outputs - schema_tables)
+    schema_coverage = {
+        "schema_table_count": len(schema_tables),
+        "lineage_output_count": len(lineage_outputs),
+        "missing_schema_output_count": len(missing_schema_outputs),
+        "missing_schema_outputs": missing_schema_outputs,
+    }
+    if missing_schema_outputs:
+        coverage_note = (
+            "## Coverage Notes\n\n"
+            "- `schema.json` documents "
+            f"**{len(schema_tables)}** schema-backed tables/views.\n"
+            f"- `lineage.json` traces **{len(lineage_outputs)}** outputs.\n"
+            "- "
+            f"**{len(missing_schema_outputs)}** lineage outputs currently have "
+            "no schema reference entry. "
+            "See `schema-coverage.json` for the machine-readable list.\n"
+        )
+    else:
+        coverage_note = (
+            "## Coverage Notes\n\n"
+            "`schema.json` and `lineage.json` are aligned across "
+            f"**{len(lineage_outputs)}** outputs.\n"
+        )
     _write_artifact(
         docs_root / "lineage" / "lineage-auto.mdx",
-        lineage_gen.generate_mdx(),
+        f"{lineage_gen.generate_mdx().rstrip()}\n\n{coverage_note}",
         updated_paths,
         unchanged_paths,
     )
     lineage_json = json.dumps(
-        lineage_gen.generate_dict(),
+        lineage_data,
         indent=2,
         sort_keys=True,
     )
     _write_artifact(
-        docs_root / "lineage" / "lineage.json",
+        gen_data_dir / "lineage.json",
         lineage_json,
+        updated_paths,
+        unchanged_paths,
+    )
+    _write_artifact(
+        gen_data_dir / "schema-coverage.json",
+        json.dumps(schema_coverage, indent=2, sort_keys=True),
         updated_paths,
         unchanged_paths,
     )

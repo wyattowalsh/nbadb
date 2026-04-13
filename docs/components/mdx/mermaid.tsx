@@ -276,7 +276,7 @@ function MermaidContent({ chart }: { chart: string }) {
 
   mermaid.initialize({
     startOnLoad: false,
-    securityLevel: "loose",
+    securityLevel: "strict",
     fontFamily: "inherit",
     themeCSS: "margin: 0 auto; max-width: 100%;",
     ...getMermaidTheme(),
@@ -318,7 +318,15 @@ function MermaidContent({ chart }: { chart: string }) {
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
-    el.innerHTML = svg;
+    const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const parserError = parsed.querySelector("parsererror");
+    const nextSvg = parsed.documentElement;
+
+    if (parserError || nextSvg.tagName.toLowerCase() !== "svg") {
+      throw new Error("Mermaid returned invalid SVG output");
+    }
+
+    el.replaceChildren(nextSvg);
     bindFunctions?.(el);
 
     // Fit after the browser has laid out the SVG

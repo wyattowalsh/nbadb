@@ -5,13 +5,13 @@ description: Browser-first DuckDB-WASM sandbox for rehearsing nbadb query shapes
 
 import { Callout } from "fumadocs-ui/components/callout";
 import {
-  BUILT_IN_EXAMPLES,
   BUILT_IN_DEFAULT_QUERY,
-  PARQUET_TABLES,
-  PARQUET_EXAMPLES,
+  BUILT_IN_EXAMPLES,
   PARQUET_DEFAULT_QUERY,
+  PARQUET_EXAMPLES,
   PARQUET_FALLBACK_DEFAULT_QUERY,
   PARQUET_FALLBACK_EXAMPLES,
+  PARQUET_TABLES,
   SAMPLE_DATA_AVAILABLE,
 } from "@/lib/playground-examples";
 
@@ -58,42 +58,36 @@ Use this page when you want to rehearse a query shape, teach DuckDB syntax, or s
   examples={BUILT_IN_EXAMPLES}
 />
 
-## Practice realistic table shapes
+## {SAMPLE_DATA_AVAILABLE ? "Query real NBA data" : "Practice the warehouse join shape"}
 
-{SAMPLE_DATA_AVAILABLE ? (
+<Callout type={SAMPLE_DATA_AVAILABLE ? "info" : "warn"}>
+  {SAMPLE_DATA_AVAILABLE ? (
+    <>
+      This playground loads sample Parquet files from the published nbadb
+      dataset directly into your browser. The first run downloads approximately
+      5 MB of data. After loading, you can run JOINs across tables and use the
+      **Chart** toggle to visualize results.
+    </>
+  ) : (
+    <>
+      Hosted sample Parquet files are not deployed right now. This drill keeps
+      the same nbadb table names and join patterns with inline demo rows, so the
+      page stays runnable in-browser until the sample dataset is published.
+    </>
+  )}
+</Callout>
 
-  <>
-    <p>
-      The playground below loads small sample Parquet files into DuckDB-WASM so
-      you can practice with realistic table shapes. The data is synthetic but
-      mirrors the real warehouse schema.
-    </p>
-    <SqlPlayground
-      tables={PARQUET_TABLES}
-      defaultQuery={PARQUET_DEFAULT_QUERY}
-      examples={PARQUET_EXAMPLES}
-    />
-  </>
-) : (
-  <>
-    <Callout type="warn">
-      Sample data is not yet available in <code>/samples</code>. Use the built-in
-      demo tables below for the same join and aggregation patterns, then switch
-      to <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>{" "}
-      or <a href="/docs/guides/parquet-usage">Parquet Usage</a> when published
-      sample Parquet files land.
-    </Callout>
-    <p>
-      The examples below keep the same <code>dim_*</code>, <code>fact_*</code>,
-      and <code>agg_*</code> shapes inside CTEs so the query structure still
-      matches the warehouse without implying that a hosted sample file is live.
-    </p>
-    <SqlPlayground
-      defaultQuery={PARQUET_FALLBACK_DEFAULT_QUERY}
-      examples={PARQUET_FALLBACK_EXAMPLES}
-    />
-  </>
-)}
+<SqlPlayground
+  tables={SAMPLE_DATA_AVAILABLE ? PARQUET_TABLES : undefined}
+  defaultQuery={
+    SAMPLE_DATA_AVAILABLE
+      ? PARQUET_DEFAULT_QUERY
+      : PARQUET_FALLBACK_DEFAULT_QUERY
+  }
+  examples={
+    SAMPLE_DATA_AVAILABLE ? PARQUET_EXAMPLES : PARQUET_FALLBACK_EXAMPLES
+  }
+/>
 
 ## How to use this page well
 

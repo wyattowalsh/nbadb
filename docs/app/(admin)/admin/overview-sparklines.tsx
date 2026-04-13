@@ -5,12 +5,20 @@ import { SparklineCard } from "@/components/admin/sparkline-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UmamiPageview } from "@/lib/admin/types";
 
-export function OverviewSparklines() {
+type OverviewSparklinesProps = {
+  analyticsEnabled: boolean;
+};
+
+export function OverviewSparklines({
+  analyticsEnabled,
+}: OverviewSparklinesProps) {
   const [data7d, setData7d] = useState<{ value: number }[] | null>(null);
   const [data30d, setData30d] = useState<{ value: number }[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(analyticsEnabled);
 
   useEffect(() => {
+    if (!analyticsEnabled) return;
+
     async function load() {
       try {
         const [res7, res30] = await Promise.all([
@@ -33,7 +41,7 @@ export function OverviewSparklines() {
       }
     }
     load();
-  }, []);
+  }, [analyticsEnabled]);
 
   if (loading) {
     return (
