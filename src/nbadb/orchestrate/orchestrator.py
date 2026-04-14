@@ -4,7 +4,7 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 import duckdb
 from loguru import logger
@@ -29,6 +29,7 @@ from nbadb.orchestrate.transformers import (
 from nbadb.transform.pipeline import TransformPipeline
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable
     from concurrent.futures import ThreadPoolExecutor
 
     import polars as pl
@@ -332,6 +333,10 @@ class Orchestrator:
         *,
         season_types: list[str] | None = None,
         include_historical_players: bool = False,
+        include_games: bool = True,
+        include_players: bool = True,
+        include_teams: bool = True,
+        include_dates: bool = True,
     ) -> tuple[list[str], list[int], list[int], list[str], pl.DataFrame]:
         """Discover game/player/team IDs and game dates in parallel.
 
@@ -346,50 +351,77 @@ class Orchestrator:
 
         pp = self._progress
 
-        player_coro = (
-            discovery.discover_all_player_ids()
-            if include_historical_players
-            else discovery.discover_player_ids()
+        discovery_tasks: list[Awaitable[object]] = []
+        game_index: int | None = None
+        player_index: int | None = None
+        team_index: int | None = None
+
+        if include_games:
+            game_index = len(discovery_tasks)
+            discovery_tasks.append(
+                discovery.discover_game_ids(seasons, on_progress=pp, season_types=season_types)
+            )
+
+        if include_players:
+            player_index = len(discovery_tasks)
+            discovery_tasks.append(
+                discovery.discover_all_player_ids()
+                if include_historical_players
+                else discovery.discover_player_ids()
+            )
+
+        if include_teams:
+            team_index = len(discovery_tasks)
+            discovery_tasks.append(discovery.discover_team_ids())
+
+        results = (
+            await asyncio.gather(*discovery_tasks, return_exceptions=True)
+            if discovery_tasks
+            else []
         )
 
-        results = await asyncio.gather(
-            discovery.discover_game_ids(seasons, on_progress=pp, season_types=season_types),
-            player_coro,
-            discovery.discover_team_ids(),
-            return_exceptions=True,
-        )
-        _game_result = results[0]
-        _player_result = results[1]
-        _team_result = results[2]
+        _game_result = results[game_index] if game_index is not None else None
+        _player_result = results[player_index] if player_index is not None else None
+        _team_result = results[team_index] if team_index is not None else None
 
         if isinstance(_game_result, Exception):
             bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)  # type: ignore[union-attr]
             game_ids: list[str] = []
             game_log_df = pl.DataFrame()
+        elif _game_result is None:
+            game_ids = []
+            game_log_df = pl.DataFrame()
         else:
-            game_ids, game_log_df = _game_result
+            game_ids, game_log_df = cast("tuple[list[str], pl.DataFrame]", _game_result)
             if pp is not None:
                 pp.log_discovery("games", len(game_ids))
 
         if isinstance(_player_result, Exception):
             bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)  # type: ignore[union-attr]
             player_ids: list[int] = []
+        elif _player_result is None:
+            player_ids = []
         else:
-            player_ids = _player_result
+            player_ids = cast("list[int]", _player_result)
             if pp is not None:
                 pp.log_discovery("players", len(player_ids))
 
         if isinstance(_team_result, Exception):
             bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)  # type: ignore[union-attr]
             team_ids: list[int] = []
+        elif _team_result is None:
+            team_ids = []
         else:
-            team_ids = _team_result
+            team_ids = cast("list[int]", _team_result)
             if pp is not None:
                 pp.log_discovery("teams", len(team_ids))
 
-        game_dates = await discovery.discover_game_dates(game_log_df)
-        if pp is not None:
-            pp.log_discovery("dates", len(game_dates))
+        if include_dates and not game_log_df.is_empty():
+            game_dates = await discovery.discover_game_dates(game_log_df)
+            if pp is not None:
+                pp.log_discovery("dates", len(game_dates))
+        else:
+            game_dates = []
 
         return game_ids, player_ids, team_ids, game_dates, game_log_df
 
@@ -1043,6 +1075,19 @@ class Orchestrator:
                 force,
             )
 
+            requested_patterns = set(patterns) if patterns else None
+            needs_games = requested_patterns is None or bool({"game", "date"} & requested_patterns)
+            needs_players = requested_patterns is None or bool(
+                {"player", "player_season"} & requested_patterns
+            )
+            needs_teams = requested_patterns is None or bool(
+                {"team", "team_season"} & requested_patterns
+            )
+            needs_dates = requested_patterns is None or "date" in requested_patterns
+            needs_player_team_season = (
+                requested_patterns is None or "player_team_season" in requested_patterns
+            )
+
             # -- 1. Entity discovery (scoped to requested seasons) -----
             if pp is not None:
                 pp.start_phase("Discovery")
@@ -1054,10 +1099,17 @@ class Orchestrator:
                 bound_log,
                 season_types=season_types,
                 include_historical_players=True,
+                include_games=needs_games,
+                include_players=needs_players,
+                include_teams=needs_teams,
+                include_dates=needs_dates,
             )
-            player_team_season_params = await discovery.discover_player_team_season_params(
-                effective_seasons
-            )
+            if needs_player_team_season:
+                player_team_season_params = await discovery.discover_player_team_season_params(
+                    effective_seasons
+                )
+            else:
+                player_team_season_params = []
             if pp is not None:
                 pp.complete_phase()
 

@@ -37,6 +37,7 @@ class NbaDbSettings(BaseSettings):
         "box_score_usage": 2,
         "box_score_four_factors": 2,
         "box_score_hustle": 2,
+        "defense_hub": 1,
         "win_probability": 1,
     }
     discovery_concurrency: int = 2
@@ -54,7 +55,10 @@ class NbaDbSettings(BaseSettings):
         "box_score_usage": 3.0,
         "box_score_four_factors": 3.0,
         "box_score_hustle": 2.0,
-        "win_probability": 1.5,
+        # Isolate flaky historical backfill surfaces so their failures do not
+        # drag down the shared adaptive limiter for every other endpoint.
+        "defense_hub": 1.0,
+        "win_probability": 1.0,
     }
     endpoint_request_timeouts: dict[str, int] = {
         "box_score_summary": 60,
@@ -62,6 +66,7 @@ class NbaDbSettings(BaseSettings):
         "box_score_usage": 60,
         "box_score_four_factors": 60,
         "box_score_hustle": 60,
+        "defense_hub": 90,
         "play_by_play": 60,
         "play_by_play_v2": 60,
         "win_probability": 60,
