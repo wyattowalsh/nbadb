@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BrandMark } from "@/components/site/brand-mark";
 import { Badge } from "@/components/ui/badge";
 
 const footerLinkClassName =
@@ -16,13 +16,7 @@ export function DocsFooter() {
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-sm">
             <div className="flex items-center gap-2">
-              <Image
-                src="/logo-600.png"
-                alt=""
-                width={600}
-                height={600}
-                className="h-6 w-auto"
-              />
+              <BrandMark className="h-6 w-auto" />
               <span className="nba-display text-base font-bold tracking-tight text-foreground">
                 nbadb
               </span>

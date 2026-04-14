@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { BrandMark } from "@/components/site/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getSectionMeta } from "@/lib/site-config";
@@ -160,14 +160,7 @@ export function DocsPageHero({
         </div>
 
         <div className="nba-page-hero-mark" aria-hidden="true">
-          <Image
-            src="/logo-600.png"
-            alt=""
-            width={600}
-            height={600}
-            className="h-auto w-full"
-            priority
-          />
+          <BrandMark className="h-auto w-full" priority />
           <div className="nba-page-hero-stat">
             <span className="nba-kicker">{section.cue}</span>
             <span>{currentLabel}</span>

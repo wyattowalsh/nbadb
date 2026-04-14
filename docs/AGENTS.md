@@ -25,7 +25,7 @@ docs/
 │   │       ├── page.tsx
 │   │       └── pipeline-charts.tsx
 │   ├── layout.tsx                   # Root layout (RootProvider, fonts, metadata)
-│   ├── global.css                   # 1190-line custom design system
+│   ├── global.css                   # Shared docs design system and token layers
 │   ├── docs/[[...slug]]/
 │   │   ├── page.tsx                 # Docs page renderer (hero + MDX body + context rail)
 │   │   └── layout.tsx               # Docs sidebar layout (DocsLayout, nav links)
@@ -38,8 +38,11 @@ docs/
 │   │   └── observable-plot.tsx      # ObservablePlot, ShotChart, GameFlow, PlayerCompare,
 │   │                                #   SeasonTrend, DistributionPlot, HeatmapGrid
 │   ├── site/
+│   │   ├── brand-mark.tsx           # Canonical docs logo mark
 │   │   ├── counter.tsx              # Animated count-up (IntersectionObserver)
-│   │   └── docs-shell.tsx           # Docs chrome (hero, sidebar, context rail, etc.)
+│   │   ├── docs-shell.tsx           # Barrel export for docs chrome
+│   │   ├── docs-generated-*.tsx     # Generated-page entry, coverage, scan, and modules
+│   │   └── docs-*.tsx               # Docs chrome pieces (nav, hero, context rail)
 │   ├── ui/
 │   │   ├── badge.tsx                # CVA badge (6 variants)
 │   │   ├── button.tsx               # CVA button (4 variants, 4 sizes, asChild)
@@ -64,7 +67,7 @@ docs/
 │   ├── lineage/                     # Data lineage traces (4 pages; machine JSON lives in lib/generated/)
 │   └── guides/                      # User and operator guides (13 pages)
 ├── lib/
-│   ├── site-config.ts               # Section metadata, hero signals, and context-rail data
+│   ├── site-config.ts               # Barrel export for split site-config modules
 │   ├── site-metrics.generated.ts    # Auto-generated homepage scoreboard metrics
 │   ├── source.ts                    # Content loader (fumadocs-core/source)
 │   ├── duckdb.ts                    # DuckDB-WASM singleton, query runner, Parquet loader
@@ -233,7 +236,7 @@ All badges are 0.65rem, font-semibold, uppercase, tracking-[0.2em].
 
 ## 9. Docs Chrome Components
 
-Defined in `components/site/docs-shell.tsx` — context-aware UI chrome driven by `lib/site-config.ts`:
+Exported from `components/site/docs-shell.tsx` and implemented across focused files in `components/site/` — context-aware UI chrome driven by `lib/site-config.ts`:
 
 | Component                   | Description                                                                                           |
 | --------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -252,7 +255,7 @@ All chrome components derive their content from `getSectionMeta(slug?)`, `getGen
 
 ### `lib/site-config.ts`
 
-Central configuration for all docs chrome. Key types:
+Barrel export for the split site-config modules under `lib/site-config/`. Key types:
 
 ```typescript
 type SectionId =
@@ -368,7 +371,7 @@ Located in `components/admin/`:
 
 ## 12. Design System — `nba-*` CSS Namespace
 
-Custom CSS classes in `app/global.css` (~1190 lines). These extend the Fumadocs `fd-*` design tokens with project-specific chrome.
+Custom CSS classes in `app/global.css`. These extend the Fumadocs `fd-*` design tokens with project-specific chrome.
 
 ### Token guardrails
 
@@ -405,7 +408,7 @@ Decorative court illustration on the homepage hero:
 | Class                  | Style                                                       |
 | ---------------------- | ----------------------------------------------------------- |
 | `nba-kicker`           | 0.65rem, bold, uppercase, tracking-wide, primary color      |
-| `nba-display`          | Heading font (IBM Plex Sans), tight tracking, balanced wrap |
+| `nba-display`          | Heading font (Space Grotesk), tight tracking, balanced wrap |
 | `nba-scoreboard-value` | Monospace, tabular-nums, tight line-height                  |
 | `nba-metric-label`     | 0.65rem, bold, uppercase, muted-foreground                  |
 
@@ -462,6 +465,14 @@ pnpm format      # Prettier auto-fix
 ```
 
 Node 22 is required (`engines.node` in `package.json`).
+
+### Asset policy
+
+- `.github/assets/img/` is the source-of-truth asset workspace.
+- `docs/public/` should only contain assets that are actively shipped by the docs app.
+- Prefer the canonical `BrandMark` component for recurring logo usage instead of ad hoc image references.
+- `texture-docs-ambient.png` is no longer shipped by the live docs app.
+- `polish-plate-base.png` remains process history only and must not be reused.
 
 ## 14. Regenerating Docs from Source
 

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { ArrowRight } from "lucide-react";
+import { BrandMark } from "@/components/site/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Counter } from "@/components/site/counter";
@@ -109,14 +110,7 @@ export default function HomePage() {
             <div>
               <span className="nba-kicker">NBA warehouse documentation</span>
               <div className="flex flex-wrap items-center gap-3">
-                <Image
-                  src="/logo-600.png"
-                  alt=""
-                  width={600}
-                  height={600}
-                  className="h-10 w-auto sm:h-12"
-                  priority
-                />
+                <BrandMark className="h-10 w-auto sm:h-12" priority />
                 <h1 className="nba-display nba-title-gradient text-2xl font-bold tracking-tight sm:text-3xl">
                   nbadb
                 </h1>
@@ -215,14 +209,7 @@ export default function HomePage() {
               </div>
 
               <div className="nba-hero-mark">
-                <Image
-                  src="/logo-600.png"
-                  alt=""
-                  width={600}
-                  height={600}
-                  className="h-auto w-full"
-                  priority
-                />
+                <BrandMark className="h-auto w-full" priority />
               </div>
 
               <div className="nba-hero-board">

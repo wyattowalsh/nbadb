@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Command, Search } from "lucide-react";
+import { BrandMark } from "@/components/site/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getSectionMeta } from "@/lib/site-config";
@@ -44,13 +44,7 @@ export function DocsSidebarBanner({ slug }: DocsChromeSlugProps) {
     <div className="nba-sidebar-banner border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          <Image
-            src="/android-chrome-192x192.png"
-            alt=""
-            width={192}
-            height={192}
-            className="h-4 w-auto"
-          />
+          <BrandMark className="h-4 w-auto" />
           nbadb
         </span>
         <Badge variant="default">{section.cue}</Badge>

@@ -1,6 +1,6 @@
-import Image from "next/image";
 import type { ReactNode } from "react";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import { BrandMark } from "@/components/site/brand-mark";
 import {
   DocsNavBadge,
   DocsSidebarBanner,
@@ -28,14 +28,7 @@ export default async function Layout({
         title: (
           <span className="nba-nav-brand">
             <span className="nba-nav-brand-mark">
-              <Image
-                src="/logo-600.png"
-                alt="nbadb"
-                width={600}
-                height={600}
-                className="h-8 w-auto"
-                priority
-              />
+              <BrandMark alt="nbadb" className="h-8 w-auto" priority />
             </span>
             <span className="flex flex-col leading-none">
               <span className="nba-display text-base font-bold tracking-tight">

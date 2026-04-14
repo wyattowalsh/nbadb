@@ -6,7 +6,7 @@ on:
       concurrency:
         description: "Max concurrent requests per category"
         type: choice
-        default: "conservative"
+        default: "aggressive"
         options:
           - conservative
           - moderate
@@ -18,7 +18,7 @@ on:
       max_iterations:
         description: "Max self-chain iterations (safety limit)"
         type: string
-        default: "8"
+        default: "12"
       backfill_endpoints:
         description: "Comma-separated endpoints to backfill (empty = all)"
         type: string
@@ -46,7 +46,6 @@ on:
 
 env:
   NBADB_DATA_DIR: data/nbadb
-  NBADB_PBP_CHUNK_SIZE: "1000"
   CACHE_KEY: full-extraction-state
   ACTIVE_CHAIN_ID: ${{ inputs.chain_id || github.run_id }}
   WORKFLOW_SOURCE_REF: ${{ inputs.workflow_ref || github.ref_name }}
@@ -60,12 +59,12 @@ concurrency:
   cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────
-#  4 parallel extraction shards → 1 merge + transform job
+#  5 parallel extraction shards → 1 merge + transform job
 # ─────────────────────────────────────────────────────────────────
 jobs:
   extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     permissions:
       actions: write
       contents: read
@@ -73,28 +72,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Shards 0-2: season-scoped patterns only (skip player/team/static)
+          # Shards 0-3: season-scoped patterns only.
+          # Keep player/team/static out of the season shards so the long-tail
+          # global workloads can run in parallel instead of serializing inside
+          # the most recent season slice.
           - shard: 0
             season_start: "1946"
-            season_end: "1979"
+            season_end: "1974"
             name: "early"
             patterns: "season,game,date,player_season,player_team_season,team_season"
           - shard: 1
-            season_start: "1980"
+            season_start: "1975"
             season_end: "1999"
             name: "growth"
             patterns: "season,game,date,player_season,player_team_season,team_season"
           - shard: 2
             season_start: "2000"
-            season_end: "2014"
+            season_end: "2009"
             name: "modern"
             patterns: "season,game,date,player_season,player_team_season,team_season"
-          # Shard 3: ALL patterns (season-scoped for 2015-2025 + global player/team/static)
           - shard: 3
-            season_start: "2015"
+            season_start: "2010"
             season_end: "2025"
             name: "recent"
-            patterns: ""
+            patterns: "season,game,date,player_season,player_team_season,team_season"
+          # Shard 4: global player/team/static endpoints and merge base.
+          # The orchestrator now scopes discovery by requested pattern, so this
+          # shard skips the expensive game/date discovery work entirely.
+          - shard: 4
+            season_start: "1946"
+            season_end: "2025"
+            name: "global"
+            patterns: "player,team,static"
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -155,7 +164,7 @@ jobs:
           openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
           shard-index: ${{ matrix.shard }}
-          server-limit: "6"
+          server-limit: "12"
 
       # ── Configure environment ──
       - name: Configure extraction environment
@@ -163,9 +172,30 @@ jobs:
           CONCURRENCY: ${{ inputs.concurrency }}
         run: |
           case "$CONCURRENCY" in
-            conservative) echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV" ;;
-            moderate) echo 'NBADB_RATE_LIMIT=5' >> "$GITHUB_ENV" ;;
-            aggressive) echo 'NBADB_RATE_LIMIT=10' >> "$GITHUB_ENV" ;;
+            conservative)
+              echo 'NBADB_RATE_LIMIT=6'                  >> "$GITHUB_ENV"
+              echo 'NBADB_DISCOVERY_CONCURRENCY=4'      >> "$GITHUB_ENV"
+              echo 'NBADB_THREAD_POOL_SIZE=48'          >> "$GITHUB_ENV"
+              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=180' >> "$GITHUB_ENV"
+              echo 'NBADB_DEFAULT_CHUNK_SIZE=750'       >> "$GITHUB_ENV"
+              echo 'NBADB_PBP_CHUNK_SIZE=1500'          >> "$GITHUB_ENV"
+              ;;
+            moderate)
+              echo 'NBADB_RATE_LIMIT=10'                 >> "$GITHUB_ENV"
+              echo 'NBADB_DISCOVERY_CONCURRENCY=6'      >> "$GITHUB_ENV"
+              echo 'NBADB_THREAD_POOL_SIZE=64'          >> "$GITHUB_ENV"
+              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=120' >> "$GITHUB_ENV"
+              echo 'NBADB_DEFAULT_CHUNK_SIZE=1000'      >> "$GITHUB_ENV"
+              echo 'NBADB_PBP_CHUNK_SIZE=2000'          >> "$GITHUB_ENV"
+              ;;
+            aggressive)
+              echo 'NBADB_RATE_LIMIT=14'                >> "$GITHUB_ENV"
+              echo 'NBADB_DISCOVERY_CONCURRENCY=8'     >> "$GITHUB_ENV"
+              echo 'NBADB_THREAD_POOL_SIZE=96'         >> "$GITHUB_ENV"
+              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=90' >> "$GITHUB_ENV"
+              echo 'NBADB_DEFAULT_CHUNK_SIZE=1250'     >> "$GITHUB_ENV"
+              echo 'NBADB_PBP_CHUNK_SIZE=2500'         >> "$GITHUB_ENV"
+              ;;
             *)
               echo "::error::Unsupported concurrency setting: $CONCURRENCY"
               exit 1
@@ -190,7 +220,7 @@ jobs:
           CMD="$CMD --verbose"
 
           echo "::notice::Running: $CMD"
-          timeout --signal=INT --kill-after=60 20400 bash -c "$CMD"
+          timeout --signal=INT --kill-after=60 21300 bash -c "$CMD"
           exit_code=$?
           set -e
 
@@ -278,7 +308,9 @@ jobs:
         if: always()
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: data/nbadb/
+          path: |
+            data/nbadb/*.duckdb
+            data/nbadb/*.duckdb.*
           key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-shard-${{ matrix.shard }}-iter-${{ inputs.iteration }}
 
       # ── Upload shard artifact ──
@@ -287,9 +319,11 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: extraction-shard-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.shard }}
-          path: data/nbadb/
+          path: |
+            data/nbadb/*.duckdb
+            data/nbadb/*.duckdb.*
           retention-days: 7
-          compression-level: 6
+          compression-level: 0
 
       - name: Upload shard metadata
         if: always()
@@ -326,7 +360,7 @@ jobs:
     needs: extract
     if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
     permissions:
       actions: write
       contents: write
@@ -360,15 +394,15 @@ jobs:
             ls -lh "$d/" 2>/dev/null || echo "    (empty)"
           done
 
-      # Use shard 3 as base (has global player/team/static data)
+      # Use the global shard as the merge base.
       - name: Merge shard databases
         run: |
-          if [ ! -d "shards/extraction-shard-${ACTIVE_CHAIN_ID}-3" ]; then
-            echo "::error::Shard 3 artifact missing — cannot merge without global data"
+          if [ ! -d "shards/extraction-shard-${ACTIVE_CHAIN_ID}-4" ]; then
+            echo "::error::Global shard artifact missing — cannot merge without player/team/static data"
             exit 1
           fi
           mkdir -p data/nbadb
-          cp -r "shards/extraction-shard-${ACTIVE_CHAIN_ID}-3/." data/nbadb/
+          cp -r "shards/extraction-shard-${ACTIVE_CHAIN_ID}-4/." data/nbadb/
 
           uv run python -c "
           import duckdb, glob, os
@@ -377,7 +411,7 @@ jobs:
           merged_count = 0
 
           chain_id = os.environ['ACTIVE_CHAIN_ID']
-          for shard_dir in sorted(glob.glob(f'shards/extraction-shard-{chain_id}-[0-2]')):
+          for shard_dir in sorted(glob.glob(f'shards/extraction-shard-{chain_id}-[0-3]')):
               db_path = os.path.join(shard_dir, 'nba.duckdb')
               if not os.path.exists(db_path):
                   print(f'SKIP: {db_path} not found')
@@ -403,8 +437,8 @@ jobs:
                   merged_count += 1
               target.execute('DETACH src')
 
-          # Also merge journal entries from shards 0-2
-          for shard_dir in sorted(glob.glob(f'shards/extraction-shard-{chain_id}-[0-2]')):
+          # Also merge journal entries from the non-base shards.
+          for shard_dir in sorted(glob.glob(f'shards/extraction-shard-{chain_id}-[0-3]')):
               db_path = os.path.join(shard_dir, 'nba.duckdb')
               if not os.path.exists(db_path):
                   continue
@@ -480,7 +514,7 @@ jobs:
             data/nbadb/parquet/
             data/nbadb/csv/
           retention-days: 30
-          compression-level: 6
+          compression-level: 0
 
   # ─────────────────────────────────────────────────────────────
   #  Self-chain: re-trigger if any shard was incomplete
@@ -516,16 +550,7 @@ jobs:
             exit 1
           fi
 
-          case "$CONCURRENCY" in
-            aggressive) next_concurrency=moderate ;;
-            moderate) next_concurrency=conservative ;;
-          esac
-
-          if [ "$next_concurrency" != "$CONCURRENCY" ]; then
-            echo "::notice::Some shards incomplete — downshifting concurrency from $CONCURRENCY to $next_concurrency for iteration $next/$max (chain $CHAIN_ID)"
-          else
-            echo "::notice::Some shards incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
-          fi
+          echo "::notice::Some shards incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
           gh workflow run full-extraction.yml \
             --repo "${{ github.repository }}" \
             --ref "$WORKFLOW_REF" \

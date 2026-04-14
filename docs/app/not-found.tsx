@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BrandMark } from "@/components/site/brand-mark";
 
 const helpfulLinks = [
   {
@@ -28,14 +28,7 @@ export default function NotFound() {
   return (
     <main className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
       <div className="nba-reveal mx-auto max-w-lg">
-        <Image
-          src="/logo-600.png"
-          alt=""
-          width={600}
-          height={600}
-          className="mx-auto h-20 w-auto opacity-40"
-          priority
-        />
+        <BrandMark className="mx-auto h-20 w-auto opacity-40" priority />
 
         <p className="nba-kicker mt-6">Technical foul</p>
 

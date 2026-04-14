@@ -117,6 +117,43 @@ class TestOrchestratorInit:
 
 
 # ---------------------------------------------------------------------------
+# _discover_entities tests
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverEntities:
+    def test_skips_unrequested_discovery_calls(self):
+        orch, _db, _journal = _build_orchestrator_with_mocks()
+        bound_log = MagicMock()
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_team_ids.return_value = [1610612737]
+
+        game_ids, player_ids, team_ids, game_dates, game_log_df = asyncio.run(
+            orch._discover_entities(
+                mock_discovery,
+                ["2024-25"],
+                bound_log,
+                include_historical_players=True,
+                include_games=False,
+                include_players=False,
+                include_teams=True,
+                include_dates=False,
+            )
+        )
+
+        assert game_ids == []
+        assert player_ids == []
+        assert team_ids == [1610612737]
+        assert game_dates == []
+        assert game_log_df.is_empty()
+        mock_discovery.discover_game_ids.assert_not_called()
+        mock_discovery.discover_all_player_ids.assert_not_called()
+        mock_discovery.discover_game_dates.assert_not_called()
+        mock_discovery.discover_team_ids.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
 # _init_db tests
 # ---------------------------------------------------------------------------
 
@@ -543,6 +580,51 @@ class TestPersistStagingToDuckdb:
             conn.close()
 
         assert rows == [("001", 1), ("001", 1)]
+
+
+# ---------------------------------------------------------------------------
+# run_backfill tests
+# ---------------------------------------------------------------------------
+
+
+class TestRunBackfill:
+    def test_run_backfill_scopes_discovery_to_requested_patterns(self):
+        orch, _db, _journal = _build_orchestrator_with_mocks()
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_all_player_ids.return_value = [201566]
+        mock_discovery.discover_team_ids.return_value = [1610612737]
+        mock_discovery.discover_game_ids.return_value = (
+            ["0022400001"],
+            pl.DataFrame({"game_id": ["0022400001"], "game_date": ["2024-10-22"]}),
+        )
+        mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
+        mock_discovery.discover_player_team_season_params.return_value = [
+            {"player_id": 201566, "team_id": 1610612737, "season": "2024-25"}
+        ]
+
+        mock_runner = _mock_runner()
+
+        with (
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch("nbadb.orchestrate.orchestrator.build_extraction_plan", return_value=[]),
+        ):
+            result = asyncio.run(
+                orch.run_backfill(
+                    seasons=["2024-25"],
+                    patterns=["player", "team", "static"],
+                    extract_only=True,
+                )
+            )
+
+        assert isinstance(result, PipelineResult)
+        mock_discovery.discover_all_player_ids.assert_awaited_once()
+        mock_discovery.discover_team_ids.assert_awaited_once()
+        mock_discovery.discover_game_ids.assert_not_called()
+        mock_discovery.discover_game_dates.assert_not_called()
+        mock_discovery.discover_player_team_season_params.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
