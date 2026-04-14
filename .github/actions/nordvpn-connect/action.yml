@@ -153,6 +153,12 @@ runs:
         }
         trap cleanup_sensitive EXIT
 
+        make_workdir_readable() {
+          if [ -d "$work_dir" ]; then
+            sudo chmod -R a+rX "$work_dir" 2>/dev/null || true
+          fi
+        }
+
         sudo apt-get update -qq
         sudo apt-get install -y -qq jq openvpn > /dev/null
 
@@ -291,6 +297,7 @@ runs:
               --writepid "$pid_file" \
               --daemon \
               --log "$log_file"
+            make_workdir_readable
 
             selected_server="$server"
             selected_technology="$technology"
@@ -304,7 +311,7 @@ runs:
                 pid="$(cat "$pid_file" 2>/dev/null || true)"
               fi
               if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
-                if grep -q "Initialization Sequence Completed" "$log_file" 2>/dev/null; then
+                if sudo grep -q "Initialization Sequence Completed" "$log_file" 2>/dev/null; then
                   interface="$(ip -o link show | awk -F': ' '/: tun[0-9]+:/{print $2; exit}')"
                   if [ -n "$interface" ]; then
                     tunnel_ready=1
@@ -345,6 +352,7 @@ runs:
             fi
 
             echo "::warning::VPN verification failed for $server over $technology; trying the next recommended server"
+            make_workdir_readable
             sudo tail -20 "$log_file" || true
             if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
               sudo kill "$pid" || true
@@ -356,6 +364,7 @@ runs:
           done
         done
 
+        make_workdir_readable
         echo "::error::VPN tunnel failed to establish with the recommended servers"
         sudo tail -50 "$log_file" || true
         exit 1
