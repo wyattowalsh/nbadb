@@ -27,9 +27,13 @@ inputs:
     required: false
     default: "228"
   technology:
-    description: NordVPN technology identifier.
+    description: Preferred NordVPN technology identifier.
     required: false
     default: "openvpn_udp"
+  fallback-technology:
+    description: Optional fallback NordVPN technology identifier when the preferred one fails.
+    required: false
+    default: "openvpn_tcp"
   verify-url:
     description: URL that returns the public exit IP as JSON.
     required: false
@@ -82,6 +86,7 @@ runs:
         SERVER_LIMIT: ${{ inputs.server-limit }}
         COUNTRY_ID: ${{ inputs.country-id }}
         TECHNOLOGY: ${{ inputs.technology }}
+        FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}
         VERIFY_URL: ${{ inputs.verify-url }}
         CONNECT_TIMEOUT_SECONDS: ${{ inputs.connect-timeout-seconds }}
         REQUIRE_FULL_TUNNEL: ${{ inputs.require-full-tunnel }}
@@ -220,105 +225,135 @@ runs:
           exit 1
         fi
 
-        retry_http_get \
-          "NordVPN server recommendations request" \
-          "$servers_file" \
-          "https://api.nordvpn.com/v1/servers/recommendations?limit=${server_limit}&filters[country_id]=${COUNTRY_ID}&filters[servers_technologies][identifier]=${TECHNOLOGY}" \
-          --globoff
-
-        mapfile -t servers < <(jq -r 'map(.hostname // empty) | unique | .[] | select(length > 0)' "$servers_file")
-        if [ "${#servers[@]}" -eq 0 ]; then
-          echo "::error::Failed to get NordVPN server recommendations"
-          exit 1
-        fi
-
-        start_index=$((shard_index % ${#servers[@]}))
-        ordered_servers=()
-        for offset in $(seq 0 $((${#servers[@]} - 1))); do
-          ordered_servers+=("${servers[$(((start_index + offset) % ${#servers[@]}))]}")
-        done
-
         selected_server=""
+        selected_technology=""
         exit_ip=""
         interface=""
         pid=""
+        route_ok=0
 
-        for server in "${ordered_servers[@]}"; do
-          echo "::notice::Attempting NordVPN server $server"
-          rm -f "$pid_file" "$verify_file" "$log_file" "${work_dir}/${server}.ovpn"
+        route_uses_interface() {
+          local route_expr="$1"
+          local route_output=""
+          route_output="$(ip route show "$route_expr" 2>/dev/null || true)"
+          [[ "$route_output" == *" dev ${interface}"* ]]
+        }
 
-          if ! retry_http_get \
-            "NordVPN OpenVPN config download for $server" \
-            "${work_dir}/${server}.ovpn" \
-            "https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/${server}.udp.ovpn"; then
-            echo "::warning::Skipping server $server because the configuration download failed"
+        for technology in "${TECHNOLOGY}" "${FALLBACK_TECHNOLOGY:-}"; do
+          [ -n "$technology" ] || continue
+
+          retry_http_get \
+            "NordVPN server recommendations request ($technology)" \
+            "$servers_file" \
+            "https://api.nordvpn.com/v1/servers/recommendations?limit=${server_limit}&filters[country_id]=${COUNTRY_ID}&filters[servers_technologies][identifier]=${technology}" \
+            --globoff
+
+          mapfile -t servers < <(jq -r 'map(.hostname // empty) | unique | .[] | select(length > 0)' "$servers_file")
+          if [ "${#servers[@]}" -eq 0 ]; then
+            echo "::warning::No NordVPN server recommendations available for $technology"
             continue
           fi
 
-          sudo openvpn --config "${work_dir}/${server}.ovpn" \
-            --auth-user-pass "$auth_file" \
-            --auth-nocache \
-            --writepid "$pid_file" \
-            --daemon \
-            --log "$log_file"
-
-          selected_server="$server"
-          pid=""
-          interface=""
-          exit_ip=""
-          tunnel_ready=0
-
-          for _ in $(seq 1 $((connect_timeout / 2))); do
-            if [ -f "$pid_file" ]; then
-              pid="$(cat "$pid_file" 2>/dev/null || true)"
-            fi
-            if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
-              if grep -q "Initialization Sequence Completed" "$log_file" 2>/dev/null; then
-                interface="$(ip -o link show | awk -F': ' '/: tun[0-9]+:/{print $2; exit}')"
-                if [ -n "$interface" ]; then
-                  tunnel_ready=1
-                  break
-                fi
-              fi
-            fi
-            sleep 2
+          start_index=$((shard_index % ${#servers[@]}))
+          ordered_servers=()
+          for offset in $(seq 0 $((${#servers[@]} - 1))); do
+            ordered_servers+=("${servers[$(((start_index + offset) % ${#servers[@]}))]}")
           done
 
-          if [ "$tunnel_ready" -eq 1 ]; then
-            route_ok=1
-            if [ "$require_full_tunnel" = "true" ]; then
-              if ! ip route show default | grep -Eq " dev ${interface}([[:space:]]|$)"; then
+          for server in "${ordered_servers[@]}"; do
+            echo "::notice::Attempting NordVPN server $server over $technology"
+            rm -f "$pid_file" "$verify_file" "$log_file" "${work_dir}/${server}.ovpn"
+
+            case "$technology" in
+              openvpn_udp)
+                config_path="https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/${server}.udp.ovpn"
+                ;;
+              openvpn_tcp)
+                config_path="https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/${server}.tcp.ovpn"
+                ;;
+              *)
+                echo "::warning::Unsupported NordVPN technology identifier: $technology"
+                break
+                ;;
+            esac
+
+            if ! retry_http_get \
+              "NordVPN OpenVPN config download for $server ($technology)" \
+              "${work_dir}/${server}.ovpn" \
+              "$config_path"; then
+              echo "::warning::Skipping server $server because the configuration download failed"
+              continue
+            fi
+
+            sudo openvpn --config "${work_dir}/${server}.ovpn" \
+              --auth-user-pass "$auth_file" \
+              --auth-nocache \
+              --writepid "$pid_file" \
+              --daemon \
+              --log "$log_file"
+
+            selected_server="$server"
+            selected_technology="$technology"
+            pid=""
+            interface=""
+            exit_ip=""
+            tunnel_ready=0
+
+            for _ in $(seq 1 $((connect_timeout / 2))); do
+              if [ -f "$pid_file" ]; then
+                pid="$(cat "$pid_file" 2>/dev/null || true)"
+              fi
+              if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
+                if grep -q "Initialization Sequence Completed" "$log_file" 2>/dev/null; then
+                  interface="$(ip -o link show | awk -F': ' '/: tun[0-9]+:/{print $2; exit}')"
+                  if [ -n "$interface" ]; then
+                    tunnel_ready=1
+                    break
+                  fi
+                fi
+              fi
+              sleep 2
+            done
+
+            if [ "$tunnel_ready" -eq 1 ]; then
+              route_ok=1
+              if [ "$require_full_tunnel" = "true" ]; then
                 route_ok=0
+                if route_uses_interface default || {
+                  route_uses_interface 0.0.0.0/1 && route_uses_interface 128.0.0.0/1;
+                }; then
+                  route_ok=1
+                fi
+              fi
+
+              if [ "$route_ok" -eq 1 ] && retry_http_get \
+                "VPN verification probe" \
+                "$verify_file" \
+                "$VERIFY_URL" \
+                --max-time 10; then
+                exit_ip=$(jq -r '.ip // empty' "$verify_file")
+              fi
+
+              if [ -n "$exit_ip" ] && { [ -z "$baseline_ip" ] || [ "$exit_ip" != "$baseline_ip" ]; }; then
+                echo "::notice::VPN connected — server: $server, technology: $technology, interface: $interface, exit IP: $exit_ip"
+                echo "server=$server" >> "$GITHUB_OUTPUT"
+                echo "exit-ip=$exit_ip" >> "$GITHUB_OUTPUT"
+                echo "interface=$interface" >> "$GITHUB_OUTPUT"
+                echo "pid=$pid" >> "$GITHUB_OUTPUT"
+                exit 0
               fi
             fi
 
-            if [ "$route_ok" -eq 1 ] && retry_http_get \
-              "VPN verification probe" \
-              "$verify_file" \
-              "$VERIFY_URL" \
-              --max-time 10; then
-              exit_ip=$(jq -r '.ip // empty' "$verify_file")
+            echo "::warning::VPN verification failed for $server over $technology; trying the next recommended server"
+            sudo tail -20 "$log_file" || true
+            if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
+              sudo kill "$pid" || true
+              sleep 2
+              if sudo kill -0 "$pid" 2>/dev/null; then
+                sudo kill -9 "$pid" || true
+              fi
             fi
-
-            if [ -n "$exit_ip" ] && { [ -z "$baseline_ip" ] || [ "$exit_ip" != "$baseline_ip" ]; }; then
-              echo "::notice::VPN connected — server: $server, interface: $interface, exit IP: $exit_ip"
-              echo "server=$server" >> "$GITHUB_OUTPUT"
-              echo "exit-ip=$exit_ip" >> "$GITHUB_OUTPUT"
-              echo "interface=$interface" >> "$GITHUB_OUTPUT"
-              echo "pid=$pid" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
-
-          echo "::warning::VPN verification failed for $server; trying the next recommended server"
-          sudo tail -20 "$log_file" || true
-          if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
-            sudo kill "$pid" || true
-            sleep 2
-            if sudo kill -0 "$pid" 2>/dev/null; then
-              sudo kill -9 "$pid" || true
-            fi
-          fi
+          done
         done
 
         echo "::error::VPN tunnel failed to establish with the recommended servers"
