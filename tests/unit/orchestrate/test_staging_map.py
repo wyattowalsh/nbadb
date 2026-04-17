@@ -7,6 +7,7 @@ import pytest
 
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
+    StagingEntry,
     get_all_staging_keys,
     get_by_pattern,
     get_by_staging_key,
@@ -93,47 +94,48 @@ def _extractor_endpoint_names() -> set[str]:
 
 
 def _extractor_endpoint_metadata() -> dict[str, tuple[str, bool]]:
-    stats_dir = Path(__file__).resolve().parents[3] / "src" / "nbadb" / "extract" / "stats"
+    extract_root = Path(__file__).resolve().parents[3] / "src" / "nbadb" / "extract"
     endpoint_metadata: dict[str, tuple[str, bool]] = {}
 
-    for path in sorted(stats_dir.glob("*.py")):
-        if path.name == "__init__.py":
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in tree.body:
-            if not isinstance(node, ast.ClassDef):
+    for subdir in (extract_root / "stats", extract_root / "live"):
+        for path in sorted(subdir.glob("*.py")):
+            if path.name == "__init__.py":
                 continue
-            endpoint_name: str | None = None
-            methods: set[str] = set()
-            for stmt in node.body:
-                if isinstance(stmt, (ast.AsyncFunctionDef, ast.FunctionDef)):
-                    methods.add(stmt.name)
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in tree.body:
+                if not isinstance(node, ast.ClassDef):
                     continue
-                if isinstance(stmt, ast.Assign):
-                    value = stmt.value
-                    targets = stmt.targets
-                elif isinstance(stmt, ast.AnnAssign):
-                    value = stmt.value
-                    targets = [stmt.target]
-                else:
-                    continue
-                if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
-                    continue
-                if any(
-                    isinstance(target, ast.Name) and target.id == "endpoint_name"
-                    for target in targets
-                ):
-                    endpoint_name = value.value
+                endpoint_name: str | None = None
+                methods: set[str] = set()
+                for stmt in node.body:
+                    if isinstance(stmt, (ast.AsyncFunctionDef, ast.FunctionDef)):
+                        methods.add(stmt.name)
+                        continue
+                    if isinstance(stmt, ast.Assign):
+                        value = stmt.value
+                        targets = stmt.targets
+                    elif isinstance(stmt, ast.AnnAssign):
+                        value = stmt.value
+                        targets = [stmt.target]
+                    else:
+                        continue
+                    if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                        continue
+                    if any(
+                        isinstance(target, ast.Name) and target.id == "endpoint_name"
+                        for target in targets
+                    ):
+                        endpoint_name = value.value
 
-            if endpoint_name is not None:
-                endpoint_metadata[endpoint_name] = (path.name, "extract_all" in methods)
+                if endpoint_name is not None:
+                    endpoint_metadata[endpoint_name] = (path.name, "extract_all" in methods)
 
     return endpoint_metadata
 
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        assert len(STAGING_MAP) == 402
+        assert len(STAGING_MAP) == 413
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -146,7 +148,17 @@ class TestStagingMap:
 
     def test_get_by_pattern_game(self) -> None:
         entries = get_by_pattern("game")
-        assert len(entries) == 51
+        assert len(entries) == 52
+
+    def test_get_by_pattern_live(self) -> None:
+        entries = get_by_pattern("live")
+        assert len(entries) == 10
+        assert {entry.endpoint_name for entry in entries} == {
+            "live_box_score",
+            "live_odds",
+            "live_play_by_play",
+            "live_score_board",
+        }
 
     def test_get_by_pattern_player(self) -> None:
         assert len(get_by_pattern("player")) == 125
@@ -185,6 +197,99 @@ class TestStagingMap:
 
     def test_get_by_pattern_date(self) -> None:
         assert len(get_by_pattern("date")) == 17
+
+    @pytest.mark.parametrize(
+        ("param_pattern", "expected_capability"),
+        [
+            ("season", "not_applicable"),
+            ("player_season", "not_applicable"),
+            ("team_season", "not_applicable"),
+            ("player_team_season", "blocked"),
+            ("game", "not_applicable"),
+            ("live", "not_applicable"),
+            ("player", "not_applicable"),
+            ("team", "not_applicable"),
+            ("static", "not_applicable"),
+            ("date", "not_applicable"),
+        ],
+    )
+    def test_staging_entry_defaults_season_type_capability_by_pattern(
+        self,
+        param_pattern: str,
+        expected_capability: str,
+    ) -> None:
+        entry = StagingEntry("foo_endpoint", f"stg_{param_pattern}", param_pattern)
+
+        assert entry.season_type_capability == expected_capability
+
+    def test_staging_map_historical_entries_use_endpoint_aware_season_type_capability(
+        self,
+    ) -> None:
+        historical_entries = {
+            entry.staging_key: entry
+            for entry in STAGING_MAP
+            if entry.param_pattern in {"season", "player_season", "team_season"}
+        }
+
+        assert historical_entries
+        assert {entry.season_type_capability for entry in historical_entries.values()} == {
+            "not_applicable",
+            "supported",
+        }
+
+        supported_entries = {
+            "stg_league_game_log": (
+                "Regular Season",
+                "Playoffs",
+                "Pre Season",
+                "All Star",
+            ),
+            "stg_player_game_log": ("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            "stg_team_game_log": ("Regular Season", "Playoffs", "Pre Season", "All Star"),
+        }
+        for staging_key, expected_season_types in supported_entries.items():
+            entry = historical_entries[staging_key]
+            assert entry.season_type_capability == "supported"
+            assert entry.supported_season_types == expected_season_types
+
+        for staging_key in (
+            "stg_schedule",
+            "stg_draft",
+            "stg_playoff_picture_east",
+            "stg_draft_board",
+        ):
+            entry = historical_entries[staging_key]
+            assert entry.season_type_capability == "not_applicable"
+            assert entry.supported_season_types == ()
+
+    def test_staging_map_player_team_season_entries_are_supported(self) -> None:
+        entries = get_by_pattern("player_team_season")
+
+        assert entries
+        capabilities = {entry.endpoint_name: entry.season_type_capability for entry in entries}
+
+        assert capabilities == {
+            "video_details": "supported",
+            "video_details_asset": "supported",
+        }
+
+    def test_staging_map_player_game_logs_v2_overrides_player_pattern_default(self) -> None:
+        entry = get_by_staging_key("stg_player_game_logs_v2")
+
+        assert entry is not None
+        assert entry.season_type_capability == "supported"
+
+    def test_staging_map_non_historical_patterns_are_not_applicable(self) -> None:
+        non_historical_patterns = {"game", "live", "player", "team", "static", "date"}
+        entries = [
+            entry
+            for entry in STAGING_MAP
+            if entry.param_pattern in non_historical_patterns
+            and entry.staging_key != "stg_player_game_logs_v2"
+        ]
+
+        assert entries
+        assert {entry.season_type_capability for entry in entries} == {"not_applicable"}
 
     def test_get_by_staging_key_found(self) -> None:
         entry = get_by_staging_key("stg_league_game_log")

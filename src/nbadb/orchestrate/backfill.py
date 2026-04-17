@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import duckdb
 
+from nbadb.core.types import SeasonType
 from nbadb.orchestrate.planning import PATTERN_PRIORITY, ExtractionPlanItem
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
@@ -67,7 +68,7 @@ class BackfillPlanner:
     All gap detection is done via DuckDB queries — no API calls.
     """
 
-    DEFAULT_SEASON_TYPES = ("Regular Season", "Playoffs")
+    DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
 
     def __init__(
         self,
@@ -95,10 +96,10 @@ class BackfillPlanner:
         if season_types is None:
             season_types = list(self.DEFAULT_SEASON_TYPES)
 
-        done_by_ep_season = self._journal.count_done_by_endpoint_and_season()
-        done_map: dict[tuple[str, str | None], int] = {}
-        for ep, season, count in done_by_ep_season:
-            done_map[(ep, season)] = count
+        done_by_ep_season_type = self._journal.count_done_by_endpoint_season_type()
+        done_map: dict[tuple[str, str | None, str | None], int] = {}
+        for ep, season, season_type, count in done_by_ep_season_type:
+            done_map[(ep, season, season_type)] = count
 
         # Count done entries for endpoints with no season param
         ep_status = self._journal.count_by_endpoint_and_status()
@@ -141,7 +142,7 @@ class BackfillPlanner:
         self,
         entry: StagingEntry,
         *,
-        done_map: dict[tuple[str, str | None], int],
+        done_map: dict[tuple[str, str | None, str | None], int],
         done_total_by_ep: dict[str, int],
         seasons: list[str] | None,
         season_types: list[str],
@@ -190,7 +191,7 @@ class BackfillPlanner:
     def _gaps_season(
         self,
         entry: StagingEntry,
-        done_map: dict[tuple[str, str | None], int],
+        done_map: dict[tuple[str, str | None, str | None], int],
         seasons: list[str] | None,
         season_types: list[str],
     ) -> list[GapReport]:
@@ -209,8 +210,16 @@ class BackfillPlanner:
             if entry.min_season is not None and season_year < entry.min_season:
                 continue
 
-            expected = len(season_types)
-            actual = done_map.get((entry.endpoint_name, season), 0)
+            target_season_types = self._target_season_types_for_entry(entry, season_types)
+            if target_season_types:
+                expected = len(target_season_types)
+                actual = sum(
+                    done_map.get((entry.endpoint_name, season, season_type), 0)
+                    for season_type in target_season_types
+                )
+            else:
+                expected = 1
+                actual = done_map.get((entry.endpoint_name, season, None), 0)
             if actual < expected:
                 gaps.append(
                     GapReport(
@@ -363,6 +372,73 @@ class BackfillPlanner:
             return set()
 
     @staticmethod
+    def _supports_season_type(entries: list[StagingEntry]) -> bool:
+        return bool(entries) and all(
+            entry.season_type_capability == "supported" and bool(entry.supported_season_types)
+            for entry in entries
+        )
+
+    @staticmethod
+    def _resolved_season_types(
+        entry: StagingEntry,
+        requested_season_types: list[str] | None,
+    ) -> list[str]:
+        if entry.season_type_capability != "supported":
+            return []
+
+        supported_season_types = [str(value) for value in (entry.supported_season_types or ())]
+        if not supported_season_types:
+            return []
+
+        requested = requested_season_types or supported_season_types
+        return [season_type for season_type in supported_season_types if season_type in requested]
+
+    @classmethod
+    def _target_season_types_for_entry(
+        cls,
+        entry: StagingEntry,
+        requested_season_types: list[str] | None,
+    ) -> list[str]:
+        return cls._resolved_season_types(entry, requested_season_types)
+
+    @staticmethod
+    def _historical_start_year(entry: StagingEntry) -> int:
+        return entry.min_season or 1946
+
+    @classmethod
+    def _season_entry_groups(
+        cls,
+        entries: list[StagingEntry],
+        requested_season_types: list[str] | None,
+    ) -> list[tuple[list[StagingEntry], int, list[str]]]:
+        grouped: dict[tuple[int, tuple[str, ...]], list[StagingEntry]] = {}
+        for entry in entries:
+            season_types = cls._resolved_season_types(entry, requested_season_types)
+            if entry.season_type_capability == "supported" and not season_types:
+                continue
+            group_key = (cls._historical_start_year(entry), tuple(season_types))
+            grouped.setdefault(group_key, []).append(entry)
+
+        return [
+            (grouped[group_key], group_key[0], list(group_key[1])) for group_key in sorted(grouped)
+        ]
+
+    @staticmethod
+    def _filter_seasons_for_start_year(
+        seasons: list[str],
+        start_year: int,
+    ) -> list[str]:
+        filtered: list[str] = []
+        for season in seasons:
+            try:
+                season_year = int(season[:4])
+            except (ValueError, IndexError):
+                continue
+            if season_year >= start_year:
+                filtered.append(season)
+        return filtered
+
+    @staticmethod
     def _build_completeness_report(gaps: list[GapReport]) -> CompletenessReport:
         """Aggregate gap reports into a CompletenessReport."""
         summary: dict[str, int] = {}
@@ -427,11 +503,44 @@ class BackfillPlanner:
         plan_items: list[ExtractionPlanItem] = []
 
         for pattern, entries in entries_by_pattern.items():
-            params = self._build_params_for_pattern(pattern, effective_seasons, season_types)
-            if not params:
+            priority = PATTERN_PRIORITY.get(pattern, 99)
+            if pattern == "season":
+                for grouped_entries, start_year, grouped_season_types in self._season_entry_groups(
+                    entries, season_types
+                ):
+                    grouped_seasons = self._filter_seasons_for_start_year(
+                        effective_seasons, start_year
+                    )
+                    params = self._build_params_for_pattern(
+                        pattern,
+                        grouped_entries,
+                        grouped_seasons,
+                        grouped_season_types,
+                    )
+                    if not params:
+                        continue
+                    label = "backfill:season"
+                    if grouped_season_types:
+                        label = f"{label}[{'/'.join(grouped_season_types)}]"
+                    plan_items.append(
+                        ExtractionPlanItem(
+                            label=label,
+                            pattern=pattern,
+                            entries=grouped_entries,
+                            params=params,
+                            priority=priority,
+                        )
+                    )
                 continue
 
-            priority = PATTERN_PRIORITY.get(pattern, 99)
+            params = self._build_params_for_pattern(
+                pattern,
+                entries,
+                effective_seasons,
+                season_types,
+            )
+            if not params:
+                continue
             plan_items.append(
                 ExtractionPlanItem(
                     label=f"backfill:{pattern}",
@@ -518,9 +627,11 @@ class BackfillPlanner:
             result.append(entry)
         return result
 
-    @staticmethod
+    @classmethod
     def _build_params_for_pattern(
+        cls,
         pattern: str,
+        entries: list[StagingEntry],
         seasons: list[str],
         season_types: list[str],
     ) -> list[dict[str, int | str]]:
@@ -534,9 +645,13 @@ class BackfillPlanner:
         if pattern == "static":
             return [{}]
         if pattern == "season":
-            return [
-                {"season": season, "season_type": st} for season in seasons for st in season_types
-            ]
+            if cls._supports_season_type(entries):
+                return [
+                    {"season": season, "season_type": st}
+                    for season in seasons
+                    for st in season_types
+                ]
+            return [{"season": season} for season in seasons]
         # Entity-dependent patterns need runtime discovery — return
         # a sentinel so the caller knows params must be resolved later
         return []

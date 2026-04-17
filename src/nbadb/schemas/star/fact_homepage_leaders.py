@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
+@derived_output_schema(literal_fields={"leader_source"})
 class FactHomepageLeadersSchema(BaseSchema):
     leader_source: str = pa.Field(
         isin=["home_page", "homepage"],
         metadata={
-            "source": "derived.leader_source",
             "description": "Alias source of the homepage leaders packet",
         },
     )
@@ -17,7 +17,6 @@ class FactHomepageLeadersSchema(BaseSchema):
         nullable=True,
         gt=0,
         metadata={
-            "source": "HomePageLeaders.HomePageLeaders.RANK",
             "description": "Rank within the homepage leaders packet",
         },
     )
@@ -25,7 +24,6 @@ class FactHomepageLeadersSchema(BaseSchema):
         nullable=True,
         gt=0,
         metadata={
-            "source": "HomePageLeaders.HomePageLeaders.TEAM_ID",
             "description": "Team identifier",
             "fk_ref": "dim_team.team_id",
         },
@@ -33,14 +31,12 @@ class FactHomepageLeadersSchema(BaseSchema):
     team_name: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "HomePageLeaders.HomePageLeaders.TEAM_NAME",
             "description": "Team display name",
         },
     )
     team_abbreviation: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "HomePageLeaders.HomePageLeaders.TEAM_ABBREVIATION",
             "description": "Team abbreviation",
         },
     )
@@ -54,7 +50,6 @@ class FactHomepageLeadersSchema(BaseSchema):
     season_type: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "derived.season_type",
             "description": "Season type used for the leaders request",
         },
     )

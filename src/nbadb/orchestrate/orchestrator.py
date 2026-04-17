@@ -11,11 +11,13 @@ from loguru import logger
 
 from nbadb.core.config import NbaDbSettings, get_settings
 from nbadb.core.db import DBManager
+from nbadb.core.types import SeasonType
 from nbadb.extract.registry import registry as _global_registry
 from nbadb.load.multi import create_multi_loader
 from nbadb.orchestrate.discovery import EntityDiscovery
 from nbadb.orchestrate.extractor_runner import ExtractorRunner
 from nbadb.orchestrate.journal import PipelineJournal
+from nbadb.orchestrate.live_snapshot import LiveSnapshotWarehouse
 from nbadb.orchestrate.planning import ExtractionPlanItem, build_extraction_plan
 from nbadb.orchestrate.seasons import (
     current_season,
@@ -33,6 +35,9 @@ if TYPE_CHECKING:
     from concurrent.futures import ThreadPoolExecutor
 
     import polars as pl
+
+
+DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
 
 
 @dataclass
@@ -176,6 +181,25 @@ class Orchestrator:
         result.errors = errors
         return result
 
+    @staticmethod
+    def _resolved_season_types(season_types: list[str] | None) -> list[str]:
+        if season_types is None:
+            return list(DEFAULT_SEASON_TYPES)
+        return list(season_types)
+
+    def _run_live_snapshot_upkeep(self, *, run_mode: str) -> tuple[int, int]:
+        snapshot = LiveSnapshotWarehouse(settings=self._settings).run()
+        if not snapshot.game_ids:
+            logger.bind(run_mode=run_mode).info("live snapshot upkeep: no active games")
+            return 0, 0
+        logger.bind(run_mode=run_mode).info(
+            "live snapshot upkeep: {} active games, {} star tables, {} rows",
+            len(snapshot.game_ids),
+            snapshot.star_tables_loaded,
+            snapshot.star_rows_loaded,
+        )
+        return snapshot.star_tables_loaded, snapshot.star_rows_loaded
+
     def _transform_and_load(
         self,
         db: DBManager,
@@ -195,7 +219,7 @@ class Orchestrator:
         staging: dict[str, pl.LazyFrame] = {key: df.lazy() for key, df in raw.items()}
 
         # Transform
-        transformers = discover_all_transformers()
+        transformers = discover_all_transformers(include_live=False)
         pipeline = TransformPipeline(db.duckdb)
         pipeline.register_all(transformers)
         n_transformers = len(transformers)
@@ -549,10 +573,9 @@ class Orchestrator:
         partial runs (QUAL-003).
 
         *season_types* controls which season types are extracted.
-        Defaults to ``["Regular Season", "Playoffs"]``.
+        Defaults to the full supported season-type universe.
         """
-        if season_types is None:
-            season_types = ["Regular Season", "Playoffs"]
+        season_types = self._resolved_season_types(season_types)
 
         bound_log = logger.bind(run_mode="init")
         t0 = time.perf_counter()
@@ -671,8 +694,9 @@ class Orchestrator:
         1. Extract league_game_log for current season
         2. Filter to games within ``daily_lookback_days``
         3. Run game-level extractors for those game_ids
-        4. Refresh season-level for current season
+        4. Refresh current-season endpoints across their declared season types
         5. Transform + load (replace)
+        6. Append a live snapshot when active games exist
         """
         import polars as pl
 
@@ -686,10 +710,10 @@ class Orchestrator:
             season = current_season()
             bound_log.info("daily: season={}", season)
 
-            # -- 1. Discover recent game_ids (Regular + Playoffs) -----
-            _daily_st = ["Regular Season", "Playoffs"]
+            # -- 1. Discover recent game_ids across the full declared contract -----
+            daily_season_types = list(DEFAULT_SEASON_TYPES)
             game_ids, game_log_df = await discovery.discover_game_ids(
-                [season], season_types=_daily_st
+                [season], season_types=daily_season_types
             )
 
             raw: dict[str, pl.DataFrame] = {}
@@ -736,7 +760,7 @@ class Orchestrator:
                 player_team_season_params=player_team_season_params,
                 game_log_df=pl.DataFrame(),  # already seeded above
                 include_static=False,
-                season_types=_daily_st,
+                season_types=daily_season_types,
             )
             raw.update(extraction.raw)
             # Keep the seeded game_log_df (update may have cleared it)
@@ -757,6 +781,9 @@ class Orchestrator:
             tables_updated, rows_total, failed_loads = self._transform_and_load(
                 db, raw, journal, mode="replace"
             )
+            live_tables_updated, live_rows_total = self._run_live_snapshot_upkeep(run_mode="daily")
+            tables_updated += live_tables_updated
+            rows_total += live_rows_total
 
             journal.abandon_exhausted()
             result = self._build_result(
@@ -782,8 +809,9 @@ class Orchestrator:
     async def run_monthly(self) -> PipelineResult:
         """Monthly refresh of the last 3 seasons.
 
-        Runs all pattern types for ``recent_seasons(3)`` and does
-        a full replace for all tables.
+        Runs all pattern types for ``recent_seasons(3)`` across the full
+        supported season-type universe, then appends a live snapshot when
+        active games exist.
         """
         bound_log = logger.bind(run_mode="monthly")
         t0 = time.perf_counter()
@@ -796,9 +824,9 @@ class Orchestrator:
             bound_log.info("monthly: seasons={}", seasons)
 
             # -- 1. Discover entities (parallel) --- uses shared helper
-            _monthly_st = ["Regular Season", "Playoffs"]
+            monthly_season_types = list(DEFAULT_SEASON_TYPES)
             game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-                discovery, seasons, bound_log, season_types=_monthly_st
+                discovery, seasons, bound_log, season_types=monthly_season_types
             )
             player_team_season_params = await discovery.discover_player_team_season_params(seasons)
 
@@ -812,7 +840,7 @@ class Orchestrator:
                 game_dates=game_dates,
                 player_team_season_params=player_team_season_params,
                 game_log_df=game_log_df,
-                season_types=_monthly_st,
+                season_types=monthly_season_types,
             )
             raw = extraction.raw
 
@@ -832,6 +860,11 @@ class Orchestrator:
             tables_updated, rows_total, failed_loads = self._transform_and_load(
                 db, raw, journal, mode="replace"
             )
+            live_tables_updated, live_rows_total = self._run_live_snapshot_upkeep(
+                run_mode="monthly"
+            )
+            tables_updated += live_tables_updated
+            rows_total += live_rows_total
 
             journal.abandon_exhausted()
             result = self._build_result(
@@ -929,7 +962,7 @@ class Orchestrator:
                 raw.update(retry_raw)
 
             # -- 2. Gap-fill ALL patterns (not just season+game) ------
-            _full_st = ["Regular Season", "Playoffs"]
+            _full_st = list(DEFAULT_SEASON_TYPES)
             seasons = season_range()
 
             # Discover entities for gap-filling
@@ -1025,10 +1058,9 @@ class Orchestrator:
         transform_only
             Skip extraction, re-run transforms from DuckDB staging.
         season_types
-            Defaults to ``["Regular Season", "Playoffs"]``.
+            Defaults to the full supported season-type universe.
         """
-        if season_types is None:
-            season_types = ["Regular Season", "Playoffs"]
+        season_types = self._resolved_season_types(season_types)
 
         bound_log = logger.bind(run_mode="backfill")
         t0 = time.perf_counter()

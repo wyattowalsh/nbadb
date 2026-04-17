@@ -538,9 +538,16 @@ class ModelAuditEngine:
                 )
             )
 
-        non_runtime = (
-            set(inventory.extractor_map) | set(inventory.staging_entries_by_endpoint)
-        ) - inventory.runtime_stats_surfaces
+        non_runtime = {
+            surface_name
+            for surface_name in (
+                set(inventory.extractor_map) | set(inventory.staging_entries_by_endpoint)
+            )
+            if surface_name not in inventory.runtime_stats_surfaces
+            # Live/static families are audited in their dedicated passes below.
+            and surface_name not in _STATIC_SURFACE_ALIASES
+            and surface_name not in _LIVE_SURFACE_ALIASES
+        }
         for surface_name in sorted(non_runtime):
             entries = inventory.staging_entries_by_endpoint.get(surface_name, [])
             extractor_present = surface_name in inventory.extractor_map
@@ -614,28 +621,62 @@ class ModelAuditEngine:
                 (key for key, value in _LIVE_SURFACE_ALIASES.items() if value == surface_name),
                 surface_name,
             )
-            decision = (
-                AuditDecision.MODELED.value
-                if extractor_present and runtime_present
-                else AuditDecision.SOURCE_GAP.value
+            extractor_cls = (
+                inventory.extractors.resolve(endpoint_name) if extractor_present else None
             )
+            snapshot_grain = getattr(extractor_cls, "snapshot_grain", None)
+            snapshot_packets = getattr(extractor_cls, "snapshot_packets", None)
+            snapshot_contract_defined = bool(snapshot_grain or snapshot_packets)
+            live_entries = inventory.staging_entries_by_endpoint.get(endpoint_name, [])
+            live_transform_outputs = sorted(
+                {
+                    output
+                    for entry in live_entries
+                    for output in inventory.transforms.transform_outputs_by_staging.get(
+                        entry.staging_key,
+                        set(),
+                    )
+                }
+            )
+            if extractor_present and runtime_present and live_entries and live_transform_outputs:
+                decision = AuditDecision.MODELED.value
+                reason = "Live surface has runtime, extractor, staging, and transform coverage."
+                issues: list[str] = []
+            elif extractor_present and runtime_present:
+                decision = AuditDecision.VALIDATION_GAP.value
+                if snapshot_contract_defined:
+                    reason = (
+                        "Live surface has extractor/runtime coverage and an extractor-level "
+                        "snapshot contract, but still lacks staged and modeled warehouse ownership."
+                    )
+                else:
+                    reason = (
+                        "Live surface has extractor and runtime coverage but lacks a staged and "
+                        "modeled warehouse contract."
+                    )
+                issues = ["live_surface_unmodeled"]
+            else:
+                decision = AuditDecision.SOURCE_GAP.value
+                reason = "Live surface is missing either runtime or extractor coverage."
+                issues = ["live_surface_gap"]
             runtime_surface_records.append(
                 AuditRecord(
                     layer="RuntimeSurface",
                     key=f"live:{surface_name}",
                     decision=decision,
-                    decision_reason=(
-                        "Live surface is represented by a runtime module and extractor."
-                        if decision == AuditDecision.MODELED.value
-                        else "Live surface is missing either runtime or extractor coverage."
-                    ),
-                    issues=[] if decision == AuditDecision.MODELED.value else ["live_surface_gap"],
+                    decision_reason=reason,
+                    issues=issues,
                     source_kind="live",
                     endpoint_name=endpoint_name,
                     runtime_surface=surface_name,
                     details={
                         "extractor_present": extractor_present,
                         "runtime_present": runtime_present,
+                        "snapshot_contract_defined": snapshot_contract_defined,
+                        "snapshot_grain": snapshot_grain,
+                        "snapshot_packets": snapshot_packets,
+                        "staging_keys": [entry.staging_key for entry in live_entries],
+                        "transform_outputs": live_transform_outputs,
                     },
                 )
             )
@@ -732,6 +773,7 @@ class ModelAuditEngine:
                     details={
                         "min_season": entry.min_season,
                         "deprecated_after": entry.deprecated_after,
+                        "season_type_capability": entry.season_type_capability,
                         "use_multi": entry.use_multi,
                         "transform_outputs": transform_outputs,
                         "input_schema_present": input_schema is not None,

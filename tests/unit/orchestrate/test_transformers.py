@@ -8,7 +8,7 @@ from __future__ import annotations
 import importlib as _real_importlib
 from unittest.mock import patch
 
-from nbadb.orchestrate.transformers import discover_all_transformers
+from nbadb.orchestrate.transformers import discover_all_transformers, discover_live_transformers
 
 _real_import_module = _real_importlib.import_module
 _PATCH_TARGET = "nbadb.orchestrate.transformers.importlib.import_module"
@@ -65,3 +65,19 @@ class TestDiscoverAllTransformers:
             f"Expected at least 170 transformers but discovered {len(result)}. "
             "A transform module may have been accidentally removed."
         )
+
+    def test_live_transformers_can_be_filtered_out(self) -> None:
+        historical_only = discover_all_transformers(include_live=False)
+        assert all(not getattr(t, "is_live_snapshot", False) for t in historical_only)
+
+    def test_live_transformers_are_discoverable(self) -> None:
+        live_transformers = discover_live_transformers()
+        output_tables = {transformer.output_table for transformer in live_transformers}
+        assert {
+            "fact_live_score_board",
+            "fact_live_odds",
+            "fact_live_play_by_play",
+            "fact_live_box_score_game",
+            "fact_live_box_score_team",
+            "fact_live_box_score_player",
+        } <= output_tables

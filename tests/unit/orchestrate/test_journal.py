@@ -209,6 +209,21 @@ class TestJournalMetrics:
         assert row[3] == 0
 
 
+class TestJournalSeasonTypeCounts:
+    def test_count_done_by_endpoint_season_type(self, journal: PipelineJournal) -> None:
+        journal.record_start("ep1", '{"season": "2024-25", "season_type": "Regular Season"}')
+        journal.record_success("ep1", '{"season": "2024-25", "season_type": "Regular Season"}', 10)
+        journal.record_start("ep1", '{"season": "2024-25", "season_type": "Playoffs"}')
+        journal.record_success("ep1", '{"season": "2024-25", "season_type": "Playoffs"}', 10)
+
+        counts = journal.count_done_by_endpoint_season_type()
+
+        assert counts == [
+            ("ep1", "2024-25", "Playoffs", 1),
+            ("ep1", "2024-25", "Regular Season", 1),
+        ]
+
+
 # ---------------------------------------------------------------------------
 # was_extracted_batch
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class AggAllTimeLeadersSchema(BaseSchema):
@@ -699,3 +699,23 @@ class AggTeamSeasonSchema(BaseSchema):
     ft_pct: float | None = pa.Field(
         nullable=True, metadata={"description": "Free throw percentage"}
     )
+
+
+derived_output_schema()(AggAllTimeLeadersSchema)
+derived_output_schema()(AggClutchStatsSchema)
+derived_output_schema()(AggGameTotalsSchema)
+derived_output_schema()(AggLeagueLeadersSchema)
+derived_output_schema()(AggLineupEfficiencySchema)
+derived_output_schema()(AggPlayerBioSchema)
+derived_output_schema()(AggPlayerCareerSchema)
+derived_output_schema()(AggPlayerRollingSchema)
+derived_output_schema()(AggPlayerSeasonAdvancedSchema)
+derived_output_schema()(AggPlayerSeasonSchema)
+derived_output_schema()(AggPlayerSeasonPer36Schema)
+derived_output_schema()(AggPlayerSeasonPer48Schema)
+derived_output_schema()(AggShotLocationSeasonSchema)
+derived_output_schema()(AggShotZonesSchema)
+derived_output_schema()(AggTeamDefenseSchema)
+derived_output_schema()(AggTeamFranchiseSchema)
+derived_output_schema()(AggTeamPaceAndEfficiencySchema)
+derived_output_schema()(AggTeamSeasonSchema)

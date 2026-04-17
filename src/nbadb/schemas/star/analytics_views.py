@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 # ---------------------------------------------------------------------------
 # Private stat-field mixins (DRY helpers shared by multiple analytics views)
@@ -724,3 +724,17 @@ class AnalyticsTeamSeasonSummarySchema(BaseSchema):
     division_rank: int | None = pa.Field(
         nullable=True, metadata={"description": "Division standing rank"}
     )
+
+
+derived_output_schema(literal_fields={"clutch_window"})(AnalyticsClutchPerformanceSchema)
+derived_output_schema()(AnalyticsDraftValueSchema)
+derived_output_schema()(AnalyticsGameSummarySchema)
+derived_output_schema()(AnalyticsHeadToHeadSchema)
+derived_output_schema()(AnalyticsLeagueBenchmarksSchema)
+derived_output_schema()(AnalyticsPlayerGameCompleteSchema)
+derived_output_schema()(AnalyticsPlayerImpactSchema)
+derived_output_schema()(AnalyticsPlayerMatchupSchema)
+derived_output_schema()(AnalyticsPlayerSeasonCompleteSchema)
+derived_output_schema()(AnalyticsShootingEfficiencySchema)
+derived_output_schema()(AnalyticsTeamGameCompleteSchema)
+derived_output_schema()(AnalyticsTeamSeasonSummarySchema)

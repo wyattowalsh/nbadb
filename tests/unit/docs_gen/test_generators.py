@@ -40,15 +40,20 @@ class TestSchemaDocsGenerator:
     def test_write_creates_files(self, tmp_path: Path) -> None:
         gen = SchemaDocsGenerator(output_dir=tmp_path)
         written = gen.write(tiers=["star"])
+        assert (tmp_path / "star-reference.json").exists()
         assert (tmp_path / "star-reference.mdx").exists()
-        assert len(written) == 1
-        assert written[0] == tmp_path / "star-reference.mdx"
+        assert len(written) == 2
+        assert written == [
+            tmp_path / "star-reference.json",
+            tmp_path / "star-reference.mdx",
+        ]
 
     def test_write_all_tiers_creates_three_files(self, tmp_path: Path) -> None:
         gen = SchemaDocsGenerator(output_dir=tmp_path)
         written = gen.write()
-        assert len(written) == 3
+        assert len(written) == 6
         for tier in ("raw", "staging", "star"):
+            assert (tmp_path / f"{tier}-reference.json").exists()
             assert (tmp_path / f"{tier}-reference.mdx").exists()
 
     def test_tier_mdx_has_description_frontmatter(self) -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class _TeamDashboardSeasonTypeMixin(BaseSchema):
@@ -129,6 +129,7 @@ class _TeamDashboardFantasyRanksMixin(BaseSchema):
     td3_rank: int | None = pa.Field(nullable=True, ge=0)
 
 
+@derived_output_schema()
 class FactTeamDashboardGeneralOverallSchema(
     _TeamDashboardSeasonTypeMixin,
     _TeamDashboardGroupingMixin,
@@ -140,6 +141,7 @@ class FactTeamDashboardGeneralOverallSchema(
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
 
 
+@derived_output_schema()
 class FactTeamDashboardShootingOverallSchema(
     _TeamDashboardSeasonTypeMixin,
     _TeamDashboardGroupingMixin,
@@ -153,6 +155,7 @@ class FactTeamDashboardShootingOverallSchema(
     pass
 
 
+@derived_output_schema()
 class FactTeamPlayerDashboardSchema(
     _TeamDashboardSeasonTypeMixin,
     _TeamDashboardGroupSetMixin,
@@ -166,6 +169,7 @@ class FactTeamPlayerDashboardSchema(
     pass
 
 
+@derived_output_schema(literal_fields={"split_type"})
 class FactTeamSplitsSchema(
     _TeamDashboardSeasonTypeMixin,
     _TeamDashboardGroupingMixin,

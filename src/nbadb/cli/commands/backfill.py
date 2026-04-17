@@ -49,6 +49,16 @@ PatternOption = Annotated[
         help="Comma-separated param patterns (e.g. 'game,season')",
     ),
 ]
+SeasonTypesOption = Annotated[
+    str | None,
+    typer.Option(
+        "--season-types",
+        help=(
+            "Comma-separated season types for historical season-aware patterns "
+            "(e.g. 'Regular Season,Playoffs')"
+        ),
+    ),
+]
 OutputFormatOption = Annotated[
     str,
     typer.Option("--output-format", "-f", help="Output format: text or json"),
@@ -117,6 +127,7 @@ def run(
     seasons: SeasonsOption = None,
     endpoint: EndpointOption = None,
     pattern: PatternOption = None,
+    season_types: SeasonTypesOption = None,
     force: bool = typer.Option(False, "--force", help="Reset done entries to re-extract"),
     extract_only: bool = typer.Option(False, "--extract-only", help="Skip transform+load"),
     transform_only: bool = typer.Option(
@@ -132,6 +143,7 @@ def run(
     parsed_seasons = _parse_seasons(seasons)
     parsed_endpoints = _parse_csv(endpoint)
     parsed_patterns = _parse_csv(pattern)
+    parsed_season_types = _parse_csv(season_types)
 
     if extract_only and transform_only:
         typer.echo("Cannot use --extract-only and --transform-only together", err=True)
@@ -157,6 +169,7 @@ def run(
             force=force,
             extract_only=extract_only,
             transform_only=transform_only,
+            season_types=parsed_season_types,
         ),
         settings,
         verbose,

@@ -280,8 +280,14 @@ class TestExtractAllPatterns:
         runner.run_pattern = AsyncMock(side_effect=track_pattern)
 
         static_entries = [MagicMock(endpoint_name="league_standings")]
-        season_entries = [MagicMock(endpoint_name="league_game_log")]
-        season_entries[0].endpoint_name = "common_team_roster"
+        season_entries = [
+            SimpleNamespace(
+                endpoint_name="common_team_roster",
+                season_type_capability="supported",
+                supported_season_types=("Regular Season",),
+                min_season=None,
+            )
+        ]
         game_entries = [MagicMock(endpoint_name="box_score_traditional")]
 
         def _entries(pattern: str):
@@ -322,9 +328,23 @@ class TestExtractAllPatterns:
         runner = MagicMock()
         runner.run_pattern = AsyncMock(return_value={})
 
-        player_season_entries = [MagicMock(endpoint_name="player_game_log")]
+        player_season_entries = [
+            SimpleNamespace(
+                endpoint_name="player_game_log",
+                season_type_capability="supported",
+                supported_season_types=("Regular Season",),
+                min_season=None,
+            )
+        ]
         player_team_season_entries = [MagicMock(endpoint_name="video_details")]
-        team_season_entries = [MagicMock(endpoint_name="team_game_log")]
+        team_season_entries = [
+            SimpleNamespace(
+                endpoint_name="team_game_log",
+                season_type_capability="supported",
+                supported_season_types=("Regular Season",),
+                min_season=None,
+            )
+        ]
 
         def _entries(pattern: str):
             mapping = {
@@ -362,10 +382,26 @@ class TestExtractAllPatterns:
         runner.run_pattern.assert_any_await(
             "player_season",
             [
-                {"player_id": 201939, "season": "2024-25"},
-                {"player_id": 201939, "season": "2025-26"},
-                {"player_id": 2544, "season": "2024-25"},
-                {"player_id": 2544, "season": "2025-26"},
+                {
+                    "player_id": 201939,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "player_id": 201939,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "player_id": 2544,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "player_id": 2544,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                },
             ],
             player_season_entries,
             on_progress=None,
@@ -373,8 +409,16 @@ class TestExtractAllPatterns:
         runner.run_pattern.assert_any_await(
             "team_season",
             [
-                {"team_id": 1610612744, "season": "2024-25"},
-                {"team_id": 1610612744, "season": "2025-26"},
+                {
+                    "team_id": 1610612744,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "team_id": 1610612744,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                },
             ],
             team_season_entries,
             on_progress=None,
@@ -654,11 +698,55 @@ class TestRunDaily:
             patch(_REGISTRY),
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)),
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)) as mock_live,
         ):
             result = asyncio.run(orch.run_daily())
 
         assert isinstance(result, PipelineResult)
         assert result.tables_updated == 1
+        mock_live.assert_called_once_with(run_mode="daily")
+
+    def test_run_daily_uses_full_season_type_universe(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
+        mock_discovery.discover_player_ids.return_value = [201566]
+        mock_discovery.discover_team_ids.return_value = [1610612737]
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        mock_runner = _mock_runner(skipped=0)
+        mock_extract = AsyncMock(return_value=ExtractionOutcome(raw={}))
+        expected_season_types = [
+            "Regular Season",
+            "Playoffs",
+            "Pre Season",
+            "All Star",
+        ]
+
+        with (
+            patch(_CURRENT_SEASON, return_value="2025-26"),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)),
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(2, 25)),
+        ):
+            result = asyncio.run(orch.run_daily())
+
+        assert mock_discovery.discover_game_ids.await_args.kwargs["season_types"] == (
+            expected_season_types
+        )
+        assert mock_extract.await_args.kwargs["season_types"] == expected_season_types
+        assert result.tables_updated == 3
+        assert result.rows_total == 75
 
     def test_run_daily_disables_static_in_shared_helper(self):
         orch, db, journal = _build_orchestrator_with_mocks()
@@ -683,6 +771,7 @@ class TestRunDaily:
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_extract_all_patterns", mock_extract),
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)),
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)),
         ):
             asyncio.run(orch.run_daily())
 
@@ -722,6 +811,7 @@ class TestRunDaily:
                 orch, "_load_staging_from_duckdb", return_value=recovered_raw
             ) as mock_load,
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)),
         ):
             result = asyncio.run(orch.run_daily())
 
@@ -763,11 +853,44 @@ class TestRunDaily:
             patch.object(orch, "_extract_all_patterns", mock_extract),
             patch.object(orch, "_load_staging_from_duckdb") as mock_load,
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)),
         ):
             asyncio.run(orch.run_daily())
 
         mock_load.assert_not_called()
         assert mock_transform.call_args.args[1]["stg_league_game_log"].equals(game_log_df)
+
+    def test_run_daily_live_snapshot_failures_raise(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = (["0022400001"], game_log_df)
+        mock_discovery.discover_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_player_team_season_params.return_value = []
+
+        mock_runner = _mock_runner(skipped=0)
+
+        with (
+            patch(_CURRENT_SEASON, return_value="2025-26"),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)),
+            patch.object(orch, "_run_live_snapshot_upkeep", side_effect=RuntimeError("boom")),
+        ):
+            try:
+                asyncio.run(orch.run_daily())
+            except RuntimeError as exc:
+                assert str(exc) == "boom"
+            else:
+                raise AssertionError("run_daily should propagate live snapshot failures")
 
 
 # ---------------------------------------------------------------------------
@@ -806,11 +929,19 @@ class TestRunMonthly:
             patch(_REGISTRY),
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)),
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)) as mock_live,
         ):
             result = asyncio.run(orch.run_monthly())
 
         assert isinstance(result, PipelineResult)
         assert result.tables_updated == 1
+        assert mock_discovery.discover_game_ids.await_args.kwargs["season_types"] == [
+            "Regular Season",
+            "Playoffs",
+            "Pre Season",
+            "All Star",
+        ]
+        mock_live.assert_called_once_with(run_mode="monthly")
 
     def test_run_monthly_sets_duration(self):
         orch, db, journal = _build_orchestrator_with_mocks()
@@ -830,6 +961,7 @@ class TestRunMonthly:
             patch(_REGISTRY),
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_transform_and_load", return_value=(0, 0, 0)),
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)),
         ):
             result = asyncio.run(orch.run_monthly())
 
@@ -873,6 +1005,7 @@ class TestRunMonthly:
                 orch, "_load_staging_from_duckdb", return_value=recovered_raw
             ) as mock_load,
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)),
         ):
             result = asyncio.run(orch.run_monthly())
 

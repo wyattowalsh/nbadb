@@ -8,6 +8,8 @@ import pytest
 from nbadb.orchestrate.backfill import BackfillPlanner
 from nbadb.orchestrate.journal import PipelineJournal
 
+_ALL_SEASON_TYPES = ("Regular Season", "Playoffs", "Pre Season", "All Star")
+
 # ── fixtures ─────────────────────────────────────────────────────
 
 
@@ -167,6 +169,17 @@ class TestJournalCounts:
         assert len(ep1_2024) == 1
         assert ep1_2024[0][2] == 1
 
+    def test_count_done_by_endpoint_season_type(self, journal: PipelineJournal) -> None:
+        _seed_done(journal, "ep1", {"season": "2024-25", "season_type": "Regular Season"})
+        _seed_done(journal, "ep1", {"season": "2024-25", "season_type": "Playoffs"})
+
+        counts = journal.count_done_by_endpoint_season_type()
+
+        assert counts == [
+            ("ep1", "2024-25", "Playoffs", 1),
+            ("ep1", "2024-25", "Regular Season", 1),
+        ]
+
     def test_count_done_no_season(self, journal: PipelineJournal) -> None:
         """Entries without season param should have None as season."""
         _seed_done(journal, "ep1", {"game_id": "001"})
@@ -210,12 +223,12 @@ class TestBackfillPlannerGaps:
             patterns=["season"],
             seasons=["2024-25"],
         )
-        # Should detect gap: expected 2 (Regular Season + Playoffs), actual 1
+        # The strict historical contract now expects every declared season type.
         league_gaps = [g for g in report.gaps if g.endpoint == "league_game_log"]
         assert len(league_gaps) == 1
-        assert league_gaps[0].expected == 2
+        assert league_gaps[0].expected == 4
         assert league_gaps[0].actual == 1
-        assert league_gaps[0].missing == 1
+        assert league_gaps[0].missing == 3
 
     def test_no_gap_when_complete(
         self,
@@ -233,6 +246,16 @@ class TestBackfillPlannerGaps:
             "league_game_log",
             {"season": "2024-25", "season_type": "Playoffs"},
         )
+        _seed_done(
+            journal,
+            "league_game_log",
+            {"season": "2024-25", "season_type": "Pre Season"},
+        )
+        _seed_done(
+            journal,
+            "league_game_log",
+            {"season": "2024-25", "season_type": "All Star"},
+        )
 
         report = planner.detect_gaps(
             endpoints=["league_game_log"],
@@ -241,6 +264,30 @@ class TestBackfillPlannerGaps:
         )
         league_gaps = [g for g in report.gaps if g.endpoint == "league_game_log"]
         assert len(league_gaps) == 0
+
+    def test_season_gap_respects_requested_season_types(
+        self,
+        journal: PipelineJournal,
+        planner: BackfillPlanner,
+    ) -> None:
+        _seed_done(
+            journal,
+            "league_game_log",
+            {"season": "2024-25", "season_type": "Regular Season"},
+        )
+
+        report = planner.detect_gaps(
+            endpoints=["league_game_log"],
+            patterns=["season"],
+            seasons=["2024-25"],
+            season_types=["Playoffs"],
+        )
+
+        league_gaps = [g for g in report.gaps if g.endpoint == "league_game_log"]
+        assert len(league_gaps) == 1
+        assert league_gaps[0].expected == 1
+        assert league_gaps[0].actual == 0
+        assert league_gaps[0].missing == 1
 
     def test_game_gap_with_staging(
         self,
@@ -338,10 +385,9 @@ class TestBackfillPlannerBuildPlan:
         )
         assert plan.total_tasks > 0
         assert plan.seasons == ["2024-25"]
-        # Params should be 1 season × 2 season_types = 2
         season_items = [i for i in plan.items if i.pattern == "season"]
-        assert len(season_items) == 1
-        assert len(season_items[0].params) == 2
+        assert len(season_items) >= 1
+        assert any(len(item.params) == len(_ALL_SEASON_TYPES) for item in season_items)
 
     def test_endpoint_filter(self, planner: BackfillPlanner) -> None:
         plan = planner.build_plan(

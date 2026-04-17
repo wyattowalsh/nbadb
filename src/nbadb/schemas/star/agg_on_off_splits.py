@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class AggOnOffSplitsSchema(BaseSchema):
@@ -33,3 +33,6 @@ class AggOnOffSplitsSchema(BaseSchema):
     net_rating: float | None = pa.Field(
         nullable=True, metadata={"description": "Net rating (offensive - defensive)"}
     )
+
+
+derived_output_schema(literal_fields={"entity_type", "on_off"})(AggOnOffSplitsSchema)

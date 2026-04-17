@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from abc import ABC, abstractmethod
+from datetime import UTC, date, datetime, time
 from typing import Any, ClassVar
 
 import pandas as pd
@@ -64,6 +66,17 @@ def _to_snake_case(name: str) -> str:
 def is_retryable_error(exc: Exception) -> bool:
     """Return True if *exc* looks transient and worth retrying."""
     return type(exc).__name__ in _RETRYABLE_ERROR_NAMES
+
+
+def _coerce_snapshot_at(value: object | None) -> datetime:
+    """Normalize snapshot inputs to a timezone-aware UTC datetime."""
+    if value is None:
+        return datetime.now(UTC)
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    if isinstance(value, date):
+        return datetime.combine(value, time.min, tzinfo=UTC)
+    raise TypeError(f"snapshot_at must be a date or datetime, got {type(value).__name__}")
 
 
 def _safe_from_pandas(pdf: Any) -> pl.DataFrame:
@@ -180,34 +193,103 @@ class BaseExtractor(ABC):
         else:
             return pl.DataFrame({"value": [payload]})
 
+        serialized_records = [json.dumps(record, sort_keys=True, default=str) for record in records]
         df = pl.from_dicts(records)
-        return df.rename({c: _to_snake_case(c) for c in df.columns})
+        df = df.rename({c: _to_snake_case(c) for c in df.columns})
+        return df.with_columns(pl.Series("payload_json", serialized_records))
 
-    def _from_nba_live(self, endpoint_cls: type, attr: str, **kwargs: Any) -> pl.DataFrame:
+    @staticmethod
+    def _apply_live_snapshot_contract(
+        df: pl.DataFrame,
+        *,
+        source_endpoint: str,
+        natural_keys: tuple[str, ...],
+        snapshot_at: datetime,
+        params: dict[str, Any],
+    ) -> pl.DataFrame:
+        missing: list[str] = []
+        expressions: list[pl.Expr] = []
+
+        for key in natural_keys:
+            if key in df.columns:
+                continue
+            if key in params:
+                expressions.append(pl.lit(params[key]).alias(key))
+                continue
+            if df.is_empty():
+                expressions.append(pl.lit(None).alias(key))
+                continue
+            missing.append(key)
+
+        if missing:
+            missing_keys = ", ".join(missing)
+            raise ValueError(
+                f"{source_endpoint}: live payload missing required natural keys: {missing_keys}"
+            )
+
+        expressions.extend(
+            [
+                pl.lit(snapshot_at).alias("snapshot_at"),
+                pl.lit(snapshot_at.date()).alias("snapshot_date"),
+                pl.lit(source_endpoint).alias("source_endpoint"),
+            ]
+        )
+        if "payload_json" not in df.columns:
+            expressions.append(pl.lit(None).alias("payload_json"))
+        return df.with_columns(expressions)
+
+    def _from_nba_live(
+        self,
+        endpoint_cls: type,
+        attr: str,
+        *,
+        source_endpoint: str,
+        natural_keys: tuple[str, ...],
+        **kwargs: Any,
+    ) -> pl.DataFrame:
         """Call nba_api live endpoint and convert a single dataset to Polars."""
+        snapshot_at = _coerce_snapshot_at(kwargs.pop("snapshot_at", None))
         self._inject_timeout(kwargs)
         result = endpoint_cls(**kwargs)
         dataset = getattr(result, attr, None)
         if dataset is None:
             logger.warning(f"{self.endpoint_name}: live dataset {attr!r} was not returned")
-            return pl.DataFrame()
-        return self._live_payload_to_frame(dataset)
+            frame = pl.DataFrame()
+        else:
+            frame = self._live_payload_to_frame(dataset)
+        return self._apply_live_snapshot_contract(
+            frame,
+            source_endpoint=source_endpoint,
+            natural_keys=natural_keys,
+            snapshot_at=snapshot_at,
+            params=kwargs,
+        )
 
     def _from_nba_live_multi(
         self,
         endpoint_cls: type,
-        attrs: list[str],
+        specs: list[tuple[str, str, tuple[str, ...]]],
         **kwargs: Any,
     ) -> list[pl.DataFrame]:
         """Call nba_api live endpoint and convert multiple datasets to Polars."""
+        snapshot_at = _coerce_snapshot_at(kwargs.pop("snapshot_at", None))
         self._inject_timeout(kwargs)
         result = endpoint_cls(**kwargs)
         frames: list[pl.DataFrame] = []
-        for attr in attrs:
+        for attr, source_endpoint, natural_keys in specs:
             dataset = getattr(result, attr, None)
             if dataset is None:
                 logger.warning(f"{self.endpoint_name}: live dataset {attr!r} was not returned")
-                frames.append(pl.DataFrame())
-                continue
-            frames.append(self._live_payload_to_frame(dataset))
+                frame = pl.DataFrame()
+            else:
+                frame = self._live_payload_to_frame(dataset)
+            frames.append(
+                self._apply_live_snapshot_contract(
+                    frame,
+                    source_endpoint=source_endpoint,
+                    natural_keys=natural_keys,
+                    snapshot_at=snapshot_at,
+                    params=kwargs,
+                )
+            )
         return frames

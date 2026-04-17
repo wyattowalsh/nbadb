@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class FactTeamLineupsOverallSchema(BaseSchema):
@@ -156,3 +156,9 @@ class FactTeamPtTrackingSchema(BaseSchema):
     season_type: str = pa.Field(
         metadata={"description": "Season type (Regular Season, Playoffs, etc.)"}
     )
+
+
+derived_output_schema()(FactTeamLineupsOverallSchema)
+derived_output_schema()(FactTeamPtRebDetailSchema)
+derived_output_schema()(FactTeamPtShotsDetailSchema)
+derived_output_schema(literal_fields={"tracking_type"})(FactTeamPtTrackingSchema)

@@ -23,6 +23,7 @@ from nba_api.stats.endpoints import (
     VideoEvents,
     VideoStatus,
 )
+from nba_api.stats.endpoints.videoeventsasset import VideoEventsAsset
 from nba_api.stats.library.http import NBAStatsHTTP
 
 from nbadb.extract.base import BaseExtractor, _to_snake_case
@@ -309,6 +310,16 @@ class VideoEventsExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         game_id: str = params["game_id"]
         return self._from_nba_api(VideoEvents, game_id=game_id)
+
+
+@registry.register
+class VideoEventsAssetExtractor(BaseExtractor):
+    endpoint_name = "video_events_asset"
+    category = "misc"
+
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        game_id: str = params["game_id"]
+        return self._from_nba_api(VideoEventsAsset, game_id=game_id)
 
 
 @registry.register

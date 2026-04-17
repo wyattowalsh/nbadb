@@ -466,24 +466,38 @@ class PipelineJournal:
         return [(r[0], r[1], r[2]) for r in rows]
 
     def count_done_by_endpoint_and_season(self) -> list[tuple[str, str | None, int]]:
-        """Return ``(endpoint, season, done_count)`` using JSON extraction.
+        """Return ``(endpoint, season, done_count)`` flattened across season types."""
+        counts: dict[tuple[str, str | None], int] = {}
+        for endpoint, season, _season_type, done_count in self.count_done_by_endpoint_season_type():
+            key = (endpoint, season)
+            counts[key] = counts.get(key, 0) + done_count
 
-        Uses DuckDB ``json_extract_string`` on the params column to group
-        by season without Python-side JSON parsing.
-        """
+        return [
+            (endpoint, season, done_count)
+            for (endpoint, season), done_count in sorted(counts.items())
+        ]
+
+    def count_done_by_endpoint_season_type(
+        self,
+    ) -> list[tuple[str, str | None, str | None, int]]:
+        """Return ``(endpoint, season, season_type, done_count)`` using JSON extraction."""
         rows = self._conn.execute(
             """
             SELECT
                 endpoint,
-                json_extract_string(params, '$.season') AS season,
+                json_extract_string(params, '$.season')      AS season,
+                json_extract_string(params, '$.season_type') AS season_type,
                 COUNT(*) AS done_count
             FROM _extraction_journal
             WHERE status = 'done'
-            GROUP BY endpoint, json_extract_string(params, '$.season')
-            ORDER BY endpoint, season
+            GROUP BY
+                endpoint,
+                json_extract_string(params, '$.season'),
+                json_extract_string(params, '$.season_type')
+            ORDER BY endpoint, season, season_type
             """
         ).fetchall()
-        return [(r[0], r[1], r[2]) for r in rows]
+        return [(r[0], r[1], r[2], r[3]) for r in rows]
 
     def fetch_entries(
         self,

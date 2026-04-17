@@ -7,6 +7,10 @@ import pytest
 from nbadb.schemas.staging.box_score import StagingBoxScoreTraditionalPlayerSchema
 from nbadb.schemas.staging.draft import StagingDraftHistorySchema
 from nbadb.schemas.staging.game_log import StagingLeagueGameLogSchema
+from nbadb.schemas.staging.leaders import (
+    StagingDefenseHubStat10Schema,
+    StagingDraftBoardSchema,
+)
 from nbadb.schemas.staging.player import (
     StagingCommonAllPlayersSchema,
     StagingPlayerIndexSchema,
@@ -216,6 +220,44 @@ class TestStagingDraftHistorySchema:
         )
         with pytest.raises(pa_errors.SchemaError):
             StagingDraftHistorySchema.validate(df)
+
+
+# -- Leader Family Staging Schemas --------------------------------------------
+
+
+class TestLeaderFamilyStagingSchemas:
+    def test_draft_board_validates_core_columns(self) -> None:
+        df = pl.DataFrame(
+            {
+                "person_id": [1],
+                "player_name": ["Prospect"],
+                "season": [2025],
+                "overall_pick": [1],
+                "height": ["6-8"],
+            }
+        )
+
+        result = StagingDraftBoardSchema.validate(df)
+
+        assert result.shape[0] == 1
+        assert result.columns == ["person_id", "player_name", "season", "overall_pick", "height"]
+
+    def test_defense_hub_stat10_preserves_unknown_metric_columns(self) -> None:
+        df = pl.DataFrame(
+            {
+                "rank": [3],
+                "team_id": [1610612752],
+                "team_abbreviation": ["NYK"],
+                "team_name": ["Knicks"],
+                "season_type": ["Regular Season"],
+                "contested_shots": [15.0],
+            }
+        )
+
+        result = StagingDefenseHubStat10Schema.validate(df)
+
+        assert result.shape[0] == 1
+        assert "contested_shots" in result.columns
 
     def test_round_number_must_be_1_or_2(self) -> None:
         df = pl.DataFrame(

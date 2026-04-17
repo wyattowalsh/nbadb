@@ -5,11 +5,20 @@ from unittest.mock import MagicMock, patch
 from nbadb.orchestrate.planning import build_extraction_plan
 
 _GET_BY_PATTERN = "nbadb.orchestrate.planning.get_by_pattern"
+_DEFAULT_SEASON_TYPES = ("Regular Season", "Playoffs")
 
 
-def _entry(endpoint_name: str):
+def _entry(
+    endpoint_name: str,
+    *,
+    season_type_capability: str = "supported",
+    supported_season_types: tuple[str, ...] = _DEFAULT_SEASON_TYPES,
+):
     entry = MagicMock()
     entry.endpoint_name = endpoint_name
+    entry.season_type_capability = season_type_capability
+    entry.supported_season_types = supported_season_types
+    entry.min_season = None
     return entry
 
 
@@ -55,7 +64,10 @@ class TestBuildExtractionPlan:
         ]
         assert plan[0].task_count == 1
         assert plan[1].entries == [season_entries[1]]
-        assert plan[1].params == [{"season": "2024-25", "season_type": "Regular Season"}]
+        assert plan[1].params == [
+            {"season": "2024-25", "season_type": "Regular Season"},
+            {"season": "2024-25", "season_type": "Playoffs"},
+        ]
         assert plan[2].params == [{"game_id": "0022400001"}]
         assert plan[3].params == [{"player_id": 201939}]
         assert plan[4].params == [{"team_id": 1610612744}]
@@ -80,7 +92,7 @@ class TestBuildExtractionPlan:
     def test_builds_cross_product_patterns_and_player_team_season_passthrough(self) -> None:
         player_season_entries = [_entry("player_game_log")]
         team_season_entries = [_entry("team_game_log")]
-        player_team_season_entries = [_entry("video_details")]
+        player_team_season_entries = [_entry("video_details", season_type_capability="blocked")]
         params = [
             {"player_id": 201939, "team_id": 1610612744, "season": "2024-25"},
             {"player_id": 2544, "team_id": 1610612747, "season": "2025-26"},
@@ -108,18 +120,25 @@ class TestBuildExtractionPlan:
                 team_ids=[1610612744],
                 game_dates=[],
                 player_team_season_params=params,
+                season_types=["Regular Season", "Playoffs"],
             )
 
         by_pattern = {item.pattern: item for item in plan}
         assert by_pattern["player_season"].params == [
-            {"player_id": 201939, "season": "2024-25"},
-            {"player_id": 201939, "season": "2025-26"},
-            {"player_id": 2544, "season": "2024-25"},
-            {"player_id": 2544, "season": "2025-26"},
+            {"player_id": 201939, "season": "2024-25", "season_type": "Regular Season"},
+            {"player_id": 201939, "season": "2024-25", "season_type": "Playoffs"},
+            {"player_id": 201939, "season": "2025-26", "season_type": "Regular Season"},
+            {"player_id": 201939, "season": "2025-26", "season_type": "Playoffs"},
+            {"player_id": 2544, "season": "2024-25", "season_type": "Regular Season"},
+            {"player_id": 2544, "season": "2024-25", "season_type": "Playoffs"},
+            {"player_id": 2544, "season": "2025-26", "season_type": "Regular Season"},
+            {"player_id": 2544, "season": "2025-26", "season_type": "Playoffs"},
         ]
         assert by_pattern["team_season"].params == [
-            {"team_id": 1610612744, "season": "2024-25"},
-            {"team_id": 1610612744, "season": "2025-26"},
+            {"team_id": 1610612744, "season": "2024-25", "season_type": "Regular Season"},
+            {"team_id": 1610612744, "season": "2024-25", "season_type": "Playoffs"},
+            {"team_id": 1610612744, "season": "2025-26", "season_type": "Regular Season"},
+            {"team_id": 1610612744, "season": "2025-26", "season_type": "Playoffs"},
         ]
         assert by_pattern["player_team_season"].params == params
 

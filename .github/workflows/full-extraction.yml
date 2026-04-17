@@ -24,7 +24,7 @@ on:
         type: string
         default: ""
       backfill_patterns:
-        description: "Comma-separated patterns to override shard defaults (empty = use shard config)"
+        description: "Comma-separated patterns to constrain the planned extraction lanes"
         type: string
         default: ""
       force_reextract:
@@ -43,6 +43,10 @@ on:
         description: "Source commit SHA to check out for every chained iteration"
         type: string
         default: ""
+      lane_manifest_json:
+        description: "Internal lane manifest override used by chained reruns"
+        type: string
+        default: ""
 
 env:
   NBADB_DATA_DIR: data/nbadb
@@ -59,10 +63,118 @@ concurrency:
   cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────
-#  5 parallel extraction shards → 1 merge + transform job
+#  plan → lane extract(matrix) → merge → chain
 # ─────────────────────────────────────────────────────────────────
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    outputs:
+      extract-matrix: ${{ steps.manifest.outputs.extract-matrix }}
+      lane-count: ${{ steps.manifest.outputs.lane-count }}
+      lane-manifest-json: ${{ steps.manifest.outputs.lane-manifest-json }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Generate support matrix artifacts
+        if: ${{ inputs.lane_manifest_json == '' }}
+        run: |
+          mkdir -p artifacts/endpoint-coverage
+          uv run nbadb endpoint-support-matrix \
+            --require-complete \
+            --require-season-type-contract \
+            --output-dir artifacts/endpoint-coverage
+
+      - name: Build lane manifest
+        id: manifest
+        env:
+          INPUT_LANE_MANIFEST_JSON: ${{ inputs.lane_manifest_json }}
+          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
+          BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
+        run: |
+          mkdir -p artifacts/full-extraction
+          args=(
+            plan
+            --output-path artifacts/full-extraction/manifest.json
+          )
+          if [ -n "$INPUT_LANE_MANIFEST_JSON" ]; then
+            args+=(--lane-manifest-json "$INPUT_LANE_MANIFEST_JSON")
+          else
+            args+=(--support-matrix-path artifacts/endpoint-coverage/endpoint-support-matrix.json)
+          fi
+          [ -n "$BACKFILL_PATTERNS" ]  && args+=(--backfill-patterns "$BACKFILL_PATTERNS")
+          [ -n "$BACKFILL_ENDPOINTS" ] && args+=(--backfill-endpoints "$BACKFILL_ENDPOINTS")
+
+          uv run python -m nbadb.orchestrate.full_extraction_control "${args[@]}" > artifacts/full-extraction/manifest.stdout.json
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("artifacts/full-extraction/manifest.json").read_text(encoding="utf-8"))
+          compact_manifest = json.dumps(manifest, separators=(",", ":"))
+          compact_matrix = json.dumps(manifest["github_matrix"], separators=(",", ":"))
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"extract-matrix={compact_matrix}\n")
+              handle.write(f"lane-count={manifest['lane_count']}\n")
+              handle.write(f"lane-manifest-json={compact_manifest}\n")
+          PY
+
+      - name: Plan summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("artifacts/full-extraction/manifest.json").read_text(encoding="utf-8"))
+          lanes = manifest.get("lanes", [])
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("## Lane Plan\n")
+              handle.write(f"**Lane count:** {manifest.get('lane_count', 0)}\n")
+              for lane in lanes:
+                  season_range = "n/a"
+                  if lane.get("season_start") is not None and lane.get("season_end") is not None:
+                      season_range = f"{lane['season_start']}:{lane['season_end']}"
+                  handle.write(
+                      f"- `{lane['lane_id']}` ({lane['lane_kind']}) "
+                      f"patterns={','.join(lane.get('patterns', [])) or 'none'} "
+                      f"seasons={season_range} "
+                      f"resume_only={lane.get('resume_only', False)}\n"
+                  )
+          PY
+
+      - name: Upload lane manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: |
+            artifacts/full-extraction/manifest.json
+            artifacts/full-extraction/manifest.stdout.json
+            artifacts/endpoint-coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
+
   extract:
+    needs: plan
+    if: ${{ needs.plan.outputs.lane-count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -70,40 +182,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Shards 0-3: season-scoped patterns only.
-          # Keep player/team/static out of the season shards so the long-tail
-          # global workloads can run in parallel instead of serializing inside
-          # the most recent season slice.
-          - shard: 0
-            season_start: "1946"
-            season_end: "1974"
-            name: "early"
-            patterns: "season,game,date,player_season,player_team_season,team_season"
-          - shard: 1
-            season_start: "1975"
-            season_end: "1999"
-            name: "growth"
-            patterns: "season,game,date,player_season,player_team_season,team_season"
-          - shard: 2
-            season_start: "2000"
-            season_end: "2009"
-            name: "modern"
-            patterns: "season,game,date,player_season,player_team_season,team_season"
-          - shard: 3
-            season_start: "2010"
-            season_end: "2025"
-            name: "recent"
-            patterns: "season,game,date,player_season,player_team_season,team_season"
-          # Shard 4: global player/team/static endpoints and merge base.
-          # The orchestrator now scopes discovery by requested pattern, so this
-          # shard skips the expensive game/date discovery work entirely.
-          - shard: 4
-            season_start: "1946"
-            season_end: "2025"
-            name: "global"
-            patterns: "player,team,static"
+      matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -127,27 +206,33 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: data/nbadb/
-          key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-shard-${{ matrix.shard }}-iter-${{ inputs.iteration }}
+          key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-iter-${{ inputs.iteration }}
           restore-keys: |
-            ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-shard-${{ matrix.shard }}-
+            ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-
 
-      - name: Show shard info
+      - name: Show lane info
         env:
-          SHARD: ${{ matrix.shard }}
-          NAME: ${{ matrix.name }}
+          LANE_ID: ${{ matrix.lane_id }}
+          LANE_INDEX: ${{ matrix.lane_index }}
+          NAME: ${{ matrix.lane_name }}
+          KIND: ${{ matrix.lane_kind }}
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
           PATTERNS: ${{ matrix.patterns }}
+          SEASON_TYPES: ${{ matrix.season_types }}
+          RESUME_ONLY: ${{ matrix.resume_only }}
           ITERATION: ${{ inputs.iteration }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
           WORKFLOW_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
           CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
         run: |
-          echo "::notice::Shard $SHARD ($NAME) — seasons $SEASON_START–$SEASON_END — iteration $ITERATION"
+          echo "::notice::Lane $LANE_ID (#$LANE_INDEX, $KIND) — $NAME — iteration $ITERATION"
           echo "::notice::Chain $CHAIN_ID — source ref $WORKFLOW_REF @ $WORKFLOW_SHA"
           echo "::notice::Cache hit: ${CACHE_HIT:-false}"
           [ -n "$PATTERNS" ] && echo "::notice::Patterns: $PATTERNS" || echo "::notice::Patterns: all"
+          [ -n "$SEASON_TYPES" ] && echo "::notice::Season types: $SEASON_TYPES" || echo "::notice::Season types: none"
+          echo "::notice::Resume only: $RESUME_ONLY"
           if [ -f data/nbadb/nba.duckdb ]; then
             echo "::notice::Resuming from cached state"
             ls -lh data/nbadb/ 2>/dev/null || true
@@ -155,15 +240,16 @@ jobs:
             echo "::notice::Fresh start"
           fi
 
-      # ── Connect NordVPN tunnel ──
+      # ── Connect NordVPN tunnel for active extraction lanes ──
       - name: Connect NordVPN tunnel
         id: vpn
+        if: ${{ !matrix.resume_only && matrix.use_vpn }}
         uses: ./.github/actions/nordvpn-connect
         with:
           openvpn-user: ${{ secrets.OPENVPN_USER }}
           openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
-          shard-index: ${{ matrix.shard }}
+          lane-index: ${{ matrix.lane_index }}
           server-limit: "12"
 
       # ── Configure environment ──
@@ -202,25 +288,41 @@ jobs:
               ;;
           esac
 
+      - name: Rehydrate completed lane
+        if: ${{ matrix.resume_only }}
+        run: |
+          if [ ! -f data/nbadb/nba.duckdb ]; then
+            echo "::error::Lane marked resume_only but no cached DuckDB state was restored"
+            exit 1
+          fi
+          echo "::notice::Lane already complete; reusing cached state and skipping extraction"
+
       # ── Run extraction ──
       - name: Run extraction
         id: extract
+        if: ${{ !matrix.resume_only }}
         env:
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
-          PATTERNS: ${{ inputs.backfill_patterns || matrix.patterns }}
-          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
+          PATTERNS: ${{ matrix.patterns }}
+          SEASON_TYPES: ${{ matrix.season_types }}
+          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints || matrix.endpoints }}
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
+          LANE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
         run: |
           set +e
-          CMD="uv run nbadb backfill run --seasons \"${SEASON_START}:${SEASON_END}\" --extract-only"
-          [ -n "$PATTERNS" ] && CMD="$CMD --pattern \"$PATTERNS\""
-          [ -n "$BACKFILL_ENDPOINTS" ] && CMD="$CMD --endpoint \"$BACKFILL_ENDPOINTS\""
-          [ "$FORCE_REEXTRACT" = "true" ] && CMD="$CMD --force"
-          CMD="$CMD --verbose"
+          cmd=(uv run nbadb backfill run --extract-only --verbose)
+          if [ -n "$SEASON_START" ] && [ -n "$SEASON_END" ]; then
+            cmd+=(--seasons "${SEASON_START}:${SEASON_END}")
+          fi
+          [ -n "$PATTERNS" ]           && cmd+=(--pattern "$PATTERNS")
+          [ -n "$SEASON_TYPES" ]       && cmd+=(--season-types "$SEASON_TYPES")
+          [ -n "$BACKFILL_ENDPOINTS" ] && cmd+=(--endpoint "$BACKFILL_ENDPOINTS")
+          [ "$FORCE_REEXTRACT" = "true" ] && cmd+=(--force)
 
-          echo "::notice::Running: $CMD"
-          timeout --signal=INT --kill-after=60 21300 bash -c "$CMD"
+          printf -v cmd_str '%q ' "${cmd[@]}"
+          echo "::notice::Running: $cmd_str"
+          timeout --signal=INT --kill-after=60 "$LANE_TIMEOUT_SECONDS" bash -lc "$cmd_str"
           exit_code=$?
           set -e
 
@@ -229,30 +331,51 @@ jobs:
           else
             echo "status=incomplete" >> "$GITHUB_OUTPUT"
           fi
-          # Propagate exit code so the chain job can detect incomplete shards.
-          # fail-fast: false ensures other shards still complete.
+          # Propagate the exit code so the chain job can keep only unresolved
+          # lanes active on the next iteration. fail-fast: false keeps the rest
+          # of the matrix running.
           exit $exit_code
 
-      # ── Progress summary ──
-      - name: Shard progress
+      - name: Finalize lane status
+        id: lane_status
         if: always()
         env:
-          SHARD: ${{ matrix.shard }}
-          NAME: ${{ matrix.name }}
+          RESUME_ONLY: ${{ matrix.resume_only }}
+          EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
+        run: |
+          if [ "$RESUME_ONLY" = "true" ] && [ -f data/nbadb/nba.duckdb ]; then
+            status="complete"
+          elif [ -n "$EXTRACT_STATUS" ]; then
+            status="$EXTRACT_STATUS"
+          else
+            status="failed-before-extract"
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      # ── Progress summary ──
+      - name: Lane progress
+        if: always()
+        env:
+          LANE_ID: ${{ matrix.lane_id }}
+          NAME: ${{ matrix.lane_name }}
+          KIND: ${{ matrix.lane_kind }}
           ITERATION: ${{ inputs.iteration }}
-          STATUS: ${{ steps.extract.outputs.status }}
+          STATUS: ${{ steps.lane_status.outputs.status }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
           VPN_BASELINE_IP: ${{ steps.vpn.outputs.baseline-ip }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
           CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          RESUME_ONLY: ${{ matrix.resume_only }}
         run: |
           {
-            echo "## Shard $SHARD ($NAME) — Iteration $ITERATION"
+            echo "## Lane $LANE_ID ($NAME) — Iteration $ITERATION"
             echo "**Status:** $STATUS"
+            echo "**Kind:** $KIND"
             echo "**Chain ID:** $CHAIN_ID"
             echo "**Cache hit:** ${CACHE_HIT:-false}"
+            echo "**Resume only:** $RESUME_ONLY"
             echo "**VPN server:** ${VPN_SERVER:-n/a}"
             echo "**VPN interface:** ${VPN_INTERFACE:-n/a}"
             echo "**VPN IP:** ${VPN_BASELINE_IP:-unknown} → ${VPN_EXIT_IP:-unknown}"
@@ -261,17 +384,24 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Write shard metadata
+      - name: Write lane metadata
         if: always()
         env:
-          SHARD: ${{ matrix.shard }}
-          NAME: ${{ matrix.name }}
+          LANE_ID: ${{ matrix.lane_id }}
+          LANE_INDEX: ${{ matrix.lane_index }}
+          NAME: ${{ matrix.lane_name }}
+          KIND: ${{ matrix.lane_kind }}
           ITERATION: ${{ inputs.iteration }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           SOURCE_REF: ${{ env.WORKFLOW_SOURCE_REF }}
           SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
-          STATUS: ${{ steps.extract.outputs.status || 'failed-before-extract' }}
+          STATUS: ${{ steps.lane_status.outputs.status }}
           CACHE_HIT: ${{ steps.restore.outputs.cache-hit || 'false' }}
+          RESUME_ONLY: ${{ matrix.resume_only }}
+          PATTERNS: ${{ matrix.patterns }}
+          SEASON_TYPES: ${{ matrix.season_types }}
+          SEASON_START: ${{ matrix.season_start }}
+          SEASON_END: ${{ matrix.season_end }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
@@ -285,19 +415,28 @@ jobs:
           payload = {
               "chain_id": os.environ["CHAIN_ID"],
               "iteration": os.environ["ITERATION"],
-              "name": os.environ["NAME"],
-              "shard": os.environ["SHARD"],
+              "lane_id": os.environ["LANE_ID"],
+              "lane_index": os.environ["LANE_INDEX"],
+              "lane_name": os.environ["NAME"],
+              "lane_kind": os.environ["KIND"],
               "source_ref": os.environ["SOURCE_REF"],
               "source_sha": os.environ["SOURCE_SHA"],
               "status": os.environ["STATUS"],
               "cache_hit": os.environ["CACHE_HIT"],
+              "resume_only": os.environ["RESUME_ONLY"],
+              "patterns": [value for value in os.environ.get("PATTERNS", "").split(",") if value],
+              "season_types": [
+                  value for value in os.environ.get("SEASON_TYPES", "").split(",") if value
+              ],
+              "season_start": os.environ.get("SEASON_START", ""),
+              "season_end": os.environ.get("SEASON_END", ""),
               "vpn": {
                   "server": os.environ.get("VPN_SERVER", ""),
                   "interface": os.environ.get("VPN_INTERFACE", ""),
                   "exit_ip": os.environ.get("VPN_EXIT_IP", ""),
               },
           }
-          Path("artifacts/extraction/shard-metadata.json").write_text(
+          Path("artifacts/extraction/lane-metadata.json").write_text(
               json.dumps(payload, indent=2) + "\n",
               encoding="utf-8",
           )
@@ -311,26 +450,26 @@ jobs:
           path: |
             data/nbadb/*.duckdb
             data/nbadb/*.duckdb.*
-          key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-shard-${{ matrix.shard }}-iter-${{ inputs.iteration }}
+          key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-iter-${{ inputs.iteration }}
 
-      # ── Upload shard artifact ──
-      - name: Upload shard artifact
+      # ── Upload lane artifact ──
+      - name: Upload lane artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: extraction-shard-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.shard }}
+          name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
             data/nbadb/*.duckdb
             data/nbadb/*.duckdb.*
           retention-days: 7
           compression-level: 0
 
-      - name: Upload shard metadata
+      - name: Upload lane metadata
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: extraction-shard-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.shard }}
-          path: artifacts/extraction/shard-metadata.json
+          name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          path: artifacts/extraction/lane-metadata.json
           retention-days: 7
           compression-level: 6
 
@@ -338,7 +477,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.shard }}
+          name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: ${{ runner.temp }}/nordvpn/
           if-no-files-found: ignore
           retention-days: 7
@@ -346,7 +485,7 @@ jobs:
 
       # ── Cleanup ──
       - name: Disconnect VPN
-        if: always()
+        if: ${{ always() && !matrix.resume_only }}
         uses: ./.github/actions/nordvpn-disconnect
         with:
           pid: ${{ steps.vpn.outputs.pid }}
@@ -354,11 +493,11 @@ jobs:
           work-dir: ${{ steps.vpn.outputs.work-dir }}
 
   # ─────────────────────────────────────────────────────────────
-  #  Merge shards → transform → export → upload
+  #  Merge all lane artifacts once all lanes are complete
   # ─────────────────────────────────────────────────────────────
   merge:
-    needs: extract
-    if: ${{ always() && !cancelled() }}
+    needs: [plan, extract]
+    if: ${{ !cancelled() && needs.plan.outputs.lane-count != '0' && needs.extract.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:
@@ -380,89 +519,35 @@ jobs:
 
       - run: uv sync
 
-      # Download all shard artifacts
+      # Download all lane artifacts from this successful iteration.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
-          pattern: extraction-shard-${{ env.ACTIVE_CHAIN_ID }}-*
-          path: shards/
+          pattern: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-*
+          path: lanes/
 
-      - name: List downloaded shards
+      - name: List downloaded lanes
         run: |
-          echo "Downloaded shards:"
-          for d in shards/extraction-shard-*; do
+          echo "Downloaded lanes:"
+          for d in lanes/extraction-lane-*; do
             echo "  $d:"
             ls -lh "$d/" 2>/dev/null || echo "    (empty)"
           done
 
-      # Use the global shard as the merge base.
-      - name: Merge shard databases
+      - name: Merge lane databases
         run: |
-          if [ ! -d "shards/extraction-shard-${ACTIVE_CHAIN_ID}-4" ]; then
-            echo "::error::Global shard artifact missing — cannot merge without player/team/static data"
-            exit 1
-          fi
           mkdir -p data/nbadb
-          cp -r "shards/extraction-shard-${ACTIVE_CHAIN_ID}-4/." data/nbadb/
+          uv run python -m nbadb.orchestrate.full_extraction_control merge \
+            --artifacts-dir lanes \
+            --output-dir data/nbadb
 
-          uv run python -c "
-          import duckdb, glob, os
-
-          target = duckdb.connect('data/nbadb/nba.duckdb')
-          merged_count = 0
-
-          chain_id = os.environ['ACTIVE_CHAIN_ID']
-          for shard_dir in sorted(glob.glob(f'shards/extraction-shard-{chain_id}-[0-3]')):
-              db_path = os.path.join(shard_dir, 'nba.duckdb')
-              if not os.path.exists(db_path):
-                  print(f'SKIP: {db_path} not found')
-                  continue
-              print(f'Merging {db_path}...')
-              target.execute(f\"ATTACH '{db_path}' AS src (READ_ONLY)\")
-              tables = [r[0] for r in target.execute(
-                  \"SELECT table_name FROM duckdb_tables() \"
-                  \"WHERE database_name = 'src' AND schema_name = 'main' \"
-                  \"AND table_name LIKE 'stg_%'\"
-              ).fetchall()]
-              for t in tables:
-                  try:
-                      # Table exists in base — append new rows only (EXCEPT dedup)
-                      target.execute(f'INSERT INTO main.\"{t}\" SELECT * FROM src.\"{t}\" EXCEPT SELECT * FROM main.\"{t}\"')
-                      rows = target.execute(f'SELECT count(*) FROM src.\"{t}\"').fetchone()[0]
-                      print(f'  appended {t}: +{rows} rows')
-                  except duckdb.CatalogException:
-                      # Table only in this shard — create it
-                      target.execute(f'CREATE TABLE main.\"{t}\" AS SELECT * FROM src.\"{t}\"')
-                      rows = target.execute(f'SELECT count(*) FROM main.\"{t}\"').fetchone()[0]
-                      print(f'  created {t}: {rows} rows')
-                  merged_count += 1
-              target.execute('DETACH src')
-
-          # Also merge journal entries from the non-base shards.
-          for shard_dir in sorted(glob.glob(f'shards/extraction-shard-{chain_id}-[0-3]')):
-              db_path = os.path.join(shard_dir, 'nba.duckdb')
-              if not os.path.exists(db_path):
-                  continue
-              target.execute(f\"ATTACH '{db_path}' AS src (READ_ONLY)\")
-              try:
-                  target.execute(
-                      'INSERT INTO main._extraction_journal '
-                      'SELECT * FROM src._extraction_journal '
-                      'WHERE (endpoint, params) NOT IN '
-                      '(SELECT endpoint, params FROM main._extraction_journal)'
-                  )
-                  print(f'  merged journal from {shard_dir}')
-              except duckdb.CatalogException as e:
-                  print(f'  journal merge skipped for {shard_dir}: {e}')
-              target.execute('DETACH src')
-
-          target.close()
-          print(f'Merge complete: {merged_count} table operations')
-          "
-
-      # Transform from merged staging (only when all shards completed)
+      # Transform from merged staging once every planned lane is complete.
       - name: Transform and load
         if: needs.extract.result == 'success'
         run: uv run nbadb backfill run --transform-only --verbose
+
+      - name: Append live snapshot
+        if: needs.extract.result == 'success'
+        run: uv run nbadb live-snapshot --verbose
 
       - name: Merge summary
         if: always()
@@ -472,12 +557,13 @@ jobs:
             echo "**Chain ID:** ${{ env.ACTIVE_CHAIN_ID }}"
             echo "**Source ref:** ${{ env.WORKFLOW_SOURCE_REF }}"
             echo "**Source SHA:** ${{ env.WORKFLOW_SOURCE_SHA }}"
+            echo "**Planned lanes:** ${{ needs.plan.outputs.lane-count }}"
             echo '```'
             ls -lh data/nbadb/ 2>/dev/null || echo "No data directory"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Scan, export, upload — only when all shards completed
+      # Scan, export, upload — only when all lanes completed
       - name: Scan data quality
         id: scan
         if: needs.extract.result == 'success'
@@ -517,16 +603,37 @@ jobs:
           compression-level: 0
 
   # ─────────────────────────────────────────────────────────────
-  #  Self-chain: re-trigger if any shard was incomplete
+  #  Self-chain: carry a manifest forward and only re-extract unresolved lanes
   # ─────────────────────────────────────────────────────────────
   chain:
-    needs: [extract, merge]
-    if: ${{ always() && !cancelled() && needs.extract.result != 'success' }}
+    needs: [plan, extract]
+    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.extract.result != 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     permissions:
       actions: write
+      contents: read
     steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Download lane metadata
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
+          path: lane-metadata/
+
       - name: Chain next iteration
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -538,6 +645,7 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CURRENT_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -550,7 +658,32 @@ jobs:
             exit 1
           fi
 
-          echo "::notice::Some shards incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
+          mkdir -p artifacts/full-extraction
+          printf '%s' "$CURRENT_MANIFEST_JSON" > artifacts/full-extraction/current-manifest.json
+          uv run python -m nbadb.orchestrate.full_extraction_control resume \
+            --lane-manifest-path artifacts/full-extraction/current-manifest.json \
+            --metadata-dir lane-metadata \
+            --output-path artifacts/full-extraction/next-manifest.json \
+            > artifacts/full-extraction/next-manifest.stdout.json
+
+          next_manifest_json="$(python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('artifacts/full-extraction/next-manifest.json').read_text(encoding='utf-8'))
+          summary = payload.get('resume_summary', {})
+          active = int(summary.get('active_lane_count', 0))
+          resumed = int(summary.get('resume_only_lane_count', 0))
+          if active <= 0:
+              raise SystemExit('No active lanes remain for the next iteration; refusing to redispatch an empty chain.')
+          print(f"::notice::Next iteration lanes: {active} active, {resumed} resume-only")
+          print(json.dumps(payload, separators=(',', ':')))
+          PY
+          )"
+
+          next_manifest_json="$(printf '%s\n' "$next_manifest_json" | tail -n 1)"
+
+          echo "::notice::Some lanes incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
           gh workflow run full-extraction.yml \
             --repo "${{ github.repository }}" \
             --ref "$WORKFLOW_REF" \
@@ -562,4 +695,5 @@ jobs:
             -f force_reextract=false \
             -f chain_id="$CHAIN_ID" \
             -f workflow_ref="$WORKFLOW_REF" \
-            -f workflow_sha="$WORKFLOW_SHA"
+            -f workflow_sha="$WORKFLOW_SHA" \
+            -f lane_manifest_json="$next_manifest_json"

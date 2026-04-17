@@ -1176,3 +1176,42 @@ class StagingArenaInfoSchema(BaseSchema):
             "description": "Arena timezone",
         },
     )
+
+
+class _OpenPassthroughSchema(BaseSchema):
+    @classmethod
+    def validate(cls, data, *args, **kwargs):
+        return pa.DataFrameModel.validate.__func__(cls, data, *args, **kwargs)
+
+
+class StagingVideoDetailsSchema(_OpenPassthroughSchema):
+    pass
+
+
+class StagingVideoDetailsAssetSchema(_OpenPassthroughSchema):
+    pass
+
+
+class StagingVideoEventsSchema(_OpenPassthroughSchema):
+    pass
+
+
+class StagingVideoEventsAssetSchema(_OpenPassthroughSchema):
+    pass
+
+
+class StagingVideoStatusSchema(BaseSchema):
+    game_id: str = pa.Field(nullable=False)
+    game_date: str | None = pa.Field(nullable=True)
+    visitor_team_id: int | None = pa.Field(nullable=True, gt=0)
+    visitor_team_city: str | None = pa.Field(nullable=True)
+    visitor_team_name: str | None = pa.Field(nullable=True)
+    visitor_team_abbreviation: str | None = pa.Field(nullable=True)
+    home_team_id: int | None = pa.Field(nullable=True, gt=0)
+    home_team_city: str | None = pa.Field(nullable=True)
+    home_team_name: str | None = pa.Field(nullable=True)
+    home_team_abbreviation: str | None = pa.Field(nullable=True)
+    game_status: int | None = pa.Field(nullable=True)
+    game_status_text: str | None = pa.Field(nullable=True)
+    is_available: int | None = pa.Field(nullable=True)
+    pt_xyz_available: int | None = pa.Field(nullable=True)

@@ -1,24 +1,197 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Literal
+
+from nbadb.core.types import SeasonType
+
+type ParamPattern = Literal[
+    "season",
+    "game",
+    "live",
+    "player",
+    "team",
+    "player_season",
+    "player_team_season",
+    "team_season",
+    "static",
+    "date",
+]
+
+type SeasonTypeCapability = Literal["supported", "blocked", "not_applicable"]
+type SupportedSeasonTypes = tuple[str, ...]
+
+_SEASON_TYPE_CAPABILITY_BY_PATTERN: dict[ParamPattern, SeasonTypeCapability] = {
+    "season": "supported",
+    "game": "not_applicable",
+    "live": "not_applicable",
+    "player": "not_applicable",
+    "team": "not_applicable",
+    "player_season": "supported",
+    "player_team_season": "blocked",
+    "team_season": "supported",
+    "static": "not_applicable",
+    "date": "not_applicable",
+}
+
+_SEASON_TYPE_CAPABILITIES: frozenset[SeasonTypeCapability] = frozenset(
+    {"supported", "blocked", "not_applicable"}
+)
+_SUPPORTED_SEASON_TYPE_PATTERNS: frozenset[ParamPattern] = frozenset(
+    {"season", "player_season", "team_season", "player_team_season"}
+)
+_ALL_SEASON_TYPES: SupportedSeasonTypes = tuple(season_type.value for season_type in SeasonType)
+_PLAYOFF_SEASON_TYPES: SupportedSeasonTypes = (
+    SeasonType.REGULAR.value,
+    SeasonType.PLAYOFFS.value,
+)
+_SEASON_TYPE_VALUE_SET: frozenset[str] = frozenset(_ALL_SEASON_TYPES)
+_ALL_STAR_SEASON_TYPE_PARAM_KEYS: frozenset[str] = frozenset(
+    {
+        "season_type",
+        "season_type_all_star",
+        "season_type_all_star_nullable",
+        "season_type_nullable",
+    }
+)
+_PLAYOFF_SEASON_TYPE_PARAM_KEYS: frozenset[str] = frozenset(
+    {
+        "person1_season_type",
+        "person2_season_type",
+        "season_type_playoffs",
+    }
+)
+
+
+def _constant_string(value: ast.AST | None) -> str | None:
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return value.value
+    return None
+
+
+@lru_cache(maxsize=1)
+def _extractor_season_type_param_keys_by_endpoint() -> dict[str, frozenset[str]]:
+    """Infer season-type kwarg families from the stats extractor layer.
+
+    The extractor wrappers already encode which nba_api season-type kwarg family an
+    endpoint uses (`season_type_all_star`, `season_type_playoffs`, etc.).  Reusing
+    that keeps the staging contract explicit without hand-maintaining a large,
+    duplicated endpoint list here.
+    """
+
+    extract_root = Path(__file__).resolve().parents[1] / "extract" / "stats"
+    if not extract_root.exists():
+        return {}
+
+    endpoint_keys: dict[str, set[str]] = {}
+
+    for path in sorted(extract_root.glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+
+            endpoint_name: str | None = None
+            season_type_param_keys: set[str] = set()
+
+            for stmt in node.body:
+                if isinstance(stmt, ast.Assign):
+                    for target in stmt.targets:
+                        if isinstance(target, ast.Name) and target.id == "endpoint_name":
+                            endpoint_name = _constant_string(stmt.value)
+                elif (
+                    isinstance(stmt, ast.AnnAssign)
+                    and isinstance(stmt.target, ast.Name)
+                    and stmt.target.id == "endpoint_name"
+                ):
+                    endpoint_name = _constant_string(stmt.value)
+
+            if endpoint_name is None:
+                continue
+
+            for child in ast.walk(node):
+                if not isinstance(child, ast.Call):
+                    if isinstance(child, ast.Dict):
+                        for key in child.keys:
+                            key_name = _constant_string(key)
+                            if key_name and "season_type" in key_name:
+                                season_type_param_keys.add(key_name)
+                    continue
+                func_name = None
+                if isinstance(child.func, ast.Attribute):
+                    func_name = child.func.attr
+                elif isinstance(child.func, ast.Name):
+                    func_name = child.func.id
+                if func_name not in {"_from_nba_api", "_from_nba_api_multi"}:
+                    continue
+
+                for keyword in child.keywords:
+                    if keyword.arg and "season_type" in keyword.arg:
+                        season_type_param_keys.add(keyword.arg)
+                    elif keyword.arg is None and isinstance(keyword.value, ast.Dict):
+                        for key in keyword.value.keys:
+                            key_name = _constant_string(key)
+                            if key_name and "season_type" in key_name:
+                                season_type_param_keys.add(key_name)
+
+            endpoint_keys[endpoint_name] = season_type_param_keys
+
+    return {
+        endpoint_name: frozenset(sorted(keys))
+        for endpoint_name, keys in sorted(endpoint_keys.items())
+    }
+
+
+def _infer_supported_season_types(endpoint_name: str) -> SupportedSeasonTypes:
+    param_keys = _extractor_season_type_param_keys_by_endpoint().get(endpoint_name, frozenset())
+    if param_keys & _ALL_STAR_SEASON_TYPE_PARAM_KEYS:
+        return _ALL_SEASON_TYPES
+    if param_keys & _PLAYOFF_SEASON_TYPE_PARAM_KEYS:
+        return _PLAYOFF_SEASON_TYPES
+    return ()
+
+
+def _infer_season_type_capability(
+    endpoint_name: str,
+    param_pattern: ParamPattern,
+) -> SeasonTypeCapability:
+    default_capability = _SEASON_TYPE_CAPABILITY_BY_PATTERN[param_pattern]
+    if param_pattern not in _SUPPORTED_SEASON_TYPE_PATTERNS:
+        return default_capability
+    if default_capability == "blocked":
+        return "blocked"
+    return "supported" if _infer_supported_season_types(endpoint_name) else "not_applicable"
+
+
+def _normalize_supported_season_types(
+    supported_season_types: SupportedSeasonTypes | tuple[str, ...] | list[str],
+) -> SupportedSeasonTypes:
+    values = tuple(str(value) for value in supported_season_types if str(value))
+    invalid = [value for value in values if value not in _SEASON_TYPE_VALUE_SET]
+    if invalid:
+        msg = f"Unsupported supported_season_types values: {invalid!r}"
+        raise ValueError(msg)
+    ordered = tuple(value for value in _ALL_SEASON_TYPES if value in values)
+    if len(ordered) != len(set(values)):
+        msg = f"Duplicate supported_season_types values: {values!r}"
+        raise ValueError(msg)
+    return ordered
 
 
 @dataclass(frozen=True, slots=True)
 class StagingEntry:
     endpoint_name: str
     staging_key: str
-    param_pattern: Literal[
-        "season",
-        "game",
-        "player",
-        "team",
-        "player_season",
-        "player_team_season",
-        "team_season",
-        "static",
-        "date",
-    ]
+    param_pattern: ParamPattern
     result_set_index: int = 0
     use_multi: bool = False
     deprecated_after: str | None = None
@@ -39,6 +212,42 @@ class StagingEntry:
     - 2020: IST / In-Season Tournament standings
     - 2023: BoxScoreSummaryV3, DunkScoreLeaders
     """
+    season_type_capability: SeasonTypeCapability | None = None
+    """Historical season_type contract capability for this staging surface.
+
+    ``supported`` applies to season-based sweeps where season_type can be carried
+    as part of the historical contract. ``blocked`` marks known shapes that need
+    follow-up work before they can participate in that contract.
+    ``not_applicable`` covers static and non-season-type surfaces.
+    """
+    supported_season_types: SupportedSeasonTypes | None = None
+    """Explicit supported season_type values for historical season-aware surfaces."""
+
+    def __post_init__(self) -> None:
+        capability = self.season_type_capability
+        if capability is None:
+            capability = _infer_season_type_capability(self.endpoint_name, self.param_pattern)
+        if capability not in _SEASON_TYPE_CAPABILITIES:
+            msg = f"Unsupported season_type_capability: {capability!r}"
+            raise ValueError(msg)
+        object.__setattr__(self, "season_type_capability", capability)
+
+        supported_season_types = self.supported_season_types
+        if supported_season_types is None:
+            supported_season_types = (
+                _infer_supported_season_types(self.endpoint_name)
+                if capability == "supported"
+                else ()
+            )
+        normalized_supported_season_types = _normalize_supported_season_types(
+            supported_season_types
+        )
+        if capability != "supported" and normalized_supported_season_types:
+            msg = (
+                "supported_season_types may only be declared for season_type_capability='supported'"
+            )
+            raise ValueError(msg)
+        object.__setattr__(self, "supported_season_types", normalized_supported_season_types)
 
 
 STAGING_MAP: list[StagingEntry] = [
@@ -198,6 +407,7 @@ STAGING_MAP: list[StagingEntry] = [
         min_season=2015,
     ),
     StagingEntry("video_events", "stg_video_events", "game"),
+    StagingEntry("video_events_asset", "stg_video_events_asset", "game"),
     StagingEntry("box_score_matchups", "stg_matchup", "game", min_season=2016),
     StagingEntry(
         "box_score_summary",
@@ -1005,7 +1215,12 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
         min_season=2013,
     ),
-    StagingEntry("player_game_logs_v2", "stg_player_game_logs_v2", "player"),
+    StagingEntry(
+        "player_game_logs_v2",
+        "stg_player_game_logs_v2",
+        "player",
+        season_type_capability="supported",
+    ),
     StagingEntry("player_streak_finder", "stg_player_streak_finder", "player"),
     StagingEntry("player_next_games", "stg_player_next_games", "player"),
     StagingEntry(
@@ -1088,8 +1303,18 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_gl_alum_box_score_similarity_score",
         "player_season",
     ),
-    StagingEntry("video_details", "stg_video_details", "player_team_season"),
-    StagingEntry("video_details_asset", "stg_video_details_asset", "player_team_season"),
+    StagingEntry(
+        "video_details",
+        "stg_video_details",
+        "player_team_season",
+        season_type_capability="supported",
+    ),
+    StagingEntry(
+        "video_details_asset",
+        "stg_video_details_asset",
+        "player_team_season",
+        season_type_capability="supported",
+    ),
     StagingEntry("player_game_streak_finder", "stg_player_game_streak_finder", "player"),
     # Team-level additions
     StagingEntry(
@@ -2344,6 +2569,59 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_scoreboard_win_probability",
         "date",
         result_set_index=9,
+        use_multi=True,
+    ),
+    # ── Live snapshot surfaces (10) ───────────────────────────
+    StagingEntry("live_score_board", "stg_live_score_board", "live"),
+    StagingEntry("live_odds", "stg_live_odds", "live"),
+    StagingEntry("live_play_by_play", "stg_live_play_by_play", "live"),
+    StagingEntry(
+        "live_box_score",
+        "stg_live_box_score_game_details",
+        "live",
+        result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "live_box_score",
+        "stg_live_box_score_arena",
+        "live",
+        result_set_index=1,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "live_box_score",
+        "stg_live_box_score_officials",
+        "live",
+        result_set_index=2,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "live_box_score",
+        "stg_live_box_score_team_stats_home",
+        "live",
+        result_set_index=3,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "live_box_score",
+        "stg_live_box_score_team_stats_away",
+        "live",
+        result_set_index=4,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "live_box_score",
+        "stg_live_box_score_player_stats_home",
+        "live",
+        result_set_index=5,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "live_box_score",
+        "stg_live_box_score_player_stats_away",
+        "live",
+        result_set_index=6,
         use_multi=True,
     ),
 ]

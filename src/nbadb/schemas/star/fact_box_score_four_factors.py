@@ -2,9 +2,33 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
+@derived_output_schema(
+    source_overrides={
+        "effective_field_goal_percentage": (
+            "stg_box_score_four_factors_player.effective_field_goal_percentage"
+        ),
+        "free_throw_attempt_rate": "stg_box_score_four_factors_player.free_throw_attempt_rate",
+        "team_turnover_percentage": "stg_box_score_four_factors_player.team_turnover_percentage",
+        "offensive_rebound_percentage": (
+            "stg_box_score_four_factors_player.offensive_rebound_percentage"
+        ),
+        "opp_effective_field_goal_percentage": (
+            "stg_box_score_four_factors_player.opp_effective_field_goal_percentage"
+        ),
+        "opp_free_throw_attempt_rate": (
+            "stg_box_score_four_factors_player.opp_free_throw_attempt_rate"
+        ),
+        "opp_team_turnover_percentage": (
+            "stg_box_score_four_factors_player.opp_team_turnover_percentage"
+        ),
+        "opp_offensive_rebound_percentage": (
+            "stg_box_score_four_factors_player.opp_offensive_rebound_percentage"
+        ),
+    }
+)
 class FactBoxScoreFourFactorsSchema(BaseSchema):
     game_id: str = pa.Field(
         nullable=False,

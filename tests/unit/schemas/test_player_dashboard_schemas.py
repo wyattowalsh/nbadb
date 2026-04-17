@@ -17,6 +17,14 @@ from nbadb.schemas.staging.player_dashboard import (
     StagingPlayerShootAssistedBySchema,
     StagingPlayerShootTypeSummarySchema,
 )
+from nbadb.schemas.staging.player_team_family_support import (
+    StagingPlayerLastnGameNumberSchema,
+    StagingPlayerLastnLast5Schema,
+    StagingPlayerLastnLast10Schema,
+    StagingPlayerLastnLast15Schema,
+    StagingPlayerLastnLast20Schema,
+    StagingPlayerLastnOverallSchema,
+)
 from nbadb.schemas.star.fact_player_dashboard import (
     FactPlayerDashboardClutchOverallSchema,
     FactPlayerDashboardGameSplitsOverallSchema,
@@ -126,15 +134,15 @@ _STAGING_SCHEMA_GROUPS = [
         [
             "stg_player_dashboard_last_n_games",
             "stg_player_dash_last_n_games",
-            "stg_player_lastn_game_number",
-            "stg_player_lastn_last10",
-            "stg_player_lastn_last15",
-            "stg_player_lastn_last20",
-            "stg_player_lastn_last5",
-            "stg_player_lastn_overall",
         ],
         "StagingPlayerDashboardLastNGamesSchema",
     ),
+    (["stg_player_lastn_game_number"], "StagingPlayerLastnGameNumberSchema"),
+    (["stg_player_lastn_last10"], "StagingPlayerLastnLast10Schema"),
+    (["stg_player_lastn_last15"], "StagingPlayerLastnLast15Schema"),
+    (["stg_player_lastn_last20"], "StagingPlayerLastnLast20Schema"),
+    (["stg_player_lastn_last5"], "StagingPlayerLastnLast5Schema"),
+    (["stg_player_lastn_overall"], "StagingPlayerLastnOverallSchema"),
     (
         [
             "stg_player_dashboard_shooting_splits",
@@ -344,6 +352,12 @@ def test_input_schema_resolves_player_dashboard_families(
         (StagingPlayerDashboardGameSplitsSchema, _standard_dashboard_row),
         (StagingPlayerDashboardGeneralSplitsSchema, _standard_dashboard_row),
         (StagingPlayerDashboardLastNGamesSchema, _standard_dashboard_row),
+        (StagingPlayerLastnGameNumberSchema, _standard_dashboard_row),
+        (StagingPlayerLastnLast10Schema, _standard_dashboard_row),
+        (StagingPlayerLastnLast15Schema, _standard_dashboard_row),
+        (StagingPlayerLastnLast20Schema, _standard_dashboard_row),
+        (StagingPlayerLastnLast5Schema, _standard_dashboard_row),
+        (StagingPlayerLastnOverallSchema, _standard_dashboard_row),
         (StagingPlayerDashboardShootingSplitsSchema, _shooting_ranked_row),
         (StagingPlayerDashboardTeamPerformanceSchema, _standard_dashboard_row),
         (StagingPlayerDashboardYearOverYearSchema, _yoy_row),

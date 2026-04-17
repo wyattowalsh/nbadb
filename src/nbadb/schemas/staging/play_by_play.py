@@ -421,3 +421,13 @@ class StagingPlayByPlayV2Schema(BaseSchema):
             "description": "Video availability flag",
         },
     )
+
+
+class StagingPlayByPlayV2VideoAvailableSchema(BaseSchema):
+    video_available_flag: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("PlayByPlayV2.AvailableVideo.VIDEO_AVAILABLE_FLAG"),
+            "description": "Legacy play-by-play video availability flag",
+        },
+    )

@@ -15,10 +15,11 @@ _TRANSFORM_PACKAGES = [
     "nbadb.transform.facts",
     "nbadb.transform.derived",
     "nbadb.transform.views",
+    "nbadb.transform.live",
 ]
 
 
-def discover_all_transformers() -> list[BaseTransformer]:
+def discover_all_transformers(*, include_live: bool = True) -> list[BaseTransformer]:
     """Auto-discover and instantiate all transformer classes.
 
     Walks the four transform sub-packages and collects every
@@ -56,6 +57,8 @@ def discover_all_transformers() -> list[BaseTransformer]:
                     and hasattr(cls, "output_table")
                     and cls not in seen
                 ):
+                    if not include_live and getattr(cls, "is_live_snapshot", False):
+                        continue
                     output_table = cls.output_table
                     if not isinstance(output_table, str) or not output_table:
                         continue
@@ -75,3 +78,11 @@ def discover_all_transformers() -> list[BaseTransformer]:
         len(_TRANSFORM_PACKAGES),
     )
     return transformers
+
+
+def discover_live_transformers() -> list[BaseTransformer]:
+    return [
+        transformer
+        for transformer in discover_all_transformers(include_live=True)
+        if getattr(transformer, "is_live_snapshot", False)
+    ]

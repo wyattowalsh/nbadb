@@ -45,6 +45,17 @@ _INPUT_SCHEMA_ALIASES: dict[str, str] = {
     "stg_draft_combine_nonstat_shooting": "raw_draft_combine_non_stationary_shooting",
     "stg_draft_combine_anthro": "raw_draft_combine_player_anthro",
     "stg_draft_combine_spot_shooting": "raw_draft_combine_spot_shooting",
+    # Leaderboard/homepage family aliases
+    "stg_all_time": "stg_all_time_ast",
+    "stg_all_time_fg3a": "stg_all_time_fg3_a",
+    "stg_all_time_fg3m": "stg_all_time_fg3_m",
+    "stg_cume_player": "stg_cume_player_game_by_game",
+    "stg_cume_team": "stg_cume_team_game_by_game",
+    "stg_home_page_leaders": "stg_homepage_leaders",
+    "stg_homepage_leaders_main": "stg_homepage_leaders",
+    "stg_home_page_v2": "stg_homepage_v2",
+    "stg_homepage_v2_stat1": "stg_homepage_v2",
+    "stg_leaders_tiles_alltime_high": "stg_leaders_tiles",
 }
 
 _PLAYER_DASHBOARD_INPUT_SCHEMA_ALIASES: dict[str, str] = {
@@ -101,6 +112,9 @@ _PLAYER_DASHBOARD_INPUT_SCHEMA_ALIASES: dict[str, str] = {
     "stg_player_dash_yoy": "stg_player_dashboard_year_over_year",
     "stg_player_yoy_by_year": "stg_player_dashboard_year_over_year",
     "stg_player_yoy_overall": "stg_player_dashboard_year_over_year",
+    # Team dashboard support-family numeric packet aliases
+    "stg_team_shoot_5ft": "stg_team_shoot5_ft",
+    "stg_team_shoot_8ft": "stg_team_shoot8_ft",
 }
 
 _INPUT_SCHEMA_ALIASES.update(_PLAYER_DASHBOARD_INPUT_SCHEMA_ALIASES)
@@ -127,7 +141,8 @@ def _discover_schemas(
         module = importlib.import_module(module_name)
         for name, obj in inspect.getmembers(module, inspect.isclass):
             if (
-                obj.__module__ != module_name
+                name.startswith("_")
+                or obj.__module__ != module_name
                 or obj is BaseSchema
                 or not issubclass(obj, BaseSchema)
                 or not name.endswith("Schema")
@@ -173,6 +188,9 @@ def _star_schema_registry() -> dict[str, type[BaseSchema]]:
 
 def get_input_schema(table_name: str) -> type[BaseSchema] | None:
     if schema := _staging_schema_registry().get(table_name):
+        return schema
+
+    if schema := _raw_schema_registry().get(table_name):
         return schema
 
     alias = _INPUT_SCHEMA_ALIASES.get(table_name)

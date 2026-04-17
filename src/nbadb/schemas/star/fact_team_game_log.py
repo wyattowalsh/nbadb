@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class FactTeamGameLogSchema(BaseSchema):
@@ -38,3 +38,6 @@ class FactTeamGameLogSchema(BaseSchema):
     pts: float | None = pa.Field(nullable=True, ge=0.0)
     plus_minus: float | None = pa.Field(nullable=True)
     video_available: int | None = pa.Field(nullable=True, ge=0)
+
+
+derived_output_schema()(FactTeamGameLogSchema)

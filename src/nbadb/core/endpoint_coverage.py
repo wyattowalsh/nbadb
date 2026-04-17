@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib
+import inspect
 import json
 import pkgutil
 import re
@@ -11,10 +12,24 @@ from pathlib import Path
 from typing import Any
 
 from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry
+from nbadb.schemas.registry import _INPUT_SCHEMA_ALIASES
 
 _COVERAGE_KEYS = ("covered", "runtime_gap", "staging_only", "extractor_only", "source_only")
 _SOURCE_KINDS = ("stats", "static", "live")
 _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
+_CAMEL_RE_1 = re.compile(r"(.)([A-Z][a-z]+)")
+_CAMEL_RE_2 = re.compile(r"([a-z0-9])([A-Z])")
+_DEFAULT_HISTORICAL_START_SEASON = 1946
+_HISTORICAL_PARAM_PATTERNS = {
+    "season",
+    "game",
+    "player",
+    "team",
+    "player_season",
+    "player_team_season",
+    "team_season",
+    "date",
+}
 
 # Legacy/alternate extractor endpoint names mapped to canonical staging names.
 _ENDPOINT_ALIASES: dict[str, str] = {
@@ -66,6 +81,7 @@ _RUNTIME_CLASS_ALIASES: dict[str, str] = {
     "BoxScoreFourFactorsV2": "BoxScoreFourFactorsV3",
     "LeagueStandings": "LeagueStandingsV3",
     "PlayByPlay": "PlayByPlayV3",
+    "TeamAndPlayersVs": "TeamAndPlayersVsPlayers",
 }
 
 _STATIC_SURFACE_ALIASES: dict[str, str] = {
@@ -151,6 +167,11 @@ def _to_snake_case(name: str) -> str:
     return _CAMEL_RE.sub(r"\1_\2", name).lower()
 
 
+def _camel_to_snake(name: str) -> str:
+    interim = _CAMEL_RE_1.sub(r"\1_\2", name)
+    return _CAMEL_RE_2.sub(r"\1_\2", interim).lower()
+
+
 def _runtime_class_to_surface_name(name: str, known_surfaces: set[str] | None = None) -> str:
     versioned_name = _to_snake_case(name)
     unversioned_name = re.sub(r"_v\d+$", "", versioned_name)
@@ -199,14 +220,55 @@ class EndpointCoverageGenerator:
         return values
 
     @staticmethod
+    def _call_name(value: ast.AST) -> str | None:
+        if isinstance(value, ast.Name):
+            return value.id
+        if isinstance(value, ast.Attribute):
+            return value.attr
+        return None
+
+    @classmethod
+    def _generated_transform_signature(
+        cls,
+        value: ast.AST,
+    ) -> tuple[str, list[str]] | None:
+        if not isinstance(value, ast.Call):
+            return None
+
+        call_name = cls._call_name(value.func)
+        target_call = value
+        if (
+            call_name == "_mark_live_snapshot"
+            and value.args
+            and isinstance(value.args[0], ast.Call)
+        ):
+            target_call = value.args[0]
+            call_name = cls._call_name(target_call.func)
+
+        if call_name == "make_passthrough" and len(target_call.args) >= 2:
+            output_table = cls._constant_string(target_call.args[0])
+            dependency = cls._constant_string(target_call.args[1])
+            if output_table is not None and dependency is not None:
+                return output_table, [dependency]
+
+        if call_name == "make_union" and len(target_call.args) >= 3:
+            output_table = cls._constant_string(target_call.args[0])
+            branches = target_call.args[2]
+            dependencies: list[str] = []
+            if isinstance(branches, ast.Dict):
+                for branch_value in branches.values:
+                    dependency = cls._constant_string(branch_value)
+                    if dependency is not None:
+                        dependencies.append(dependency)
+            if output_table is not None and dependencies:
+                return output_table, dependencies
+
+        return None
+
+    @staticmethod
     def _table_name_from_schema_class_name(class_name: str) -> str:
         name = class_name.removesuffix("Schema").removesuffix("Model")
-        parts: list[str] = []
-        for index, char in enumerate(name):
-            if char.isupper() and index > 0:
-                parts.append("_")
-            parts.append(char.lower())
-        return "".join(parts)
+        return _camel_to_snake(name)
 
     @staticmethod
     def _table_family(table_name: str) -> str:
@@ -230,10 +292,20 @@ class EndpointCoverageGenerator:
         return dict(sorted(breakdown.items()))
 
     @staticmethod
-    def _collect_runtime_refs(node: ast.AST) -> set[str]:
+    def _collect_runtime_refs(
+        node: ast.AST,
+        imported_runtime_names: set[str] | None = None,
+    ) -> set[str]:
         refs: set[str] = set()
         for child in ast.walk(node):
             if not isinstance(child, ast.Call):
+                continue
+            if (
+                imported_runtime_names is not None
+                and isinstance(child.func, ast.Name)
+                and child.func.id in imported_runtime_names
+            ):
+                refs.add(child.func.id)
                 continue
             if isinstance(child.func, ast.Attribute):
                 if child.func.attr not in {
@@ -265,6 +337,21 @@ class EndpointCoverageGenerator:
                 refs.add(endpoint_arg.attr)
         return refs
 
+    @staticmethod
+    def _module_runtime_imports(tree: ast.Module) -> set[str]:
+        runtime_names: set[str] = set()
+        for node in tree.body:
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            module = node.module or ""
+            if not module.startswith("nba_api.stats.endpoints"):
+                continue
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                runtime_names.add(alias.asname or alias.name)
+        return runtime_names
+
     def _extractor_metadata(self, extract_dir: Path) -> list[tuple[str, set[str]]]:
         metadata: list[tuple[str, set[str]]] = []
         if not extract_dir.exists():
@@ -277,6 +364,8 @@ class EndpointCoverageGenerator:
                 tree = ast.parse(path.read_text(encoding="utf-8"))
             except (OSError, SyntaxError):
                 continue
+
+            imported_runtime_names = self._module_runtime_imports(tree)
 
             for node in tree.body:
                 if not isinstance(node, ast.ClassDef):
@@ -294,11 +383,10 @@ class EndpointCoverageGenerator:
                             endpoint_name = (
                                 self._constant_string(stmt.value) if stmt.value else None
                             )
-                    elif (
-                        isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and stmt.name == "extract"
-                    ):
-                        runtime_refs.update(self._collect_runtime_refs(stmt))
+                    elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        runtime_refs.update(
+                            self._collect_runtime_refs(stmt, imported_runtime_names)
+                        )
 
                 if endpoint_name:
                     metadata.append((endpoint_name, runtime_refs))
@@ -341,7 +429,7 @@ class EndpointCoverageGenerator:
         output_map: dict[str, set[str]] = defaultdict(set)
         output_tables: set[str] = set()
         transform_root = self.project_root / "src" / "nbadb" / "transform"
-        for subdir in ("dimensions", "facts", "derived", "views"):
+        for subdir in ("dimensions", "facts", "derived", "views", "live"):
             current_dir = transform_root / subdir
             if not current_dir.exists():
                 continue
@@ -354,38 +442,48 @@ class EndpointCoverageGenerator:
                     continue
 
                 for node in tree.body:
-                    if not isinstance(node, ast.ClassDef):
-                        continue
-                    output_table: str | None = None
-                    depends_on: list[str] = []
+                    if isinstance(node, ast.ClassDef):
+                        output_table: str | None = None
+                        depends_on: list[str] = []
 
-                    for stmt in node.body:
-                        if isinstance(stmt, ast.Assign):
-                            for target in stmt.targets:
-                                if isinstance(target, ast.Name) and target.id == "output_table":
-                                    output_table = self._constant_string(stmt.value)
-                                elif isinstance(target, ast.Name) and target.id == "depends_on":
-                                    depends_on = self._constant_string_list(stmt.value)
-                        elif isinstance(stmt, ast.AnnAssign):
-                            if (
-                                isinstance(stmt.target, ast.Name)
-                                and stmt.target.id == "output_table"
-                            ):
-                                output_table = (
-                                    self._constant_string(stmt.value) if stmt.value else None
-                                )
-                            elif (
-                                isinstance(stmt.target, ast.Name) and stmt.target.id == "depends_on"
-                            ):
-                                depends_on = (
-                                    self._constant_string_list(stmt.value) if stmt.value else []
-                                )
+                        for stmt in node.body:
+                            if isinstance(stmt, ast.Assign):
+                                for target in stmt.targets:
+                                    if isinstance(target, ast.Name) and target.id == "output_table":
+                                        output_table = self._constant_string(stmt.value)
+                                    elif isinstance(target, ast.Name) and target.id == "depends_on":
+                                        depends_on = self._constant_string_list(stmt.value)
+                            elif isinstance(stmt, ast.AnnAssign):
+                                if (
+                                    isinstance(stmt.target, ast.Name)
+                                    and stmt.target.id == "output_table"
+                                ):
+                                    output_table = (
+                                        self._constant_string(stmt.value) if stmt.value else None
+                                    )
+                                elif (
+                                    isinstance(stmt.target, ast.Name)
+                                    and stmt.target.id == "depends_on"
+                                ):
+                                    depends_on = (
+                                        self._constant_string_list(stmt.value) if stmt.value else []
+                                    )
 
-                    if output_table is None:
+                        if output_table is None:
+                            continue
+                        output_tables.add(output_table)
+                        for dependency in depends_on:
+                            output_map[dependency].add(output_table)
                         continue
-                    output_tables.add(output_table)
-                    for dependency in depends_on:
-                        output_map[dependency].add(output_table)
+
+                    if isinstance(node, ast.Assign):
+                        signature = self._generated_transform_signature(node.value)
+                        if signature is None:
+                            continue
+                        output_table, dependencies = signature
+                        output_tables.add(output_table)
+                        for dependency in dependencies:
+                            output_map[dependency].add(output_table)
         return dict(output_map), output_tables
 
     def _star_schema_tables(self) -> set[str]:
@@ -405,10 +503,75 @@ class EndpointCoverageGenerator:
             for node in tree.body:
                 if not isinstance(node, ast.ClassDef):
                     continue
+                if node.name.startswith("_"):
+                    continue
                 if not node.name.endswith(("Schema", "Model")):
                     continue
                 schema_tables.add(self._table_name_from_schema_class_name(node.name))
         return schema_tables
+
+    def _schema_tables(
+        self,
+        *,
+        schema_subdir: str,
+        class_prefix: str,
+        table_prefix: str,
+    ) -> set[str]:
+        schema_dir = self.project_root / "src" / "nbadb" / "schemas" / schema_subdir
+        if not schema_dir.exists():
+            return set()
+
+        schema_tables: set[str] = set()
+        for path in sorted(schema_dir.glob("*.py")):
+            if path.name == "__init__.py":
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+            except (OSError, SyntaxError):
+                continue
+
+            for node in tree.body:
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                if node.name.startswith("_"):
+                    continue
+                if not node.name.endswith(("Schema", "Model")):
+                    continue
+                if class_prefix and not node.name.startswith(class_prefix):
+                    continue
+                stem = node.name.removesuffix("Schema").removesuffix("Model")
+                if class_prefix:
+                    stem = stem.removeprefix(class_prefix)
+                schema_tables.add(f"{table_prefix}{_camel_to_snake(stem)}")
+        return schema_tables
+
+    def _staging_schema_tables(self) -> set[str]:
+        return self._schema_tables(
+            schema_subdir="staging",
+            class_prefix="Staging",
+            table_prefix="stg_",
+        )
+
+    def _raw_schema_tables(self) -> set[str]:
+        return self._schema_tables(
+            schema_subdir="raw",
+            class_prefix="Raw",
+            table_prefix="raw_",
+        )
+
+    @staticmethod
+    def _input_schema_present(
+        table_name: str,
+        *,
+        staging_schema_tables: set[str],
+        raw_schema_tables: set[str],
+    ) -> bool:
+        if table_name in staging_schema_tables:
+            return True
+        alias = _INPUT_SCHEMA_ALIASES.get(table_name)
+        if alias is None:
+            return False
+        return alias in staging_schema_tables or alias in raw_schema_tables
 
     @staticmethod
     def _discover_runtime_endpoint_classes() -> tuple[set[str], str]:
@@ -425,6 +588,20 @@ class EndpointCoverageGenerator:
             obj = getattr(endpoints, name)
             if isinstance(obj, type):
                 classes.add(name)
+
+        package_path = getattr(endpoints, "__path__", None)
+        if package_path is not None:
+            for module_info in pkgutil.iter_modules(package_path):
+                try:
+                    module = importlib.import_module(f"{endpoints.__name__}.{module_info.name}")
+                except Exception:
+                    continue
+                for name, obj in inspect.getmembers(module, inspect.isclass):
+                    if obj.__module__ != module.__name__:
+                        continue
+                    if name.startswith("_") or name == "Endpoint":
+                        continue
+                    classes.add(name)
         return classes, getattr(nba_api, "__version__", "unknown")
 
     @staticmethod
@@ -463,6 +640,306 @@ class EndpointCoverageGenerator:
                 classes.add(_to_snake_case(name))
         return classes
 
+    @staticmethod
+    def _resolve_endpoint_source_kind(
+        endpoint_name: str,
+        rows: list[dict[str, Any]],
+    ) -> str:
+        if endpoint_name in _STATIC_SURFACE_ALIASES:
+            return "static"
+        if endpoint_name in _LIVE_SURFACE_ALIASES:
+            return "live"
+
+        source_kinds = {str(row["source_kind"]) for row in rows}
+        if "live" in source_kinds:
+            return "live"
+        if "static" in source_kinds:
+            return "static"
+        return "stats"
+
+    @staticmethod
+    def _execution_semantics(source_kind: str, param_patterns: set[str]) -> str:
+        if source_kind == "live":
+            return "live_snapshot"
+        if param_patterns and param_patterns <= {"static"}:
+            return "reference_snapshot"
+        return "historical_backfill"
+
+    @staticmethod
+    def _season_type_contract_status(
+        entries: list[StagingEntry],
+        execution_semantics: str,
+    ) -> str:
+        if execution_semantics != "historical_backfill":
+            return "not_applicable"
+        if not entries:
+            return "untracked"
+
+        capabilities = {
+            str(entry.season_type_capability)
+            for entry in entries
+            if entry.season_type_capability is not None
+        }
+        if not capabilities:
+            return "untracked"
+        if len(capabilities) == 1:
+            return next(iter(capabilities))
+        return "mixed"
+
+    @staticmethod
+    def _declared_supported_season_types(entries: list[StagingEntry]) -> list[str]:
+        declared: list[str] = []
+        for entry in entries:
+            for season_type in getattr(entry, "supported_season_types", ()) or ():
+                value = str(season_type)
+                if value not in declared:
+                    declared.append(value)
+        return declared
+
+    @classmethod
+    def _season_type_value_gaps(
+        cls,
+        entries: list[StagingEntry],
+        execution_semantics: str,
+    ) -> list[str]:
+        if execution_semantics != "historical_backfill" or not entries:
+            return []
+
+        supported_entries = [
+            entry for entry in entries if str(entry.season_type_capability) == "supported"
+        ]
+        if not supported_entries:
+            return []
+
+        value_gaps: list[str] = []
+        declared_sets = {
+            tuple(str(value) for value in (entry.supported_season_types or ()))
+            for entry in supported_entries
+            if entry.supported_season_types
+        }
+        if any(not entry.supported_season_types for entry in supported_entries):
+            value_gaps.append("supported_season_types_missing")
+        if len(declared_sets) > 1:
+            value_gaps.append("supported_season_types_mixed")
+        return sorted(value_gaps)
+
+    @classmethod
+    def _build_support_matrix(
+        cls,
+        *,
+        matrix: list[dict[str, Any]],
+        staging_entries_by_endpoint: dict[str, list[StagingEntry]],
+        transform_outputs_by_staging: dict[str, set[str]],
+        staging_schema_tables: set[str],
+        raw_schema_tables: set[str],
+        star_schema_tables: set[str],
+    ) -> dict[str, Any]:
+        rows_by_endpoint: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for row in matrix:
+            rows_by_endpoint[str(row["endpoint_name"])].append(row)
+
+        support_matrix: list[dict[str, Any]] = []
+        contract_status_breakdown: dict[str, int] = defaultdict(int)
+        execution_semantics_breakdown: dict[str, int] = defaultdict(int)
+        source_kind_breakdown: dict[str, int] = defaultdict(int)
+        gap_breakdown: dict[str, int] = defaultdict(int)
+
+        for endpoint_name in sorted(rows_by_endpoint):
+            endpoint_rows = rows_by_endpoint[endpoint_name]
+            source_kind = cls._resolve_endpoint_source_kind(endpoint_name, endpoint_rows)
+            coverage_rows = [
+                row for row in endpoint_rows if str(row["source_kind"]) == source_kind
+            ] or endpoint_rows
+            entries = staging_entries_by_endpoint.get(endpoint_name, [])
+            param_patterns = {
+                str(row["param_pattern"])
+                for row in coverage_rows
+                if str(row["param_pattern"]) not in {"extractor_only", "live", "not_applicable"}
+            }
+            if not param_patterns and entries:
+                param_patterns = {entry.param_pattern for entry in entries}
+
+            execution_semantics = cls._execution_semantics(source_kind, param_patterns)
+            season_type_contract_status = cls._season_type_contract_status(
+                entries, execution_semantics
+            )
+            declared_supported_season_types = cls._declared_supported_season_types(entries)
+            season_type_value_gaps = cls._season_type_value_gaps(entries, execution_semantics)
+
+            coverage_gaps = sorted(
+                {
+                    str(row["coverage_status"])
+                    for row in coverage_rows
+                    if str(row["coverage_status"]) != "covered"
+                }
+            )
+            staging_keys = sorted(
+                {entry.staging_key for entry in entries}
+                | {str(key) for row in endpoint_rows for key in row["staging_keys"]}
+            )
+            transform_outputs = sorted(
+                {
+                    output
+                    for staging_key in staging_keys
+                    for output in transform_outputs_by_staging.get(staging_key, set())
+                }
+                | {str(output) for row in endpoint_rows for output in row["transform_outputs"]}
+            )
+            input_schema_missing_staging_keys = sorted(
+                entry.staging_key
+                for entry in entries
+                if not cls._input_schema_present(
+                    entry.staging_key,
+                    staging_schema_tables=staging_schema_tables,
+                    raw_schema_tables=raw_schema_tables,
+                )
+            )
+            output_schema_missing_tables = sorted(
+                table_name
+                for table_name in transform_outputs
+                if table_name not in star_schema_tables
+            )
+            model_exclusion_reasons = sorted(
+                {
+                    str(reason)
+                    for row in endpoint_rows
+                    for reason in [row.get("model_exclusion_reason")]
+                    if reason and not row.get("transform_outputs")
+                }
+                | {
+                    str(reason)
+                    for entry in entries
+                    for reason in [_MODEL_EXCLUDED_STAGING_KEYS.get(entry.staging_key)]
+                    if reason and not transform_outputs_by_staging.get(entry.staging_key)
+                }
+            )
+
+            support_windows = [
+                {
+                    "staging_key": entry.staging_key,
+                    "param_pattern": entry.param_pattern,
+                    "result_set_index": entry.result_set_index,
+                    "min_season": entry.min_season,
+                    "deprecated_after": entry.deprecated_after,
+                    "season_type_capability": entry.season_type_capability,
+                    "supported_season_types": list(entry.supported_season_types or ()),
+                    "input_schema_present": cls._input_schema_present(
+                        entry.staging_key,
+                        staging_schema_tables=staging_schema_tables,
+                        raw_schema_tables=raw_schema_tables,
+                    ),
+                    "transform_outputs": sorted(
+                        transform_outputs_by_staging.get(entry.staging_key, set())
+                    ),
+                }
+                for entry in sorted(
+                    entries, key=lambda item: (item.staging_key, item.result_set_index)
+                )
+            ]
+
+            earliest_supported_season: int | None = None
+            if execution_semantics == "historical_backfill" and entries:
+                earliest_supported_season = min(
+                    (entry.min_season or _DEFAULT_HISTORICAL_START_SEASON) for entry in entries
+                )
+
+            contract_gaps = list(coverage_gaps)
+            if season_type_contract_status == "blocked":
+                contract_gaps.append("season_type_contract_blocked")
+            elif season_type_contract_status == "mixed":
+                contract_gaps.append("season_type_contract_mixed")
+            contract_gaps.extend(season_type_value_gaps)
+            if source_kind == "live":
+                if not staging_keys:
+                    contract_gaps.append("snapshot_staging_missing")
+                if not transform_outputs:
+                    contract_gaps.append("snapshot_transform_missing")
+            else:
+                if not staging_keys:
+                    contract_gaps.append("staging_contract_missing")
+                if model_exclusion_reasons:
+                    contract_gaps.append("model_excluded")
+                if not transform_outputs:
+                    contract_gaps.append("transform_contract_missing")
+            if input_schema_missing_staging_keys:
+                contract_gaps.append("input_schema_missing")
+            if output_schema_missing_tables:
+                contract_gaps.append("output_schema_missing")
+            contract_gaps = sorted(set(contract_gaps))
+
+            if contract_gaps:
+                contract_status = "gap"
+            elif season_type_contract_status == "untracked":
+                contract_status = "partial"
+            else:
+                contract_status = "complete"
+
+            support_matrix.append(
+                {
+                    "source_kind": source_kind,
+                    "endpoint_name": endpoint_name,
+                    "execution_semantics": execution_semantics,
+                    "coverage_statuses": coverage_gaps or ["covered"],
+                    "contract_status": contract_status,
+                    "contract_gaps": contract_gaps,
+                    "season_type_contract_status": season_type_contract_status,
+                    "declared_supported_season_types": declared_supported_season_types,
+                    "season_type_value_gaps": season_type_value_gaps,
+                    "param_patterns": sorted(param_patterns),
+                    "staging_keys": staging_keys,
+                    "transform_outputs": transform_outputs,
+                    "input_schema_missing_staging_keys": input_schema_missing_staging_keys,
+                    "output_schema_missing_tables": output_schema_missing_tables,
+                    "model_exclusion_reasons": model_exclusion_reasons,
+                    "earliest_supported_season": earliest_supported_season,
+                    "support_windows": support_windows,
+                }
+            )
+
+            contract_status_breakdown[contract_status] += 1
+            execution_semantics_breakdown[execution_semantics] += 1
+            source_kind_breakdown[source_kind] += 1
+            for gap in contract_gaps:
+                gap_breakdown[gap] += 1
+
+        summary = {
+            "endpoint_count": len(support_matrix),
+            "contract_status_breakdown": dict(sorted(contract_status_breakdown.items())),
+            "execution_semantics_breakdown": dict(sorted(execution_semantics_breakdown.items())),
+            "source_kind_breakdown": dict(sorted(source_kind_breakdown.items())),
+            "season_type_contract_breakdown": dict(
+                sorted(
+                    {
+                        status: sum(
+                            1
+                            for row in support_matrix
+                            if row["season_type_contract_status"] == status
+                        )
+                        for status in sorted(
+                            {str(row["season_type_contract_status"]) for row in support_matrix}
+                        )
+                    }.items()
+                )
+            ),
+            "gap_breakdown": dict(sorted(gap_breakdown.items())),
+            "complete_endpoint_count": contract_status_breakdown.get("complete", 0),
+            "partial_endpoint_count": contract_status_breakdown.get("partial", 0),
+            "gap_endpoint_count": contract_status_breakdown.get("gap", 0),
+            "season_type_contract_untracked_count": sum(
+                1 for row in support_matrix if row["season_type_contract_status"] == "untracked"
+            ),
+            "season_type_value_gap_count": sum(
+                1 for row in support_matrix if row["season_type_value_gaps"]
+            ),
+            "season_type_contract_open_count": sum(
+                1
+                for row in support_matrix
+                if row["season_type_contract_status"] in {"untracked", "blocked", "mixed"}
+                or row["season_type_value_gaps"]
+            ),
+        }
+        return {"matrix": support_matrix, "summary": summary}
+
     def build_artifacts(
         self,
         runtime_endpoint_classes: set[str] | None = None,
@@ -474,6 +951,8 @@ class EndpointCoverageGenerator:
         static_extractors = self._static_extractor_surfaces()
         live_extractors = self._live_extractor_surfaces()
         transform_outputs_by_staging, unique_outputs = self._transform_catalog()
+        staging_schema_tables = self._staging_schema_tables()
+        raw_schema_tables = self._raw_schema_tables()
         star_schema_tables = self._star_schema_tables()
         staging_entries_by_endpoint: dict[str, list[StagingEntry]] = {}
         for entry in self.staging_entries:
@@ -507,9 +986,16 @@ class EndpointCoverageGenerator:
 
         matrix: list[dict[str, Any]] = []
 
-        for endpoint_name in sorted(
-            set(staging_entries_by_endpoint) | set(extractor_map) | runtime_stats_surfaces
-        ):
+        stats_endpoint_names = {
+            endpoint_name
+            for endpoint_name in (
+                set(staging_entries_by_endpoint) | set(extractor_map) | runtime_stats_surfaces
+            )
+            if endpoint_name not in _STATIC_SURFACE_ALIASES
+            and endpoint_name not in _LIVE_SURFACE_ALIASES
+        }
+
+        for endpoint_name in sorted(stats_endpoint_names):
             entries = staging_entries_by_endpoint.get(endpoint_name, [])
             runtime_refs = sorted(extractor_map.get(endpoint_name, set()))
             staging_present = bool(entries)
@@ -777,7 +1263,22 @@ class EndpointCoverageGenerator:
             },
         }
 
-        return {"matrix": matrix, "summary": summary}
+        support_contract = self._build_support_matrix(
+            matrix=matrix,
+            staging_entries_by_endpoint=staging_entries_by_endpoint,
+            transform_outputs_by_staging=transform_outputs_by_staging,
+            staging_schema_tables=staging_schema_tables,
+            raw_schema_tables=raw_schema_tables,
+            star_schema_tables=star_schema_tables,
+        )
+        summary["support_contract"] = support_contract["summary"]
+
+        return {
+            "matrix": matrix,
+            "summary": summary,
+            "support_matrix": support_contract["matrix"],
+            "support_summary": support_contract["summary"],
+        }
 
     @staticmethod
     def _report_text(summary: dict[str, Any]) -> str:
@@ -955,6 +1456,82 @@ class EndpointCoverageGenerator:
                         f"| {table_name} | {EndpointCoverageGenerator._table_family(table_name)} |"
                     )
 
+        support_contract = summary.get("support_contract", {})
+        if support_contract:
+            lines.extend(
+                [
+                    "",
+                    "## Strict Build Contract",
+                    "",
+                    "| Metric | Count |",
+                    "|--------|-------|",
+                    f"| endpoint_count | {support_contract['endpoint_count']} |",
+                    f"| complete_endpoint_count | {support_contract['complete_endpoint_count']} |",
+                    f"| partial_endpoint_count | {support_contract['partial_endpoint_count']} |",
+                    f"| gap_endpoint_count | {support_contract['gap_endpoint_count']} |",
+                    (
+                        f"| season_type_contract_open_count | "
+                        f"{support_contract['season_type_contract_open_count']} |"
+                    ),
+                    (
+                        f"| season_type_contract_untracked_count | "
+                        f"{support_contract['season_type_contract_untracked_count']} |"
+                    ),
+                    (
+                        f"| season_type_value_gap_count | "
+                        f"{support_contract['season_type_value_gap_count']} |"
+                    ),
+                ]
+            )
+            if support_contract.get("contract_status_breakdown"):
+                lines.extend(
+                    [
+                        "",
+                        "### Contract Status Breakdown",
+                        "",
+                        "| Status | Count |",
+                        "|--------|-------|",
+                    ]
+                )
+                for status, count in support_contract["contract_status_breakdown"].items():
+                    lines.append(f"| {status} | {count} |")
+            if support_contract.get("execution_semantics_breakdown"):
+                lines.extend(
+                    [
+                        "",
+                        "### Execution Semantics Breakdown",
+                        "",
+                        "| Semantics | Count |",
+                        "|-----------|-------|",
+                    ]
+                )
+                for semantics, count in support_contract["execution_semantics_breakdown"].items():
+                    lines.append(f"| {semantics} | {count} |")
+            if support_contract.get("season_type_contract_breakdown"):
+                lines.extend(
+                    [
+                        "",
+                        "### Season Type Contract Breakdown",
+                        "",
+                        "| Season Type Contract | Count |",
+                        "|----------------------|-------|",
+                    ]
+                )
+                for status, count in support_contract["season_type_contract_breakdown"].items():
+                    lines.append(f"| {status} | {count} |")
+            if support_contract.get("gap_breakdown"):
+                lines.extend(
+                    [
+                        "",
+                        "### Contract Gap Breakdown",
+                        "",
+                        "| Gap | Count |",
+                        "|-----|-------|",
+                    ]
+                )
+                for gap, count in support_contract["gap_breakdown"].items():
+                    lines.append(f"| {gap} | {count} |")
+
         lines.extend(
             [
                 "",
@@ -969,6 +1546,56 @@ class EndpointCoverageGenerator:
                 f"| {row['param_pattern']} | {row['total']} | {row['covered']} | "
                 f"{row['runtime_gap']} | {row['staging_only']} |"
             )
+        lines.append("")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _support_report_text(summary: dict[str, Any]) -> str:
+        lines = [
+            "# Endpoint Support Matrix",
+            "",
+            "## Summary",
+            "",
+            "| Metric | Count |",
+            "|--------|-------|",
+            f"| endpoint_count | {summary['endpoint_count']} |",
+            f"| complete_endpoint_count | {summary['complete_endpoint_count']} |",
+            f"| partial_endpoint_count | {summary['partial_endpoint_count']} |",
+            f"| gap_endpoint_count | {summary['gap_endpoint_count']} |",
+            (f"| season_type_contract_open_count | {summary['season_type_contract_open_count']} |"),
+            (
+                f"| season_type_contract_untracked_count | "
+                f"{summary['season_type_contract_untracked_count']} |"
+            ),
+            f"| season_type_value_gap_count | {summary['season_type_value_gap_count']} |",
+        ]
+
+        for section_name, title, value_header in (
+            ("contract_status_breakdown", "Contract Status Breakdown", "Status"),
+            ("execution_semantics_breakdown", "Execution Semantics Breakdown", "Semantics"),
+            ("source_kind_breakdown", "Source Kind Breakdown", "Source Kind"),
+            (
+                "season_type_contract_breakdown",
+                "Season Type Contract Breakdown",
+                "Season Type Contract",
+            ),
+            ("gap_breakdown", "Contract Gap Breakdown", "Gap"),
+        ):
+            breakdown = summary.get(section_name, {})
+            if not breakdown:
+                continue
+            lines.extend(
+                [
+                    "",
+                    f"## {title}",
+                    "",
+                    f"| {value_header} | Count |",
+                    "|----------------|-------|",
+                ]
+            )
+            for key, count in breakdown.items():
+                lines.append(f"| {key} | {count} |")
+
         lines.append("")
         return "\n".join(lines)
 
@@ -993,6 +1620,9 @@ class EndpointCoverageGenerator:
         matrix_path = destination / "endpoint-coverage-matrix.json"
         summary_path = destination / "endpoint-coverage-summary.json"
         report_path = destination / "endpoint-coverage-report.md"
+        support_matrix_path = destination / "endpoint-support-matrix.json"
+        support_summary_path = destination / "endpoint-support-summary.json"
+        support_report_path = destination / "endpoint-support-report.md"
 
         matrix_path.write_text(
             json.dumps({"matrix": artifacts["matrix"]}, indent=2) + "\n",
@@ -1003,8 +1633,27 @@ class EndpointCoverageGenerator:
             encoding="utf-8",
         )
         report_path.write_text(self._report_text(artifacts["summary"]), encoding="utf-8")
+        support_matrix_path.write_text(
+            json.dumps({"matrix": artifacts["support_matrix"]}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        support_summary_path.write_text(
+            json.dumps(artifacts["support_summary"], indent=2) + "\n",
+            encoding="utf-8",
+        )
+        support_report_path.write_text(
+            self._support_report_text(artifacts["support_summary"]),
+            encoding="utf-8",
+        )
 
-        return {"matrix": matrix_path, "summary": summary_path, "report": report_path}
+        return {
+            "matrix": matrix_path,
+            "summary": summary_path,
+            "report": report_path,
+            "support_matrix": support_matrix_path,
+            "support_summary": support_summary_path,
+            "support_report": support_report_path,
+        }
 
 
 def _build_parser() -> argparse.ArgumentParser:

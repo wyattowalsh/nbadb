@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -176,3 +177,48 @@ class TestSafeFromPandas:
         pdf = pd.DataFrame({"A": [1.0, np.nan, 3.0]})
         result = _safe_from_pandas(pdf)
         assert result["A"].null_count() == 1
+
+
+class TestLiveSnapshotContract:
+    def test_injects_snapshot_metadata_and_param_backed_keys(self) -> None:
+        frame = pl.DataFrame({"action_number": [1]})
+        snapshot_at = datetime(2026, 4, 17, 12, 30, tzinfo=UTC)
+
+        result = BaseExtractor._apply_live_snapshot_contract(
+            frame,
+            source_endpoint="live_play_by_play",
+            natural_keys=("game_id", "action_number"),
+            snapshot_at=snapshot_at,
+            params={"game_id": "001"},
+        )
+
+        assert result.columns == [
+            "action_number",
+            "game_id",
+            "snapshot_at",
+            "snapshot_date",
+            "source_endpoint",
+            "payload_json",
+        ]
+        assert result.to_dicts() == [
+            {
+                "action_number": 1,
+                "game_id": "001",
+                "snapshot_at": snapshot_at,
+                "snapshot_date": snapshot_at.date(),
+                "source_endpoint": "live_play_by_play",
+                "payload_json": None,
+            }
+        ]
+
+    def test_raises_when_non_empty_live_payload_lacks_required_key(self) -> None:
+        frame = pl.DataFrame({"value": [1]})
+
+        with pytest.raises(ValueError, match="missing required natural keys: game_id"):
+            BaseExtractor._apply_live_snapshot_contract(
+                frame,
+                source_endpoint="live_score_board",
+                natural_keys=("game_id",),
+                snapshot_at=datetime(2026, 4, 17, tzinfo=UTC),
+                params={},
+            )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class FactTeamAwardsConfSchema(BaseSchema):
@@ -65,3 +65,12 @@ class FactTeamSeasonRanksSchema(BaseSchema):
     opp_pts_rank: int | None = pa.Field(nullable=True, gt=0)
     opp_pts_pg: float | None = pa.Field(nullable=True, ge=0.0)
     season_type: str | None = pa.Field(nullable=True)
+
+
+derived_output_schema()(FactTeamAwardsConfSchema)
+derived_output_schema()(FactTeamAwardsDivSchema)
+derived_output_schema()(FactTeamBackgroundSchema)
+derived_output_schema()(FactTeamHofSchema)
+derived_output_schema()(FactTeamRetiredSchema)
+derived_output_schema()(FactTeamSocialSitesSchema)
+derived_output_schema()(FactTeamSeasonRanksSchema)

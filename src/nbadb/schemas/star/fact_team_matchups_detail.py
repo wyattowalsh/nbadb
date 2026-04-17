@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class FactTeamMatchupsDetailSchema(BaseSchema):
@@ -49,7 +49,7 @@ class FactTeamMatchupsDetailSchema(BaseSchema):
     court_status: str | None = pa.Field(nullable=True)
     gp: int | None = pa.Field(nullable=True, ge=0)
     w: int | None = pa.Field(nullable=True, ge=0)
-    l: int | None = pa.Field(nullable=True, ge=0)  # noqa: E741
+    losses: int | None = pa.Field(nullable=True, ge=0, alias="l")
     w_pct: float | None = pa.Field(nullable=True, ge=0.0)
     min: float | None = pa.Field(nullable=True, ge=0.0)
     fgm: float | None = pa.Field(nullable=True, ge=0.0)
@@ -107,3 +107,8 @@ class FactTeamMatchupsDetailSchema(BaseSchema):
     td3_rank: int | None = pa.Field(nullable=True, ge=0)
     cfid: str | None = pa.Field(nullable=True)
     cfparams: str | None = pa.Field(nullable=True)
+
+
+derived_output_schema(literal_fields={"detail_source", "detail_variant"})(
+    FactTeamMatchupsDetailSchema
+)

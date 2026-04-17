@@ -1,0 +1,624 @@
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+from contextlib import suppress
+from dataclasses import asdict, dataclass, replace
+from pathlib import Path
+from typing import Any
+
+import duckdb
+
+from nbadb.core.types import SeasonType
+from nbadb.orchestrate.seasons import season_range
+
+DEFAULT_HISTORICAL_START = 1946
+SEASON_TYPE_PATTERNS = frozenset({"season", "player_season", "team_season"})
+HISTORICAL_PATTERNS = frozenset({"season", "game", "date", "player_season", "team_season"})
+REFERENCE_PATTERNS = frozenset({"static", "player", "team"})
+CROSS_PRODUCT_PATTERNS = frozenset({"player_team_season"})
+SEASON_TYPE_GROUPABLE_PATTERNS = SEASON_TYPE_PATTERNS | CROSS_PRODUCT_PATTERNS
+DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
+
+
+@dataclass(frozen=True, slots=True)
+class FullExtractionLane:
+    lane_id: str
+    lane_index: int
+    lane_name: str
+    lane_kind: str
+    season_start: int | None
+    season_end: int | None
+    patterns: tuple[str, ...]
+    season_types: tuple[str, ...] = ()
+    endpoints: tuple[str, ...] = ()
+    use_vpn: bool = True
+    resume_only: bool = False
+    timeout_seconds: int = 0
+
+    def to_workflow_dict(self) -> dict[str, Any]:
+        return {
+            "lane_id": self.lane_id,
+            "lane_index": self.lane_index,
+            "lane_name": self.lane_name,
+            "lane_kind": self.lane_kind,
+            "season_start": "" if self.season_start is None else str(self.season_start),
+            "season_end": "" if self.season_end is None else str(self.season_end),
+            "patterns": ",".join(self.patterns),
+            "season_types": ",".join(self.season_types),
+            "endpoints": ",".join(self.endpoints),
+            "use_vpn": self.use_vpn,
+            "resume_only": self.resume_only,
+            "timeout_seconds": self.timeout_seconds,
+        }
+
+
+def _parse_csv(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    values = [value.strip() for value in raw.split(",") if value.strip()]
+    return values or None
+
+
+def _load_matrix_payload(path: Path) -> list[dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        matrix = payload.get("matrix", payload)
+        if isinstance(matrix, list):
+            return [dict(row) for row in matrix]
+    if isinstance(payload, list):
+        return [dict(row) for row in payload]
+    msg = f"Unsupported support matrix payload in {path}"
+    raise ValueError(msg)
+
+
+def _current_end_year() -> int:
+    return int(season_range()[-1][:4])
+
+
+def _patterns_for_endpoints(
+    rows: list[dict[str, Any]],
+    endpoints: list[str] | None,
+) -> set[str] | None:
+    if not endpoints:
+        return None
+    endpoint_set = set(endpoints)
+    patterns: set[str] = set()
+    for row in rows:
+        if str(row.get("endpoint_name", "")) not in endpoint_set:
+            continue
+        patterns.update(str(pattern) for pattern in row.get("param_patterns", []))
+    return patterns
+
+
+def _selected_rows(
+    rows: list[dict[str, Any]],
+    *,
+    selected_patterns: set[str] | None,
+    selected_endpoints: list[str] | None,
+) -> list[dict[str, Any]]:
+    endpoint_set = set(selected_endpoints or ())
+    filtered: list[dict[str, Any]] = []
+    for row in rows:
+        endpoint_name = str(row.get("endpoint_name", ""))
+        row_patterns = {str(pattern) for pattern in row.get("param_patterns", [])}
+        if endpoint_set and endpoint_name not in endpoint_set:
+            continue
+        if selected_patterns is not None and not row_patterns & selected_patterns:
+            continue
+        filtered.append(row)
+    return filtered
+
+
+def _historical_thresholds(rows: list[dict[str, Any]], requested_patterns: set[str]) -> list[int]:
+    thresholds: set[int] = set()
+    for row in rows:
+        if str(row.get("execution_semantics")) != "historical_backfill":
+            continue
+        row_patterns = {str(pattern) for pattern in row.get("param_patterns", [])}
+        if not row_patterns & requested_patterns:
+            continue
+        earliest = row.get("earliest_supported_season")
+        if earliest is None:
+            thresholds.add(DEFAULT_HISTORICAL_START)
+            continue
+        try:
+            thresholds.add(int(earliest))
+        except (TypeError, ValueError):
+            thresholds.add(DEFAULT_HISTORICAL_START)
+    if not thresholds:
+        thresholds.add(DEFAULT_HISTORICAL_START)
+    return sorted(thresholds)
+
+
+def _declared_supported_season_types(row: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        str(value) for value in row.get("declared_supported_season_types", []) if str(value)
+    )
+
+
+def _season_type_slug(season_types: tuple[str, ...]) -> str:
+    if not season_types:
+        return "no-season-type"
+    return "-".join(value.lower().replace(" ", "-") for value in season_types)
+
+
+def _historical_rows_for_pattern(
+    rows: list[dict[str, Any]],
+    pattern: str,
+) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if str(row.get("execution_semantics")) == "historical_backfill"
+        and pattern in {str(candidate) for candidate in row.get("param_patterns", [])}
+    ]
+
+
+def _group_historical_rows_by_season_types(
+    rows: list[dict[str, Any]],
+    *,
+    pattern: str,
+) -> list[tuple[tuple[str, ...], list[dict[str, Any]]]]:
+    grouped: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+    for row in rows:
+        if (
+            pattern in SEASON_TYPE_GROUPABLE_PATTERNS
+            and str(row.get("season_type_contract_status", "not_applicable")) == "supported"
+        ):
+            season_types = _declared_supported_season_types(row)
+        else:
+            season_types = ()
+        grouped.setdefault(season_types, []).append(row)
+
+    return [
+        (season_types, grouped[season_types])
+        for season_types in sorted(grouped, key=lambda value: (len(value), value))
+    ]
+
+
+def _endpoint_names(rows: list[dict[str, Any]]) -> tuple[str, ...]:
+    return tuple(
+        sorted({str(row.get("endpoint_name", "")) for row in rows if row.get("endpoint_name")})
+    )
+
+
+def _season_bands(
+    rows: list[dict[str, Any]], requested_patterns: set[str]
+) -> list[tuple[int, int]]:
+    thresholds = _historical_thresholds(rows, requested_patterns)
+    end_year = _current_end_year()
+    if not thresholds:
+        return []
+
+    bands: list[tuple[int, int]] = []
+    for index, start in enumerate(thresholds):
+        if start > end_year:
+            continue
+        next_start = thresholds[index + 1] if index + 1 < len(thresholds) else end_year + 1
+        end = min(end_year, next_start - 1)
+        if start <= end:
+            bands.append((start, end))
+    return bands
+
+
+def _band_timeout_seconds(start: int, end: int) -> int:
+    span_years = max(1, end - start + 1)
+    return min(19_800, max(7_200, span_years * 600))
+
+
+def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
+    patterns = tuple(str(pattern) for pattern in raw.get("patterns", []) if str(pattern))
+    season_types = tuple(str(value) for value in raw.get("season_types", []) if str(value))
+    endpoints = tuple(str(value) for value in raw.get("endpoints", []) if str(value))
+    season_start = raw.get("season_start")
+    season_end = raw.get("season_end")
+
+    return FullExtractionLane(
+        lane_id=str(raw["lane_id"]),
+        lane_index=lane_index,
+        lane_name=str(raw.get("lane_name") or raw["lane_id"]),
+        lane_kind=str(raw.get("lane_kind") or "custom"),
+        season_start=None if season_start in {None, ""} else int(season_start),
+        season_end=None if season_end in {None, ""} else int(season_end),
+        patterns=patterns,
+        season_types=season_types,
+        endpoints=endpoints,
+        use_vpn=bool(raw.get("use_vpn", True)),
+        resume_only=bool(raw.get("resume_only", False)),
+        timeout_seconds=int(raw.get("timeout_seconds") or 7_200),
+    )
+
+
+def build_default_manifest(
+    *,
+    support_matrix_rows: list[dict[str, Any]],
+    selected_patterns: list[str] | None = None,
+    selected_endpoints: list[str] | None = None,
+) -> list[FullExtractionLane]:
+    endpoint_patterns = _patterns_for_endpoints(support_matrix_rows, selected_endpoints)
+    if selected_patterns is not None:
+        requested_patterns = set(selected_patterns)
+    elif endpoint_patterns is not None:
+        requested_patterns = endpoint_patterns
+    else:
+        requested_patterns = {
+            str(pattern) for row in support_matrix_rows for pattern in row.get("param_patterns", [])
+        }
+
+    filtered_rows = _selected_rows(
+        support_matrix_rows,
+        selected_patterns=requested_patterns,
+        selected_endpoints=selected_endpoints,
+    )
+    if not filtered_rows:
+        msg = "Selected full-extraction filters matched no support-matrix rows"
+        raise ValueError(msg)
+
+    lanes: list[FullExtractionLane] = []
+    lane_index = 0
+
+    reference_patterns = tuple(sorted(requested_patterns & REFERENCE_PATTERNS))
+    if reference_patterns:
+        lanes.append(
+            FullExtractionLane(
+                lane_id="reference-core",
+                lane_index=lane_index,
+                lane_name="Reference Core",
+                lane_kind="reference",
+                season_start=None,
+                season_end=None,
+                patterns=reference_patterns,
+                endpoints=tuple(selected_endpoints or ()),
+                use_vpn=True,
+                resume_only=False,
+                timeout_seconds=5_400,
+            )
+        )
+        lane_index += 1
+
+    historical_patterns = requested_patterns & HISTORICAL_PATTERNS
+    if historical_patterns:
+        for pattern in sorted(historical_patterns):
+            pattern_rows = _historical_rows_for_pattern(filtered_rows, pattern)
+            if not pattern_rows:
+                continue
+            for season_types, grouped_rows in _group_historical_rows_by_season_types(
+                pattern_rows,
+                pattern=pattern,
+            ):
+                endpoints = _endpoint_names(grouped_rows)
+                for start, end in _season_bands(grouped_rows, {pattern}):
+                    lane_id = (
+                        f"historical-{pattern}-{_season_type_slug(season_types)}-{start}-{end}"
+                    )
+                    lane_name = f"Historical {pattern} {start}-{end}"
+                    if season_types:
+                        lane_name = f"{lane_name} ({', '.join(season_types)})"
+                    lanes.append(
+                        FullExtractionLane(
+                            lane_id=lane_id,
+                            lane_index=lane_index,
+                            lane_name=lane_name,
+                            lane_kind="historical",
+                            season_start=start,
+                            season_end=end,
+                            patterns=(pattern,),
+                            season_types=season_types,
+                            endpoints=endpoints,
+                            use_vpn=True,
+                            resume_only=False,
+                            timeout_seconds=_band_timeout_seconds(start, end),
+                        )
+                    )
+                    lane_index += 1
+
+    cross_product_rows = [
+        row
+        for row in filtered_rows
+        if str(row.get("execution_semantics")) == "historical_backfill"
+        and {str(pattern) for pattern in row.get("param_patterns", [])} & CROSS_PRODUCT_PATTERNS
+    ]
+    supported_cross_product_rows = [
+        row
+        for row in cross_product_rows
+        if str(row.get("season_type_contract_status")) == "supported"
+    ]
+    if supported_cross_product_rows:
+        for season_types, grouped_rows in _group_historical_rows_by_season_types(
+            supported_cross_product_rows,
+            pattern="player_team_season",
+        ):
+            patterns = tuple(
+                sorted(
+                    {
+                        str(pattern)
+                        for row in grouped_rows
+                        for pattern in row.get("param_patterns", [])
+                        if str(pattern) in CROSS_PRODUCT_PATTERNS
+                    }
+                )
+            )
+            endpoints = _endpoint_names(grouped_rows)
+            end_year = _current_end_year()
+            lanes.append(
+                FullExtractionLane(
+                    lane_id=(
+                        f"cross-product-{_season_type_slug(season_types)}-"
+                        f"{DEFAULT_HISTORICAL_START}-{end_year}"
+                    ),
+                    lane_index=lane_index,
+                    lane_name="Cross Product Historical",
+                    lane_kind="cross_product",
+                    season_start=DEFAULT_HISTORICAL_START,
+                    season_end=end_year,
+                    patterns=patterns,
+                    season_types=season_types,
+                    endpoints=endpoints,
+                    use_vpn=True,
+                    resume_only=False,
+                    timeout_seconds=14_400,
+                )
+            )
+            lane_index += 1
+
+    blocked_cross_product_rows = [
+        row
+        for row in cross_product_rows
+        if str(row.get("season_type_contract_status")) == "blocked"
+    ]
+    if blocked_cross_product_rows:
+        patterns = tuple(
+            sorted(
+                {
+                    str(pattern)
+                    for row in blocked_cross_product_rows
+                    for pattern in row.get("param_patterns", [])
+                    if str(pattern) in CROSS_PRODUCT_PATTERNS
+                }
+            )
+        )
+        endpoints = tuple(
+            sorted(
+                {
+                    str(row.get("endpoint_name", ""))
+                    for row in blocked_cross_product_rows
+                    if row.get("endpoint_name")
+                }
+            )
+        )
+        end_year = _current_end_year()
+        lanes.append(
+            FullExtractionLane(
+                lane_id=f"cross-product-blocked-{DEFAULT_HISTORICAL_START}-{end_year}",
+                lane_index=lane_index,
+                lane_name="Cross Product Blocked",
+                lane_kind="cross_product_blocked",
+                season_start=DEFAULT_HISTORICAL_START,
+                season_end=end_year,
+                patterns=patterns,
+                endpoints=endpoints,
+                use_vpn=True,
+                resume_only=False,
+                timeout_seconds=14_400,
+            )
+        )
+
+    return lanes
+
+
+def normalize_manifest(
+    raw_manifest: dict[str, Any] | list[dict[str, Any]],
+) -> list[FullExtractionLane]:
+    raw_lanes = raw_manifest.get("lanes", []) if isinstance(raw_manifest, dict) else raw_manifest
+    return [
+        _normalize_lane(dict(raw_lane), lane_index) for lane_index, raw_lane in enumerate(raw_lanes)
+    ]
+
+
+def manifest_payload(lanes: list[FullExtractionLane]) -> dict[str, Any]:
+    lane_dicts = [asdict(lane) for lane in lanes]
+    return {
+        "manifest_version": 1,
+        "lane_count": len(lanes),
+        "lanes": lane_dicts,
+        "github_matrix": {"include": [lane.to_workflow_dict() for lane in lanes]},
+    }
+
+
+def _load_manifest_argument(
+    raw_json: str | None, path: Path | None
+) -> list[FullExtractionLane] | None:
+    if raw_json:
+        return normalize_manifest(json.loads(raw_json))
+    if path is not None:
+        return normalize_manifest(json.loads(path.read_text(encoding="utf-8")))
+    return None
+
+
+def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
+    payloads: dict[str, dict[str, Any]] = {}
+    for candidate in sorted(metadata_dir.rglob("*.json")):
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+        lane_id = str(payload.get("lane_id", "")).strip()
+        if lane_id:
+            payloads[lane_id] = payload
+    return payloads
+
+
+def build_resume_manifest(
+    lanes: list[FullExtractionLane],
+    metadata_dir: Path,
+) -> tuple[list[FullExtractionLane], dict[str, int]]:
+    metadata = _metadata_by_lane(metadata_dir)
+    next_lanes: list[FullExtractionLane] = []
+    resumed = 0
+    active = 0
+
+    for lane in lanes:
+        payload = metadata.get(lane.lane_id)
+        status = str(payload.get("status", "")) if payload else ""
+        if status == "complete":
+            next_lanes.append(replace(lane, resume_only=True))
+            resumed += 1
+            continue
+        next_lanes.append(replace(lane, resume_only=False))
+        active += 1
+
+    return next_lanes, {"active_lane_count": active, "resume_only_lane_count": resumed}
+
+
+def merge_lane_databases(
+    *,
+    artifacts_dir: Path,
+    output_dir: Path,
+) -> dict[str, Any]:
+    db_paths = sorted(path for path in artifacts_dir.rglob("nba.duckdb") if path.is_file())
+    if not db_paths:
+        msg = f"No lane databases found under {artifacts_dir}"
+        raise FileNotFoundError(msg)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    target_path = output_dir / "nba.duckdb"
+
+    base_path = max(db_paths, key=lambda path: path.stat().st_size)
+    shutil.copy2(base_path, target_path)
+
+    target = duckdb.connect(str(target_path))
+    merged_databases = 1
+    merged_tables = 0
+
+    try:
+        for index, db_path in enumerate(db_paths):
+            if db_path == base_path:
+                continue
+            alias = f"src_{index}"
+            target.execute(f"ATTACH '{db_path}' AS {alias} (READ_ONLY)")
+            try:
+                tables = [
+                    row[0]
+                    for row in target.execute(
+                        "SELECT table_name FROM duckdb_tables() "
+                        f"WHERE database_name = '{alias}' AND schema_name = 'main' "
+                        "AND table_name LIKE 'stg_%'"
+                    ).fetchall()
+                ]
+                for table_name in tables:
+                    try:
+                        target.execute(
+                            f'INSERT INTO main."{table_name}" '
+                            f'SELECT * FROM {alias}."{table_name}" '
+                            f'EXCEPT SELECT * FROM main."{table_name}"'
+                        )
+                    except duckdb.CatalogException:
+                        target.execute(
+                            f'CREATE TABLE main."{table_name}" AS '
+                            f'SELECT * FROM {alias}."{table_name}"'
+                        )
+                    merged_tables += 1
+
+                with suppress(duckdb.CatalogException):
+                    target.execute(
+                        "INSERT INTO main._extraction_journal "
+                        "SELECT src.endpoint, src.params, src.status, "
+                        "src.started_at, src.completed_at, "
+                        f"src.rows_extracted, src.error_message, src.retry_count "
+                        f"FROM {alias}._extraction_journal AS src "
+                        "WHERE NOT EXISTS ("
+                        "  SELECT 1 FROM main._extraction_journal AS dst "
+                        "  WHERE dst.endpoint = src.endpoint "
+                        "    AND dst.params IS NOT DISTINCT FROM src.params"
+                        ")"
+                    )
+
+                merged_databases += 1
+            finally:
+                target.execute(f"DETACH {alias}")
+    finally:
+        target.close()
+
+    return {
+        "base_path": str(base_path),
+        "merged_database_count": merged_databases,
+        "merged_table_operations": merged_tables,
+        "output_path": str(target_path),
+    }
+
+
+def _command_plan(args: argparse.Namespace) -> int:
+    lanes = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
+    if lanes is None:
+        if args.support_matrix_path is None:
+            msg = "support-matrix-path is required when no explicit lane manifest is provided"
+            raise ValueError(msg)
+        support_matrix_rows = _load_matrix_payload(args.support_matrix_path)
+        lanes = build_default_manifest(
+            support_matrix_rows=support_matrix_rows,
+            selected_patterns=_parse_csv(args.backfill_patterns),
+            selected_endpoints=_parse_csv(args.backfill_endpoints),
+        )
+
+    payload = manifest_payload(lanes)
+    args.output_path.parent.mkdir(parents=True, exist_ok=True)
+    args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(payload))
+    return 0
+
+
+def _command_resume(args: argparse.Namespace) -> int:
+    lanes = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
+    if lanes is None:
+        msg = "lane-manifest-json or lane-manifest-path is required"
+        raise ValueError(msg)
+
+    next_lanes, summary = build_resume_manifest(lanes, args.metadata_dir)
+    payload = manifest_payload(next_lanes)
+    payload["resume_summary"] = summary
+    args.output_path.parent.mkdir(parents=True, exist_ok=True)
+    args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(payload))
+    return 0
+
+
+def _command_merge(args: argparse.Namespace) -> int:
+    summary = merge_lane_databases(artifacts_dir=args.artifacts_dir, output_dir=args.output_dir)
+    print(json.dumps(summary))
+    return 0
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Full extraction control-plane helpers.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    plan = subparsers.add_parser("plan", help="Build a workflow lane manifest.")
+    plan.add_argument("--support-matrix-path", type=Path, default=None)
+    plan.add_argument("--lane-manifest-json", type=str, default=None)
+    plan.add_argument("--lane-manifest-path", type=Path, default=None)
+    plan.add_argument("--backfill-patterns", type=str, default=None)
+    plan.add_argument("--backfill-endpoints", type=str, default=None)
+    plan.add_argument("--output-path", type=Path, required=True)
+    plan.set_defaults(func=_command_plan)
+
+    resume = subparsers.add_parser("resume", help="Build the next chained manifest.")
+    resume.add_argument("--lane-manifest-json", type=str, default=None)
+    resume.add_argument("--lane-manifest-path", type=Path, default=None)
+    resume.add_argument("--metadata-dir", type=Path, required=True)
+    resume.add_argument("--output-path", type=Path, required=True)
+    resume.set_defaults(func=_command_resume)
+
+    merge = subparsers.add_parser("merge", help="Merge lane DuckDB artifacts.")
+    merge.add_argument("--artifacts-dir", type=Path, required=True)
+    merge.add_argument("--output-dir", type=Path, required=True)
+    merge.set_defaults(func=_command_merge)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    return int(args.func(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

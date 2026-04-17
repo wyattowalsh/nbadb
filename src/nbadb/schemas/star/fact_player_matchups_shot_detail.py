@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class FactPlayerMatchupsShotDetailSchema(BaseSchema):
@@ -34,3 +34,8 @@ class FactPlayerMatchupsShotDetailSchema(BaseSchema):
     fg_pct: float | None = pa.Field(nullable=True, ge=0.0)
     cfid: str | None = pa.Field(nullable=True)
     cfparams: str | None = pa.Field(nullable=True)
+
+
+derived_output_schema(literal_fields={"split_family", "split_scope"})(
+    FactPlayerMatchupsShotDetailSchema
+)

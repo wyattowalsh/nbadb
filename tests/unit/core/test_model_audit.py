@@ -51,11 +51,17 @@ def test_inventory_uses_runtime_class_rows_and_normalizes_stats_source_kind(tmp_
     extractor_classes = [
         SimpleNamespace(endpoint_name="box_score_traditional", category="box_score"),
         SimpleNamespace(endpoint_name="static_players", category="static"),
-        SimpleNamespace(endpoint_name="live_score_board", category="live"),
+        SimpleNamespace(
+            endpoint_name="live_score_board",
+            category="live",
+            snapshot_grain=("game_id",),
+        ),
     ]
     fake_registry = _FakeRegistry(extractor_classes)
     staging_entries = [
         StagingEntry("box_score_traditional", "stg_box_score_traditional", "game"),
+        StagingEntry("static_players", "stg_static_players", "static"),
+        StagingEntry("live_score_board", "stg_live_score_board", "live"),
     ]
     transformers = [
         SimpleNamespace(
@@ -124,20 +130,32 @@ def test_inventory_uses_runtime_class_rows_and_normalizes_stats_source_kind(tmp_
     runtime_stats_rows = [
         record for record in sections["runtime_surfaces"] if record.source_kind == "stats"
     ]
+    runtime_live_rows = [
+        record for record in sections["runtime_surfaces"] if record.source_kind == "live"
+    ]
     assert sections["inventory_meta"]["runtime_stats_surface_count"] == 2
     assert sections["inventory_meta"]["runtime_stats_canonical_surface_count"] == 1
     assert [record.runtime_surface for record in runtime_stats_rows] == [
         "box_score_traditional_v2",
         "box_score_traditional_v3",
     ]
+    assert all(
+        not record.key.startswith(("stats:live_", "stats:static_")) for record in runtime_stats_rows
+    )
     assert {record.endpoint_name for record in runtime_stats_rows} == {"box_score_traditional"}
     assert {record.decision for record in runtime_stats_rows} == {AuditDecision.MODELED.value}
     assert all(record.details["is_runtime_alias"] is True for record in runtime_stats_rows)
+
+    assert len(runtime_live_rows) == 1
+    assert runtime_live_rows[0].decision == AuditDecision.VALIDATION_GAP.value
+    assert runtime_live_rows[0].details["snapshot_contract_defined"] is True
+    assert runtime_live_rows[0].details["snapshot_grain"] == ("game_id",)
 
     staging_record = sections["staging_surfaces"][0]
     assert staging_record.source_kind == "stats"
     assert staging_record.details["extractor_category"] == "box_score"
     assert staging_record.details["live_probe_status"] == "not_run"
+    assert staging_record.details["season_type_capability"] == "not_applicable"
 
     model_rows = {record.output_table: record for record in sections["model_surfaces"]}
     assert model_rows["fact_box_score"].decision == AuditDecision.MODELED.value

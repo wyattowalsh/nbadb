@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
+@derived_output_schema(literal_fields={"average_source"})
 class FactShotChartLeagueAveragesSchema(BaseSchema):
     average_source: str = pa.Field(
         isin=["shot_chart_detail", "shot_chart_lineup_detail"],
         metadata={
-            "source": "derived.shot_chart_league_averages.average_source",
             "description": "Shot-chart request family that produced the league-average row",
         },
     )
