@@ -197,6 +197,8 @@ def test_build_default_manifest_isolates_slow_reference_team_endpoints() -> None
 def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> None:
     rows = [
         _support_row("common_player_info", ["player"], None),
+        _support_row("player_profile_v2", ["player"], None),
+        _support_row("player_streak_finder", ["player"], None),
         _support_row("player_dashboard_clutch", ["player"], None),
         _support_row("player_awards", ["player"], None),
         _support_row("player_career_stats", ["player"], None),
@@ -208,6 +210,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         _support_row("player_dash_team_perf", ["player"], None),
         _support_row("player_dash_yoy", ["player"], None),
         _support_row("player_next_games", ["player"], None),
+        _support_row("shot_chart_detail", ["player"], None),
     ]
 
     lanes = build_default_manifest(support_matrix_rows=rows)
@@ -226,9 +229,14 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         "reference-player-10",
         "reference-player-11",
         "reference-player-12",
+        "reference-player-13",
+        "reference-player-14",
+        "reference-player-15",
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
         (("common_player_info",), 4200),
+        (("player_profile_v2",), 5400),
+        (("player_streak_finder",), 5400),
         (("player_dashboard_clutch",), 4800),
         (("player_awards",), 4200),
         (("player_career_stats",), 4800),
@@ -240,6 +248,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         (("player_dash_team_perf",), 4200),
         (("player_dash_yoy",), 4200),
         (("player_next_games",), 4200),
+        (("shot_chart_detail",), 7200),
     }
     assert all(lane.use_vpn is False for lane in reference_lanes)
 

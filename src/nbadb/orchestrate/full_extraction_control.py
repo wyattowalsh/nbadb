@@ -39,6 +39,8 @@ REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN: dict[str, frozenset[str]] = {
     "player": frozenset(
         {
             "common_player_info",
+            "player_profile_v2",
+            "player_streak_finder",
             "player_dashboard_clutch",
             "player_awards",
             "player_career_stats",
@@ -50,6 +52,7 @@ REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN: dict[str, frozenset[str]] = {
             "player_dash_team_perf",
             "player_dash_yoy",
             "player_next_games",
+            "shot_chart_detail",
         }
     ),
     "team": frozenset(
@@ -68,6 +71,8 @@ REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
 }
 REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
     "common_player_info": 4_200,
+    "player_profile_v2": 5_400,
+    "player_streak_finder": 5_400,
     "player_dashboard_clutch": 4_800,
     "player_awards": 4_200,
     "player_career_stats": 4_800,
@@ -79,6 +84,7 @@ REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
     "player_dash_team_perf": 4_200,
     "player_dash_yoy": 4_200,
     "player_next_games": 4_200,
+    "shot_chart_detail": 7_200,
     "team_historical_leaders": 4_200,
 }
 FULL_EXTRACTION_EXCLUDED_ENDPOINTS: dict[str, str] = {
