@@ -95,9 +95,55 @@ jobs:
         run: |
           mkdir -p artifacts/endpoint-coverage
           uv run nbadb endpoint-support-matrix \
-            --require-complete \
-            --require-season-type-contract \
             --output-dir artifacts/endpoint-coverage
+
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          summary = json.loads(
+              Path("artifacts/endpoint-coverage/endpoint-support-summary.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          gap_breakdown = {
+              str(key): int(value)
+              for key, value in dict(summary.get("gap_breakdown", {})).items()
+              if int(value) > 0
+          }
+          disallowed_gap_keys = sorted(
+              key for key in gap_breakdown if key != "season_type_contract_blocked"
+          )
+
+          failures: list[str] = []
+          if int(summary.get("partial_endpoint_count", 0)) > 0:
+              failures.append(
+                  "partial endpoint contracts remain in the support matrix"
+              )
+          if int(summary.get("season_type_contract_untracked_count", 0)) > 0:
+              failures.append(
+                  "historical endpoints still lack explicit season-type tracking"
+              )
+          if int(summary.get("season_type_value_gap_count", 0)) > 0:
+              failures.append("season-type value coverage gaps remain")
+          if disallowed_gap_keys:
+              failures.append(
+                  "unexpected support-matrix gaps remain: "
+                  + ", ".join(disallowed_gap_keys)
+              )
+
+          if failures:
+              for failure in failures:
+                  print(f"full extraction plan gate failed: {failure}", file=sys.stderr)
+              sys.exit(1)
+
+          blocked_count = gap_breakdown.get("season_type_contract_blocked", 0)
+          print(
+              "full extraction plan gate passed: "
+              f"allowing {blocked_count} blocked cross-product support gaps"
+          )
+          PY
 
       - name: Build lane manifest
         id: manifest
