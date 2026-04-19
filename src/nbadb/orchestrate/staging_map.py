@@ -688,7 +688,7 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     StagingEntry("player_awards", "stg_player_awards", "player"),
-    StagingEntry("player_career_by_college", "stg_player_college", "player"),
+    StagingEntry("player_career_by_college", "stg_player_college", "season"),
     StagingEntry(
         "shot_chart_detail",
         "stg_shot_chart",
@@ -1130,11 +1130,11 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "cume_stats_player",
         "stg_cume_player",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
-    StagingEntry("cume_stats_player_games", "stg_cume_player_games", "player"),
+    StagingEntry("cume_stats_player_games", "stg_cume_player_games", "player_season"),
     StagingEntry(
         "player_dash_game_splits",
         "stg_player_dash_game_splits",
@@ -1394,11 +1394,11 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "cume_stats_team",
         "stg_cume_team",
-        "team",
+        "team_season",
         result_set_index=0,
         use_multi=True,
     ),
-    StagingEntry("cume_stats_team_games", "stg_cume_team_games", "team"),
+    StagingEntry("cume_stats_team_games", "stg_cume_team_games", "team_season"),
     StagingEntry("franchise_leaders", "stg_franchise_leaders", "team"),
     StagingEntry("franchise_players", "stg_franchise_players", "team"),
     StagingEntry("team_game_logs", "stg_team_game_logs_v2", "team"),
@@ -2450,19 +2450,31 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "cume_stats_player",
         "stg_cume_player_game_by_game",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
-        "cume_stats_player", "stg_cume_player_totals", "player", result_set_index=1, use_multi=True
+        "cume_stats_player",
+        "stg_cume_player_totals",
+        "player_season",
+        result_set_index=1,
+        use_multi=True,
     ),
     # CumeStatsTeam (2 sets)
     StagingEntry(
-        "cume_stats_team", "stg_cume_team_game_by_game", "team", result_set_index=0, use_multi=True
+        "cume_stats_team",
+        "stg_cume_team_game_by_game",
+        "team_season",
+        result_set_index=0,
+        use_multi=True,
     ),
     StagingEntry(
-        "cume_stats_team", "stg_cume_team_totals", "team", result_set_index=1, use_multi=True
+        "cume_stats_team",
+        "stg_cume_team_totals",
+        "team_season",
+        result_set_index=1,
+        use_multi=True,
     ),
     # PlayerCompare (2 sets)
     StagingEntry(

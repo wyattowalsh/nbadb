@@ -143,8 +143,9 @@ class TestStagingMap:
 
     def test_get_by_pattern_season(self) -> None:
         entries = get_by_pattern("season")
-        assert len(entries) == 86
+        assert len(entries) == 87
         assert all(e.param_pattern == "season" for e in entries)
+        assert any(e.endpoint_name == "player_career_by_college" for e in entries)
 
     def test_get_by_pattern_game(self) -> None:
         entries = get_by_pattern("game")
@@ -161,16 +162,20 @@ class TestStagingMap:
         }
 
     def test_get_by_pattern_player(self) -> None:
-        assert len(get_by_pattern("player")) == 125
+        assert len(get_by_pattern("player")) == 120
 
     def test_get_by_pattern_team(self) -> None:
-        assert len(get_by_pattern("team")) == 83
+        assert len(get_by_pattern("team")) == 79
 
     def test_get_by_pattern_player_season(self) -> None:
         entries = get_by_pattern("player_season")
-        assert len(entries) == 4
+        assert len(entries) == 8
         staging_keys = {entry.staging_key for entry in entries}
         assert staging_keys == {
+            "stg_cume_player",
+            "stg_cume_player_game_by_game",
+            "stg_cume_player_games",
+            "stg_cume_player_totals",
             "stg_gl_alum_box_score_similarity_score",
             "stg_player_game_log",
             "stg_player_fantasy_profile_last_five_games_avg",
@@ -187,8 +192,10 @@ class TestStagingMap:
 
     def test_get_by_pattern_team_season(self) -> None:
         entries = get_by_pattern("team_season")
-        assert len(entries) == 2
+        assert len(entries) == 6
         names = {e.endpoint_name for e in entries}
+        assert "cume_stats_team" in names
+        assert "cume_stats_team_games" in names
         assert "team_game_log" in names
         assert "league_player_on_details" in names
 
