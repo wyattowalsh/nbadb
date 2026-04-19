@@ -38,6 +38,7 @@ class NbaDbSettings(BaseSettings):
         "box_score_four_factors": 2,
         "box_score_hustle": 2,
         "defense_hub": 1,
+        "team_historical_leaders": 1,
         "win_probability": 1,
     }
     discovery_concurrency: int = 2
@@ -58,6 +59,7 @@ class NbaDbSettings(BaseSettings):
         # Isolate flaky historical backfill surfaces so their failures do not
         # drag down the shared adaptive limiter for every other endpoint.
         "defense_hub": 1.0,
+        "team_historical_leaders": 1.0,
         "win_probability": 1.0,
     }
     endpoint_request_timeouts: dict[str, int] = {
@@ -69,6 +71,7 @@ class NbaDbSettings(BaseSettings):
         "defense_hub": 90,
         "play_by_play": 60,
         "play_by_play_v2": 60,
+        "team_historical_leaders": 120,
         "win_probability": 60,
     }
     adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff

@@ -178,6 +178,26 @@ def test_build_default_manifest_chunks_reference_patterns_by_endpoint_load() -> 
     ]
 
 
+def test_build_default_manifest_isolates_slow_reference_team_endpoints() -> None:
+    rows = [
+        *[_support_row(f"team_endpoint_{index:02d}", ["team"], None) for index in range(1, 8)],
+        _support_row("team_historical_leaders", ["team"], None),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+
+    assert [lane.lane_id for lane in reference_lanes] == [
+        "reference-team-01",
+        "reference-team-02",
+    ]
+    expected_primary_team_endpoints = tuple(f"team_endpoint_{index:02d}" for index in range(1, 8))
+    assert reference_lanes[0].endpoints == expected_primary_team_endpoints
+    assert reference_lanes[0].timeout_seconds == 3000
+    assert reference_lanes[1].endpoints == ("team_historical_leaders",)
+    assert reference_lanes[1].timeout_seconds == 4200
+
+
 def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
     rows = [
         _support_row(

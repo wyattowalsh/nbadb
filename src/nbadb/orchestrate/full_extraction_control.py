@@ -35,10 +35,16 @@ REFERENCE_MAX_ENDPOINTS_BY_PATTERN: dict[str, int] = {
     "team": 12,
     "player": 5,
 }
+REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN: dict[str, frozenset[str]] = {
+    "team": frozenset({"team_historical_leaders"}),
+}
 REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
     "static": 1_800,
     "team": 3_000,
     "player": 3_600,
+}
+REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
+    "team_historical_leaders": 4_200,
 }
 
 
@@ -229,6 +235,28 @@ def _reference_timeout_seconds(pattern: str) -> int:
     return REFERENCE_TIMEOUT_SECONDS_BY_PATTERN.get(pattern, 3_000)
 
 
+def _reference_endpoint_groups(pattern: str, endpoints: tuple[str, ...]) -> list[tuple[str, ...]]:
+    singleton_endpoints = REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN.get(pattern, frozenset())
+    grouped_singletons = [(endpoint,) for endpoint in endpoints if endpoint in singleton_endpoints]
+    remaining_endpoints = tuple(
+        endpoint for endpoint in endpoints if endpoint not in singleton_endpoints
+    )
+    if not remaining_endpoints:
+        return grouped_singletons
+    chunk_size = REFERENCE_MAX_ENDPOINTS_BY_PATTERN.get(pattern, len(remaining_endpoints))
+    return [
+        *_chunked_endpoint_names(remaining_endpoints, chunk_size=chunk_size),
+        *grouped_singletons,
+    ]
+
+
+def _reference_lane_timeout_seconds(pattern: str, endpoints: tuple[str, ...]) -> int:
+    timeout = _reference_timeout_seconds(pattern)
+    for endpoint in endpoints:
+        timeout = max(timeout, REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT.get(endpoint, 0))
+    return timeout
+
+
 def _season_bands(
     rows: list[dict[str, Any]], requested_patterns: set[str]
 ) -> list[tuple[int, int]]:
@@ -380,8 +408,7 @@ def build_default_manifest(
             endpoints = _endpoint_names(pattern_rows)
             if not endpoints:
                 continue
-            chunk_size = REFERENCE_MAX_ENDPOINTS_BY_PATTERN.get(pattern, len(endpoints))
-            endpoint_groups = _chunked_endpoint_names(endpoints, chunk_size=chunk_size)
+            endpoint_groups = _reference_endpoint_groups(pattern, endpoints)
             for group_index, endpoint_group in enumerate(endpoint_groups, start=1):
                 chunk_suffix = f"-{group_index:02d}" if len(endpoint_groups) > 1 else ""
                 lane_name = f"Reference {pattern.replace('_', ' ').title()}"
@@ -399,7 +426,7 @@ def build_default_manifest(
                         endpoints=endpoint_group,
                         use_vpn=True,
                         resume_only=False,
-                        timeout_seconds=_reference_timeout_seconds(pattern),
+                        timeout_seconds=_reference_lane_timeout_seconds(pattern, endpoint_group),
                     )
                 )
                 lane_index += 1
