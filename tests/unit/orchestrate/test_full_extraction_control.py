@@ -196,15 +196,42 @@ def test_build_default_manifest_isolates_slow_reference_team_endpoints() -> None
 
 def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:
     rows = [
-        _support_row("common_team_years", ["team"], None),
+        _support_row("common_team_years", ["static"], None),
         _support_row("team_historical_leaders", ["team"], None),
     ]
 
     lanes = build_default_manifest(support_matrix_rows=rows)
     reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
 
-    assert [lane.lane_id for lane in reference_lanes] == ["reference-team"]
+    assert [lane.lane_id for lane in reference_lanes] == ["reference-static"]
     assert reference_lanes[0].endpoints == ("common_team_years",)
+
+
+def test_build_default_manifest_isolates_timeout_prone_reference_team_endpoints() -> None:
+    rows = [
+        _support_row("common_team_years", ["static"], None),
+        _support_row("team_details", ["team"], None),
+        _support_row("team_info_common", ["team"], None),
+        _support_row("franchise_leaders", ["team"], None),
+        _support_row("franchise_players", ["team"], None),
+        _support_row("team_year_by_year", ["team"], None),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+
+    assert [lane.lane_id for lane in reference_lanes] == [
+        "reference-static",
+        "reference-team-01",
+        "reference-team-02",
+        "reference-team-03",
+        "reference-team-04",
+    ]
+    assert reference_lanes[0].endpoints == ("common_team_years",)
+    assert reference_lanes[1].endpoints == ("team_details", "team_info_common")
+    assert reference_lanes[2].endpoints == ("franchise_leaders",)
+    assert reference_lanes[3].endpoints == ("franchise_players",)
+    assert reference_lanes[4].endpoints == ("team_year_by_year",)
 
 
 def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:

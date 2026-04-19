@@ -36,7 +36,14 @@ REFERENCE_MAX_ENDPOINTS_BY_PATTERN: dict[str, int] = {
     "player": 5,
 }
 REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN: dict[str, frozenset[str]] = {
-    "team": frozenset({"team_historical_leaders"}),
+    "team": frozenset(
+        {
+            "franchise_leaders",
+            "franchise_players",
+            "team_historical_leaders",
+            "team_year_by_year",
+        }
+    ),
 }
 REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
     "static": 1_800,

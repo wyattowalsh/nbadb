@@ -165,7 +165,7 @@ class TestStagingMap:
         assert len(get_by_pattern("player")) == 108
 
     def test_get_by_pattern_team(self) -> None:
-        assert len(get_by_pattern("team")) == 17
+        assert len(get_by_pattern("team")) == 16
 
     def test_get_by_pattern_player_season(self) -> None:
         entries = get_by_pattern("player_season")
@@ -214,7 +214,7 @@ class TestStagingMap:
         assert "team_player_on_off_summary" in names
 
     def test_get_by_pattern_static(self) -> None:
-        assert len(get_by_pattern("static")) == 32
+        assert len(get_by_pattern("static")) == 33
 
     def test_get_by_pattern_date(self) -> None:
         assert len(get_by_pattern("date")) == 17

@@ -1391,7 +1391,7 @@ STAGING_MAP: list[StagingEntry] = [
     ),
     StagingEntry("team_historical_leaders", "stg_team_historical_leaders", "team"),
     StagingEntry("team_year_by_year", "stg_team_year_by_year", "team"),
-    StagingEntry("common_team_years", "stg_team_years", "team"),
+    StagingEntry("common_team_years", "stg_team_years", "static"),
     StagingEntry(
         "team_player_dashboard",
         "stg_team_player_dashboard",
