@@ -197,6 +197,7 @@ def test_build_default_manifest_isolates_slow_reference_team_endpoints() -> None
 def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> None:
     rows = [
         _support_row("common_player_info", ["player"], None),
+        _support_row("player_dashboard_clutch", ["player"], None),
         _support_row("player_awards", ["player"], None),
         _support_row("player_career_stats", ["player"], None),
         _support_row("player_compare", ["player"], None),
@@ -206,6 +207,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         _support_row("player_dash_shooting_splits", ["player"], None),
         _support_row("player_dash_team_perf", ["player"], None),
         _support_row("player_dash_yoy", ["player"], None),
+        _support_row("player_next_games", ["player"], None),
     ]
 
     lanes = build_default_manifest(support_matrix_rows=rows)
@@ -218,25 +220,27 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         "reference-player-04",
         "reference-player-05",
         "reference-player-06",
+        "reference-player-07",
+        "reference-player-08",
+        "reference-player-09",
+        "reference-player-10",
+        "reference-player-11",
+        "reference-player-12",
     ]
-    assert reference_lanes[0].endpoints == (
-        "player_dash_game_splits",
-        "player_dash_general_splits",
-        "player_dash_last_n_games",
-        "player_dash_shooting_splits",
-    )
-    assert reference_lanes[1].endpoints == (
-        "player_dash_team_perf",
-        "player_dash_yoy",
-    )
-    assert reference_lanes[2].endpoints == ("common_player_info",)
-    assert reference_lanes[2].timeout_seconds == 4200
-    assert reference_lanes[3].endpoints == ("player_awards",)
-    assert reference_lanes[3].timeout_seconds == 4200
-    assert reference_lanes[4].endpoints == ("player_career_stats",)
-    assert reference_lanes[4].timeout_seconds == 4800
-    assert reference_lanes[5].endpoints == ("player_compare",)
-    assert reference_lanes[5].timeout_seconds == 4800
+    assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
+        (("common_player_info",), 4200),
+        (("player_dashboard_clutch",), 4800),
+        (("player_awards",), 4200),
+        (("player_career_stats",), 4800),
+        (("player_compare",), 4800),
+        (("player_dash_game_splits",), 4200),
+        (("player_dash_general_splits",), 4200),
+        (("player_dash_last_n_games",), 4200),
+        (("player_dash_shooting_splits",), 4200),
+        (("player_dash_team_perf",), 4200),
+        (("player_dash_yoy",), 4200),
+        (("player_next_games",), 4200),
+    }
 
 
 def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:

@@ -12,6 +12,31 @@ from nbadb.extract.stats.player_dashboard import (
 
 class TestPlayerDashboardExtractors:
     @pytest.mark.asyncio
+    async def test_clutch_defaults_season_when_omitted(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        extractor = PlayerDashboardByClutchExtractor()
+        dummy_df = pl.DataFrame(
+            {"group_set": ["Overall"], "group_value": ["Overall"], "pts": [12.0]}
+        )
+        captured_kwargs: dict[str, object] = {}
+
+        def _fake_from_nba_api(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured_kwargs.update(kwargs)
+            return dummy_df
+
+        monkeypatch.setattr(extractor, "_from_nba_api", _fake_from_nba_api)
+
+        result = await extractor.extract(player_id=2544)
+
+        assert captured_kwargs["season"]
+        assert captured_kwargs["season_type_playoffs"] == "Regular Season"
+        assert result["player_id"].to_list() == [2544]
+        assert result["season_year"].to_list() == [captured_kwargs["season"]]
+        assert result["season_type"].to_list() == ["Regular Season"]
+
+    @pytest.mark.asyncio
     async def test_extract_adds_query_context_columns(
         self,
         monkeypatch: pytest.MonkeyPatch,
