@@ -104,6 +104,17 @@ runs:
         OVERALL_TIMEOUT_SECONDS: ${{ inputs.overall-timeout-seconds }}
         REQUIRE_FULL_TUNNEL: ${{ inputs.require-full-tunnel }}
       run: |
+        outer_work_dir="${RUNNER_TEMP}/nordvpn"
+        outer_log_file="${outer_work_dir}/openvpn.log"
+        outer_pid_file="${outer_work_dir}/openvpn.pid"
+        outer_overall_timeout="${OVERALL_TIMEOUT_SECONDS:-300}"
+        if ! [[ "$outer_overall_timeout" =~ ^[0-9]+$ ]] || [ "$outer_overall_timeout" -lt 30 ]; then
+          outer_overall_timeout=300
+        fi
+
+        set -euo pipefail
+        set +e
+        timeout --foreground --kill-after=15 "$((outer_overall_timeout + 30))" bash <<'NBADB_NORDVPN_ACTION'
         set -euo pipefail
 
         retry_http_get() {
@@ -568,3 +579,37 @@ runs:
           sudo tail -50 "$log_file" || true
         fi
         exit 1
+        NBADB_NORDVPN_ACTION
+        action_rc=$?
+        set -e
+
+        if [ "$action_rc" -eq 0 ]; then
+          exit 0
+        fi
+
+        if [ -f "$outer_pid_file" ]; then
+          outer_pid="$(cat "$outer_pid_file" 2>/dev/null || true)"
+          if [ -n "$outer_pid" ] && sudo kill -0 "$outer_pid" 2>/dev/null; then
+            sudo kill "$outer_pid" || true
+            sleep 2
+            sudo kill -9 "$outer_pid" 2>/dev/null || true
+          fi
+          rm -f "$outer_pid_file"
+        fi
+
+        if [ "$action_rc" -eq 124 ]; then
+          echo "work-dir=$outer_work_dir" >> "$GITHUB_OUTPUT"
+          echo "log-file=$outer_log_file" >> "$GITHUB_OUTPUT"
+          echo "pid-file=$outer_pid_file" >> "$GITHUB_OUTPUT"
+          echo "status=vpn_connect_timeout" >> "$GITHUB_OUTPUT"
+          if [ -d "$outer_work_dir" ]; then
+            sudo chmod -R a+rX "$outer_work_dir" 2>/dev/null || true
+          fi
+          if [ -f "$outer_log_file" ]; then
+            sudo tail -50 "$outer_log_file" || true
+          fi
+          echo "::error::NordVPN connection action exceeded the outer guard timeout"
+          exit 1
+        fi
+
+        exit "$action_rc"
