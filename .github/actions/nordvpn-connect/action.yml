@@ -374,6 +374,7 @@ runs:
         interface=""
         pid=""
         route_ok=0
+        saw_auth_failure=0
 
         route_uses_interface() {
           local route_expr="$1"
@@ -453,10 +454,14 @@ runs:
             interface=""
             exit_ip=""
             tunnel_ready=0
+            auth_failed=0
 
             for _ in $(seq 1 $((connect_timeout / 2))); do
               if auth_failed_in_log; then
-                fail_action "vpn_auth_failure" "NordVPN rejected the OpenVPN credentials for $server over $technology"
+                auth_failed=1
+                saw_auth_failure=1
+                echo "::warning::NordVPN rejected the OpenVPN credentials for $server over $technology; trying the next recommended server"
+                break
               fi
               if [ -f "$pid_file" ]; then
                 pid="$(cat "$pid_file" 2>/dev/null || true)"
@@ -472,6 +477,15 @@ runs:
               fi
               sleep 2
             done
+
+            if [ "$auth_failed" -eq 1 ]; then
+              attempted_network=1
+              cleanup_openvpn
+              if [ "$SECONDS" -lt "$action_deadline" ]; then
+                sleep 2
+              fi
+              continue
+            fi
 
             if [ "$tunnel_ready" -eq 1 ]; then
               route_ok=1
@@ -515,6 +529,9 @@ runs:
         if [ "$SECONDS" -ge "$action_deadline" ]; then
           status="vpn_connect_timeout"
           echo "::error::VPN tunnel timed out before a verified connection was established"
+        elif [ "$saw_auth_failure" -eq 1 ]; then
+          status="vpn_auth_failure"
+          echo "::error::NordVPN rejected the OpenVPN credentials on every attempted recommended server"
         else
           status="vpn_network_error"
           if [ "$attempted_network" -eq 0 ]; then

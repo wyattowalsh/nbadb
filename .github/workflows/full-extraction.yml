@@ -445,7 +445,7 @@ jobs:
           openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
           lane-index: ${{ matrix.lane_index }}
-          server-limit: "1"
+          server-limit: "3"
           fallback-technology: ""
           connect-timeout-seconds: "30"
           overall-timeout-seconds: "180"
