@@ -165,7 +165,7 @@ class TestStagingMap:
         assert len(get_by_pattern("player")) == 108
 
     def test_get_by_pattern_team(self) -> None:
-        assert len(get_by_pattern("team")) == 59
+        assert len(get_by_pattern("team")) == 18
 
     def test_get_by_pattern_player_season(self) -> None:
         entries = get_by_pattern("player_season")
@@ -196,13 +196,22 @@ class TestStagingMap:
 
     def test_get_by_pattern_team_season(self) -> None:
         entries = get_by_pattern("team_season")
-        assert len(entries) == 8
+        assert len(entries) == 49
         names = {e.endpoint_name for e in entries}
+        assert "common_team_roster" in names
         assert "cume_stats_team" in names
         assert "cume_stats_team_games" in names
+        assert "team_dashboard_general_splits" in names
+        assert "team_dashboard_shooting_splits" in names
+        assert "team_dash_pt_pass" in names
+        assert "team_dash_pt_reb" in names
+        assert "team_dash_pt_shots" in names
         assert "team_game_log" in names
         assert "team_dash_lineups" in names
         assert "league_player_on_details" in names
+        assert "team_player_dashboard" in names
+        assert "team_player_on_off_details" in names
+        assert "team_player_on_off_summary" in names
 
     def test_get_by_pattern_static(self) -> None:
         assert len(get_by_pattern("static")) == 32
@@ -303,8 +312,18 @@ class TestStagingMap:
         expected_patterns = {
             "stg_player_game_streak_finder": "season",
             "stg_team_streak_finder": "season",
+            "stg_coaches": "team_season",
+            "stg_team_info": "team_season",
+            "stg_team_dash_general_splits": "team_season",
+            "stg_team_dash_shooting_splits": "team_season",
             "stg_team_lineups": "team_season",
             "stg_team_lineups_overall": "team_season",
+            "stg_team_pt_pass": "team_season",
+            "stg_team_pt_reb": "team_season",
+            "stg_team_pt_shots": "team_season",
+            "stg_team_player_dashboard": "team_season",
+            "stg_team_dashboard_on_off": "team_season",
+            "stg_on_off": "team_season",
             "stg_player_vs_player": "player_team_season",
             "stg_team_vs_player": "player_team_season",
             "stg_team_and_players_vs": "player_team_season",
