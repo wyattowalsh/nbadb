@@ -587,6 +587,50 @@ class TestCrossProductParameterHandling:
         assert "season" not in kwargs
 
     @pytest.mark.asyncio
+    async def test_team_info_common_uses_nullable_runtime_params(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = TeamInfoCommonExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(team_id=1610612737, season="2024-25", season_type="Playoffs")
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["team_id"] == 1610612737
+        assert kwargs["season_nullable"] == "2024-25"
+        assert kwargs["season_type_nullable"] == "Playoffs"
+        assert "season" not in kwargs
+        assert "season_type_all_star" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_team_game_logs_forwards_team_id_nullable(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = TeamGameLogsExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(team_id=1610612737, season="2024-25", season_type="Regular Season")
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["team_id_nullable"] == 1610612737
+        assert kwargs["season_nullable"] == "2024-25"
+        assert kwargs["season_type_nullable"] == "Regular Season"
+
+    @pytest.mark.asyncio
     async def test_league_game_log_forwards_timeout_override(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -1384,6 +1428,7 @@ _EXTRACT_PARAMS: dict[str, dict[str, object]] = {
     # misc: LeagueGameFinder / TeamGameStreakFinder pass **params
     "league_game_finder": {"season": "2024-25"},
     "team_game_streak_finder": {"season": "2024-25"},
+    "team_game_logs": {"team_id": 1610612744, "season": "2024-25"},
     "video_events": {"game_id": "0022400001"},
     "video_status": {"game_date": "2024-10-22", "league_id": "00"},
     # hustle: HustleStatsBoxScore needs game_id

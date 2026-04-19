@@ -1409,7 +1409,7 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("cume_stats_team_games", "stg_cume_team_games", "team_season"),
     StagingEntry("franchise_leaders", "stg_franchise_leaders", "team"),
     StagingEntry("franchise_players", "stg_franchise_players", "team"),
-    StagingEntry("team_game_logs", "stg_team_game_logs_v2", "team"),
+    StagingEntry("team_game_logs", "stg_team_game_logs_v2", "team_season"),
     StagingEntry("team_game_streak_finder", "stg_team_streak_finder", "season"),
     StagingEntry(
         "team_vs_player",

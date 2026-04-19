@@ -85,8 +85,8 @@ class TeamInfoCommonExtractor(BaseExtractor):
         return self._from_nba_api(
             TeamInfoCommon,
             team_id=team_id,
-            season=season,
-            season_type_all_star=season_type,
+            season_nullable=season,
+            season_type_nullable=season_type,
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -96,8 +96,8 @@ class TeamInfoCommonExtractor(BaseExtractor):
         return self._from_nba_api_multi(
             TeamInfoCommon,
             team_id=team_id,
-            season=season,
-            season_type_all_star=season_type,
+            season_nullable=season,
+            season_type_nullable=season_type,
         )
 
 
@@ -116,10 +116,12 @@ class TeamGameLogsExtractor(BaseExtractor):
     category = "game_log"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
+        team_id: int = params["team_id"]
         season: str = params.get("season", "")
         season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             TeamGameLogs,
+            team_id_nullable=team_id,
             season_nullable=season,
             season_type_nullable=season_type,
         )

@@ -165,7 +165,7 @@ class TestStagingMap:
         assert len(get_by_pattern("player")) == 108
 
     def test_get_by_pattern_team(self) -> None:
-        assert len(get_by_pattern("team")) == 18
+        assert len(get_by_pattern("team")) == 17
 
     def test_get_by_pattern_player_season(self) -> None:
         entries = get_by_pattern("player_season")
@@ -196,7 +196,7 @@ class TestStagingMap:
 
     def test_get_by_pattern_team_season(self) -> None:
         entries = get_by_pattern("team_season")
-        assert len(entries) == 49
+        assert len(entries) == 50
         names = {e.endpoint_name for e in entries}
         assert "common_team_roster" in names
         assert "cume_stats_team" in names
@@ -318,6 +318,7 @@ class TestStagingMap:
             "stg_team_dash_shooting_splits": "team_season",
             "stg_team_lineups": "team_season",
             "stg_team_lineups_overall": "team_season",
+            "stg_team_game_logs_v2": "team_season",
             "stg_team_pt_pass": "team_season",
             "stg_team_pt_reb": "team_season",
             "stg_team_pt_shots": "team_season",
