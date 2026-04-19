@@ -146,8 +146,8 @@ flowchart TD
   HIST -- No --> CURRENT{"Current-season refresh?"}
   CURRENT -- Yes --> DAILY["nbadb daily\nrecent games + active surfaces"]
   CURRENT -- No --> RECENT{"Need a broader recent-history sweep?"}
-  RECENT -- Yes --> MONTHLY["nbadb monthly\nlast 3 seasons"]
-  RECENT -- No --> GAP["nbadb backfill run\nretry failed work + gap fill"]
+  RECENT -- Yes --> MONTHLY["nbadb monthly\nlast 3 seasons + live append"]
+  RECENT -- No --> GAP["nbadb backfill run\nrecovery + targeted gap fill"]
 
   style INIT fill:#e1f5fe
   style DAILY fill:#e8f5e9
