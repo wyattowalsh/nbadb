@@ -173,6 +173,41 @@ runs:
           done
         }
 
+        remaining_budget_seconds() {
+          if [ -z "${action_deadline:-}" ]; then
+            echo 0
+            return 0
+          fi
+          echo $((action_deadline - SECONDS))
+        }
+
+        run_with_budget() {
+          local label="$1"
+          shift
+
+          local remaining rc
+          remaining="$(remaining_budget_seconds)"
+          if [ "$remaining" -le 5 ]; then
+            echo "::error::$label skipped because the VPN connection budget is exhausted"
+            return 124
+          fi
+
+          set +e
+          timeout --foreground "$remaining" "$@"
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ]; then
+            return 0
+          fi
+          if [ "$rc" -eq 124 ]; then
+            echo "::error::$label exceeded the VPN connection budget"
+          else
+            echo "::error::$label failed with exit code $rc"
+          fi
+          return "$rc"
+        }
+
         work_dir="${RUNNER_TEMP}/nordvpn"
         log_file="${work_dir}/openvpn.log"
         pid_file="${work_dir}/openvpn.pid"
@@ -183,6 +218,33 @@ runs:
         auth_file="${work_dir}/vpn-auth.txt"
         status="vpn_network_error"
         attempted_network=0
+
+        selector_index="${LANE_INDEX:-}"
+        if [ -z "$selector_index" ]; then
+          selector_index="${SHARD_INDEX:-0}"
+        fi
+        server_limit="${SERVER_LIMIT:-4}"
+        connect_timeout="${CONNECT_TIMEOUT_SECONDS:-90}"
+        overall_timeout="${OVERALL_TIMEOUT_SECONDS:-300}"
+        require_full_tunnel="${REQUIRE_FULL_TUNNEL:-true}"
+
+        if ! [[ "$selector_index" =~ ^[0-9]+$ ]] || ! [[ "$server_limit" =~ ^[0-9]+$ ]] || ! [[ "$connect_timeout" =~ ^[0-9]+$ ]] || ! [[ "$overall_timeout" =~ ^[0-9]+$ ]]; then
+          echo "::error::lane-index, shard-index, server-limit, connect-timeout-seconds, and overall-timeout-seconds inputs must be integers"
+          exit 1
+        fi
+        if [ "$server_limit" -lt 1 ]; then
+          echo "::error::server-limit must be >= 1"
+          exit 1
+        fi
+        if [ "$connect_timeout" -lt 30 ]; then
+          echo "::error::connect-timeout-seconds must be >= 30"
+          exit 1
+        fi
+        if [ "$overall_timeout" -lt "$connect_timeout" ]; then
+          echo "::error::overall-timeout-seconds must be >= connect-timeout-seconds"
+          exit 1
+        fi
+        action_deadline=$((SECONDS + overall_timeout))
 
         rm -rf "$work_dir"
         mkdir -p "$work_dir"
@@ -236,16 +298,22 @@ runs:
           [ -f "$log_file" ] && sudo grep -Eq 'AUTH_FAILED|auth-failure' "$log_file" 2>/dev/null
         }
 
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq jq openvpn > /dev/null
+        if ! run_with_budget "apt-get update" sudo apt-get update -qq; then
+          fail_action "vpn_connect_timeout" "Failed while preparing OpenVPN dependencies (apt-get update)"
+        fi
+        if ! run_with_budget "apt-get install" sudo apt-get install -y -qq jq openvpn; then
+          fail_action "vpn_connect_timeout" "Failed while preparing OpenVPN dependencies (apt-get install)"
+        fi
 
         baseline_ip=""
-        set +e
-        curl -sS --connect-timeout 10 --max-time 10 "$VERIFY_URL" > "$baseline_file"
-        baseline_rc=$?
-        set -e
-        if [ "$baseline_rc" -eq 0 ]; then
+        if retry_http_get \
+          "Baseline exit IP probe" \
+          "$baseline_file" \
+          "$VERIFY_URL" \
+          --max-time 10; then
           baseline_ip=$(jq -r '.ip // empty' "$baseline_file" 2>/dev/null || true)
+        else
+          baseline_rc=1
         fi
 
         if [ -n "$baseline_ip" ]; then
@@ -299,33 +367,6 @@ runs:
           echo "::error::Malformed NordVPN OpenVPN credential payload"
           exit 1
         fi
-
-        selector_index="${LANE_INDEX:-}"
-        if [ -z "$selector_index" ]; then
-          selector_index="${SHARD_INDEX:-0}"
-        fi
-        server_limit="${SERVER_LIMIT:-4}"
-        connect_timeout="${CONNECT_TIMEOUT_SECONDS:-90}"
-        overall_timeout="${OVERALL_TIMEOUT_SECONDS:-300}"
-        require_full_tunnel="${REQUIRE_FULL_TUNNEL:-true}"
-
-        if ! [[ "$selector_index" =~ ^[0-9]+$ ]] || ! [[ "$server_limit" =~ ^[0-9]+$ ]] || ! [[ "$connect_timeout" =~ ^[0-9]+$ ]] || ! [[ "$overall_timeout" =~ ^[0-9]+$ ]]; then
-          echo "::error::lane-index, shard-index, server-limit, connect-timeout-seconds, and overall-timeout-seconds inputs must be integers"
-          exit 1
-        fi
-        if [ "$server_limit" -lt 1 ]; then
-          echo "::error::server-limit must be >= 1"
-          exit 1
-        fi
-        if [ "$connect_timeout" -lt 30 ]; then
-          echo "::error::connect-timeout-seconds must be >= 30"
-          exit 1
-        fi
-        if [ "$overall_timeout" -lt "$connect_timeout" ]; then
-          echo "::error::overall-timeout-seconds must be >= connect-timeout-seconds"
-          exit 1
-        fi
-        action_deadline=$((SECONDS + overall_timeout))
 
         selected_server=""
         selected_technology=""
