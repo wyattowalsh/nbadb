@@ -1226,7 +1226,7 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_vs_player",
         "stg_player_vs_player",
-        "player",
+        "player_team_season",
         result_set_index=0,
         use_multi=True,
     ),
@@ -1315,7 +1315,7 @@ STAGING_MAP: list[StagingEntry] = [
         "player_team_season",
         season_type_capability="supported",
     ),
-    StagingEntry("player_game_streak_finder", "stg_player_game_streak_finder", "player"),
+    StagingEntry("player_game_streak_finder", "stg_player_game_streak_finder", "season"),
     # Team-level additions
     StagingEntry(
         "team_dashboard_general_splits",
@@ -1332,7 +1332,11 @@ STAGING_MAP: list[StagingEntry] = [
         use_multi=True,
     ),
     StagingEntry(
-        "team_dash_lineups", "stg_team_lineups", "team", result_set_index=0, use_multi=True
+        "team_dash_lineups",
+        "stg_team_lineups",
+        "team_season",
+        result_set_index=0,
+        use_multi=True,
     ),
     StagingEntry(
         "team_dash_pt_pass",
@@ -1402,18 +1406,18 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("franchise_leaders", "stg_franchise_leaders", "team"),
     StagingEntry("franchise_players", "stg_franchise_players", "team"),
     StagingEntry("team_game_logs", "stg_team_game_logs_v2", "team"),
-    StagingEntry("team_game_streak_finder", "stg_team_streak_finder", "team"),
+    StagingEntry("team_game_streak_finder", "stg_team_streak_finder", "season"),
     StagingEntry(
         "team_vs_player",
         "stg_team_vs_player",
-        "team",
+        "player_team_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "team_and_players_vs",
         "stg_team_and_players_vs",
-        "team",
+        "player_team_season",
         result_set_index=0,
         use_multi=True,
     ),
@@ -1421,7 +1425,7 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "team_and_players_vs_players",
         "stg_team_and_players_vs_players",
-        "team",
+        "player_team_season",
         result_set_index=0,
         use_multi=True,
     ),
@@ -2066,7 +2070,11 @@ STAGING_MAP: list[StagingEntry] = [
     ),
     # TeamDashLineups (2 sets)
     StagingEntry(
-        "team_dash_lineups", "stg_team_lineups_overall", "team", result_set_index=1, use_multi=True
+        "team_dash_lineups",
+        "stg_team_lineups_overall",
+        "team_season",
+        result_set_index=1,
+        use_multi=True,
     ),
     # ── Phase 4: Team Details (8 sets — index 0 already captured as stg_team_details)
     StagingEntry(
@@ -2307,84 +2315,174 @@ STAGING_MAP: list[StagingEntry] = [
     # ── Phase 5: Comparison Multi-Result ─────────────────────────────
     # PlayerVsPlayer (10 sets)
     StagingEntry(
-        "player_vs_player", "stg_pvp_on_off_court", "player", result_set_index=0, use_multi=True
+        "player_vs_player",
+        "stg_pvp_on_off_court",
+        "player_team_season",
+        result_set_index=0,
+        use_multi=True,
     ),
     StagingEntry(
-        "player_vs_player", "stg_pvp_overall", "player", result_set_index=1, use_multi=True
+        "player_vs_player",
+        "stg_pvp_overall",
+        "player_team_season",
+        result_set_index=1,
+        use_multi=True,
     ),
     StagingEntry(
-        "player_vs_player", "stg_pvp_player_info", "player", result_set_index=2, use_multi=True
+        "player_vs_player",
+        "stg_pvp_player_info",
+        "player_team_season",
+        result_set_index=2,
+        use_multi=True,
     ),
     StagingEntry(
-        "player_vs_player", "stg_pvp_shot_area_off", "player", result_set_index=3, use_multi=True
+        "player_vs_player",
+        "stg_pvp_shot_area_off",
+        "player_team_season",
+        result_set_index=3,
+        use_multi=True,
     ),
     StagingEntry(
-        "player_vs_player", "stg_pvp_shot_area_on", "player", result_set_index=4, use_multi=True
+        "player_vs_player",
+        "stg_pvp_shot_area_on",
+        "player_team_season",
+        result_set_index=4,
+        use_multi=True,
     ),
     StagingEntry(
         "player_vs_player",
         "stg_pvp_shot_area_overall",
-        "player",
+        "player_team_season",
         result_set_index=5,
         use_multi=True,
     ),
     StagingEntry(
-        "player_vs_player", "stg_pvp_shot_dist_off", "player", result_set_index=6, use_multi=True
+        "player_vs_player",
+        "stg_pvp_shot_dist_off",
+        "player_team_season",
+        result_set_index=6,
+        use_multi=True,
     ),
     StagingEntry(
-        "player_vs_player", "stg_pvp_shot_dist_on", "player", result_set_index=7, use_multi=True
+        "player_vs_player",
+        "stg_pvp_shot_dist_on",
+        "player_team_season",
+        result_set_index=7,
+        use_multi=True,
     ),
     StagingEntry(
         "player_vs_player",
         "stg_pvp_shot_dist_overall",
-        "player",
+        "player_team_season",
         result_set_index=8,
         use_multi=True,
     ),
     StagingEntry(
-        "player_vs_player", "stg_pvp_vs_player_info", "player", result_set_index=9, use_multi=True
+        "player_vs_player",
+        "stg_pvp_vs_player_info",
+        "player_team_season",
+        result_set_index=9,
+        use_multi=True,
     ),
     # TeamVsPlayer (9 sets)
     StagingEntry(
-        "team_vs_player", "stg_tvp_on_off_court", "team", result_set_index=0, use_multi=True
-    ),
-    StagingEntry("team_vs_player", "stg_tvp_overall", "team", result_set_index=1, use_multi=True),
-    StagingEntry(
-        "team_vs_player", "stg_tvp_shot_area_off", "team", result_set_index=2, use_multi=True
-    ),
-    StagingEntry(
-        "team_vs_player", "stg_tvp_shot_area_on", "team", result_set_index=3, use_multi=True
+        "team_vs_player",
+        "stg_tvp_on_off_court",
+        "player_team_season",
+        result_set_index=0,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_vs_player", "stg_tvp_shot_area_overall", "team", result_set_index=4, use_multi=True
+        "team_vs_player",
+        "stg_tvp_overall",
+        "player_team_season",
+        result_set_index=1,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_vs_player", "stg_tvp_shot_dist_off", "team", result_set_index=5, use_multi=True
+        "team_vs_player",
+        "stg_tvp_shot_area_off",
+        "player_team_season",
+        result_set_index=2,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_vs_player", "stg_tvp_shot_dist_on", "team", result_set_index=6, use_multi=True
+        "team_vs_player",
+        "stg_tvp_shot_area_on",
+        "player_team_season",
+        result_set_index=3,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_vs_player", "stg_tvp_shot_dist_overall", "team", result_set_index=7, use_multi=True
+        "team_vs_player",
+        "stg_tvp_shot_area_overall",
+        "player_team_season",
+        result_set_index=4,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_vs_player", "stg_tvp_vs_player_overall", "team", result_set_index=8, use_multi=True
+        "team_vs_player",
+        "stg_tvp_shot_dist_off",
+        "player_team_season",
+        result_set_index=5,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "team_vs_player",
+        "stg_tvp_shot_dist_on",
+        "player_team_season",
+        result_set_index=6,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "team_vs_player",
+        "stg_tvp_shot_dist_overall",
+        "player_team_season",
+        result_set_index=7,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "team_vs_player",
+        "stg_tvp_vs_player_overall",
+        "player_team_season",
+        result_set_index=8,
+        use_multi=True,
     ),
     # TeamAndPlayersVsPlayers (5 sets)
     StagingEntry(
-        "team_and_players_vs", "stg_tapvp_players_vs", "team", result_set_index=0, use_multi=True
+        "team_and_players_vs",
+        "stg_tapvp_players_vs",
+        "player_team_season",
+        result_set_index=0,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_and_players_vs", "stg_tapvp_team_off", "team", result_set_index=1, use_multi=True
+        "team_and_players_vs",
+        "stg_tapvp_team_off",
+        "player_team_season",
+        result_set_index=1,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_and_players_vs", "stg_tapvp_team_on", "team", result_set_index=2, use_multi=True
+        "team_and_players_vs",
+        "stg_tapvp_team_on",
+        "player_team_season",
+        result_set_index=2,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_and_players_vs", "stg_tapvp_team_vs", "team", result_set_index=3, use_multi=True
+        "team_and_players_vs",
+        "stg_tapvp_team_vs",
+        "player_team_season",
+        result_set_index=3,
+        use_multi=True,
     ),
     StagingEntry(
-        "team_and_players_vs", "stg_tapvp_team_vs_off", "team", result_set_index=4, use_multi=True
+        "team_and_players_vs",
+        "stg_tapvp_team_vs_off",
+        "player_team_season",
+        result_set_index=4,
+        use_multi=True,
     ),
     # TeamPlayerOnOffDetails (3 sets)
     StagingEntry(

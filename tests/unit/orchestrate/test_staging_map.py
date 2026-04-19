@@ -143,7 +143,7 @@ class TestStagingMap:
 
     def test_get_by_pattern_season(self) -> None:
         entries = get_by_pattern("season")
-        assert len(entries) == 87
+        assert len(entries) == 89
         assert all(e.param_pattern == "season" for e in entries)
         assert any(e.endpoint_name == "player_career_by_college" for e in entries)
 
@@ -162,10 +162,10 @@ class TestStagingMap:
         }
 
     def test_get_by_pattern_player(self) -> None:
-        assert len(get_by_pattern("player")) == 120
+        assert len(get_by_pattern("player")) == 108
 
     def test_get_by_pattern_team(self) -> None:
-        assert len(get_by_pattern("team")) == 79
+        assert len(get_by_pattern("team")) == 59
 
     def test_get_by_pattern_player_season(self) -> None:
         entries = get_by_pattern("player_season")
@@ -184,19 +184,24 @@ class TestStagingMap:
 
     def test_get_by_pattern_player_team_season(self) -> None:
         entries = get_by_pattern("player_team_season")
-        assert len(entries) == 2
+        assert len(entries) == 30
         assert {entry.endpoint_name for entry in entries} == {
+            "player_vs_player",
+            "team_and_players_vs",
+            "team_and_players_vs_players",
+            "team_vs_player",
             "video_details",
             "video_details_asset",
         }
 
     def test_get_by_pattern_team_season(self) -> None:
         entries = get_by_pattern("team_season")
-        assert len(entries) == 6
+        assert len(entries) == 8
         names = {e.endpoint_name for e in entries}
         assert "cume_stats_team" in names
         assert "cume_stats_team_games" in names
         assert "team_game_log" in names
+        assert "team_dash_lineups" in names
         assert "league_player_on_details" in names
 
     def test_get_by_pattern_static(self) -> None:
@@ -269,16 +274,47 @@ class TestStagingMap:
             assert entry.season_type_capability == "not_applicable"
             assert entry.supported_season_types == ()
 
-    def test_staging_map_player_team_season_entries_are_supported(self) -> None:
+    def test_staging_map_player_team_season_entries_split_supported_and_blocked(self) -> None:
         entries = get_by_pattern("player_team_season")
 
         assert entries
         capabilities = {entry.endpoint_name: entry.season_type_capability for entry in entries}
 
-        assert capabilities == {
+        assert {
+            endpoint_name: capability
+            for endpoint_name, capability in capabilities.items()
+            if capability == "supported"
+        } == {
             "video_details": "supported",
             "video_details_asset": "supported",
         }
+        assert {
+            endpoint_name: capability
+            for endpoint_name, capability in capabilities.items()
+            if capability == "blocked"
+        } == {
+            "player_vs_player": "blocked",
+            "team_and_players_vs": "blocked",
+            "team_and_players_vs_players": "blocked",
+            "team_vs_player": "blocked",
+        }
+
+    def test_problem_endpoints_route_to_runnable_or_blocked_patterns(self) -> None:
+        expected_patterns = {
+            "stg_player_game_streak_finder": "season",
+            "stg_team_streak_finder": "season",
+            "stg_team_lineups": "team_season",
+            "stg_team_lineups_overall": "team_season",
+            "stg_player_vs_player": "player_team_season",
+            "stg_team_vs_player": "player_team_season",
+            "stg_team_and_players_vs": "player_team_season",
+            "stg_team_and_players_vs_players": "player_team_season",
+        }
+
+        for staging_key, expected_pattern in expected_patterns.items():
+            entry = get_by_staging_key(staging_key)
+            assert entry is not None
+            assert entry.param_pattern == expected_pattern
 
     def test_staging_map_player_game_logs_v2_overrides_player_pattern_default(self) -> None:
         entry = get_by_staging_key("stg_player_game_logs_v2")

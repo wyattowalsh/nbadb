@@ -501,53 +501,9 @@ def build_default_manifest(
                 )
                 lane_index += 1
 
-    blocked_cross_product_rows = [
-        row
-        for row in cross_product_rows
-        if str(row.get("season_type_contract_status")) == "blocked"
-    ]
-    if blocked_cross_product_rows:
-        patterns = tuple(
-            sorted(
-                {
-                    str(pattern)
-                    for row in blocked_cross_product_rows
-                    for pattern in row.get("param_patterns", [])
-                    if str(pattern) in CROSS_PRODUCT_PATTERNS
-                }
-            )
-        )
-        endpoints = tuple(
-            sorted(
-                {
-                    str(row.get("endpoint_name", ""))
-                    for row in blocked_cross_product_rows
-                    if row.get("endpoint_name")
-                }
-            )
-        )
-        end_year = _current_end_year()
-        for band_start, band_end in _split_season_band(
-            DEFAULT_HISTORICAL_START,
-            end_year,
-            max_span=CROSS_PRODUCT_MAX_SPAN,
-        ):
-            lanes.append(
-                FullExtractionLane(
-                    lane_id=f"cross-product-blocked-{band_start}-{band_end}",
-                    lane_index=lane_index,
-                    lane_name=f"Cross Product Blocked {band_start}-{band_end}",
-                    lane_kind="cross_product_blocked",
-                    season_start=band_start,
-                    season_end=band_end,
-                    patterns=patterns,
-                    endpoints=endpoints,
-                    use_vpn=True,
-                    resume_only=False,
-                    timeout_seconds=_cross_product_timeout_seconds(band_start, band_end),
-                )
-            )
-            lane_index += 1
+    if not lanes:
+        msg = "Selected full-extraction filters produced no runnable lanes"
+        raise ValueError(msg)
 
     return lanes
 

@@ -143,6 +143,7 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
     )
     assert len(cross_product_lanes) == 10
     assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in cross_product_lanes)
+    assert all(lane.lane_kind != "cross_product_blocked" for lane in lanes)
 
 
 def test_build_default_manifest_chunks_reference_patterns_by_endpoint_load() -> None:
@@ -217,6 +218,42 @@ def test_build_default_manifest_rejects_zero_match_filters() -> None:
             support_matrix_rows=rows,
             selected_endpoints=["does_not_exist"],
         )
+
+
+def test_build_default_manifest_skips_blocked_cross_product_endpoints() -> None:
+    rows = [
+        _support_row(
+            "video_details",
+            ["player_team_season"],
+            1946,
+            season_type_contract_status="supported",
+        ),
+        _support_row(
+            "team_vs_player",
+            ["player_team_season"],
+            1946,
+            season_type_contract_status="blocked",
+        ),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+
+    assert {lane.lane_kind for lane in lanes} == {"cross_product"}
+    assert all("team_vs_player" not in lane.endpoints for lane in lanes)
+
+
+def test_build_default_manifest_rejects_blocked_only_selection() -> None:
+    rows = [
+        _support_row(
+            "team_vs_player",
+            ["player_team_season"],
+            1946,
+            season_type_contract_status="blocked",
+        )
+    ]
+
+    with pytest.raises(ValueError, match="produced no runnable lanes"):
+        build_default_manifest(support_matrix_rows=rows)
 
 
 def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path) -> None:
