@@ -10,6 +10,7 @@ from nba_api.stats.library.http import NBAStatsHTTP
 
 from nbadb.core.config import get_settings
 from nbadb.orchestrate.extractor_runner import _sync_extract
+from nbadb.orchestrate.seasons import season_range
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -607,6 +608,32 @@ class EntityDiscovery:
             staging_key="common_team_years",
             id_column="team_id",
             params={},
+        )
+
+    async def discover_current_team_ids(self) -> list[int]:
+        """Get current NBA team IDs from common_team_years."""
+        import polars as pl
+
+        latest_start_year = season_range()[-1][:4]
+
+        def _current_nba_only(df: pl.DataFrame) -> pl.DataFrame:
+            filtered = df
+            if "league_id" in filtered.columns:
+                filtered = filtered.filter(pl.col("league_id").cast(pl.Utf8) == "00")
+            if "max_year" not in filtered.columns or filtered.is_empty():
+                return filtered
+
+            max_year_values = filtered.get_column("max_year").cast(pl.Utf8)
+            latest_year = max_year_values.max() or latest_start_year
+            current_only = filtered.filter(pl.col("max_year").cast(pl.Utf8) == latest_year)
+            return current_only if not current_only.is_empty() else filtered
+
+        return await self._discover_entity_ids(
+            endpoint="common_team_years",
+            staging_key="common_team_years_current",
+            id_column="team_id",
+            params={},
+            filter_fn=_current_nba_only,
         )
 
     async def discover_game_dates(self, game_log_df: pl.DataFrame) -> list[str]:

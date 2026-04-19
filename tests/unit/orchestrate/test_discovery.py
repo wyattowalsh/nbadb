@@ -452,6 +452,25 @@ class TestDiscoverTeamIds:
             result = await disc.discover_team_ids()
         assert result == []
 
+    async def test_returns_current_nba_team_ids(self):
+        df = pl.DataFrame(
+            {
+                "league_id": ["00", "00", "10", "00"],
+                "team_id": [10, 20, 30, 40],
+                "max_year": ["2024", "2025", "2025", "2025"],
+            }
+        )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_current_team_ids()
+        assert result == [20, 40]
+
 
 class TestDiscoverGameIds:
     async def test_returns_unique_sorted_game_ids(self):

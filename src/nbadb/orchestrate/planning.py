@@ -23,6 +23,7 @@ PATTERN_PRIORITY: dict[str, int] = {
     "player_team_season": 3,
     "game": 4,
 }
+_CURRENT_TEAM_ONLY_ENDPOINTS = frozenset({"team_historical_leaders"})
 
 
 def _season_type_capability(entry: StagingEntry) -> str:
@@ -137,6 +138,7 @@ def build_extraction_plan(
     game_ids: list[str],
     player_ids: list[int],
     team_ids: list[int],
+    current_team_ids: list[int] | None = None,
     game_dates: list[str],
     player_team_season_params: list[PlanParams] | None = None,
     include_static: bool = True,
@@ -211,15 +213,35 @@ def build_extraction_plan(
 
     team_entries = get_by_pattern("team")
     if team_entries and team_ids:
-        plan.append(
-            ExtractionPlanItem(
-                label="team",
-                pattern="team",
-                entries=team_entries,
-                params=[{"team_id": team_id} for team_id in team_ids],
-                priority=PATTERN_PRIORITY["team"],
+        general_team_entries = [
+            entry
+            for entry in team_entries
+            if entry.endpoint_name not in _CURRENT_TEAM_ONLY_ENDPOINTS
+        ]
+        if general_team_entries:
+            plan.append(
+                ExtractionPlanItem(
+                    label="team",
+                    pattern="team",
+                    entries=general_team_entries,
+                    params=[{"team_id": team_id} for team_id in team_ids],
+                    priority=PATTERN_PRIORITY["team"],
+                )
             )
-        )
+        current_only_entries = [
+            entry for entry in team_entries if entry.endpoint_name in _CURRENT_TEAM_ONLY_ENDPOINTS
+        ]
+        resolved_current_team_ids = current_team_ids or team_ids
+        if current_only_entries and resolved_current_team_ids:
+            plan.append(
+                ExtractionPlanItem(
+                    label="team (current)",
+                    pattern="team",
+                    entries=current_only_entries,
+                    params=[{"team_id": team_id} for team_id in resolved_current_team_ids],
+                    priority=PATTERN_PRIORITY["team"],
+                )
+            )
 
     player_season_entries = get_by_pattern("player_season")
     if player_season_entries and player_ids and seasons:
