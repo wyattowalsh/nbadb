@@ -7,9 +7,11 @@ import duckdb
 import pytest
 
 from nbadb.orchestrate.full_extraction_control import (
+    FullExtractionLane,
     build_default_manifest,
     build_resume_manifest,
     merge_lane_databases,
+    validate_manifest,
 )
 
 if TYPE_CHECKING:
@@ -99,16 +101,46 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
 
     lanes = build_default_manifest(support_matrix_rows=rows)
 
-    assert [lane.lane_id for lane in lanes] == [
-        "reference-core",
-        "historical-game-no-season-type-1996-2025",
-        "historical-season-regular-season-playoffs-pre-season-all-star-1946-2012",
-        "historical-season-regular-season-playoffs-pre-season-all-star-2013-2025",
-        "cross-product-regular-season-playoffs-pre-season-all-star-1946-2025",
-    ]
-    assert lanes[2].season_types == ("Regular Season", "Playoffs", "Pre Season", "All Star")
-    assert lanes[-1].season_types == ("Regular Season", "Playoffs", "Pre Season", "All Star")
+    assert lanes[0].lane_id == "reference-core"
     assert lanes[0].season_start is None
+
+    game_lanes = [
+        lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
+    ]
+    assert [lane.lane_id for lane in game_lanes] == [
+        "historical-game-no-season-type-1996-2007",
+        "historical-game-no-season-type-2008-2019",
+        "historical-game-no-season-type-2020-2025",
+    ]
+    assert all((lane.season_end - lane.season_start + 1) <= 12 for lane in game_lanes)
+
+    season_lanes = [
+        lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("season",)
+    ]
+    assert [lane.lane_id for lane in season_lanes] == [
+        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1963",
+        "historical-season-regular-season-playoffs-pre-season-all-star-1964-1981",
+        "historical-season-regular-season-playoffs-pre-season-all-star-1982-1999",
+        "historical-season-regular-season-playoffs-pre-season-all-star-2000-2012",
+        "historical-season-regular-season-playoffs-pre-season-all-star-2013-2025",
+    ]
+    assert season_lanes[0].season_types == (
+        "Regular Season",
+        "Playoffs",
+        "Pre Season",
+        "All Star",
+    )
+    assert all((lane.season_end - lane.season_start + 1) <= 18 for lane in season_lanes)
+
+    cross_product_lanes = [lane for lane in lanes if lane.lane_kind == "cross_product"]
+    assert cross_product_lanes[0].lane_id == (
+        "cross-product-regular-season-playoffs-pre-season-all-star-1946-1953"
+    )
+    assert cross_product_lanes[-1].lane_id == (
+        "cross-product-regular-season-playoffs-pre-season-all-star-2018-2025"
+    )
+    assert len(cross_product_lanes) == 10
+    assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in cross_product_lanes)
 
 
 def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
@@ -133,7 +165,11 @@ def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
     )
 
     assert [lane.lane_id for lane in lanes] == [
-        "historical-season-regular-season-playoffs-pre-season-all-star-1946-2025"
+        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1963",
+        "historical-season-regular-season-playoffs-pre-season-all-star-1964-1981",
+        "historical-season-regular-season-playoffs-pre-season-all-star-1982-1999",
+        "historical-season-regular-season-playoffs-pre-season-all-star-2000-2017",
+        "historical-season-regular-season-playoffs-pre-season-all-star-2018-2025",
     ]
 
 
@@ -161,7 +197,7 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
     _write_metadata(metadata_dir / "reference.json", lane_id="reference-core", status="complete")
     _write_metadata(
         metadata_dir / "historical.json",
-        lane_id="historical-season-no-season-type-1946-2025",
+        lane_id="historical-season-no-season-type-1946-1963",
         status="incomplete",
     )
 
@@ -169,8 +205,60 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
 
     by_id = {lane.lane_id: lane for lane in next_lanes}
     assert by_id["reference-core"].resume_only is True
-    assert by_id["historical-season-no-season-type-1946-2025"].resume_only is False
-    assert summary == {"active_lane_count": 1, "resume_only_lane_count": 1}
+    active_lane = by_id["historical-season-no-season-type-1946-1963"]
+    assert active_lane.resume_only is False
+    assert active_lane.failure_streak == 1
+    assert active_lane.last_failure_reason == "incomplete"
+    assert summary == {
+        "active_lane_count": 5,
+        "resume_only_lane_count": 1,
+        "blocked_lane_count": 0,
+        "failure_reason_counts": {"incomplete": 1, "missing-metadata": 4},
+    }
+
+
+def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-no-season-type-1996-2007",
+        lane_index=0,
+        lane_name="Historical game 1996-2007",
+        lane_kind="historical",
+        season_start=1996,
+        season_end=2007,
+        patterns=("game",),
+        timeout_seconds=7200,
+        failure_streak=2,
+        last_failure_reason="extract-timeout",
+    )
+
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id="historical-game-no-season-type-1996-2007",
+        status="extract-timeout",
+    )
+
+    with pytest.raises(ValueError, match="chain safety cap"):
+        build_resume_manifest([lane], metadata_dir)
+
+
+def test_validate_manifest_rejects_oversize_lane() -> None:
+    with pytest.raises(ValueError, match="exceeds lane policy max"):
+        validate_manifest(
+            [
+                FullExtractionLane(
+                    lane_id="cross-product-test-1946-1960",
+                    lane_index=0,
+                    lane_name="Cross product test",
+                    lane_kind="cross_product",
+                    season_start=1946,
+                    season_end=1960,
+                    patterns=("player_team_season",),
+                    timeout_seconds=7200,
+                )
+            ]
+        )
 
 
 def test_merge_lane_databases_merges_without_special_base(tmp_path: Path) -> None:

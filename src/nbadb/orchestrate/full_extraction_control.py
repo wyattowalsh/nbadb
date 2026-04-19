@@ -14,12 +14,22 @@ from nbadb.core.types import SeasonType
 from nbadb.orchestrate.seasons import season_range
 
 DEFAULT_HISTORICAL_START = 1946
+MAX_CONSECUTIVE_FAILURES = 3
 SEASON_TYPE_PATTERNS = frozenset({"season", "player_season", "team_season"})
 HISTORICAL_PATTERNS = frozenset({"season", "game", "date", "player_season", "team_season"})
 REFERENCE_PATTERNS = frozenset({"static", "player", "team"})
 CROSS_PRODUCT_PATTERNS = frozenset({"player_team_season"})
 SEASON_TYPE_GROUPABLE_PATTERNS = SEASON_TYPE_PATTERNS | CROSS_PRODUCT_PATTERNS
 DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
+HISTORICAL_MAX_SPAN_BY_PATTERN: dict[str, int] = {
+    "game": 12,
+    "date": 12,
+    "season": 18,
+    "player_season": 16,
+    "team_season": 16,
+}
+CROSS_PRODUCT_MAX_SPAN = 8
+REFERENCE_TIMEOUT_SECONDS = 5_400
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +46,8 @@ class FullExtractionLane:
     use_vpn: bool = True
     resume_only: bool = False
     timeout_seconds: int = 0
+    failure_streak: int = 0
+    last_failure_reason: str = ""
 
     def to_workflow_dict(self) -> dict[str, Any]:
         return {
@@ -208,6 +220,69 @@ def _band_timeout_seconds(start: int, end: int) -> int:
     return min(19_800, max(7_200, span_years * 600))
 
 
+def _season_span(start: int | None, end: int | None) -> int:
+    if start is None or end is None:
+        return 0
+    return max(1, end - start + 1)
+
+
+def _max_span_for_pattern(pattern: str) -> int:
+    return HISTORICAL_MAX_SPAN_BY_PATTERN.get(pattern, 12)
+
+
+def _max_span_for_lane(lane: FullExtractionLane) -> int | None:
+    if lane.season_start is None or lane.season_end is None:
+        return None
+    if lane.lane_kind == "historical" and lane.patterns:
+        return _max_span_for_pattern(lane.patterns[0])
+    if lane.lane_kind in {"cross_product", "cross_product_blocked"}:
+        return CROSS_PRODUCT_MAX_SPAN
+    return None
+
+
+def _historical_timeout_seconds(pattern: str, start: int, end: int) -> int:
+    span_years = _season_span(start, end)
+    if pattern in {"game", "date"}:
+        return min(10_800, max(5_400, span_years * 600))
+    return min(10_800, max(4_800, span_years * 450))
+
+
+def _cross_product_timeout_seconds(start: int, end: int) -> int:
+    span_years = _season_span(start, end)
+    return min(10_800, max(6_300, span_years * 900))
+
+
+def _split_season_band(start: int, end: int, *, max_span: int) -> list[tuple[int, int]]:
+    if max_span < 1:
+        msg = f"max_span must be >= 1, got {max_span}"
+        raise ValueError(msg)
+    bands: list[tuple[int, int]] = []
+    cursor = start
+    while cursor <= end:
+        band_end = min(end, cursor + max_span - 1)
+        bands.append((cursor, band_end))
+        cursor = band_end + 1
+    return bands
+
+
+def validate_manifest(lanes: list[FullExtractionLane]) -> None:
+    errors: list[str] = []
+    for lane in lanes:
+        if (lane.season_start is None) != (lane.season_end is None):
+            errors.append(f"{lane.lane_id}: season_start/season_end must both be set or both empty")
+        if lane.timeout_seconds <= 0:
+            errors.append(f"{lane.lane_id}: timeout_seconds must be > 0")
+        if lane.failure_streak < 0:
+            errors.append(f"{lane.lane_id}: failure_streak must be >= 0")
+        max_span = _max_span_for_lane(lane)
+        span = _season_span(lane.season_start, lane.season_end)
+        if max_span is not None and span > max_span:
+            errors.append(f"{lane.lane_id}: span {span} exceeds lane policy max {max_span}")
+    if errors:
+        msg = "Invalid full extraction manifest:\n- " + "\n- ".join(errors)
+        raise ValueError(msg)
+
+
 def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
     patterns = tuple(str(pattern) for pattern in raw.get("patterns", []) if str(pattern))
     season_types = tuple(str(value) for value in raw.get("season_types", []) if str(value))
@@ -228,6 +303,8 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         use_vpn=bool(raw.get("use_vpn", True)),
         resume_only=bool(raw.get("resume_only", False)),
         timeout_seconds=int(raw.get("timeout_seconds") or 7_200),
+        failure_streak=int(raw.get("failure_streak") or 0),
+        last_failure_reason=str(raw.get("last_failure_reason") or ""),
     )
 
 
@@ -273,7 +350,7 @@ def build_default_manifest(
                 endpoints=tuple(selected_endpoints or ()),
                 use_vpn=True,
                 resume_only=False,
-                timeout_seconds=5_400,
+                timeout_seconds=REFERENCE_TIMEOUT_SECONDS,
             )
         )
         lane_index += 1
@@ -290,29 +367,39 @@ def build_default_manifest(
             ):
                 endpoints = _endpoint_names(grouped_rows)
                 for start, end in _season_bands(grouped_rows, {pattern}):
-                    lane_id = (
-                        f"historical-{pattern}-{_season_type_slug(season_types)}-{start}-{end}"
-                    )
-                    lane_name = f"Historical {pattern} {start}-{end}"
-                    if season_types:
-                        lane_name = f"{lane_name} ({', '.join(season_types)})"
-                    lanes.append(
-                        FullExtractionLane(
-                            lane_id=lane_id,
-                            lane_index=lane_index,
-                            lane_name=lane_name,
-                            lane_kind="historical",
-                            season_start=start,
-                            season_end=end,
-                            patterns=(pattern,),
-                            season_types=season_types,
-                            endpoints=endpoints,
-                            use_vpn=True,
-                            resume_only=False,
-                            timeout_seconds=_band_timeout_seconds(start, end),
+                    for band_start, band_end in _split_season_band(
+                        start,
+                        end,
+                        max_span=_max_span_for_pattern(pattern),
+                    ):
+                        lane_id = (
+                            f"historical-{pattern}-{_season_type_slug(season_types)}-"
+                            f"{band_start}-{band_end}"
                         )
-                    )
-                    lane_index += 1
+                        lane_name = f"Historical {pattern} {band_start}-{band_end}"
+                        if season_types:
+                            lane_name = f"{lane_name} ({', '.join(season_types)})"
+                        lanes.append(
+                            FullExtractionLane(
+                                lane_id=lane_id,
+                                lane_index=lane_index,
+                                lane_name=lane_name,
+                                lane_kind="historical",
+                                season_start=band_start,
+                                season_end=band_end,
+                                patterns=(pattern,),
+                                season_types=season_types,
+                                endpoints=endpoints,
+                                use_vpn=True,
+                                resume_only=False,
+                                timeout_seconds=_historical_timeout_seconds(
+                                    pattern,
+                                    band_start,
+                                    band_end,
+                                ),
+                            )
+                        )
+                        lane_index += 1
 
     cross_product_rows = [
         row
@@ -342,26 +429,28 @@ def build_default_manifest(
             )
             endpoints = _endpoint_names(grouped_rows)
             end_year = _current_end_year()
-            lanes.append(
-                FullExtractionLane(
-                    lane_id=(
-                        f"cross-product-{_season_type_slug(season_types)}-"
-                        f"{DEFAULT_HISTORICAL_START}-{end_year}"
-                    ),
-                    lane_index=lane_index,
-                    lane_name="Cross Product Historical",
-                    lane_kind="cross_product",
-                    season_start=DEFAULT_HISTORICAL_START,
-                    season_end=end_year,
-                    patterns=patterns,
-                    season_types=season_types,
-                    endpoints=endpoints,
-                    use_vpn=True,
-                    resume_only=False,
-                    timeout_seconds=14_400,
+            for band_start, band_end in _split_season_band(
+                DEFAULT_HISTORICAL_START,
+                end_year,
+                max_span=CROSS_PRODUCT_MAX_SPAN,
+            ):
+                lanes.append(
+                    FullExtractionLane(
+                        lane_id=f"cross-product-{_season_type_slug(season_types)}-{band_start}-{band_end}",
+                        lane_index=lane_index,
+                        lane_name=f"Cross Product Historical {band_start}-{band_end}",
+                        lane_kind="cross_product",
+                        season_start=band_start,
+                        season_end=band_end,
+                        patterns=patterns,
+                        season_types=season_types,
+                        endpoints=endpoints,
+                        use_vpn=True,
+                        resume_only=False,
+                        timeout_seconds=_cross_product_timeout_seconds(band_start, band_end),
+                    )
                 )
-            )
-            lane_index += 1
+                lane_index += 1
 
     blocked_cross_product_rows = [
         row
@@ -389,21 +478,27 @@ def build_default_manifest(
             )
         )
         end_year = _current_end_year()
-        lanes.append(
-            FullExtractionLane(
-                lane_id=f"cross-product-blocked-{DEFAULT_HISTORICAL_START}-{end_year}",
-                lane_index=lane_index,
-                lane_name="Cross Product Blocked",
-                lane_kind="cross_product_blocked",
-                season_start=DEFAULT_HISTORICAL_START,
-                season_end=end_year,
-                patterns=patterns,
-                endpoints=endpoints,
-                use_vpn=True,
-                resume_only=False,
-                timeout_seconds=14_400,
+        for band_start, band_end in _split_season_band(
+            DEFAULT_HISTORICAL_START,
+            end_year,
+            max_span=CROSS_PRODUCT_MAX_SPAN,
+        ):
+            lanes.append(
+                FullExtractionLane(
+                    lane_id=f"cross-product-blocked-{band_start}-{band_end}",
+                    lane_index=lane_index,
+                    lane_name=f"Cross Product Blocked {band_start}-{band_end}",
+                    lane_kind="cross_product_blocked",
+                    season_start=band_start,
+                    season_end=band_end,
+                    patterns=patterns,
+                    endpoints=endpoints,
+                    use_vpn=True,
+                    resume_only=False,
+                    timeout_seconds=_cross_product_timeout_seconds(band_start, band_end),
+                )
             )
-        )
+            lane_index += 1
 
     return lanes
 
@@ -420,7 +515,7 @@ def normalize_manifest(
 def manifest_payload(lanes: list[FullExtractionLane]) -> dict[str, Any]:
     lane_dicts = [asdict(lane) for lane in lanes]
     return {
-        "manifest_version": 1,
+        "manifest_version": 2,
         "lane_count": len(lanes),
         "lanes": lane_dicts,
         "github_matrix": {"include": [lane.to_workflow_dict() for lane in lanes]},
@@ -450,23 +545,60 @@ def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
 def build_resume_manifest(
     lanes: list[FullExtractionLane],
     metadata_dir: Path,
-) -> tuple[list[FullExtractionLane], dict[str, int]]:
+) -> tuple[list[FullExtractionLane], dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
     next_lanes: list[FullExtractionLane] = []
     resumed = 0
     active = 0
+    failure_reason_counts: dict[str, int] = {}
+    blocked_lanes: list[FullExtractionLane] = []
 
     for lane in lanes:
         payload = metadata.get(lane.lane_id)
         status = str(payload.get("status", "")) if payload else ""
+        if not status:
+            status = "missing-metadata"
         if status == "complete":
-            next_lanes.append(replace(lane, resume_only=True))
+            next_lanes.append(
+                replace(
+                    lane,
+                    resume_only=True,
+                    failure_streak=0,
+                    last_failure_reason="",
+                )
+            )
             resumed += 1
             continue
-        next_lanes.append(replace(lane, resume_only=False))
+        failure_reason_counts[status] = failure_reason_counts.get(status, 0) + 1
+        failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
+        next_lane = replace(
+            lane,
+            resume_only=False,
+            failure_streak=failure_streak,
+            last_failure_reason=status,
+        )
+        if failure_streak >= MAX_CONSECUTIVE_FAILURES:
+            blocked_lanes.append(next_lane)
+        next_lanes.append(next_lane)
         active += 1
 
-    return next_lanes, {"active_lane_count": active, "resume_only_lane_count": resumed}
+    if blocked_lanes:
+        blocked = ", ".join(
+            f"{lane.lane_id} ({lane.last_failure_reason} x{lane.failure_streak})"
+            for lane in blocked_lanes
+        )
+        msg = (
+            "Repeated lane failures reached the chain safety cap; refusing to redispatch: "
+            f"{blocked}"
+        )
+        raise ValueError(msg)
+
+    return next_lanes, {
+        "active_lane_count": active,
+        "resume_only_lane_count": resumed,
+        "blocked_lane_count": 0,
+        "failure_reason_counts": failure_reason_counts,
+    }
 
 
 def merge_lane_databases(
@@ -559,6 +691,7 @@ def _command_plan(args: argparse.Namespace) -> int:
             selected_endpoints=_parse_csv(args.backfill_endpoints),
         )
 
+    validate_manifest(lanes)
     payload = manifest_payload(lanes)
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
     args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -573,6 +706,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         raise ValueError(msg)
 
     next_lanes, summary = build_resume_manifest(lanes, args.metadata_dir)
+    validate_manifest(next_lanes)
     payload = manifest_payload(next_lanes)
     payload["resume_summary"] = summary
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
