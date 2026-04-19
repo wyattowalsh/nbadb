@@ -18,6 +18,7 @@ MAX_CONSECUTIVE_FAILURES = 3
 SEASON_TYPE_PATTERNS = frozenset({"season", "player_season", "team_season"})
 HISTORICAL_PATTERNS = frozenset({"season", "game", "date", "player_season", "team_season"})
 REFERENCE_PATTERNS = frozenset({"static", "player", "team"})
+REFERENCE_PATTERN_ORDER = ("static", "team", "player")
 CROSS_PRODUCT_PATTERNS = frozenset({"player_team_season"})
 SEASON_TYPE_GROUPABLE_PATTERNS = SEASON_TYPE_PATTERNS | CROSS_PRODUCT_PATTERNS
 DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
@@ -29,7 +30,16 @@ HISTORICAL_MAX_SPAN_BY_PATTERN: dict[str, int] = {
     "team_season": 16,
 }
 CROSS_PRODUCT_MAX_SPAN = 8
-REFERENCE_TIMEOUT_SECONDS = 5_400
+REFERENCE_MAX_ENDPOINTS_BY_PATTERN: dict[str, int] = {
+    "static": 64,
+    "team": 12,
+    "player": 5,
+}
+REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
+    "static": 1_800,
+    "team": 3_000,
+    "player": 3_600,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +206,29 @@ def _endpoint_names(rows: list[dict[str, Any]]) -> tuple[str, ...]:
     )
 
 
+def _chunked_endpoint_names(
+    endpoints: tuple[str, ...], *, chunk_size: int
+) -> list[tuple[str, ...]]:
+    if chunk_size < 1:
+        msg = f"chunk_size must be >= 1, got {chunk_size}"
+        raise ValueError(msg)
+    return [
+        endpoints[index : index + chunk_size]
+        for index in range(0, len(endpoints), chunk_size)
+        if endpoints[index : index + chunk_size]
+    ]
+
+
+def _reference_patterns_in_order(patterns: set[str]) -> list[str]:
+    ordered = [pattern for pattern in REFERENCE_PATTERN_ORDER if pattern in patterns]
+    remaining = sorted(pattern for pattern in patterns if pattern not in REFERENCE_PATTERN_ORDER)
+    return ordered + remaining
+
+
+def _reference_timeout_seconds(pattern: str) -> int:
+    return REFERENCE_TIMEOUT_SECONDS_BY_PATTERN.get(pattern, 3_000)
+
+
 def _season_bands(
     rows: list[dict[str, Any]], requested_patterns: set[str]
 ) -> list[tuple[int, int]]:
@@ -336,24 +369,40 @@ def build_default_manifest(
     lanes: list[FullExtractionLane] = []
     lane_index = 0
 
-    reference_patterns = tuple(sorted(requested_patterns & REFERENCE_PATTERNS))
+    reference_patterns = requested_patterns & REFERENCE_PATTERNS
     if reference_patterns:
-        lanes.append(
-            FullExtractionLane(
-                lane_id="reference-core",
-                lane_index=lane_index,
-                lane_name="Reference Core",
-                lane_kind="reference",
-                season_start=None,
-                season_end=None,
-                patterns=reference_patterns,
-                endpoints=tuple(selected_endpoints or ()),
-                use_vpn=True,
-                resume_only=False,
-                timeout_seconds=REFERENCE_TIMEOUT_SECONDS,
-            )
-        )
-        lane_index += 1
+        for pattern in _reference_patterns_in_order(reference_patterns):
+            pattern_rows = [
+                row
+                for row in filtered_rows
+                if pattern in {str(candidate) for candidate in row.get("param_patterns", [])}
+            ]
+            endpoints = _endpoint_names(pattern_rows)
+            if not endpoints:
+                continue
+            chunk_size = REFERENCE_MAX_ENDPOINTS_BY_PATTERN.get(pattern, len(endpoints))
+            endpoint_groups = _chunked_endpoint_names(endpoints, chunk_size=chunk_size)
+            for group_index, endpoint_group in enumerate(endpoint_groups, start=1):
+                chunk_suffix = f"-{group_index:02d}" if len(endpoint_groups) > 1 else ""
+                lane_name = f"Reference {pattern.replace('_', ' ').title()}"
+                if len(endpoint_groups) > 1:
+                    lane_name = f"{lane_name} {group_index}/{len(endpoint_groups)}"
+                lanes.append(
+                    FullExtractionLane(
+                        lane_id=f"reference-{pattern}{chunk_suffix}",
+                        lane_index=lane_index,
+                        lane_name=lane_name,
+                        lane_kind="reference",
+                        season_start=None,
+                        season_end=None,
+                        patterns=(pattern,),
+                        endpoints=endpoint_group,
+                        use_vpn=True,
+                        resume_only=False,
+                        timeout_seconds=_reference_timeout_seconds(pattern),
+                    )
+                )
+                lane_index += 1
 
     historical_patterns = requested_patterns & HISTORICAL_PATTERNS
     if historical_patterns:

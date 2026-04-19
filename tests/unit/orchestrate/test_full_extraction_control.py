@@ -101,8 +101,10 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
 
     lanes = build_default_manifest(support_matrix_rows=rows)
 
-    assert lanes[0].lane_id == "reference-core"
+    assert [lane.lane_id for lane in lanes[:2]] == ["reference-static", "reference-player"]
     assert lanes[0].season_start is None
+    assert lanes[0].endpoints == ("franchise_history",)
+    assert lanes[1].endpoints == ("common_player_info",)
 
     game_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
@@ -141,6 +143,38 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
     )
     assert len(cross_product_lanes) == 10
     assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in cross_product_lanes)
+
+
+def test_build_default_manifest_chunks_reference_patterns_by_endpoint_load() -> None:
+    rows = [
+        _support_row("static_players", ["static"], None),
+        *[_support_row(f"team_endpoint_{index:02d}", ["team"], None) for index in range(1, 14)],
+        *[_support_row(f"player_endpoint_{index:02d}", ["player"], None) for index in range(1, 12)],
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+
+    assert [lane.lane_id for lane in reference_lanes] == [
+        "reference-static",
+        "reference-team-01",
+        "reference-team-02",
+        "reference-player-01",
+        "reference-player-02",
+        "reference-player-03",
+    ]
+    assert reference_lanes[0].endpoints == ("static_players",)
+    assert len(reference_lanes[1].endpoints) == 12
+    assert len(reference_lanes[2].endpoints) == 1
+    assert [len(lane.endpoints) for lane in reference_lanes[3:]] == [5, 5, 1]
+    assert [lane.timeout_seconds for lane in reference_lanes] == [
+        1800,
+        3000,
+        3000,
+        3600,
+        3600,
+        3600,
+    ]
 
 
 def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
@@ -194,7 +228,7 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
 
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
-    _write_metadata(metadata_dir / "reference.json", lane_id="reference-core", status="complete")
+    _write_metadata(metadata_dir / "reference.json", lane_id="reference-static", status="complete")
     _write_metadata(
         metadata_dir / "historical.json",
         lane_id="historical-season-no-season-type-1946-1963",
@@ -204,7 +238,7 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
     next_lanes, summary = build_resume_manifest(lanes, metadata_dir)
 
     by_id = {lane.lane_id: lane for lane in next_lanes}
-    assert by_id["reference-core"].resume_only is True
+    assert by_id["reference-static"].resume_only is True
     active_lane = by_id["historical-season-no-season-type-1946-1963"]
     assert active_lane.resume_only is False
     assert active_lane.failure_streak == 1
