@@ -23,7 +23,13 @@ PATTERN_PRIORITY: dict[str, int] = {
     "player_team_season": 3,
     "game": 4,
 }
-_CURRENT_TEAM_ONLY_ENDPOINTS = frozenset({"team_historical_leaders"})
+_CURRENT_TEAM_ONLY_ENDPOINTS = frozenset(
+    {
+        "team_details",
+        "team_historical_leaders",
+        "team_info_common",
+    }
+)
 
 
 def _season_type_capability(entry: StagingEntry) -> str:

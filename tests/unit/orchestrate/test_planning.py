@@ -165,7 +165,12 @@ class TestBuildExtractionPlan:
         ]
 
     def test_isolates_current_team_only_team_endpoints(self) -> None:
-        team_entries = [_entry("common_team_roster"), _entry("team_historical_leaders")]
+        team_entries = [
+            _entry("common_team_roster"),
+            _entry("team_details"),
+            _entry("team_historical_leaders"),
+            _entry("team_info_common"),
+        ]
 
         def _entries(pattern: str):
             return team_entries if pattern == "team" else []
@@ -183,5 +188,9 @@ class TestBuildExtractionPlan:
         assert [item.label for item in plan] == ["team", "team (current)"]
         assert [entry.endpoint_name for entry in plan[0].entries] == ["common_team_roster"]
         assert plan[0].params == [{"team_id": 10}, {"team_id": 20}, {"team_id": 30}]
-        assert [entry.endpoint_name for entry in plan[1].entries] == ["team_historical_leaders"]
+        assert [entry.endpoint_name for entry in plan[1].entries] == [
+            "team_details",
+            "team_historical_leaders",
+            "team_info_common",
+        ]
         assert plan[1].params == [{"team_id": 20}, {"team_id": 30}]
