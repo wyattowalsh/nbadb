@@ -37,6 +37,7 @@ class NbaDbSettings(BaseSettings):
         "box_score_usage": 2,
         "box_score_four_factors": 2,
         "box_score_hustle": 2,
+        "common_player_info": 1,
         "defense_hub": 1,
         "franchise_leaders": 1,
         "franchise_players": 1,
@@ -68,6 +69,7 @@ class NbaDbSettings(BaseSettings):
         "box_score_usage": 3.0,
         "box_score_four_factors": 3.0,
         "box_score_hustle": 2.0,
+        "common_player_info": 1.0,
         # Isolate flaky historical backfill surfaces so their failures do not
         # drag down the shared adaptive limiter for every other endpoint.
         "defense_hub": 1.0,
@@ -92,6 +94,7 @@ class NbaDbSettings(BaseSettings):
         "box_score_usage": 60,
         "box_score_four_factors": 60,
         "box_score_hustle": 60,
+        "common_player_info": 120,
         "defense_hub": 90,
         "franchise_leaders": 120,
         "franchise_players": 120,
