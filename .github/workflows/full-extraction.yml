@@ -304,26 +304,25 @@ jobs:
 
           restore_usable="false"
           if [ -f data/nbadb/nba.duckdb ]; then
-            if uv run python - <<'PY'
-            import duckdb
+            if uv run python -c "
+              import duckdb
 
-            conn = duckdb.connect("data/nbadb/nba.duckdb", read_only=True)
-            try:
-                tables = {
-                    row[0]
-                    for row in conn.execute(
-                        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main'"
-                    ).fetchall()
-                }
-            finally:
-                conn.close()
+              conn = duckdb.connect('data/nbadb/nba.duckdb', read_only=True)
+              try:
+                  tables = {
+                      row[0]
+                      for row in conn.execute(
+                          \"SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main'\"
+                      ).fetchall()
+                  }
+              finally:
+                  conn.close()
 
-            usable = "_extraction_journal" in tables or any(
-                table_name.startswith("stg_") for table_name in tables
-            )
-            raise SystemExit(0 if usable else 1)
-            PY
-            then
+              usable = '_extraction_journal' in tables or any(
+                  table_name.startswith('stg_') for table_name in tables
+              )
+              raise SystemExit(0 if usable else 1)
+            "; then
               restore_usable="true"
             else
               echo "::warning::Restored cache exists but resume state is unusable; starting lane from a clean restart"
@@ -846,25 +845,33 @@ jobs:
             --output-path artifacts/full-extraction/next-manifest.json \
             > artifacts/full-extraction/next-manifest.stdout.json
 
-          next_manifest_json="$(python - <<'PY'
-          import json
-          from pathlib import Path
+          python -c "
+            import json
+            from pathlib import Path
 
-          payload = json.loads(Path('artifacts/full-extraction/next-manifest.json').read_text(encoding='utf-8'))
-          summary = payload.get('resume_summary', {})
-          active = int(summary.get('active_lane_count', 0))
-          resumed = int(summary.get('resume_only_lane_count', 0))
-          reasons = summary.get('failure_reason_counts', {})
-          if active <= 0:
-              raise SystemExit('No active lanes remain for the next iteration; refusing to redispatch an empty chain.')
-          print(f"::notice::Next iteration lanes: {active} active, {resumed} resume-only")
-          if reasons:
-              print(f"::notice::Unresolved lane reasons: {json.dumps(reasons, sort_keys=True)}")
-          print(json.dumps(payload, separators=(',', ':')))
-          PY
-          )"
+            payload = json.loads(Path('artifacts/full-extraction/next-manifest.json').read_text(encoding='utf-8'))
+            summary = payload.get('resume_summary', {})
+            print(int(summary.get('active_lane_count', 0)))
+            print(int(summary.get('resume_only_lane_count', 0)))
+            print(json.dumps(summary.get('failure_reason_counts', {}), sort_keys=True))
+            print(json.dumps(payload, separators=(',', ':')))
+          " > artifacts/full-extraction/next-manifest.inspect.txt
 
-          next_manifest_json="$(printf '%s\n' "$next_manifest_json" | tail -n 1)"
+          mapfile -t next_manifest_info < artifacts/full-extraction/next-manifest.inspect.txt
+          active_lane_count="${next_manifest_info[0]:-0}"
+          resume_only_lane_count="${next_manifest_info[1]:-0}"
+          failure_reasons_json="${next_manifest_info[2]:-\{\}}"
+          next_manifest_json="${next_manifest_info[3]:-}"
+
+          if [ "${active_lane_count:-0}" -le 0 ]; then
+            echo "::error::No active lanes remain for the next iteration; refusing to redispatch an empty chain."
+            exit 1
+          fi
+
+          echo "::notice::Next iteration lanes: $active_lane_count active, $resume_only_lane_count resume-only"
+          if [ "$failure_reasons_json" != "{}" ]; then
+            echo "::notice::Unresolved lane reasons: $failure_reasons_json"
+          fi
 
           echo "::notice::Some lanes incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
           gh workflow run full-extraction.yml \
