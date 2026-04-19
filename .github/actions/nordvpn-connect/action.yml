@@ -461,8 +461,12 @@ runs:
             exit_ip=""
             tunnel_ready=0
             auth_failed=0
+            attempt_deadline=$((SECONDS + connect_timeout))
+            if [ "$attempt_deadline" -gt "$action_deadline" ]; then
+              attempt_deadline="$action_deadline"
+            fi
 
-            for _ in $(seq 1 $((connect_timeout / 2))); do
+            while [ "$SECONDS" -lt "$attempt_deadline" ]; do
               if auth_failed_in_log; then
                 auth_failed=1
                 saw_auth_failure=1
@@ -481,8 +485,22 @@ runs:
                   fi
                 fi
               fi
-              sleep 2
+              remaining_attempt_budget=$((attempt_deadline - SECONDS))
+              if [ "$remaining_attempt_budget" -le 0 ]; then
+                break
+              fi
+              if [ "$remaining_attempt_budget" -lt 2 ]; then
+                sleep "$remaining_attempt_budget"
+              else
+                sleep 2
+              fi
             done
+
+            if [ "$auth_failed" -ne 1 ] && [ "$tunnel_ready" -ne 1 ] && [ "$SECONDS" -ge "$action_deadline" ]; then
+              fail_action \
+                "vpn_connect_timeout" \
+                "VPN connection budget expired while waiting for $server over $technology to establish a verified tunnel"
+            fi
 
             if [ "$auth_failed" -eq 1 ]; then
               attempted_network=1
