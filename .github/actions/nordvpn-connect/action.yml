@@ -440,12 +440,18 @@ runs:
               continue
             fi
 
-            sudo openvpn --config "${work_dir}/${server}.ovpn" \
-              --auth-user-pass "$auth_file" \
-              --auth-nocache \
-              --writepid "$pid_file" \
-              --daemon \
-              --log "$log_file"
+            if ! run_with_budget \
+              "OpenVPN launch for $server ($technology)" \
+              sudo openvpn --config "${work_dir}/${server}.ovpn" \
+                --auth-user-pass "$auth_file" \
+                --auth-nocache \
+                --writepid "$pid_file" \
+                --daemon \
+                --log "$log_file"; then
+              fail_action \
+                "vpn_connect_timeout" \
+                "OpenVPN launch exceeded the remaining VPN connection budget for $server over $technology"
+            fi
             make_workdir_readable
 
             selected_server="$server"
