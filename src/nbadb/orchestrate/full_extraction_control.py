@@ -33,9 +33,17 @@ CROSS_PRODUCT_MAX_SPAN = 8
 REFERENCE_MAX_ENDPOINTS_BY_PATTERN: dict[str, int] = {
     "static": 64,
     "team": 12,
-    "player": 5,
+    "player": 4,
 }
 REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN: dict[str, frozenset[str]] = {
+    "player": frozenset(
+        {
+            "common_player_info",
+            "player_awards",
+            "player_career_stats",
+            "player_compare",
+        }
+    ),
     "team": frozenset(
         {
             "franchise_leaders",
@@ -51,13 +59,37 @@ REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
     "player": 3_600,
 }
 REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
+    "common_player_info": 4_200,
+    "player_awards": 4_200,
+    "player_career_stats": 4_800,
+    "player_compare": 4_800,
     "team_historical_leaders": 4_200,
 }
 FULL_EXTRACTION_EXCLUDED_ENDPOINTS: dict[str, str] = {
+    "player_dash_pt_pass": (
+        "The live PlayerDashPtPass endpoint requires player/team context that the current "
+        "reference-player full-extraction lanes do not provide, so it is excluded until "
+        "that contract is modeled explicitly."
+    ),
+    "player_dash_pt_reb": (
+        "The live PlayerDashPtReb endpoint requires player/team context that the current "
+        "reference-player full-extraction lanes do not provide, so it is excluded until "
+        "that contract is modeled explicitly."
+    ),
+    "player_dash_pt_shot_defend": (
+        "The live PlayerDashPtShotDefend endpoint requires player/team context that the "
+        "current reference-player full-extraction lanes do not provide, so it is excluded "
+        "until that contract is modeled explicitly."
+    ),
+    "player_dash_pt_shots": (
+        "The live PlayerDashPtShots endpoint requires player/team context that the current "
+        "reference-player full-extraction lanes do not provide, so it is excluded until "
+        "that contract is modeled explicitly."
+    ),
     "team_historical_leaders": (
         "The live TeamHistoricalLeaders endpoint currently returns invalid JSON for valid "
         "current NBA franchise IDs, so it is excluded from end-to-end full extraction."
-    )
+    ),
 }
 
 

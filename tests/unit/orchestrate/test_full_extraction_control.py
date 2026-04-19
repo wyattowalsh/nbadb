@@ -167,7 +167,7 @@ def test_build_default_manifest_chunks_reference_patterns_by_endpoint_load() -> 
     assert reference_lanes[0].endpoints == ("static_players",)
     assert len(reference_lanes[1].endpoints) == 12
     assert len(reference_lanes[2].endpoints) == 1
-    assert [len(lane.endpoints) for lane in reference_lanes[3:]] == [5, 5, 1]
+    assert [len(lane.endpoints) for lane in reference_lanes[3:]] == [4, 4, 3]
     assert [lane.timeout_seconds for lane in reference_lanes] == [
         1800,
         3000,
@@ -194,6 +194,51 @@ def test_build_default_manifest_isolates_slow_reference_team_endpoints() -> None
     assert len(reference_lanes) == 1
 
 
+def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> None:
+    rows = [
+        _support_row("common_player_info", ["player"], None),
+        _support_row("player_awards", ["player"], None),
+        _support_row("player_career_stats", ["player"], None),
+        _support_row("player_compare", ["player"], None),
+        _support_row("player_dash_game_splits", ["player"], None),
+        _support_row("player_dash_general_splits", ["player"], None),
+        _support_row("player_dash_last_n_games", ["player"], None),
+        _support_row("player_dash_shooting_splits", ["player"], None),
+        _support_row("player_dash_team_perf", ["player"], None),
+        _support_row("player_dash_yoy", ["player"], None),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+
+    assert [lane.lane_id for lane in reference_lanes] == [
+        "reference-player-01",
+        "reference-player-02",
+        "reference-player-03",
+        "reference-player-04",
+        "reference-player-05",
+        "reference-player-06",
+    ]
+    assert reference_lanes[0].endpoints == (
+        "player_dash_game_splits",
+        "player_dash_general_splits",
+        "player_dash_last_n_games",
+        "player_dash_shooting_splits",
+    )
+    assert reference_lanes[1].endpoints == (
+        "player_dash_team_perf",
+        "player_dash_yoy",
+    )
+    assert reference_lanes[2].endpoints == ("common_player_info",)
+    assert reference_lanes[2].timeout_seconds == 4200
+    assert reference_lanes[3].endpoints == ("player_awards",)
+    assert reference_lanes[3].timeout_seconds == 4200
+    assert reference_lanes[4].endpoints == ("player_career_stats",)
+    assert reference_lanes[4].timeout_seconds == 4800
+    assert reference_lanes[5].endpoints == ("player_compare",)
+    assert reference_lanes[5].timeout_seconds == 4800
+
+
 def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:
     rows = [
         _support_row("common_team_years", ["static"], None),
@@ -205,6 +250,22 @@ def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> No
 
     assert [lane.lane_id for lane in reference_lanes] == ["reference-static"]
     assert reference_lanes[0].endpoints == ("common_team_years",)
+
+
+def test_build_default_manifest_skips_full_extraction_excluded_player_tracking_endpoints() -> None:
+    rows = [
+        _support_row("player_dash_game_splits", ["player"], None),
+        _support_row("player_dash_pt_pass", ["player"], None),
+        _support_row("player_dash_pt_reb", ["player"], None),
+        _support_row("player_dash_pt_shot_defend", ["player"], None),
+        _support_row("player_dash_pt_shots", ["player"], None),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+
+    assert [lane.lane_id for lane in reference_lanes] == ["reference-player"]
+    assert reference_lanes[0].endpoints == ("player_dash_game_splits",)
 
 
 def test_build_default_manifest_isolates_timeout_prone_reference_team_endpoints() -> None:
