@@ -113,12 +113,33 @@ runs:
           shift 3
 
           local attempt http_code curl_exit sleep_for status_text
-          for attempt in 1 2 3 4 5; do
+          local max_attempts=3
+          local remaining connect_limit request_limit
+          for attempt in $(seq 1 "$max_attempts"); do
+            if [ -n "${action_deadline:-}" ]; then
+              remaining=$((action_deadline - SECONDS))
+              if [ "$remaining" -le 5 ]; then
+                echo "::error::$label skipped because the VPN connection budget is exhausted"
+                return 1
+              fi
+            else
+              remaining=30
+            fi
+
+            connect_limit=10
+            request_limit=30
+            if [ "$remaining" -lt "$connect_limit" ]; then
+              connect_limit="$remaining"
+            fi
+            if [ "$remaining" -lt "$request_limit" ]; then
+              request_limit="$remaining"
+            fi
+
             set +e
             http_code="$(
               curl -sS \
-                --connect-timeout 10 \
-                --max-time 30 \
+                --connect-timeout "$connect_limit" \
+                --max-time "$request_limit" \
                 -o "$output" \
                 -w '%{http_code}' \
                 "$@" \
@@ -137,13 +158,17 @@ runs:
               status_text="HTTP $http_code"
             fi
 
-            if [ "$attempt" -eq 5 ]; then
+            if [ "$attempt" -eq "$max_attempts" ]; then
               echo "::error::$label failed after $attempt attempts ($status_text)"
               return 1
             fi
 
             sleep_for=$((attempt * 5))
-            echo "::warning::$label failed ($status_text); retrying in ${sleep_for}s (${attempt}/5)"
+            if [ "$((SECONDS + sleep_for))" -ge "${action_deadline:-$((SECONDS + sleep_for + 1))}" ]; then
+              echo "::error::$label failed ($status_text) and retrying would exceed the VPN connection budget"
+              return 1
+            fi
+            echo "::warning::$label failed ($status_text); retrying in ${sleep_for}s (${attempt}/${max_attempts})"
             sleep "$sleep_for"
           done
         }
