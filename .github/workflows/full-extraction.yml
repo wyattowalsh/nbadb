@@ -6,7 +6,7 @@ on:
       concurrency:
         description: "Max concurrent requests per category"
         type: choice
-        default: "aggressive"
+        default: "moderate"
         options:
           - conservative
           - moderate
@@ -261,6 +261,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.concurrency == 'conservative' && '1' || inputs.concurrency == 'moderate' && '2' || '3') }}
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
