@@ -278,6 +278,7 @@ jobs:
 
       - name: Preflight VPN validation
         id: vpn
+        timeout-minutes: 3
         continue-on-error: true
         uses: ./.github/actions/nordvpn-connect
         with:
@@ -439,6 +440,7 @@ jobs:
       - name: Connect NordVPN tunnel
         id: vpn
         if: ${{ !matrix.resume_only && matrix.use_vpn }}
+        timeout-minutes: 4
         uses: ./.github/actions/nordvpn-connect
         with:
           openvpn-user: ${{ secrets.OPENVPN_USER }}
