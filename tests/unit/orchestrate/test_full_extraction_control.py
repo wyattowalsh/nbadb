@@ -241,6 +241,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         (("player_dash_yoy",), 4200),
         (("player_next_games",), 4200),
     }
+    assert all(lane.use_vpn is False for lane in reference_lanes)
 
 
 def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:

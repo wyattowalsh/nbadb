@@ -497,7 +497,7 @@ def build_default_manifest(
                         season_end=None,
                         patterns=(pattern,),
                         endpoints=endpoint_group,
-                        use_vpn=True,
+                        use_vpn=pattern != "player",
                         resume_only=False,
                         timeout_seconds=_reference_lane_timeout_seconds(pattern, endpoint_group),
                     )
