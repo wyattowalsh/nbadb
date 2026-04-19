@@ -486,13 +486,13 @@ jobs:
         id: lane_status
         if: always()
         env:
-          JOB_CANCELLED: ${{ cancelled() }}
+          JOB_STATUS: ${{ job.status }}
           RESUME_ONLY: ${{ matrix.resume_only }}
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
           VPN_STATUS: ${{ steps.vpn.outputs.status }}
         run: |
-          if [ "$JOB_CANCELLED" = "true" ]; then
+          if [ "$JOB_STATUS" = "cancelled" ]; then
             status="cancelled"
           elif [ "$RESUME_ONLY" = "true" ] && [ "$RESTORE_USABLE" = "true" ] && [ -f data/nbadb/nba.duckdb ]; then
             status="complete"
