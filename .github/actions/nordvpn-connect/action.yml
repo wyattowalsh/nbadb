@@ -14,8 +14,12 @@ inputs:
     description: NordVPN access token used to fetch OpenVPN credentials.
     required: false
     default: ""
+  lane-index:
+    description: Zero-based lane index used to deterministically choose the first recommended server.
+    required: false
+    default: ""
   shard-index:
-    description: Zero-based shard index used to deterministically choose the first recommended server.
+    description: Legacy alias for lane-index.
     required: false
     default: "0"
   server-limit:
@@ -42,6 +46,10 @@ inputs:
     description: Maximum time to wait for an individual OpenVPN connection attempt.
     required: false
     default: "90"
+  overall-timeout-seconds:
+    description: Maximum total time to spend establishing a verified VPN tunnel.
+    required: false
+    default: "300"
   require-full-tunnel:
     description: Whether to require the default route to move onto the VPN tunnel.
     required: false
@@ -69,6 +77,9 @@ outputs:
   server:
     description: Selected NordVPN server hostname.
     value: ${{ steps.connect.outputs.server }}
+  status:
+    description: Connection result code.
+    value: ${{ steps.connect.outputs.status }}
   work-dir:
     description: Directory containing VPN diagnostics.
     value: ${{ steps.connect.outputs.work-dir }}
@@ -82,6 +93,7 @@ runs:
         OPENVPN_USER: ${{ inputs.openvpn-user }}
         OPENVPN_PASSWORD: ${{ inputs.openvpn-password }}
         NORDVPN_TOKEN: ${{ inputs.nordvpn-token }}
+        LANE_INDEX: ${{ inputs.lane-index }}
         SHARD_INDEX: ${{ inputs.shard-index }}
         SERVER_LIMIT: ${{ inputs.server-limit }}
         COUNTRY_ID: ${{ inputs.country-id }}
@@ -89,6 +101,7 @@ runs:
         FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}
         VERIFY_URL: ${{ inputs.verify-url }}
         CONNECT_TIMEOUT_SECONDS: ${{ inputs.connect-timeout-seconds }}
+        OVERALL_TIMEOUT_SECONDS: ${{ inputs.overall-timeout-seconds }}
         REQUIRE_FULL_TUNNEL: ${{ inputs.require-full-tunnel }}
       run: |
         set -euo pipefail
@@ -143,6 +156,8 @@ runs:
         verify_file="${work_dir}/vpn-exit-ip.json"
         baseline_file="${work_dir}/baseline-ip.json"
         auth_file="${work_dir}/vpn-auth.txt"
+        status="vpn_network_error"
+        attempted_network=0
 
         rm -rf "$work_dir"
         mkdir -p "$work_dir"
@@ -151,12 +166,49 @@ runs:
         cleanup_sensitive() {
           rm -f "$auth_file" "$creds_file" "$servers_file" "$verify_file" "$baseline_file"
         }
-        trap cleanup_sensitive EXIT
 
         make_workdir_readable() {
           if [ -d "$work_dir" ]; then
             sudo chmod -R a+rX "$work_dir" 2>/dev/null || true
           fi
+        }
+
+        on_exit() {
+          cleanup_sensitive
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+        }
+        trap on_exit EXIT
+
+        cleanup_openvpn() {
+          local pid=""
+          if [ -f "$pid_file" ]; then
+            pid="$(cat "$pid_file" 2>/dev/null || true)"
+          fi
+          if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
+            sudo kill "$pid" || true
+            sleep 2
+            if sudo kill -0 "$pid" 2>/dev/null; then
+              sudo kill -9 "$pid" || true
+            fi
+          fi
+          rm -f "$pid_file"
+        }
+
+        fail_action() {
+          local next_status="$1"
+          local message="$2"
+          status="$next_status"
+          echo "::error::$message"
+          make_workdir_readable
+          if [ -f "$log_file" ]; then
+            sudo tail -50 "$log_file" || true
+          fi
+          cleanup_openvpn
+          exit 1
+        }
+
+        auth_failed_in_log() {
+          [ -f "$log_file" ] && sudo grep -Eq 'AUTH_FAILED|auth-failure' "$log_file" 2>/dev/null
         }
 
         sudo apt-get update -qq
@@ -184,6 +236,7 @@ runs:
 
         if [ -n "${OPENVPN_USER:-}" ] || [ -n "${OPENVPN_PASSWORD:-}" ]; then
           if [ -z "${OPENVPN_USER:-}" ] || [ -z "${OPENVPN_PASSWORD:-}" ]; then
+            status="vpn_auth_failure"
             echo "::error::Both OPENVPN_USER and OPENVPN_PASSWORD secrets are required"
             exit 1
           fi
@@ -191,19 +244,23 @@ runs:
           pass="$OPENVPN_PASSWORD"
           echo "::notice::Using configured OpenVPN tunnel credentials"
         elif [ -n "${NORDVPN_TOKEN:-}" ]; then
-          retry_http_get \
+          if ! retry_http_get \
             "NordVPN credentials request" \
             "$creds_file" \
             "https://api.nordvpn.com/v1/users/services/credentials" \
-            -u "token:$NORDVPN_TOKEN"
+            -u "token:$NORDVPN_TOKEN"; then
+            fail_action "vpn_auth_failure" "Failed to fetch NordVPN OpenVPN credentials"
+          fi
           user=$(jq -r '.username // empty' "$creds_file")
           pass=$(jq -r '.password // empty' "$creds_file")
         else
+          status="vpn_auth_failure"
           echo "::error::Provide OPENVPN_USER and OPENVPN_PASSWORD secrets or NORDVPN_TOKEN"
           exit 1
         fi
 
         if [ -z "$user" ] || [ -z "$pass" ]; then
+          status="vpn_auth_failure"
           echo "::error::Failed to derive NordVPN credentials"
           exit 1
         fi
@@ -212,14 +269,23 @@ runs:
         echo "::add-mask::$pass"
         printf '%s\n%s\n' "$user" "$pass" > "$auth_file"
         chmod 600 "$auth_file"
+        if [ "$(grep -cve '^[[:space:]]*$' "$auth_file" || true)" -lt 2 ]; then
+          status="vpn_auth_failure"
+          echo "::error::Malformed NordVPN OpenVPN credential payload"
+          exit 1
+        fi
 
-        shard_index="${SHARD_INDEX:-0}"
+        selector_index="${LANE_INDEX:-}"
+        if [ -z "$selector_index" ]; then
+          selector_index="${SHARD_INDEX:-0}"
+        fi
         server_limit="${SERVER_LIMIT:-4}"
         connect_timeout="${CONNECT_TIMEOUT_SECONDS:-90}"
+        overall_timeout="${OVERALL_TIMEOUT_SECONDS:-300}"
         require_full_tunnel="${REQUIRE_FULL_TUNNEL:-true}"
 
-        if ! [[ "$shard_index" =~ ^[0-9]+$ ]] || ! [[ "$server_limit" =~ ^[0-9]+$ ]] || ! [[ "$connect_timeout" =~ ^[0-9]+$ ]]; then
-          echo "::error::shard-index, server-limit, and connect-timeout-seconds inputs must be integers"
+        if ! [[ "$selector_index" =~ ^[0-9]+$ ]] || ! [[ "$server_limit" =~ ^[0-9]+$ ]] || ! [[ "$connect_timeout" =~ ^[0-9]+$ ]] || ! [[ "$overall_timeout" =~ ^[0-9]+$ ]]; then
+          echo "::error::lane-index, shard-index, server-limit, connect-timeout-seconds, and overall-timeout-seconds inputs must be integers"
           exit 1
         fi
         if [ "$server_limit" -lt 1 ]; then
@@ -230,6 +296,11 @@ runs:
           echo "::error::connect-timeout-seconds must be >= 30"
           exit 1
         fi
+        if [ "$overall_timeout" -lt "$connect_timeout" ]; then
+          echo "::error::overall-timeout-seconds must be >= connect-timeout-seconds"
+          exit 1
+        fi
+        action_deadline=$((SECONDS + overall_timeout))
 
         selected_server=""
         selected_technology=""
@@ -247,26 +318,36 @@ runs:
 
         for technology in "${TECHNOLOGY}" "${FALLBACK_TECHNOLOGY:-}"; do
           [ -n "$technology" ] || continue
+          if [ "$SECONDS" -ge "$action_deadline" ]; then
+            fail_action "vpn_connect_timeout" "VPN connection budget expired before a verified tunnel was established"
+          fi
 
-          retry_http_get \
+          if ! retry_http_get \
             "NordVPN server recommendations request ($technology)" \
             "$servers_file" \
             "https://api.nordvpn.com/v1/servers/recommendations?limit=${server_limit}&filters[country_id]=${COUNTRY_ID}&filters[servers_technologies][identifier]=${technology}" \
-            --globoff
+            --globoff; then
+            attempted_network=1
+            continue
+          fi
 
           mapfile -t servers < <(jq -r 'map(.hostname // empty) | unique | .[] | select(length > 0)' "$servers_file")
           if [ "${#servers[@]}" -eq 0 ]; then
+            attempted_network=1
             echo "::warning::No NordVPN server recommendations available for $technology"
             continue
           fi
 
-          start_index=$((shard_index % ${#servers[@]}))
+          start_index=$((selector_index % ${#servers[@]}))
           ordered_servers=()
           for offset in $(seq 0 $((${#servers[@]} - 1))); do
             ordered_servers+=("${servers[$(((start_index + offset) % ${#servers[@]}))]}")
           done
 
           for server in "${ordered_servers[@]}"; do
+            if [ "$SECONDS" -ge "$action_deadline" ]; then
+              fail_action "vpn_connect_timeout" "VPN connection budget expired before a verified tunnel was established"
+            fi
             echo "::notice::Attempting NordVPN server $server over $technology"
             rm -f "$pid_file" "$verify_file" "$log_file" "${work_dir}/${server}.ovpn"
 
@@ -287,6 +368,7 @@ runs:
               "NordVPN OpenVPN config download for $server ($technology)" \
               "${work_dir}/${server}.ovpn" \
               "$config_path"; then
+              attempted_network=1
               echo "::warning::Skipping server $server because the configuration download failed"
               continue
             fi
@@ -307,6 +389,9 @@ runs:
             tunnel_ready=0
 
             for _ in $(seq 1 $((connect_timeout / 2))); do
+              if auth_failed_in_log; then
+                fail_action "vpn_auth_failure" "NordVPN rejected the OpenVPN credentials for $server over $technology"
+              fi
               if [ -f "$pid_file" ]; then
                 pid="$(cat "$pid_file" 2>/dev/null || true)"
               fi
@@ -343,6 +428,7 @@ runs:
 
               if [ -n "$exit_ip" ] && { [ -z "$baseline_ip" ] || [ "$exit_ip" != "$baseline_ip" ]; }; then
                 echo "::notice::VPN connected — server: $server, technology: $technology, interface: $interface, exit IP: $exit_ip"
+                status="connected"
                 echo "server=$server" >> "$GITHUB_OUTPUT"
                 echo "exit-ip=$exit_ip" >> "$GITHUB_OUTPUT"
                 echo "interface=$interface" >> "$GITHUB_OUTPUT"
@@ -351,20 +437,27 @@ runs:
               fi
             fi
 
+            attempted_network=1
             echo "::warning::VPN verification failed for $server over $technology; trying the next recommended server"
             make_workdir_readable
             sudo tail -20 "$log_file" || true
-            if [ -n "$pid" ] && sudo kill -0 "$pid" 2>/dev/null; then
-              sudo kill "$pid" || true
-              sleep 2
-              if sudo kill -0 "$pid" 2>/dev/null; then
-                sudo kill -9 "$pid" || true
-              fi
-            fi
+            cleanup_openvpn
           done
         done
 
         make_workdir_readable
-        echo "::error::VPN tunnel failed to establish with the recommended servers"
-        sudo tail -50 "$log_file" || true
+        if [ "$SECONDS" -ge "$action_deadline" ]; then
+          status="vpn_connect_timeout"
+          echo "::error::VPN tunnel timed out before a verified connection was established"
+        else
+          status="vpn_network_error"
+          if [ "$attempted_network" -eq 0 ]; then
+            echo "::error::VPN tunnel failed before any server attempt could be made"
+          else
+            echo "::error::VPN tunnel failed to establish with the recommended servers"
+          fi
+        fi
+        if [ -f "$log_file" ]; then
+          sudo tail -50 "$log_file" || true
+        fi
         exit 1

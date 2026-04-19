@@ -172,9 +172,88 @@ jobs:
           retention-days: 7
           compression-level: 6
 
-  extract:
+  preflight:
     needs: plan
     if: ${{ needs.plan.outputs.lane-count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Validate VPN credentials are present
+        env:
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+        run: |
+          if [ -n "$OPENVPN_USER" ] || [ -n "$OPENVPN_PASSWORD" ]; then
+            if [ -z "$OPENVPN_USER" ] || [ -z "$OPENVPN_PASSWORD" ]; then
+              echo "::error::OPENVPN_USER and OPENVPN_PASSWORD must both be set when using direct OpenVPN credentials"
+              exit 1
+            fi
+            exit 0
+          fi
+          if [ -z "$NORDVPN_TOKEN" ]; then
+            echo "::error::Provide OPENVPN_USER/OPENVPN_PASSWORD or NORDVPN_TOKEN before running full extraction"
+            exit 1
+          fi
+
+      - name: Validate planned lanes
+        env:
+          LANE_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
+        run: |
+          mkdir -p artifacts/full-extraction
+          printf '%s' "$LANE_MANIFEST_JSON" > artifacts/full-extraction/preflight-manifest.json
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from nbadb.orchestrate.full_extraction_control import normalize_manifest, validate_manifest
+
+          raw_manifest = json.loads(
+              Path("artifacts/full-extraction/preflight-manifest.json").read_text(encoding="utf-8")
+          )
+          validate_manifest(normalize_manifest(raw_manifest))
+          PY
+
+      - name: Preflight VPN validation
+        id: vpn
+        uses: ./.github/actions/nordvpn-connect
+        with:
+          openvpn-user: ${{ secrets.OPENVPN_USER }}
+          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
+          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
+          lane-index: "0"
+          server-limit: "1"
+          fallback-technology: ""
+          connect-timeout-seconds: "30"
+          overall-timeout-seconds: "120"
+
+      - name: Disconnect preflight VPN
+        if: always()
+        uses: ./.github/actions/nordvpn-disconnect
+        with:
+          pid: ${{ steps.vpn.outputs.pid }}
+          pid-file: ${{ steps.vpn.outputs.pid-file }}
+          work-dir: ${{ steps.vpn.outputs.work-dir }}
+
+  extract:
+    needs: [plan, preflight]
+    if: ${{ needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -210,6 +289,57 @@ jobs:
           restore-keys: |
             ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-
 
+      - name: Assess restored state
+        id: restore_state
+        env:
+          CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
+        run: |
+          mkdir -p data/nbadb
+          restore_source="none"
+          if [ "$CACHE_HIT" = "true" ]; then
+            restore_source="exact"
+          elif [ -f data/nbadb/nba.duckdb ]; then
+            restore_source="fallback"
+          fi
+
+          restore_usable="false"
+          if [ -f data/nbadb/nba.duckdb ]; then
+            if uv run python - <<'PY'
+            import duckdb
+
+            conn = duckdb.connect("data/nbadb/nba.duckdb", read_only=True)
+            try:
+                tables = {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main'"
+                    ).fetchall()
+                }
+            finally:
+                conn.close()
+
+            usable = "_extraction_journal" in tables or any(
+                table_name.startswith("stg_") for table_name in tables
+            )
+            raise SystemExit(0 if usable else 1)
+            PY
+            then
+              restore_usable="true"
+            else
+              echo "::warning::Restored cache exists but resume state is unusable; starting lane from a clean restart"
+              rm -f data/nbadb/*.duckdb data/nbadb/*.duckdb.*
+            fi
+          fi
+
+          restart_mode="clean-restart"
+          if [ "$restore_usable" = "true" ]; then
+            restart_mode="resume"
+          fi
+
+          echo "restore-source=$restore_source" >> "$GITHUB_OUTPUT"
+          echo "restore-usable=$restore_usable" >> "$GITHUB_OUTPUT"
+          echo "restart-mode=$restart_mode" >> "$GITHUB_OUTPUT"
+
       - name: Show lane info
         env:
           LANE_ID: ${{ matrix.lane_id }}
@@ -225,15 +355,19 @@ jobs:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
           WORKFLOW_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
-          CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
+          RESTORE_SOURCE: ${{ steps.restore_state.outputs.restore-source }}
+          RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
+          RESTART_MODE: ${{ steps.restore_state.outputs.restart-mode }}
         run: |
           echo "::notice::Lane $LANE_ID (#$LANE_INDEX, $KIND) — $NAME — iteration $ITERATION"
           echo "::notice::Chain $CHAIN_ID — source ref $WORKFLOW_REF @ $WORKFLOW_SHA"
-          echo "::notice::Cache hit: ${CACHE_HIT:-false}"
+          echo "::notice::Restore source: ${RESTORE_SOURCE:-none}"
+          echo "::notice::Restore usable: ${RESTORE_USABLE:-false}"
+          echo "::notice::Restart mode: ${RESTART_MODE:-clean-restart}"
           [ -n "$PATTERNS" ] && echo "::notice::Patterns: $PATTERNS" || echo "::notice::Patterns: all"
           [ -n "$SEASON_TYPES" ] && echo "::notice::Season types: $SEASON_TYPES" || echo "::notice::Season types: none"
           echo "::notice::Resume only: $RESUME_ONLY"
-          if [ -f data/nbadb/nba.duckdb ]; then
+          if [ "$RESTORE_USABLE" = "true" ] && [ -f data/nbadb/nba.duckdb ]; then
             echo "::notice::Resuming from cached state"
             ls -lh data/nbadb/ 2>/dev/null || true
           else
@@ -250,7 +384,10 @@ jobs:
           openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
           lane-index: ${{ matrix.lane_index }}
-          server-limit: "12"
+          server-limit: "3"
+          fallback-technology: ""
+          connect-timeout-seconds: "30"
+          overall-timeout-seconds: "180"
 
       # ── Configure environment ──
       - name: Configure extraction environment
@@ -290,9 +427,11 @@ jobs:
 
       - name: Rehydrate completed lane
         if: ${{ matrix.resume_only }}
+        env:
+          RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
         run: |
-          if [ ! -f data/nbadb/nba.duckdb ]; then
-            echo "::error::Lane marked resume_only but no cached DuckDB state was restored"
+          if [ "$RESTORE_USABLE" != "true" ] || [ ! -f data/nbadb/nba.duckdb ]; then
+            echo "::error::Lane marked resume_only but no usable cached DuckDB state was restored"
             exit 1
           fi
           echo "::notice::Lane already complete; reusing cached state and skipping extraction"
@@ -310,6 +449,8 @@ jobs:
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           LANE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
         run: |
+          started_at="$(date -u +%FT%TZ)"
+          echo "started-at=$started_at" >> "$GITHUB_OUTPUT"
           set +e
           cmd=(uv run nbadb backfill run --extract-only --verbose)
           if [ -n "$SEASON_START" ] && [ -n "$SEASON_END" ]; then
@@ -325,28 +466,40 @@ jobs:
           timeout --signal=INT --kill-after=60 "$LANE_TIMEOUT_SECONDS" bash -lc "$cmd_str"
           exit_code=$?
           set -e
+          finished_at="$(date -u +%FT%TZ)"
+          echo "finished-at=$finished_at" >> "$GITHUB_OUTPUT"
+          echo "exit-code=$exit_code" >> "$GITHUB_OUTPUT"
 
           if [ "$exit_code" -eq 0 ]; then
             echo "status=complete" >> "$GITHUB_OUTPUT"
+          elif [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 130 ] || [ "$exit_code" -eq 137 ]; then
+            echo "status=extract-timeout" >> "$GITHUB_OUTPUT"
           else
-            echo "status=incomplete" >> "$GITHUB_OUTPUT"
+            echo "status=extract-error" >> "$GITHUB_OUTPUT"
           fi
           # Propagate the exit code so the chain job can keep only unresolved
           # lanes active on the next iteration. fail-fast: false keeps the rest
           # of the matrix running.
-          exit $exit_code
+          exit "$exit_code"
 
       - name: Finalize lane status
         id: lane_status
         if: always()
         env:
+          JOB_CANCELLED: ${{ cancelled() }}
           RESUME_ONLY: ${{ matrix.resume_only }}
+          RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
         run: |
-          if [ "$RESUME_ONLY" = "true" ] && [ -f data/nbadb/nba.duckdb ]; then
+          if [ "$JOB_CANCELLED" = "true" ]; then
+            status="cancelled"
+          elif [ "$RESUME_ONLY" = "true" ] && [ "$RESTORE_USABLE" = "true" ] && [ -f data/nbadb/nba.duckdb ]; then
             status="complete"
           elif [ -n "$EXTRACT_STATUS" ]; then
             status="$EXTRACT_STATUS"
+          elif [ -n "$VPN_STATUS" ] && [ "$VPN_STATUS" != "connected" ]; then
+            status="failed-before-extract"
           else
             status="failed-before-extract"
           fi
@@ -361,21 +514,29 @@ jobs:
           KIND: ${{ matrix.lane_kind }}
           ITERATION: ${{ inputs.iteration }}
           STATUS: ${{ steps.lane_status.outputs.status }}
+          EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
+          TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
           VPN_BASELINE_IP: ${{ steps.vpn.outputs.baseline-ip }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
-          CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          RESTORE_SOURCE: ${{ steps.restore_state.outputs.restore-source }}
+          RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           RESUME_ONLY: ${{ matrix.resume_only }}
         run: |
           {
             echo "## Lane $LANE_ID ($NAME) — Iteration $ITERATION"
             echo "**Status:** $STATUS"
+            echo "**Extract status:** ${EXTRACT_STATUS:-not-run}"
             echo "**Kind:** $KIND"
             echo "**Chain ID:** $CHAIN_ID"
-            echo "**Cache hit:** ${CACHE_HIT:-false}"
+            echo "**Restore source:** ${RESTORE_SOURCE:-none}"
+            echo "**Restore usable:** ${RESTORE_USABLE:-false}"
             echo "**Resume only:** $RESUME_ONLY"
+            echo "**Lane timeout seconds:** $TIMEOUT_SECONDS"
+            echo "**VPN status:** ${VPN_STATUS:-not-needed}"
             echo "**VPN server:** ${VPN_SERVER:-n/a}"
             echo "**VPN interface:** ${VPN_INTERFACE:-n/a}"
             echo "**VPN IP:** ${VPN_BASELINE_IP:-unknown} → ${VPN_EXIT_IP:-unknown}"
@@ -397,11 +558,20 @@ jobs:
           SOURCE_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
           STATUS: ${{ steps.lane_status.outputs.status }}
           CACHE_HIT: ${{ steps.restore.outputs.cache-hit || 'false' }}
+          RESTORE_SOURCE: ${{ steps.restore_state.outputs.restore-source || 'none' }}
+          RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable || 'false' }}
+          RESTART_MODE: ${{ steps.restore_state.outputs.restart-mode || 'clean-restart' }}
           RESUME_ONLY: ${{ matrix.resume_only }}
+          TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
+          STARTED_AT: ${{ steps.extract.outputs.started-at }}
+          FINISHED_AT: ${{ steps.extract.outputs.finished-at }}
+          EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
+          EXTRACT_EXIT_CODE: ${{ steps.extract.outputs.exit-code || '' }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status || 'not-needed' }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
@@ -423,7 +593,16 @@ jobs:
               "source_sha": os.environ["SOURCE_SHA"],
               "status": os.environ["STATUS"],
               "cache_hit": os.environ["CACHE_HIT"],
+              "restore_source": os.environ["RESTORE_SOURCE"],
+              "restore_usable": os.environ["RESTORE_USABLE"].lower() == "true",
+              "restart_mode": os.environ["RESTART_MODE"],
               "resume_only": os.environ["RESUME_ONLY"],
+              "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
+              "started_at": os.environ.get("STARTED_AT", ""),
+              "finished_at": os.environ.get("FINISHED_AT", ""),
+              "extract_status": os.environ.get("EXTRACT_STATUS", ""),
+              "extract_exit_code": os.environ.get("EXTRACT_EXIT_CODE", ""),
+              "vpn_status": os.environ.get("VPN_STATUS", ""),
               "patterns": [value for value in os.environ.get("PATTERNS", "").split(",") if value],
               "season_types": [
                   value for value in os.environ.get("SEASON_TYPES", "").split(",") if value
@@ -461,6 +640,7 @@ jobs:
           path: |
             data/nbadb/*.duckdb
             data/nbadb/*.duckdb.*
+          if-no-files-found: ignore
           retention-days: 7
           compression-level: 0
 
@@ -496,8 +676,8 @@ jobs:
   #  Merge all lane artifacts once all lanes are complete
   # ─────────────────────────────────────────────────────────────
   merge:
-    needs: [plan, extract]
-    if: ${{ !cancelled() && needs.plan.outputs.lane-count != '0' && needs.extract.result == 'success' }}
+    needs: [plan, preflight, extract]
+    if: ${{ !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.extract.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:
@@ -606,8 +786,8 @@ jobs:
   #  Self-chain: carry a manifest forward and only re-extract unresolved lanes
   # ─────────────────────────────────────────────────────────────
   chain:
-    needs: [plan, extract]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.extract.result != 'success' }}
+    needs: [plan, preflight, extract]
+    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.extract.result != 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -674,9 +854,12 @@ jobs:
           summary = payload.get('resume_summary', {})
           active = int(summary.get('active_lane_count', 0))
           resumed = int(summary.get('resume_only_lane_count', 0))
+          reasons = summary.get('failure_reason_counts', {})
           if active <= 0:
               raise SystemExit('No active lanes remain for the next iteration; refusing to redispatch an empty chain.')
           print(f"::notice::Next iteration lanes: {active} active, {resumed} resume-only")
+          if reasons:
+              print(f"::notice::Unresolved lane reasons: {json.dumps(reasons, sort_keys=True)}")
           print(json.dumps(payload, separators=(',', ':')))
           PY
           )"
