@@ -278,6 +278,7 @@ jobs:
 
       - name: Preflight VPN validation
         id: vpn
+        continue-on-error: true
         uses: ./.github/actions/nordvpn-connect
         with:
           openvpn-user: ${{ secrets.OPENVPN_USER }}
@@ -289,6 +290,20 @@ jobs:
           connect-timeout-seconds: "30"
           overall-timeout-seconds: "120"
 
+      - name: Summarize preflight VPN validation
+        if: always()
+        env:
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          VPN_SERVER: ${{ steps.vpn.outputs.server }}
+          VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
+        run: |
+          status="${VPN_STATUS:-unknown}"
+          if [ "$status" = "connected" ]; then
+            echo "::notice::Preflight VPN validation connected via ${VPN_SERVER:-unknown} (${VPN_EXIT_IP:-unknown})"
+            exit 0
+          fi
+          echo "::warning::Preflight VPN validation returned ${status}; proceeding to extract lanes for live verification"
+
       - name: Disconnect preflight VPN
         if: always()
         uses: ./.github/actions/nordvpn-disconnect
@@ -299,7 +314,7 @@ jobs:
 
   extract:
     needs: [plan, preflight]
-    if: ${{ needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' }}
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.lane-count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
