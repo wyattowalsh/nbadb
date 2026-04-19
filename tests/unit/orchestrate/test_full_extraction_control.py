@@ -187,15 +187,24 @@ def test_build_default_manifest_isolates_slow_reference_team_endpoints() -> None
     lanes = build_default_manifest(support_matrix_rows=rows)
     reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
 
-    assert [lane.lane_id for lane in reference_lanes] == [
-        "reference-team-01",
-        "reference-team-02",
-    ]
+    assert [lane.lane_id for lane in reference_lanes] == ["reference-team"]
     expected_primary_team_endpoints = tuple(f"team_endpoint_{index:02d}" for index in range(1, 8))
     assert reference_lanes[0].endpoints == expected_primary_team_endpoints
     assert reference_lanes[0].timeout_seconds == 3000
-    assert reference_lanes[1].endpoints == ("team_historical_leaders",)
-    assert reference_lanes[1].timeout_seconds == 4200
+    assert len(reference_lanes) == 1
+
+
+def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:
+    rows = [
+        _support_row("common_team_years", ["team"], None),
+        _support_row("team_historical_leaders", ["team"], None),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+
+    assert [lane.lane_id for lane in reference_lanes] == ["reference-team"]
+    assert reference_lanes[0].endpoints == ("common_team_years",)
 
 
 def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
@@ -271,6 +280,13 @@ def test_build_default_manifest_rejects_blocked_only_selection() -> None:
             season_type_contract_status="blocked",
         )
     ]
+
+    with pytest.raises(ValueError, match="produced no runnable lanes"):
+        build_default_manifest(support_matrix_rows=rows)
+
+
+def test_build_default_manifest_rejects_full_extraction_excluded_only_selection() -> None:
+    rows = [_support_row("team_historical_leaders", ["team"], None)]
 
     with pytest.raises(ValueError, match="produced no runnable lanes"):
         build_default_manifest(support_matrix_rows=rows)

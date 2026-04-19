@@ -46,6 +46,12 @@ REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
 REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
     "team_historical_leaders": 4_200,
 }
+FULL_EXTRACTION_EXCLUDED_ENDPOINTS: dict[str, str] = {
+    "team_historical_leaders": (
+        "The live TeamHistoricalLeaders endpoint currently returns invalid JSON for valid "
+        "current NBA franchise IDs, so it is excluded from end-to-end full extraction."
+    )
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +143,14 @@ def _selected_rows(
             continue
         filtered.append(row)
     return filtered
+
+
+def _runnable_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if str(row.get("endpoint_name", "")) not in FULL_EXTRACTION_EXCLUDED_ENDPOINTS
+    ]
 
 
 def _historical_thresholds(rows: list[dict[str, Any]], requested_patterns: set[str]) -> list[int]:
@@ -393,6 +407,10 @@ def build_default_manifest(
     if not filtered_rows:
         msg = "Selected full-extraction filters matched no support-matrix rows"
         raise ValueError(msg)
+    runnable_rows = _runnable_rows(filtered_rows)
+    if not runnable_rows:
+        msg = "Selected full-extraction filters produced no runnable lanes"
+        raise ValueError(msg)
 
     lanes: list[FullExtractionLane] = []
     lane_index = 0
@@ -402,7 +420,7 @@ def build_default_manifest(
         for pattern in _reference_patterns_in_order(reference_patterns):
             pattern_rows = [
                 row
-                for row in filtered_rows
+                for row in runnable_rows
                 if pattern in {str(candidate) for candidate in row.get("param_patterns", [])}
             ]
             endpoints = _endpoint_names(pattern_rows)
@@ -434,7 +452,7 @@ def build_default_manifest(
     historical_patterns = requested_patterns & HISTORICAL_PATTERNS
     if historical_patterns:
         for pattern in sorted(historical_patterns):
-            pattern_rows = _historical_rows_for_pattern(filtered_rows, pattern)
+            pattern_rows = _historical_rows_for_pattern(runnable_rows, pattern)
             if not pattern_rows:
                 continue
             for season_types, grouped_rows in _group_historical_rows_by_season_types(
@@ -479,7 +497,7 @@ def build_default_manifest(
 
     cross_product_rows = [
         row
-        for row in filtered_rows
+        for row in runnable_rows
         if str(row.get("execution_semantics")) == "historical_backfill"
         and {str(pattern) for pattern in row.get("param_patterns", [])} & CROSS_PRODUCT_PATTERNS
     ]
