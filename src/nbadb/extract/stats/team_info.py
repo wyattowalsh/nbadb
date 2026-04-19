@@ -161,6 +161,7 @@ class TeamAndPlayersVsExtractor(BaseExtractor):
         vs_player_id4: int = params.get("vs_player_id4", 0)
         vs_player_id5: int = params.get("vs_player_id5", 0)
         season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api(
             TeamAndPlayersVsPlayers,
             team_id=team_id,
@@ -176,6 +177,7 @@ class TeamAndPlayersVsExtractor(BaseExtractor):
             vs_player_id4=vs_player_id4,
             vs_player_id5=vs_player_id5,
             season=season,
+            season_type_all_star=season_type,
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -192,6 +194,7 @@ class TeamAndPlayersVsExtractor(BaseExtractor):
         vs_player_id4: int = params.get("vs_player_id4", 0)
         vs_player_id5: int = params.get("vs_player_id5", 0)
         season: str = params.get("season", current_season())
+        season_type: str = params.get("season_type", "Regular Season")
         return self._from_nba_api_multi(
             TeamAndPlayersVsPlayers,
             team_id=team_id,
@@ -207,4 +210,5 @@ class TeamAndPlayersVsExtractor(BaseExtractor):
             vs_player_id4=vs_player_id4,
             vs_player_id5=vs_player_id5,
             season=season,
+            season_type_all_star=season_type,
         )

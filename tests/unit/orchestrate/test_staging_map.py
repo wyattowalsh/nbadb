@@ -294,6 +294,10 @@ class TestStagingMap:
             for endpoint_name, capability in capabilities.items()
             if capability == "supported"
         } == {
+            "player_vs_player": "supported",
+            "team_and_players_vs": "supported",
+            "team_and_players_vs_players": "supported",
+            "team_vs_player": "supported",
             "video_details": "supported",
             "video_details_asset": "supported",
         }
@@ -301,12 +305,7 @@ class TestStagingMap:
             endpoint_name: capability
             for endpoint_name, capability in capabilities.items()
             if capability == "blocked"
-        } == {
-            "player_vs_player": "blocked",
-            "team_and_players_vs": "blocked",
-            "team_and_players_vs_players": "blocked",
-            "team_vs_player": "blocked",
-        }
+        } == {}
 
     def test_problem_endpoints_route_to_runnable_or_blocked_patterns(self) -> None:
         expected_patterns = {

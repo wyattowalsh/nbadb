@@ -223,7 +223,11 @@ def _get_daily_rollups(
     try:
         rows = conn.execute(
             """
-            WITH daily AS (
+            WITH bounds AS (
+                SELECT COALESCE(MAX(run_timestamp), CURRENT_TIMESTAMP) AS anchor_ts
+                FROM _pipeline_metrics
+            ),
+            daily AS (
                 SELECT
                     CAST(run_timestamp AS DATE) AS bucket_date,
                     COUNT(*) AS run_count,
@@ -233,9 +237,8 @@ def _get_daily_rollups(
                     COALESCE(SUM(duration_seconds), 0) AS total_duration_seconds,
                     COALESCE(AVG(duration_seconds), 0) AS avg_duration_seconds,
                     COALESCE(quantile_cont(duration_seconds, 0.95), 0) AS p95_duration_seconds
-                FROM _pipeline_metrics
-                WHERE run_timestamp >= CURRENT_TIMESTAMP
-                  - INTERVAL (CAST($1 AS VARCHAR) || ' days')
+                FROM _pipeline_metrics, bounds
+                WHERE run_timestamp >= bounds.anchor_ts - (CAST($1 AS BIGINT) * INTERVAL '1 day')
                 GROUP BY 1
                 ORDER BY bucket_date DESC
                 LIMIT $2

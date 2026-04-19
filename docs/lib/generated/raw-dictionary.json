@@ -5151,6 +5151,550 @@
     ]
   },
   {
+    "table_name": "raw_live_box_score_arena",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "arena_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Arena name",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_game_details",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Live game status code",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game status label",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_officials",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Official person id",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_player_stats",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Player person id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Live player points",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_team_stats",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Team id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "score",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Live team score",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_odds",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_play_by_play",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "action_number",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Live action number within the game",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "period",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Live game period",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "clock",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game clock",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Team id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Person id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "action_type",
+        "type": "String",
+        "nullable": true,
+        "description": "Live action type",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "sub_type",
+        "type": "String",
+        "nullable": true,
+        "description": "Live action subtype",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "description",
+        "type": "String",
+        "nullable": true,
+        "description": "Live action description",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "score_home",
+        "type": "String",
+        "nullable": true,
+        "description": "Home score",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "score_away",
+        "type": "String",
+        "nullable": true,
+        "description": "Away score",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_result",
+        "type": "String",
+        "nullable": true,
+        "description": "Shot result",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_total",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Points scored on the action",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "action_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Live action id",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_score_board",
+    "fields": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "description": "UTC snapshot timestamp",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "description": "UTC snapshot date",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "description": "Live endpoint or packet name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "description": "Serialized raw live payload for the row",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game id",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Live game status code",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text",
+        "type": "String",
+        "nullable": true,
+        "description": "Live game status label",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
     "table_name": "raw_play_by_play_v2",
     "fields": [
       {

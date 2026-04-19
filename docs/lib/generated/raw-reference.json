@@ -4605,6 +4605,511 @@
     ]
   },
   {
+    "table_name": "raw_live_box_score_arena",
+    "class_name": "RawLiveBoxScoreArenaSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      },
+      {
+        "name": "arena_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Arena name"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_game_details",
+    "class_name": "RawLiveBoxScoreGameDetailsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      },
+      {
+        "name": "game_status",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game status code"
+      },
+      {
+        "name": "game_status_text",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game status label"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_officials",
+    "class_name": "RawLiveBoxScoreOfficialsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Official person id"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_player_stats",
+    "class_name": "RawLiveBoxScorePlayerStatsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player person id"
+      },
+      {
+        "name": "points",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live player points"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_box_score_team_stats",
+    "class_name": "RawLiveBoxScoreTeamStatsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team id"
+      },
+      {
+        "name": "score",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live team score"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_odds",
+    "class_name": "RawLiveOddsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_play_by_play",
+    "class_name": "RawLivePlayByPlaySchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      },
+      {
+        "name": "action_number",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live action number within the game"
+      },
+      {
+        "name": "period",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game period"
+      },
+      {
+        "name": "clock",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game clock"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team id"
+      },
+      {
+        "name": "person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Person id"
+      },
+      {
+        "name": "action_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live action type"
+      },
+      {
+        "name": "sub_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live action subtype"
+      },
+      {
+        "name": "description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live action description"
+      },
+      {
+        "name": "score_home",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home score"
+      },
+      {
+        "name": "score_away",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Away score"
+      },
+      {
+        "name": "shot_result",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Shot result"
+      },
+      {
+        "name": "points_total",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points scored on the action"
+      },
+      {
+        "name": "action_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live action id"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_live_score_board",
+    "class_name": "RawLiveScoreBoardSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
+      },
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game id"
+      },
+      {
+        "name": "game_status",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game status code"
+      },
+      {
+        "name": "game_status_text",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Live game status label"
+      }
+    ]
+  },
+  {
     "table_name": "raw_play_by_play_v2",
     "class_name": "RawPlayByPlayV2Schema",
     "coerce": true,
@@ -7165,6 +7670,42 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Flag indicating if score changed"
+      }
+    ]
+  },
+  {
+    "table_name": "__live_snapshot_metadata_mixin",
+    "class_name": "_LiveSnapshotMetadataMixin",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "snapshot_at",
+        "type": "Datetime(time_unit='us', time_zone=None)",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot timestamp"
+      },
+      {
+        "name": "snapshot_date",
+        "type": "Date",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "UTC snapshot date"
+      },
+      {
+        "name": "source_endpoint",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Live endpoint or packet name"
+      },
+      {
+        "name": "payload_json",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Serialized raw live payload for the row"
       }
     ]
   }

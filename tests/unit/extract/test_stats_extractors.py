@@ -1525,6 +1525,21 @@ class TestExtractMethodCoverage:
                 "_from_nba_api_multi",
                 lambda endpoint_cls, **kwargs: [dummy_df, pl.DataFrame()],
             )
+        elif cls in {DunkScoreLeadersExtractor, GravityLeadersExtractor}:
+            payload = (
+                {"dunks": [{"playerId": 1, "dunks": 2}]}
+                if cls is DunkScoreLeadersExtractor
+                else {"leaders": [{"playerId": 1, "gravityScore": 2.5}]}
+            )
+
+            class _FakeResponse:
+                def get_dict(self) -> dict[str, object]:
+                    return payload
+
+            monkeypatch.setattr(
+                "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
+                lambda self, **_kwargs: _FakeResponse(),
+            )
         else:
             monkeypatch.setattr(ext, "_from_nba_api", _fake)
         params = _get_params(endpoint_name, category)

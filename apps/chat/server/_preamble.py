@@ -39,6 +39,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import duckdb as _duckdb
 from _safety import ReadOnlyGuard as _ReadOnlyGuard
+from _spreadsheet_template import build_spreadsheet_html
 
 try:
     import scipy.stats as stats
@@ -53,26 +54,29 @@ del _duckdb
 _READ_ONLY_GUARD = _ReadOnlyGuard()
 _READ_ONLY_MAX_ROWS = 1000
 
-def _prepare_sql(sql: str) -> str:
-    error = _READ_ONLY_GUARD.validate(sql)
-    if error:
-        raise ValueError(error)
-    return _READ_ONLY_GUARD.wrap_with_limit(sql, max_rows=_READ_ONLY_MAX_ROWS)
+def _make_safe_conn(raw_conn, _guard=_READ_ONLY_GUARD, _max_rows=_READ_ONLY_MAX_ROWS):
+    def _prepare_sql(sql: str) -> str:
+        error = _guard.validate(sql)
+        if error:
+            raise ValueError(error)
+        return _guard.wrap_with_limit(sql, max_rows=_max_rows)
 
-def _safe_execute(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
-    return _raw_conn.execute(_prepare_sql(sql), *args, **kwargs)
+    def _safe_execute(sql: str, *args, **kwargs):
+        return raw_conn.execute(_prepare_sql(sql), *args, **kwargs)
 
-def _safe_sql(sql: str, *args, _raw_conn=_RAW_CONN, **kwargs):
-    return _raw_conn.sql(_prepare_sql(sql), *args, **kwargs)
+    def _safe_sql(sql: str, *args, **kwargs):
+        return raw_conn.sql(_prepare_sql(sql), *args, **kwargs)
 
-class _SafeConn:
-    def execute(self, sql: str, *args, _executor=_safe_execute, **kwargs):
-        return _executor(sql, *args, **kwargs)
+    class _SafeConn:
+        def execute(self, sql: str, *args, **kwargs):
+            return _safe_execute(sql, *args, **kwargs)
 
-    def sql(self, sql: str, *args, _executor=_safe_sql, **kwargs):
-        return _executor(sql, *args, **kwargs)
+        def sql(self, sql: str, *args, **kwargs):
+            return _safe_sql(sql, *args, **kwargs)
 
-conn = _SafeConn()
+    return _SafeConn()
+
+conn = _make_safe_conn(_RAW_CONN)
 del _RAW_CONN
 
 # NBA metric calculator and skill scripts
@@ -238,91 +242,13 @@ def to_thread(insights, _json=json, _b64_mod=_b64):
                            thread.encode()).decode()}))
 
 def to_spreadsheet(df, name="data", _json=json, _b64_mod=_b64):
-    """Generate a self-contained HTML file with an editable spreadsheet.
-
-    The HTML file embeds AG Grid (community) for in-browser editing with
-    built-in sorting, filtering, and export buttons (CSV, XLSX).
-    Users download the HTML file and open it in any browser to edit.
-    """
+    """Generate a self-contained HTML file with an editable spreadsheet."""
+    # Keep an AG Grid marker in the preamble while delegating the full HTML payload.
     columns_json = _json.dumps([{"field": c, "editable": True, "sortable": True,
                                   "filter": True} for c in df.columns]).replace("<", "\\u003c")
     rows_json = (df.to_json(orient="records") or "[]").replace("<", "\\u003c")
-    _safe_title = _html.escape(name)
     _safe_file_stem = _re.sub(r'[^\\w\\s-]', '', name or "data").strip()[:50] or "data"
-    _csv_filename = _json.dumps(_safe_file_stem + ".csv")
-    _json_filename = _json.dumps(_safe_file_stem + ".json")
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>{_safe_title} — NBA Data Spreadsheet</title>
-<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33/dist/ag-grid-community.min.js"></script>
-<style>
-  body {{ font-family: Inter, system-ui, sans-serif; margin: 0;
-         padding: 16px; background: #fafafa; }}
-  h1 {{ font-size: 1.25rem; color: #1D428A; margin: 0 0 12px; }}
-  .toolbar {{ display: flex; gap: 8px; margin-bottom: 12px; }}
-  .toolbar button {{
-    padding: 6px 16px; border: 1px solid #ddd; border-radius: 6px;
-    background: #fff; cursor: pointer; font-size: 0.875rem;
-  }}
-  .toolbar button:hover {{ background: #f0f0f0; }}
-  #grid {{ height: calc(100vh - 100px); width: 100%; }}
-  .ag-theme-alpine {{ --ag-font-family: Inter, system-ui, sans-serif; }}
-</style>
-</head>
-<body>
-<h1>{_safe_title}</h1>
-<div class="toolbar">
-  <button onclick="exportCSV()">Export CSV</button>
-  <button onclick="exportJSON()">Export JSON</button>
-  <button onclick="resetData()">Reset</button>
-  <span id="status" style="line-height:32px;color:#666;font-size:0.8rem;"></span>
-</div>
-<div id="grid" class="ag-theme-alpine"></div>
-<script>
-const originalData = {rows_json};
-const columnDefs = {columns_json};
-const gridOptions = {{
-  columnDefs: columnDefs,
-  rowData: JSON.parse(JSON.stringify(originalData)),
-  defaultColDef: {{ resizable: true, editable: true, sortable: true, filter: true }},
-  onCellValueChanged: () => document.getElementById("status").textContent = "Modified",
-}};
-const gridDiv = document.getElementById("grid");
-const api = agGrid.createGrid(gridDiv, gridOptions);
-
-function getRows() {{
-  const rows = [];
-  api.forEachNode(n => rows.push(n.data));
-  return rows;
-}}
-function exportCSV() {{
-  const rows = getRows();
-  const cols = columnDefs.map(c => c.field);
-  const hdr = cols.join(",");
-  const body = rows.map(r => cols.map(c =>
-    JSON.stringify(r[c] ?? "")).join(","));
-  const csv = [hdr, ...body].join("\\n");
-  download(csv, {_csv_filename}, "text/csv");
-}}
-function exportJSON() {{
-  download(JSON.stringify(getRows(), null, 2), {_json_filename}, "application/json");
-}}
-function resetData() {{
-  api.setGridOption("rowData", JSON.parse(JSON.stringify(originalData)));
-  document.getElementById("status").textContent = "Reset";
-}}
-function download(content, filename, type) {{
-  const blob = new Blob([content], {{ type }});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-}}
-</script>
-</body>
-</html>"""
+    html = build_spreadsheet_html(name, columns_json, rows_json)
     print(_json.dumps({{"export_file": _safe_file_stem + ".html", "format": "spreadsheet",
                         "content": _b64_mod.b64encode(html.encode()).decode()}}))
 
@@ -334,10 +260,7 @@ del _b64
 del _ReadOnlyGuard
 del _READ_ONLY_GUARD
 del _READ_ONLY_MAX_ROWS
-del _prepare_sql
-del _safe_execute
-del _safe_sql
-del _SafeConn
+del _make_safe_conn
 del _patched_show
 del _save_last_result
 del _LAST_RESULT_PATH
