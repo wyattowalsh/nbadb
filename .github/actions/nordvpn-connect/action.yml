@@ -705,9 +705,12 @@ runs:
         NBADB_NORDVPN_ACTION
         chmod 700 "$outer_script_file"
 
-        set +e
-        rm -f "$outer_guard_flag"
-        python3 - "$outer_shell_timeout" "$outer_script_file" <<'PY'
+        export OUTER_WORK_DIR="$outer_work_dir"
+        export OUTER_LOG_FILE="$outer_log_file"
+        export OUTER_PID_FILE="$outer_pid_file"
+        export OUTER_SCRIPT_FILE="$outer_script_file"
+        export OUTER_GITHUB_OUTPUT="$GITHUB_OUTPUT"
+        exec python3 - "$outer_shell_timeout" <<'PY'
         import os
         import signal
         import subprocess
@@ -715,7 +718,23 @@ runs:
         import time
 
         timeout_seconds = int(sys.argv[1])
-        script_path = sys.argv[2]
+        script_path = os.environ["OUTER_SCRIPT_FILE"]
+        work_dir = os.environ["OUTER_WORK_DIR"]
+        log_file = os.environ["OUTER_LOG_FILE"]
+        pid_file = os.environ["OUTER_PID_FILE"]
+        github_output = os.environ["OUTER_GITHUB_OUTPUT"]
+
+        def write_timeout_outputs() -> None:
+          with open(github_output, "a", encoding="utf-8") as handle:
+            handle.write(f"work-dir={work_dir}\n")
+            handle.write(f"log-file={log_file}\n")
+            handle.write(f"pid-file={pid_file}\n")
+            handle.write("status=vpn_connect_timeout\n")
+            handle.write("attempted-servers-json=[]\n")
+            handle.write("failed-servers-json=[]\n")
+
+        def run_quiet(*cmd: str) -> None:
+          subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
         proc = subprocess.Popen(["bash", script_path], start_new_session=True)
         deadline = time.monotonic() + timeout_seconds
@@ -736,50 +755,25 @@ runs:
               os.killpg(proc.pid, signal.SIGKILL)
             except ProcessLookupError:
               pass
+
+            if os.path.exists(pid_file):
+              try:
+                with open(pid_file, "r", encoding="utf-8") as handle:
+                  openvpn_pid = handle.read().strip()
+              except OSError:
+                openvpn_pid = ""
+              if openvpn_pid:
+                run_quiet("sudo", "kill", openvpn_pid)
+                time.sleep(2)
+                run_quiet("sudo", "kill", "-9", openvpn_pid)
+
+            if os.path.isdir(work_dir):
+              run_quiet("sudo", "chmod", "-R", "a+rX", work_dir)
+            if os.path.exists(log_file):
+              run_quiet("sudo", "tail", "-50", log_file)
+
+            write_timeout_outputs()
             raise SystemExit(124)
 
           time.sleep(1)
         PY
-        action_rc=$?
-        rm -f "$outer_script_file"
-        if [ "$action_rc" -eq 124 ] || [ "$action_rc" -eq 137 ]; then
-          : > "$outer_guard_flag"
-        fi
-        if [ -f "$outer_guard_flag" ]; then
-          action_rc=124
-          rm -f "$outer_guard_flag"
-        fi
-        set -e
-
-        if [ "$action_rc" -eq 0 ]; then
-          exit 0
-        fi
-
-        if [ -f "$outer_pid_file" ]; then
-          outer_pid="$(cat "$outer_pid_file" 2>/dev/null || true)"
-          if [ -n "$outer_pid" ] && sudo kill -0 "$outer_pid" 2>/dev/null; then
-            sudo kill "$outer_pid" || true
-            sleep 2
-            sudo kill -9 "$outer_pid" 2>/dev/null || true
-          fi
-          rm -f "$outer_pid_file"
-        fi
-
-        if [ "$action_rc" -eq 124 ]; then
-          echo "work-dir=$outer_work_dir" >> "$GITHUB_OUTPUT"
-          echo "log-file=$outer_log_file" >> "$GITHUB_OUTPUT"
-          echo "pid-file=$outer_pid_file" >> "$GITHUB_OUTPUT"
-          echo "status=vpn_connect_timeout" >> "$GITHUB_OUTPUT"
-          echo "attempted-servers-json=[]" >> "$GITHUB_OUTPUT"
-          echo "failed-servers-json=[]" >> "$GITHUB_OUTPUT"
-          if [ -d "$outer_work_dir" ]; then
-            sudo chmod -R a+rX "$outer_work_dir" 2>/dev/null || true
-          fi
-          if [ -f "$outer_log_file" ]; then
-            sudo tail -50 "$outer_log_file" || true
-          fi
-          echo "::error::NordVPN connection action exceeded the outer guard timeout"
-          exit 1
-        fi
-
-        exit "$action_rc"
