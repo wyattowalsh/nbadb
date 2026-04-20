@@ -518,12 +518,57 @@ class TestCrossProductParameterHandling:
         assert kwargs["player_id_list"] == "201939"
         assert kwargs["vs_player_id_list"] == "201939"
         assert kwargs["season"] == "2024-25"
+        assert kwargs["season_type_playoffs"] == "Regular Season"
 
     @pytest.mark.asyncio
     async def test_player_compare_returns_empty_when_ids_missing(self) -> None:
         ext = PlayerCompareExtractor()
         result = await ext.extract(season="2024-25")
         assert result.is_empty()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("extractor_cls", "params"),
+        [
+            (PlayerCompareExtractor, {"player_id": 201939, "season": "2024-25"}),
+            (
+                PlayerVsPlayerExtractor,
+                {"player_id": 201939, "vs_player_id": 201566, "season": "2024-25"},
+            ),
+            (
+                TeamVsPlayerExtractor,
+                {"team_id": 1610612744, "vs_player_id": 201939, "season": "2024-25"},
+            ),
+            (
+                TeamAndPlayersVsPlayersExtractor,
+                {
+                    "team_id": 1610612744,
+                    "player_id1": 201939,
+                    "player_id2": 201566,
+                    "season": "2024-25",
+                },
+            ),
+        ],
+        ids=["player_compare", "player_vs_player", "team_vs_player", "team_and_players_vs_players"],
+    )
+    async def test_compare_family_uses_season_type_playoffs(
+        self,
+        extractor_cls: type,
+        params: dict[str, object],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = extractor_cls()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured.update(kwargs)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(**params, season_type="Playoffs")
+
+        assert captured["season_type_playoffs"] == "Playoffs"
+        assert "season_type_all_star" not in captured
 
     @pytest.mark.asyncio
     async def test_gl_alum_accepts_player_season_and_defaults_to_self_compare(

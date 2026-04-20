@@ -49,7 +49,7 @@ class PlayerCompareExtractor(BaseExtractor):
         request_kwargs: dict[str, Any] = {
             "player_id_list": player_id_list,
             "vs_player_id_list": vs_player_id_list,
-            "season_type_all_star": season_type,
+            "season_type_playoffs": season_type,
         }
         if season:
             request_kwargs["season"] = season
@@ -81,7 +81,7 @@ class PlayerCompareExtractor(BaseExtractor):
         request_kwargs: dict[str, Any] = {
             "player_id_list": player_id_list,
             "vs_player_id_list": vs_player_id_list,
-            "season_type_all_star": season_type,
+            "season_type_playoffs": season_type,
         }
         if season:
             request_kwargs["season"] = season
@@ -103,7 +103,7 @@ class PlayerVsPlayerExtractor(BaseExtractor):
             player_id=player_id,
             vs_player_id=vs_player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -116,7 +116,7 @@ class PlayerVsPlayerExtractor(BaseExtractor):
             player_id=player_id,
             vs_player_id=vs_player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -135,7 +135,7 @@ class TeamVsPlayerExtractor(BaseExtractor):
             team_id=team_id,
             vs_player_id=vs_player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -148,7 +148,7 @@ class TeamVsPlayerExtractor(BaseExtractor):
             team_id=team_id,
             vs_player_id=vs_player_id,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
 
@@ -169,7 +169,7 @@ class TeamAndPlayersVsPlayersExtractor(BaseExtractor):
             player_id1=player_id1,
             player_id2=player_id2,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -184,5 +184,5 @@ class TeamAndPlayersVsPlayersExtractor(BaseExtractor):
             player_id1=player_id1,
             player_id2=player_id2,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
