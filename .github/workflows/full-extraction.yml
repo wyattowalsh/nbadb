@@ -14,7 +14,7 @@ on:
       vpn_parallelism:
         description: "Max simultaneous VPN-backed extract lanes"
         type: choice
-        default: "2"
+        default: "1"
         options:
           - "1"
           - "2"
