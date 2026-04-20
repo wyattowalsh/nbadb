@@ -118,6 +118,7 @@ runs:
         outer_work_dir="${RUNNER_TEMP}/nordvpn"
         outer_log_file="${outer_work_dir}/openvpn.log"
         outer_pid_file="${outer_work_dir}/openvpn.pid"
+        outer_script_file="$(mktemp "${RUNNER_TEMP}/nordvpn-connect-inner.XXXXXX.sh")"
         outer_overall_timeout="${OVERALL_TIMEOUT_SECONDS:-300}"
         if ! [[ "$outer_overall_timeout" =~ ^[0-9]+$ ]] || [ "$outer_overall_timeout" -lt 30 ]; then
           outer_overall_timeout=300
@@ -125,7 +126,7 @@ runs:
 
         set -euo pipefail
         set +e
-        timeout --foreground --kill-after=15 "$((outer_overall_timeout + 30))" bash <<'NBADB_NORDVPN_ACTION'
+        cat > "$outer_script_file" <<'NBADB_NORDVPN_ACTION'
         set -euo pipefail
 
         self_pid="${BASHPID:-$$}"
@@ -700,7 +701,38 @@ runs:
         fi
         exit 1
         NBADB_NORDVPN_ACTION
+        chmod 700 "$outer_script_file"
+
+        python3 - "$outer_overall_timeout" "$outer_script_file" <<'PY'
+        import os
+        import signal
+        import subprocess
+        import sys
+
+        timeout_seconds = int(sys.argv[1]) + 30
+        script_path = sys.argv[2]
+
+        proc = subprocess.Popen(["bash", script_path], preexec_fn=os.setsid)
+        try:
+          raise SystemExit(proc.wait(timeout=timeout_seconds))
+        except subprocess.TimeoutExpired:
+          print("::error::NordVPN connection action exceeded the outer guard timeout", flush=True)
+          try:
+            os.killpg(proc.pid, signal.SIGTERM)
+          except ProcessLookupError:
+            pass
+          try:
+            proc.wait(timeout=15)
+          except subprocess.TimeoutExpired:
+            try:
+              os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+              pass
+            proc.wait()
+          raise SystemExit(124)
+        PY
         action_rc=$?
+        rm -f "$outer_script_file"
         set -e
 
         if [ "$action_rc" -eq 0 ]; then
