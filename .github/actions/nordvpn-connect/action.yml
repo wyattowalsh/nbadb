@@ -229,7 +229,37 @@ runs:
           fi
 
           set +e
-          timeout --foreground "$remaining" "$@"
+          python3 - "$remaining" "$@" <<'PY'
+        import os
+        import signal
+        import subprocess
+        import sys
+        import time
+
+        timeout_seconds = int(sys.argv[1])
+        command = sys.argv[2:]
+        proc = subprocess.Popen(command, start_new_session=True)
+        deadline = time.monotonic() + timeout_seconds
+
+        while True:
+            rc = proc.poll()
+            if rc is not None:
+                raise SystemExit(rc)
+
+            if time.monotonic() >= deadline:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                time.sleep(5)
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                raise SystemExit(124)
+
+            time.sleep(1)
+        PY
           rc=$?
           set -e
 
