@@ -26,6 +26,10 @@ inputs:
     description: Number of recommended servers to fetch for selection and fallback.
     required: false
     default: "4"
+  quarantined-servers-json:
+    description: JSON array of NordVPN server hostnames to avoid for this chain.
+    required: false
+    default: "[]"
   country-id:
     description: NordVPN country identifier.
     required: false
@@ -80,6 +84,12 @@ outputs:
   status:
     description: Connection result code.
     value: ${{ steps.connect.outputs.status }}
+  attempted-servers-json:
+    description: JSON array of server hostnames attempted during this invocation.
+    value: ${{ steps.connect.outputs.attempted-servers-json }}
+  failed-servers-json:
+    description: JSON array of attempted server hostnames that failed verification.
+    value: ${{ steps.connect.outputs.failed-servers-json }}
   work-dir:
     description: Directory containing VPN diagnostics.
     value: ${{ steps.connect.outputs.work-dir }}
@@ -96,6 +106,7 @@ runs:
         LANE_INDEX: ${{ inputs.lane-index }}
         SHARD_INDEX: ${{ inputs.shard-index }}
         SERVER_LIMIT: ${{ inputs.server-limit }}
+        QUARANTINED_SERVERS_JSON: ${{ inputs.quarantined-servers-json }}
         COUNTRY_ID: ${{ inputs.country-id }}
         TECHNOLOGY: ${{ inputs.technology }}
         FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}
@@ -229,6 +240,8 @@ runs:
         auth_file="${work_dir}/vpn-auth.txt"
         status="vpn_network_error"
         attempted_network=0
+        attempted_servers=()
+        failed_servers=()
 
         selector_index="${LANE_INDEX:-}"
         if [ -z "$selector_index" ]; then
@@ -257,9 +270,46 @@ runs:
         fi
         action_deadline=$((SECONDS + overall_timeout))
 
+        quarantine_list_file="${work_dir}/quarantined-servers.txt"
+
         rm -rf "$work_dir"
         mkdir -p "$work_dir"
         chmod 700 "$work_dir"
+
+        if ! python3 - <<'PY' > "$quarantine_list_file"
+        import json
+        import os
+        import sys
+
+        raw = os.environ.get("QUARANTINED_SERVERS_JSON", "[]")
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            print(f"invalid quarantined-servers-json input: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        if not isinstance(payload, list):
+            print("quarantined-servers-json must decode to a JSON array", file=sys.stderr)
+            sys.exit(1)
+
+        seen = set()
+        for value in payload:
+            hostname = str(value).strip()
+            if not hostname or hostname in seen:
+                continue
+            seen.add(hostname)
+            print(hostname)
+        PY
+        then
+          status="vpn_network_error"
+          echo "::error::Failed to parse quarantined-servers-json"
+          exit 1
+        fi
+        mapfile -t quarantined_servers < "$quarantine_list_file"
+        declare -A quarantined_server_set=()
+        for quarantined_server in "${quarantined_servers[@]}"; do
+          quarantined_server_set["$quarantined_server"]=1
+        done
 
         cleanup_sensitive() {
           rm -f "$auth_file" "$creds_file" "$servers_file" "$verify_file" "$baseline_file"
@@ -271,11 +321,42 @@ runs:
           fi
         }
 
+        array_to_json() {
+          python3 - "$@" <<'PY'
+          import json
+          import sys
+
+          print(json.dumps(sys.argv[1:]))
+          PY
+        }
+
         on_exit() {
+          attempted_servers_json="$(array_to_json "${attempted_servers[@]}")"
+          failed_servers_json="$(array_to_json "${failed_servers[@]}")"
           cleanup_sensitive
           printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+          printf 'attempted-servers-json=%s\n' "$attempted_servers_json" >> "$GITHUB_OUTPUT"
+          printf 'failed-servers-json=%s\n' "$failed_servers_json" >> "$GITHUB_OUTPUT"
         }
         trap on_exit EXIT
+
+        append_unique() {
+          local -n target="$1"
+          local value="$2"
+          local existing
+          [ -n "$value" ] || return 0
+          for existing in "${target[@]}"; do
+            if [ "$existing" = "$value" ]; then
+              return 0
+            fi
+          done
+          target+=("$value")
+        }
+
+        record_failed_server() {
+          local server="$1"
+          append_unique failed_servers "$server"
+        }
 
         cleanup_openvpn() {
           local pid=""
@@ -400,10 +481,15 @@ runs:
             fail_action "vpn_connect_timeout" "VPN connection budget expired before a verified tunnel was established"
           fi
 
+          recommendation_limit=$((server_limit + ${#quarantined_servers[@]}))
+          if [ "$recommendation_limit" -lt "$server_limit" ]; then
+            recommendation_limit="$server_limit"
+          fi
+
           if ! retry_http_get \
             "NordVPN server recommendations request ($technology)" \
             "$servers_file" \
-            "https://api.nordvpn.com/v1/servers/recommendations?limit=${server_limit}&filters[country_id]=${COUNTRY_ID}&filters[servers_technologies][identifier]=${technology}" \
+            "https://api.nordvpn.com/v1/servers/recommendations?limit=${recommendation_limit}&filters[country_id]=${COUNTRY_ID}&filters[servers_technologies][identifier]=${technology}" \
             --globoff; then
             attempted_network=1
             continue
@@ -416,10 +502,23 @@ runs:
             continue
           fi
 
-          start_index=$((selector_index % ${#servers[@]}))
+          filtered_servers=()
+          for server in "${servers[@]}"; do
+            if [ -n "${quarantined_server_set[$server]:-}" ]; then
+              continue
+            fi
+            filtered_servers+=("$server")
+          done
+          if [ "${#filtered_servers[@]}" -eq 0 ]; then
+            attempted_network=1
+            echo "::warning::All recommended NordVPN servers are quarantined for $technology"
+            continue
+          fi
+
+          start_index=$((selector_index % ${#filtered_servers[@]}))
           ordered_servers=()
-          for offset in $(seq 0 $((${#servers[@]} - 1))); do
-            ordered_servers+=("${servers[$(((start_index + offset) % ${#servers[@]}))]}")
+          for offset in $(seq 0 $((${#filtered_servers[@]} - 1))); do
+            ordered_servers+=("${filtered_servers[$(((start_index + offset) % ${#filtered_servers[@]}))]}")
           done
 
           for server in "${ordered_servers[@]}"; do
@@ -428,6 +527,7 @@ runs:
             fi
             echo "::notice::Attempting NordVPN server $server over $technology"
             rm -f "$pid_file" "$verify_file" "$log_file" "${work_dir}/${server}.ovpn"
+            append_unique attempted_servers "$server"
 
             case "$technology" in
               openvpn_udp)
@@ -447,6 +547,7 @@ runs:
               "${work_dir}/${server}.ovpn" \
               "$config_path"; then
               attempted_network=1
+              record_failed_server "$server"
               echo "::warning::Skipping server $server because the configuration download failed"
               continue
             fi
@@ -459,6 +560,7 @@ runs:
                 --writepid "$pid_file" \
                 --daemon \
                 --log "$log_file"; then
+              record_failed_server "$server"
               fail_action \
                 "vpn_connect_timeout" \
                 "OpenVPN launch exceeded the remaining VPN connection budget for $server over $technology"
@@ -508,6 +610,7 @@ runs:
             done
 
             if [ "$auth_failed" -ne 1 ] && [ "$tunnel_ready" -ne 1 ] && [ "$SECONDS" -ge "$action_deadline" ]; then
+              record_failed_server "$server"
               fail_action \
                 "vpn_connect_timeout" \
                 "VPN connection budget expired while waiting for $server over $technology to establish a verified tunnel"
@@ -515,6 +618,7 @@ runs:
 
             if [ "$auth_failed" -eq 1 ]; then
               attempted_network=1
+              record_failed_server "$server"
               cleanup_openvpn
               if [ "$SECONDS" -lt "$action_deadline" ]; then
                 sleep 2
@@ -553,6 +657,7 @@ runs:
             fi
 
             attempted_network=1
+            record_failed_server "$server"
             echo "::warning::VPN verification failed for $server over $technology; trying the next recommended server"
             make_workdir_readable
             sudo tail -20 "$log_file" || true
@@ -602,6 +707,8 @@ runs:
           echo "log-file=$outer_log_file" >> "$GITHUB_OUTPUT"
           echo "pid-file=$outer_pid_file" >> "$GITHUB_OUTPUT"
           echo "status=vpn_connect_timeout" >> "$GITHUB_OUTPUT"
+          echo "attempted-servers-json=[]" >> "$GITHUB_OUTPUT"
+          echo "failed-servers-json=[]" >> "$GITHUB_OUTPUT"
           if [ -d "$outer_work_dir" ]; then
             sudo chmod -R a+rX "$outer_work_dir" 2>/dev/null || true
           fi

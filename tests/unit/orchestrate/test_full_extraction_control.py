@@ -7,10 +7,13 @@ import duckdb
 import pytest
 
 from nbadb.orchestrate.full_extraction_control import (
+    FullExtractionChainState,
     FullExtractionLane,
     build_default_manifest,
     build_resume_manifest,
+    manifest_payload,
     merge_lane_databases,
+    normalize_manifest,
     validate_manifest,
 )
 
@@ -250,7 +253,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         (("player_next_games",), 4200),
         (("shot_chart_detail",), 7200),
     }
-    assert all(lane.use_vpn is False for lane in reference_lanes)
+    assert all(lane.use_vpn is True for lane in reference_lanes)
 
 
 def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:
@@ -410,7 +413,7 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
         status="incomplete",
     )
 
-    next_lanes, summary = build_resume_manifest(lanes, metadata_dir)
+    next_lanes, next_chain_state, summary = build_resume_manifest(lanes, metadata_dir)
 
     by_id = {lane.lane_id: lane for lane in next_lanes}
     assert by_id["reference-static"].resume_only is True
@@ -418,7 +421,9 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
     assert active_lane.resume_only is False
     assert active_lane.failure_streak == 1
     assert active_lane.last_failure_reason == "incomplete"
+    assert next_chain_state == FullExtractionChainState()
     assert summary == {
+        "vpn_quarantined_server_count": 0,
         "active_lane_count": 5,
         "resume_only_lane_count": 1,
         "blocked_lane_count": 0,
@@ -450,6 +455,104 @@ def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) 
 
     with pytest.raises(ValueError, match="chain safety cap"):
         build_resume_manifest([lane], metadata_dir)
+
+
+def test_validate_manifest_rejects_active_lane_without_vpn() -> None:
+    with pytest.raises(ValueError, match="active lanes must require VPN"):
+        validate_manifest(
+            [
+                FullExtractionLane(
+                    lane_id="reference-player",
+                    lane_index=0,
+                    lane_name="Reference Player",
+                    lane_kind="reference",
+                    season_start=None,
+                    season_end=None,
+                    patterns=("player",),
+                    use_vpn=False,
+                    resume_only=False,
+                    timeout_seconds=3600,
+                )
+            ]
+        )
+
+
+def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: Path) -> None:
+    rows = [
+        _support_row("franchise_history", ["static"], None),
+        _support_row("common_player_info", ["player"], None),
+    ]
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+
+    (metadata_dir / "reference-static.json").write_text(
+        json.dumps(
+            {
+                "lane_id": "reference-static",
+                "status": "vpn_connect_timeout",
+                "vpn": {
+                    "failed_servers": [
+                        "us123.nordvpn.com",
+                        "us456.nordvpn.com",
+                        "us123.nordvpn.com",
+                    ]
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_metadata(
+        metadata_dir / "reference-player.json",
+        lane_id="reference-player",
+        status="complete",
+    )
+
+    next_lanes, next_chain_state, summary = build_resume_manifest(
+        lanes,
+        metadata_dir,
+        chain_state=FullExtractionChainState(vpn_quarantined_servers=("us111.nordvpn.com",)),
+    )
+
+    assert next_chain_state == FullExtractionChainState(
+        vpn_quarantined_servers=(
+            "us111.nordvpn.com",
+            "us123.nordvpn.com",
+            "us456.nordvpn.com",
+        )
+    )
+    assert summary["vpn_quarantined_server_count"] == 3
+    by_id = {lane.lane_id: lane for lane in next_lanes}
+    assert by_id["reference-player"].resume_only is True
+    assert by_id["reference-static"].last_failure_reason == "vpn_connect_timeout"
+
+
+def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
+    payload = manifest_payload(
+        [
+            FullExtractionLane(
+                lane_id="reference-static",
+                lane_index=0,
+                lane_name="Reference Static",
+                lane_kind="reference",
+                season_start=None,
+                season_end=None,
+                patterns=("static",),
+                timeout_seconds=1800,
+            )
+        ],
+        chain_state=FullExtractionChainState(
+            vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
+        ),
+    )
+
+    manifest = normalize_manifest(payload)
+
+    assert manifest.chain_state == FullExtractionChainState(
+        vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
+    )
+    assert manifest.lanes[0].lane_id == "reference-static"
 
 
 def test_validate_manifest_rejects_oversize_lane() -> None:

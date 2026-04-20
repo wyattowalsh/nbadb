@@ -11,6 +11,17 @@ on:
           - conservative
           - moderate
           - aggressive
+      vpn_parallelism:
+        description: "Max simultaneous VPN-backed extract lanes"
+        type: choice
+        default: "6"
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+          - "6"
       iteration:
         description: "Iteration number (auto-incremented on self-chain)"
         type: string
@@ -75,6 +86,7 @@ jobs:
       extract-matrix: ${{ steps.manifest.outputs.extract-matrix }}
       lane-count: ${{ steps.manifest.outputs.lane-count }}
       lane-manifest-json: ${{ steps.manifest.outputs.lane-manifest-json }}
+      vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
@@ -175,11 +187,16 @@ jobs:
           manifest = json.loads(Path("artifacts/full-extraction/manifest.json").read_text(encoding="utf-8"))
           compact_manifest = json.dumps(manifest, separators=(",", ":"))
           compact_matrix = json.dumps(manifest["github_matrix"], separators=(",", ":"))
+          compact_quarantined_servers = json.dumps(
+              manifest.get("chain_state", {}).get("vpn_quarantined_servers", []),
+              separators=(",", ":"),
+          )
 
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"extract-matrix={compact_matrix}\n")
               handle.write(f"lane-count={manifest['lane_count']}\n")
               handle.write(f"lane-manifest-json={compact_manifest}\n")
+              handle.write(f"vpn-quarantined-servers-json={compact_quarantined_servers}\n")
           PY
 
       - name: Plan summary
@@ -273,7 +290,8 @@ jobs:
           raw_manifest = json.loads(
               Path("artifacts/full-extraction/preflight-manifest.json").read_text(encoding="utf-8")
           )
-          validate_manifest(normalize_manifest(raw_manifest))
+          manifest = normalize_manifest(raw_manifest)
+          validate_manifest(list(manifest.lanes))
           PY
 
       - name: Preflight VPN validation
@@ -290,6 +308,7 @@ jobs:
           fallback-technology: ""
           connect-timeout-seconds: "30"
           overall-timeout-seconds: "120"
+          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
 
       - name: Summarize preflight VPN validation
         if: always()
@@ -323,7 +342,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: ${{ fromJSON(inputs.concurrency == 'conservative' && '1' || inputs.concurrency == 'moderate' && '2' || '3') }}
+      max-parallel: ${{ fromJSON(inputs.vpn_parallelism) }}
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
@@ -439,7 +458,7 @@ jobs:
       # ── Connect NordVPN tunnel for active extraction lanes ──
       - name: Connect NordVPN tunnel
         id: vpn
-        if: ${{ !matrix.resume_only && matrix.use_vpn }}
+        if: ${{ !matrix.resume_only }}
         timeout-minutes: 4
         uses: ./.github/actions/nordvpn-connect
         with:
@@ -451,6 +470,7 @@ jobs:
           fallback-technology: ""
           connect-timeout-seconds: "30"
           overall-timeout-seconds: "180"
+          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
 
       # ── Configure environment ──
       - name: Configure extraction environment
@@ -562,7 +582,7 @@ jobs:
           elif [ -n "$EXTRACT_STATUS" ]; then
             status="$EXTRACT_STATUS"
           elif [ -n "$VPN_STATUS" ] && [ "$VPN_STATUS" != "connected" ]; then
-            status="failed-before-extract"
+            status="$VPN_STATUS"
           else
             status="failed-before-extract"
           fi
@@ -589,6 +609,12 @@ jobs:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           RESUME_ONLY: ${{ matrix.resume_only }}
         run: |
+          effective_vpn_status="${VPN_STATUS:-}"
+          if [ "$RESUME_ONLY" = "true" ] && [ -z "$effective_vpn_status" ]; then
+            effective_vpn_status="resume-only"
+          elif [ -z "$effective_vpn_status" ]; then
+            effective_vpn_status="unknown"
+          fi
           {
             echo "## Lane $LANE_ID ($NAME) — Iteration $ITERATION"
             echo "**Status:** $STATUS"
@@ -599,7 +625,7 @@ jobs:
             echo "**Restore usable:** ${RESTORE_USABLE:-false}"
             echo "**Resume only:** $RESUME_ONLY"
             echo "**Lane timeout seconds:** $TIMEOUT_SECONDS"
-            echo "**VPN status:** ${VPN_STATUS:-not-needed}"
+            echo "**VPN status:** $effective_vpn_status"
             echo "**VPN server:** ${VPN_SERVER:-n/a}"
             echo "**VPN interface:** ${VPN_INTERFACE:-n/a}"
             echo "**VPN IP:** ${VPN_BASELINE_IP:-unknown} → ${VPN_EXIT_IP:-unknown}"
@@ -634,16 +660,23 @@ jobs:
           FINISHED_AT: ${{ steps.extract.outputs.finished-at }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
           EXTRACT_EXIT_CODE: ${{ steps.extract.outputs.exit-code || '' }}
-          VPN_STATUS: ${{ steps.vpn.outputs.status || 'not-needed' }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
+          VPN_ATTEMPTED_SERVERS_JSON: ${{ steps.vpn.outputs.attempted-servers-json || '[]' }}
+          VPN_FAILED_SERVERS_JSON: ${{ steps.vpn.outputs.failed-servers-json || '[]' }}
         run: |
           mkdir -p artifacts/extraction
           python - <<'PY'
           import json
           import os
           from pathlib import Path
+
+          resume_only = os.environ["RESUME_ONLY"].lower() == "true"
+          vpn_status = os.environ.get("VPN_STATUS", "").strip()
+          if not vpn_status:
+              vpn_status = "resume-only" if resume_only else "unknown"
 
           payload = {
               "chain_id": os.environ["CHAIN_ID"],
@@ -659,13 +692,13 @@ jobs:
               "restore_source": os.environ["RESTORE_SOURCE"],
               "restore_usable": os.environ["RESTORE_USABLE"].lower() == "true",
               "restart_mode": os.environ["RESTART_MODE"],
-              "resume_only": os.environ["RESUME_ONLY"],
+              "resume_only": resume_only,
               "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
               "started_at": os.environ.get("STARTED_AT", ""),
               "finished_at": os.environ.get("FINISHED_AT", ""),
               "extract_status": os.environ.get("EXTRACT_STATUS", ""),
               "extract_exit_code": os.environ.get("EXTRACT_EXIT_CODE", ""),
-              "vpn_status": os.environ.get("VPN_STATUS", ""),
+              "vpn_status": vpn_status,
               "patterns": [value for value in os.environ.get("PATTERNS", "").split(",") if value],
               "season_types": [
                   value for value in os.environ.get("SEASON_TYPES", "").split(",") if value
@@ -676,6 +709,12 @@ jobs:
                   "server": os.environ.get("VPN_SERVER", ""),
                   "interface": os.environ.get("VPN_INTERFACE", ""),
                   "exit_ip": os.environ.get("VPN_EXIT_IP", ""),
+                  "attempted_servers": json.loads(
+                      os.environ.get("VPN_ATTEMPTED_SERVERS_JSON", "[]") or "[]"
+                  ),
+                  "failed_servers": json.loads(
+                      os.environ.get("VPN_FAILED_SERVERS_JSON", "[]") or "[]"
+                  ),
               },
           }
           Path("artifacts/extraction/lane-metadata.json").write_text(
@@ -885,6 +924,7 @@ jobs:
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CONCURRENCY: ${{ inputs.concurrency }}
+          VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
@@ -927,6 +967,26 @@ jobs:
           failure_reasons_json="${next_manifest_info[2]:-\{\}}"
           next_manifest_json="${next_manifest_info[3]:-}"
 
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("artifacts/full-extraction/next-manifest.json").read_text(encoding="utf-8")
+          )
+          quarantine_payload = {
+              "chain_id": os.environ["CHAIN_ID"],
+              "vpn_quarantined_servers": manifest.get("chain_state", {}).get(
+                  "vpn_quarantined_servers", []
+              ),
+          }
+          Path("artifacts/full-extraction/vpn-quarantine.json").write_text(
+              json.dumps(quarantine_payload, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
           if [ "${active_lane_count:-0}" -le 0 ]; then
             echo "::error::No active lanes remain for the next iteration; refusing to redispatch an empty chain."
             exit 1
@@ -942,6 +1002,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --ref "$WORKFLOW_REF" \
             -f concurrency="$next_concurrency" \
+            -f vpn_parallelism="$VPN_PARALLELISM" \
             -f iteration="$next" \
             -f max_iterations="$max" \
             -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
@@ -951,3 +1012,13 @@ jobs:
             -f workflow_ref="$WORKFLOW_REF" \
             -f workflow_sha="$WORKFLOW_SHA" \
             -f lane_manifest_json="$next_manifest_json"
+
+      - name: Upload VPN quarantine artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: full-extraction-vpn-quarantine-${{ env.ACTIVE_CHAIN_ID }}
+          path: artifacts/full-extraction/vpn-quarantine.json
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6

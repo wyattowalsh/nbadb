@@ -4,7 +4,7 @@ import argparse
 import json
 import shutil
 from contextlib import suppress
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -147,6 +147,51 @@ class FullExtractionLane:
             "resume_only": self.resume_only,
             "timeout_seconds": self.timeout_seconds,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class FullExtractionChainState:
+    vpn_quarantined_servers: tuple[str, ...] = ()
+
+    def to_payload(self) -> dict[str, Any]:
+        return {"vpn_quarantined_servers": list(self.vpn_quarantined_servers)}
+
+
+@dataclass(frozen=True, slots=True)
+class FullExtractionManifest:
+    lanes: tuple[FullExtractionLane, ...]
+    chain_state: FullExtractionChainState = field(default_factory=FullExtractionChainState)
+
+
+def _normalize_server_list(raw: Any) -> tuple[str, ...]:
+    if raw is None or raw == "":
+        return ()
+    if not isinstance(raw, list | tuple):
+        msg = "Expected a list of VPN server hostnames"
+        raise ValueError(msg)
+
+    seen: set[str] = set()
+    values: list[str] = []
+    for value in raw:
+        normalized = str(value).strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        values.append(normalized)
+    return tuple(values)
+
+
+def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
+    if raw_chain_state is None or raw_chain_state == "":
+        return FullExtractionChainState()
+    if not isinstance(raw_chain_state, dict):
+        msg = "Expected chain_state to be an object"
+        raise ValueError(msg)
+    return FullExtractionChainState(
+        vpn_quarantined_servers=_normalize_server_list(
+            raw_chain_state.get("vpn_quarantined_servers", [])
+        )
+    )
 
 
 def _parse_csv(raw: str | None) -> list[str] | None:
@@ -412,6 +457,8 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: timeout_seconds must be > 0")
         if lane.failure_streak < 0:
             errors.append(f"{lane.lane_id}: failure_streak must be >= 0")
+        if not lane.resume_only and not lane.use_vpn:
+            errors.append(f"{lane.lane_id}: active lanes must require VPN")
         max_span = _max_span_for_lane(lane)
         span = _season_span(lane.season_start, lane.season_end)
         if max_span is not None and span > max_span:
@@ -505,7 +552,7 @@ def build_default_manifest(
                         season_end=None,
                         patterns=(pattern,),
                         endpoints=endpoint_group,
-                        use_vpn=pattern != "player",
+                        use_vpn=True,
                         resume_only=False,
                         timeout_seconds=_reference_lane_timeout_seconds(pattern, endpoint_group),
                     )
@@ -618,26 +665,37 @@ def build_default_manifest(
 
 def normalize_manifest(
     raw_manifest: dict[str, Any] | list[dict[str, Any]],
-) -> list[FullExtractionLane]:
+) -> FullExtractionManifest:
     raw_lanes = raw_manifest.get("lanes", []) if isinstance(raw_manifest, dict) else raw_manifest
-    return [
+    chain_state = (
+        _normalize_chain_state(raw_manifest.get("chain_state", {}))
+        if isinstance(raw_manifest, dict)
+        else FullExtractionChainState()
+    )
+    lanes = tuple(
         _normalize_lane(dict(raw_lane), lane_index) for lane_index, raw_lane in enumerate(raw_lanes)
-    ]
+    )
+    return FullExtractionManifest(lanes=lanes, chain_state=chain_state)
 
 
-def manifest_payload(lanes: list[FullExtractionLane]) -> dict[str, Any]:
+def manifest_payload(
+    lanes: list[FullExtractionLane],
+    *,
+    chain_state: FullExtractionChainState | None = None,
+) -> dict[str, Any]:
     lane_dicts = [asdict(lane) for lane in lanes]
     return {
         "manifest_version": 2,
         "lane_count": len(lanes),
         "lanes": lane_dicts,
+        "chain_state": (chain_state or FullExtractionChainState()).to_payload(),
         "github_matrix": {"include": [lane.to_workflow_dict() for lane in lanes]},
     }
 
 
 def _load_manifest_argument(
     raw_json: str | None, path: Path | None
-) -> list[FullExtractionLane] | None:
+) -> FullExtractionManifest | None:
     if raw_json:
         return normalize_manifest(json.loads(raw_json))
     if path is not None:
@@ -655,10 +713,27 @@ def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
     return payloads
 
 
+def _metadata_quarantined_servers(metadata: dict[str, dict[str, Any]]) -> tuple[str, ...]:
+    quarantined: list[str] = []
+    seen: set[str] = set()
+    for payload in metadata.values():
+        vpn_payload = payload.get("vpn", {})
+        if not isinstance(vpn_payload, dict):
+            continue
+        for server in _normalize_server_list(vpn_payload.get("failed_servers", [])):
+            if server in seen:
+                continue
+            seen.add(server)
+            quarantined.append(server)
+    return tuple(quarantined)
+
+
 def build_resume_manifest(
     lanes: list[FullExtractionLane],
     metadata_dir: Path,
-) -> tuple[list[FullExtractionLane], dict[str, Any]]:
+    *,
+    chain_state: FullExtractionChainState | None = None,
+) -> tuple[list[FullExtractionLane], FullExtractionChainState, dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
     next_lanes: list[FullExtractionLane] = []
     resumed = 0
@@ -706,12 +781,27 @@ def build_resume_manifest(
         )
         raise ValueError(msg)
 
-    return next_lanes, {
-        "active_lane_count": active,
-        "resume_only_lane_count": resumed,
-        "blocked_lane_count": 0,
-        "failure_reason_counts": failure_reason_counts,
-    }
+    merged_quarantined_servers = _normalize_server_list(
+        [
+            *(chain_state.vpn_quarantined_servers if chain_state is not None else ()),
+            *_metadata_quarantined_servers(metadata),
+        ]
+    )
+    next_chain_state = FullExtractionChainState(
+        vpn_quarantined_servers=tuple(sorted(merged_quarantined_servers))
+    )
+
+    return (
+        next_lanes,
+        next_chain_state,
+        {
+            "vpn_quarantined_server_count": len(next_chain_state.vpn_quarantined_servers),
+            "active_lane_count": active,
+            "resume_only_lane_count": resumed,
+            "blocked_lane_count": 0,
+            "failure_reason_counts": failure_reason_counts,
+        },
+    )
 
 
 def merge_lane_databases(
@@ -792,8 +882,8 @@ def merge_lane_databases(
 
 
 def _command_plan(args: argparse.Namespace) -> int:
-    lanes = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
-    if lanes is None:
+    manifest = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
+    if manifest is None:
         if args.support_matrix_path is None:
             msg = "support-matrix-path is required when no explicit lane manifest is provided"
             raise ValueError(msg)
@@ -803,9 +893,13 @@ def _command_plan(args: argparse.Namespace) -> int:
             selected_patterns=_parse_csv(args.backfill_patterns),
             selected_endpoints=_parse_csv(args.backfill_endpoints),
         )
+        chain_state = FullExtractionChainState()
+    else:
+        lanes = list(manifest.lanes)
+        chain_state = manifest.chain_state
 
     validate_manifest(lanes)
-    payload = manifest_payload(lanes)
+    payload = manifest_payload(lanes, chain_state=chain_state)
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
     args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(payload))
@@ -813,14 +907,18 @@ def _command_plan(args: argparse.Namespace) -> int:
 
 
 def _command_resume(args: argparse.Namespace) -> int:
-    lanes = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
-    if lanes is None:
+    manifest = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
+    if manifest is None:
         msg = "lane-manifest-json or lane-manifest-path is required"
         raise ValueError(msg)
 
-    next_lanes, summary = build_resume_manifest(lanes, args.metadata_dir)
+    next_lanes, next_chain_state, summary = build_resume_manifest(
+        list(manifest.lanes),
+        args.metadata_dir,
+        chain_state=manifest.chain_state,
+    )
     validate_manifest(next_lanes)
-    payload = manifest_payload(next_lanes)
+    payload = manifest_payload(next_lanes, chain_state=next_chain_state)
     payload["resume_summary"] = summary
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
     args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
