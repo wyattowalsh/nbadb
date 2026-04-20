@@ -276,13 +276,19 @@ class NordVpnConnectAction:
         return f" dev {interface}" in (result.stdout or "")
 
     def pid_alive(self, pid: str) -> bool:
-        result = subprocess.run(
-            ["sudo", "kill", "-0", pid],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            text=True,
-        )
+        try:
+            result = run_command(
+                ["sudo", "kill", "-0", pid],
+                timeout=10,
+                capture_output=False,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            print(
+                "::warning::Timed out while probing the OpenVPN process; "
+                "treating the process as unhealthy"
+            )
+            return False
         return result.returncode == 0
 
     def prepare_workdir(self) -> None:

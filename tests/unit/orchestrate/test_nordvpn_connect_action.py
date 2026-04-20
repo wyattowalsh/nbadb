@@ -83,6 +83,21 @@ def test_retry_http_get_raises_when_budget_is_exhausted(
         )
 
 
+def test_pid_alive_returns_false_when_probe_times_out(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    def _raise_timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["sudo", "kill", "-0", "12345"], timeout=10)
+
+    monkeypatch.setattr(module, "run_command", _raise_timeout)
+
+    assert action.pid_alive("12345") is False
+
+
 def test_main_writes_bounded_outputs_for_init_time_action_failure(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
