@@ -750,21 +750,38 @@ runs:
         bash "$outer_script_file" &
         outer_runner_pid=$!
         action_deadline_epoch=$((SECONDS + outer_shell_timeout))
+        outer_timed_out=0
         while kill -0 "$outer_runner_pid" 2>/dev/null; do
           if [ "$SECONDS" -ge "$action_deadline_epoch" ]; then
             : > "$outer_guard_flag"
+            outer_timed_out=1
             echo "::error::NordVPN connection action exceeded the outer guard timeout"
             terminate_outer_runner_tree "$outer_runner_pid" TERM
             sleep 15
             if kill -0 "$outer_runner_pid" 2>/dev/null; then
               terminate_outer_runner_tree "$outer_runner_pid" KILL
             fi
+            for _ in 1 2 3 4 5; do
+              if ! kill -0 "$outer_runner_pid" 2>/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            if kill -0 "$outer_runner_pid" 2>/dev/null; then
+              echo "::warning::NordVPN outer runner still appears alive after TERM/KILL escalation; continuing with bounded timeout handling"
+            else
+              wait "$outer_runner_pid" 2>/dev/null || true
+            fi
             break
           fi
           sleep 2
         done
-        wait "$outer_runner_pid"
-        action_rc=$?
+        if [ "$outer_timed_out" -eq 1 ]; then
+          action_rc=124
+        else
+          wait "$outer_runner_pid"
+          action_rc=$?
+        fi
         rm -f "$outer_script_file"
         if [ -f "$outer_guard_flag" ]; then
           action_rc=124
