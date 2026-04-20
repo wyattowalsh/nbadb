@@ -119,6 +119,7 @@ runs:
         outer_log_file="${outer_work_dir}/openvpn.log"
         outer_pid_file="${outer_work_dir}/openvpn.pid"
         outer_script_file="$(mktemp "${RUNNER_TEMP}/nordvpn-connect-inner.XXXXXX.sh")"
+        outer_guard_flag="${RUNNER_TEMP}/nordvpn-outer-guard-fired"
         outer_overall_timeout="${OVERALL_TIMEOUT_SECONDS:-300}"
         if ! [[ "$outer_overall_timeout" =~ ^[0-9]+$ ]] || [ "$outer_overall_timeout" -lt 30 ]; then
           outer_overall_timeout=300
@@ -704,36 +705,51 @@ runs:
         NBADB_NORDVPN_ACTION
         chmod 700 "$outer_script_file"
 
-        timeout --foreground "$outer_shell_timeout" python3 - "$outer_overall_timeout" "$outer_script_file" <<'PY'
-        import os
-        import signal
-        import subprocess
-        import sys
+        outer_guard_pid=""
+        outer_runner_pid=""
+        outer_runner_pgid=""
 
-        timeout_seconds = int(sys.argv[1]) + 30
-        script_path = sys.argv[2]
+        start_outer_guard() {
+          (
+            sleep "$outer_shell_timeout"
+            : > "$outer_guard_flag"
+            echo "::error::NordVPN connection action exceeded the outer guard timeout"
+            if [ -n "${outer_runner_pgid:-}" ]; then
+              kill -TERM -- "-${outer_runner_pgid}" 2>/dev/null || true
+              sleep 15
+              kill -KILL -- "-${outer_runner_pgid}" 2>/dev/null || true
+            fi
+          ) &
+          outer_guard_pid=$!
+        }
 
-        proc = subprocess.Popen(["bash", script_path], preexec_fn=os.setsid)
-        try:
-          raise SystemExit(proc.wait(timeout=timeout_seconds))
-        except subprocess.TimeoutExpired:
-          print("::error::NordVPN connection action exceeded the outer guard timeout", flush=True)
-          try:
-            os.killpg(proc.pid, signal.SIGTERM)
-          except ProcessLookupError:
-            pass
-          try:
-            proc.wait(timeout=15)
-          except subprocess.TimeoutExpired:
-            try:
-              os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-              pass
-            proc.wait()
-          raise SystemExit(124)
-        PY
+        stop_outer_guard() {
+          if [ -n "${outer_guard_pid:-}" ]; then
+            kill "$outer_guard_pid" 2>/dev/null || true
+            wait "$outer_guard_pid" 2>/dev/null || true
+            outer_guard_pid=""
+          fi
+        }
+
+        set +e
+        rm -f "$outer_guard_flag"
+        setsid bash "$outer_script_file" &
+        outer_runner_pid=$!
+        outer_runner_pgid="$(ps -o pgid= "$outer_runner_pid" 2>/dev/null | tr -d '[:space:]')"
+        if [ -z "$outer_runner_pgid" ]; then
+          echo "::error::Failed to determine NordVPN outer runner process group"
+          rm -f "$outer_script_file"
+          exit 1
+        fi
+        start_outer_guard
+        wait "$outer_runner_pid"
         action_rc=$?
+        stop_outer_guard
         rm -f "$outer_script_file"
+        if [ -f "$outer_guard_flag" ]; then
+          action_rc=124
+          rm -f "$outer_guard_flag"
+        fi
         set -e
 
         if [ "$action_rc" -eq 0 ]; then
