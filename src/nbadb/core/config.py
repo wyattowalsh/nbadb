@@ -100,7 +100,7 @@ class NbaDbSettings(BaseSettings):
         "box_score_usage": 60,
         "box_score_four_factors": 60,
         "box_score_hustle": 60,
-        "common_player_info": 120,
+        "common_player_info": 45,
         "defense_hub": 90,
         "franchise_leaders": 120,
         "franchise_players": 120,
