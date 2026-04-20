@@ -123,25 +123,7 @@ runs:
         if ! [[ "$outer_overall_timeout" =~ ^[0-9]+$ ]] || [ "$outer_overall_timeout" -lt 30 ]; then
           outer_overall_timeout=300
         fi
-        outer_shell_pid="${BASHPID:-$$}"
-        outer_shell_watchdog_pid=""
         outer_shell_timeout=$((outer_overall_timeout + 60))
-        cleanup_outer_shell_watchdog() {
-          if [ -n "${outer_shell_watchdog_pid:-}" ]; then
-            kill "$outer_shell_watchdog_pid" 2>/dev/null || true
-            wait "$outer_shell_watchdog_pid" 2>/dev/null || true
-            outer_shell_watchdog_pid=""
-          fi
-        }
-        trap cleanup_outer_shell_watchdog EXIT
-        (
-          sleep "$outer_shell_timeout"
-          echo "::error::NordVPN action shell exceeded the outer hard timeout" >&2
-          kill -TERM "$outer_shell_pid" 2>/dev/null || true
-          sleep 10
-          kill -KILL "$outer_shell_pid" 2>/dev/null || true
-        ) &
-        outer_shell_watchdog_pid=$!
 
         set -euo pipefail
         set +e
@@ -722,7 +704,7 @@ runs:
         NBADB_NORDVPN_ACTION
         chmod 700 "$outer_script_file"
 
-        python3 - "$outer_overall_timeout" "$outer_script_file" <<'PY'
+        timeout --foreground "$outer_shell_timeout" python3 - "$outer_overall_timeout" "$outer_script_file" <<'PY'
         import os
         import signal
         import subprocess
