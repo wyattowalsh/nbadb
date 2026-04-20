@@ -4,13 +4,13 @@ import json
 import os
 import re
 import subprocess
-import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Final
 
 
-class ActionFailure(RuntimeError):
+class ActionError(RuntimeError):
     def __init__(self, status: str, message: str) -> None:
         super().__init__(message)
         self.status = status
@@ -26,12 +26,12 @@ def env_int(name: str, default: int, *, minimum: int | None = None) -> int:
     try:
         value = int(raw)
     except ValueError as exc:
-        raise ActionFailure(
+        raise ActionError(
             "vpn_network_error",
             f"{name} must be an integer, got {raw!r}",
         ) from exc
     if minimum is not None and value < minimum:
-        raise ActionFailure(
+        raise ActionError(
             "vpn_network_error",
             f"{name} must be >= {minimum}, got {value}",
         )
@@ -61,7 +61,7 @@ def run_command(
 
 
 def run_quiet(cmd: list[str], *, timeout: float | None = None) -> None:
-    try:
+    with suppress(subprocess.TimeoutExpired, OSError):
         subprocess.run(
             cmd,
             check=False,
@@ -70,8 +70,6 @@ def run_quiet(cmd: list[str], *, timeout: float | None = None) -> None:
             timeout=timeout,
             text=True,
         )
-    except (subprocess.TimeoutExpired, OSError):
-        pass
 
 
 def read_text(path: Path) -> str:
@@ -85,12 +83,15 @@ def parse_quarantined_servers(raw: str) -> tuple[str, ...]:
     try:
         payload = json.loads(raw or "[]")
     except json.JSONDecodeError as exc:
-        raise ActionFailure(
+        raise ActionError(
             "vpn_network_error",
             f"invalid quarantined-servers-json input: {exc}",
         ) from exc
     if not isinstance(payload, list):
-        raise ActionFailure("vpn_network_error", "quarantined-servers-json must decode to a JSON array")
+        raise ActionError(
+            "vpn_network_error",
+            "quarantined-servers-json must decode to a JSON array",
+        )
     seen: set[str] = set()
     values: list[str] = []
     for value in payload:
@@ -119,7 +120,7 @@ class NordVpnConnectAction:
         self.connect_timeout = env_int("CONNECT_TIMEOUT_SECONDS", 90, minimum=30)
         self.overall_timeout = env_int("OVERALL_TIMEOUT_SECONDS", 300, minimum=30)
         if self.overall_timeout < self.connect_timeout:
-            raise ActionFailure(
+            raise ActionError(
                 "vpn_network_error",
                 "OVERALL_TIMEOUT_SECONDS must be >= CONNECT_TIMEOUT_SECONDS",
             )
@@ -129,7 +130,9 @@ class NordVpnConnectAction:
         self.technology = os.environ.get("TECHNOLOGY", "openvpn_udp").strip() or "openvpn_udp"
         self.fallback_technology = os.environ.get("FALLBACK_TECHNOLOGY", "openvpn_tcp").strip()
         self.verify_url = os.environ.get("VERIFY_URL", "https://api.ipify.org?format=json").strip()
-        self.require_full_tunnel = os.environ.get("REQUIRE_FULL_TUNNEL", "true").strip().lower() == "true"
+        self.require_full_tunnel = (
+            os.environ.get("REQUIRE_FULL_TUNNEL", "true").strip().lower() == "true"
+        )
         self.quarantined_servers = parse_quarantined_servers(
             os.environ.get("QUARANTINED_SERVERS_JSON", "[]")
         )
@@ -148,7 +151,7 @@ class NordVpnConnectAction:
 
     def ensure_budget(self, label: str, *, minimum: float = 5.0) -> None:
         if self.remaining_budget() <= minimum:
-            raise ActionFailure(
+            raise ActionError(
                 "vpn_connect_timeout",
                 f"{label} skipped because the VPN connection budget is exhausted",
             )
@@ -173,10 +176,8 @@ class NordVpnConnectAction:
             self.baseline_file,
             self.auth_file,
         ):
-            try:
+            with suppress(FileNotFoundError):
                 path.unlink()
-            except FileNotFoundError:
-                pass
 
     def cleanup_openvpn(self) -> None:
         pid = ""
@@ -186,10 +187,8 @@ class NordVpnConnectAction:
             run_quiet(["sudo", "kill", pid], timeout=10)
             time.sleep(2)
             run_quiet(["sudo", "kill", "-9", pid], timeout=10)
-        try:
+        with suppress(FileNotFoundError):
             self.pid_file.unlink()
-        except FileNotFoundError:
-            pass
 
     def retry_http_get(self, label: str, output_path: Path, url: str, *extra_args: str) -> bool:
         attempts = 3
@@ -241,11 +240,13 @@ class NordVpnConnectAction:
             sleep_for = attempt * 5
             if self.remaining_budget() <= sleep_for + 5:
                 print(
-                    f"::error::{label} failed ({status_text}) and retrying would exceed the VPN connection budget"
+                    f"::error::{label} failed ({status_text}) and retrying would "
+                    "exceed the VPN connection budget"
                 )
                 return False
             print(
-                f"::warning::{label} failed ({status_text}); retrying in {sleep_for}s ({attempt}/{attempts})"
+                f"::warning::{label} failed ({status_text}); retrying in "
+                f"{sleep_for}s ({attempt}/{attempts})"
             )
             time.sleep(sleep_for)
         return False
@@ -306,18 +307,24 @@ class NordVpnConnectAction:
                     check=False,
                 )
             except subprocess.TimeoutExpired as exc:
-                raise ActionFailure(
+                raise ActionError(
                     "vpn_connect_timeout",
                     f"Failed while preparing OpenVPN dependencies ({label})",
                 ) from exc
             if result.returncode != 0:
-                raise ActionFailure(
+                raise ActionError(
                     "vpn_connect_timeout",
                     f"Failed while preparing OpenVPN dependencies ({label})",
                 )
 
     def determine_baseline_ip(self) -> None:
-        if self.retry_http_get("Baseline exit IP probe", self.baseline_file, self.verify_url, "--max-time", "10"):
+        if self.retry_http_get(
+            "Baseline exit IP probe",
+            self.baseline_file,
+            self.verify_url,
+            "--max-time",
+            "10",
+        ):
             try:
                 payload = json.loads(self.baseline_file.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
@@ -336,7 +343,7 @@ class NordVpnConnectAction:
 
         if openvpn_user or openvpn_password:
             if not openvpn_user or not openvpn_password:
-                raise ActionFailure(
+                raise ActionError(
                     "vpn_auth_failure",
                     "Both OPENVPN_USER and OPENVPN_PASSWORD secrets are required",
                 )
@@ -351,27 +358,27 @@ class NordVpnConnectAction:
                 "-u",
                 f"token:{token}",
             ):
-                raise ActionFailure(
+                raise ActionError(
                     "vpn_auth_failure",
                     "Failed to fetch NordVPN OpenVPN credentials",
                 )
             try:
                 payload = json.loads(self.creds_file.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as exc:
-                raise ActionFailure(
+                raise ActionError(
                     "vpn_auth_failure",
                     "Failed to decode NordVPN OpenVPN credentials",
                 ) from exc
             user = str(payload.get("username") or "").strip()
             password = str(payload.get("password") or "").strip()
         else:
-            raise ActionFailure(
+            raise ActionError(
                 "vpn_auth_failure",
                 "Provide OPENVPN_USER and OPENVPN_PASSWORD secrets or NORDVPN_TOKEN",
             )
 
         if not user or not password:
-            raise ActionFailure("vpn_auth_failure", "Failed to derive NordVPN credentials")
+            raise ActionError("vpn_auth_failure", "Failed to derive NordVPN credentials")
 
         print(f"::add-mask::{user}")
         print(f"::add-mask::{password}")
@@ -379,7 +386,10 @@ class NordVpnConnectAction:
         self.auth_file.chmod(0o600)
 
     def recommendation_servers(self, technology: str) -> list[str]:
-        recommendation_limit = max(self.server_limit, self.server_limit + len(self.quarantined_servers))
+        recommendation_limit = max(
+            self.server_limit,
+            self.server_limit + len(self.quarantined_servers),
+        )
         url = (
             "https://api.nordvpn.com/v1/servers/recommendations"
             f"?limit={recommendation_limit}"
@@ -420,7 +430,10 @@ class NordVpnConnectAction:
             return f"https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/{server}.udp.ovpn"
         if technology == "openvpn_tcp":
             return f"https://downloads.nordcdn.com/configs/files/ovpn_tcp/servers/{server}.tcp.ovpn"
-        raise ActionFailure("vpn_network_error", f"Unsupported NordVPN technology identifier: {technology}")
+        raise ActionError(
+            "vpn_network_error",
+            f"Unsupported NordVPN technology identifier: {technology}",
+        )
 
     def verify_connection(self, interface: str) -> bool:
         route_ok = True
@@ -431,7 +444,13 @@ class NordVpnConnectAction:
             )
         if not route_ok:
             return False
-        if not self.retry_http_get("VPN verification probe", self.verify_file, self.verify_url, "--max-time", "10"):
+        if not self.retry_http_get(
+            "VPN verification probe",
+            self.verify_file,
+            self.verify_url,
+            "--max-time",
+            "10",
+        ):
             return False
         try:
             payload = json.loads(self.verify_file.read_text(encoding="utf-8"))
@@ -450,10 +469,8 @@ class NordVpnConnectAction:
         self.append_unique(self.attempted_servers, server)
         config_path = self.work_dir / f"{server}.ovpn"
         for path in (self.pid_file, self.verify_file, self.log_file, config_path):
-            try:
+            with suppress(FileNotFoundError):
                 path.unlink()
-            except FileNotFoundError:
-                pass
 
         if not self.retry_http_get(
             f"NordVPN OpenVPN config download for {server} ({technology})",
@@ -486,15 +503,17 @@ class NordVpnConnectAction:
             )
         except subprocess.TimeoutExpired as exc:
             self.append_unique(self.failed_servers, server)
-            raise ActionFailure(
+            raise ActionError(
                 "vpn_connect_timeout",
-                f"OpenVPN launch exceeded the remaining VPN connection budget for {server} over {technology}",
+                "OpenVPN launch exceeded the remaining VPN connection budget "
+                f"for {server} over {technology}",
             ) from exc
         if result.returncode != 0:
             self.append_unique(self.failed_servers, server)
-            raise ActionFailure(
+            raise ActionError(
                 "vpn_connect_timeout",
-                f"OpenVPN launch failed for {server} over {technology} with exit code {result.returncode}",
+                f"OpenVPN launch failed for {server} over {technology} "
+                f"with exit code {result.returncode}",
             )
 
         self.make_workdir_readable()
@@ -505,11 +524,16 @@ class NordVpnConnectAction:
             if self.auth_failed_in_log():
                 auth_failed = True
                 print(
-                    f"::warning::NordVPN rejected the OpenVPN credentials for {server} over {technology}; trying the next recommended server"
+                    "::warning::NordVPN rejected the OpenVPN credentials "
+                    f"for {server} over {technology}; trying the next recommended server"
                 )
                 break
 
-            pid = self.pid_file.read_text(encoding="utf-8", errors="replace").strip() if self.pid_file.exists() else ""
+            pid = (
+                self.pid_file.read_text(encoding="utf-8", errors="replace").strip()
+                if self.pid_file.exists()
+                else ""
+            )
             if pid and self.pid_alive(pid) and self.initialization_complete():
                 interface = self.get_interface()
                 if interface and self.verify_connection(interface):
@@ -526,7 +550,10 @@ class NordVpnConnectAction:
             self.cleanup_openvpn()
             return False
 
-        print(f"::warning::VPN verification failed for {server} over {technology}; trying the next recommended server")
+        print(
+            f"::warning::VPN verification failed for {server} over {technology}; "
+            "trying the next recommended server"
+        )
         self.make_workdir_readable()
         if self.log_file.exists():
             run_quiet(["sudo", "tail", "-20", str(self.log_file)], timeout=10)
@@ -554,7 +581,9 @@ class NordVpnConnectAction:
             for server in servers:
                 if self.attempt_server(server, technology):
                     print(
-                        f"::notice::VPN connected — server: {server}, technology: {technology}, interface: {self.interface}, exit IP: {self.exit_ip}"
+                        f"::notice::VPN connected — server: {server}, "
+                        f"technology: {technology}, interface: {self.interface}, "
+                        f"exit IP: {self.exit_ip}"
                     )
                     write_output("server", self.server)
                     write_output("exit-ip", self.exit_ip)
@@ -570,15 +599,24 @@ class NordVpnConnectAction:
             run_quiet(["sudo", "tail", "-50", str(self.log_file)], timeout=10)
 
         if self.remaining_budget() <= 0:
-            raise ActionFailure("vpn_connect_timeout", "VPN tunnel timed out before a verified connection was established")
+            raise ActionError(
+                "vpn_connect_timeout",
+                "VPN tunnel timed out before a verified connection was established",
+            )
         if saw_auth_failure:
-            raise ActionFailure(
+            raise ActionError(
                 "vpn_auth_failure",
                 "NordVPN rejected the OpenVPN credentials on every attempted recommended server",
             )
         if not attempted_network:
-            raise ActionFailure("vpn_network_error", "VPN tunnel failed before any server attempt could be made")
-        raise ActionFailure("vpn_network_error", "VPN tunnel failed to establish with the recommended servers")
+            raise ActionError(
+                "vpn_network_error",
+                "VPN tunnel failed before any server attempt could be made",
+            )
+        raise ActionError(
+            "vpn_network_error",
+            "VPN tunnel failed to establish with the recommended servers",
+        )
 
     def finalize(self) -> None:
         self.cleanup_sensitive()
@@ -592,7 +630,7 @@ def main() -> int:
     try:
         action = NordVpnConnectAction()
         return action.run()
-    except ActionFailure as exc:
+    except ActionError as exc:
         if action is None:
             write_output("status", exc.status)
             write_output("attempted-servers-json", "[]")
