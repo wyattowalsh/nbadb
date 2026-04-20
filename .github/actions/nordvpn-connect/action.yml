@@ -707,7 +707,39 @@ runs:
 
         set +e
         rm -f "$outer_guard_flag"
-        timeout --foreground --signal=TERM --kill-after=20 "$outer_shell_timeout" bash "$outer_script_file"
+        python3 - "$outer_shell_timeout" "$outer_script_file" <<'PY'
+        import os
+        import signal
+        import subprocess
+        import sys
+        import time
+
+        timeout_seconds = int(sys.argv[1])
+        script_path = sys.argv[2]
+
+        proc = subprocess.Popen(["bash", script_path], start_new_session=True)
+        deadline = time.monotonic() + timeout_seconds
+
+        while True:
+          rc = proc.poll()
+          if rc is not None:
+            raise SystemExit(rc)
+
+          if time.monotonic() >= deadline:
+            print("::error::NordVPN connection action exceeded the outer guard timeout", flush=True)
+            try:
+              os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+              pass
+            time.sleep(10)
+            try:
+              os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+              pass
+            raise SystemExit(124)
+
+          time.sleep(1)
+        PY
         action_rc=$?
         rm -f "$outer_script_file"
         if [ "$action_rc" -eq 124 ] || [ "$action_rc" -eq 137 ]; then
