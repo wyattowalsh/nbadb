@@ -132,6 +132,10 @@ runs:
         set -euo pipefail
 
         self_pid="${BASHPID:-$$}"
+        self_pgid="$(ps -o pgid= -p "$self_pid" 2>/dev/null | tr -d '[:space:]')"
+        if [ -z "$self_pgid" ]; then
+          self_pgid="$self_pid"
+        fi
         watchdog_pid=""
 
         cleanup_watchdog() {
@@ -316,9 +320,23 @@ runs:
         (
           sleep "$overall_timeout"
           echo "::error::NordVPN action exceeded the internal ${overall_timeout}s watchdog budget"
-          kill -TERM "$self_pid" 2>/dev/null || true
-          sleep 5
-          kill -KILL "$self_pid" 2>/dev/null || true
+          python3 - "$self_pgid" <<'PY'
+        import os
+        import signal
+        import sys
+        import time
+
+        pgid = int(sys.argv[1])
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        time.sleep(5)
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        PY
         ) &
         watchdog_pid=$!
 
