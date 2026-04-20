@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import time
 from contextlib import suppress
@@ -51,24 +52,56 @@ def run_command(
     capture_output: bool = True,
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    stdout_target: int = subprocess.PIPE if capture_output else subprocess.DEVNULL
+    stderr_target: int = subprocess.PIPE if capture_output else subprocess.DEVNULL
+    process = subprocess.Popen(
         cmd,
-        check=check,
         text=True,
-        capture_output=capture_output,
-        timeout=timeout,
+        stdout=stdout_target,
+        stderr=stderr_target,
+        start_new_session=True,
     )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+        raise subprocess.TimeoutExpired(
+            cmd=cmd,
+            timeout=timeout,
+            output=exc.output,
+            stderr=exc.stderr,
+        ) from exc
+
+    completed = subprocess.CompletedProcess(
+        cmd,
+        process.returncode,
+        stdout,
+        stderr,
+    )
+    if check and completed.returncode != 0:
+        raise subprocess.CalledProcessError(
+            completed.returncode,
+            cmd,
+            output=completed.stdout,
+            stderr=completed.stderr,
+        )
+    return completed
 
 
 def run_quiet(cmd: list[str], *, timeout: float | None = None) -> None:
     with suppress(subprocess.TimeoutExpired, OSError):
-        subprocess.run(
+        run_command(
             cmd,
             check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
             timeout=timeout,
-            text=True,
+            capture_output=False,
         )
 
 

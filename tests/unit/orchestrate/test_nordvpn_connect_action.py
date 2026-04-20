@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -96,6 +99,38 @@ def test_pid_alive_returns_false_when_probe_times_out(
     monkeypatch.setattr(module, "run_command", _raise_timeout)
 
     assert action.pid_alive("12345") is False
+
+
+def test_run_command_kills_timed_out_process_groups(
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    script = """
+import subprocess
+import sys
+import time
+
+child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+print(child.pid, flush=True)
+time.sleep(60)
+"""
+
+    with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+        module.run_command([sys.executable, "-c", script], timeout=0.2)
+
+    output = (excinfo.value.output or "").strip()
+    assert output
+    child_pid = int(output.splitlines()[0])
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.kill(child_pid, 0)
+        except OSError:
+            break
+        time.sleep(0.1)
+    else:
+        pytest.fail(f"child process {child_pid} survived the timed-out process group")
 
 
 def test_main_writes_bounded_outputs_for_init_time_action_failure(
