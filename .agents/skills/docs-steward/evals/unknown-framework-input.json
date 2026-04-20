@@ -1,0 +1,16 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward framework hugo maintain",
+  "files": [
+    "docs/config.toml",
+    "docs/content/getting-started.md"
+  ],
+  "expected_behavior": [
+    "Agent detects unsupported framework override (hugo) for framework-targeted mode",
+    "Agent lists supported framework targets (astro/starlight, docusaurus, fumadocs, sphinx, mkdocs)",
+    "Agent asks user to choose a supported framework or use auto detection",
+    "Agent does not run framework-specific maintain diagnostics until target is valid"
+  ]
+}

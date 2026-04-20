@@ -1,0 +1,24 @@
+{
+  "resource": "franchiseleaders",
+  "resultSets": [
+    {
+      "name": "FranchiseLeaders",
+      "headers": [
+        "TEAM_ID", "PTS", "PTS_PERSON_ID", "PTS_PLAYER",
+        "AST", "AST_PERSON_ID", "AST_PLAYER",
+        "REB", "REB_PERSON_ID", "REB_PLAYER",
+        "BLK", "BLK_PERSON_ID", "BLK_PLAYER",
+        "STL", "STL_PERSON_ID", "STL_PLAYER"
+      ],
+      "rowSet": [
+        [
+          1610612747, 33643, 2544, "LeBron James",
+          10141, 600015, "Magic Johnson",
+          11463, 600015, "Magic Johnson",
+          2694, 600016, "Kareem Abdul-Jabbar",
+          1724, 600015, "Magic Johnson"
+        ]
+      ]
+    }
+  ]
+}

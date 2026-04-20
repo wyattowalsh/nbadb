@@ -1,0 +1,60 @@
+{
+  "format": "MADR",
+  "version": "3.0.0",
+  "reference": "https://adr.github.io/madr/",
+  "sections": [
+    {
+      "name": "Title",
+      "required": true,
+      "format": "# {number}. {title}",
+      "guidance": "Short noun phrase. Example: 'Use PostgreSQL for persistence'"
+    },
+    {
+      "name": "Date",
+      "required": true,
+      "format": "YYYY-MM-DD"
+    },
+    {
+      "name": "Status",
+      "required": true,
+      "values": ["Proposed", "Accepted", "Deprecated", "Superseded"],
+      "guidance": "New ADRs start as Proposed. Set Accepted after team review."
+    },
+    {
+      "name": "Context",
+      "required": true,
+      "guidance": "Describe the forces at play: technical constraints, business requirements, team capabilities. Be factual, not prescriptive."
+    },
+    {
+      "name": "Decision",
+      "required": true,
+      "guidance": "State the decision in active voice: 'We will use X because Y.' Include alternatives considered briefly."
+    },
+    {
+      "name": "Consequences",
+      "required": true,
+      "subsections": ["Positive", "Negative", "Neutral"],
+      "guidance": "List concrete, measurable consequences. Each item should be independently verifiable."
+    }
+  ],
+  "optional_sections": [
+    {
+      "name": "Deciders",
+      "guidance": "List people involved in the decision."
+    },
+    {
+      "name": "Options Considered",
+      "guidance": "Enumerate alternatives with pros/cons for each."
+    },
+    {
+      "name": "Links",
+      "guidance": "Related ADRs, issues, or external references."
+    }
+  ],
+  "file_naming": {
+    "pattern": "{number}-{slug}.md",
+    "number_format": "zero-padded 4 digits",
+    "slug": "lowercase-kebab-case from title",
+    "example": "0042-use-postgresql-for-persistence.md"
+  }
+}

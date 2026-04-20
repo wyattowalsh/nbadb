@@ -1,0 +1,99 @@
+name: Daily Update
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 10 AM UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - name: Generate daily health inventory
+        run: |
+          output_path="${GITHUB_WORKSPACE}/artifacts/health/daily/dependency-inventory.json"
+          uv run python -m nbadb.core.dependency_inventory --project-root "${GITHUB_WORKSPACE}" --output "$output_path"
+      - name: Upload daily health inventory artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: daily-health-inventory
+          path: artifacts/health/daily/dependency-inventory.json
+      - name: Connect NordVPN tunnel
+        id: vpn
+        uses: ./.github/actions/nordvpn-connect
+        with:
+          openvpn-user: ${{ secrets.OPENVPN_USER }}
+          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
+          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
+          shard-index: "0"
+          server-limit: "3"
+      - name: Set rate limit for daily runs
+        run: echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV"
+      - name: Download latest from Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: uv run nbadb download
+      - name: Run daily extraction
+        id: daily
+        continue-on-error: true
+        run: uv run nbadb daily
+      # Scan is advisory — continue-on-error ensures export/upload proceeds.
+      # --fail-on error produces exit 1 for annotations; the step shows yellow on errors.
+      - name: Scan data quality
+        id: scan
+        if: always() && steps.daily.outcome != 'skipped'
+        continue-on-error: true
+        uses: ./.github/actions/scan-report
+        with:
+          report-name: daily-scan-report
+          report-dir: artifacts/health/daily
+          fail-on: error
+      - name: Export data
+        if: always() && steps.daily.outcome != 'skipped'
+        run: uv run nbadb export
+      - name: Refresh checked-in metadata
+        if: always() && steps.daily.outcome != 'skipped'
+        uses: ./.github/actions/refresh-metadata
+        with:
+          data-dir: data/nbadb
+      - name: Upload to Kaggle
+        if: always() && steps.daily.outcome != 'skipped'
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: uv run nbadb upload
+      - name: Disconnect VPN
+        if: always()
+        uses: ./.github/actions/nordvpn-disconnect
+        with:
+          pid: ${{ steps.vpn.outputs.pid }}
+          pid-file: ${{ steps.vpn.outputs.pid-file }}
+          work-dir: ${{ steps.vpn.outputs.work-dir }}
+      - name: Upload VPN diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: daily-vpn-diagnostics
+          path: ${{ runner.temp }}/nordvpn/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6

@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "CI headless run: /docs-steward auto on this monorepo with Docusaurus and MkDocs; prompts are disabled.",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "docs/mkdocs.yml",
+    "docs/docs/index.md"
+  ],
+  "expected_behavior": [
+    "Agent detects multiple frameworks and recognizes non-interactive/headless execution constraints",
+    "Agent applies Headless Fallback Contract and runs read-only Maintain in matrix style across detected frameworks",
+    "Agent processes frameworks in deterministic order and emits a headless fallback warning",
+    "Agent skips mutating modes until an explicit framework target is provided"
+  ]
+}

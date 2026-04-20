@@ -1,0 +1,23 @@
+{
+  "title": "Guides",
+  "pages": [
+    "whats-new",
+    "---Onboarding---",
+    "role-based-onboarding-hub",
+    "---Tutorials---",
+    "reading-the-schema",
+    "analytics-quickstart",
+    "duckdb-queries",
+    "player-comparison",
+    "shot-chart-analysis",
+    "parquet-usage",
+    "---Operations---",
+    "kaggle-setup",
+    "daily-updates",
+    "---Troubleshooting---",
+    "troubleshooting-playbook",
+    "---Maintainers only (internal)---",
+    "visual-asset-prompt-pack",
+    "strategic-shift-rollout"
+  ]
+}

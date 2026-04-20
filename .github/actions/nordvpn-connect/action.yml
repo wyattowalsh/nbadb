@@ -1,0 +1,118 @@
+name: Connect NordVPN
+description: Establish a verified NordVPN OpenVPN tunnel with deterministic server selection and fallback.
+
+inputs:
+  openvpn-user:
+    description: NordVPN OpenVPN service username.
+    required: false
+    default: ""
+  openvpn-password:
+    description: NordVPN OpenVPN service password.
+    required: false
+    default: ""
+  nordvpn-token:
+    description: NordVPN access token used to fetch OpenVPN credentials.
+    required: false
+    default: ""
+  lane-index:
+    description: Zero-based lane index used to deterministically choose the first recommended server.
+    required: false
+    default: ""
+  shard-index:
+    description: Legacy alias for lane-index.
+    required: false
+    default: "0"
+  server-limit:
+    description: Number of recommended servers to fetch for selection and fallback.
+    required: false
+    default: "4"
+  quarantined-servers-json:
+    description: JSON array of NordVPN server hostnames to avoid for this chain.
+    required: false
+    default: "[]"
+  country-id:
+    description: NordVPN country identifier.
+    required: false
+    default: "228"
+  technology:
+    description: Preferred NordVPN technology identifier.
+    required: false
+    default: "openvpn_udp"
+  fallback-technology:
+    description: Optional fallback NordVPN technology identifier when the preferred one fails.
+    required: false
+    default: "openvpn_tcp"
+  verify-url:
+    description: URL that returns the public exit IP as JSON.
+    required: false
+    default: "https://api.ipify.org?format=json"
+  connect-timeout-seconds:
+    description: Maximum time to wait for an individual OpenVPN connection attempt.
+    required: false
+    default: "90"
+  overall-timeout-seconds:
+    description: Maximum total time to spend establishing a verified VPN tunnel.
+    required: false
+    default: "300"
+  require-full-tunnel:
+    description: Whether to require the default route to move onto the VPN tunnel.
+    required: false
+    default: "true"
+
+outputs:
+  baseline-ip:
+    description: Public IP before connecting.
+    value: ${{ steps.connect.outputs.baseline-ip }}
+  exit-ip:
+    description: Public IP after connecting.
+    value: ${{ steps.connect.outputs.exit-ip }}
+  interface:
+    description: Tunnel interface used by OpenVPN.
+    value: ${{ steps.connect.outputs.interface }}
+  log-file:
+    description: OpenVPN log path.
+    value: ${{ steps.connect.outputs.log-file }}
+  pid:
+    description: OpenVPN process ID.
+    value: ${{ steps.connect.outputs.pid }}
+  pid-file:
+    description: OpenVPN PID file path.
+    value: ${{ steps.connect.outputs.pid-file }}
+  server:
+    description: Selected NordVPN server hostname.
+    value: ${{ steps.connect.outputs.server }}
+  status:
+    description: Connection result code.
+    value: ${{ steps.connect.outputs.status }}
+  attempted-servers-json:
+    description: JSON array of server hostnames attempted during this invocation.
+    value: ${{ steps.connect.outputs.attempted-servers-json }}
+  failed-servers-json:
+    description: JSON array of attempted server hostnames that failed verification.
+    value: ${{ steps.connect.outputs.failed-servers-json }}
+  work-dir:
+    description: Directory containing VPN diagnostics.
+    value: ${{ steps.connect.outputs.work-dir }}
+
+runs:
+  using: composite
+  steps:
+    - id: connect
+      shell: bash
+      env:
+        OPENVPN_USER: ${{ inputs.openvpn-user }}
+        OPENVPN_PASSWORD: ${{ inputs.openvpn-password }}
+        NORDVPN_TOKEN: ${{ inputs.nordvpn-token }}
+        LANE_INDEX: ${{ inputs.lane-index }}
+        SHARD_INDEX: ${{ inputs.shard-index }}
+        SERVER_LIMIT: ${{ inputs.server-limit }}
+        QUARANTINED_SERVERS_JSON: ${{ inputs.quarantined-servers-json }}
+        COUNTRY_ID: ${{ inputs.country-id }}
+        TECHNOLOGY: ${{ inputs.technology }}
+        FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}
+        VERIFY_URL: ${{ inputs.verify-url }}
+        CONNECT_TIMEOUT_SECONDS: ${{ inputs.connect-timeout-seconds }}
+        OVERALL_TIMEOUT_SECONDS: ${{ inputs.overall-timeout-seconds }}
+        REQUIRE_FULL_TUNNEL: ${{ inputs.require-full-tunnel }}
+      run: |
+        python3 "$GITHUB_ACTION_PATH/connect.py"

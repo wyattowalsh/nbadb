@@ -1,0 +1,19 @@
+{
+  "title": "Arena Data Lab",
+  "pages": [
+    "---Getting Started---",
+    "index",
+    "installation",
+    "architecture",
+    "cli-reference",
+    "---Reference---",
+    "...schema",
+    "...data-dictionary",
+    "...diagrams",
+    "...endpoints",
+    "...lineage",
+    "---Guides---",
+    "playground",
+    "...guides"
+  ]
+}

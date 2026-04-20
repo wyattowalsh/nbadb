@@ -1,0 +1,19 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward auto",
+  "files": [
+    "apps/docs/astro.config.mjs",
+    "apps/docs/src/content/docs/getting-started.md",
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "package.json"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode A (Auto)",
+    "Agent runs framework detection using references/framework-detection.md",
+    "If multiple frameworks are detected, agent asks user to choose for this run",
+    "Agent does not assume a global-install workflow and stays project-local"
+  ]
+}

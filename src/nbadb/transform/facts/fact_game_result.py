@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+from typing import ClassVar
+
+from nbadb.transform.base import SqlTransformer
+
+
+class FactGameResultTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_game_result"
+    depends_on: ClassVar[list[str]] = ["stg_league_game_log", "stg_line_score"]
+
+    _SQL: ClassVar[str] = """
+        SELECT
+            g.game_id,
+            g.game_date,
+            g.season_year,
+            g.season_type,
+            g.home_team_id,
+            g.visitor_team_id,
+            g.wl_home,
+            g.pts_home,
+            g.pts_away,
+            g.plus_minus_home,
+            g.plus_minus_away,
+            l.pts_qtr1_home, l.pts_qtr2_home,
+            l.pts_qtr3_home, l.pts_qtr4_home,
+            l.pts_ot1_home, l.pts_ot2_home,
+            l.pts_qtr1_away, l.pts_qtr2_away,
+            l.pts_qtr3_away, l.pts_qtr4_away,
+            l.pts_ot1_away, l.pts_ot2_away
+        FROM stg_league_game_log g
+        LEFT JOIN stg_line_score l ON g.game_id = l.game_id
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY g.game_id
+            ORDER BY g.season_year DESC, g.game_date DESC
+        ) = 1
+    """

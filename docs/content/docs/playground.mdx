@@ -1,0 +1,128 @@
+---
+title: SQL Playground
+description: Browser-first DuckDB-WASM sandbox for rehearsing nbadb query shapes without a local database.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import {
+  BUILT_IN_DEFAULT_QUERY,
+  BUILT_IN_EXAMPLES,
+  PARQUET_DEFAULT_QUERY,
+  PARQUET_EXAMPLES,
+  PARQUET_FALLBACK_DEFAULT_QUERY,
+  PARQUET_FALLBACK_EXAMPLES,
+  PARQUET_TABLES,
+  SAMPLE_DATA_AVAILABLE,
+} from "@/lib/playground-examples";
+
+# SQL Playground
+
+Use this page when you want to rehearse a query shape, teach DuckDB syntax, or sanity-check a possession before you open a local `nba.duckdb` file. This is the **no-install warm-up lane** linked from the Guides hub and the Role-Based Onboarding Hub. Everything here runs in-browser with DuckDB-WASM, so the examples are fast, disposable, and safe to modify.
+
+<StatGrid columns={4}>
+  <StatPill
+    label="Runs in"
+    value="Browser tab"
+    note="DuckDB-WASM loads on demand and stays local to this session"
+  />
+  <StatPill
+    label="Best for"
+    value="Query rehearsal"
+    note="practice joins, CTEs, aggregates, and window functions before touching the warehouse"
+  />
+  <StatPill
+    label="Data mode"
+    value="Self-contained"
+    note="sample NBA-flavored rows are embedded directly in the example SQL"
+  />
+  <StatPill
+    label="Next move"
+    value="Live data"
+    note="jump to Analytics Quickstart or DuckDB Query Examples when you need the real nbadb surfaces"
+  />
+</StatGrid>
+
+<Callout type="info">
+  This sandbox does <strong>not</strong> mount your local nbadb warehouse
+  automatically. Use it to lock in the SQL structure first, then move to{" "}
+  <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>,{" "}
+  <a href="/docs/guides/duckdb-queries">DuckDB Query Examples</a>, or{" "}
+  <a href="/docs/guides/parquet-usage">Parquet Usage</a> when the question
+  shifts to real data.
+</Callout>
+
+## Start with a live drill
+
+<SqlPlayground
+  defaultQuery={BUILT_IN_DEFAULT_QUERY}
+  examples={BUILT_IN_EXAMPLES}
+/>
+
+## {SAMPLE_DATA_AVAILABLE ? "Query real NBA data" : "Practice the warehouse join shape"}
+
+<Callout type={SAMPLE_DATA_AVAILABLE ? "info" : "warn"}>
+  {SAMPLE_DATA_AVAILABLE ? (
+    <>
+      This playground loads sample Parquet files from the published nbadb
+      dataset directly into your browser. The first run downloads approximately
+      5 MB of data. After loading, you can run JOINs across tables and use the
+      **Chart** toggle to visualize results.
+    </>
+  ) : (
+    <>
+      Hosted sample Parquet files are not deployed right now. This drill keeps
+      the same nbadb table names and join patterns with inline demo rows, so the
+      page stays runnable in-browser until the sample dataset is published.
+    </>
+  )}
+</Callout>
+
+<SqlPlayground
+  tables={SAMPLE_DATA_AVAILABLE ? PARQUET_TABLES : undefined}
+  defaultQuery={
+    SAMPLE_DATA_AVAILABLE
+      ? PARQUET_DEFAULT_QUERY
+      : PARQUET_FALLBACK_DEFAULT_QUERY
+  }
+  examples={
+    SAMPLE_DATA_AVAILABLE ? PARQUET_EXAMPLES : PARQUET_FALLBACK_EXAMPLES
+  }
+/>
+
+## How to use this page well
+
+<DataColumns>
+  <InsightCard title="Practice the structure first">
+    Use this sandbox to get the SQL skeleton right: common table expressions,
+    filters, aggregates, joins, and window functions. Once the structure works,
+    port it to the real warehouse.
+  </InsightCard>
+  <InsightCard title="Stay honest about the data mode">
+    The example buttons load self-contained sample rows, not the full published
+    dataset. That keeps the page fast and makes every query reproducible without
+    a separate download step.
+  </InsightCard>
+  <InsightCard title="Upgrade the drill when ready">
+    Move to <a href="/docs/guides/analytics-quickstart">Analytics Quickstart</a>{" "}
+    for a real local `nba.duckdb` connection, or{" "}
+    <a href="/docs/guides/parquet-usage">Parquet Usage</a> if you want to point
+    DuckDB at exported files.
+  </InsightCard>
+</DataColumns>
+
+## Pick the right next stop
+
+| If this page helped you…                        | Go here next                                                        | Why                                                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| onboard a new analyst, contributor, or operator | [Role-Based Onboarding Hub](/docs/guides/role-based-onboarding-hub) | Pick the next page and first useful action by role instead of wandering the full docs tree |
+| rehearse query shapes without local setup       | [DuckDB Query Examples](/docs/guides/duckdb-queries)                | Copy the same patterns onto real nbadb tables and views                                    |
+| prove you are ready for live warehouse reads    | [Analytics Quickstart](/docs/guides/analytics-quickstart)           | Connect to the published DuckDB file and run a first analyst workflow                      |
+| work directly from exported files               | [Parquet Usage](/docs/guides/parquet-usage)                         | Point DuckDB or Polars at parquet artifacts instead of the bundled database                |
+| pick the right table before writing SQL         | [Schema Reference](/docs/schema)                                    | Lock in the fact, dimension, or analytics surface before scaling the query up              |
+
+<InsightCard title="How it works">
+  This page uses <a href="https://github.com/duckdb/duckdb-wasm">DuckDB-WASM</a>{" "}
+  to run a real SQL engine in your browser. The engine loads on first run, stays
+  inside your tab, and can also query tables registered from Parquet when a docs
+  page provides one.
+</InsightCard>

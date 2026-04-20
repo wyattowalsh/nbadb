@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward init docusaurus for this existing monorepo",
+  "files": [
+    "package.json",
+    "pnpm-workspace.yaml",
+    "apps/api/src/main.ts",
+    "README.md"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode I (Init) with explicit docusaurus target",
+    "Agent treats this as existing-codebase bootstrap work and keeps edits non-destructive",
+    "Agent loads references/init-sync-existing-repos.md and references/docusaurus.md before scaffold actions",
+    "Agent reports scaffold changes and recommends follow-up sync and maintain runs"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "Please run /docs-steward auto after these docs framework wiring changes.",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "website/docs/intro.md",
+    "package.json"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode A (Auto)",
+    "Agent classifies changes as structure/config from docs/framework config and navigation signals",
+    "Agent detects a single high-confidence framework target (docusaurus) and allows auto-sync",
+    "Agent routes structure/config triggers through Mode C (Sync) followed by Mode E (Maintain)"
+  ]
+}

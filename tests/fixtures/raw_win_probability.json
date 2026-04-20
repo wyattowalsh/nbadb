@@ -1,0 +1,31 @@
+{
+  "resource": "winprobabilitypbp",
+  "resultSets": [
+    {
+      "name": "WinProbPBP",
+      "headers": [
+        "GAME_ID", "EVENT_NUM", "HOME_PCT", "VISITOR_PCT",
+        "HOME_PTS", "VISITOR_PTS", "HOME_SCORE_MARGIN",
+        "PERIOD", "SECONDS_REMAINING",
+        "HOME_POSS_IND", "HOME_G", "DESCRIPTION",
+        "LOCATION", "DATE", "HOME_TEAM_ID", "HOME_TEAM_ABR"
+      ],
+      "rowSet": [
+        [
+          "0022400001", 0, 0.55, 0.45,
+          0, 0, 0,
+          1, 720,
+          true, 1, "Game Start",
+          "LAL", "2024-10-22", 1610612747, "LAL"
+        ],
+        [
+          "0022400001", 2, 0.52, 0.48,
+          0, 0, 0,
+          1, 700,
+          false, 1, "Jump Ball",
+          "LAL", "2024-10-22", 1610612747, "LAL"
+        ]
+      ]
+    }
+  ]
+}

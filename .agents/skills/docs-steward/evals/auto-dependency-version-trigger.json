@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "Please run /docs-steward auto after docs dependency and lockfile version updates.",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "package.json",
+    "pnpm-lock.yaml"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode A (Auto)",
+    "Agent classifies changes as dependency/version from docs framework/theme/plugin dependency signals",
+    "Agent routes dependency/version triggers through Mode F (Research) + Mode C (Sync) + Mode E (Maintain)",
+    "Agent refreshes version evidence before updates, then reports research findings, sync actions, and maintain diagnostics"
+  ]
+}

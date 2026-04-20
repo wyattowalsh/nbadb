@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://nbadb.w4w.dev
+    about: Browse the nbadb documentation site
+  - name: Kaggle Dataset
+    url: https://www.kaggle.com/datasets/wyattowalsh/basketball
+    about: Access the published dataset on Kaggle
+  - name: Questions / Discussions
+    url: https://github.com/wyattowalsh/nbadb/discussions
+    about: Ask questions or start a discussion

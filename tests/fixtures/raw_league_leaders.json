@@ -1,0 +1,28 @@
+{
+  "resource": "leagueleaders",
+  "resultSets": [
+    {
+      "name": "LeagueLeaders",
+      "headers": [
+        "PLAYER_ID", "RANK", "PLAYER", "TEAM_ID", "TEAM",
+        "GP", "MIN", "FGM", "FGA", "FG_PCT",
+        "FG3M", "FG3A", "FG3_PCT",
+        "FTM", "FTA", "FT_PCT",
+        "OREB", "DREB", "REB", "AST",
+        "STL", "BLK", "TOV", "PF", "PTS",
+        "AST_TOV", "STL_TOV", "EFF"
+      ],
+      "rowSet": [
+        [
+          1629029, 1, "Luka Doncic", 1610612742, "DAL",
+          70, 36.0, 9.7, 21.4, 0.453,
+          2.9, 8.0, 0.357,
+          5.7, 6.9, 0.833,
+          0.7, 7.6, 8.3, 9.0,
+          1.4, 0.5, 4.0, 2.0, 28.0,
+          2.25, 0.35, 30.5
+        ]
+      ]
+    }
+  ]
+}

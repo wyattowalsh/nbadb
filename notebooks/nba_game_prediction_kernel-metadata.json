@@ -1,0 +1,15 @@
+{
+  "id": "wyattowalsh/nba-game-prediction",
+  "title": "Predicting NBA Game Outcomes: Stacked Ensemble",
+  "code_file": "nba_game_prediction.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "wyattowalsh/basketball"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

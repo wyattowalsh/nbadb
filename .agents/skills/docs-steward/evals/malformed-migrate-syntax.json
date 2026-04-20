@@ -1,0 +1,15 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward migrate sphinx to mkdocs",
+  "files": [
+    "docs/conf.py",
+    "docs/mkdocs.yml"
+  ],
+  "expected_behavior": [
+    "Agent detects malformed migrate syntax and expects `migrate <from> -> <to>`",
+    "Agent asks user to restate migration command with valid arrow syntax",
+    "Agent does not dispatch to migration execution until syntax is corrected"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "resource": "gamerotation",
+  "resultSets": [
+    {
+      "name": "HomeTeam",
+      "headers": [
+        "GAME_ID", "TEAM_ID", "TEAM_CITY", "TEAM_NAME",
+        "PERSON_ID", "PLAYER_FIRST", "PLAYER_LAST",
+        "IN_TIME_REAL", "OUT_TIME_REAL",
+        "PLAYER_PTS", "PT_DIFF", "USG_PCT"
+      ],
+      "rowSet": [
+        [
+          "0022400001", 1610612747, "Los Angeles", "Lakers",
+          2544, "LeBron", "James",
+          0.0, 72000.0,
+          10, 5, 0.28
+        ]
+      ]
+    },
+    {
+      "name": "AwayTeam",
+      "headers": [
+        "GAME_ID", "TEAM_ID", "TEAM_CITY", "TEAM_NAME",
+        "PERSON_ID", "PLAYER_FIRST", "PLAYER_LAST",
+        "IN_TIME_REAL", "OUT_TIME_REAL",
+        "PLAYER_PTS", "PT_DIFF", "USG_PCT"
+      ],
+      "rowSet": [
+        [
+          "0022400001", 1610612750, "Minnesota", "Timberwolves",
+          1630162, "Anthony", "Edwards",
+          0.0, 72000.0,
+          12, -5, 0.32
+        ]
+      ]
+    }
+  ]
+}

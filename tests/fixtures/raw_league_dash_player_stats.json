@@ -1,0 +1,32 @@
+{
+  "resource": "leaguedashplayerstats",
+  "resultSets": [
+    {
+      "name": "LeagueDashPlayerStats",
+      "headers": [
+        "PLAYER_ID", "PLAYER_NAME", "NICKNAME", "TEAM_ID",
+        "TEAM_ABBREVIATION", "AGE", "GP", "W", "L",
+        "W_PCT", "MIN", "FGM", "FGA", "FG_PCT",
+        "FG3M", "FG3A", "FG3_PCT",
+        "FTM", "FTA", "FT_PCT",
+        "OREB", "DREB", "REB", "AST", "TOV",
+        "STL", "BLK", "BLKA", "PF", "PFD",
+        "PTS", "PLUS_MINUS", "NBA_FANTASY_PTS",
+        "DD2", "TD3", "WNBA_FANTASY_PTS"
+      ],
+      "rowSet": [
+        [
+          1629029, "Luka Doncic", "Luka", 1610612742,
+          "DAL", 25, 70, 45, 25,
+          0.643, 2520.0, 680, 1500, 0.453,
+          200, 560, 0.357,
+          400, 480, 0.833,
+          50, 530, 580, 630, 280,
+          95, 35, 40, 140, 500,
+          1960, 350.0, 3500.0,
+          30, 10, null
+        ]
+      ]
+    }
+  ]
+}

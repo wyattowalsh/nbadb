@@ -1,0 +1,113 @@
+name: Model Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/baselines/model-audit-summary.json"
+      - ".github/workflows/model-audit.yml"
+      - "pyproject.toml"
+      - "src/nbadb/**"
+      - "tests/**"
+      - "uv.lock"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory-and-regressions:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          enable-cache: true
+          cache-suffix: model-audit
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync --extra dev
+
+      - name: Inventory consistency
+        run: uv run nbadb audit-models --mode inventory --strictness consistency --output-dir artifacts/model-audit/inventory
+
+      - name: Inventory no-regressions
+        run: |
+          uv run nbadb audit-models \
+            --mode inventory \
+            --strictness no-regressions \
+            --baseline .github/baselines/model-audit-summary.json \
+            --output-dir artifacts/model-audit/no-regressions
+
+      - name: Live canary probe
+        run: |
+          export NBADB_MODEL_AUDIT_PROBE_PROFILE=canary
+          uv run nbadb audit-models \
+            --mode probe \
+            --strictness consistency \
+            --output-dir artifacts/model-audit/canary
+
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(
+              Path("artifacts/model-audit/canary/live-probes.json").read_text(encoding="utf-8")
+          )
+          failures = [
+              record
+              for record in payload.get("records", [])
+              if record.get("decision") == "validation_gap"
+          ]
+          if failures:
+              print(f"Live canary probe failures: {len(failures)}")
+              for record in failures[:20]:
+                  print(f"- {record['key']}: {record['decision_reason']}")
+              sys.exit(1)
+          PY
+
+      - name: Upload model audit artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: model-audit-pr
+          path: artifacts/model-audit
+
+  full-audit:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+        with:
+          enable-cache: true
+          cache-suffix: model-audit-full
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync --extra dev
+
+      - name: Full model audit
+        run: uv run nbadb audit-models --mode full --strictness consistency --output-dir artifacts/model-audit/full
+
+      - name: Upload model audit artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: model-audit-full
+          path: artifacts/model-audit/full

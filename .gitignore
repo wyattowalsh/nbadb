@@ -1,0 +1,97 @@
+*_cache/
+.playwright-mcp/
+
+# Agent/editor caches and local tooling state
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual envs
+.venv/
+venv/
+
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Docs
+docs/.next/
+docs/node_modules/
+docs/out/
+docs/docs/
+*.tsbuildinfo
+
+# DuckDB
+*.duckdb.wal
+
+# Local exported datasets / pipeline output
+/data/nbadb/
+
+# Misc
+*.bak
+
+# Extraction data directories (local runs)
+.nbadb-data-*/
+artifacts/
+
+# Coverage artifacts
+coverage.json
+COVERAGE_METRICS.json
+
+# Credentials & secrets
+credentials.json
+*.pem
+*.key
+kaggle.json
+service-account*.json
+
+# AI agent / tool state
+.gemini/
+.specify/
+..bfg-report/
+.tasks.db
+todos.db
+copilot-session-*.md
+monitor_workflow.py
+workflow_chain_monitor_output.txt
+skills-lock.json
+.agents/skills/nerdbot/
+.claude/skills/nerdbot
+*-command-message*.txt
+
+# Legacy data directory (moved to /data/nbadb/)
+/nbadb/
+
+# Session transcripts and temp artifacts
+tmp-model-audit*/
+session*.txt
+sesh*.txt
+scripts/

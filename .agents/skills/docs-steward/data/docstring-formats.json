@@ -1,0 +1,33 @@
+{
+  "python": {
+    "google": {
+      "description": "Google-style docstrings",
+      "sections": ["Args", "Returns", "Raises", "Yields", "Examples", "Note", "Attributes"],
+      "example": "def foo(bar: int) -> str:\n    \"\"\"Summary line.\n\n    Args:\n        bar: Description of bar.\n\n    Returns:\n        A string result.\n    \"\"\""
+    },
+    "numpy": {
+      "description": "NumPy/SciPy-style docstrings",
+      "sections": ["Parameters", "Returns", "Raises", "See Also", "Notes", "References", "Examples"],
+      "example": "def foo(bar):\n    \"\"\"Summary line.\n\n    Parameters\n    ----------\n    bar : int\n        Description of bar.\n\n    Returns\n    -------\n    str\n        A string result.\n    \"\"\""
+    },
+    "sphinx": {
+      "description": "Sphinx reST-style docstrings",
+      "sections": [":param", ":type", ":returns", ":rtype", ":raises", ":example:"],
+      "example": "def foo(bar):\n    \"\"\"Summary line.\n\n    :param bar: Description of bar.\n    :type bar: int\n    :returns: A string result.\n    :rtype: str\n    \"\"\""
+    }
+  },
+  "javascript": {
+    "jsdoc": {
+      "description": "JSDoc standard format",
+      "tags": ["@param", "@returns", "@throws", "@example", "@type", "@typedef", "@callback", "@async"],
+      "example": "/**\n * Summary line.\n * @param {number} bar - Description of bar.\n * @returns {string} A string result.\n */"
+    }
+  },
+  "typescript": {
+    "tsdoc": {
+      "description": "TSDoc standard format (Microsoft)",
+      "tags": ["@param", "@returns", "@throws", "@example", "@remarks", "@defaultValue", "@typeParam"],
+      "example": "/**\n * Summary line.\n *\n * @param bar - Description of bar.\n * @returns A string result.\n */"
+    }
+  }
+}

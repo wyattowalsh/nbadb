@@ -1,0 +1,12 @@
+{
+  "skills": ["docs-steward"],
+  "query": "/docs-steward generate api wagents/",
+  "files": [],
+  "expected_behavior": [
+    "Routes to Mode J (Generate)",
+    "Runs api-surface-extractor.py on the target module",
+    "Runs doc-coverage-analyzer.py for coverage stats",
+    "Produces API reference markdown with signatures and docstrings",
+    "Flags undocumented public symbols"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "wyattowalsh/nba-shot-chart-analysis",
+  "title": "The Geography of Scoring: Shot Charts and the 3-Point Revolution",
+  "code_file": "nba_shot_chart_analysis.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "wyattowalsh/basketball"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

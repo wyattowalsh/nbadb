@@ -1,0 +1,15 @@
+{
+  "id": "wyattowalsh/nba-player-archetypes",
+  "title": "The 8 Types of NBA Player: Clustering Beyond Positions",
+  "code_file": "nba_player_archetypes.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "wyattowalsh/basketball"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

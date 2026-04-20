@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "docs-steward"
+  ],
+  "query": "/docs-steward matrix",
+  "files": [
+    "website/docusaurus.config.ts",
+    "website/sidebars.ts",
+    "docs/mkdocs.yml",
+    "docs/docs/index.md"
+  ],
+  "expected_behavior": [
+    "Agent dispatches to Mode G (Matrix)",
+    "Agent detects and runs across all frameworks in scope for this repository (docusaurus + mkdocs)",
+    "Agent keeps output grouped per framework and reports cross-framework conflicts",
+    "Agent does not collapse matrix execution into a single-framework workflow without explicit override"
+  ]
+}

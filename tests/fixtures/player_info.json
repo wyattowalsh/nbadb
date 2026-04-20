@@ -1,0 +1,19 @@
+{
+  "resultSets": [{
+    "name": "CommonPlayerInfo",
+    "headers": [
+      "PERSON_ID", "FIRST_NAME", "LAST_NAME", "DISPLAY_FIRST_LAST",
+      "BIRTHDATE", "SCHOOL", "COUNTRY", "HEIGHT", "WEIGHT",
+      "SEASON_EXP", "JERSEY", "POSITION", "TEAM_ID", "TEAM_NAME",
+      "TEAM_ABBREVIATION", "DRAFT_YEAR", "DRAFT_ROUND", "DRAFT_NUMBER"
+    ],
+    "rowSet": [
+      [
+        2544, "LeBron", "James", "LeBron James",
+        "1984-12-30T00:00:00", "St. Vincent-St. Mary HS (OH)", "USA", "6-9", "250",
+        21, "23", "Forward", 1610612747, "Lakers",
+        "LAL", 2003, 1, 1
+      ]
+    ]
+  }]
+}

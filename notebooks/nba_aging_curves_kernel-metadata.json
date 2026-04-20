@@ -1,0 +1,15 @@
+{
+  "id": "wyattowalsh/nba-aging-curves",
+  "title": "Peak Prime and Decline: NBA Career Trajectory Modeling",
+  "code_file": "nba_aging_curves.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "wyattowalsh/basketball"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
