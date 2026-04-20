@@ -707,17 +707,40 @@ runs:
 
         outer_runner_pid=""
 
+        signal_pid() {
+          local signal_name="$1"
+          local pid="$2"
+
+          kill "-${signal_name}" "$pid" 2>/dev/null || sudo kill "-${signal_name}" "$pid" 2>/dev/null || true
+        }
+
+        collect_descendant_pids() {
+          local parent_pid="$1"
+          local child_pid=""
+
+          while IFS= read -r child_pid; do
+            [ -n "$child_pid" ] || continue
+            collect_descendant_pids "$child_pid"
+            printf '%s\n' "$child_pid"
+          done < <(pgrep -P "$parent_pid" 2>/dev/null || true)
+        }
+
         terminate_outer_runner_tree() {
           local runner_pid="$1"
           local signal_name="$2"
+          local descendant_pid=""
+          local -a descendant_pids=()
 
-          pkill "-${signal_name}" -P "$runner_pid" 2>/dev/null || true
-          kill "-${signal_name}" "$runner_pid" 2>/dev/null || true
+          mapfile -t descendant_pids < <(collect_descendant_pids "$runner_pid")
+          for descendant_pid in "${descendant_pids[@]}"; do
+            signal_pid "$signal_name" "$descendant_pid"
+          done
+          signal_pid "$signal_name" "$runner_pid"
 
           if [ -f "$outer_pid_file" ]; then
             outer_pid="$(cat "$outer_pid_file" 2>/dev/null || true)"
             if [ -n "$outer_pid" ] && sudo kill -0 "$outer_pid" 2>/dev/null; then
-              sudo kill "-${signal_name}" "$outer_pid" 2>/dev/null || true
+              signal_pid "$signal_name" "$outer_pid"
             fi
           fi
         }
