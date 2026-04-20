@@ -705,46 +705,43 @@ runs:
         NBADB_NORDVPN_ACTION
         chmod 700 "$outer_script_file"
 
-        outer_guard_pid=""
         outer_runner_pid=""
-        outer_runner_pgid=""
 
-        start_outer_guard() {
-          (
-            sleep "$outer_shell_timeout"
-            : > "$outer_guard_flag"
-            echo "::error::NordVPN connection action exceeded the outer guard timeout"
-            if [ -n "${outer_runner_pgid:-}" ]; then
-              kill -TERM -- "-${outer_runner_pgid}" 2>/dev/null || true
-              sleep 15
-              kill -KILL -- "-${outer_runner_pgid}" 2>/dev/null || true
+        terminate_outer_runner_tree() {
+          local runner_pid="$1"
+          local signal_name="$2"
+
+          pkill "-${signal_name}" -P "$runner_pid" 2>/dev/null || true
+          kill "-${signal_name}" "$runner_pid" 2>/dev/null || true
+
+          if [ -f "$outer_pid_file" ]; then
+            outer_pid="$(cat "$outer_pid_file" 2>/dev/null || true)"
+            if [ -n "$outer_pid" ] && sudo kill -0 "$outer_pid" 2>/dev/null; then
+              sudo kill "-${signal_name}" "$outer_pid" 2>/dev/null || true
             fi
-          ) &
-          outer_guard_pid=$!
-        }
-
-        stop_outer_guard() {
-          if [ -n "${outer_guard_pid:-}" ]; then
-            kill "$outer_guard_pid" 2>/dev/null || true
-            wait "$outer_guard_pid" 2>/dev/null || true
-            outer_guard_pid=""
           fi
         }
 
         set +e
         rm -f "$outer_guard_flag"
-        setsid bash "$outer_script_file" &
+        bash "$outer_script_file" &
         outer_runner_pid=$!
-        outer_runner_pgid="$(ps -o pgid= "$outer_runner_pid" 2>/dev/null | tr -d '[:space:]')"
-        if [ -z "$outer_runner_pgid" ]; then
-          echo "::error::Failed to determine NordVPN outer runner process group"
-          rm -f "$outer_script_file"
-          exit 1
-        fi
-        start_outer_guard
+        action_deadline_epoch=$((SECONDS + outer_shell_timeout))
+        while kill -0 "$outer_runner_pid" 2>/dev/null; do
+          if [ "$SECONDS" -ge "$action_deadline_epoch" ]; then
+            : > "$outer_guard_flag"
+            echo "::error::NordVPN connection action exceeded the outer guard timeout"
+            terminate_outer_runner_tree "$outer_runner_pid" TERM
+            sleep 15
+            if kill -0 "$outer_runner_pid" 2>/dev/null; then
+              terminate_outer_runner_tree "$outer_runner_pid" KILL
+            fi
+            break
+          fi
+          sleep 2
+        done
         wait "$outer_runner_pid"
         action_rc=$?
-        stop_outer_guard
         rm -f "$outer_script_file"
         if [ -f "$outer_guard_flag" ]; then
           action_rc=124
