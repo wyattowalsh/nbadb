@@ -277,29 +277,29 @@ runs:
         chmod 700 "$work_dir"
 
         if ! python3 -c '
-import json
-import os
-import sys
+        import json
+        import os
+        import sys
 
-raw = os.environ.get("QUARANTINED_SERVERS_JSON", "[]")
-try:
-    payload = json.loads(raw)
-except json.JSONDecodeError as exc:
-    print(f"invalid quarantined-servers-json input: {exc}", file=sys.stderr)
-    sys.exit(1)
+        raw = os.environ.get("QUARANTINED_SERVERS_JSON", "[]")
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            print(f"invalid quarantined-servers-json input: {exc}", file=sys.stderr)
+            sys.exit(1)
 
-if not isinstance(payload, list):
-    print("quarantined-servers-json must decode to a JSON array", file=sys.stderr)
-    sys.exit(1)
+        if not isinstance(payload, list):
+            print("quarantined-servers-json must decode to a JSON array", file=sys.stderr)
+            sys.exit(1)
 
-seen = set()
-for value in payload:
-    hostname = str(value).strip()
-    if not hostname or hostname in seen:
-        continue
-    seen.add(hostname)
-    print(hostname)
-' > "$quarantine_list_file"
+        seen = set()
+        for value in payload:
+            hostname = str(value).strip()
+            if not hostname or hostname in seen:
+                continue
+            seen.add(hostname)
+            print(hostname)
+        ' > "$quarantine_list_file"
         then
           status="vpn_network_error"
           echo "::error::Failed to parse quarantined-servers-json"
