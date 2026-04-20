@@ -115,4 +115,21 @@ runs:
         OVERALL_TIMEOUT_SECONDS: ${{ inputs.overall-timeout-seconds }}
         REQUIRE_FULL_TUNNEL: ${{ inputs.require-full-tunnel }}
       run: |
-        python3 "$GITHUB_ACTION_PATH/connect.py"
+        set +e
+        action_timeout_seconds=$(( OVERALL_TIMEOUT_SECONDS + 30 ))
+        timeout --signal=TERM --kill-after=30 "${action_timeout_seconds}s" \
+          python3 "$GITHUB_ACTION_PATH/connect.py"
+        rc=$?
+        set -e
+
+        if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+          echo "::error::NordVPN action exceeded the outer action timeout (${action_timeout_seconds}s)"
+          {
+            echo "status=vpn_connect_timeout"
+            echo "attempted-servers-json=[]"
+            echo "failed-servers-json=[]"
+          } >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        exit "$rc"
