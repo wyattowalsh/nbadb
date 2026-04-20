@@ -320,18 +320,61 @@ runs:
         (
           sleep "$overall_timeout"
           echo "::error::NordVPN action exceeded the internal ${overall_timeout}s watchdog budget"
-          python3 - "$self_pgid" <<'PY'
+          python3 - "$self_pid" "$self_pgid" <<'PY'
         import os
         import signal
+        import subprocess
         import sys
         import time
 
-        pgid = int(sys.argv[1])
+        root_pid = int(sys.argv[1])
+        pgid = int(sys.argv[2])
+
+        def descendant_pids(root: int) -> list[int]:
+            try:
+                output = subprocess.check_output(
+                    ["ps", "-eo", "pid=", "-o", "ppid="], text=True
+                )
+            except subprocess.SubprocessError:
+                return []
+
+            children: dict[int, list[int]] = {}
+            for line in output.splitlines():
+                parts = line.split()
+                if len(parts) != 2:
+                    continue
+                pid, ppid = (int(parts[0]), int(parts[1]))
+                children.setdefault(ppid, []).append(pid)
+
+            ordered: list[int] = []
+            stack = [root]
+            seen: set[int] = set()
+            while stack:
+                current = stack.pop()
+                for child in children.get(current, []):
+                    if child in seen:
+                        continue
+                    seen.add(child)
+                    ordered.append(child)
+                    stack.append(child)
+            ordered.reverse()
+            return ordered
+
+        for pid in descendant_pids(root_pid):
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
         try:
             os.killpg(pgid, signal.SIGTERM)
         except ProcessLookupError:
             pass
         time.sleep(5)
+        for pid in descendant_pids(root_pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         try:
             os.killpg(pgid, signal.SIGKILL)
         except ProcessLookupError:
@@ -784,6 +827,37 @@ runs:
         def run_quiet(*cmd: str) -> None:
           subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
+        def descendant_pids(root: int) -> list[int]:
+          try:
+            output = subprocess.check_output(
+              ["ps", "-eo", "pid=", "-o", "ppid="],
+              text=True,
+            )
+          except subprocess.SubprocessError:
+            return []
+
+          children: dict[int, list[int]] = {}
+          for line in output.splitlines():
+            parts = line.split()
+            if len(parts) != 2:
+              continue
+            pid, ppid = (int(parts[0]), int(parts[1]))
+            children.setdefault(ppid, []).append(pid)
+
+          ordered: list[int] = []
+          stack = [root]
+          seen: set[int] = set()
+          while stack:
+            current = stack.pop()
+            for child in children.get(current, []):
+              if child in seen:
+                continue
+              seen.add(child)
+              ordered.append(child)
+              stack.append(child)
+          ordered.reverse()
+          return ordered
+
         proc = subprocess.Popen(["bash", script_path], start_new_session=True)
         deadline = time.monotonic() + timeout_seconds
 
@@ -794,11 +868,21 @@ runs:
 
           if time.monotonic() >= deadline:
             print("::error::NordVPN connection action exceeded the outer guard timeout", flush=True)
+            for pid in descendant_pids(proc.pid):
+              try:
+                os.kill(pid, signal.SIGTERM)
+              except ProcessLookupError:
+                pass
             try:
               os.killpg(proc.pid, signal.SIGTERM)
             except ProcessLookupError:
               pass
             time.sleep(10)
+            for pid in descendant_pids(proc.pid):
+              try:
+                os.kill(pid, signal.SIGKILL)
+              except ProcessLookupError:
+                pass
             try:
               os.killpg(proc.pid, signal.SIGKILL)
             except ProcessLookupError:
