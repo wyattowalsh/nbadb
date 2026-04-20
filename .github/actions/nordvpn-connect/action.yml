@@ -128,6 +128,17 @@ runs:
         timeout --foreground --kill-after=15 "$((outer_overall_timeout + 30))" bash <<'NBADB_NORDVPN_ACTION'
         set -euo pipefail
 
+        self_pid="${BASHPID:-$$}"
+        watchdog_pid=""
+
+        cleanup_watchdog() {
+          if [ -n "${watchdog_pid:-}" ]; then
+            kill "$watchdog_pid" 2>/dev/null || true
+            wait "$watchdog_pid" 2>/dev/null || true
+            watchdog_pid=""
+          fi
+        }
+
         retry_http_get() {
           local label="$1"
           local output="$2"
@@ -269,6 +280,14 @@ runs:
           exit 1
         fi
         action_deadline=$((SECONDS + overall_timeout))
+        (
+          sleep "$overall_timeout"
+          echo "::error::NordVPN action exceeded the internal ${overall_timeout}s watchdog budget"
+          kill -TERM "$self_pid" 2>/dev/null || true
+          sleep 5
+          kill -KILL "$self_pid" 2>/dev/null || true
+        ) &
+        watchdog_pid=$!
 
         quarantine_list_file="${work_dir}/quarantined-servers.txt"
 
@@ -326,6 +345,7 @@ runs:
         }
 
         on_exit() {
+          cleanup_watchdog
           attempted_servers_json="$(array_to_json "${attempted_servers[@]}")"
           failed_servers_json="$(array_to_json "${failed_servers[@]}")"
           cleanup_sensitive
