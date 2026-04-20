@@ -177,7 +177,7 @@ class TeamAndPlayersVsExtractor(BaseExtractor):
             vs_player_id4=vs_player_id4,
             vs_player_id5=vs_player_id5,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -210,5 +210,5 @@ class TeamAndPlayersVsExtractor(BaseExtractor):
             vs_player_id4=vs_player_id4,
             vs_player_id5=vs_player_id5,
             season=season,
-            season_type_all_star=season_type,
+            season_type_playoffs=season_type,
         )

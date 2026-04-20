@@ -218,6 +218,7 @@ from nbadb.extract.stats.team_info import (
     CommonTeamRosterExtractor,
     CommonTeamYearsExtractor,
     FranchiseHistoryExtractor,
+    TeamAndPlayersVsExtractor,
     TeamDetailsExtractor,
     TeamGameLogsExtractor,
     TeamInfoCommonExtractor,
@@ -566,6 +567,29 @@ class TestCrossProductParameterHandling:
 
         monkeypatch.setattr(ext, "_from_nba_api", _fake)
         await ext.extract(**params, season_type="Playoffs")
+
+        assert captured["season_type_playoffs"] == "Playoffs"
+        assert "season_type_all_star" not in captured
+
+    @pytest.mark.asyncio
+    async def test_team_and_players_vs_uses_season_type_playoffs(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = TeamAndPlayersVsExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured.update(kwargs)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(
+            team_id=1610612744,
+            vs_team_id=1610612738,
+            season="2024-25",
+            season_type="Playoffs",
+        )
 
         assert captured["season_type_playoffs"] == "Playoffs"
         assert "season_type_all_star" not in captured
