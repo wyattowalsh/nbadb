@@ -29,6 +29,7 @@ _RETRYABLE_ERROR_NAMES = frozenset(
         "ConnectTimeout",
         "ConnectionError",
         "ConnectionResetError",
+        "SSLError",
         "JSONDecodeError",
         "ChunkedEncodingError",
         "RemoteDisconnected",

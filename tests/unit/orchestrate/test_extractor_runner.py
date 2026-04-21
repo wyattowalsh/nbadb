@@ -751,6 +751,12 @@ class TestIsRetryable:
     def test_retryable_exceptions(self, exc_type):
         assert ExtractorRunner._is_retryable(exc_type("msg")) is True
 
+    def test_ssl_error_is_retryable(self):
+        class SSLError(Exception):
+            pass
+
+        assert ExtractorRunner._is_retryable(SSLError("msg")) is True
+
     @pytest.mark.parametrize(
         "exc_type",
         [ValueError, IndexError, TypeError],
