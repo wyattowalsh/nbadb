@@ -314,7 +314,21 @@ jobs:
           OVERALL_TIMEOUT_SECONDS: "120"
           REQUIRE_FULL_TUNNEL: "true"
         run: |
-          exec python3 .github/actions/nordvpn-connect/supervise.py
+          set +e
+          timeout --signal=TERM --kill-after=15s 150s \
+            python3 .github/actions/nordvpn-connect/supervise.py
+          rc=$?
+          set -e
+          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+            echo "::error::NordVPN preflight wrapper exceeded the outer workflow timeout"
+            {
+              echo "status=vpn_connect_timeout"
+              echo "attempted-servers-json=[]"
+              echo "failed-servers-json=[]"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          exit "$rc"
 
       - name: Summarize preflight VPN validation
         if: always()
@@ -482,7 +496,21 @@ jobs:
           OVERALL_TIMEOUT_SECONDS: "180"
           REQUIRE_FULL_TUNNEL: "true"
         run: |
-          exec python3 .github/actions/nordvpn-connect/supervise.py
+          set +e
+          timeout --signal=TERM --kill-after=15s 210s \
+            python3 .github/actions/nordvpn-connect/supervise.py
+          rc=$?
+          set -e
+          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+            echo "::error::NordVPN extract wrapper exceeded the outer workflow timeout"
+            {
+              echo "status=vpn_connect_timeout"
+              echo "attempted-servers-json=[]"
+              echo "failed-servers-json=[]"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          exit "$rc"
 
       # ── Configure environment ──
       - name: Configure extraction environment
