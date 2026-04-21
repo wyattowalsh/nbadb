@@ -298,17 +298,23 @@ jobs:
         id: vpn
         timeout-minutes: 3
         continue-on-error: true
-        uses: ./.github/actions/nordvpn-connect
-        with:
-          openvpn-user: ${{ secrets.OPENVPN_USER }}
-          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
-          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
-          lane-index: "0"
-          server-limit: "1"
-          fallback-technology: ""
-          connect-timeout-seconds: "30"
-          overall-timeout-seconds: "120"
-          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+        env:
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          LANE_INDEX: "0"
+          SHARD_INDEX: "0"
+          SERVER_LIMIT: "1"
+          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+          COUNTRY_ID: "228"
+          TECHNOLOGY: "openvpn_udp"
+          FALLBACK_TECHNOLOGY: ""
+          VERIFY_URL: "https://api.ipify.org?format=json"
+          CONNECT_TIMEOUT_SECONDS: "30"
+          OVERALL_TIMEOUT_SECONDS: "120"
+          REQUIRE_FULL_TUNNEL: "true"
+        run: |
+          exec python3 .github/actions/nordvpn-connect/supervise.py
 
       - name: Summarize preflight VPN validation
         if: always()
@@ -460,17 +466,23 @@ jobs:
         id: vpn
         if: ${{ !matrix.resume_only }}
         timeout-minutes: 4
-        uses: ./.github/actions/nordvpn-connect
-        with:
-          openvpn-user: ${{ secrets.OPENVPN_USER }}
-          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
-          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
-          lane-index: "0"
-          server-limit: "3"
-          fallback-technology: ""
-          connect-timeout-seconds: "30"
-          overall-timeout-seconds: "180"
-          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+        env:
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          LANE_INDEX: "0"
+          SHARD_INDEX: "0"
+          SERVER_LIMIT: "3"
+          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+          COUNTRY_ID: "228"
+          TECHNOLOGY: "openvpn_udp"
+          FALLBACK_TECHNOLOGY: ""
+          VERIFY_URL: "https://api.ipify.org?format=json"
+          CONNECT_TIMEOUT_SECONDS: "30"
+          OVERALL_TIMEOUT_SECONDS: "180"
+          REQUIRE_FULL_TUNNEL: "true"
+        run: |
+          exec python3 .github/actions/nordvpn-connect/supervise.py
 
       # ── Configure environment ──
       - name: Configure extraction environment
