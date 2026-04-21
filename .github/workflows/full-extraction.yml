@@ -535,6 +535,7 @@ jobs:
       - name: Run extraction
         id: extract
         if: ${{ !matrix.resume_only }}
+        timeout-minutes: 150
         env:
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
