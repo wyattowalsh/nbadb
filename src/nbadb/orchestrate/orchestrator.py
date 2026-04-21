@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol, cast
@@ -38,6 +39,33 @@ if TYPE_CHECKING:
 
 
 DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
+
+
+def _apply_player_shard(player_ids: list[int]) -> list[int]:
+    raw_index = os.environ.get("NBADB_PLAYER_SHARD_INDEX", "").strip()
+    raw_count = os.environ.get("NBADB_PLAYER_SHARD_COUNT", "").strip()
+    if not raw_index and not raw_count:
+        return player_ids
+    if not raw_index or not raw_count:
+        msg = "NBADB_PLAYER_SHARD_INDEX and NBADB_PLAYER_SHARD_COUNT must both be set"
+        raise ValueError(msg)
+
+    shard_index = int(raw_index)
+    shard_count = int(raw_count)
+    if shard_count < 1:
+        msg = "NBADB_PLAYER_SHARD_COUNT must be >= 1"
+        raise ValueError(msg)
+    if shard_index < 0 or shard_index >= shard_count:
+        msg = "NBADB_PLAYER_SHARD_INDEX must be >= 0 and < NBADB_PLAYER_SHARD_COUNT"
+        raise ValueError(msg)
+    if shard_count == 1:
+        return player_ids
+
+    return [
+        player_id
+        for offset, player_id in enumerate(player_ids)
+        if offset % shard_count == shard_index
+    ]
 
 
 @dataclass
@@ -427,6 +455,7 @@ class Orchestrator:
             player_ids = []
         else:
             player_ids = cast("list[int]", _player_result)
+            player_ids = _apply_player_shard(player_ids)
             if pp is not None:
                 pp.log_discovery("players", len(player_ids))
 

@@ -87,6 +87,12 @@ REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
     "shot_chart_detail": 7_200,
     "team_historical_leaders": 4_200,
 }
+REFERENCE_PLAYER_SHARDS_BY_ENDPOINT: dict[str, int] = {
+    "common_player_info": 4,
+}
+REFERENCE_TIMEOUT_SECONDS_BY_SHARDED_ENDPOINT: dict[str, int] = {
+    "common_player_info": 3_000,
+}
 FULL_EXTRACTION_EXCLUDED_ENDPOINTS: dict[str, str] = {
     "player_dash_pt_pass": (
         "The live PlayerDashPtPass endpoint requires player/team context that the current "
@@ -129,6 +135,8 @@ class FullExtractionLane:
     use_vpn: bool = True
     resume_only: bool = False
     timeout_seconds: int = 0
+    player_shard_index: int | None = None
+    player_shard_count: int | None = None
     failure_streak: int = 0
     last_failure_reason: str = ""
 
@@ -146,6 +154,8 @@ class FullExtractionLane:
             "use_vpn": self.use_vpn,
             "resume_only": self.resume_only,
             "timeout_seconds": self.timeout_seconds,
+            "player_shard_index": self.player_shard_index,
+            "player_shard_count": self.player_shard_count,
         }
 
 
@@ -379,6 +389,48 @@ def _reference_lane_timeout_seconds(pattern: str, endpoints: tuple[str, ...]) ->
     return timeout
 
 
+def _reference_lane_specs(
+    pattern: str,
+    endpoint_group: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    timeout_seconds = _reference_lane_timeout_seconds(pattern, endpoint_group)
+    if len(endpoint_group) != 1:
+        return [
+            {
+                "endpoints": endpoint_group,
+                "timeout_seconds": timeout_seconds,
+                "player_shard_index": None,
+                "player_shard_count": None,
+            }
+        ]
+
+    endpoint = endpoint_group[0]
+    shard_count = REFERENCE_PLAYER_SHARDS_BY_ENDPOINT.get(endpoint, 1)
+    if shard_count <= 1:
+        return [
+            {
+                "endpoints": endpoint_group,
+                "timeout_seconds": timeout_seconds,
+                "player_shard_index": None,
+                "player_shard_count": None,
+            }
+        ]
+
+    sharded_timeout = REFERENCE_TIMEOUT_SECONDS_BY_SHARDED_ENDPOINT.get(
+        endpoint,
+        timeout_seconds,
+    )
+    return [
+        {
+            "endpoints": endpoint_group,
+            "timeout_seconds": sharded_timeout,
+            "player_shard_index": shard_index,
+            "player_shard_count": shard_count,
+        }
+        for shard_index in range(shard_count)
+    ]
+
+
 def _season_bands(
     rows: list[dict[str, Any]], requested_patterns: set[str]
 ) -> list[tuple[int, int]]:
@@ -459,6 +511,25 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: failure_streak must be >= 0")
         if not lane.resume_only and not lane.use_vpn:
             errors.append(f"{lane.lane_id}: active lanes must require VPN")
+        shard_index = lane.player_shard_index
+        shard_count = lane.player_shard_count
+        if (shard_index is None) != (shard_count is None):
+            errors.append(
+                f"{lane.lane_id}: player_shard_index/player_shard_count "
+                "must both be set or both empty"
+            )
+        if shard_count is not None and shard_count < 1:
+            errors.append(f"{lane.lane_id}: player_shard_count must be >= 1")
+        if shard_index is not None and shard_index < 0:
+            errors.append(f"{lane.lane_id}: player_shard_index must be >= 0")
+        if (
+            shard_index is not None
+            and shard_count is not None
+            and shard_index >= shard_count
+        ):
+            errors.append(
+                f"{lane.lane_id}: player_shard_index must be less than player_shard_count"
+            )
         max_span = _max_span_for_lane(lane)
         span = _season_span(lane.season_start, lane.season_end)
         if max_span is not None and span > max_span:
@@ -474,6 +545,8 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
     endpoints = tuple(str(value) for value in raw.get("endpoints", []) if str(value))
     season_start = raw.get("season_start")
     season_end = raw.get("season_end")
+    player_shard_index = raw.get("player_shard_index")
+    player_shard_count = raw.get("player_shard_count")
 
     return FullExtractionLane(
         lane_id=str(raw["lane_id"]),
@@ -488,6 +561,12 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         use_vpn=bool(raw.get("use_vpn", True)),
         resume_only=bool(raw.get("resume_only", False)),
         timeout_seconds=int(raw.get("timeout_seconds") or 7_200),
+        player_shard_index=(
+            None if player_shard_index in {None, ""} else int(player_shard_index)
+        ),
+        player_shard_count=(
+            None if player_shard_count in {None, ""} else int(player_shard_count)
+        ),
         failure_streak=int(raw.get("failure_streak") or 0),
         last_failure_reason=str(raw.get("last_failure_reason") or ""),
     )
@@ -537,11 +616,16 @@ def build_default_manifest(
             if not endpoints:
                 continue
             endpoint_groups = _reference_endpoint_groups(pattern, endpoints)
-            for group_index, endpoint_group in enumerate(endpoint_groups, start=1):
-                chunk_suffix = f"-{group_index:02d}" if len(endpoint_groups) > 1 else ""
+            lane_specs = [
+                spec
+                for endpoint_group in endpoint_groups
+                for spec in _reference_lane_specs(pattern, endpoint_group)
+            ]
+            for group_index, lane_spec in enumerate(lane_specs, start=1):
+                chunk_suffix = f"-{group_index:02d}" if len(lane_specs) > 1 else ""
                 lane_name = f"Reference {pattern.replace('_', ' ').title()}"
-                if len(endpoint_groups) > 1:
-                    lane_name = f"{lane_name} {group_index}/{len(endpoint_groups)}"
+                if len(lane_specs) > 1:
+                    lane_name = f"{lane_name} {group_index}/{len(lane_specs)}"
                 lanes.append(
                     FullExtractionLane(
                         lane_id=f"reference-{pattern}{chunk_suffix}",
@@ -551,10 +635,12 @@ def build_default_manifest(
                         season_start=None,
                         season_end=None,
                         patterns=(pattern,),
-                        endpoints=endpoint_group,
+                        endpoints=lane_spec["endpoints"],
                         use_vpn=True,
                         resume_only=False,
-                        timeout_seconds=_reference_lane_timeout_seconds(pattern, endpoint_group),
+                        timeout_seconds=lane_spec["timeout_seconds"],
+                        player_shard_index=lane_spec["player_shard_index"],
+                        player_shard_count=lane_spec["player_shard_count"],
                     )
                 )
                 lane_index += 1

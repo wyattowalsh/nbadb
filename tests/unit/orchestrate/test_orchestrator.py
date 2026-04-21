@@ -8,8 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import duckdb
 import polars as pl
+import pytest
 
-from nbadb.orchestrate.orchestrator import ExtractionOutcome, Orchestrator, PipelineResult
+from nbadb.orchestrate.orchestrator import (
+    ExtractionOutcome,
+    Orchestrator,
+    PipelineResult,
+    _apply_player_shard,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -151,6 +157,23 @@ class TestDiscoverEntities:
         mock_discovery.discover_all_player_ids.assert_not_called()
         mock_discovery.discover_game_dates.assert_not_called()
         mock_discovery.discover_team_ids.assert_awaited_once()
+
+
+class TestPlayerSharding:
+    def test_apply_player_shard_filters_by_discovery_order(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("NBADB_PLAYER_SHARD_INDEX", "1")
+        monkeypatch.setenv("NBADB_PLAYER_SHARD_COUNT", "4")
+
+        assert _apply_player_shard([100, 101, 102, 103, 104, 105, 106]) == [101, 105]
+
+    def test_apply_player_shard_requires_complete_configuration(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setenv("NBADB_PLAYER_SHARD_INDEX", "0")
+        monkeypatch.delenv("NBADB_PLAYER_SHARD_COUNT", raising=False)
+
+        with pytest.raises(ValueError, match="must both be set"):
+            _apply_player_shard([100, 101])
 
 
 # ---------------------------------------------------------------------------

@@ -544,6 +544,8 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints || matrix.endpoints }}
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           LANE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
+          NBADB_PLAYER_SHARD_INDEX: ${{ matrix.player_shard_index }}
+          NBADB_PLAYER_SHARD_COUNT: ${{ matrix.player_shard_count }}
         run: |
           exec python3 .github/scripts/run_extract_lane.py
 
@@ -590,6 +592,8 @@ jobs:
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           RESUME_ONLY: ${{ matrix.resume_only }}
+          PLAYER_SHARD_INDEX: ${{ matrix.player_shard_index }}
+          PLAYER_SHARD_COUNT: ${{ matrix.player_shard_count }}
         run: |
           effective_vpn_status="${VPN_STATUS:-}"
           if [ "$RESUME_ONLY" = "true" ] && [ -z "$effective_vpn_status" ]; then
@@ -607,6 +611,9 @@ jobs:
             echo "**Restore usable:** ${RESTORE_USABLE:-false}"
             echo "**Resume only:** $RESUME_ONLY"
             echo "**Lane timeout seconds:** $TIMEOUT_SECONDS"
+            if [ -n "${PLAYER_SHARD_INDEX:-}" ] && [ -n "${PLAYER_SHARD_COUNT:-}" ]; then
+              echo "**Player shard:** ${PLAYER_SHARD_INDEX}/${PLAYER_SHARD_COUNT}"
+            fi
             echo "**VPN status:** $effective_vpn_status"
             echo "**VPN server:** ${VPN_SERVER:-n/a}"
             echo "**VPN interface:** ${VPN_INTERFACE:-n/a}"
@@ -636,6 +643,8 @@ jobs:
           TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
+          PLAYER_SHARD_INDEX: ${{ matrix.player_shard_index }}
+          PLAYER_SHARD_COUNT: ${{ matrix.player_shard_count }}
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
           STARTED_AT: ${{ steps.extract.outputs.started-at }}
@@ -676,6 +685,16 @@ jobs:
               "restart_mode": os.environ["RESTART_MODE"],
               "resume_only": resume_only,
               "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
+              "player_shard_index": (
+                  int(os.environ["PLAYER_SHARD_INDEX"])
+                  if os.environ.get("PLAYER_SHARD_INDEX", "").strip()
+                  else None
+              ),
+              "player_shard_count": (
+                  int(os.environ["PLAYER_SHARD_COUNT"])
+                  if os.environ.get("PLAYER_SHARD_COUNT", "").strip()
+                  else None
+              ),
               "started_at": os.environ.get("STARTED_AT", ""),
               "finished_at": os.environ.get("FINISHED_AT", ""),
               "extract_status": os.environ.get("EXTRACT_STATUS", ""),
