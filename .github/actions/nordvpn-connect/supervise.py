@@ -22,12 +22,20 @@ def descendant_pids(root_pid: int) -> set[int]:
     frontier = {root_pid}
     while frontier:
         pid = frontier.pop()
-        result = subprocess.run(
-            ["ps", "-o", "pid=", "--ppid", str(pid)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                ["ps", "-o", "pid=", "--ppid", str(pid)],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except subprocess.TimeoutExpired:
+            print(
+                f"::warning::Timed out while listing descendants for PID {pid}; "
+                "continuing with the current partial process tree"
+            )
+            continue
         children = {
             int(line.strip())
             for line in (result.stdout or "").splitlines()
