@@ -70,7 +70,7 @@ REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
     "player": 3_600,
 }
 REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
-    "common_player_info": 5_400,
+    "common_player_info": 7_200,
     "player_profile_v2": 5_400,
     "player_streak_finder": 5_400,
     "player_dashboard_clutch": 4_800,

@@ -237,7 +237,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         "reference-player-15",
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
-        (("common_player_info",), 5400),
+        (("common_player_info",), 7200),
         (("player_profile_v2",), 5400),
         (("player_streak_finder",), 5400),
         (("player_dashboard_clutch",), 4800),
