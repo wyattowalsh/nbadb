@@ -59,6 +59,23 @@ def terminate_tree(root_pid: int) -> None:
             time.sleep(5)
 
 
+def kill_matching_processes(pattern: str) -> None:
+    if not pattern:
+        return
+    for sig_name in ("TERM", "KILL"):
+        for prefix in (["sudo"], []):
+            with suppress(subprocess.TimeoutExpired, OSError):
+                subprocess.run(
+                    [*prefix, "pkill", f"-{sig_name}", "-f", pattern],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+        if sig_name == "TERM":
+            time.sleep(5)
+
+
 def main() -> int:
     action_dir = Path(__file__).resolve().parent
     connect_script = action_dir / "connect.py"
@@ -80,6 +97,7 @@ def main() -> int:
                 f"({overall_timeout + 30}s)"
             )
             terminate_tree(child.pid)
+            kill_matching_processes(str(Path(os.environ.get("RUNNER_TEMP", "")) / "nordvpn"))
             append_output("status", "vpn_connect_timeout")
             append_output("attempted-servers-json", "[]")
             append_output("failed-servers-json", "[]")
