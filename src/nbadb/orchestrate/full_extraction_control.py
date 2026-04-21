@@ -89,9 +89,11 @@ REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
 }
 REFERENCE_PLAYER_SHARDS_BY_ENDPOINT: dict[str, int] = {
     "common_player_info": 4,
+    "player_awards": 4,
 }
 REFERENCE_TIMEOUT_SECONDS_BY_SHARDED_ENDPOINT: dict[str, int] = {
     "common_player_info": 3_000,
+    "player_awards": 2_400,
 }
 FULL_EXTRACTION_EXCLUDED_ENDPOINTS: dict[str, str] = {
     "player_dash_pt_pass": (

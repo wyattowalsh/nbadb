@@ -246,13 +246,16 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         "reference-player-16",
         "reference-player-17",
         "reference-player-18",
+        "reference-player-19",
+        "reference-player-20",
+        "reference-player-21",
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
         (("common_player_info",), 3000),
         (("player_profile_v2",), 5400),
         (("player_streak_finder",), 5400),
         (("player_dashboard_clutch",), 4800),
-        (("player_awards",), 4200),
+        (("player_awards",), 2400),
         (("player_career_stats",), 4800),
         (("player_compare",), 4800),
         (("player_dash_game_splits",), 4200),
@@ -270,6 +273,10 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     assert len(common_player_info_lanes) == 4
     assert [lane.player_shard_index for lane in common_player_info_lanes] == [0, 1, 2, 3]
     assert all(lane.player_shard_count == 4 for lane in common_player_info_lanes)
+    player_awards_lanes = [lane for lane in reference_lanes if lane.endpoints == ("player_awards",)]
+    assert len(player_awards_lanes) == 4
+    assert [lane.player_shard_index for lane in player_awards_lanes] == [0, 1, 2, 3]
+    assert all(lane.player_shard_count == 4 for lane in player_awards_lanes)
     assert all(lane.use_vpn is True for lane in reference_lanes)
 
 
