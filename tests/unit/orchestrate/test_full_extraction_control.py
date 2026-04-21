@@ -228,27 +228,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
 
     assert [lane.lane_id for lane in reference_lanes] == [
-        "reference-player-01",
-        "reference-player-02",
-        "reference-player-03",
-        "reference-player-04",
-        "reference-player-05",
-        "reference-player-06",
-        "reference-player-07",
-        "reference-player-08",
-        "reference-player-09",
-        "reference-player-10",
-        "reference-player-11",
-        "reference-player-12",
-        "reference-player-13",
-        "reference-player-14",
-        "reference-player-15",
-        "reference-player-16",
-        "reference-player-17",
-        "reference-player-18",
-        "reference-player-19",
-        "reference-player-20",
-        "reference-player-21",
+        *(f"reference-player-{index:02d}" for index in range(1, 34))
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
         (("common_player_info",), 3000),
@@ -274,9 +254,9 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     assert [lane.player_shard_index for lane in common_player_info_lanes] == [0, 1, 2, 3]
     assert all(lane.player_shard_count == 4 for lane in common_player_info_lanes)
     player_awards_lanes = [lane for lane in reference_lanes if lane.endpoints == ("player_awards",)]
-    assert len(player_awards_lanes) == 4
-    assert [lane.player_shard_index for lane in player_awards_lanes] == [0, 1, 2, 3]
-    assert all(lane.player_shard_count == 4 for lane in player_awards_lanes)
+    assert len(player_awards_lanes) == 16
+    assert [lane.player_shard_index for lane in player_awards_lanes] == list(range(16))
+    assert all(lane.player_shard_count == 16 for lane in player_awards_lanes)
     assert all(lane.use_vpn is True for lane in reference_lanes)
 
 
