@@ -315,17 +315,31 @@ jobs:
           REQUIRE_FULL_TUNNEL: "true"
         run: |
           set +e
-          timeout --signal=TERM --kill-after=15s 150s \
-            python3 .github/actions/nordvpn-connect/supervise.py
+          python3 .github/actions/nordvpn-connect/supervise.py &
+          vpn_pid=$!
+          (
+            sleep 150
+            if kill -0 "$vpn_pid" 2>/dev/null; then
+              echo "::error::NordVPN preflight wrapper exceeded the outer workflow timeout"
+              {
+                echo "status=vpn_connect_timeout"
+                echo "attempted-servers-json=[]"
+                echo "failed-servers-json=[]"
+              } >> "$GITHUB_OUTPUT"
+              pkill -TERM -P "$vpn_pid" 2>/dev/null || true
+              kill -TERM "$vpn_pid" 2>/dev/null || true
+              sleep 15
+              pkill -KILL -P "$vpn_pid" 2>/dev/null || true
+              kill -KILL "$vpn_pid" 2>/dev/null || true
+            fi
+          ) &
+          watchdog_pid=$!
+          wait "$vpn_pid"
           rc=$?
+          kill "$watchdog_pid" 2>/dev/null || true
+          wait "$watchdog_pid" 2>/dev/null || true
           set -e
-          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
-            echo "::error::NordVPN preflight wrapper exceeded the outer workflow timeout"
-            {
-              echo "status=vpn_connect_timeout"
-              echo "attempted-servers-json=[]"
-              echo "failed-servers-json=[]"
-            } >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 143 ] || [ "$rc" -eq 137 ]; then
             exit 1
           fi
           exit "$rc"
@@ -497,17 +511,31 @@ jobs:
           REQUIRE_FULL_TUNNEL: "true"
         run: |
           set +e
-          timeout --signal=TERM --kill-after=15s 210s \
-            python3 .github/actions/nordvpn-connect/supervise.py
+          python3 .github/actions/nordvpn-connect/supervise.py &
+          vpn_pid=$!
+          (
+            sleep 210
+            if kill -0 "$vpn_pid" 2>/dev/null; then
+              echo "::error::NordVPN extract wrapper exceeded the outer workflow timeout"
+              {
+                echo "status=vpn_connect_timeout"
+                echo "attempted-servers-json=[]"
+                echo "failed-servers-json=[]"
+              } >> "$GITHUB_OUTPUT"
+              pkill -TERM -P "$vpn_pid" 2>/dev/null || true
+              kill -TERM "$vpn_pid" 2>/dev/null || true
+              sleep 15
+              pkill -KILL -P "$vpn_pid" 2>/dev/null || true
+              kill -KILL "$vpn_pid" 2>/dev/null || true
+            fi
+          ) &
+          watchdog_pid=$!
+          wait "$vpn_pid"
           rc=$?
+          kill "$watchdog_pid" 2>/dev/null || true
+          wait "$watchdog_pid" 2>/dev/null || true
           set -e
-          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
-            echo "::error::NordVPN extract wrapper exceeded the outer workflow timeout"
-            {
-              echo "status=vpn_connect_timeout"
-              echo "attempted-servers-json=[]"
-              echo "failed-servers-json=[]"
-            } >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 143 ] || [ "$rc" -eq 137 ]; then
             exit 1
           fi
           exit "$rc"
