@@ -178,6 +178,7 @@ class NordVpnConnectAction:
         self.pid = ""
         self.attempted_servers: list[str] = []
         self.failed_servers: list[str] = []
+        self.openvpn_process: subprocess.Popen[str] | None = None
 
     def remaining_budget(self) -> float:
         return self.deadline - time.monotonic()
@@ -213,6 +214,17 @@ class NordVpnConnectAction:
                 path.unlink()
 
     def cleanup_openvpn(self) -> None:
+        if self.openvpn_process is not None:
+            with suppress(ProcessLookupError):
+                os.killpg(self.openvpn_process.pid, signal.SIGTERM)
+            try:
+                self.openvpn_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                with suppress(ProcessLookupError):
+                    os.killpg(self.openvpn_process.pid, signal.SIGKILL)
+                with suppress(subprocess.TimeoutExpired):
+                    self.openvpn_process.wait(timeout=5)
+            self.openvpn_process = None
         pid = ""
         if self.pid_file.exists():
             pid = self.pid_file.read_text(encoding="utf-8", errors="replace").strip()
@@ -521,7 +533,16 @@ class NordVpnConnectAction:
             return False
 
         try:
-            result = run_command(
+            log_handle = self.log_file.open("a", encoding="utf-8")
+        except OSError as exc:
+            self.append_unique(self.failed_servers, server)
+            raise ActionError(
+                "vpn_network_error",
+                f"Could not open the OpenVPN log file for {server} over {technology}",
+            ) from exc
+
+        try:
+            self.openvpn_process = subprocess.Popen(
                 [
                     "sudo",
                     "openvpn",
@@ -532,34 +553,40 @@ class NordVpnConnectAction:
                     "--auth-nocache",
                     "--writepid",
                     str(self.pid_file),
-                    "--daemon",
                     "--log",
                     str(self.log_file),
                 ],
-                timeout=self.command_timeout(cap=min(30, self.connect_timeout)),
-                capture_output=True,
-                check=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=log_handle,
+                start_new_session=True,
+                text=True,
             )
-        except subprocess.TimeoutExpired as exc:
+        except OSError as exc:
+            log_handle.close()
             self.append_unique(self.failed_servers, server)
             raise ActionError(
                 "vpn_connect_timeout",
-                "OpenVPN launch exceeded the remaining VPN connection budget "
-                f"for {server} over {technology}",
+                f"OpenVPN launch failed for {server} over {technology}",
             ) from exc
-        if result.returncode != 0:
-            self.append_unique(self.failed_servers, server)
-            raise ActionError(
-                "vpn_connect_timeout",
-                f"OpenVPN launch failed for {server} over {technology} "
-                f"with exit code {result.returncode}",
-            )
+        finally:
+            log_handle.close()
 
         self.make_workdir_readable()
         attempt_deadline = min(time.monotonic() + self.connect_timeout, self.deadline)
         auth_failed = False
 
         while time.monotonic() < attempt_deadline:
+            if self.openvpn_process is None:
+                break
+            process_rc = self.openvpn_process.poll()
+            if process_rc is not None:
+                self.append_unique(self.failed_servers, server)
+                raise ActionError(
+                    "vpn_connect_timeout",
+                    f"OpenVPN exited early for {server} over {technology} "
+                    f"with exit code {process_rc}",
+                )
             if self.auth_failed_in_log():
                 auth_failed = True
                 print(

@@ -101,6 +101,37 @@ def test_pid_alive_returns_false_when_probe_times_out(
     assert action.pid_alive("12345") is False
 
 
+def test_cleanup_openvpn_terminates_foreground_process_group(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    class _FakeProcess:
+        pid = 43210
+
+        def __init__(self) -> None:
+            self.wait_calls: list[float | None] = []
+
+        def wait(self, timeout=None):
+            self.wait_calls.append(timeout)
+            return 0
+
+    proc = _FakeProcess()
+    action.openvpn_process = proc
+    kills: list[tuple[int, int]] = []
+
+    monkeypatch.setattr(module.os, "killpg", lambda pid, sig: kills.append((pid, sig)))
+    monkeypatch.setattr(module, "run_quiet", lambda *args, **kwargs: None)
+
+    action.cleanup_openvpn()
+
+    assert kills == [(43210, module.signal.SIGTERM)]
+    assert proc.wait_calls == [5]
+    assert action.openvpn_process is None
+
+
 def test_run_command_kills_timed_out_process_groups(
     runner_env: Path,
 ) -> None:
@@ -227,20 +258,38 @@ def test_attempt_server_records_verified_tunnel_details(
     monkeypatch.setattr(
         action, "config_url", lambda server, technology: "https://example.test/server.ovpn"
     )
-    monkeypatch.setattr(action, "command_timeout", lambda *, cap: 5.0)
     monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
     monkeypatch.setattr(action, "pid_alive", lambda pid: True)
     monkeypatch.setattr(action, "initialization_complete", lambda: True)
     monkeypatch.setattr(action, "get_interface", lambda: "tun0")
     monkeypatch.setattr(action, "route_uses_interface", lambda route_expr, interface: True)
 
-    def _fake_run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
-        action.pid_file.write_text("12345", encoding="utf-8")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
+    class _FakeProcess:
+        def __init__(self, cmd: list[str]) -> None:
+            self.cmd = cmd
+            self.pid = 98765
+            self.returncode = None
 
-    monkeypatch.setattr(module, "run_command", _fake_run_command)
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            self.returncode = 0
+            return 0
+
+    launched: list[_FakeProcess] = []
+
+    def _fake_popen(cmd: list[str], **kwargs) -> _FakeProcess:
+        action.pid_file.write_text("12345", encoding="utf-8")
+        proc = _FakeProcess(cmd)
+        launched.append(proc)
+        return proc
+
+    monkeypatch.setattr(module.subprocess, "Popen", _fake_popen)
 
     assert action.attempt_server("us1001.nordvpn.com", "openvpn_udp") is True
+    assert launched
+    assert "--daemon" not in launched[0].cmd
     assert action.status == "connected"
     assert action.server == "us1001.nordvpn.com"
     assert action.interface == "tun0"
