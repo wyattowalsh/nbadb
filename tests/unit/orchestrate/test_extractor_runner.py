@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
+from nbadb.core.config import NbaDbSettings
 from nbadb.extract.base import BaseExtractor
 from nbadb.orchestrate.extractor_runner import ExtractorRunner, _AdaptiveThrottle
 from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
@@ -614,6 +615,13 @@ class TestAdaptiveThrottleIntegration:
 
         semaphore = runner._get_semaphore("ep1", "default")
         assert semaphore._value == 1
+
+    def test_default_settings_isolate_player_awards_endpoint(self):
+        settings = NbaDbSettings()
+
+        assert settings.endpoint_semaphore_limits["player_awards"] == 1
+        assert settings.endpoint_rate_limits["player_awards"] == 1.0
+        assert settings.endpoint_request_timeouts["player_awards"] == 120
 
     @pytest.mark.asyncio
     async def test_waits_for_open_circuit_breaker_instead_of_skipping(self):
