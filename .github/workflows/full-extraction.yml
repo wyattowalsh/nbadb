@@ -85,7 +85,6 @@ jobs:
     outputs:
       extract-matrix: ${{ steps.manifest.outputs.extract-matrix }}
       lane-count: ${{ steps.manifest.outputs.lane-count }}
-      lane-manifest-json: ${{ steps.manifest.outputs.lane-manifest-json }}
       vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -195,7 +194,6 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"extract-matrix={compact_matrix}\n")
               handle.write(f"lane-count={manifest['lane_count']}\n")
-              handle.write(f"lane-manifest-json={compact_manifest}\n")
               handle.write(f"vpn-quarantined-servers-json={compact_quarantined_servers}\n")
           PY
 
@@ -257,6 +255,12 @@ jobs:
 
       - run: uv sync
 
+      - name: Download lane manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: artifacts/
+
       - name: Validate VPN credentials are present
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
@@ -276,11 +280,7 @@ jobs:
           fi
 
       - name: Validate planned lanes
-        env:
-          LANE_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
         run: |
-          mkdir -p artifacts/full-extraction
-          printf '%s' "$LANE_MANIFEST_JSON" > artifacts/full-extraction/preflight-manifest.json
           uv run python - <<'PY'
           import json
           from pathlib import Path
@@ -288,7 +288,7 @@ jobs:
           from nbadb.orchestrate.full_extraction_control import normalize_manifest, validate_manifest
 
           raw_manifest = json.loads(
-              Path("artifacts/full-extraction/preflight-manifest.json").read_text(encoding="utf-8")
+              Path("artifacts/full-extraction/manifest.json").read_text(encoding="utf-8")
           )
           manifest = normalize_manifest(raw_manifest)
           validate_manifest(list(manifest.lanes))
@@ -973,6 +973,12 @@ jobs:
           pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
           path: lane-metadata/
 
+      - name: Download lane manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: plan-manifest/
+
       - name: Chain next iteration
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -985,7 +991,6 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
-          CURRENT_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -999,7 +1004,7 @@ jobs:
           fi
 
           mkdir -p artifacts/full-extraction
-          printf '%s' "$CURRENT_MANIFEST_JSON" > artifacts/full-extraction/current-manifest.json
+          cp plan-manifest/full-extraction/manifest.json artifacts/full-extraction/current-manifest.json
           uv run python -m nbadb.orchestrate.full_extraction_control resume \
             --lane-manifest-path artifacts/full-extraction/current-manifest.json \
             --metadata-dir lane-metadata \
