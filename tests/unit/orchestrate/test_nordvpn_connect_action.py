@@ -297,3 +297,48 @@ def test_attempt_server_records_verified_tunnel_details(
     assert action.pid == "12345"
     assert action.attempted_servers == ["us1001.nordvpn.com"]
     assert action.failed_servers == []
+
+
+def test_run_continues_to_next_server_after_per_server_connect_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    monkeypatch.setattr(action, "prepare_workdir", lambda: None)
+    monkeypatch.setattr(action, "install_dependencies", lambda: None)
+    monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
+    monkeypatch.setattr(action, "prepare_auth", lambda: None)
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    cleanup_calls: list[str] = []
+    monkeypatch.setattr(action, "cleanup_openvpn", lambda: cleanup_calls.append("cleanup"))
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: ["us1001.nordvpn.com", "us1002.nordvpn.com"],
+    )
+
+    attempts: list[str] = []
+
+    def _fake_attempt_server(server: str, technology: str) -> bool:
+        attempts.append(server)
+        if server == "us1001.nordvpn.com":
+            raise module.ActionError(
+                "vpn_connect_timeout",
+                "OpenVPN launch exceeded the remaining VPN connection budget "
+                "for us1001.nordvpn.com over openvpn_udp",
+            )
+        action.server = server
+        action.interface = "tun0"
+        action.exit_ip = "2.2.2.2"
+        action.pid = "12345"
+        action.status = "connected"
+        return True
+
+    monkeypatch.setattr(action, "attempt_server", _fake_attempt_server)
+
+    assert action.run() == 0
+    assert attempts == ["us1001.nordvpn.com", "us1002.nordvpn.com"]
+    assert cleanup_calls == ["cleanup"]

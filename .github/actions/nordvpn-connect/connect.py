@@ -645,17 +645,32 @@ class NordVpnConnectAction:
                 attempted_network = True
                 continue
             for server in servers:
-                if self.attempt_server(server, technology):
+                try:
+                    if self.attempt_server(server, technology):
+                        print(
+                            f"::notice::VPN connected — server: {server}, "
+                            f"technology: {technology}, interface: {self.interface}, "
+                            f"exit IP: {self.exit_ip}"
+                        )
+                        write_output("server", self.server)
+                        write_output("exit-ip", self.exit_ip)
+                        write_output("interface", self.interface)
+                        write_output("pid", self.pid)
+                        return 0
+                except ActionError as exc:
+                    attempted_network = True
+                    self.status = exc.status
                     print(
-                        f"::notice::VPN connected — server: {server}, "
-                        f"technology: {technology}, interface: {self.interface}, "
-                        f"exit IP: {self.exit_ip}"
+                        "::warning::"
+                        f"{exc.message}; trying the next recommended server if budget remains"
                     )
-                    write_output("server", self.server)
-                    write_output("exit-ip", self.exit_ip)
-                    write_output("interface", self.interface)
-                    write_output("pid", self.pid)
-                    return 0
+                    self.make_workdir_readable()
+                    self.cleanup_openvpn()
+                    if exc.status in {"vpn_connect_timeout", "vpn_network_error"} and (
+                        self.remaining_budget() > 0
+                    ):
+                        continue
+                    raise
                 attempted_network = True
                 if self.auth_failed_in_log():
                     saw_auth_failure = True
