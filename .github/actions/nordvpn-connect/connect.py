@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import time
@@ -345,24 +346,39 @@ class NordVpnConnectAction:
         write_output("pid-file", self.pid_file)
 
     def install_dependencies(self) -> None:
+        if shutil.which("jq") and shutil.which("openvpn"):
+            print("::notice::OpenVPN dependencies already available on the runner")
+            return
+
         print("::notice::Preparing OpenVPN dependencies")
         for label, cmd in (
             ("apt-get update", ["sudo", "apt-get", "update", "-qq"]),
             ("apt-get install", ["sudo", "apt-get", "install", "-y", "-qq", "jq", "openvpn"]),
         ):
-            try:
-                result = run_command(
-                    cmd,
-                    timeout=self.command_timeout(cap=90),
-                    capture_output=True,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise ActionError(
-                    "vpn_connect_timeout",
-                    f"Failed while preparing OpenVPN dependencies ({label})",
-                ) from exc
-            if result.returncode != 0:
+            last_timeout: subprocess.TimeoutExpired | None = None
+            for attempt in range(1, 3):
+                try:
+                    result = run_command(
+                        cmd,
+                        timeout=self.command_timeout(cap=120),
+                        capture_output=True,
+                        check=False,
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    last_timeout = exc
+                    result = None
+                if result is not None and result.returncode == 0:
+                    break
+                if attempt < 2 and self.remaining_budget() > 30:
+                    print(
+                        f"::warning::{label} did not complete on attempt {attempt}; retrying once"
+                    )
+                    continue
+                if last_timeout is not None:
+                    raise ActionError(
+                        "vpn_connect_timeout",
+                        f"Failed while preparing OpenVPN dependencies ({label})",
+                    ) from last_timeout
                 raise ActionError(
                     "vpn_connect_timeout",
                     f"Failed while preparing OpenVPN dependencies ({label})",

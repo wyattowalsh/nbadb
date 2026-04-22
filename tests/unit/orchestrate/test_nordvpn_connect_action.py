@@ -299,6 +299,53 @@ def test_attempt_server_records_verified_tunnel_details(
     assert action.failed_servers == []
 
 
+def test_install_dependencies_skips_when_tools_are_already_present(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    monkeypatch.setattr(module.shutil, "which", lambda tool: f"/usr/bin/{tool}")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(module, "run_command", lambda *args, **kwargs: calls.append(args[0]))
+
+    action.install_dependencies()
+
+    assert calls == []
+
+
+def test_install_dependencies_retries_timeout_once_before_succeeding(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    monkeypatch.setattr(module.shutil, "which", lambda tool: None)
+    monkeypatch.setattr(action, "command_timeout", lambda *, cap: 120.0)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 120.0)
+
+    calls: list[str] = []
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        label = " ".join(cmd[:3])
+        calls.append(label)
+        if len(calls) == 1:
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    action.install_dependencies()
+
+    assert calls == [
+        "sudo apt-get update",
+        "sudo apt-get update",
+        "sudo apt-get install",
+    ]
+
+
 def test_run_continues_to_next_server_after_per_server_connect_timeout(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
