@@ -90,7 +90,7 @@ REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
 REFERENCE_PLAYER_SHARDS_BY_ENDPOINT: dict[str, int] = {
     "common_player_info": 4,
     "player_awards": 16,
-    "player_career_stats": 16,
+    "player_career_stats": 32,
     "player_compare": 16,
 }
 REFERENCE_TIMEOUT_SECONDS_BY_SHARDED_ENDPOINT: dict[str, int] = {

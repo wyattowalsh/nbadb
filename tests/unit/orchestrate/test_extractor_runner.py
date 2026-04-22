@@ -616,12 +616,15 @@ class TestAdaptiveThrottleIntegration:
         semaphore = runner._get_semaphore("ep1", "default")
         assert semaphore._value == 1
 
-    def test_default_settings_isolate_player_awards_endpoint(self):
+    def test_default_settings_isolate_slow_player_history_endpoints(self):
         settings = NbaDbSettings()
 
         assert settings.endpoint_semaphore_limits["player_awards"] == 1
         assert settings.endpoint_rate_limits["player_awards"] == 1.0
         assert settings.endpoint_request_timeouts["player_awards"] == 120
+        assert settings.endpoint_semaphore_limits["player_career_stats"] == 1
+        assert settings.endpoint_rate_limits["player_career_stats"] == 1.0
+        assert settings.endpoint_request_timeouts["player_career_stats"] == 120
 
     @pytest.mark.asyncio
     async def test_waits_for_open_circuit_breaker_instead_of_skipping(self):

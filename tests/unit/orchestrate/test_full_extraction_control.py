@@ -228,7 +228,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
 
     assert [lane.lane_id for lane in reference_lanes] == [
-        *(f"reference-player-{index:02d}" for index in range(1, 64))
+        *(f"reference-player-{index:02d}" for index in range(1, 80))
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
         (("common_player_info",), 3000),
@@ -260,9 +260,9 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     player_career_stats_lanes = [
         lane for lane in reference_lanes if lane.endpoints == ("player_career_stats",)
     ]
-    assert len(player_career_stats_lanes) == 16
-    assert [lane.player_shard_index for lane in player_career_stats_lanes] == list(range(16))
-    assert all(lane.player_shard_count == 16 for lane in player_career_stats_lanes)
+    assert len(player_career_stats_lanes) == 32
+    assert [lane.player_shard_index for lane in player_career_stats_lanes] == list(range(32))
+    assert all(lane.player_shard_count == 32 for lane in player_career_stats_lanes)
     player_compare_lanes = [
         lane for lane in reference_lanes if lane.endpoints == ("player_compare",)
     ]
