@@ -228,7 +228,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
 
     assert [lane.lane_id for lane in reference_lanes] == [
-        *(f"reference-player-{index:02d}" for index in range(1, 34))
+        *(f"reference-player-{index:02d}" for index in range(1, 40))
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
         (("common_player_info",), 3000),
@@ -236,8 +236,8 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         (("player_streak_finder",), 5400),
         (("player_dashboard_clutch",), 4800),
         (("player_awards",), 2400),
-        (("player_career_stats",), 4800),
-        (("player_compare",), 4800),
+        (("player_career_stats",), 2400),
+        (("player_compare",), 2400),
         (("player_dash_game_splits",), 4200),
         (("player_dash_general_splits",), 4200),
         (("player_dash_last_n_games",), 4200),
@@ -257,6 +257,18 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     assert len(player_awards_lanes) == 16
     assert [lane.player_shard_index for lane in player_awards_lanes] == list(range(16))
     assert all(lane.player_shard_count == 16 for lane in player_awards_lanes)
+    player_career_stats_lanes = [
+        lane for lane in reference_lanes if lane.endpoints == ("player_career_stats",)
+    ]
+    assert len(player_career_stats_lanes) == 4
+    assert [lane.player_shard_index for lane in player_career_stats_lanes] == [0, 1, 2, 3]
+    assert all(lane.player_shard_count == 4 for lane in player_career_stats_lanes)
+    player_compare_lanes = [
+        lane for lane in reference_lanes if lane.endpoints == ("player_compare",)
+    ]
+    assert len(player_compare_lanes) == 4
+    assert [lane.player_shard_index for lane in player_compare_lanes] == [0, 1, 2, 3]
+    assert all(lane.player_shard_count == 4 for lane in player_compare_lanes)
     assert all(lane.use_vpn is True for lane in reference_lanes)
 
 
