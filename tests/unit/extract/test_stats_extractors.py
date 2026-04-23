@@ -6,10 +6,12 @@ Verifies endpoint_name, category, and registry presence for every
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import polars as pl
 import pytest
+from nba_api.stats.endpoints import PlayerCareerStats
 
 # ── all_time ────────────────────────────────────────────────────────────────
 from nbadb.extract.stats.all_time import AllTimeLeadersGridsExtractor
@@ -931,6 +933,87 @@ class TestCrossProductParameterHandling:
 
         with pytest.raises(KeyError, match="resultSet"):
             await ext.extract()
+
+
+class TestPlayerCareerStatsExtractor:
+    def test_data_sets_from_raw_response_handles_missing_container(self) -> None:
+        assert PlayerCareerStatsExtractor._data_sets_from_raw_response({}) == {}
+
+    def test_data_sets_from_raw_response_normalizes_result_sets_list(self) -> None:
+        data_sets = PlayerCareerStatsExtractor._data_sets_from_raw_response(
+            {
+                "resultSets": [
+                    {
+                        "name": "CareerTotalsRegularSeason",
+                        "headers": ["PLAYER_ID", "GP"],
+                        "rowSet": [[1824, 100]],
+                    }
+                ]
+            }
+        )
+
+        assert data_sets == {
+            "CareerTotalsRegularSeason": {
+                "headers": ["PLAYER_ID", "GP"],
+                "data": [[1824, 100]],
+            }
+        }
+
+    def test_frames_from_sparse_result_sets_fills_missing_expected_sets(self) -> None:
+        frames, missing_sets = PlayerCareerStatsExtractor._frames_from_sparse_result_sets(
+            {
+                "CareerTotalsAllStarSeason": {
+                    "headers": ["PLAYER_ID", "GP"],
+                    "data": [[1824, 10]],
+                },
+                "CareerTotalsRegularSeason": {
+                    "headers": ["PLAYER_ID", "GP"],
+                    "data": [[1824, 100]],
+                },
+            }
+        )
+
+        expected_result_sets = list(PlayerCareerStats.expected_data)
+        expected_present_sets = {
+            "CareerTotalsAllStarSeason",
+            "CareerTotalsRegularSeason",
+        }
+        assert len(frames) == len(expected_result_sets)
+        assert missing_sets == [
+            result_set
+            for result_set in expected_result_sets
+            if result_set not in expected_present_sets
+        ]
+        assert frames[0].to_dicts() == [{"player_id": 1824, "gp": 10}]
+        assert frames[1].is_empty()
+        college_headers = PlayerCareerStats.expected_data["CareerTotalsCollegeSeason"]
+        assert frames[1].columns == [column.lower() for column in college_headers]
+        assert frames[3].to_dicts() == [{"player_id": 1824, "gp": 100}]
+
+    def test_extract_all_falls_back_to_sparse_result_sets_on_keyerror(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerCareerStatsExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
+            raise KeyError("CareerTotalsCollegeSeason")
+
+        fallback_frames = [pl.DataFrame({"player_id": []}) for _ in PlayerCareerStats.expected_data]
+        captured: dict[str, object] = {}
+
+        def _fallback(*, player_id: int, timeout: int | None = None) -> list[pl.DataFrame]:
+            captured["player_id"] = player_id
+            captured["timeout"] = timeout
+            return fallback_frames
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom)
+        monkeypatch.setattr(ext, "_extract_sparse_result_sets", _fallback)
+
+        result = asyncio.run(ext.extract_all(player_id=1824))
+
+        assert result == fallback_frames
+        assert captured == {"player_id": 1824, "timeout": None}
 
 
 class TestMiscLeadersExtractors:

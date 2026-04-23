@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+import polars as pl
 from loguru import logger
-
-if TYPE_CHECKING:
-    import polars as pl
 from nba_api.stats.endpoints import (
     CommonAllPlayers,
     CommonPlayerInfo,
@@ -16,9 +14,10 @@ from nba_api.stats.endpoints import (
     PlayerNextNGames,
     PlayerProfileV2,
 )
+from nba_api.stats.library.http import NBAStatsHTTP
 from nba_api.stats.static import players as static_players
 
-from nbadb.extract.base import BaseExtractor
+from nbadb.extract.base import BaseExtractor, _to_snake_case
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.seasons import current_season
 
@@ -55,14 +54,135 @@ class PlayerCareerStatsExtractor(BaseExtractor):
     endpoint_name = "player_career_stats"
     category = "player_info"
 
+    @staticmethod
+    def _coerce_result_set_payload(payload: dict[str, Any]) -> tuple[str | None, dict[str, Any]]:
+        name = payload.get("name")
+        headers = list(payload.get("headers") or [])
+        rows = list(payload.get("rowSet") or payload.get("data") or [])
+        return name, {"headers": headers, "data": rows}
+
+    @classmethod
+    def _data_sets_from_raw_response(
+        cls,
+        raw_response: dict[str, Any],
+    ) -> dict[str, dict[str, Any]]:
+        container = raw_response.get("resultSets")
+        if container is None:
+            container = raw_response.get("resultSet")
+        if container is None:
+            return {}
+
+        if isinstance(container, list):
+            data_sets: dict[str, dict[str, Any]] = {}
+            for payload in container:
+                if not isinstance(payload, dict):
+                    continue
+                name, normalized_payload = cls._coerce_result_set_payload(payload)
+                if name:
+                    data_sets[name] = normalized_payload
+            return data_sets
+
+        if isinstance(container, dict):
+            if "name" in container:
+                name, normalized_payload = cls._coerce_result_set_payload(container)
+                return {name: normalized_payload} if name else {}
+            return {
+                name: {
+                    "headers": list(payload.get("headers") or []),
+                    "data": list(payload.get("data") or payload.get("rowSet") or []),
+                }
+                for name, payload in container.items()
+                if isinstance(payload, dict)
+            }
+
+        return {}
+
+    @staticmethod
+    def _empty_result_set_frame(headers: list[str]) -> pl.DataFrame:
+        return pl.DataFrame({_to_snake_case(header): [] for header in headers})
+
+    @classmethod
+    def _frames_from_sparse_result_sets(
+        cls,
+        data_sets: dict[str, dict[str, Any]],
+    ) -> tuple[list[pl.DataFrame], list[str]]:
+        frames: list[pl.DataFrame] = []
+        missing_sets: list[str] = []
+
+        for result_set_name, expected_headers in PlayerCareerStats.expected_data.items():
+            payload = data_sets.get(result_set_name)
+            headers = (
+                list(payload.get("headers") or expected_headers)
+                if payload
+                else list(expected_headers)
+            )
+            rows = list(payload.get("data") or []) if payload else []
+            if payload is None:
+                missing_sets.append(result_set_name)
+            if not rows:
+                frames.append(cls._empty_result_set_frame(headers))
+                continue
+            df = pl.DataFrame(rows, schema=headers, orient="row")
+            frames.append(df.rename({column: _to_snake_case(column) for column in df.columns}))
+
+        return frames, missing_sets
+
+    def _extract_sparse_result_sets(
+        self,
+        *,
+        player_id: int,
+        timeout: int | None = None,
+    ) -> list[pl.DataFrame]:
+        request_kwargs: dict[str, Any] = {"player_id": player_id}
+        if timeout is not None:
+            request_kwargs["timeout"] = timeout
+        self._inject_timeout(request_kwargs)
+
+        endpoint = PlayerCareerStats(get_request=False, **request_kwargs)
+        response = NBAStatsHTTP().send_api_request(
+            endpoint=endpoint.endpoint,
+            parameters=endpoint.parameters,
+            proxy=endpoint.proxy,
+            headers=endpoint.headers,
+            timeout=endpoint.timeout,
+        )
+        raw_response = response.get_dict()
+        data_sets = self._data_sets_from_raw_response(raw_response)
+        frames, missing_sets = self._frames_from_sparse_result_sets(data_sets)
+        if missing_sets:
+            logger.warning(
+                "player_career_stats: player {} missing result sets {}; using empty fallbacks",
+                player_id,
+                ", ".join(missing_sets),
+            )
+        elif not data_sets:
+            logger.warning(
+                "player_career_stats: player {} returned no result-set container; "
+                "using empty fallbacks",
+                player_id,
+            )
+        return frames
+
     async def extract(self, **params: Any) -> pl.DataFrame:
-        player_id: int = params["player_id"]
-        return self._from_nba_api(PlayerCareerStats, player_id=player_id)
+        frames = await self.extract_all(**params)
+        return frames[0] if frames else pl.DataFrame()
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
         """Return all result sets: regular, post, allstar, etc."""
         player_id: int = params["player_id"]
-        return self._from_nba_api_multi(PlayerCareerStats, player_id=player_id)
+        timeout = params.get("timeout")
+        request_kwargs: dict[str, Any] = {"player_id": player_id}
+        if timeout is not None:
+            request_kwargs["timeout"] = timeout
+        try:
+            return self._from_nba_api_multi(PlayerCareerStats, **request_kwargs)
+        except KeyError as exc:
+            logger.warning(
+                "player_career_stats: player {} raised {} during result-set loading; falling back",
+                player_id,
+                exc.args[0] if exc.args else "KeyError",
+            )
+            return self._extract_sparse_result_sets(player_id=player_id, timeout=timeout)
 
 
 @registry.register
