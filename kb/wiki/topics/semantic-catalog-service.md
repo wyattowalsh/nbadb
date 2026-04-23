@@ -13,7 +13,7 @@ aliases:
   - Catalog Search and Recommendation Service
 kind: concept
 status: active
-updated: 2026-04-15
+updated: 2026-04-22
 source_count: 8
 ---
 
@@ -146,15 +146,15 @@ So recommendation is just search with a planner-shaped input and a stricter post
 
 ## MCP And Copilot Surfaces
 ### MCP surface
-`chat/mcp_servers/catalog.py` wraps the service as FastMCP server `nbadb-catalog` with three tools:
+`src/nbadb/chat/mcp/catalog.py` exposes the service as FastMCP server `nbadb-catalog` with three tools:
 - `search_catalog`
 - `get_object`
 - `recommend_surfaces`
 
-`chat/server/mcp_client.py` always wires `nbadb-catalog` into the deepagents runtime alongside SQL, SQL validator, and sandbox servers.
+`src/nbadb/chat/app/mcp_client.py` always wires `nbadb-catalog` into the deepagents runtime alongside SQL, SQL validator, and sandbox servers. The app shell still keeps `chat/mcp_servers/catalog.py` as a compatibility stdio wrapper.
 
 ### Copilot surface
-`chat/server/copilot_backend.py` does not use MCP subprocesses. Instead it mirrors the same semantic catalog capability in-process with Copilot tools:
+`src/nbadb/chat/app/copilot_backend.py` does not use MCP subprocesses. Instead it mirrors the same semantic catalog capability in-process with Copilot tools:
 - `search_catalog_tool`
 - `get_object`
 - `recommend_surfaces_tool`
@@ -186,8 +186,8 @@ Treat that as descriptive capability metadata, not proof that every runtime expo
 | catalog model types and `CatalogObject` fields | `src/nbadb/chat/catalog/models.py` | defines `CatalogObjectFamily`, `AccessTier`, and `CatalogObject` |
 | exported public catalog service API | `src/nbadb/chat/catalog/__init__.py` | re-exports `table_family`, `access_tier_for_family`, `build_catalog_object`, `list_catalog_objects`, `get_catalog_object`, `search_catalog`, and `recommend_surfaces` |
 | live DuckDB introspection, family/access-tier rules, grain/entity/join-key inference, aliases, descriptions, guidance, search scoring, and recommendation filtering | `src/nbadb/chat/catalog/service.py` | canonical implementation of semantic catalog behavior |
-| semantic discovery server name and MCP tool surface | `chat/mcp_servers/catalog.py` | FastMCP server `nbadb-catalog` with `search_catalog`, `get_object`, and `recommend_surfaces` |
-| deepagents MCP wiring and always-on inclusion of the catalog server | `chat/server/mcp_client.py` | `nbadb-catalog` is part of the core built-in server bundle |
-| Copilot in-process catalog tools and permission allowlist | `chat/server/copilot_backend.py` | mirrors catalog behavior with `@define_tool` functions instead of MCP subprocesses |
+| semantic discovery server name and MCP tool surface | `src/nbadb/chat/mcp/catalog.py`; `chat/mcp_servers/catalog.py` | canonical FastMCP server plus compatibility stdio wrapper |
+| deepagents MCP wiring and always-on inclusion of the catalog server | `src/nbadb/chat/app/mcp_client.py` | `nbadb-catalog` is part of the core built-in server bundle |
+| Copilot in-process catalog tools and permission allowlist | `src/nbadb/chat/app/copilot_backend.py` | mirrors catalog behavior with `@define_tool` functions instead of MCP subprocesses |
 | advertised runtime capability flag | `src/nbadb/chat/runtime/capabilities.py` | `CapabilityManifest` includes `semantic_catalog: bool = True` |
 | no-cache behavior and service-layer summary | `kb/raw/extracts/internal/chat-service-layer-inventory.md`; `kb/raw/extracts/internal/mcp-server-inventory.md` | internal extracts summarize service role, no-cache behavior, and runtime split |

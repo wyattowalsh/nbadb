@@ -235,3 +235,21 @@
 - Follow-up:
   - [ ] Replace or delete the untracked local `.obsidian/app.json`, `.obsidian/graph.json`, and `.obsidian/workspace.json` files if the repo should never carry them in the working tree
   - [ ] Keep future KB growth narrow and admit it only with same-batch index/log maintenance
+
+### [2026-04-22 16:20] KB Refactor-Alignment Wave
+- Mode: improve
+- Summary: Aligned the remaining KB docs-path and chat-runtime notes to the live worktree so the companion vault now treats `src/nbadb/chat/*` as the canonical shared runtime, `chat/` as the app shell plus compatibility entrypoint layer, and `docs/content/docs/model/*` as the canonical model-docs tree.
+- `raw`: no new extracts; refreshed source-map routing so the existing internal manifests point at the notes they now back
+- `wiki`: patched lineage/docs-path notes, helper/runtime notes, and KB home routing; added source-boundary discoverability for `upstream-nba-api` and `extraction-boundary`
+- `indexes`: refreshed `coverage`, `source-map`, `skill-surface-map`, `internal-source-catalog`, `topic-family-map`, and `canonical-material`
+- `schema`: unchanged
+- `config`: unchanged
+- `canonical material`: replaced stale legacy docs-tree references with `docs/content/docs/model/{schema,dictionary,diagrams,lineage}` where those are now canonical
+- `provenance`: replaced `chat/server/*`-first citations with `src/nbadb/chat/*` canonical paths except where the wrapper/shim boundary itself is materially true
+- `derived output`: none
+- `vault`: unchanged
+- `path map`: helper/runtime notes now distinguish canonical shared runtime paths from compatibility wrappers and app-shell entrypoints
+- `link/backlink impact`: `coverage` now includes the upstream/extraction notes and refreshed chat/runtime rows; `source-map` now points the extractor and chat manifests at the maintained notes they support
+- Risks / rollback: KB-only prose/index batch; rollback is a straight revert of the touched `kb/` files
+- Follow-up:
+  - [ ] Keep future note additions narrow and continue updating `coverage`, `source-map`, `source_count`, and `activity/log.md` in the same batch

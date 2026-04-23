@@ -34,6 +34,8 @@ Use this page as the Obsidian-first map for the current `wiki/topics/` note set.
 ## Model
 Use this family when the question is about warehouse shape, extractor coverage, or lineage mechanics.
 
+- [[../wiki/topics/upstream-nba-api|Upstream NBA API]]
+- [[../wiki/topics/extraction-boundary|Extraction Boundary]]
 - [[../wiki/topics/extractor-surface|Extractor Surface]]
 - [[../wiki/topics/lineage-internals|Lineage Internals]]
 - [[../wiki/topics/semantic-catalog-service|Semantic Catalog Service]]
@@ -123,7 +125,7 @@ Use this family when you need the shortest bridge from raw or canonical material
 - [[../wiki/topics/published-examples-source-summary|Published Examples Source Summary]]
 
 ## Wayfinding notes
-- Current topic-note count: `58` notes under `kb/wiki/topics/`.
+- Current topic-note count: `60` notes under `kb/wiki/topics/`.
 - Fastest repo-level re-entry point: [[../wiki/index|KB Home]].
 - Best companion index for raw and canonical source tracing: [[source-map]].
 - Best companion index for repo-authority boundaries: [[canonical-material]].

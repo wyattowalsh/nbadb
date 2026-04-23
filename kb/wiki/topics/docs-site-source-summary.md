@@ -7,8 +7,8 @@ tags:
 aliases: []
 kind: source-summary
 status: active
-updated: 2026-04-14
-source_count: 5
+updated: 2026-04-22
+source_count: 6
 ---
 
 # Docs Site Source Summary
@@ -22,18 +22,21 @@ source_count: 5
 | Status | seeded |
 
 ## Summary
-This source set establishes that the docs site is a separate `docs/` app built on Fumadocs + Next.js, mixes hand-authored MDX with generator-owned reference artifacts, and relies on `nbadb docs-autogen` to refresh schema, data-dictionary, ER, lineage, and site-metrics outputs.
+This source set establishes that the docs site is a separate `docs/` app built on Fumadocs + Next.js, now organized around canonical public hubs under `docs/content/docs/{start,model,sources,ops}` plus route-registry logic in `docs/lib/site-config/*`. It still mixes hand-authored MDX with generator-owned reference artifacts and relies on `nbadb docs-autogen` to refresh schema, data-dictionary, ER, lineage, and site-metrics outputs.
 
 ## Planned wiki coverage
 - `wiki/model/schema-wayfinding.md`
 - `wiki/model/lineage-wayfinding.md`
-- future docs-autogen note
+- `wiki/topics/docs-autogen.md`
+- `wiki/topics/docs-app-stack.md`
+- `wiki/topics/docs-search-surface.md`
 
 ## Provenance
 | Claim or section | Raw or canonical material | Notes |
 |------------------|----------|-------|
 | Framework and docs app structure | `docs/AGENTS.md` | Establishes stack and directory layout |
 | Package-level versions and scripts | `docs/package.json` | Confirms commands, dependencies, and Node requirement |
-| Mermaid MDX configuration | `docs/source.config.ts` | Shows `remarkMdxMermaid` |
-| Root nav ordering | `docs/content/docs/meta.json` | Confirms section layout |
+| Canonical hubs and legacy redirect policy | `docs/AGENTS.md`; `docs/lib/site-config/routes.ts` | Current route contract |
+| Root nav ordering | `docs/content/docs/meta.json` | Confirms top-level section layout |
+| Hub-level content tree | `docs/content/docs/start/`; `docs/content/docs/model/`; `docs/content/docs/sources/`; `docs/content/docs/ops/` | Current public docs topology |
 | Docs generator outputs | `src/nbadb/docs_gen/autogen.py` | Shows generated docs and machine-readable outputs |

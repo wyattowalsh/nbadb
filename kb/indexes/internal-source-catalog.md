@@ -28,7 +28,7 @@ Repo-local source catalog for companion-KB work.
 | Schema + transform contract | P0 | `src/nbadb/schemas/**/*`, `src/nbadb/transform/**/*`, `src/nbadb/core/transform_dependency_graph.py` | Core `raw` -> `stg` -> star contract plus transform dependency structure |
 | Docs generators + generated contract | P1 | `src/nbadb/docs_gen/**/*`, `docs/content/docs/**/*`, `docs/lib/generated/*` | Shows how public docs artifacts are generated and where machine-readable contract data lives |
 | Distribution + publication metadata | P1 | `dataset-metadata.json`, `src/nbadb/kaggle/**/*`, `notebooks/*_kernel-metadata.json` | Tracks how the dataset and notebooks are packaged for Kaggle |
-| Chat + natural-language query surface | P1 | `src/nbadb/agent/**/*`, `chat/**/*`, `chat/skills/nba-data-analytics/SKILL.md` | Covers query behavior, chat helpers, and skill content |
+| Chat + natural-language query surface | P1 | `src/nbadb/chat/**/*`, `src/nbadb/agent/**/*`, `chat/**/*` | Covers the shared chat runtime, app shell, query behavior, helper services, and skill content |
 | CI + test guardrails | P1 | `.github/workflows/**/*`, `tests/**/*`, `tests/conftest.py` | Shows what the repo actually enforces in CI and tests |
 | Built outputs + runtime artifacts | P2 | local DuckDB/SQLite/export outputs when present | Useful for validating shipped/public surface against docs and metadata without treating local build artifacts as stable repo canon |
 

@@ -9,70 +9,90 @@ aliases:
   - Chat App Surface
 kind: concept
 status: active
-updated: 2026-04-14
-source_count: 6
+updated: 2026-04-22
+source_count: 8
 ---
 
 # Chat Surface
 
-This note covers the richer analytical assistant under `chat/`. It is the full agent surface: multi-tool, profile-aware, schema-injected, and designed for iterative analysis rather than canned query matching.
+This note covers the current v1 chat surface in the worktree. The chat system is now split deliberately between shared runtime code in `src/nbadb/chat/*` and the app shell in `chat/`.
 
-## Runtime shape
-`create_nba_agent()` builds the chat agent in three steps:
-1. ensure the database path exists and fetch schema context
-2. build the system prompt, optionally with a profile
-3. choose a backend: `copilot` or `deepagents`
+## Topology
+### Shared runtime
+The canonical shared logic lives in `src/nbadb/chat/*`:
+- `runtime/*` builds the database, schema context, system prompt, and capability manifest
+- `app/agent.py` assembles the actual runtime and chooses the backend
+- `app/copilot_backend.py` is the in-process Copilot path
+- `app/mcp_client.py` wires the deepagents MCP tool bus
+- `catalog/*`, `sql/*`, `memory/*`, `artifacts/*`, `sandbox/*`, and `web/*` hold the reusable capability implementations
 
-Both backends are wrapped in `NbaAgentWrapper`, which standardizes streaming and exposes `cleanup()` so MCP-backed resources do not leak across sessions.
+### App shell
+The app-facing shell lives in `chat/`:
+- `chat/chainlit_app.py` is the UI/session/rendering surface
+- `chat/chainlit.md` is the user-facing app framing
+- `chat/mcp_servers/*` is the stdio entrypoint layer for MCP servers
+- `chat/skills/*` is the skill family used by the deepagents runtime
+
+`chat/server/*` still exists, but it should be read as compatibility wrapper surface unless the note is explicitly about one of those shims.
 
 ## Backend split
+`src/nbadb/chat/app/agent.py` always starts from the same shared runtime context:
+1. resolve the DuckDB path
+2. load schema context
+3. build the system prompt
+4. derive the capability manifest
+5. branch to either Copilot or deepagents
+
 ### Copilot path
-The Copilot path delegates to `server.copilot_backend.create_copilot_agent(...)`.
+- uses `src/nbadb/chat/app/copilot_backend.py`
+- mirrors the main NBA tool families in-process
+- does not load the `chat/skills/` directory directly
+- does not use the stdio MCP client
 
 ### Deepagents path
-The deepagents path:
-- creates the chat model
-- sets up MCP tools
-- adds local `web_search` and `web_fetch`
-- loads skills from `chat/skills`
-- uses `LocalShellBackend(root_dir=db_path.parent)`
-- passes the schema-injected system prompt into `create_deep_agent(...)`
+- uses `src/nbadb/chat/app/mcp_client.py`
+- launches the built-in MCP server bundle
+- loads the `chat/skills/` directory
+- attaches local web tools only when `settings.web_context` is enabled
 
-## Prompt contract
-The system prompt frames the workflow as:
-1. Understand
-2. Query
-3. Analyze
-4. Present
+## Skill and helper shape
+The skill surface is now broader than one umbrella skill.
 
-Important expectations:
-- prefer `analytics_*` views first
-- fall back to `fact_*` and `dim_*` when needed
-- ask a brief clarifying question if the request is ambiguous
-- lead with the insight, not the raw data
-
-## Profiles
-The chat prompt currently supports three appended profile modes:
-- `Quick Stats`
-- `Deep Analysis`
-- `Visualization`
-
-## Skill contract
-The `nba-data-analytics` skill is narrower than the full prompt surface and codifies metric helpers, table-selection heuristics, SCD2 gotchas, charting helpers, and export helpers.
+`chat/skills/nba-data-analytics/` still carries the broad analytics helper package, but the current worktree also has narrower specialist skills for:
+- semantic planning
+- SQL drafting
+- debugging bad results
+- analysis and visualization
+- artifact creation
+- follow-up refinement
+- connector/runtime differences
+- live NBA web context
 
 ## Relationship to the local query agent
-The chat surface is materially richer than [[wiki/topics/query-agent|Query Agent]].
+[[wiki/topics/query-agent|Query Agent]] is still the narrow regex-and-template surface under `src/nbadb/agent/*`.
 
-The local query agent is regex-based, canned-SQL, and intentionally narrow.
+The chat surface is the richer assistant stack:
+- schema-injected
+- backend-selectable
+- tool-augmented
+- skill-routed
+- able to move from retrieval into Python analysis and durable artifacts
 
-The chat surface is backend-selectable, tool-augmented, schema-injected, iterative, analysis-first, and capable of Python post-processing and charts.
+## Related notes
+- [[wiki/topics/chainlit-runtime|Chainlit Runtime]]
+- [[wiki/topics/mcp-server-surface|MCP Server Surface]]
+- [[wiki/topics/chat-skill-surface|Chat Skill Surface]]
+- [[wiki/topics/prompt-assembly-and-capabilities|Prompt Assembly And Capabilities]]
+- [[wiki/topics/query-agent|Query Agent]]
 
 ## Provenance
 | Claim or section | Raw or canonical material | Notes |
 |------------------|---------------------------|-------|
-| backend selection and wrapper | `chat/server/agent.py` | runtime assembly |
-| prompt workflow and tool contract | `chat/server/prompts.py` | system prompt contract |
-| profile support | `chat/server/prompts.py` | appended profile modes |
-| skill layer | `chat/skills/nba-data-analytics/SKILL.md` | domain-specific analysis rules |
-| public contrast point | `README.md` | `ask` surface framing |
-| docs-side route context | `wiki/topics/analytics-skill-guide.md` | current skill note |
+| shared runtime topology and backend assembly | `src/nbadb/chat/app/agent.py`; `src/nbadb/chat/runtime/factory.py` | canonical runtime split |
+| Copilot runtime path | `src/nbadb/chat/app/copilot_backend.py` | in-process alternate backend |
+| MCP-backed deepagents runtime path | `src/nbadb/chat/app/mcp_client.py` | stdio MCP assembly |
+| prompt and capability surfaces | `src/nbadb/chat/prompts.py`; `src/nbadb/chat/runtime/capabilities.py` | prompt and capability contract |
+| app shell and UI runtime | `chat/chainlit_app.py`; `chat/chainlit.md` | app-local Chainlit surface |
+| app-local MCP entrypoint layer | `chat/mcp_servers/` | stdio entrypoints for the app shell |
+| current skill family | `chat/skills/` | current worktree skill roots |
+| grouped current-worktree evidence layer | `kb/raw/extracts/internal/chat-surface-manifest.md`; `kb/raw/extracts/internal/chat-skill-inventory.md` | current KB bridge |

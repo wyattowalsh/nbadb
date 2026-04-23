@@ -12,7 +12,7 @@ aliases:
   - Chat Sandbox Runtime
 kind: concept
 status: active
-updated: 2026-04-15
+updated: 2026-04-22
 source_count: 9
 ---
 
@@ -28,7 +28,7 @@ The sandbox runtime is split across two execution lanes:
 The prompt describes the intended workflow, but the real contract lives in the shared executors, sandbox preamble, and Chainlit renderer.
 
 ## `run_sql` contract
-`run_sql` is the canonical structured SQL tool exposed by both the MCP SQL server and the Copilot backend.
+`run_sql` is the canonical structured SQL tool exposed by both `src/nbadb/chat/mcp/sql.py` and `src/nbadb/chat/app/copilot_backend.py`.
 
 Execution policy:
 - validates SQL with `ReadOnlyGuard`
@@ -111,6 +111,7 @@ That means `run_python` is not a blank Python shell. It is a purpose-built NBA a
 
 ## Rendering payload shapes
 The parser in `_sandbox_exec.py` and the Chainlit renderer together define the effective output contract.
+The canonical parser implementation lives in `src/nbadb/chat/sandbox/exec.py`; `chat/server/_sandbox_exec.py` is only a compatibility wrapper.
 
 ### Single-output shapes
 | Producer | Parsed shape | Chainlit rendering |
@@ -175,11 +176,11 @@ Important rendering nuance:
 ## Provenance
 | Claim or section | Raw or canonical material | Notes |
 |------------------|---------------------------|-------|
-| MCP `run_python` tool description, preamble injection, raw return behavior | `chat/mcp_servers/sandbox.py` | canonical Python tool entry point |
-| MCP `run_sql` tool shape and shared executor usage | `chat/mcp_servers/sql.py` | canonical SQL MCP surface |
-| shared SQL execution rules and return envelope | `chat/server/_sql_exec.py` | read-only mode, external access off, timeout, `{columns, rows, row_count, sql}` |
-| sandbox preamble imports, safe connection, helper functions, `last_result`, and namespace cleanup | `chat/server/_preamble.py` | canonical Python runtime environment |
-| AST blocking rules, env allowlist, subprocess timeout, resource limits, and structured-output parser | `chat/server/_sandbox_exec.py` | canonical Python safety and output parsing layer |
+| MCP `run_python` tool description, preamble injection, raw return behavior | `src/nbadb/chat/mcp/sandbox.py` | canonical Python tool entry point |
+| MCP `run_sql` tool shape and shared executor usage | `src/nbadb/chat/mcp/sql.py` | canonical SQL MCP surface |
+| shared SQL execution rules and return envelope | `src/nbadb/chat/sql/exec.py` | read-only mode, external access off, timeout, `{columns, rows, row_count, sql}` |
+| sandbox preamble imports, safe connection, helper functions, `last_result`, and namespace cleanup | `src/nbadb/chat/app/preamble.py` | canonical Python runtime environment |
+| AST blocking rules, env allowlist, subprocess timeout, resource limits, and structured-output parser | `src/nbadb/chat/sandbox/exec.py`; `chat/server/_sandbox_exec.py` | canonical safety layer plus compatibility wrapper boundary |
 | Chainlit rendering behavior for single and multi-output payloads | `chat/chainlit_app.py` | dataframe, Plotly, image, file, stdout, and `_multi` rendering |
 | prompt-level workflow framing | `src/nbadb/chat/prompts.py` | guidance layer, not enforcement |
 | repo-wide SQL trust-boundary interpretation | `kb/wiki/topics/query-safety.md` | companion note for safety framing |

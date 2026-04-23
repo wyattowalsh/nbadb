@@ -11,7 +11,7 @@ aliases:
   - Analytics Helper Surface
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-22
 source_count: 7
 ---
 
@@ -23,8 +23,8 @@ It is a plain Python skill script under `chat/skills/nba-data-analytics/scripts/
 
 ## Runtime surface
 - The analytics skill documents the API as `metric_calculator as mc`.
-- The shared Python preamble inserts the skill `scripts/` directory onto `sys.path` and imports `metric_calculator as mc`.
-- Both the MCP sandbox and Copilot backend describe `mc` as a built-in helper available during `run_python` calls.
+- The canonical shared Python preamble in `src/nbadb/chat/app/preamble.py` inserts the skill `scripts/` directory onto `sys.path` and imports `metric_calculator as mc`.
+- Both the canonical MCP sandbox and the Copilot backend describe `mc` as a built-in helper available during `run_python` calls.
 - The script is intentionally simple: standalone functions, no class wrapper, no package install step.
 
 ## What it covers
@@ -96,8 +96,8 @@ table(df)
 |------------------|---------------------------|-------|
 | metric helper exists as a standalone skill script | `chat/skills/nba-data-analytics/scripts/metric_calculator.py` | canonical implementation |
 | documented `mc.*` API surface | `chat/skills/nba-data-analytics/SKILL.md` | skill-level contract and example function list |
-| script directory is injected into sandbox and imported as `mc` | `chat/server/_preamble.py` | runtime preamble used for Python execution |
-| Copilot backend exposes `mc (metric_calculator)` in `run_python` | `chat/server/copilot_backend.py` | backend tool description |
-| MCP sandbox advertises `mc` as a built-in helper | `chat/mcp_servers/sandbox.py` | tool help text |
+| script directory is injected into sandbox and imported as `mc` | `src/nbadb/chat/app/preamble.py` | canonical runtime preamble used for Python execution |
+| Copilot backend exposes `mc (metric_calculator)` in `run_python` | `src/nbadb/chat/app/copilot_backend.py` | canonical backend tool description |
+| MCP sandbox advertises `mc` as a built-in helper | `src/nbadb/chat/mcp/sandbox.py` | canonical MCP tool help text |
 | `scripts/metric_calculator.py` is expected as part of the skill surface | `tests/unit/chat/test_agent.py` | existence and SKILL.md coverage tests |
 | formula behavior, null coercion, zero guards, and JSON-safe `None` behavior | `tests/unit/chat/test_metric_calculator.py` | behavioral evidence for each public function |

@@ -11,7 +11,7 @@ aliases:
   - Season Year vs Season ID
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-22
 source_count: 14
 ---
 
@@ -132,7 +132,7 @@ So:
 | `PlayoffPicture` conversion to `season_id` | `src/nbadb/extract/stats/standings.py` | endpoint adapter |
 | integer `season_year` endpoint handling | `src/nbadb/extract/stats/draft.py` | draft endpoints use integer start year or nullable season-year variants |
 | chat-exposed season conversion helpers | `chat/skills/nba-data-analytics/scripts/season_utils.py` | `season_year_to_id()` and `season_id_to_year()` |
-| chat prompt contract for `season_utils` | `chat/server/prompts.py` | helper advertised in run_python tool surface |
-| chat sandbox imports skill scripts | `chat/server/_preamble.py` | `season_utils` is pre-imported |
+| chat prompt contract for `season_utils` | `src/nbadb/chat/prompts.py` | helper advertised in run_python tool surface |
+| chat sandbox imports skill scripts | `src/nbadb/chat/app/preamble.py` | `season_utils` is pre-imported |
 | current `dim_season` contract | `src/nbadb/schemas/star/dim_season.py`, `src/nbadb/transform/dimensions/dim_season.py` | actual star-schema season dimension uses `season_year` |
 | explicit analytical guardrail to keep season filters visible | `kb/wiki/routes/analyst-route.md`, `chat/skills/nba-data-analytics/references/schema-guide.md` | secondary guidance surface; useful but not more authoritative than code |

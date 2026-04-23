@@ -6,11 +6,11 @@
 | `wiki/routes/start-here.md` | overview | `docs/content/docs/index.mdx`, `docs/content/docs/start/onboarding.mdx` | active | 2026-04-22 | Reader route hub |
 | `wiki/routes/analyst-route.md` | overview | `docs/content/docs/start/analytics-quickstart.mdx`, `chat/skills/nba-data-analytics/` | active | 2026-04-22 | Analytics-first route |
 | `wiki/routes/operator-route.md` | overview | `docs/content/docs/ops/daily-updates.mdx`, `docs/content/docs/ops/troubleshooting.mdx` | active | 2026-04-22 | Operator-first route |
-| `wiki/routes/contributor-route.md` | overview | `AGENTS.md`, `docs/AGENTS.md`, CLI/docs workflow sources | active | 2026-04-14 | Contributor/maintainer route |
+| `wiki/routes/contributor-route.md` | overview | `AGENTS.md`, `docs/AGENTS.md`, CLI/docs workflow sources | active | 2026-04-22 | Contributor/maintainer route |
 | `wiki/routes/stakeholder-route.md` | overview | public docs, README, published examples | active | 2026-04-14 | Stakeholder/high-level route |
 | `wiki/model/table-family-guide.md` | concept | `README.md`, `AGENTS.md`, schema docs | active | 2026-04-14 | Prefix and grain guide |
 | `wiki/model/schema-wayfinding.md` | concept | schema docs, data dictionary docs, schema coverage artifact | active | 2026-04-14 | Routing note |
-| `wiki/model/lineage-wayfinding.md` | concept | lineage docs, endpoint docs, `AGENTS.md` | active | 2026-04-14 | Dependency routing note |
+| `wiki/model/lineage-wayfinding.md` | concept | model/lineage docs, endpoint docs, `AGENTS.md` | active | 2026-04-22 | Dependency routing note |
 | `wiki/model/endpoint-coverage.md` | concept | endpoint docs, endpoint coverage report, `AGENTS.md` | active | 2026-04-14 | Coverage interpretation note |
 | `wiki/operations/run-modes.md` | concept | architecture, CLI reference, daily-updates guide | active | 2026-04-14 | Run-mode decision note |
 | `wiki/operations/kaggle-distribution.md` | concept | kaggle guide, CLI code, config | active | 2026-04-14 | Distribution lane |
@@ -28,18 +28,20 @@
 | `wiki/topics/playground-lane.md` | concept | docs playground page, docs DuckDB runtime, docs-app stack captures | active | 2026-04-14 | browser rehearsal note |
 | `wiki/topics/docs-component-registry.md` | concept | docs component files and docs instructions | active | 2026-04-14 | MDX and chrome component note |
 | `wiki/topics/extractor-surface.md` | concept | extract registry, base extractor, staging map | active | 2026-04-14 | ingestion boundary note |
+| `wiki/topics/upstream-nba-api.md` | concept | extractor registry, extract base, upstream capture set, extractor/staging inventory | active | 2026-04-22 | upstream family split and dependency boundary note |
+| `wiki/topics/extraction-boundary.md` | concept | extractor registry, extract base, staging map, extractor/staging inventory | active | 2026-04-22 | normalization and staging ownership note |
 | `wiki/topics/model-audit.md` | concept | model audit engine, endpoint coverage artifacts, and coverage/audit manifest | active | 2026-04-22 | stricter audit note |
 | `wiki/topics/query-agent.md` | concept | `src/nbadb/agent/*` | active | 2026-04-14 | local read-only ask surface |
-| `wiki/topics/chat-surface.md` | concept | `chat/server/*`, skill files | active | 2026-04-14 | rich chat/runtime note |
+| `wiki/topics/chat-surface.md` | concept | `src/nbadb/chat/*`, `chat/*`, chat surface manifests | active | 2026-04-22 | rich chat/runtime note with runtime-shell split |
 | `wiki/topics/query-cookbook-families.md` | concept | query cookbook, analytics skill, query-pattern notes | active | 2026-04-14 | cookbook routing note |
 | `wiki/topics/query-safety.md` | concept | query safety code, chat/runtime trust boundaries | active | 2026-04-14 | trust-boundary note |
-| `wiki/topics/metric-calculator-surface.md` | concept | analytics helper modules and skill docs | active | 2026-04-14 | helper-function surface note |
-| `wiki/topics/season-time-semantics.md` | concept | season helpers, season-type gotchas, repo instructions | active | 2026-04-14 | time-semantics note |
-| `wiki/topics/visualization-surface.md` | concept | docs and chat visualization surfaces | active | 2026-04-14 | charting/visual output note |
-| `wiki/topics/court-helper-internals.md` | concept | court helper, prompt routing, viz helper manifests | active | 2026-04-14 | court and shot-chart helper note |
-| `wiki/topics/comparison-similarity-helpers.md` | concept | compare/similarity helpers, chat runtime, tests | active | 2026-04-14 | comparison/similarity helper note |
-| `wiki/topics/lineup-trend-helpers.md` | concept | lineup and trends helpers, helper manifests | active | 2026-04-14 | lineup/trend helper note |
-| `wiki/topics/lineage-internals.md` | concept | lineage generator, dependency graph, and lineage/audit inventory | active | 2026-04-22 | lineage computation note |
+| `wiki/topics/metric-calculator-surface.md` | concept | analytics helper modules, canonical chat runtime, and skill docs | active | 2026-04-22 | helper-function surface note |
+| `wiki/topics/season-time-semantics.md` | concept | season helpers, season-type gotchas, repo instructions, and chat prompt/runtime surfaces | active | 2026-04-22 | time-semantics note |
+| `wiki/topics/visualization-surface.md` | concept | docs and chat visualization surfaces | active | 2026-04-22 | charting/visual output note |
+| `wiki/topics/court-helper-internals.md` | concept | court helper, canonical chat runtime, prompt routing, viz helper manifests | active | 2026-04-22 | court and shot-chart helper note |
+| `wiki/topics/comparison-similarity-helpers.md` | concept | compare/similarity helpers, canonical chat runtime, and tests | active | 2026-04-22 | comparison/similarity helper note |
+| `wiki/topics/lineup-trend-helpers.md` | concept | lineup and trends helpers, canonical chat runtime, and helper manifests | active | 2026-04-22 | lineup/trend helper note |
+| `wiki/topics/lineage-internals.md` | concept | lineage generator, model/lineage docs, dependency graph, and lineage/audit inventory | active | 2026-04-22 | lineage computation note |
 | `wiki/topics/docs-admin-surface.md` | concept | docs admin routes, auth, telemetry, charts | active | 2026-04-14 | docs admin/runtime note |
 | `wiki/topics/kaggle-publishing-lane.md` | concept | Kaggle metadata, client integration, publish/download lane | active | 2026-04-14 | Kaggle publishing note |
 | `wiki/topics/docs-search-surface.md` | concept | docs search runtime and source-backed search | active | 2026-04-14 | docs search/runtime note |
@@ -50,16 +52,16 @@
 | `wiki/topics/duckdb-wasm-runtime.md` | concept | docs DuckDB-WASM singleton and worker/runtime behavior | active | 2026-04-14 | browser runtime note |
 | `wiki/topics/search-query-expansion.md` | concept | docs search aliases, seeded prompts, trigger logic | active | 2026-04-14 | search expansion note |
 | `wiki/topics/artifact-store-internals.md` | concept | artifact store and export helper internals | active | 2026-04-14 | artifact internals note |
-| `wiki/topics/sandbox-runtime-contract.md` | concept | `run_sql` / `run_python` runtime contract and trust boundary | active | 2026-04-14 | sandbox contract note |
+| `wiki/topics/sandbox-runtime-contract.md` | concept | `run_sql` / `run_python` runtime contract and trust boundary | active | 2026-04-22 | sandbox contract note |
 | `wiki/topics/prompt-assembly-and-capabilities.md` | concept | prompt assembly, capability manifest, backend wiring | active | 2026-04-14 | prompt/capabilities note |
 | `wiki/topics/profile-settings-surface.md` | concept | profiles, gear-panel settings, provider/model choices | active | 2026-04-14 | settings/profile note |
 | `wiki/topics/mcp-server-surface.md` | concept | MCP server layout and runtime role split | active | 2026-04-14 | MCP surface note |
 | `wiki/topics/chat-skill-surface.md` | concept | overall chat skill taxonomy including new skills | active | 2026-04-14 | chat skills note |
-| `wiki/topics/semantic-catalog-service.md` | concept | catalog service/models and semantic ranking logic | active | 2026-04-15 | semantic catalog note |
-| `wiki/topics/sql-validator-service.md` | concept | SQL validation, risk, explain, and repair service | active | 2026-04-15 | SQL validator note |
+| `wiki/topics/semantic-catalog-service.md` | concept | catalog service/models, MCP wiring, and semantic ranking logic | active | 2026-04-22 | semantic catalog note |
+| `wiki/topics/sql-validator-service.md` | concept | SQL validation, risk, explain, and repair service | active | 2026-04-22 | SQL validator note |
 | `wiki/topics/memory-store-internals.md` | concept | memory models, persistence, and search/store behavior | active | 2026-04-15 | memory store note |
 | `wiki/topics/copilot-backend-runtime.md` | concept | alternate Copilot runtime and tool mirror | active | 2026-04-15 | Copilot backend note |
-| `wiki/topics/sandbox-backend-modes.md` | concept | local/daytona/e2b backend switching and remote sync | active | 2026-04-15 | sandbox backend note |
+| `wiki/topics/sandbox-backend-modes.md` | concept | local/daytona/e2b backend switching, remote sync, and wrapper-aware path rewriting | active | 2026-04-22 | sandbox backend note |
 | `wiki/topics/web-context-tools.md` | concept | web search/fetch tools and SSRF/content safeguards | active | 2026-04-15 | web context note |
 | `wiki/topics/chat-notebook-bootstrap.md` | concept | notebook bootstrap, clone/install, and data seeding flow | active | 2026-04-15 | notebook bootstrap note |
 | `wiki/topics/chat-launcher-runtime-surface.md` | concept | launcher helpers and CLI handoff to Chainlit | active | 2026-04-15 | launcher runtime note |

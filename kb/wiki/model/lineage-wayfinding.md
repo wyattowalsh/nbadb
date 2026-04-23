@@ -26,7 +26,7 @@ endpoint -> raw_* -> stg_* -> dim_/fact_/bridge_ -> agg_/analytics_
 | --- | --- |
 | "Where did this table come from?" | `docs/content/docs/model/lineage/table-lineage.mdx` |
 | "Which upstream field fed this metric or key?" | `docs/content/docs/model/lineage/column-lineage.mdx` |
-| "I need the exhaustive dependency graph." | `docs/content/docs/lineage/lineage-auto.mdx` |
+| "I need the exhaustive dependency graph." | `docs/content/docs/model/lineage/lineage-auto.mdx` |
 | "Which endpoint family starts this chain?" | `docs/content/docs/sources/index.mdx` |
 
 ## What lineage tells you best
@@ -43,4 +43,4 @@ endpoint -> raw_* -> stg_* -> dim_/fact_/bridge_ -> agg_/analytics_
 | lineage routing | `docs/content/docs/model/lineage/index.mdx` | curated lineage hub |
 | table-level tracing | `docs/content/docs/model/lineage/table-lineage.mdx` | curated example path |
 | column-level tracing | `docs/content/docs/model/lineage/column-lineage.mdx` | field-level route |
-| exhaustive graph | `docs/content/docs/lineage/lineage-auto.mdx` | generated lineage graph |
+| exhaustive graph | `docs/content/docs/model/lineage/lineage-auto.mdx` | generated lineage graph |

@@ -2,7 +2,7 @@
 
 ## Purpose
 - Grouped internal extract manifest for the shared chat service layer below agent assembly.
-- Capture how chat launch/bootstrap, notebook setup, tracing, catalog inference, memory persistence, access-mode routing, capability exposure, and SQL validation/explanation/repair are split across the current Python surface.
+- Capture how launch/bootstrap, notebook setup, tracing, semantic cataloging, runtime diagnostics, access-mode routing, memory persistence, and SQL validation are split across the current v1 Python surface.
 
 ## High-value paths
 
@@ -11,6 +11,7 @@
 | --- | --- | --- |
 | `src/nbadb/chat/launcher.py` | Local Chainlit launcher and readiness helper. | Resolves `chat`, builds environment overrides, chooses `uv run chainlit` for foreground execution, falls back to `python -m chainlit` for spawned subprocesses, and polls the HTTP endpoint until ready. |
 | `src/nbadb/chat/notebook.py` | Notebook-side bootstrap for reproducible chat sessions. | Detects Kaggle vs local working dirs, reuses an existing `chat` checkout when present, otherwise clones a pinned repo ref, copies DuckDB locally when needed, and installs chat dependencies from the chat app `pyproject.toml`. |
+| `src/nbadb/chat/smoke.py` | Lightweight runtime smoke helpers. | Validates chat-app presence, launch readiness, and minimal live diagnostics without entering the full UI flow. |
 
 ### Tracing and runtime capability gating
 | Path | Service role | Key behaviors |
@@ -18,12 +19,15 @@
 | `src/nbadb/chat/tracing.py` | Shared tracing setup entrypoint. | Serializes setup behind a thread lock, no-ops when tracing is disabled, enables LangSmith via environment flags, and returns Langfuse callback handlers only when the package and keys are available. |
 | `src/nbadb/chat/access/modes.py` | Provider-to-access-mode normalization. | Maps `ollama` and `lmstudio` to `local`, `copilot` to `copilot`, and sends all other providers through the `byok` path. |
 | `src/nbadb/chat/runtime/capabilities.py` | Capability manifest builder for runtime/tool planning. | Defines provider, quality, semantic, memory, and sandbox enums, then emits a `CapabilityManifest` that toggles browser use, dual-SQL drafting, answer judging, notebook generation, and advertised sandbox support. |
+| `src/nbadb/chat/runtime/diagnostics.py` | Local-only runtime diagnostics. | Reports current provider, sandbox, memory, tracing, and backend readiness without mutating session state. |
 
 ### Semantic catalog and SQL safety services
 | Path | Service role | Key behaviors |
 | --- | --- | --- |
 | `src/nbadb/chat/catalog/service.py` | Semantic surface introspection and search over warehouse tables. | Inspects DuckDB `information_schema`, infers family, grain, entities, join keys, measures, time dimensions, aliases, usage guidance, pitfalls, and example questions, then ranks matches for search/recommend flows. |
 | `src/nbadb/chat/sql/service.py` | Read-only SQL validation, explain, risk, and repair helpers. | Extracts referenced tables, applies `ReadOnlyGuard`, verifies table existence against the semantic catalog, runs `EXPLAIN` in read-only DuckDB with external access disabled, adds grain/join warnings, estimates risk, and suggests repair candidates from catalog search. |
+| `src/nbadb/chat/sql/exec.py` | Shared read-only execution path. | Executes validated SQL in DuckDB read-only mode, disables external access, and emits structured `{columns, rows, row_count, sql}` payloads. |
+| `src/nbadb/chat/sql/safety.py` | Shared SQL guard bridge. | Re-exports or wraps the repo-level read-only safety policy for chat-side SQL paths. |
 
 ### Memory persistence
 | Path | Service role | Key behaviors |
@@ -33,7 +37,7 @@
 ## Notes
 - `launcher.py` separates foreground and background launch strategies on purpose: the direct runner insists on `uv`, while spawned processes use the current Python interpreter and suppress stdout/stderr noise.
 - `notebook.py` is tuned for notebook reproducibility rather than general deployment. It prefers an already checked out `chat` tree, otherwise clones a detached commit and installs dependencies directly from the app's declared dependency sets.
-- `tracing.py` is the real implementation surface; `chat/server/tracing.py` is only a compatibility wrapper that re-exports `setup_tracing` after adding `src/` to `sys.path`.
+- `tracing.py`, `runtime/*`, `catalog/*`, `sql/*`, and `memory/*` are the shared implementation surfaces. The mirrored `chat/server/*` modules should be treated as app-local compatibility wrappers only where they still exist.
 - `access_mode_from_provider()` currently infers only `local`, `copilot`, and `byok`. `AccessMode.OPENAI_LOGIN` exists for downstream capability logic, but this helper does not derive it from provider strings.
 - `build_capability_manifest()` makes browser access conditional on `copilot` or `openai-login`, makes careful mode enable dual-SQL drafting, disables answer judging only for fast mode, and currently returns the same advertised sandbox tuple regardless of the requested sandbox branch.
 - `catalog/service.py` recomputes catalog objects directly from DuckDB metadata on each list/search/recommend request; there is no cache layer in this service module.
@@ -52,10 +56,13 @@
 ## Provenance
 - `src/nbadb/chat/launcher.py`
 - `src/nbadb/chat/notebook.py`
+- `src/nbadb/chat/smoke.py`
 - `src/nbadb/chat/tracing.py`
-- `chat/server/tracing.py`
+- `src/nbadb/chat/runtime/diagnostics.py`
 - `src/nbadb/chat/catalog/service.py`
 - `src/nbadb/chat/memory/store.py`
 - `src/nbadb/chat/access/modes.py`
 - `src/nbadb/chat/runtime/capabilities.py`
+- `src/nbadb/chat/sql/exec.py`
+- `src/nbadb/chat/sql/safety.py`
 - `src/nbadb/chat/sql/service.py`

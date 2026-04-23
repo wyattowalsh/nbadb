@@ -12,14 +12,16 @@
 | `src/nbadb/chat/artifacts/models.py` | Broader artifact vocabulary: `ArtifactKind`, `ArtifactPointer`, and `ResultEnvelope` distinguish export, notebook, script, template, and finding concepts even though the store persists only a subset. |
 | `src/nbadb/chat/artifacts/__init__.py` | Public import surface for the artifact package. |
 | `chat/mcp_servers/artifacts.py` | FastMCP wrapper around `ArtifactStore` for `save_template`, `load_template`, `list_templates`, `save_finding`, and `search_findings`. |
-| `chat/server/copilot_backend.py` | Backend-local mirror of template and finding persistence tools; shares the same storage contract without going through the MCP server. |
+| `src/nbadb/chat/mcp/artifacts.py` | Canonical artifact MCP implementation used by the app-local stdio entrypoint. |
+| `src/nbadb/chat/app/copilot_backend.py` | Backend-local mirror of template and finding persistence tools; shares the same storage contract without going through the MCP server. |
 
 ### Export and share helpers
 | Path | Inventory role |
 | --- | --- |
-| `chat/server/_preamble.py` | Python sandbox helper surface for `to_csv`, `to_xlsx`, `to_json`, `export`, `to_embed`, `to_social`, `to_thread`, and `to_spreadsheet`; emits base64 file payloads on stdout. |
-| `chat/mcp_servers/sandbox.py` | Advertises the export/share helper inventory to `run_python` callers and preserves raw structured output when the sandbox returns `_raw`. |
-| `chat/server/_sandbox_exec.py` | Detects structured sandbox stdout and classifies exports by `format` + `content` so the renderer can treat files differently from tables and charts. |
+| `src/nbadb/chat/app/preamble.py` | Canonical sandbox helper surface for `to_csv`, `to_xlsx`, `to_json`, `export`, `to_embed`, `to_social`, and `to_thread`; emits base64 file payloads on stdout. |
+| `src/nbadb/chat/sandbox/exec.py` | Detects structured sandbox stdout and classifies exports by `format` + `content` so the renderer can treat files differently from tables and charts. |
+| `chat/mcp_servers/sandbox.py` | App-local stdio entrypoint that advertises the export/share helper inventory to `run_python` callers. |
+| `src/nbadb/chat/mcp/sandbox.py` | Canonical sandbox MCP implementation and helper description surface. |
 
 ### Session script and notebook export
 | Path | Inventory role |
@@ -30,7 +32,7 @@
 ### Spreadsheet template and delivery wiring
 | Path | Inventory role |
 | --- | --- |
-| `chat/server/_spreadsheet_template.py` | Shared AG Grid HTML template used by the Chainlit spreadsheet action callback; current toolbar supports CSV export, JSON export, and reset. |
+| `src/nbadb/chat/app/spreadsheet_template.py` | Shared AG Grid HTML template used by the Chainlit spreadsheet action callback; current toolbar supports CSV export, JSON export, and reset. |
 | `chat/chainlit_app.py` | SQL-result action lane: stores capped export payloads in session state, rebuilds DataFrames for CSV/XLSX/JSON delivery, and generates spreadsheet HTML files from query results. |
 
 ### File delivery flow
@@ -55,7 +57,7 @@
 - Notebook export writes an `.ipynb` with setup cells plus one markdown/code pair per tracked step.
 - Spreadsheet flow is intentionally HTML-first.
 - The SQL-result action callback delegates to `chat/server/_spreadsheet_template.py`.
-- The sandbox helper in `_preamble.py` still embeds its own spreadsheet HTML template inline instead of importing the shared module, so spreadsheet behavior currently exists in two implementations.
+- The sandbox helper surface and spreadsheet template now belong to the shared `src/nbadb/chat/app/*` layer. The `chat/server/*` mirrors should be treated as app-local compatibility shims only where they remain.
 - Share helpers are file-oriented, not store-oriented.
 - `to_embed()` emits a self-contained HTML snippet in an `nbadb-embed` wrapper.
 - `to_social()` emits `social_card.png` as a branded 1200x630 PNG.
@@ -76,11 +78,13 @@
 - `src/nbadb/chat/artifacts/store.py`
 - `src/nbadb/chat/artifacts/models.py`
 - `src/nbadb/chat/artifacts/__init__.py`
+- `src/nbadb/chat/mcp/artifacts.py`
 - `chat/mcp_servers/artifacts.py`
-- `chat/server/copilot_backend.py`
-- `chat/server/_preamble.py`
-- `chat/server/_sandbox_exec.py`
-- `chat/server/_spreadsheet_template.py`
+- `src/nbadb/chat/app/copilot_backend.py`
+- `src/nbadb/chat/app/preamble.py`
+- `src/nbadb/chat/sandbox/exec.py`
+- `src/nbadb/chat/app/spreadsheet_template.py`
+- `src/nbadb/chat/mcp/sandbox.py`
 - `chat/mcp_servers/sandbox.py`
 - `chat/chainlit_app.py`
 - `src/nbadb/chat/notebook.py`

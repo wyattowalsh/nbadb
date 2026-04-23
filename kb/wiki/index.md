@@ -50,6 +50,7 @@ The KB is additive-first. Existing docs, code, and committed project instruction
 
 ## Browse by system area
 - Warehouse model: [[wiki/model/table-family-guide|Table Family Guide]], [[wiki/model/schema-wayfinding|Schema Wayfinding]], [[wiki/model/lineage-wayfinding|Lineage Wayfinding]], [[wiki/model/endpoint-coverage|Endpoint Coverage]]
+- Source boundary: [[wiki/topics/upstream-nba-api|Upstream NBA API]], [[wiki/topics/extraction-boundary|Extraction Boundary]]
 - Operations: [[wiki/operations/run-modes|Run Modes]], [[wiki/operations/kaggle-distribution|Kaggle Distribution]], [[wiki/operations/troubleshooting|Troubleshooting]]
 - Tooling: [[wiki/tooling/duckdb-polars-pandera-stack|DuckDB, Polars, and Pandera in nbadb]], [[wiki/tooling/sqlmodel-typer-textual-stack|SQLModel, Typer, and Textual in nbadb]], [[wiki/tooling/obsidian-vault-conventions|Obsidian Vault Conventions for nbadb KB]]
 - Project orientation: [[wiki/topics/project-overview|Project Overview]]
@@ -69,7 +70,7 @@ The KB is additive-first. Existing docs, code, and committed project instruction
 |------------------|------------------|---------------------|--------|
 | Project canon | `raw/extracts/internal/repo-canon-inventory.md` | `wiki/index.md` and route pages | seeded |
 | Docs site surfaces | `raw/extracts/internal/docs-surface-inventory.md` | `wiki/model/*`, `wiki/operations/*`, `wiki/topics/docs-autogen.md` | seeded |
-| Extractor and staging surfaces | `raw/extracts/internal/extractor-and-staging-inventory.md` | `wiki/model/endpoint-coverage.md` | seeded |
+| Extractor and staging surfaces | `raw/extracts/internal/extractor-and-staging-inventory.md` | `wiki/model/endpoint-coverage.md`, `wiki/topics/upstream-nba-api.md`, `wiki/topics/extraction-boundary.md` | seeded |
 | Coverage and audit bridge | `raw/extracts/internal/endpoint-coverage-and-audit-manifest.md` | `wiki/topics/endpoint-coverage-source-summary.md`, `wiki/topics/model-audit.md`, `wiki/topics/full-extraction-control-plane.md` | captured |
 | Docs generator bridge | `raw/extracts/internal/docs-generator-manifest.md` | `wiki/topics/docs-autogen.md`, `wiki/topics/docs-profiling-surface.md` | captured |
 | Full extraction control bridge | `raw/extracts/internal/full-extraction-control-manifest.md` | `wiki/topics/full-extraction-control-plane.md`, `wiki/topics/live-snapshot-contract.md` | captured |

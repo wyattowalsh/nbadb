@@ -21,7 +21,9 @@ Grouped internal extract for the upstream intake and `stg_*` mapping boundary.
 ## Planned wiki coverage
 - `wiki/model/endpoint-coverage.md`
 - `wiki/model/lineage-wayfinding.md`
-- future `wiki/topics/extractor-surface.md`
+- `wiki/topics/extractor-surface.md`
+- `wiki/topics/upstream-nba-api.md`
+- `wiki/topics/extraction-boundary.md`
 
 ## Provenance
 - `src/nbadb/extract/registry.py`

@@ -12,7 +12,7 @@ aliases:
   - Court Script Internals
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-22
 source_count: 7
 ---
 
@@ -38,7 +38,7 @@ source_count: 7
 - `_ZONE_CENTROIDS` is a hard-coded lookup from `(zone_basic, zone_area)` to label positions for `zone_chart(...)`.
 
 ## Runtime contract in chat
-- The sandbox preamble prepends `chat/skills/nba-data-analytics/scripts` to `sys.path` and pre-imports `court`.
+- The canonical sandbox preamble in `src/nbadb/chat/app/preamble.py` prepends `chat/skills/nba-data-analytics/scripts` to `sys.path` and pre-imports `court`.
 - `matplotlib` is forced onto the `Agg` backend before user code runs.
 - `plt.show()` is monkey-patched to serialize the current figure as base64 PNG and close all figures.
 - Because of that patch, the court helpers deliberately call `plt.show()` themselves and still return the `Figure` for optional reuse.
@@ -107,9 +107,9 @@ source_count: 7
 | Claim or section | Raw or canonical material | Notes |
 | --- | --- | --- |
 | module ownership, dimensions, zone centroids, plotting behavior | `chat/skills/nba-data-analytics/scripts/court.py` | canonical helper implementation |
-| sandbox import wiring and patched `plt.show()` behavior | `chat/server/_preamble.py` | explains why `court.*` emits PNG output directly |
-| `run_python` tool contract and skills-dir injection | `chat/mcp_servers/sandbox.py` | concrete chat runtime exposure |
+| sandbox import wiring and patched `plt.show()` behavior | `src/nbadb/chat/app/preamble.py` | canonical shared runtime explaining why `court.*` emits PNG output directly |
+| `run_python` tool contract and skills-dir injection | `src/nbadb/chat/mcp/sandbox.py` | canonical MCP runtime exposure |
 | court helper API listed in the skill | `chat/skills/nba-data-analytics/SKILL.md` | user-facing helper contract |
 | shot-chart SQL-to-Python workflow example | `chat/skills/nba-data-analytics/references/query-cookbook.md` | concrete usage pattern |
 | shot-detail table naming and common schema summary | `chat/skills/nba-data-analytics/references/schema-guide.md` | reference surface for real queries |
-| prompt workflow and visualization profile; wrapper indirection | `chat/server/prompts.py`, `src/nbadb/chat/prompts.py` | wrapper path plus canonical prompt text |
+| prompt workflow and visualization profile; wrapper indirection | `src/nbadb/chat/prompts.py`, `chat/server/prompts.py` | canonical prompt text plus compatibility wrapper boundary |

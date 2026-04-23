@@ -4,7 +4,7 @@
 |-----------|----------|--------------|---------------------|-----------------------------|-------------------|--------|
 | `repo-canon` | `raw/extracts/internal/repo-canon-inventory.md` | extract | `wiki/index.md` | yes | linked | seeded |
 | `docs-site` | `raw/extracts/internal/docs-surface-inventory.md` | extract | `wiki/model/schema-wayfinding.md` | yes | linked | seeded |
-| `extractor-surface` | `raw/extracts/internal/extractor-and-staging-inventory.md` | extract | `wiki/model/endpoint-coverage.md` | yes | linked | seeded |
+| `extractor-surface` | `raw/extracts/internal/extractor-and-staging-inventory.md` | extract | `wiki/model/endpoint-coverage.md`, `wiki/topics/upstream-nba-api.md`, `wiki/topics/extraction-boundary.md` | yes | linked | seeded |
 | `external-collections` | `raw/extracts/external/source-collections.md` | extract | `indexes/external-sources.md` | no | linked | seeded |
 | `public-contract-captures` | `raw/sources/external/public-contract/` | source capture | `wiki/model/*`, `wiki/operations/*` | no | linked | captured |
 | `upstream-nba-captures` | `raw/sources/external/upstream-nba/` | source capture | `wiki/topics/nba-api-source-summary.md`, `wiki/model/endpoint-coverage.md` | no | linked | captured |
@@ -30,15 +30,15 @@
 | `nba-api-advanced-captures` | `raw/sources/external/nba-api-advanced/` | source capture | `wiki/topics/court-helper-internals.md`, `wiki/topics/lineup-trend-helpers.md` | no | linked | captured |
 | `kaggle-notebook-metadata-captures` | `raw/sources/external/kaggle-notebook-metadata/` | metadata capture | `wiki/topics/published-examples-source-summary.md`, `wiki/topics/kaggle-publishing-lane.md` | no | linked | captured |
 | `docs-site-summary` | `wiki/topics/docs-site-source-summary.md` | source-summary | `wiki/operations/*`, `wiki/model/*` | yes | linked | seeded |
-| `nba-api-summary` | `wiki/topics/nba-api-source-summary.md` | source-summary | `wiki/model/endpoint-coverage.md` | yes | linked | seeded |
+| `nba-api-summary` | `wiki/topics/nba-api-source-summary.md` | source-summary | `wiki/model/endpoint-coverage.md`, `wiki/topics/upstream-nba-api.md`, `wiki/topics/extraction-boundary.md` | yes | linked | seeded |
 | `endpoint-coverage-summary` | `wiki/topics/endpoint-coverage-source-summary.md` | source-summary | `wiki/model/endpoint-coverage.md` | yes | linked | seeded |
 | `analytics-skill-summary` | `wiki/topics/analytics-skill-source-summary.md` | source-summary | `wiki/topics/analytics-skill-guide.md` | yes | linked | seeded |
 | `endpoint-coverage-and-audit-manifest` | `raw/extracts/internal/endpoint-coverage-and-audit-manifest.md` | extract | `wiki/topics/endpoint-coverage-source-summary.md`, `wiki/topics/model-audit.md`, `wiki/topics/full-extraction-control-plane.md`, `wiki/topics/strict-source-complete-roadmap.md` | yes | linked | captured |
 | `docs-generator-manifest` | `raw/extracts/internal/docs-generator-manifest.md` | extract | `wiki/topics/docs-autogen.md`, `wiki/topics/docs-profiling-surface.md` | yes | linked | captured |
 | `full-extraction-control-manifest` | `raw/extracts/internal/full-extraction-control-manifest.md` | extract | `wiki/topics/full-extraction-control-plane.md`, `wiki/topics/live-snapshot-contract.md`, `wiki/topics/strict-source-complete-roadmap.md` | yes | linked | captured |
-| `chat-surface-manifest` | `raw/extracts/internal/chat-surface-manifest.md` | extract | `wiki/topics/chat-surface.md`, `wiki/topics/query-agent.md` | yes | linked | captured |
+| `chat-surface-manifest` | `raw/extracts/internal/chat-surface-manifest.md` | extract | `wiki/topics/chat-surface.md`, `wiki/topics/chainlit-runtime.md`, `wiki/topics/query-agent.md` | yes | linked | captured |
 | `docs-app-stack-inventory` | `raw/extracts/internal/docs-app-stack-inventory.md` | extract | `wiki/topics/docs-app-stack.md`, `wiki/topics/playground-lane.md` | yes | linked | captured |
-| `analytics-helper-surface-manifest` | `raw/extracts/internal/analytics-helper-surface-manifest.md` | extract | `wiki/topics/metric-calculator-surface.md`, `wiki/topics/visualization-surface.md` | yes | linked | captured |
+| `analytics-helper-surface-manifest` | `raw/extracts/internal/analytics-helper-surface-manifest.md` | extract | `wiki/topics/metric-calculator-surface.md`, `wiki/topics/court-helper-internals.md`, `wiki/topics/comparison-similarity-helpers.md`, `wiki/topics/lineup-trend-helpers.md`, `wiki/topics/visualization-surface.md`, `wiki/topics/season-time-semantics.md` | yes | linked | captured |
 | `lineage-audit-inventory` | `raw/extracts/internal/lineage-audit-inventory.md` | extract | `wiki/topics/lineage-internals.md`, `wiki/topics/model-audit.md` | yes | linked | captured |
 | `helper-module-breakdown` | `raw/extracts/internal/helper-module-breakdown.md` | extract | `wiki/topics/court-helper-internals.md`, `wiki/topics/comparison-similarity-helpers.md`, `wiki/topics/lineup-trend-helpers.md` | yes | linked | captured |
 | `docs-admin-search-inventory` | `raw/extracts/internal/docs-admin-search-inventory.md` | extract | `wiki/topics/docs-admin-surface.md`, `wiki/topics/docs-search-surface.md` | yes | linked | captured |
@@ -46,9 +46,9 @@
 | `docs-telemetry-inventory` | `raw/extracts/internal/docs-telemetry-inventory.md` | extract | `wiki/topics/docs-telemetry-health.md`, `wiki/topics/docs-admin-surface.md` | yes | linked | captured |
 | `prompt-profile-manifest` | `raw/extracts/internal/prompt-profile-manifest.md` | extract | `wiki/topics/prompt-assembly-and-capabilities.md`, `wiki/topics/profile-settings-surface.md` | yes | linked | captured |
 | `artifact-runtime-manifest` | `raw/extracts/internal/artifact-runtime-manifest.md` | extract | `wiki/topics/artifact-store-internals.md`, `wiki/topics/export-share-artifacts.md` | yes | linked | captured |
-| `mcp-server-inventory` | `raw/extracts/internal/mcp-server-inventory.md` | extract | `wiki/topics/mcp-server-surface.md`, `wiki/topics/sandbox-runtime-contract.md` | yes | linked | captured |
+| `mcp-server-inventory` | `raw/extracts/internal/mcp-server-inventory.md` | extract | `wiki/topics/mcp-server-surface.md`, `wiki/topics/sandbox-runtime-contract.md`, `wiki/topics/semantic-catalog-service.md` | yes | linked | captured |
 | `chat-skill-inventory` | `raw/extracts/internal/chat-skill-inventory.md` | extract | `wiki/topics/chat-skill-surface.md` | yes | linked | captured |
-| `chat-service-layer-inventory` | `raw/extracts/internal/chat-service-layer-inventory.md` | extract | `wiki/topics/chat-launcher-runtime-surface.md`, `wiki/topics/chat-notebook-bootstrap.md`, `wiki/topics/chat-tracing-surface.md`, `wiki/topics/access-mode-contract.md`, `wiki/topics/semantic-catalog-service.md`, `wiki/topics/sql-validator-service.md`, `wiki/topics/memory-store-internals.md` | yes | linked | captured |
+| `chat-service-layer-inventory` | `raw/extracts/internal/chat-service-layer-inventory.md` | extract | `wiki/topics/chat-launcher-runtime-surface.md`, `wiki/topics/chat-notebook-bootstrap.md`, `wiki/topics/chat-tracing-surface.md`, `wiki/topics/access-mode-contract.md`, `wiki/topics/semantic-catalog-service.md`, `wiki/topics/sql-validator-service.md`, `wiki/topics/memory-store-internals.md`, `wiki/topics/sandbox-backend-modes.md` | yes | linked | captured |
 | `docs-admin-page-inventory` | `raw/extracts/internal/docs-admin-page-inventory.md` | extract | `wiki/topics/docs-admin-control-center.md`, `wiki/topics/docs-content-audit.md`, `wiki/topics/docs-pipeline-dashboard.md`, `wiki/topics/docs-profiling-surface.md` | yes | linked | captured |
 
 ## Notes

@@ -11,7 +11,7 @@ aliases:
   - Docs and Chat Visualization Surface
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-22
 source_count: 14
 ---
 
@@ -64,9 +64,9 @@ Use these when the docs site needs share previews. They are not user-triggered a
 ## Chat lane
 
 ### Plotly is the main interactive analysis surface
-- `chat/server/prompts.py` explicitly says Plotly is preferred for interactive charts.
+- `src/nbadb/chat/prompts.py` explicitly says Plotly is preferred for interactive charts.
 - The prompt's chart-selection table routes rankings, trends, scatter plots, distributions, and part-of-whole charts to Plotly.
-- `chat/server/_preamble.py` pre-imports `plotly.express` and `plotly.graph_objects`, and exposes `chart()` plus `annotated_chart()`.
+- `src/nbadb/chat/app/preamble.py` pre-imports `plotly.express` and `plotly.graph_objects`, and exposes `chart()` plus `annotated_chart()`.
 - `chat/chainlit_app.py` renders Plotly JSON inline with `cl.Plotly`.
 
 Use Plotly when the user is exploring data live in chat and benefits from hover, zoom, legends, reference lines, and easy HTML export.
@@ -80,7 +80,7 @@ Use matplotlib when the figure geometry is custom or court-specific, or when the
 
 ### Chat shot charts are Python helpers, not MDX widgets
 - `chat/skills/nba-data-analytics/scripts/court.py` owns `draw_court`, `shot_chart`, `shot_heatmap`, `zone_chart`, and `compare_shots`.
-- `chat/server/prompts.py` routes shot-location questions to `court.shot_chart(df)` and `court.shot_heatmap(df)`.
+- `src/nbadb/chat/prompts.py` routes shot-location questions to `court.shot_chart(df)` and `court.shot_heatmap(df)`.
 - `chat/skills/nba-data-analytics/SKILL.md` ties those helpers to `fact_shot_chart` and its location and zone columns.
 
 Use the chat shot-chart helpers when the user wants actual analysis artifacts from warehouse data, not a docs example.
@@ -93,8 +93,8 @@ Use the chat shot-chart helpers when the user wants actual analysis artifacts fr
 ## Share surfaces
 
 ### Embeds belong to chat exports
-- `chat/server/_preamble.py` provides `to_embed(fig, title)`, which serializes a Plotly figure into a self-contained HTML snippet wrapped in an `nbadb-embed` container.
-- `chat/server/prompts.py` positions embeds as the right answer when the user asks to embed a chart in a blog or site.
+- `src/nbadb/chat/app/preamble.py` provides `to_embed(fig, title)`, which serializes a Plotly figure into a self-contained HTML snippet wrapped in an `nbadb-embed` container.
+- `src/nbadb/chat/prompts.py` positions embeds as the right answer when the user asks to embed a chart in a blog or site.
 
 Use embeds when the output needs to leave chat and run elsewhere. Docs MDX components are for repo-authored pages, not portable user exports.
 
@@ -131,8 +131,8 @@ Use docs OG routes for site metadata. Use chat `to_social(...)` for analyst-crea
 | docs admin monitoring charts | `docs/app/(admin)/admin/pipeline/pipeline-charts.tsx` | Recharts-based pipeline dashboard composition |
 | docs admin chart wrapper shape | `docs/components/admin/chart-area.tsx` | representative Recharts wrapper |
 | docs social card routes | `docs/app/opengraph-image.tsx`, `docs/app/docs-og/{catch-all}/route.tsx` | site-level and page-level OG image generation |
-| chat prompt chart policy | `chat/server/prompts.py` | Plotly-vs-matplotlib guidance, share helpers, shot-chart routing |
-| chat sandbox display and export helpers | `chat/server/_preamble.py` | `chart`, `annotated_chart`, `to_embed`, `to_social`, patched `plt.show()` |
+| chat prompt chart policy | `src/nbadb/chat/prompts.py` | Plotly-vs-matplotlib guidance, share helpers, shot-chart routing |
+| chat sandbox display and export helpers | `src/nbadb/chat/app/preamble.py` | `chart`, `annotated_chart`, `to_embed`, `to_social`, patched `plt.show()` |
 | chat renderer behavior | `chat/chainlit_app.py` | Plotly inline rendering, matplotlib image rendering, export file handling |
 | chat skill rules | `chat/skills/analysis-and-visualization/SKILL.md`, `chat/skills/nba-data-analytics/SKILL.md` | chart heuristics, shot-chart lane, export/helper inventory |
-| chat helper scripts | `chat/skills/nba-data-analytics/scripts/court.py`, `.../compare.py`, `.../lineups.py`, `chat/mcp_servers/sandbox.py` | concrete chart-producing runtime helpers and sandbox exposure |
+| chat helper scripts | `chat/skills/nba-data-analytics/scripts/court.py`, `.../compare.py`, `.../lineups.py`, `src/nbadb/chat/mcp/sandbox.py` | concrete chart-producing runtime helpers and sandbox exposure |

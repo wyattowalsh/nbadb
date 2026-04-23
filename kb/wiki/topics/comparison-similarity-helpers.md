@@ -14,7 +14,7 @@ aliases:
   - Player Similarity Helpers
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-22
 source_count: 8
 ---
 
@@ -25,7 +25,7 @@ This note covers the chat-side helper modules `compare.py` and `similarity.py` u
 They are pandas-first post-query helpers that live inside the chat Python sandbox. They are meant to shape, normalize, compare, and visualize already-retrieved player datasets, not to replace SQL table selection, joins, or warehouse aggregation.
 
 ## Runtime surface
-- `chat/server/_preamble.py` inserts the skill `scripts/` directory onto `sys.path` and imports both modules directly as `compare` and `similarity`.
+- `src/nbadb/chat/app/preamble.py` inserts the skill `scripts/` directory onto `sys.path` and imports both modules directly as `compare` and `similarity`.
 - The `run_python` sandbox therefore exposes them as built-in helper surfaces during chat analysis.
 - The analytics skill documents both surfaces explicitly, so they are part of the intended public chat-analysis contract rather than incidental utility code.
 - Both modules are local, in-memory helpers: they operate on DataFrames or dict-like inputs and do not persist state, hit the network, or execute SQL themselves.
@@ -105,11 +105,11 @@ That placement matches the system prompt's workflow: retrieval first, then Pytho
 ## Provenance
 | Claim or section | Raw or canonical material | Notes |
 |------------------|---------------------------|-------|
-| runtime pre-import of `compare` and `similarity` into chat Python | `/Users/ww/dev/projects/nbadb/chat/server/_preamble.py` | canonical runtime loading path |
-| `run_python` sandbox contract and built-in helper framing | `/Users/ww/dev/projects/nbadb/chat/mcp_servers/sandbox.py` | public MCP tool description |
-| chat workflow places Python after retrieval for post-processing and charting | `/Users/ww/dev/projects/nbadb/src/nbadb/chat/prompts.py` | system prompt workflow contract |
-| documented public `compare.*` and `similarity.*` surfaces | `/Users/ww/dev/projects/nbadb/chat/skills/nba-data-analytics/SKILL.md` | skill-level contract and intended use |
-| canonical implementation of comparison helpers | `/Users/ww/dev/projects/nbadb/chat/skills/nba-data-analytics/scripts/compare.py` | source of function behavior and defaults |
-| canonical implementation of similarity helpers | `/Users/ww/dev/projects/nbadb/chat/skills/nba-data-analytics/scripts/similarity.py` | source of function behavior and defaults |
-| verified compare helper output shapes and edge cases | `/Users/ww/dev/projects/nbadb/tests/unit/chat/test_compare.py` | confirms additive columns, percentile logic, and radar-chart fallbacks |
-| verified similarity helper output shapes and edge cases | `/Users/ww/dev/projects/nbadb/tests/unit/chat/test_similarity.py` | confirms not-found errors, clustering fallback, and career-overlap rules |
+| runtime pre-import of `compare` and `similarity` into chat Python | `src/nbadb/chat/app/preamble.py` | canonical runtime loading path |
+| `run_python` sandbox contract and built-in helper framing | `src/nbadb/chat/mcp/sandbox.py` | canonical MCP tool description |
+| chat workflow places Python after retrieval for post-processing and charting | `src/nbadb/chat/prompts.py` | system prompt workflow contract |
+| documented public `compare.*` and `similarity.*` surfaces | `chat/skills/nba-data-analytics/SKILL.md` | skill-level contract and intended use |
+| canonical implementation of comparison helpers | `chat/skills/nba-data-analytics/scripts/compare.py` | source of function behavior and defaults |
+| canonical implementation of similarity helpers | `chat/skills/nba-data-analytics/scripts/similarity.py` | source of function behavior and defaults |
+| verified compare helper output shapes and edge cases | `tests/unit/chat/test_compare.py` | confirms additive columns, percentile logic, and radar-chart fallbacks |
+| verified similarity helper output shapes and edge cases | `tests/unit/chat/test_similarity.py` | confirms not-found errors, clustering fallback, and career-overlap rules |

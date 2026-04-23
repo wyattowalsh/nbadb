@@ -45,7 +45,7 @@ Use this route when the job is changing code, fixing tests, updating docs, regen
 - If the issue is actually stale data or pipeline state, switch to [[operator-route|Operator Route]] early.
 
 ## Watch for
-- `docs/content/docs/schema/*`, `docs/content/docs/data-dictionary/*`, `docs/content/docs/diagrams/er-auto.mdx`, `docs/content/docs/lineage/lineage-auto.mdx`, and `docs/lib/generated/*` are generator-owned surfaces.
+- `docs/content/docs/model/schema/*`, `docs/content/docs/model/dictionary/*`, `docs/content/docs/model/diagrams/er-auto.mdx`, `docs/content/docs/model/lineage/lineage-auto.mdx`, and `docs/lib/generated/*` are generator-owned surfaces.
 - `dim_player` and `dim_team_history` are SCD2 tables; docs and examples should say when `is_current = TRUE` matters.
 - Local analytics or quality checks usually assume a seeded `nba.duckdb`; use `uv run nbadb download` when you need a published dataset locally.
 

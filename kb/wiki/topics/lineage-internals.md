@@ -87,7 +87,7 @@ The second input to docs lineage is Pandera field metadata.
 The lineage docs section has both authored and generated layers.
 
 ### Generator-owned page
-- `docs/content/docs/lineage/lineage-auto.mdx` is generator-owned.
+- `docs/content/docs/model/lineage/lineage-auto.mdx` is generator-owned.
 - `LineageGenerator.generate_mdx()` renders the extraction and transform Mermaid diagrams.
 - `src/nbadb/docs_gen/autogen.py` wraps that output with coverage notes comparing lineage outputs to schema-backed tables.
 
@@ -138,6 +138,6 @@ Use this sequence when debugging lineage internals:
 | generated vs curated lineage page boundary | `docs/content/docs/model/lineage/index.mdx` | docs presentation layer |
 | generated vs curated lineage page boundary | `docs/content/docs/model/lineage/table-lineage.mdx` | docs presentation layer |
 | generated vs curated lineage page boundary | `docs/content/docs/model/lineage/column-lineage.mdx` | docs presentation layer |
-| generated vs curated lineage page boundary | `docs/content/docs/lineage/lineage-auto.mdx` | docs presentation layer |
+| generated vs curated lineage page boundary | `docs/content/docs/model/lineage/lineage-auto.mdx` | docs presentation layer |
 | generator-lane framing and KB style/context | `wiki/topics/docs-generator-internals.md` | local note conventions and related concepts |
 | generator-lane framing and KB style/context | `wiki/topics/docs-autogen.md` | local note conventions and related concepts |

@@ -7,8 +7,8 @@ tags:
 aliases: []
 kind: source-summary
 status: active
-updated: 2026-04-14
-source_count: 4
+updated: 2026-04-22
+source_count: 5
 ---
 
 # NBA API Source Summary
@@ -26,8 +26,8 @@ This source set establishes the `nba_api` dependency and the extraction boundary
 
 ## Planned wiki coverage
 - `wiki/model/endpoint-coverage.md`
-- future `wiki/topics/upstream-nba-api.md`
-- future `wiki/topics/extraction-boundary.md`
+- `wiki/topics/upstream-nba-api.md`
+- `wiki/topics/extraction-boundary.md`
 
 ## Provenance
 | Claim or section | Raw or canonical material | Notes |
@@ -36,3 +36,4 @@ This source set establishes the `nba_api` dependency and the extraction boundary
 | Count claim and runtime-surface framing | `AGENTS.md` | Current repo-level summary |
 | Extractor package split | `src/nbadb/extract/registry.py` | Shows registration and discovery |
 | Pandas-to-Polars boundary | `src/nbadb/extract/base.py` | Shows normalization path |
+| Grouped upstream/extractor bridge | `raw/extracts/internal/extractor-and-staging-inventory.md`; `raw/sources/external/upstream-nba/` | Current source bridge into maintained notes |

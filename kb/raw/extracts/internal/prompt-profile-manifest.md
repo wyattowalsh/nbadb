@@ -1,7 +1,7 @@
 # Prompt And Profile Manifest
 
 ## Purpose
-- Group the internal prompt and profile surface for the chat app: shared prompt construction, Chainlit profile selection, runtime settings and capability flags, and the provider/profile flow that turns session choices into an initialized agent.
+- Group the internal prompt and profile surface for the chat app: shared prompt construction, Chainlit profile selection, runtime settings and capability flags, and the provider/profile flow that turns session choices into an initialized v1 agent.
 
 ## High-value paths
 
@@ -9,8 +9,8 @@
 | Path | Inventory role |
 | --- | --- |
 | `src/nbadb/chat/prompts.py` | Canonical system prompt template plus the three profile overlays: `Quick Stats`, `Deep Analysis`, and `Visualization`. |
-| `chat/server/prompts.py` | Thin compatibility wrapper that exposes `build_system_prompt()` from the shared `src/` module for the `chat/server` runtime. |
 | `src/nbadb/chat/runtime/factory.py` | Resolves the database, builds schema context, renders the profile-aware system prompt, and constructs the capability manifest in one place. |
+| `chat/server/prompts.py` | Compatibility wrapper over `src/nbadb/chat/prompts.py` for app-local imports. |
 
 ### Runtime settings and capability models
 | Path | Inventory role |
@@ -18,6 +18,7 @@
 | `src/nbadb/chat/runtime/settings.py` | Defines `ChatSettings`, the `NBADB_CHAT_` settings surface, provider/model/temperature/quality toggles, web context flag, sandbox mode, and post-validation normalization. |
 | `src/nbadb/chat/runtime/capabilities.py` | Defines `ProviderName`, `QualityMode`, `SemanticMode`, `MemoryMode`, `SandboxMode`, and the `CapabilityManifest` used to describe what the current session can do. |
 | `src/nbadb/chat/access/modes.py` | Maps provider choice to access mode, including the special `copilot` branch and local-provider handling for `ollama` and `lmstudio`. |
+| `src/nbadb/chat/providers/factory.py` | Canonical non-Copilot model factory. |
 | `chat/server/config.py` | Compatibility wrapper that re-exports the shared runtime settings into the app-local server package. |
 
 ### Chat profile surfaces
@@ -30,9 +31,8 @@
 ### Provider and agent assembly flow
 | Path | Inventory role |
 | --- | --- |
-| `chat/server/agent.py` | Entry point that takes `settings` plus optional `profile`, builds runtime context, then chooses `copilot` vs deepagents assembly while carrying the capability manifest into the wrapper. |
-| `chat/server/providers/factory.py` | LangChain model factory for non-copilot providers: `openai`, `custom`, `anthropic`, `google`, `ollama`, and `lmstudio`. |
-| `chat/server/copilot_backend.py` | Dedicated runtime path when `provider=copilot`; consumes the already-built system prompt instead of going through the LangChain factory. |
+| `src/nbadb/chat/app/agent.py` | Entry point that takes `settings` plus optional `profile`, builds runtime context, then chooses `copilot` vs deepagents assembly while carrying the capability manifest into the wrapper. |
+| `src/nbadb/chat/app/copilot_backend.py` | Dedicated runtime path when `provider=copilot`; consumes the already-built system prompt instead of going through the LangChain factory. |
 | `src/nbadb/chat/__init__.py` | Re-export surface that makes prompt, runtime, capability, and settings helpers available from the package root. |
 
 ## Notes
@@ -42,7 +42,7 @@
 - Provider selection and profile selection stay independent until agent creation. The Chainlit UI captures the chosen profile, settings updates capture the chosen provider/model, and `create_nba_agent()` receives both so prompt rendering and backend selection happen together.
 - `ChatSettings._normalize()` derives `access_mode` from the provider when omitted, enables `dual_sql_drafting` for `careful`, and disables `answer_judge` for `fast`; `build_capability_manifest()` mirrors those quality-derived flags into the runtime capability summary.
 - The capability manifest currently marks most features as available across providers, but `browser_use` is gated by access mode and the deepagents runtime only adds `web_search` and `web_fetch` when `settings.web_context` is true.
-- `chat/server/prompts.py` and `chat/server/config.py` exist to keep the `chat/server` package importable without duplicating the shared prompt/settings implementation.
+- `chat/server/prompts.py` and `chat/server/config.py` exist to keep the app-local wrapper package importable without duplicating the shared prompt/settings implementation.
 - There are two different "profile" concepts in the codebase: prompt/UI analysis profiles (`Quick Stats`, `Deep Analysis`, `Visualization`) and memory `ProfileRecord` entries used for stored preferences.
 
 ## Planned wiki coverage
@@ -58,11 +58,11 @@
 - `src/nbadb/chat/runtime/settings.py`
 - `src/nbadb/chat/runtime/capabilities.py`
 - `src/nbadb/chat/access/modes.py`
+- `src/nbadb/chat/providers/factory.py`
 - `chat/server/config.py`
 - `chat/chainlit_app.py`
 - `chat/chainlit.md`
-- `chat/server/agent.py`
-- `chat/server/providers/factory.py`
-- `chat/server/copilot_backend.py`
+- `src/nbadb/chat/app/agent.py`
+- `src/nbadb/chat/app/copilot_backend.py`
 - `src/nbadb/chat/memory/models.py`
 - `src/nbadb/chat/__init__.py`

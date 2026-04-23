@@ -30,9 +30,9 @@ Everything listed here is `canonical material` for the companion `vault`. Future
 | Family | Paths | Why preserve |
 |--------|-------|--------------|
 | Project overview and operating model | `README.md`, `AGENTS.md`, `pyproject.toml` | Highest-signal summary of repo purpose, commands, dependency surface, and module map |
-| Main application code | `src/nbadb/` | Primary source for extract, schema, transform, load, orchestrate, agent, and docs generator behavior |
+| Main application code | `src/nbadb/`, including `src/nbadb/chat/` | Primary source for extract, schema, transform, load, orchestrate, agent, chat runtime, and docs generator behavior |
 | Docs app and docs content | `docs/AGENTS.md`, `docs/app/`, `docs/components/`, `docs/lib/`, `docs/content/docs/`, `docs/package.json` | Public docs and docs implementation surface |
-| Chat companion | `chat/`, especially `chat/skills/nba-data-analytics/` | Separate query/chat surface with its own skill and references |
+| Chat companion shell | `chat/`, especially `chat/chainlit_app.py`, `chat/mcp_servers/`, and `chat/skills/` | App shell, compatibility entrypoints, and repo-local skill family layered over the shared runtime |
 | Tests and fixtures | `tests/`, `tests/fixtures/` | Validation boundary and reproducible examples |
 | Governance and publication metadata | `SECURITY.md`, `LICENSE`, `.github/CONTRIBUTING.md`, `.github/CODE_OF_CONDUCT.md`, `dataset-metadata.json` | Contributor, policy, and dataset-distribution boundary |
 
@@ -41,14 +41,14 @@ These paths are committed `canonical material`, but the repo already states that
 
 | Path | Ownership note |
 |------|----------------|
-| `docs/content/docs/schema/raw-reference.mdx` | Generated docs artifact |
-| `docs/content/docs/schema/staging-reference.mdx` | Generated docs artifact |
-| `docs/content/docs/schema/star-reference.mdx` | Generated docs artifact |
-| `docs/content/docs/data-dictionary/raw.mdx` | Generated docs artifact |
-| `docs/content/docs/data-dictionary/staging.mdx` | Generated docs artifact |
-| `docs/content/docs/data-dictionary/star.mdx` | Generated docs artifact |
-| `docs/content/docs/diagrams/er-auto.mdx` | Generated docs artifact |
-| `docs/content/docs/lineage/lineage-auto.mdx` | Generated docs artifact |
+| `docs/content/docs/model/schema/raw-reference.mdx` | Generated docs artifact |
+| `docs/content/docs/model/schema/staging-reference.mdx` | Generated docs artifact |
+| `docs/content/docs/model/schema/star-reference.mdx` | Generated docs artifact |
+| `docs/content/docs/model/dictionary/raw.mdx` | Generated docs artifact |
+| `docs/content/docs/model/dictionary/staging.mdx` | Generated docs artifact |
+| `docs/content/docs/model/dictionary/star.mdx` | Generated docs artifact |
+| `docs/content/docs/model/diagrams/er-auto.mdx` | Generated docs artifact |
+| `docs/content/docs/model/lineage/lineage-auto.mdx` | Generated docs artifact |
 | `docs/lib/generated/` | Generated machine-readable docs backing data |
 
 ## Not canonical by default

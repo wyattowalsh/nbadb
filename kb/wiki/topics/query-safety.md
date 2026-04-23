@@ -12,118 +12,97 @@ aliases:
   - Query Trust Boundaries
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-22
 source_count: 9
 ---
 
 # Query Safety
 
-Use this note for the shortest grounded answer to "where is read-only SQL actually enforced, and what parts of the agent stack are only guidance or trust assumptions?"
+Use this note for the shortest grounded answer to "where is read-only SQL actually enforced, and what parts of the chat stack are only guidance?"
 
 ## Canonical enforcement point
-The canonical SQL guard lives in `src/nbadb/agent/safety.py`.
+The repo-wide read-only SQL guard still lives in `src/nbadb/agent/safety.py`.
 
-`ReadOnlyGuard` does more than block obvious write verbs:
-- normalizes SQL with Unicode NFKC before checking it
-- strips block and line comments before validation
-- rejects stacked statements after comment stripping
-- rejects write keywords with word-boundary matching
-- rejects dangerous file, environment, and external-read functions such as `read_csv`, `read_parquet`, `http_get`, `getenv`, and `query_table`
-- only allows statements starting with `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, or `DESCRIBE`
-
-For executable reads, it also wraps `SELECT` and `WITH` queries in an outer hard `LIMIT`. `EXPLAIN`, `SHOW`, and `DESCRIBE` are allowed passthrough prefixes and are not limit-wrapped.
+That guard:
+- normalizes SQL before checking it
+- strips comments before validation
+- blocks write-oriented statements and dangerous file/network helpers
+- only allows read-style entry prefixes
+- wraps executable reads in a hard outer `LIMIT`
 
 ## Local query agent boundary
-`src/nbadb/agent/query.py` is the narrowest trust boundary in the repo.
+`src/nbadb/agent/query.py` is the narrowest trust boundary in the repo:
+- fixed regex matches
+- canned SQL only
+- no model-generated SQL
 
-What it trusts:
-- only fixed regex matches
-- only canned SQL templates stored in `_PATTERNS`
+If it cannot match a canned pattern, it stops instead of improvising.
 
-What it does not trust:
-- arbitrary model-generated SQL, because this surface does not generate SQL at all
+## Chat runtime boundary
+The chat app is broader, but the real safety boundary is still below the prompt.
 
-Execution path:
-1. match a question to a canned query
-2. validate with `ReadOnlyGuard`
-3. clamp and wrap with a hard limit
-4. execute in DuckDB with `read_only=True`
-5. disable external access
-6. apply a statement timeout
+Prompt and tool descriptions in `src/nbadb/chat/prompts.py` are guidance. Enforcement happens in shared runtime code:
+- `src/nbadb/chat/sql/safety.py`
+- `src/nbadb/chat/sql/exec.py`
+- `src/nbadb/chat/app/preamble.py`
+- `src/nbadb/chat/mcp/sql.py`
+- `src/nbadb/chat/mcp/sql_validator.py`
 
-If no pattern matches, the local agent stops at schema guidance and tells the user to write SQL directly. That fallback is a handoff, not autonomous SQL execution.
+## Built-in SQL execution path
+The built-in chat SQL path reuses the shared read-only contract.
 
-## Chat surface boundary
-The chat app is broader and therefore relies on stronger runtime boundaries.
+### Direct SQL tools
+`src/nbadb/chat/sql/exec.py` is the shared execution lane used by the chat runtime. It validates with the read-only guard, opens DuckDB in read-only mode, disables external access, and returns structured result payloads.
 
-`chat/server/agent.py` injects the same system prompt into both backends, but the prompt is guidance, not enforcement.
+### MCP path
+`src/nbadb/chat/mcp/sql.py` and the app-local entrypoint `chat/mcp_servers/sql.py` expose the read-only SQL tool surface for the deepagents runtime.
 
-`chat/server/prompts.py` tells the model that:
-- `run_sql` is read-only and capped at 1000 rows
-- SQL discovery should go through `list_tables` and `describe_table`
-- Python should use `query(sql)` or `conn.execute(sql)` only
-- raw `duckdb` module access is not available in the Python tool
+### Copilot path
+`src/nbadb/chat/app/copilot_backend.py` mirrors the same family in-process rather than bypassing it.
 
-That contract matters, but the real safety boundary is lower in the stack.
+## Python analysis path
+`run_python` is not a bypass for SQL safety.
 
-## Built-in chat query enforcement
-The built-in chat SQL path reuses the same guard instead of defining a second policy.
-
-- `chat/server/_safety.py` re-exports `ReadOnlyGuard` from `nbadb.agent.safety`
-- `chat/server/_sql_exec.py` validates, wraps, and executes SQL for both MCP `run_sql` and the Copilot backend
-- `chat/mcp_servers/sql.py` exposes `run_sql`, `list_tables`, and `describe_table` on top of that shared executor
-- `chat/server/copilot_backend.py` wires its `run_sql` tool to the same shared executor
-
-The built-in chat execution path therefore treats model-drafted SQL as untrusted until it passes through:
-- `ReadOnlyGuard`
-- DuckDB `read_only=True`
-- `SET enable_external_access = false`
-- a 30-second timeout when available
-
-## Python tool boundary
-The chat Python path is not a bypass for SQL safety.
-
-`chat/server/_preamble.py` creates a private `_RAW_CONN` in `read_only=True` mode, disables external access, then exposes only:
-- `conn.execute(...)`
-- `conn.sql(...)`
+`src/nbadb/chat/app/preamble.py` builds the Python helper environment and exposes only guarded SQL entrypoints such as:
+- `conn.execute(sql)`
+- `conn.sql(sql)`
 - `query(sql)`
 
-Those helpers route through `_prepare_sql(...)`, which reuses `ReadOnlyGuard` and applies a 1000-row cap before execution. The raw DuckDB module is deleted from the preamble after setup, so the prompt restriction is backed by code.
+Those helpers still route through the shared read-only SQL policy before DuckDB sees the statement.
 
-## Validator and trust assumptions
-`chat/mcp_servers/sql_validator.py` is a preflight tool, not the primary enforcement point.
+## Validator role
+The validator surface is advisory, not the final enforcement point.
 
-It:
-- validates candidate SQL with `ReadOnlyGuard`
-- asks DuckDB to parse `EXPLAIN` the query
-- returns warnings about `SELECT *`, join duplication risk, and missing `LIMIT`
+`src/nbadb/chat/sql/service.py` and `src/nbadb/chat/mcp/sql_validator.py`:
+- preflight SQL with the guard
+- ask DuckDB to parse or explain it
+- surface warnings about joins, grain, and query risk
 
-Treat it as advisory. Real enforcement still happens in the `run_sql` and safe Python execution paths.
+That is useful for planning and repair, but the final safety boundary is still the execution layer and the read-only DuckDB connection.
 
-The broadest explicit trust assumption in the chat stack is `extra_mcp_servers` in `chat/server/mcp_client.py`: those servers are treated as trusted because the config is user-owned. Built-in SQL safety does not automatically govern what an extra MCP server might do.
+## Important trust distinction
+Trust prompts for workflow, but trust executors for safety.
 
-## Practical rule
-Trust prompts for intent, but trust only execution wrappers for safety.
-
-In this repo, the main read-only boundary is:
-- canonical guard in `src/nbadb/agent/safety.py`
-- reused by chat via `chat/server/_safety.py`
-- enforced again at DuckDB connection time with read-only mode and external access disabled
+In the current v1 chat stack:
+- prompts say what the model should do
+- validators say whether a candidate query looks acceptable
+- executors are what actually enforce read-only behavior
 
 ## Related notes
-- [[wiki/topics/query-agent|Query Agent]]
 - [[wiki/topics/chat-surface|Chat Surface]]
-- [[wiki/topics/query-patterns|Query Patterns]]
+- [[wiki/topics/mcp-server-surface|MCP Server Surface]]
+- [[wiki/topics/sandbox-runtime-contract|Sandbox Runtime Contract]]
+- [[wiki/topics/query-agent|Query Agent]]
 
 ## Provenance
 | Claim or section | Raw or canonical material | Notes |
 |------------------|---------------------------|-------|
-| canonical read-only guard behavior | `src/nbadb/agent/safety.py` | normalization, comment stripping, keyword and function blocks, limit wrapping |
-| local query agent boundary and fallback | `src/nbadb/agent/query.py` | canned pattern matching, validation, execution settings |
-| chat prompt contract | `chat/server/prompts.py` | tool instructions, 1000-row framing, Python SQL usage rules |
-| backend-level prompt injection | `chat/server/agent.py` | same prompt passed into both Copilot and deepagents backends |
-| chat reuse of canonical guard | `chat/server/_safety.py` | imports `ReadOnlyGuard` from `nbadb.agent.safety` |
-| shared SQL execution policy | `chat/server/_sql_exec.py` | built-in `run_sql` enforcement path |
-| MCP SQL tool surface | `chat/mcp_servers/sql.py` | read-only SQL tool on top of shared executor |
-| chat Python safe connection path | `chat/server/_preamble.py` | guarded `conn` and `query(sql)` wrappers |
-| validator role and trusted extension point | `chat/mcp_servers/sql_validator.py`; `chat/server/mcp_client.py` | advisory preflight vs trusted extra MCP servers |
+| canonical repo-wide read-only guard | `src/nbadb/agent/safety.py` | normalization, filtering, and limit wrapping |
+| narrow local query-agent boundary | `src/nbadb/agent/query.py` | canned-query trust boundary |
+| prompt-level workflow guidance | `src/nbadb/chat/prompts.py` | guidance layer, not enforcement |
+| shared chat SQL safety and execution | `src/nbadb/chat/sql/safety.py`; `src/nbadb/chat/sql/exec.py`; `src/nbadb/chat/sql/service.py` | shared runtime enforcement and validator layer |
+| Python helper environment and guarded SQL entrypoints | `src/nbadb/chat/app/preamble.py` | safe analysis namespace |
+| MCP SQL and validator surfaces | `src/nbadb/chat/mcp/sql.py`; `src/nbadb/chat/mcp/sql_validator.py`; `chat/mcp_servers/sql.py`; `chat/mcp_servers/sql_validator.py` | deepagents tool path |
+| Copilot in-process mirror | `src/nbadb/chat/app/copilot_backend.py` | alternate backend still using the same capability family |
+| backend assembly path | `src/nbadb/chat/app/agent.py` | runtime branch point |
+| broader sandbox and renderer context | `kb/wiki/topics/sandbox-runtime-contract.md`; `kb/wiki/topics/chainlit-runtime.md` | companion notes |

@@ -1,7 +1,7 @@
 # Analytics Helper Surface Manifest
 
 ## Purpose
-- Grouped internal extract for the `nba-data-analytics` helper surface shipped in `chat/skills/nba-data-analytics/scripts/`, plus the adjacent `query-cookbook` and `schema-guide` reference assets those helpers rely on.
+- Grouped internal extract for the helper surface shipped in `chat/skills/nba-data-analytics/scripts/`, plus the adjacent skill/reference assets that route those helpers inside the current v1 chat runtime.
 
 ## High-value paths
 
@@ -41,6 +41,7 @@
 - Surface overlap is intentional, not duplicate: `nba_stats.breakout_threshold` handles scalar/list summaries, while `trends.find_breakouts` handles DataFrame game-log workflows.
 - Reference handoff pattern: `query-cookbook.md` is SQL-first but repeatedly hands control back to Python helpers (`court.*`, `lineups.on_off_impact`, Plotly scatter code) once the base dataset is pulled.
 - Routing rule: `schema-guide.md` is a short wayfinding note, not the full schema catalog; the intended runtime behavior is still `list_tables` plus `describe_table` before guessing columns.
+- The helper modules still live under the broad `nba-data-analytics` skill package, but the current worktree routes work into them through narrower skills such as `analysis-and-visualization`, `warehouse-query-writing`, and `data-quality-debugging`.
 
 ## Planned wiki coverage
 - `kb/wiki/topics/analytics-skill-guide.md`
@@ -66,3 +67,7 @@
 - `chat/skills/nba-data-analytics/scripts/trends.py`
 - `chat/skills/nba-data-analytics/references/query-cookbook.md`
 - `chat/skills/nba-data-analytics/references/schema-guide.md`
+- `chat/skills/analysis-and-visualization/SKILL.md`
+- `chat/skills/warehouse-query-writing/SKILL.md`
+- `chat/skills/data-quality-debugging/SKILL.md`
+- `src/nbadb/chat/app/preamble.py`

@@ -13,22 +13,22 @@ aliases:
   - Remote Sandbox Modes
 kind: concept
 status: active
-updated: 2026-04-15
+updated: 2026-04-22
 source_count: 4
 ---
 
 # Sandbox Backend Modes
 
-Use this note for the narrow question: "how does `chat/server/_sandbox_backend.py` resolve `local` vs `daytona` vs `e2b`, sync remote assets, rewrite paths for remote runs, and keep `last_result` in sync?"
+Use this note for the narrow question: "how does `src/nbadb/chat/sandbox/backend.py` resolve `local` vs `daytona` vs `e2b`, sync remote assets, rewrite paths for remote runs, and keep `last_result` in sync while preserving the legacy wrapper surface where needed?"
 
 ## Summary
-`_sandbox_backend.py` is the mode selector and remote execution shim for Python chat analysis.
+`src/nbadb/chat/sandbox/backend.py` is the canonical mode selector and remote execution shim for Python chat analysis.
 
 It does five jobs:
 - resolves one validated sandbox mode from explicit input, environment, or chat settings
 - dispatches `local` runs to the existing in-process sandbox executor
 - stages DB, skill scripts, and session state into a remote workspace for `daytona` and `e2b`
-- rewrites the preamble's embedded server path so remote imports still work
+- rewrites the preamble's embedded compatibility-wrapper server path so remote imports still work
 - pulls `last_result.parquet` back from the remote session after execution
 
 ## Mode Resolution
@@ -65,7 +65,7 @@ Both remote backends standardize paths under `/workspace/nbadb`.
 
 Canonical remote paths:
 - database: `/workspace/nbadb/data/<db filename>`
-- server helpers: `/workspace/nbadb/server`
+- server helpers: `/workspace/nbadb/server` for the compatibility `_safety.py` wrapper lane
 - session state: `/workspace/nbadb/session`
 - skill scripts: `/workspace/nbadb/skills`
 
@@ -76,7 +76,7 @@ The remote code is built against these paths, not the caller's local filesystem.
 
 Always synced:
 - the DuckDB database file to `_REMOTE_DATA_DIR / db_path.name`
-- `chat/server/_safety.py` to `_REMOTE_SERVER_DIR / "_safety.py"`
+- `chat/server/_safety.py` to `_REMOTE_SERVER_DIR / "_safety.py"` as a compatibility-wrapper asset
 - every `*.py` file directly under `skills_dir` to `_REMOTE_SKILLS_DIR / <filename>`
 
 Conditionally synced:
@@ -95,7 +95,7 @@ Notably absent:
 `_build_remote_code()` does not rebuild the preamble from scratch. It calls `build_preamble()` with remote DB, skills, and session paths, then patches one remaining local path reference.
 
 What gets rewritten:
-- the embedded local server directory string produced by `build_preamble()`
+- the embedded local compatibility-wrapper server directory string produced by `build_preamble()`
 
 Why that rewrite exists:
 - `build_preamble()` injects `__SERVER_DIR__` into `sys.path.insert(0, __SERVER_DIR__)`
@@ -155,7 +155,7 @@ SDK import failures are returned as structured `{"error": ...}` responses, not r
 ## Provenance
 | Claim or section | Raw or canonical material | Notes |
 |------------------|---------------------------|-------|
-| supported modes, resolution order, dispatch rules, remote directory constants, asset sync, path rewriting, and last-result download | `chat/server/_sandbox_backend.py` | canonical implementation for backend choice and remote execution setup |
-| preamble placeholders and injected server path, DB path, skills path, and session path | `chat/server/_preamble.py` | explains why `_build_remote_code()` only has to rewrite the embedded server directory |
+| supported modes, resolution order, dispatch rules, remote directory constants, asset sync, path rewriting, and last-result download | `src/nbadb/chat/sandbox/backend.py` | canonical implementation for backend choice and remote execution setup |
+| preamble placeholders and injected server path, DB path, skills path, and session path | `src/nbadb/chat/app/preamble.py` | explains why `_build_remote_code()` only has to rewrite the embedded compatibility server directory |
 | explicit-over-env precedence, local dispatch behavior, remote asset lists, remote path presence in generated code, and last-result round-trip expectations | `tests/unit/chat/test_sandbox_backend.py` | executable confirmation of intended behavior |
 | higher-level runtime contract for how `last_result.parquet` is produced and consumed inside Python runs | `kb/wiki/topics/sandbox-runtime-contract.md` | companion note for the broader sandbox contract |

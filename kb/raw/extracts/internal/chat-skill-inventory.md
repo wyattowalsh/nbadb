@@ -9,31 +9,31 @@
 ### End-to-end analytics package
 | Path | Boundary | Surface status |
 | --- | --- | --- |
-| `chat/skills/nba-data-analytics/` | Legacy bundled analytics skill: broad end-to-end contract spanning SQL table selection, SCD2 handling, `run_python` helpers, visualization, export, and iterative `last_result` work. | Existing tracked skill; wider than the newer single-purpose skills. |
+| `chat/skills/nba-data-analytics/` | Broad analytics package that still carries the helper-script surface, SQL/table-routing heuristics, SCD2 reminders, visualization helpers, and export guidance. | Current worktree skill; broader than the narrower specialist skills. |
 
 ### Warehouse routing and query correctness
 | Path | Boundary | Surface status |
 | --- | --- | --- |
-| `chat/skills/nbadb-semantic-catalog/` | Semantic-first routing layer for choosing entity, grain, and table family before SQL exists. | New untracked skill. |
-| `chat/skills/warehouse-query-writing/` | SQL-authoring layer for turning the chosen warehouse surface into validated query logic. | New untracked skill. |
-| `chat/skills/data-quality-debugging/` | Post-validation debugging layer for wrong, empty, duplicated, or semantically suspicious results. | New untracked skill. |
+| `chat/skills/nbadb-semantic-catalog/` | Semantic-first routing layer for choosing entity, grain, and table family before SQL exists. | Current worktree specialist skill. |
+| `chat/skills/warehouse-query-writing/` | SQL-authoring layer for turning the chosen warehouse surface into validated query logic. | Current worktree specialist skill. |
+| `chat/skills/data-quality-debugging/` | Post-validation debugging layer for wrong, empty, duplicated, or semantically suspicious results. | Current worktree specialist skill. |
 
 ### Post-query analysis and persistence
 | Path | Boundary | Surface status |
 | --- | --- | --- |
-| `chat/skills/analysis-and-visualization/` | Python-side interpretation layer once the right rows already exist: chart choice, derived metrics, tests, and explanation. | New untracked skill. |
-| `chat/skills/artifact-creation/` | Persistence layer for saving findings, templates, repro scripts, exports, and replayable bundles. | New untracked skill. |
+| `chat/skills/analysis-and-visualization/` | Python-side interpretation layer once the right rows already exist: chart choice, derived metrics, tests, and explanation. | Current worktree specialist skill. |
+| `chat/skills/artifact-creation/` | Persistence layer for saving findings, templates, repro scripts, exports, and replayable bundles. | Current worktree specialist skill. |
 
 ### Session and runtime control
 | Path | Boundary | Surface status |
 | --- | --- | --- |
-| `chat/skills/follow-up-refinement/` | Multi-turn refinement layer for modifying the prior result or artifact without silently changing grain or provenance. | New untracked skill. |
-| `chat/skills/connector-usage/` | Runtime-capability layer for adapting behavior to local, BYOK, Copilot, OpenAI-login, or sandbox differences. | New untracked skill. |
+| `chat/skills/follow-up-refinement/` | Multi-turn refinement layer for modifying the prior result or artifact without silently changing grain or provenance. | Current worktree specialist skill. |
+| `chat/skills/connector-usage/` | Runtime-capability layer for adapting behavior to local, BYOK, Copilot, OpenAI-login, or sandbox differences. | Current worktree specialist skill. |
 
 ### External context augmentation
 | Path | Boundary | Surface status |
 | --- | --- | --- |
-| `chat/skills/web-context-for-nba/` | Current-events augmentation layer for injuries, trades, and live NBA context that the warehouse cannot yet answer. | New untracked skill. |
+| `chat/skills/web-context-for-nba/` | Current-events augmentation layer for injuries, trades, and live NBA context that the warehouse cannot yet answer. | Current worktree specialist skill. |
 
 ## Notes
 - Current skill roots under `chat/skills/`: 9.
@@ -44,7 +44,7 @@
 - `connector-usage` is infrastructure-aware routing logic, not domain analytics; it guards workflow differences across connector and sandbox modes.
 - `web-context-for-nba` supplements warehouse truth but does not replace it.
 - `nba-data-analytics` overlaps several of the narrower roles above; it remains the broad packaged skill while the eight newer skills carve the workflow into explicit responsibilities.
-- `git status --short -- chat/skills kb/raw/extracts/internal` showed eight untracked skill directories plus the untracked target extract directory; `nba-data-analytics` was not listed, consistent with it already being tracked.
+- The current app assembly in `src/nbadb/chat/app/agent.py` treats `chat/skills/` as the shared skill root for the deepagents path.
 
 ## Planned wiki coverage
 - `kb/wiki/topics/chat-skill-surface.md`
@@ -61,4 +61,4 @@
 - `chat/skills/follow-up-refinement/SKILL.md`
 - `chat/skills/connector-usage/SKILL.md`
 - `chat/skills/web-context-for-nba/SKILL.md`
-- `git status --short -- chat/skills kb/raw/extracts/internal`
+- `src/nbadb/chat/app/agent.py`

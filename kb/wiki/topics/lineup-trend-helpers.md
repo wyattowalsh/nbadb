@@ -14,7 +14,7 @@ aliases:
   - Trend Detection Helpers
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-22
 source_count: 8
 ---
 
@@ -25,7 +25,7 @@ This note covers the chat-side helper modules `lineups.py` and `trends.py` under
 They are small pandas-first post-query helpers, pre-imported into the `run_python` sandbox, and meant to sit after SQL retrieval rather than replace SQL.
 
 ## Runtime surface
-- Both modules are loaded by `chat/server/_preamble.py`, so chat Python runs can call `lineups.*` and `trends.*` directly.
+- Both modules are loaded by `src/nbadb/chat/app/preamble.py`, so chat Python runs can call `lineups.*` and `trends.*` directly.
 - The skill advertises them as lightweight helper surfaces, not warehouse APIs.
 - They are intentionally local and safety-constrained: pure analysis helpers over in-memory data, with no filesystem, network, or database side effects inside the helper modules themselves.
 
@@ -187,11 +187,11 @@ The query cookbook explicitly shows `agg_on_off_splits` followed by `lineups.on_
 ## Provenance
 | Claim or section | Local repo path | Notes |
 |------------------|-----------------|-------|
-| runtime pre-import of `lineups` and `trends` into chat Python | `/Users/ww/dev/projects/nbadb/chat/server/_preamble.py` | canonical runtime loading path |
-| advertised public helper surface and intended table families | `/Users/ww/dev/projects/nbadb/chat/skills/nba-data-analytics/SKILL.md` | skill-level contract |
-| `lineups.on_off_impact`, `two_man_combos`, and `lineup_chart` behavior | `/Users/ww/dev/projects/nbadb/chat/skills/nba-data-analytics/scripts/lineups.py` | canonical implementation |
-| `trends.rolling_stats`, `detect_streaks`, `find_breakouts`, and `season_projection` behavior | `/Users/ww/dev/projects/nbadb/chat/skills/nba-data-analytics/scripts/trends.py` | canonical implementation |
-| intended SQL-to-helper handoff for on/off analysis | `/Users/ww/dev/projects/nbadb/chat/skills/nba-data-analytics/references/query-cookbook.md` | shows explicit `query(...)` then `lineups.on_off_impact(...)` pattern |
-| helper inventory and data-shape bias summary | `/Users/ww/dev/projects/nbadb/kb/raw/extracts/internal/analytics-helper-surface-manifest.md` | repo-local extract already summarizing the helper set |
-| verified lineup helper result shapes and edge cases | `/Users/ww/dev/projects/nbadb/tests/unit/chat/test_lineups.py` | empty result, name column, pair output, Plotly figure expectations |
-| verified trend helper result shapes and edge cases | `/Users/ww/dev/projects/nbadb/tests/unit/chat/test_trends.py` | rolling columns, empty streak result, breakout error path, projection dict shape |
+| runtime pre-import of `lineups` and `trends` into chat Python | `src/nbadb/chat/app/preamble.py` | canonical runtime loading path |
+| advertised public helper surface and intended table families | `chat/skills/nba-data-analytics/SKILL.md` | skill-level contract |
+| `lineups.on_off_impact`, `two_man_combos`, and `lineup_chart` behavior | `chat/skills/nba-data-analytics/scripts/lineups.py` | canonical implementation |
+| `trends.rolling_stats`, `detect_streaks`, `find_breakouts`, and `season_projection` behavior | `chat/skills/nba-data-analytics/scripts/trends.py` | canonical implementation |
+| intended SQL-to-helper handoff for on/off analysis | `chat/skills/nba-data-analytics/references/query-cookbook.md` | shows explicit `query(...)` then `lineups.on_off_impact(...)` pattern |
+| helper inventory and data-shape bias summary | `kb/raw/extracts/internal/analytics-helper-surface-manifest.md` | repo-local extract already summarizing the helper set |
+| verified lineup helper result shapes and edge cases | `tests/unit/chat/test_lineups.py` | empty result, name column, pair output, Plotly figure expectations |
+| verified trend helper result shapes and edge cases | `tests/unit/chat/test_trends.py` | rolling columns, empty streak result, breakout error path, projection dict shape |
