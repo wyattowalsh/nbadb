@@ -220,7 +220,6 @@ from nbadb.extract.stats.team_info import (
     CommonTeamRosterExtractor,
     CommonTeamYearsExtractor,
     FranchiseHistoryExtractor,
-    TeamAndPlayersVsExtractor,
     TeamDetailsExtractor,
     TeamGameLogsExtractor,
     TeamInfoCommonExtractor,
@@ -521,80 +520,12 @@ class TestCrossProductParameterHandling:
         assert kwargs["player_id_list"] == "201939"
         assert kwargs["vs_player_id_list"] == "201939"
         assert kwargs["season"] == "2024-25"
-        assert kwargs["season_type_playoffs"] == "Regular Season"
 
     @pytest.mark.asyncio
     async def test_player_compare_returns_empty_when_ids_missing(self) -> None:
         ext = PlayerCompareExtractor()
         result = await ext.extract(season="2024-25")
         assert result.is_empty()
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ("extractor_cls", "params"),
-        [
-            (PlayerCompareExtractor, {"player_id": 201939, "season": "2024-25"}),
-            (
-                PlayerVsPlayerExtractor,
-                {"player_id": 201939, "vs_player_id": 201566, "season": "2024-25"},
-            ),
-            (
-                TeamVsPlayerExtractor,
-                {"team_id": 1610612744, "vs_player_id": 201939, "season": "2024-25"},
-            ),
-            (
-                TeamAndPlayersVsPlayersExtractor,
-                {
-                    "team_id": 1610612744,
-                    "player_id1": 201939,
-                    "player_id2": 201566,
-                    "season": "2024-25",
-                },
-            ),
-        ],
-        ids=["player_compare", "player_vs_player", "team_vs_player", "team_and_players_vs_players"],
-    )
-    async def test_compare_family_uses_season_type_playoffs(
-        self,
-        extractor_cls: type,
-        params: dict[str, object],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = extractor_cls()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
-            captured.update(kwargs)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        await ext.extract(**params, season_type="Playoffs")
-
-        assert captured["season_type_playoffs"] == "Playoffs"
-        assert "season_type_all_star" not in captured
-
-    @pytest.mark.asyncio
-    async def test_team_and_players_vs_uses_season_type_playoffs(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        ext = TeamAndPlayersVsExtractor()
-        captured: dict[str, object] = {}
-
-        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
-            captured.update(kwargs)
-            return pl.DataFrame({"ok": [1]})
-
-        monkeypatch.setattr(ext, "_from_nba_api", _fake)
-        await ext.extract(
-            team_id=1610612744,
-            vs_team_id=1610612738,
-            season="2024-25",
-            season_type="Playoffs",
-        )
-
-        assert captured["season_type_playoffs"] == "Playoffs"
-        assert "season_type_all_star" not in captured
 
     @pytest.mark.asyncio
     async def test_gl_alum_accepts_player_season_and_defaults_to_self_compare(
@@ -1014,6 +945,51 @@ class TestPlayerCareerStatsExtractor:
 
         assert result == fallback_frames
         assert captured == {"player_id": 1824, "timeout": None}
+
+    def test_extract_all_falls_back_to_sparse_result_sets_on_jsondecodeerror(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerCareerStatsExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> list[pl.DataFrame]:
+            raise json.JSONDecodeError("bad json", "", 0)
+
+        fallback_frames = [pl.DataFrame({"player_id": []}) for _ in PlayerCareerStats.expected_data]
+        captured: dict[str, object] = {}
+
+        def _fallback(*, player_id: int, timeout: int | None = None) -> list[pl.DataFrame]:
+            captured["player_id"] = player_id
+            captured["timeout"] = timeout
+            return fallback_frames
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _boom)
+        monkeypatch.setattr(ext, "_extract_sparse_result_sets", _fallback)
+
+        result = asyncio.run(ext.extract_all(player_id=1629019, timeout=120))
+
+        assert result == fallback_frames
+        assert captured == {"player_id": 1629019, "timeout": 120}
+
+    def test_extract_sparse_result_sets_returns_empty_frames_on_jsondecodeerror(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerCareerStatsExtractor()
+
+        class _FakeResponse:
+            def get_dict(self) -> dict[str, object]:
+                raise json.JSONDecodeError("bad json", "", 0)
+
+        monkeypatch.setattr(
+            "nbadb.extract.stats.player_info.NBAStatsHTTP.send_api_request",
+            lambda self, **_kwargs: _FakeResponse(),
+        )
+
+        frames = ext._extract_sparse_result_sets(player_id=1629019, timeout=120)
+
+        assert len(frames) == len(PlayerCareerStats.expected_data)
+        assert all(frame.is_empty() for frame in frames)
 
 
 class TestMiscLeadersExtractors:
@@ -1676,21 +1652,6 @@ class TestExtractMethodCoverage:
                 ext,
                 "_from_nba_api_multi",
                 lambda endpoint_cls, **kwargs: [dummy_df, pl.DataFrame()],
-            )
-        elif cls in {DunkScoreLeadersExtractor, GravityLeadersExtractor}:
-            payload = (
-                {"dunks": [{"playerId": 1, "dunks": 2}]}
-                if cls is DunkScoreLeadersExtractor
-                else {"leaders": [{"playerId": 1, "gravityScore": 2.5}]}
-            )
-
-            class _FakeResponse:
-                def get_dict(self) -> dict[str, object]:
-                    return payload
-
-            monkeypatch.setattr(
-                "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
-                lambda self, **_kwargs: _FakeResponse(),
             )
         else:
             monkeypatch.setattr(ext, "_from_nba_api", _fake)

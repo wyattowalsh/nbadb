@@ -127,6 +127,16 @@ class PlayerCareerStatsExtractor(BaseExtractor):
 
         return frames, missing_sets
 
+    def _empty_sparse_result_frames(self, *, player_id: int, reason: str) -> list[pl.DataFrame]:
+        logger.warning(
+            "player_career_stats: player {} returned no usable JSON payload after {}; "
+            "using empty fallbacks",
+            player_id,
+            reason,
+        )
+        frames, _ = self._frames_from_sparse_result_sets({})
+        return frames
+
     def _extract_sparse_result_sets(
         self,
         *,
@@ -146,7 +156,14 @@ class PlayerCareerStatsExtractor(BaseExtractor):
             headers=endpoint.headers,
             timeout=endpoint.timeout,
         )
-        raw_response = response.get_dict()
+        try:
+            raw_response = response.get_dict()
+        except json.JSONDecodeError:
+            return self._empty_sparse_result_frames(
+                player_id=player_id,
+                reason="JSONDecodeError during sparse fallback loading",
+            )
+
         data_sets = self._data_sets_from_raw_response(raw_response)
         frames, missing_sets = self._frames_from_sparse_result_sets(data_sets)
         if missing_sets:
@@ -176,11 +193,11 @@ class PlayerCareerStatsExtractor(BaseExtractor):
             request_kwargs["timeout"] = timeout
         try:
             return self._from_nba_api_multi(PlayerCareerStats, **request_kwargs)
-        except KeyError as exc:
+        except (KeyError, json.JSONDecodeError) as exc:
             logger.warning(
                 "player_career_stats: player {} raised {} during result-set loading; falling back",
                 player_id,
-                exc.args[0] if exc.args else "KeyError",
+                type(exc).__name__,
             )
             return self._extract_sparse_result_sets(player_id=player_id, timeout=timeout)
 
