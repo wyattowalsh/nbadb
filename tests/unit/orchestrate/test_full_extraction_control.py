@@ -104,18 +104,10 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
 
     lanes = build_default_manifest(support_matrix_rows=rows)
 
-    assert [lane.lane_id for lane in lanes[:5]] == [
-        "reference-static",
-        "reference-player-01",
-        "reference-player-02",
-        "reference-player-03",
-        "reference-player-04",
-    ]
+    assert [lane.lane_id for lane in lanes[:2]] == ["reference-static", "reference-player"]
     assert lanes[0].season_start is None
     assert lanes[0].endpoints == ("franchise_history",)
-    assert all(lane.endpoints == ("common_player_info",) for lane in lanes[1:5])
-    assert [lane.player_shard_index for lane in lanes[1:5]] == [0, 1, 2, 3]
-    assert all(lane.player_shard_count == 4 for lane in lanes[1:5])
+    assert lanes[1].endpoints == ("common_player_info",)
 
     game_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
@@ -228,47 +220,39 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
 
     assert [lane.lane_id for lane in reference_lanes] == [
-        *(f"reference-player-{index:02d}" for index in range(1, 80))
+        "reference-player-01",
+        "reference-player-02",
+        "reference-player-03",
+        "reference-player-04",
+        "reference-player-05",
+        "reference-player-06",
+        "reference-player-07",
+        "reference-player-08",
+        "reference-player-09",
+        "reference-player-10",
+        "reference-player-11",
+        "reference-player-12",
+        "reference-player-13",
+        "reference-player-14",
+        "reference-player-15",
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
-        (("common_player_info",), 3000),
+        (("common_player_info",), 4200),
         (("player_profile_v2",), 5400),
         (("player_streak_finder",), 5400),
         (("player_dashboard_clutch",), 4800),
-        (("player_awards",), 2400),
-        (("player_career_stats",), 2400),
-        (("player_compare",), 2400),
-        (("player_dash_game_splits",), 4200),
-        (("player_dash_general_splits",), 4200),
-        (("player_dash_last_n_games",), 4200),
-        (("player_dash_shooting_splits",), 4200),
-        (("player_dash_team_perf",), 4200),
-        (("player_dash_yoy",), 4200),
+        (("player_awards",), 4200),
+        (("player_career_stats",), 4800),
+        (("player_compare",), 4800),
+        (("player_dash_game_splits",), 4800),
+        (("player_dash_general_splits",), 4800),
+        (("player_dash_last_n_games",), 4800),
+        (("player_dash_shooting_splits",), 4800),
+        (("player_dash_team_perf",), 4800),
+        (("player_dash_yoy",), 4800),
         (("player_next_games",), 4200),
         (("shot_chart_detail",), 7200),
     }
-    common_player_info_lanes = [
-        lane for lane in reference_lanes if lane.endpoints == ("common_player_info",)
-    ]
-    assert len(common_player_info_lanes) == 4
-    assert [lane.player_shard_index for lane in common_player_info_lanes] == [0, 1, 2, 3]
-    assert all(lane.player_shard_count == 4 for lane in common_player_info_lanes)
-    player_awards_lanes = [lane for lane in reference_lanes if lane.endpoints == ("player_awards",)]
-    assert len(player_awards_lanes) == 16
-    assert [lane.player_shard_index for lane in player_awards_lanes] == list(range(16))
-    assert all(lane.player_shard_count == 16 for lane in player_awards_lanes)
-    player_career_stats_lanes = [
-        lane for lane in reference_lanes if lane.endpoints == ("player_career_stats",)
-    ]
-    assert len(player_career_stats_lanes) == 32
-    assert [lane.player_shard_index for lane in player_career_stats_lanes] == list(range(32))
-    assert all(lane.player_shard_count == 32 for lane in player_career_stats_lanes)
-    player_compare_lanes = [
-        lane for lane in reference_lanes if lane.endpoints == ("player_compare",)
-    ]
-    assert len(player_compare_lanes) == 16
-    assert [lane.player_shard_index for lane in player_compare_lanes] == list(range(16))
-    assert all(lane.player_shard_count == 16 for lane in player_compare_lanes)
     assert all(lane.use_vpn is True for lane in reference_lanes)
 
 
@@ -493,27 +477,6 @@ def test_validate_manifest_rejects_active_lane_without_vpn() -> None:
         )
 
 
-def test_validate_manifest_rejects_partial_player_shard_configuration() -> None:
-    with pytest.raises(ValueError, match="player_shard_index/player_shard_count"):
-        validate_manifest(
-            [
-                FullExtractionLane(
-                    lane_id="reference-player-01",
-                    lane_index=0,
-                    lane_name="Reference Player 1/18",
-                    lane_kind="reference",
-                    season_start=None,
-                    season_end=None,
-                    patterns=("player",),
-                    use_vpn=True,
-                    resume_only=False,
-                    timeout_seconds=3000,
-                    player_shard_index=0,
-                )
-            ]
-        )
-
-
 def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: Path) -> None:
     rows = [
         _support_row("franchise_history", ["static"], None),
@@ -540,12 +503,11 @@ def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: 
         + "\n",
         encoding="utf-8",
     )
-    for shard_index in range(1, 5):
-        _write_metadata(
-            metadata_dir / f"reference-player-{shard_index:02d}.json",
-            lane_id=f"reference-player-{shard_index:02d}",
-            status="complete",
-        )
+    _write_metadata(
+        metadata_dir / "reference-player.json",
+        lane_id="reference-player",
+        status="complete",
+    )
 
     next_lanes, next_chain_state, summary = build_resume_manifest(
         lanes,
@@ -562,10 +524,7 @@ def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: 
     )
     assert summary["vpn_quarantined_server_count"] == 3
     by_id = {lane.lane_id: lane for lane in next_lanes}
-    assert all(
-        by_id[f"reference-player-{shard_index:02d}"].resume_only is True
-        for shard_index in range(1, 5)
-    )
+    assert by_id["reference-player"].resume_only is True
     assert by_id["reference-static"].last_failure_reason == "vpn_connect_timeout"
 
 
@@ -581,8 +540,6 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
                 season_end=None,
                 patterns=("static",),
                 timeout_seconds=1800,
-                player_shard_index=0,
-                player_shard_count=4,
             )
         ],
         chain_state=FullExtractionChainState(
@@ -596,8 +553,6 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
         vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
     )
     assert manifest.lanes[0].lane_id == "reference-static"
-    assert manifest.lanes[0].player_shard_index == 0
-    assert manifest.lanes[0].player_shard_count == 4
 
 
 def test_validate_manifest_rejects_oversize_lane() -> None:
