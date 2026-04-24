@@ -14,7 +14,7 @@ on:
       vpn_parallelism:
         description: "Max simultaneous VPN-backed extract lanes"
         type: choice
-        default: "1"
+        default: "6"
         options:
           - "1"
           - "2"
@@ -85,6 +85,7 @@ jobs:
     outputs:
       extract-matrix: ${{ steps.manifest.outputs.extract-matrix }}
       lane-count: ${{ steps.manifest.outputs.lane-count }}
+      lane-manifest-json: ${{ steps.manifest.outputs.lane-manifest-json }}
       vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -194,6 +195,7 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"extract-matrix={compact_matrix}\n")
               handle.write(f"lane-count={manifest['lane_count']}\n")
+              handle.write(f"lane-manifest-json={compact_manifest}\n")
               handle.write(f"vpn-quarantined-servers-json={compact_quarantined_servers}\n")
           PY
 
@@ -255,12 +257,6 @@ jobs:
 
       - run: uv sync
 
-      - name: Download lane manifest
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
-        with:
-          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
-          path: artifacts/
-
       - name: Validate VPN credentials are present
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
@@ -280,7 +276,11 @@ jobs:
           fi
 
       - name: Validate planned lanes
+        env:
+          LANE_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
         run: |
+          mkdir -p artifacts/full-extraction
+          printf '%s' "$LANE_MANIFEST_JSON" > artifacts/full-extraction/preflight-manifest.json
           uv run python - <<'PY'
           import json
           from pathlib import Path
@@ -288,7 +288,7 @@ jobs:
           from nbadb.orchestrate.full_extraction_control import normalize_manifest, validate_manifest
 
           raw_manifest = json.loads(
-              Path("artifacts/full-extraction/manifest.json").read_text(encoding="utf-8")
+              Path("artifacts/full-extraction/preflight-manifest.json").read_text(encoding="utf-8")
           )
           manifest = normalize_manifest(raw_manifest)
           validate_manifest(list(manifest.lanes))
@@ -298,51 +298,17 @@ jobs:
         id: vpn
         timeout-minutes: 3
         continue-on-error: true
-        env:
-          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
-          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
-          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
-          LANE_INDEX: "0"
-          SHARD_INDEX: "0"
-          SERVER_LIMIT: "1"
-          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
-          COUNTRY_ID: "228"
-          TECHNOLOGY: "openvpn_udp"
-          FALLBACK_TECHNOLOGY: ""
-          VERIFY_URL: "https://api.ipify.org?format=json"
-          CONNECT_TIMEOUT_SECONDS: "30"
-          OVERALL_TIMEOUT_SECONDS: "120"
-          REQUIRE_FULL_TUNNEL: "true"
-        run: |
-          set +e
-          python3 .github/actions/nordvpn-connect/supervise.py &
-          vpn_pid=$!
-          (
-            sleep 150
-            if kill -0 "$vpn_pid" 2>/dev/null; then
-              echo "::error::NordVPN preflight wrapper exceeded the outer workflow timeout"
-              {
-                echo "status=vpn_connect_timeout"
-                echo "attempted-servers-json=[]"
-                echo "failed-servers-json=[]"
-              } >> "$GITHUB_OUTPUT"
-              pkill -TERM -P "$vpn_pid" 2>/dev/null || true
-              kill -TERM "$vpn_pid" 2>/dev/null || true
-              sleep 15
-              pkill -KILL -P "$vpn_pid" 2>/dev/null || true
-              kill -KILL "$vpn_pid" 2>/dev/null || true
-            fi
-          ) &
-          watchdog_pid=$!
-          wait "$vpn_pid"
-          rc=$?
-          kill "$watchdog_pid" 2>/dev/null || true
-          wait "$watchdog_pid" 2>/dev/null || true
-          set -e
-          if [ "$rc" -eq 143 ] || [ "$rc" -eq 137 ]; then
-            exit 1
-          fi
-          exit "$rc"
+        uses: ./.github/actions/nordvpn-connect
+        with:
+          openvpn-user: ${{ secrets.OPENVPN_USER }}
+          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
+          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
+          lane-index: "0"
+          server-limit: "1"
+          fallback-technology: ""
+          connect-timeout-seconds: "30"
+          overall-timeout-seconds: "120"
+          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
 
       - name: Summarize preflight VPN validation
         if: always()
@@ -494,58 +460,34 @@ jobs:
         id: vpn
         if: ${{ !matrix.resume_only }}
         timeout-minutes: 4
-        env:
-          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
-          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
-          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
-          LANE_INDEX: "0"
-          SHARD_INDEX: "0"
-          SERVER_LIMIT: "3"
-          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
-          COUNTRY_ID: "228"
-          TECHNOLOGY: "openvpn_udp"
-          FALLBACK_TECHNOLOGY: ""
-          VERIFY_URL: "https://api.ipify.org?format=json"
-          CONNECT_TIMEOUT_SECONDS: "30"
-          OVERALL_TIMEOUT_SECONDS: "180"
-          REQUIRE_FULL_TUNNEL: "true"
-        run: |
-          set +e
-          python3 .github/actions/nordvpn-connect/supervise.py &
-          vpn_pid=$!
-          (
-            sleep 210
-            if kill -0 "$vpn_pid" 2>/dev/null; then
-              echo "::error::NordVPN extract wrapper exceeded the outer workflow timeout"
-              {
-                echo "status=vpn_connect_timeout"
-                echo "attempted-servers-json=[]"
-                echo "failed-servers-json=[]"
-              } >> "$GITHUB_OUTPUT"
-              pkill -TERM -P "$vpn_pid" 2>/dev/null || true
-              kill -TERM "$vpn_pid" 2>/dev/null || true
-              sleep 15
-              pkill -KILL -P "$vpn_pid" 2>/dev/null || true
-              kill -KILL "$vpn_pid" 2>/dev/null || true
-            fi
-          ) &
-          watchdog_pid=$!
-          wait "$vpn_pid"
-          rc=$?
-          kill "$watchdog_pid" 2>/dev/null || true
-          wait "$watchdog_pid" 2>/dev/null || true
-          set -e
-          if [ "$rc" -eq 143 ] || [ "$rc" -eq 137 ]; then
-            exit 1
-          fi
-          exit "$rc"
+        uses: ./.github/actions/nordvpn-connect
+        with:
+          openvpn-user: ${{ secrets.OPENVPN_USER }}
+          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
+          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
+          lane-index: ${{ matrix.lane_index }}
+          server-limit: "3"
+          fallback-technology: ""
+          connect-timeout-seconds: "30"
+          overall-timeout-seconds: "180"
+          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
 
       # ── Configure environment ──
       - name: Configure extraction environment
         env:
           CONCURRENCY: ${{ inputs.concurrency }}
+          PATTERNS: ${{ matrix.patterns }}
+          ENDPOINTS: ${{ matrix.endpoints }}
         run: |
-          case "$CONCURRENCY" in
+          lane_concurrency="$CONCURRENCY"
+          # Hosted runners have repeatedly dropped long-running singleton player lanes
+          # after clean VPN setup, so force those lanes onto the lowest-stress profile.
+          if [ "$PATTERNS" = "player" ] && [ -n "$ENDPOINTS" ] && [ "${ENDPOINTS#*,}" = "$ENDPOINTS" ]; then
+            lane_concurrency="conservative"
+            echo "::notice::Forcing conservative extraction profile for singleton player lane: $ENDPOINTS"
+          fi
+
+          case "$lane_concurrency" in
             conservative)
               echo 'NBADB_RATE_LIMIT=6'                  >> "$GITHUB_ENV"
               echo 'NBADB_DISCOVERY_CONCURRENCY=4'      >> "$GITHUB_ENV"
@@ -571,7 +513,7 @@ jobs:
               echo 'NBADB_PBP_CHUNK_SIZE=2500'         >> "$GITHUB_ENV"
               ;;
             *)
-              echo "::error::Unsupported concurrency setting: $CONCURRENCY"
+              echo "::error::Unsupported concurrency setting: $lane_concurrency"
               exit 1
               ;;
           esac
@@ -591,7 +533,6 @@ jobs:
       - name: Run extraction
         id: extract
         if: ${{ !matrix.resume_only }}
-        timeout-minutes: 150
         env:
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
@@ -600,10 +541,39 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints || matrix.endpoints }}
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           LANE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
-          NBADB_PLAYER_SHARD_INDEX: ${{ matrix.player_shard_index }}
-          NBADB_PLAYER_SHARD_COUNT: ${{ matrix.player_shard_count }}
         run: |
-          exec python3 .github/scripts/run_extract_lane.py
+          started_at="$(date -u +%FT%TZ)"
+          echo "started-at=$started_at" >> "$GITHUB_OUTPUT"
+          set +e
+          cmd=(uv run nbadb backfill run --extract-only --verbose)
+          if [ -n "$SEASON_START" ] && [ -n "$SEASON_END" ]; then
+            cmd+=(--seasons "${SEASON_START}:${SEASON_END}")
+          fi
+          [ -n "$PATTERNS" ]           && cmd+=(--pattern "$PATTERNS")
+          [ -n "$SEASON_TYPES" ]       && cmd+=(--season-types "$SEASON_TYPES")
+          [ -n "$BACKFILL_ENDPOINTS" ] && cmd+=(--endpoint "$BACKFILL_ENDPOINTS")
+          [ "$FORCE_REEXTRACT" = "true" ] && cmd+=(--force)
+
+          printf -v cmd_str '%q ' "${cmd[@]}"
+          echo "::notice::Running: $cmd_str"
+          timeout --signal=INT --kill-after=60 "$LANE_TIMEOUT_SECONDS" bash -lc "$cmd_str"
+          exit_code=$?
+          set -e
+          finished_at="$(date -u +%FT%TZ)"
+          echo "finished-at=$finished_at" >> "$GITHUB_OUTPUT"
+          echo "exit-code=$exit_code" >> "$GITHUB_OUTPUT"
+
+          if [ "$exit_code" -eq 0 ]; then
+            echo "status=complete" >> "$GITHUB_OUTPUT"
+          elif [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 130 ] || [ "$exit_code" -eq 137 ]; then
+            echo "status=extract-timeout" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=extract-error" >> "$GITHUB_OUTPUT"
+          fi
+          # Propagate the exit code so the chain job can keep only unresolved
+          # lanes active on the next iteration. fail-fast: false keeps the rest
+          # of the matrix running.
+          exit "$exit_code"
 
       - name: Finalize lane status
         id: lane_status
@@ -648,8 +618,6 @@ jobs:
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           RESUME_ONLY: ${{ matrix.resume_only }}
-          PLAYER_SHARD_INDEX: ${{ matrix.player_shard_index }}
-          PLAYER_SHARD_COUNT: ${{ matrix.player_shard_count }}
         run: |
           effective_vpn_status="${VPN_STATUS:-}"
           if [ "$RESUME_ONLY" = "true" ] && [ -z "$effective_vpn_status" ]; then
@@ -667,9 +635,6 @@ jobs:
             echo "**Restore usable:** ${RESTORE_USABLE:-false}"
             echo "**Resume only:** $RESUME_ONLY"
             echo "**Lane timeout seconds:** $TIMEOUT_SECONDS"
-            if [ -n "${PLAYER_SHARD_INDEX:-}" ] && [ -n "${PLAYER_SHARD_COUNT:-}" ]; then
-              echo "**Player shard:** ${PLAYER_SHARD_INDEX}/${PLAYER_SHARD_COUNT}"
-            fi
             echo "**VPN status:** $effective_vpn_status"
             echo "**VPN server:** ${VPN_SERVER:-n/a}"
             echo "**VPN interface:** ${VPN_INTERFACE:-n/a}"
@@ -699,8 +664,6 @@ jobs:
           TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
-          PLAYER_SHARD_INDEX: ${{ matrix.player_shard_index }}
-          PLAYER_SHARD_COUNT: ${{ matrix.player_shard_count }}
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
           STARTED_AT: ${{ steps.extract.outputs.started-at }}
@@ -741,16 +704,6 @@ jobs:
               "restart_mode": os.environ["RESTART_MODE"],
               "resume_only": resume_only,
               "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
-              "player_shard_index": (
-                  int(os.environ["PLAYER_SHARD_INDEX"])
-                  if os.environ.get("PLAYER_SHARD_INDEX", "").strip()
-                  else None
-              ),
-              "player_shard_count": (
-                  int(os.environ["PLAYER_SHARD_COUNT"])
-                  if os.environ.get("PLAYER_SHARD_COUNT", "").strip()
-                  else None
-              ),
               "started_at": os.environ.get("STARTED_AT", ""),
               "finished_at": os.environ.get("FINISHED_AT", ""),
               "extract_status": os.environ.get("EXTRACT_STATUS", ""),
@@ -973,12 +926,6 @@ jobs:
           pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
           path: lane-metadata/
 
-      - name: Download lane manifest
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
-        with:
-          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
-          path: plan-manifest/
-
       - name: Chain next iteration
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -991,6 +938,7 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CURRENT_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -1004,7 +952,7 @@ jobs:
           fi
 
           mkdir -p artifacts/full-extraction
-          cp plan-manifest/full-extraction/manifest.json artifacts/full-extraction/current-manifest.json
+          printf '%s' "$CURRENT_MANIFEST_JSON" > artifacts/full-extraction/current-manifest.json
           uv run python -m nbadb.orchestrate.full_extraction_control resume \
             --lane-manifest-path artifacts/full-extraction/current-manifest.json \
             --metadata-dir lane-metadata \
