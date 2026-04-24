@@ -459,17 +459,19 @@ jobs:
       - name: Connect NordVPN tunnel
         id: vpn
         if: ${{ !matrix.resume_only }}
-        timeout-minutes: 4
+        timeout-minutes: 6
         uses: ./.github/actions/nordvpn-connect
         with:
           openvpn-user: ${{ secrets.OPENVPN_USER }}
           openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
           lane-index: ${{ matrix.lane_index }}
-          server-limit: "3"
+          # Give active extract lanes a broader recommendation pool so the chain
+          # does not burn an iteration on a few bad NordVPN hosts.
+          server-limit: "6"
           fallback-technology: "openvpn_tcp"
           connect-timeout-seconds: "30"
-          overall-timeout-seconds: "180"
+          overall-timeout-seconds: "300"
           quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
 
       # ── Configure environment ──
