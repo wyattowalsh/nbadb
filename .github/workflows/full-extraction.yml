@@ -544,6 +544,18 @@ jobs:
         run: |
           started_at="$(date -u +%FT%TZ)"
           echo "started-at=$started_at" >> "$GITHUB_OUTPUT"
+          effective_timeout_seconds="$LANE_TIMEOUT_SECONDS"
+          # Hosted runners are terminating some singleton player lanes before the
+          # lane-controlled timeout fires, which skips checkpoint/artifact steps.
+          # Cap these lanes below the observed runner eviction window so they
+          # exit via our own timeout path and can resume on the next chain step.
+          if [ "$PATTERNS" = "player" ] && [ -n "$BACKFILL_ENDPOINTS" ] && [ "${BACKFILL_ENDPOINTS#*,}" = "$BACKFILL_ENDPOINTS" ]; then
+            if [ "$effective_timeout_seconds" -gt 3300 ]; then
+              effective_timeout_seconds=3300
+            fi
+            echo "::notice::Capping singleton player lane timeout to ${effective_timeout_seconds}s for resumable checkpointing"
+          fi
+          echo "effective-timeout-seconds=$effective_timeout_seconds" >> "$GITHUB_OUTPUT"
           set +e
           cmd=(uv run nbadb backfill run --extract-only --verbose)
           if [ -n "$SEASON_START" ] && [ -n "$SEASON_END" ]; then
@@ -556,7 +568,7 @@ jobs:
 
           printf -v cmd_str '%q ' "${cmd[@]}"
           echo "::notice::Running: $cmd_str"
-          timeout --signal=INT --kill-after=60 "$LANE_TIMEOUT_SECONDS" bash -lc "$cmd_str"
+          timeout --signal=INT --kill-after=60 "$effective_timeout_seconds" bash -lc "$cmd_str"
           exit_code=$?
           set -e
           finished_at="$(date -u +%FT%TZ)"
@@ -609,6 +621,7 @@ jobs:
           STATUS: ${{ steps.lane_status.outputs.status }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
           TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
+          EFFECTIVE_TIMEOUT_SECONDS: ${{ steps.extract.outputs.effective-timeout-seconds || matrix.timeout_seconds }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
           VPN_BASELINE_IP: ${{ steps.vpn.outputs.baseline-ip }}
@@ -635,6 +648,7 @@ jobs:
             echo "**Restore usable:** ${RESTORE_USABLE:-false}"
             echo "**Resume only:** $RESUME_ONLY"
             echo "**Lane timeout seconds:** $TIMEOUT_SECONDS"
+            echo "**Effective lane timeout seconds:** $EFFECTIVE_TIMEOUT_SECONDS"
             echo "**VPN status:** $effective_vpn_status"
             echo "**VPN server:** ${VPN_SERVER:-n/a}"
             echo "**VPN interface:** ${VPN_INTERFACE:-n/a}"
@@ -662,6 +676,7 @@ jobs:
           RESTART_MODE: ${{ steps.restore_state.outputs.restart-mode || 'clean-restart' }}
           RESUME_ONLY: ${{ matrix.resume_only }}
           TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
+          EFFECTIVE_TIMEOUT_SECONDS: ${{ steps.extract.outputs.effective-timeout-seconds || matrix.timeout_seconds }}
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
           SEASON_START: ${{ matrix.season_start }}
@@ -704,6 +719,7 @@ jobs:
               "restart_mode": os.environ["RESTART_MODE"],
               "resume_only": resume_only,
               "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
+              "effective_timeout_seconds": int(os.environ["EFFECTIVE_TIMEOUT_SECONDS"]),
               "started_at": os.environ.get("STARTED_AT", ""),
               "finished_at": os.environ.get("FINISHED_AT", ""),
               "extract_status": os.environ.get("EXTRACT_STATUS", ""),
