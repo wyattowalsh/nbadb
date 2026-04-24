@@ -305,7 +305,7 @@ jobs:
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
           lane-index: "0"
           server-limit: "1"
-          fallback-technology: ""
+          fallback-technology: "openvpn_tcp"
           connect-timeout-seconds: "30"
           overall-timeout-seconds: "120"
           quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
@@ -467,7 +467,7 @@ jobs:
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
           lane-index: ${{ matrix.lane_index }}
           server-limit: "3"
-          fallback-technology: ""
+          fallback-technology: "openvpn_tcp"
           connect-timeout-seconds: "30"
           overall-timeout-seconds: "180"
           quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
