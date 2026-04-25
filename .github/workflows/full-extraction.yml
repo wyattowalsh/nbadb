@@ -977,17 +977,21 @@ jobs:
             --output-path artifacts/full-extraction/next-manifest.json \
             > artifacts/full-extraction/next-manifest.stdout.json
 
-          python -c "
-            import json
-            from pathlib import Path
+          uv run python - <<'PY' > artifacts/full-extraction/next-manifest.inspect.txt
+          import json
+          from pathlib import Path
 
-            payload = json.loads(Path('artifacts/full-extraction/next-manifest.json').read_text(encoding='utf-8'))
-            summary = payload.get('resume_summary', {})
-            print(int(summary.get('active_lane_count', 0)))
-            print(int(summary.get('resume_only_lane_count', 0)))
-            print(json.dumps(summary.get('failure_reason_counts', {}), sort_keys=True))
-            print(json.dumps(payload, separators=(',', ':')))
-          " > artifacts/full-extraction/next-manifest.inspect.txt
+          payload = json.loads(
+              Path("artifacts/full-extraction/next-manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          summary = payload.get("resume_summary", {})
+          print(int(summary.get("active_lane_count", 0)))
+          print(int(summary.get("resume_only_lane_count", 0)))
+          print(json.dumps(summary.get("failure_reason_counts", {}), sort_keys=True))
+          print(json.dumps(payload, separators=(",", ":")))
+          PY
 
           mapfile -t next_manifest_info < artifacts/full-extraction/next-manifest.inspect.txt
           active_lane_count="${next_manifest_info[0]:-0}"
