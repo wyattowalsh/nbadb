@@ -694,6 +694,9 @@ def manifest_payload(
 def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[str, Any]:
     payload = asdict(lane)
     if compact:
+        # Redispatch payloads only need enough state to reconstruct lanes on the
+        # next workflow iteration. Drop derived/default fields so chained
+        # workflow_dispatch inputs stay under GitHub's size limits.
         payload.pop("lane_index", None)
         if lane.use_vpn is True:
             payload.pop("use_vpn", None)
