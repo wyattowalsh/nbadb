@@ -1,0 +1,34 @@
+{
+  "artifact_version": 1,
+  "artifact_kind": "player_team_season_workload",
+  "artifact_path": "MagicMock/mock.duckdb_path/139790644605056.player-team-season-workload.parquet",
+  "updated_at": "2026-04-27T05:54:18.800249+00:00",
+  "total_params": 0,
+  "covered_pairs": [
+    {
+      "season": "2024-25",
+      "season_type": "All Star"
+    },
+    {
+      "season": "2024-25",
+      "season_type": "Playoffs"
+    },
+    {
+      "season": "2024-25",
+      "season_type": "Pre Season"
+    },
+    {
+      "season": "2024-25",
+      "season_type": "Regular Season"
+    }
+  ],
+  "covered_seasons": [
+    "2024-25"
+  ],
+  "covered_season_types": [
+    "All Star",
+    "Playoffs",
+    "Pre Season",
+    "Regular Season"
+  ]
+}

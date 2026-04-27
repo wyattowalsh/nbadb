@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import polars as pl
 
@@ -18,7 +18,7 @@ _ARTIFACT_KIND = "player_team_season_workload"
 _ARTIFACT_SUFFIX = ".player-team-season-workload.parquet"
 _MANIFEST_SUFFIX = ".player-team-season-workload.json"
 _COLUMNS = ("player_id", "team_id", "season", "season_type")
-_SCHEMA: dict[str, pl.DataType] = {
+_SCHEMA = {
     "player_id": pl.Int64,
     "team_id": pl.Int64,
     "season": pl.Utf8,
@@ -38,7 +38,7 @@ class PlayerTeamSeasonWorkloadStore:
     def __init__(self, artifact_path: Path | None) -> None:
         self._artifact_path = artifact_path
         self._manifest_path = (
-            artifact_path.with_suffix(".json") if artifact_path is not None else None
+            artifact_path.with_suffix(_MANIFEST_SUFFIX) if artifact_path is not None else None
         )
 
     @classmethod
@@ -97,14 +97,15 @@ class PlayerTeamSeasonWorkloadStore:
 
         artifact_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = artifact_path.with_suffix(f"{artifact_path.suffix}.tmp")
-        combined.write_parquet(temp_path)
-        temp_path.replace(artifact_path)
+        try:
+            combined.write_parquet(temp_path)
+            temp_path.replace(artifact_path)
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
 
         manifest = self._read_manifest()
-        previous_pairs = {
-            (str(row["season"]), str(row["season_type"]))
-            for row in manifest.get("covered_pairs", [])
-        }
+        previous_pairs = self._manifest_pairs(manifest)
         covered_pairs = sorted((previous_pairs - target_pairs) | target_pairs)
         manifest_payload = {
             "artifact_version": _ARTIFACT_VERSION,
@@ -149,10 +150,7 @@ class PlayerTeamSeasonWorkloadStore:
         season_types: list[str] | None = None,
     ) -> PlayerTeamSeasonWorkloadCoverage:
         manifest = self._read_manifest()
-        all_pairs = {
-            (str(row["season"]), str(row["season_type"]))
-            for row in manifest.get("covered_pairs", [])
-        }
+        all_pairs = self._manifest_pairs(manifest)
         filtered_pairs = {
             pair
             for pair in all_pairs
@@ -200,12 +198,15 @@ class PlayerTeamSeasonWorkloadStore:
             lazy = lazy.filter(pl.col("season").is_in(seasons))
         if season_types is not None:
             lazy = lazy.filter(pl.col("season_type").is_in(season_types))
-        return lazy.select(
-            pl.col("player_id"),
-            pl.col("team_id"),
-            pl.col("season"),
-            pl.col("season_type"),
-        ).collect()
+        return cast(
+            "pl.DataFrame",
+            lazy.select(
+                pl.col("player_id"),
+                pl.col("team_id"),
+                pl.col("season"),
+                pl.col("season_type"),
+            ).collect(),
+        )
 
     def _read_existing_frame(self) -> pl.DataFrame:
         frame = self._filtered_frame(seasons=None, season_types=None)
@@ -221,6 +222,23 @@ class PlayerTeamSeasonWorkloadStore:
         if not manifest_path.exists():
             return {}
         return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _manifest_pairs(manifest: dict[str, object]) -> set[tuple[str, str]]:
+        rows = manifest.get("covered_pairs", [])
+        if not isinstance(rows, list):
+            return set()
+        pairs: set[tuple[str, str]] = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            mapping = cast("dict[str, object]", row)
+            season = mapping.get("season")
+            season_type = mapping.get("season_type")
+            if season is None or season_type is None:
+                continue
+            pairs.add((str(season), str(season_type)))
+        return pairs
 
     @staticmethod
     def _normalized_pairs(seasons: list[str], season_types: list[str]) -> set[tuple[str, str]]:

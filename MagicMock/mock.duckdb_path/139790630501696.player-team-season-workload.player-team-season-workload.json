@@ -1,0 +1,10 @@
+{
+  "artifact_version": 1,
+  "artifact_kind": "player_team_season_workload",
+  "artifact_path": "MagicMock/mock.duckdb_path/139790630501696.player-team-season-workload.parquet",
+  "updated_at": "2026-04-27T05:54:19.115695+00:00",
+  "total_params": 0,
+  "covered_pairs": [],
+  "covered_seasons": [],
+  "covered_season_types": []
+}

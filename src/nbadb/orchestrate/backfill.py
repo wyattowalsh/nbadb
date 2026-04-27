@@ -372,7 +372,6 @@ class BackfillPlanner:
                 gaps = self._gaps_from_staging_player_team_pairs(
                     entry,
                     done_map=done_map,
-                    done_total_by_ep=done_total_by_ep,
                     seasons=target_seasons,
                     season_types=target_season_types,
                 )
@@ -392,7 +391,8 @@ class BackfillPlanner:
         gaps: list[GapReport] = []
         for season in seasons:
             expected = sum(
-                coverage.counts_by_pair.get((season, season_type), 0) for season_type in season_types
+                coverage.counts_by_pair.get((season, season_type), 0)
+                for season_type in season_types
             )
             actual = sum(
                 done_map.get((entry.endpoint_name, season, season_type), 0)
@@ -417,7 +417,6 @@ class BackfillPlanner:
         entry: StagingEntry,
         *,
         done_map: dict[tuple[str, str | None, str | None], int],
-        done_total_by_ep: dict[str, int],
         seasons: list[str],
         season_types: list[str],
     ) -> list[GapReport] | None:

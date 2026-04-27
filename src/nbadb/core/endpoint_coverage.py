@@ -1082,8 +1082,8 @@ class EndpointCoverageGenerator:
                 "backfilled across its supported historical window, and is accounted for in "
                 "auditable source-completeness reporting."
             ),
-            "ready_for_full_backfill": EndpointCoverageGenerator._extraction_ready_for_full_backfill(
-                extraction_summary
+            "ready_for_full_backfill": (
+                EndpointCoverageGenerator._extraction_ready_for_full_backfill(extraction_summary)
             ),
             "checks": checks,
             "current_status": extraction_summary,
