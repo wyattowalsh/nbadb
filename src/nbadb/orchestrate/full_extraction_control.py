@@ -11,6 +11,7 @@ from typing import Any
 import duckdb
 
 from nbadb.core.types import SeasonType
+from nbadb.orchestrate.extraction_contract import FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
 from nbadb.orchestrate.seasons import season_range
 
 DEFAULT_HISTORICAL_START = 1946
@@ -88,30 +89,8 @@ REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
     "team_historical_leaders": 4_200,
 }
 FULL_EXTRACTION_EXCLUDED_ENDPOINTS: dict[str, str] = {
-    "player_dash_pt_pass": (
-        "The live PlayerDashPtPass endpoint requires player/team context that the current "
-        "reference-player full-extraction lanes do not provide, so it is excluded until "
-        "that contract is modeled explicitly."
-    ),
-    "player_dash_pt_reb": (
-        "The live PlayerDashPtReb endpoint requires player/team context that the current "
-        "reference-player full-extraction lanes do not provide, so it is excluded until "
-        "that contract is modeled explicitly."
-    ),
-    "player_dash_pt_shot_defend": (
-        "The live PlayerDashPtShotDefend endpoint requires player/team context that the "
-        "current reference-player full-extraction lanes do not provide, so it is excluded "
-        "until that contract is modeled explicitly."
-    ),
-    "player_dash_pt_shots": (
-        "The live PlayerDashPtShots endpoint requires player/team context that the current "
-        "reference-player full-extraction lanes do not provide, so it is excluded until "
-        "that contract is modeled explicitly."
-    ),
-    "team_historical_leaders": (
-        "The live TeamHistoricalLeaders endpoint currently returns invalid JSON for valid "
-        "current NBA franchise IDs, so it is excluded from end-to-end full extraction."
-    ),
+    endpoint_name: exclusion.reason
+    for endpoint_name, exclusion in FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT.items()
 }
 
 
