@@ -125,6 +125,31 @@ class _ProgressReporter(Protocol):
     def export_summary(self) -> object: ...
 
 
+class _DiscoveryService(Protocol):
+    async def discover_game_ids_result(
+        self,
+        seasons: list[str],
+        on_progress: _ProgressReporter | None = None,
+        season_types: list[str] | None = None,
+    ) -> GameDiscoveryResult: ...
+
+    async def discover_game_dates(self, game_log_df: pl.DataFrame) -> list[str]: ...
+
+    async def discover_player_ids(self, season: str | None = None) -> list[int]: ...
+
+    async def discover_all_player_ids(self, season: str | None = None) -> list[int]: ...
+
+    async def discover_team_ids(self) -> list[int]: ...
+
+    async def discover_current_team_ids(self) -> list[int]: ...
+
+    async def discover_player_team_season_params_result(
+        self,
+        seasons: list[str],
+        season_types: list[str] | None = None,
+    ) -> PlayerTeamSeasonDiscoveryResult: ...
+
+
 class Orchestrator:
     """Main orchestration engine.
 
@@ -262,7 +287,7 @@ class Orchestrator:
 
     async def _discover_current_team_ids(
         self,
-        discovery: EntityDiscovery,
+        discovery: _DiscoveryService,
         *,
         seasons: list[str],
     ) -> list[int]:
@@ -277,31 +302,14 @@ class Orchestrator:
 
     async def _discover_player_team_season_result(
         self,
-        discovery: EntityDiscovery,
+        discovery: _DiscoveryService,
         *,
         seasons: list[str],
         season_types: list[str],
     ) -> PlayerTeamSeasonDiscoveryResult:
-        result_method = None
-        if hasattr(type(discovery), "discover_player_team_season_params_result"):
-            result_method = discovery.discover_player_team_season_params_result
-        if callable(result_method):
-            return await result_method(seasons, season_types=season_types)
-        return PlayerTeamSeasonDiscoveryResult(
-            params=await discovery.discover_player_team_season_params(
-                seasons,
-                season_types=season_types,
-            ),
-            requested_pairs=frozenset(
-                (season, season_type)
-                for season in seasons
-                for season_type in season_types
-            ),
-            covered_pairs=frozenset(
-                (season, season_type)
-                for season in seasons
-                for season_type in season_types
-            ),
+        return await discovery.discover_player_team_season_params_result(
+            seasons,
+            season_types=season_types,
         )
 
     def _run_live_snapshot_upkeep(self, *, run_mode: str) -> tuple[int, int]:
@@ -468,7 +476,7 @@ class Orchestrator:
 
     async def _discover_entities(
         self,
-        discovery: EntityDiscovery,
+        discovery: _DiscoveryService,
         seasons: list[str],
         bound_log: object,
         *,
@@ -505,9 +513,13 @@ class Orchestrator:
                 seasons=tuple(seasons),
                 season_types=resolved_season_types,
             )
-            cached_game_log = artifacts.load_frame(game_scope)
+            cached_game_log = artifacts.load_game_log_frame(game_scope)
             if cached_game_log is not None:
-                game_ids = cached_game_log.get_column("game_id").unique().sort().to_list()
+                game_ids = (
+                    cached_game_log.get_column("game_id").unique().sort().to_list()
+                    if not cached_game_log.is_empty() and "game_id" in cached_game_log.columns
+                    else []
+                )
                 game_log_df = cached_game_log
                 if pp is not None:
                     pp.log_discovery("games", len(game_ids))
@@ -523,13 +535,8 @@ class Orchestrator:
                     game_dates = []
             else:
                 game_index = len(discovery_tasks)
-                game_result_method = None
-                if hasattr(type(discovery), "discover_game_ids_result"):
-                    game_result_method = discovery.discover_game_ids_result
                 discovery_tasks.append(
-                    game_result_method(seasons, on_progress=pp, season_types=season_types)
-                    if callable(game_result_method)
-                    else discovery.discover_game_ids(
+                    discovery.discover_game_ids_result(
                         seasons,
                         on_progress=pp,
                         season_types=season_types,
@@ -599,14 +606,15 @@ class Orchestrator:
                 game_ids = []
                 game_log_df = pl.DataFrame()
         else:
-            game_discovery_result: GameDiscoveryResult | None = None
-            if isinstance(_game_result, GameDiscoveryResult):
-                game_discovery_result = _game_result
-                game_ids = game_discovery_result.game_ids
-                game_log_df = game_discovery_result.raw
-            else:
-                game_ids, game_log_df = cast("tuple[list[str], pl.DataFrame]", _game_result)
-            if game_discovery_result is None or game_discovery_result.is_complete:
+            game_discovery_result = _game_result
+            assert isinstance(game_discovery_result, GameDiscoveryResult)
+            game_ids = game_discovery_result.game_ids
+            game_log_df = game_discovery_result.raw
+            if game_discovery_result.is_complete:
+                artifacts.upsert_game_log_combo_frames(
+                    game_discovery_result.frames_by_combo,
+                    provenance="discovery",
+                )
                 artifacts.upsert_frame(
                     DiscoveryArtifactScope(
                         kind="league_game_log",
@@ -618,8 +626,13 @@ class Orchestrator:
                 )
             else:
                 logger.warning(
-                    "skipping scoped game-log cache because discovery "
-                    "finished with partial coverage"
+                    "persisting {} covered game discovery combos individually and skipping aggregate cache for requested scope {}",
+                    len(game_discovery_result.covered_combos),
+                    sorted(game_discovery_result.requested_combos),
+                )
+                artifacts.upsert_game_log_combo_frames(
+                    game_discovery_result.frames_by_combo,
+                    provenance="partial-discovery",
                 )
             if pp is not None:
                 pp.log_discovery("games", len(game_ids))
@@ -1040,9 +1053,12 @@ class Orchestrator:
 
             # -- 1. Discover recent game_ids across the full declared contract -----
             daily_season_types = list(DEFAULT_SEASON_TYPES)
-            game_ids, game_log_df = await discovery.discover_game_ids(
-                [season], season_types=daily_season_types
+            game_result = await discovery.discover_game_ids_result(
+                [season],
+                season_types=daily_season_types,
             )
+            game_ids = game_result.game_ids
+            game_log_df = game_result.raw
 
             raw: dict[str, pl.DataFrame] = {}
             if not game_log_df.is_empty():

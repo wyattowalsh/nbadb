@@ -237,6 +237,30 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25"])
         assert result == []
 
+    async def test_result_marks_empty_successful_seasons_as_covered(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            return_value=pl.DataFrame({"person_id": [], "team_id": []}),
+        ):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_team_season_params_result(
+                ["2024-25"],
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert result.params == []
+        assert result.covered_pairs == {
+            ("2024-25", "Regular Season"),
+            ("2024-25", "Playoffs"),
+        }
+        assert result.is_complete is True
+
     async def test_result_tracks_only_successfully_covered_seasons(self):
         class _Ext:
             pass
@@ -653,6 +677,31 @@ class TestDiscoverGameIds:
         assert ("2025-26", "Playoffs") in result.requested_combos
         assert ("2025-26", "Playoffs") not in result.covered_combos
         assert result.is_complete is False
+
+    async def test_result_marks_empty_successful_combos_as_covered(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            return_value=pl.DataFrame({"game_id": [], "game_date": []}),
+        ):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_game_ids_result(
+                ["2024-25"],
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert result.game_ids == []
+        assert result.raw.is_empty()
+        assert result.covered_combos == {
+            ("2024-25", "Regular Season"),
+            ("2024-25", "Playoffs"),
+        }
+        assert result.is_complete is True
 
     async def test_multiple_seasons(self):
         call_count = 0

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import polars as pl
+from loguru import logger
 
 from nbadb.orchestrate.persistence import atomic_write_path, atomic_write_text, read_json_object
 
@@ -219,7 +220,52 @@ class PlayerTeamSeasonWorkloadStore:
             return {}
         manifest_path = self._manifest_path
         assert manifest_path is not None
-        return read_json_object(manifest_path)
+        manifest = read_json_object(
+            manifest_path,
+            metadata_label="player/team workload manifest",
+        )
+        if manifest:
+            return manifest
+
+        recovered = self._rebuild_manifest_from_artifact()
+        if recovered:
+            logger.warning(
+                "recovered player/team workload manifest from parquet artifact {}",
+                self._artifact_path,
+            )
+            atomic_write_text(manifest_path, json.dumps(recovered, indent=2) + "\n")
+        return recovered
+
+    def _rebuild_manifest_from_artifact(self) -> dict[str, object]:
+        frame = self._filtered_frame(seasons=None, season_types=None)
+        if frame is None:
+            return {}
+
+        grouped = (
+            frame.group_by(["season", "season_type"])
+            .len(name="count")
+            .sort(["season", "season_type"])
+        )
+        covered_pairs = [
+            {"season": str(row["season"]), "season_type": str(row["season_type"])}
+            for row in grouped.to_dicts()
+        ]
+        if not covered_pairs and frame.is_empty():
+            return {}
+
+        artifact_path = self._artifact_path
+        assert artifact_path is not None
+        return {
+            "artifact_version": _ARTIFACT_VERSION,
+            "artifact_kind": _ARTIFACT_KIND,
+            "artifact_path": str(artifact_path),
+            "updated_at": datetime.now(UTC).isoformat(),
+            "total_params": frame.height,
+            "covered_pairs": covered_pairs,
+            "covered_seasons": sorted({row["season"] for row in covered_pairs}),
+            "covered_season_types": sorted({row["season_type"] for row in covered_pairs}),
+            "recovered_from_artifact": True,
+        }
 
     @staticmethod
     def _manifest_pairs(manifest: dict[str, object]) -> set[tuple[str, str]]:

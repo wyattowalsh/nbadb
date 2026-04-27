@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 import polars as pl
+from loguru import logger
 
 from nbadb.orchestrate.persistence import atomic_write_path, atomic_write_text
 
@@ -64,6 +65,38 @@ class DiscoveryArtifactStore:
             return None
         return pl.read_parquet(artifact_path)
 
+    def load_game_log_frame(self, scope: DiscoveryArtifactScope) -> pl.DataFrame | None:
+        cached = self.load_frame(scope)
+        if cached is not None:
+            return cached
+        if scope.kind != "league_game_log" or not scope.seasons or not scope.season_types:
+            return None
+
+        combo_frames: list[pl.DataFrame] = []
+        for season in scope.seasons:
+            for season_type in scope.season_types:
+                combo_scope = DiscoveryArtifactScope(
+                    kind="league_game_log",
+                    seasons=(season,),
+                    season_types=(season_type,),
+                    variant=scope.variant,
+                )
+                combo_frame = self.load_frame(combo_scope)
+                if combo_frame is None:
+                    return None
+                combo_frames.append(combo_frame)
+
+        logger.info(
+            "reusing scoped league_game_log cache from {} combo artifacts for seasons={} season_types={}",
+            len(combo_frames),
+            list(scope.seasons),
+            list(scope.season_types),
+        )
+        non_empty_frames = [frame for frame in combo_frames if not frame.is_empty()]
+        if not non_empty_frames:
+            return pl.DataFrame()
+        return pl.concat(non_empty_frames, how="diagonal_relaxed")
+
     def upsert_frame(
         self,
         scope: DiscoveryArtifactScope,
@@ -117,6 +150,23 @@ class DiscoveryArtifactStore:
         frame = pl.DataFrame({column: sorted({int(value) for value in values})})
         self.upsert_frame(scope, frame, provenance=provenance)
         return frame.get_column(column).cast(pl.Int64, strict=False).to_list()
+
+    def upsert_game_log_combo_frames(
+        self,
+        frames_by_combo: dict[tuple[str, str], pl.DataFrame],
+        *,
+        provenance: str,
+    ) -> None:
+        for (season, season_type), frame in frames_by_combo.items():
+            self.upsert_frame(
+                DiscoveryArtifactScope(
+                    kind="league_game_log",
+                    seasons=(season,),
+                    season_types=(season_type,),
+                ),
+                frame,
+                provenance=provenance,
+            )
 
     def _artifact_path(self, scope: DiscoveryArtifactScope) -> Path:
         root_dir = self._root_dir

@@ -78,3 +78,5 @@ def test_extraction_progress_store_ignores_corrupted_json(tmp_path) -> None:
 
     assert store.load(key) == {}
     assert store.is_complete(key) is False
+    assert path.exists() is False
+    assert list(path.parent.glob(f"{path.name}.corrupt.*"))

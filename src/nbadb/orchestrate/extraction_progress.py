@@ -68,7 +68,10 @@ class ExtractionProgressStore:
         if not self.is_available():
             return {}
         path = self._path(key)
-        return read_json_object(path)
+        return read_json_object(
+            path,
+            metadata_label="extraction progress metadata",
+        )
 
     def mark_started(self, key: ExtractionSliceKey, *, task_count: int) -> None:
         self._write(

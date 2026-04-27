@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
 from aiolimiter import AsyncLimiter
@@ -43,6 +43,7 @@ class GameDiscoveryResult:
     raw: pl.DataFrame
     requested_combos: frozenset[tuple[str, str]]
     covered_combos: frozenset[tuple[str, str]]
+    frames_by_combo: dict[tuple[str, str], pl.DataFrame] = field(default_factory=dict)
 
     @property
     def is_complete(self) -> bool:
@@ -232,7 +233,7 @@ class EntityDiscovery:
                 if phase == "recovering":
                     logger.info("recovered game log for {}", label)
                 if df.is_empty():
-                    return (season, season_type), None, True
+                    return (season, season_type), df, True
                 return (season, season_type), df, True
 
             if not use_semaphore:
@@ -254,9 +255,9 @@ class EntityDiscovery:
             ]
         )
 
-        frames: list[pl.DataFrame] = [
-            df for _combo, df, success in initial_results if success and df is not None
-        ]
+        combo_frames: dict[tuple[str, str], pl.DataFrame] = {
+            combo: df for combo, df, success in initial_results if success and df is not None
+        }
         failed_combos = [combo for combo, _df, success in initial_results if not success]
 
         if failed_combos:
@@ -312,7 +313,7 @@ class EntityDiscovery:
                     if success:
                         total_recovered += 1
                         if df is not None:
-                            frames.append(df)
+                            combo_frames[(season, season_type)] = df
                     else:
                         next_unresolved.append((season, season_type))
 
@@ -336,8 +337,8 @@ class EntityDiscovery:
                     unresolved_combos,
                 )
 
-        if not frames:
-            logger.warning("no game log data returned")
+        if not combo_frames:
+            logger.warning("no game discovery combos completed successfully")
             return GameDiscoveryResult(
                 game_ids=[],
                 raw=pl.DataFrame(),
@@ -345,27 +346,28 @@ class EntityDiscovery:
                 covered_combos=frozenset(),
             )
 
-        combined = pl.concat(frames, how="diagonal_relaxed")
-        game_ids = combined.get_column("game_id").unique().sort().to_list()
+        non_empty_frames = [df for df in combo_frames.values() if not df.is_empty()]
+        combined = pl.concat(non_empty_frames, how="diagonal_relaxed") if non_empty_frames else pl.DataFrame()
+        game_ids = (
+            combined.get_column("game_id").unique().sort().to_list()
+            if not combined.is_empty() and "game_id" in combined.columns
+            else []
+        )
         logger.info(
-            "discovered {} unique game IDs across {} season×type combos",
+            "discovered {} unique game IDs across {}/{} season×type combos",
             len(game_ids),
+            len(combo_frames),
             len(combos),
         )
-        covered_combos = {
-            combo for combo, _df, success in initial_results if success
-        } | {
-            combo for combo in combos if combo not in failed_combos
-        }
+        covered_combos = {combo for combo in combos if combo not in failed_combos}
         if failed_combos:
-            covered_combos = {
-                combo for combo in combos if combo not in unresolved_combos
-            }
+            covered_combos = {combo for combo in combos if combo not in unresolved_combos}
         return GameDiscoveryResult(
             game_ids=game_ids,
             raw=combined,
             requested_combos=frozenset(combos),
             covered_combos=frozenset(covered_combos),
+            frames_by_combo=combo_frames,
         )
 
     async def discover_game_ids(
@@ -532,7 +534,7 @@ class EntityDiscovery:
                     logger.info("recovered player/team pairs for {}", label)
                 if df.is_empty():
                     logger.warning("no common_all_players data returned for {}", season)
-                    return season, None, False
+                    return season, df, True
 
                 required = {"person_id", "team_id"}
                 missing = required - set(df.columns)
@@ -577,7 +579,9 @@ class EntityDiscovery:
             ]
         )
 
-        frames = [df for _season, df, success in initial_results if success and df is not None]
+        season_frames: dict[str, pl.DataFrame] = {
+            season: df for season, df, success in initial_results if success and df is not None
+        }
         failed_seasons = [season for season, _df, success in initial_results if not success]
 
         if failed_seasons:
@@ -627,7 +631,7 @@ class EntityDiscovery:
                     if success:
                         total_recovered += 1
                         if df is not None:
-                            frames.append(df)
+                            season_frames[season] = df
                     else:
                         next_unresolved.append(season)
 
@@ -651,7 +655,7 @@ class EntityDiscovery:
                     unresolved_seasons,
                 )
 
-        if not frames:
+        if not season_frames:
             return PlayerTeamSeasonDiscoveryResult(
                 params=[],
                 requested_pairs=frozenset(
@@ -662,17 +666,20 @@ class EntityDiscovery:
                 covered_pairs=frozenset(),
             )
 
+        non_empty_frames = [df for df in season_frames.values() if not df.is_empty()]
         combined = (
-            pl.concat(frames, how="vertical_relaxed")
+            pl.concat(non_empty_frames, how="vertical_relaxed")
             .unique(subset=["player_id", "team_id", "season"])
             .sort(["season", "player_id", "team_id"])
+            if non_empty_frames
+            else pl.DataFrame(schema={"player_id": pl.Int64, "team_id": pl.Int64, "season": pl.Utf8})
         )
         params: list[dict[str, int | str]] = []
         for row in combined.to_dicts():
             for season_type in resolved_season_types:
                 params.append({**row, "season_type": season_type})
         logger.info("discovered {} player/team/season combos", len(params))
-        successful_seasons = combined.get_column("season").cast(pl.Utf8).unique().sort().to_list()
+        successful_seasons = sorted(season_frames)
         return PlayerTeamSeasonDiscoveryResult(
             params=params,
             requested_pairs=frozenset(

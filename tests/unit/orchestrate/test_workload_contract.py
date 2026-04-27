@@ -127,4 +127,6 @@ def test_store_ignores_corrupted_manifest_and_keeps_frame_data(tmp_path) -> None
     ]
     coverage = store.load_coverage(seasons=["2024-25"], season_types=["Regular Season"])
     assert coverage.counts_by_pair == {("2024-25", "Regular Season"): 1}
-    assert coverage.covered_pairs == set()
+    assert coverage.covered_pairs == {("2024-25", "Regular Season")}
+    repaired = json.loads(store.manifest_path.read_text(encoding="utf-8"))
+    assert repaired["recovered_from_artifact"] is True
