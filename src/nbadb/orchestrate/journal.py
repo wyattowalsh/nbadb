@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -572,4 +573,62 @@ class PipelineJournal:
                 error_count = EXCLUDED.error_count
             """,
             [endpoint, now, duration, rows, errors],
+        )
+
+    def record_lane_metric(
+        self,
+        *,
+        lane_id: str,
+        run_mode: str,
+        pattern: str,
+        endpoint_families: list[str],
+        started_at: datetime,
+        completed_at: datetime,
+        wall_time_seconds: float,
+        task_count: int,
+        row_count: int,
+        success_count: int,
+        failure_count: int,
+        retry_inflation: float = 0.0,
+        queue_wait_seconds: float = 0.0,
+    ) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO _lane_metrics (
+                lane_id, run_mode, pattern, endpoint_families,
+                started_at, completed_at, wall_time_seconds,
+                task_count, row_count, success_count, failure_count,
+                retry_inflation, queue_wait_seconds
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ON CONFLICT (lane_id)
+            DO UPDATE SET
+                run_mode = EXCLUDED.run_mode,
+                pattern = EXCLUDED.pattern,
+                endpoint_families = EXCLUDED.endpoint_families,
+                started_at = EXCLUDED.started_at,
+                completed_at = EXCLUDED.completed_at,
+                wall_time_seconds = EXCLUDED.wall_time_seconds,
+                task_count = EXCLUDED.task_count,
+                row_count = EXCLUDED.row_count,
+                success_count = EXCLUDED.success_count,
+                failure_count = EXCLUDED.failure_count,
+                retry_inflation = EXCLUDED.retry_inflation,
+                queue_wait_seconds = EXCLUDED.queue_wait_seconds
+            """,
+            [
+                lane_id,
+                run_mode,
+                pattern,
+                json.dumps(endpoint_families),
+                started_at.isoformat(),
+                completed_at.isoformat(),
+                wall_time_seconds,
+                task_count,
+                row_count,
+                success_count,
+                failure_count,
+                retry_inflation,
+                queue_wait_seconds,
+            ],
         )

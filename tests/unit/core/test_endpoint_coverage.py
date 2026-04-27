@@ -367,6 +367,14 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     support_matrix_payload = json.loads(written["support_matrix"].read_text(encoding="utf-8"))
     support_summary_payload = json.loads(written["support_summary"].read_text(encoding="utf-8"))
     support_report_text = written["support_report"].read_text(encoding="utf-8")
+    extraction_matrix_payload = json.loads(written["extraction_matrix"].read_text(encoding="utf-8"))
+    extraction_summary_payload = json.loads(
+        written["extraction_summary"].read_text(encoding="utf-8")
+    )
+    extraction_report_text = written["extraction_report"].read_text(encoding="utf-8")
+    full_extraction_definition = json.loads(
+        written["full_extraction_definition"].read_text(encoding="utf-8")
+    )
 
     assert "matrix" in matrix_payload
     assert "coverage" in summary_payload
@@ -376,6 +384,10 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     assert "matrix" in support_matrix_payload
     assert "gap_endpoint_count" in support_summary_payload
     assert "Endpoint Support Matrix" in support_report_text
+    assert "matrix" in extraction_matrix_payload
+    assert "extractable_endpoint_count" in extraction_summary_payload
+    assert "Endpoint Extraction Contract" in extraction_report_text
+    assert "ready_for_full_backfill" in full_extraction_definition
     assert "Strict Build Contract" in report_text
 
 
@@ -933,3 +945,30 @@ def test_build_artifacts_includes_strict_support_contract_summary(tmp_path: Path
     assert support_summary["season_type_contract_open_count"] == 2
     assert support_summary["season_type_contract_untracked_count"] == 2
     assert "staging_only" not in support_summary["gap_breakdown"]
+
+
+def test_extraction_summary_ready_for_full_backfill_requires_closed_season_type_contract() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    extraction = EndpointCoverageGenerator._build_extraction_matrix(
+        support_matrix=[
+            {
+                "endpoint_name": "foo_endpoint",
+                "source_kind": "stats",
+                "execution_semantics": "historical_backfill",
+                "season_type_contract_status": "untracked",
+                "season_type_value_gaps": [],
+                "coverage_statuses": ["covered"],
+                "staging_keys": ["stg_foo"],
+                "input_schema_missing_staging_keys": [],
+                "param_patterns": ["season"],
+                "declared_supported_season_types": [],
+                "earliest_supported_season": "2024-25",
+                "support_windows": [],
+            }
+        ]
+    )
+
+    assert extraction["summary"]["partial_endpoint_count"] == 1
+    assert extraction["summary"]["season_type_contract_open_count"] == 1
+    assert extraction["summary"]["ready_for_full_backfill"] is False

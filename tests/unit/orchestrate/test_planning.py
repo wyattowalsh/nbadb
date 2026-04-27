@@ -92,10 +92,20 @@ class TestBuildExtractionPlan:
     def test_builds_cross_product_patterns_and_player_team_season_passthrough(self) -> None:
         player_season_entries = [_entry("player_game_log")]
         team_season_entries = [_entry("team_game_log")]
-        player_team_season_entries = [_entry("video_details", season_type_capability="blocked")]
+        player_team_season_entries = [_entry("video_details")]
         params = [
-            {"player_id": 201939, "team_id": 1610612744, "season": "2024-25"},
-            {"player_id": 2544, "team_id": 1610612747, "season": "2025-26"},
+            {
+                "player_id": 201939,
+                "team_id": 1610612744,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2544,
+                "team_id": 1610612747,
+                "season": "2025-26",
+                "season_type": "Playoffs",
+            },
         ]
 
         def _entries(pattern: str):

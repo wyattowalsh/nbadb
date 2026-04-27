@@ -20,11 +20,24 @@ def _artifact_paths(tmp_path: Path, coverage: dict[str, int]) -> dict[str, Path]
     matrix_path = tmp_path / "endpoint-coverage-matrix.json"
     summary_path = tmp_path / "endpoint-coverage-summary.json"
     report_path = tmp_path / "endpoint-coverage-report.md"
+    extraction_summary_path = tmp_path / "endpoint-extraction-summary.json"
+    extraction_report_path = tmp_path / "endpoint-extraction-report.md"
+    full_extraction_definition_path = tmp_path / "full-extraction-definition.json"
 
     matrix_path.write_text('{"matrix": []}\n', encoding="utf-8")
     summary_path.write_text(json.dumps({"coverage": coverage}) + "\n", encoding="utf-8")
     report_path.write_text("# Endpoint Coverage Report\n", encoding="utf-8")
-    return {"matrix": matrix_path, "summary": summary_path, "report": report_path}
+    extraction_summary_path.write_text("{}\n", encoding="utf-8")
+    extraction_report_path.write_text("# Endpoint Extraction Contract\n", encoding="utf-8")
+    full_extraction_definition_path.write_text("{}\n", encoding="utf-8")
+    return {
+        "matrix": matrix_path,
+        "summary": summary_path,
+        "report": report_path,
+        "extraction_summary": extraction_summary_path,
+        "extraction_report": extraction_report_path,
+        "full_extraction_definition": full_extraction_definition_path,
+    }
 
 
 def test_extract_completeness_prints_summary_and_uses_output_dir(tmp_path: Path) -> None:
@@ -46,6 +59,15 @@ def test_extract_completeness_prints_summary_and_uses_output_dir(tmp_path: Path)
             "extractor_only": 0,
             "source_only": 0,
         },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 6,
+            "extractable_endpoint_count": 4,
+            "partial_endpoint_count": 1,
+            "blocked_endpoint_count": 1,
+            "excluded_endpoint_count": 2,
+            "season_type_contract_open_count": 1,
+            "ready_for_full_backfill": False,
+        },
         "model_ownership": {
             "stats_endpoint_count": 4,
             "transform_owned_stats_endpoints": 3,
@@ -65,17 +87,22 @@ def test_extract_completeness_prints_summary_and_uses_output_dir(tmp_path: Path)
     }
     written["summary"].write_text(json.dumps(summary_payload) + "\n", encoding="utf-8")
     with patch(_GENERATOR_PATH) as mock_generator:
-        mock_generator.return_value.write.return_value = written
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
         result = runner.invoke(app, ["extract-completeness", "--output-dir", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
-    mock_generator.return_value.write.assert_called_once_with(output_dir=tmp_path)
-    assert "covered=5" in result.output
-    assert "runtime_gap=1" in result.output
-    assert "staging_only=1" in result.output
-    assert "extractor_only=0" in result.output
-    assert "source_only=0" in result.output
-    assert "non_covered=2" in result.output
+    mock_generator.return_value.build_artifacts.assert_called_once_with()
+    mock_generator.return_value.write_artifacts.assert_called_once()
+    assert "in_scope=6" in result.output
+    assert "extractable=4" in result.output
+    assert "partial=1" in result.output
+    assert "blocked=1" in result.output
+    assert "excluded=2" in result.output
+    assert "season_type_open=1" in result.output
+    assert "ready_for_full_backfill=False" in result.output
     assert "stats_endpoints=4" in result.output
     assert "transform_owned_endpoints=3" in result.output
     assert "model_excluded_endpoints=1" in result.output
@@ -103,7 +130,27 @@ def test_extract_completeness_require_full_exits_when_noncovered(tmp_path: Path)
         },
     )
     with patch(_GENERATOR_PATH) as mock_generator:
-        mock_generator.return_value.write.return_value = written
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": {
+                "coverage": {
+                    "covered": 4,
+                    "runtime_gap": 1,
+                    "staging_only": 0,
+                    "extractor_only": 0,
+                    "source_only": 1,
+                },
+                "extraction_contract": {
+                    "in_scope_endpoint_count": 5,
+                    "extractable_endpoint_count": 3,
+                    "partial_endpoint_count": 1,
+                    "blocked_endpoint_count": 1,
+                    "excluded_endpoint_count": 0,
+                    "season_type_contract_open_count": 1,
+                    "ready_for_full_backfill": False,
+                },
+            }
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
         result = runner.invoke(app, ["extract-completeness", "--require-full"])
 
     assert result.exit_code == 1
@@ -129,6 +176,15 @@ def test_extract_completeness_require_model_contract_exits_when_unowned(tmp_path
             "extractor_only": 0,
             "source_only": 0,
         },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 5,
+            "extractable_endpoint_count": 5,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
         "model_ownership": {
             "stats_endpoint_count": 5,
             "transform_owned_stats_endpoints": 4,
@@ -142,7 +198,10 @@ def test_extract_completeness_require_model_contract_exits_when_unowned(tmp_path
     }
     written["summary"].write_text(json.dumps(summary_payload) + "\n", encoding="utf-8")
     with patch(_GENERATOR_PATH) as mock_generator:
-        mock_generator.return_value.write.return_value = written
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
         result = runner.invoke(app, ["extract-completeness", "--require-model-contract"])
 
     assert result.exit_code == 1

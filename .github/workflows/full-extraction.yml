@@ -981,23 +981,33 @@ jobs:
           import json
           from pathlib import Path
 
+          from nbadb.orchestrate.full_extraction_control import (
+              normalize_manifest,
+              redispatch_manifest_payload,
+          )
+
           payload = json.loads(
               Path("artifacts/full-extraction/next-manifest.json").read_text(
                   encoding="utf-8"
               )
           )
+          manifest = normalize_manifest(payload)
           summary = payload.get("resume_summary", {})
+          redispatch_payload = redispatch_manifest_payload(
+              list(manifest.lanes),
+              chain_state=manifest.chain_state,
+          )
           print(int(summary.get("active_lane_count", 0)))
           print(int(summary.get("resume_only_lane_count", 0)))
           print(json.dumps(summary.get("failure_reason_counts", {}), sort_keys=True))
-          print(json.dumps(payload, separators=(",", ":")))
+          print(json.dumps(redispatch_payload, separators=(",", ":")))
           PY
 
           mapfile -t next_manifest_info < artifacts/full-extraction/next-manifest.inspect.txt
           active_lane_count="${next_manifest_info[0]:-0}"
           resume_only_lane_count="${next_manifest_info[1]:-0}"
           failure_reasons_json="${next_manifest_info[2]:-\{\}}"
-          next_manifest_json="${next_manifest_info[3]:-}"
+          redispatch_manifest_json="${next_manifest_info[3]:-}"
 
           python - <<'PY'
           import json
@@ -1043,7 +1053,7 @@ jobs:
             -f chain_id="$CHAIN_ID" \
             -f workflow_ref="$WORKFLOW_REF" \
             -f workflow_sha="$WORKFLOW_SHA" \
-            -f lane_manifest_json="$next_manifest_json"
+            -f lane_manifest_json="$redispatch_manifest_json"
 
       - name: Upload VPN quarantine artifact
         if: always()

@@ -100,6 +100,49 @@ class NbaDbSettings(BaseSettings):
         "team_year_by_year": 1.0,
         "win_probability": 1.0,
     }
+    endpoint_family_overrides: dict[str, str] = {
+        "scoreboard_v2": "play_by_play",
+        "scoreboard_v3": "play_by_play",
+        "win_probability": "play_by_play",
+        "common_player_info": "player_history",
+        "player_awards": "player_history",
+        "player_career_stats": "player_history",
+        "player_compare": "player_history",
+        "player_dashboard_clutch": "player_history",
+        "player_dash_game_splits": "player_history",
+        "player_dash_general_splits": "player_history",
+        "player_dash_last_n_games": "player_history",
+        "player_dash_shooting_splits": "player_history",
+        "player_dash_team_perf": "player_history",
+        "player_dash_yoy": "player_history",
+        "player_next_games": "player_history",
+        "player_profile_v2": "player_history",
+        "player_streak_finder": "player_history",
+        "shot_chart_detail": "player_history",
+        "franchise_leaders": "team_history",
+        "franchise_players": "team_history",
+        "team_details": "team_history",
+        "team_historical_leaders": "team_history",
+        "team_info_common": "team_history",
+        "team_year_by_year": "team_history",
+    }
+    family_semaphore_limits: dict[str, int] = {
+        "play_by_play": 4,
+        "player_history": 2,
+        "team_history": 2,
+    }
+    family_rate_limits: dict[str, float] = {
+        "play_by_play": 4.0,
+        "player_history": 2.0,
+        "team_history": 2.0,
+    }
+    family_chunk_multipliers: dict[str, float] = {
+        "default": 1.0,
+        "box_score": 1.0,
+        "play_by_play": 0.5,
+        "player_history": 0.25,
+        "team_history": 0.5,
+    }
     endpoint_request_timeouts: dict[str, int] = {
         "box_score_summary": 60,
         "box_score_summary_v3": 60,
@@ -133,6 +176,8 @@ class NbaDbSettings(BaseSettings):
     }
     adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff
     adaptive_rate_recovery: int = 50  # consecutive successes before rate recovery
+    adaptive_chunk_min_size: int = 25
+    adaptive_chunk_max_size: int = 1_000
     circuit_breaker_max_wait: float = 600.0  # cap breaker-open waiting before failing fast
     extract_max_retries: int = 6  # per-extraction retry attempts
     extract_retry_base_delay: float = 2.0  # base delay in seconds (exponential backoff)

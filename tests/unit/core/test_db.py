@@ -86,6 +86,7 @@ class TestPipelineTables:
         "_extraction_journal",
         "_pipeline_metadata",
         "_pipeline_metrics",
+        "_lane_metrics",
         "_transform_checkpoints",
         "_transform_metrics",
         "_schema_versions",

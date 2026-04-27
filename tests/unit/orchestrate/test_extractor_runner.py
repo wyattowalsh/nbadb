@@ -608,6 +608,24 @@ class TestAdaptiveThrottleIntegration:
         assert global_limiter.entered == 0
         assert endpoint_limiter.entered == 1
 
+    @pytest.mark.asyncio
+    async def test_family_isolation_uses_family_limiter_without_backing_off_global_rate(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            endpoint_family_overrides={"ep1": "player_history"},
+            family_rate_limits={"player_history": 2.0},
+        )
+        registry = _make_registry(_make_extractor(exc=TimeoutError("boom")))
+        runner = ExtractorRunner(registry, settings, journal, rate_limit=10.0)
+        original_limiter = runner._rate_limiter
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert runner._rate_limiter is original_limiter
+        assert runner._adaptive.current_rate == 10.0
+        assert "player_history" in runner._family_rate_limiters
+
     def test_endpoint_semaphore_override_takes_precedence(self):
         journal = _make_journal(already_done=False)
         settings = _make_settings(endpoint_semaphore_limits={"ep1": 1})
@@ -615,6 +633,33 @@ class TestAdaptiveThrottleIntegration:
 
         semaphore = runner._get_semaphore("ep1", "default")
         assert semaphore._value == 1
+
+    def test_family_semaphore_override_applies_when_endpoint_override_missing(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            endpoint_family_overrides={"ep1": "player_history"},
+            family_semaphore_limits={"player_history": 2},
+        )
+        runner = ExtractorRunner(_make_registry(_make_extractor()), settings, journal)
+
+        semaphore = runner._get_semaphore("ep1", "default")
+        assert semaphore._value == 2
+
+    def test_chunk_size_is_reduced_for_isolated_family(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            endpoint_family_overrides={"ep1": "player_history"},
+            family_chunk_multipliers={"player_history": 0.25},
+            adaptive_chunk_min_size=10,
+            adaptive_chunk_max_size=500,
+            default_chunk_size=400,
+        )
+        runner = ExtractorRunner(_make_registry(_make_extractor()), settings, journal)
+
+        chunk_size = runner._chunk_size_for_entries(
+            "player", [StagingEntry("ep1", "stg_ep1", "player")]
+        )
+        assert chunk_size == 100
 
     def test_default_settings_isolate_slow_player_history_endpoints(self):
         settings = NbaDbSettings()

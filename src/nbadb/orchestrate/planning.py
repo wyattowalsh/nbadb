@@ -39,6 +39,8 @@ def _season_type_capability(entry: StagingEntry) -> str:
 
 def _supported_season_types(entry: StagingEntry) -> list[str]:
     values = getattr(entry, "supported_season_types", ())
+    if not isinstance(values, list | tuple | set | frozenset):
+        return []
     return [str(value) for value in values]
 
 
@@ -116,6 +118,33 @@ def _label_with_contract(base_label: str, season_types: list[str]) -> str:
         return base_label
     season_type_label = "/".join(season_types)
     return f"{base_label} [{season_type_label}]"
+
+
+def _param_season_year(params: PlanParams) -> int | None:
+    season = params.get("season")
+    if season is None:
+        return None
+    try:
+        return int(str(season)[:4])
+    except (ValueError, TypeError):
+        return None
+
+
+def _filter_cross_product_params(
+    params: list[PlanParams],
+    *,
+    start_year: int,
+    season_types: list[str],
+) -> list[PlanParams]:
+    filtered: list[PlanParams] = []
+    for param_set in params:
+        season_year = _param_season_year(param_set)
+        if season_year is not None and season_year < start_year:
+            continue
+        if season_types and str(param_set.get("season_type", "")) not in season_types:
+            continue
+        filtered.append(param_set)
+    return filtered
 
 
 @dataclass(frozen=True, slots=True)
@@ -295,15 +324,31 @@ def build_extraction_plan(
 
     player_team_season_entries = get_by_pattern("player_team_season")
     if player_team_season_entries and player_team_season_params:
-        plan.append(
-            ExtractionPlanItem(
-                label="player x team x season",
-                pattern="player_team_season",
-                entries=player_team_season_entries,
-                params=player_team_season_params,
-                priority=PATTERN_PRIORITY["player_team_season"],
+        supported_cross_product_entries = [
+            entry
+            for entry in player_team_season_entries
+            if _season_type_capability(entry) == "supported" and _supported_season_types(entry)
+        ]
+        for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
+            supported_cross_product_entries,
+            season_types,
+        ):
+            grouped_params = _filter_cross_product_params(
+                player_team_season_params,
+                start_year=start_year,
+                season_types=grouped_season_types,
             )
-        )
+            if not grouped_params:
+                continue
+            plan.append(
+                ExtractionPlanItem(
+                    label=_label_with_contract("player x team x season", grouped_season_types),
+                    pattern="player_team_season",
+                    entries=grouped_entries,
+                    params=grouped_params,
+                    priority=PATTERN_PRIORITY["player_team_season"],
+                )
+            )
 
     date_entries = get_by_pattern("date")
     if date_entries and game_dates:

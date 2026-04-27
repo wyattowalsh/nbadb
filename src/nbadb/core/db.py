@@ -21,7 +21,7 @@ try:
 except ImportError:
     import logging
 
-    logger = logging.getLogger(__name__)  # ty: ignore[invalid-assignment]
+    logger = logging.getLogger(__name__)
 
 
 _DUCKDB_LOCK_ERROR_FRAGMENT = "Could not set lock on file"
@@ -215,6 +215,24 @@ class DBManager:
                 status VARCHAR NOT NULL DEFAULT 'success',
                 error_message VARCHAR,
                 PRIMARY KEY (run_id, table_name)
+            )
+        """)
+        self._duckdb_conn.execute("""
+            CREATE TABLE IF NOT EXISTS _lane_metrics (
+                lane_id VARCHAR NOT NULL,
+                run_mode VARCHAR NOT NULL,
+                pattern VARCHAR NOT NULL,
+                endpoint_families VARCHAR,
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                wall_time_seconds FLOAT,
+                task_count BIGINT,
+                row_count BIGINT,
+                success_count BIGINT,
+                failure_count BIGINT,
+                retry_inflation FLOAT DEFAULT 0,
+                queue_wait_seconds FLOAT DEFAULT 0,
+                PRIMARY KEY (lane_id)
             )
         """)
 

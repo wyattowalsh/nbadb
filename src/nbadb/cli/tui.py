@@ -563,7 +563,9 @@ class NbaDbDashboard(App):
 
         orch = orch_cls(settings=self._settings, progress=self)
         try:
-            self._pipeline_result = await self._run_fn(orch)  # type: ignore[misc]
+            run_fn = self._run_fn
+            assert run_fn is not None
+            self._pipeline_result = await run_fn(orch)
         except Exception as exc:
             self._pipeline_error = exc
             self.write_log(f"❌ Pipeline failed: {type(exc).__name__}", f"bold {_NBA_RED}")

@@ -5,11 +5,7 @@ import subprocess
 from pathlib import Path
 
 MODULE_PATH = (
-    Path(__file__).resolve().parents[3]
-    / ".github"
-    / "actions"
-    / "nordvpn-connect"
-    / "supervise.py"
+    Path(__file__).resolve().parents[3] / ".github" / "actions" / "nordvpn-connect" / "supervise.py"
 )
 
 

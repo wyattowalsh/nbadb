@@ -6,17 +6,18 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
 
 from nbadb.extract.base import BaseExtractor, is_retryable_error
+from nbadb.orchestrate.execution_policy import endpoint_family
 from nbadb.orchestrate.resilience import _AdaptiveThrottle, _CircuitBreaker, _LatencyTracker
 from nbadb.orchestrate.staging_map import StagingEntry, get_multi_entries
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Coroutine
 
     import polars as pl
 
@@ -25,10 +26,28 @@ if TYPE_CHECKING:
     from nbadb.orchestrate.journal import PipelineJournal
 
 
+class _ExtractorLike(Protocol):
+    def extract(self, **kwargs: object) -> Coroutine[Any, Any, pl.DataFrame]: ...
+
+
+class _MultiExtractorLike(Protocol):
+    def extract_all(self, **kwargs: object) -> Coroutine[Any, Any, list[pl.DataFrame]]: ...
+
+
+class _ProgressReporter(Protocol):
+    def advance_pattern(self, *, success: bool = True, rows: int = 0) -> None: ...
+
+    def update_circuit_breakers(self, tripped: list[str]) -> None: ...
+
+    def update_rate_info(self, current_rate: float, base_rate: float) -> None: ...
+
+    def record_skip(self) -> None: ...
+
+
 # ── sync helpers ──────────────────────────────────────────────
 
 
-def _drive_coroutine(coro: object) -> object:
+def _drive_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
     """Drive a coroutine that does no real async I/O to completion.
 
     All nba_api extractors are ``async def`` but perform only synchronous
@@ -46,7 +65,7 @@ def _drive_coroutine(coro: object) -> object:
     ``asyncio.to_thread`` in the caller instead.
     """
     try:
-        coro.send(None)  # type: ignore[union-attr]
+        coro.send(None)
     except StopIteration as exc:
         return exc.value
     else:
@@ -57,12 +76,12 @@ def _drive_coroutine(coro: object) -> object:
 
 def _sync_extract(extractor: object, **kwargs: object) -> pl.DataFrame:
     """Call extractor.extract() synchronously (for asyncio.to_thread)."""
-    return _drive_coroutine(extractor.extract(**kwargs))  # type: ignore[union-attr,return-value]
+    return _drive_coroutine(cast("_ExtractorLike", extractor).extract(**kwargs))
 
 
 def _sync_extract_all(extractor: object, **kwargs: object) -> list[pl.DataFrame]:
     """Call extractor.extract_all() synchronously."""
-    return _drive_coroutine(extractor.extract_all(**kwargs))  # type: ignore[union-attr,return-value]
+    return _drive_coroutine(cast("_MultiExtractorLike", extractor).extract_all(**kwargs))
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +113,7 @@ class ExtractorRunner:
         settings: NbaDbSettings,
         journal: PipelineJournal,
         rate_limit: float = 10.0,
-        progress: object | None = None,
+        progress: _ProgressReporter | None = None,
     ) -> None:
         self._registry = registry
         self._settings = settings
@@ -103,11 +122,13 @@ class ExtractorRunner:
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._rate_limiter = AsyncLimiter(max_rate=rate_limit, time_period=1.0)
         self._endpoint_rate_limiters: dict[str, AsyncLimiter] = {}
+        self._family_rate_limiters: dict[str, AsyncLimiter] = {}
         self._adaptive = _AdaptiveThrottle(
             base_rate=rate_limit,
             min_rate=getattr(settings, "adaptive_rate_min", 1.0),
             recovery_threshold=getattr(settings, "adaptive_rate_recovery", 50),
         )
+        self._family_adaptive: dict[str, _AdaptiveThrottle] = {}
         try:
             self._thread_pool = ThreadPoolExecutor(max_workers=settings.thread_pool_size)
         except (AttributeError, ValueError, TypeError) as exc:
@@ -168,7 +189,7 @@ class ExtractorRunner:
         pattern: str,
         param_sets: list[dict],
         entries: list[StagingEntry],
-        on_progress: object | None = None,
+        on_progress: _ProgressReporter | None = None,
         *,
         skip_items: set[tuple[str, str]] | None = None,
     ) -> dict[str, pl.DataFrame]:
@@ -185,10 +206,7 @@ class ExtractorRunner:
             (entry.endpoint_name, entry.staging_key): entry for entry in single_entries
         }
 
-        if pattern == "game":
-            chunk_size = self._settings.pbp_chunk_size
-        else:
-            chunk_size = self._settings.default_chunk_size
+        chunk_size = self._chunk_size_for_entries(pattern, entries)
         for chunk_start in range(0, max(len(param_sets), 1), chunk_size):
             chunk = param_sets[chunk_start : chunk_start + chunk_size]
             if not chunk:
@@ -304,7 +322,7 @@ class ExtractorRunner:
         multi_by_ep: dict[str, list[StagingEntry]],
         chunk: list[dict],
         already_done: set[tuple[str, str]],
-        on_progress: object | None = None,
+        on_progress: _ProgressReporter | None = None,
         skip_items: set[tuple[str, str]] | None = None,
     ) -> list[asyncio.Task[dict[str, pl.DataFrame] | _DeferredExtraction | None]]:
         """Create asyncio tasks for all entries in a chunk."""
@@ -319,7 +337,7 @@ class ExtractorRunner:
                 ):
                     self.skipped += 1
                     if on_progress is not None:
-                        on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                        on_progress.advance_pattern(success=True)
                     continue
                 # HR-A-014: skip entries whose min_season exceeds
                 # the requested season — avoids fruitless API calls
@@ -328,7 +346,7 @@ class ExtractorRunner:
                 if entry.min_season is not None and sy is not None and sy < entry.min_season:
                     self.skipped += 1
                     if on_progress is not None:
-                        on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                        on_progress.advance_pattern(success=True)
                     continue
                 self.planned_calls += 1
                 tasks.append(
@@ -363,7 +381,7 @@ class ExtractorRunner:
                     self.skipped += len(ep_entries)
                     if on_progress is not None:
                         for _ in ep_entries:
-                            on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                            on_progress.advance_pattern(success=True)
                     continue
                 self.planned_calls += 1
                 tasks.append(
@@ -388,7 +406,7 @@ class ExtractorRunner:
         *,
         single_by_key: dict[tuple[str, str], StagingEntry],
         multi_by_ep: dict[str, list[StagingEntry]],
-        on_progress: object | None,
+        on_progress: _ProgressReporter | None,
     ) -> list[dict[str, pl.DataFrame] | BaseException | _DeferredExtraction | None]:
         deduped: dict[tuple[str, str, str | None], _DeferredExtraction] = {}
         for item in deferred:
@@ -459,7 +477,7 @@ class ExtractorRunner:
     def _collect_results(
         results: list[dict[str, pl.DataFrame] | BaseException | None],
         accum: dict[str, list[pl.DataFrame]],
-        on_progress: object | None,
+        on_progress: _ProgressReporter | None,
     ) -> None:
         """Merge task results into the accumulator."""
         for result in results:
@@ -484,7 +502,7 @@ class ExtractorRunner:
             # Compute rows for progress reporting
             rows = sum(df.shape[0] for key, df in result.items() if not df.is_empty())
             if on_progress is not None:
-                on_progress.advance_pattern(success=True, rows=rows)  # type: ignore[union-attr]
+                on_progress.advance_pattern(success=True, rows=rows)
             for key, df in result.items():
                 if not df.is_empty():
                     accum[key].append(df)
@@ -528,20 +546,75 @@ class ExtractorRunner:
             )
         return self._endpoint_rate_limiters[endpoint_name]
 
+    def _endpoint_family(self, endpoint_name: str, category: str) -> str:
+        family_overrides = getattr(self._settings, "endpoint_family_overrides", {})
+        if endpoint_name in family_overrides:
+            return str(family_overrides[endpoint_name])
+        return endpoint_family(endpoint_name, category)
+
+    def _get_family_rate_limiter(self, family: str) -> AsyncLimiter | None:
+        family_limits = getattr(self._settings, "family_rate_limits", {})
+        if family not in family_limits:
+            return None
+        if family not in self._family_rate_limiters:
+            self._family_rate_limiters[family] = AsyncLimiter(
+                max_rate=family_limits[family],
+                time_period=1.0,
+            )
+        return self._family_rate_limiters[family]
+
+    def _get_family_adaptive(self, family: str) -> _AdaptiveThrottle | None:
+        family_limits = getattr(self._settings, "family_rate_limits", {})
+        if family not in family_limits:
+            return None
+        if family not in self._family_adaptive:
+            self._family_adaptive[family] = _AdaptiveThrottle(
+                base_rate=float(family_limits[family]),
+                min_rate=getattr(self._settings, "adaptive_rate_min", 1.0),
+                recovery_threshold=getattr(self._settings, "adaptive_rate_recovery", 50),
+            )
+        return self._family_adaptive[family]
+
     def _get_semaphore(self, endpoint_name: str, category: str) -> asyncio.Semaphore:
         """Lazily create a semaphore for the given endpoint/category lane."""
         endpoint_limits = getattr(self._settings, "endpoint_semaphore_limits", {})
-        key = endpoint_name if endpoint_name in endpoint_limits else category
+        family_limits = getattr(self._settings, "family_semaphore_limits", {})
+        family = self._endpoint_family(endpoint_name, category)
+        if endpoint_name in endpoint_limits:
+            key = endpoint_name
+        elif family in family_limits:
+            key = f"family:{family}"
+        else:
+            key = category
         if key not in self._semaphores:
-            limit = endpoint_limits.get(
-                endpoint_name,
-                self._settings.semaphore_tiers.get(
+            if endpoint_name in endpoint_limits:
+                limit = endpoint_limits[endpoint_name]
+            elif family in family_limits:
+                limit = family_limits[family]
+            else:
+                limit = self._settings.semaphore_tiers.get(
                     category,
                     self._settings.semaphore_tiers.get("default", 10),
-                ),
-            )
+                )
             self._semaphores[key] = asyncio.Semaphore(limit)
         return self._semaphores[key]
+
+    def _chunk_size_for_entries(self, pattern: str, entries: list[StagingEntry]) -> int:
+        base_chunk_size = (
+            self._settings.pbp_chunk_size
+            if pattern == "game"
+            else self._settings.default_chunk_size
+        )
+        multipliers = getattr(self._settings, "family_chunk_multipliers", {})
+        min_chunk_size = max(1, int(getattr(self._settings, "adaptive_chunk_min_size", 25)))
+        max_chunk_size = max(
+            min_chunk_size, int(getattr(self._settings, "adaptive_chunk_max_size", base_chunk_size))
+        )
+        multiplier = 1.0
+        for entry in entries:
+            family = self._endpoint_family(entry.endpoint_name, entry.param_pattern)
+            multiplier = min(multiplier, float(multipliers.get(family, 1.0)))
+        return max(min_chunk_size, min(max_chunk_size, max(1, int(base_chunk_size * multiplier))))
 
     def _prepare_extractor(self, extractor: object) -> None:
         """Prepare an extractor instance before extraction."""
@@ -611,25 +684,37 @@ class ExtractorRunner:
     def _record_runtime_failure(
         self,
         endpoint_name: str,
+        family: str,
         duration: float,
         *,
-        isolated_rate: bool,
+        isolated_scope: str,
     ) -> None:
         self._journal.record_metric(endpoint_name, duration, 0, errors=1)
         self._circuit_breaker.record_failure(endpoint_name)
         tripped = self._circuit_breaker.tripped_endpoints()
         if tripped and self._progress is not None:
-            self._progress.update_circuit_breakers(tripped)  # type: ignore[union-attr]
+            self._progress.update_circuit_breakers(tripped)
         self._latency.record(endpoint_name, duration)
-        if not isolated_rate:
+        if isolated_scope == "global":
             new_rate = self._adaptive.record_failure()
             if new_rate is not None:
                 self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
                 logger.warning("adaptive rate: backing off to {:.1f} req/s", new_rate)
                 if self._progress is not None:
-                    self._progress.update_rate_info(  # type: ignore[union-attr]
+                    self._progress.update_rate_info(
                         self._adaptive.current_rate,
                         self._adaptive._base_rate,
+                    )
+        elif isolated_scope == "family":
+            adaptive = self._get_family_adaptive(family)
+            if adaptive is not None:
+                new_rate = adaptive.record_failure()
+                if new_rate is not None:
+                    self._family_rate_limiters[family] = AsyncLimiter(
+                        max_rate=new_rate, time_period=1.0
+                    )
+                    logger.warning(
+                        "family adaptive rate [{}]: backing off to {:.1f} req/s", family, new_rate
                     )
 
     async def _run_with_journal(
@@ -659,17 +744,28 @@ class ExtractorRunner:
         max_retries = self._settings.extract_max_retries
         base_delay = self._settings.extract_retry_base_delay
         last_exc: Exception | None = None
+        family = self._endpoint_family(endpoint_name, getattr(extractor_cls, "category", "default"))
 
         self._journal.record_start(endpoint_name, params_json)
         t0 = time.perf_counter()
-        endpoint_limiter = self._get_endpoint_rate_limiter(endpoint_name)
-        isolated_rate = endpoint_limiter is not None
+        isolated_scope = "global"
 
         for attempt in range(max_retries + 1):
             extractor = extractor_cls()
             self._prepare_extractor(extractor)
+            family = self._endpoint_family(endpoint_name, extractor.category)
             sem = self._get_semaphore(endpoint_name, extractor.category)
-            rate_limiter = endpoint_limiter or self._rate_limiter
+            endpoint_limiter = self._get_endpoint_rate_limiter(endpoint_name)
+            family_limiter = self._get_family_rate_limiter(family)
+            if endpoint_limiter is not None:
+                rate_limiter = endpoint_limiter
+                isolated_scope = "endpoint"
+            elif family_limiter is not None:
+                rate_limiter = family_limiter
+                isolated_scope = "family"
+            else:
+                rate_limiter = self._rate_limiter
+                isolated_scope = "global"
 
             try:
                 await self._wait_for_circuit_breaker(endpoint_name, params_json)
@@ -703,15 +799,29 @@ class ExtractorRunner:
                 self._journal.record_metric(endpoint_name, duration, rows)
                 self._circuit_breaker.record_success(endpoint_name)
                 self._latency.record(endpoint_name, duration)
-                if not isolated_rate:
+                if isolated_scope == "global":
                     new_rate = self._adaptive.record_success()
                     if new_rate is not None:
                         self._rate_limiter = AsyncLimiter(max_rate=new_rate, time_period=1.0)
                         logger.info("adaptive rate: recovering to {:.1f} req/s", new_rate)
                         if self._progress is not None:
-                            self._progress.update_rate_info(  # type: ignore[union-attr]
+                            self._progress.update_rate_info(
                                 self._adaptive.current_rate,
                                 self._adaptive._base_rate,
+                            )
+                elif isolated_scope == "family":
+                    adaptive = self._get_family_adaptive(family)
+                    if adaptive is not None:
+                        new_rate = adaptive.record_success()
+                        if new_rate is not None:
+                            self._family_rate_limiters[family] = AsyncLimiter(
+                                max_rate=new_rate,
+                                time_period=1.0,
+                            )
+                            logger.info(
+                                "family adaptive rate [{}]: recovering to {:.1f} req/s",
+                                family,
+                                new_rate,
                             )
                 if attempt > 0:
                     logger.info(
@@ -733,8 +843,9 @@ class ExtractorRunner:
         ):
             self._record_runtime_failure(
                 endpoint_name,
+                family,
                 duration,
-                isolated_rate=isolated_rate,
+                isolated_scope=isolated_scope,
             )
             wait_seconds = self._late_recovery_wait_seconds(endpoint_name)
             logger.warning(
@@ -755,8 +866,9 @@ class ExtractorRunner:
         if not late_recovery_replay:
             self._record_runtime_failure(
                 endpoint_name,
+                family,
                 duration,
-                isolated_rate=isolated_rate,
+                isolated_scope=isolated_scope,
             )
         logger.error(
             "extract failed after {} attempts: {} [{}] -> {}",
@@ -774,7 +886,7 @@ class ExtractorRunner:
         *,
         already_done: set[tuple[str, str]] | None = None,
         skip_items: set[tuple[str, str]] | None = None,
-        on_progress: object | None = None,
+        on_progress: _ProgressReporter | None = None,
         allow_late_recovery: bool = True,
         late_recovery_replay: bool = False,
     ) -> dict[str, pl.DataFrame] | _DeferredExtraction | None:
@@ -795,7 +907,7 @@ class ExtractorRunner:
             if journal_done:
                 self.skipped_due_to_journal += 1
             if on_progress is not None:
-                on_progress.record_skip()  # type: ignore[union-attr]
+                on_progress.record_skip()
             logger.debug(
                 "skip ({}): {} [{}]",
                 "already done" if journal_done else "already attempted this run",
@@ -840,7 +952,7 @@ class ExtractorRunner:
         *,
         already_done: set[tuple[str, str]] | None = None,
         skip_items: set[tuple[str, str]] | None = None,
-        on_progress: object | None = None,
+        on_progress: _ProgressReporter | None = None,
         allow_late_recovery: bool = True,
         late_recovery_replay: bool = False,
     ) -> dict[str, pl.DataFrame] | _DeferredExtraction | None:
@@ -868,7 +980,7 @@ class ExtractorRunner:
             if journal_done:
                 self.skipped_due_to_journal += 1
             if on_progress is not None:
-                on_progress.record_skip()  # type: ignore[union-attr]
+                on_progress.record_skip()
             logger.debug(
                 "skip ({}): {} [{}]",
                 "already done" if journal_done else "already attempted this run",

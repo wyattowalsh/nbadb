@@ -7,6 +7,7 @@ import pytest
 
 from nbadb.orchestrate.backfill import BackfillPlanner
 from nbadb.orchestrate.journal import PipelineJournal
+from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 
 _ALL_SEASON_TYPES = ("Regular Season", "Playoffs", "Pre Season", "All Star")
 
@@ -438,6 +439,49 @@ class TestBackfillPlannerBuildPlan:
         # Game pattern needs runtime discovery, so no plan items generated
         assert len([i for i in plan.items if i.pattern == "game"]) == 0
 
+    def test_player_team_season_plan_uses_persisted_workload_contract(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        journal: PipelineJournal,
+        tmp_path,
+    ) -> None:
+        store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(tmp_path / "planner.duckdb")
+        store.upsert(
+            [
+                {
+                    "player_id": 201939,
+                    "team_id": 1610612744,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=["2024-25"],
+            season_types=["Regular Season"],
+        )
+        planner = BackfillPlanner(conn, journal, player_team_season_workloads=store)
+
+        plan = planner.build_plan(
+            seasons=["2024-25"],
+            patterns=["player_team_season"],
+            season_types=["Regular Season"],
+        )
+
+        assert plan.total_tasks == 2
+        assert plan.patterns == ["player_team_season"]
+        assert len(plan.items) == 1
+        assert [entry.endpoint_name for entry in plan.items[0].entries] == [
+            "video_details",
+            "video_details_asset",
+        ]
+        assert plan.items[0].params == [
+            {
+                "player_id": 201939,
+                "team_id": 1610612744,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            }
+        ]
+
 
 # ── staging_map helpers ──────────────────────────────────────────
 
@@ -806,3 +850,127 @@ class TestCompletenessSummaryUnknown:
         assert report.summary["player_team_season_unknown"] >= 1
         # The numeric key should NOT be present (or should be 0)
         assert report.summary.get("player_team_season", 0) == 0
+
+    def test_supported_cross_product_uses_season_type_aware_expected_counts(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        journal: PipelineJournal,
+        planner: BackfillPlanner,
+    ) -> None:
+        conn.execute("""
+            CREATE TABLE stg_common_all_players AS
+            SELECT * FROM (VALUES
+                (201939, 1610612744, '2024-25'),
+                (2544, 1610612747, '2024-25')
+            ) AS t(person_id, team_id, season)
+        """)
+        _seed_done(
+            journal,
+            "video_details",
+            {
+                "player_id": 201939,
+                "team_id": 1610612744,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+        )
+
+        report = planner.detect_gaps(
+            endpoints=["video_details"],
+            patterns=["player_team_season"],
+            seasons=["2024-25"],
+            season_types=["Regular Season", "Playoffs"],
+        )
+
+        gaps = [g for g in report.gaps if g.endpoint == "video_details"]
+        assert len(gaps) == 1
+        assert gaps[0].season == "2024-25"
+        assert gaps[0].expected == 4
+        assert gaps[0].actual == 1
+        assert gaps[0].missing == 3
+
+    def test_supported_cross_product_uses_persisted_workload_contract(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        journal: PipelineJournal,
+        tmp_path,
+    ) -> None:
+        store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(tmp_path / "planner.duckdb")
+        store.upsert(
+            [
+                {
+                    "player_id": 201939,
+                    "team_id": 1610612744,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "player_id": 2544,
+                    "team_id": 1610612747,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "player_id": 201939,
+                    "team_id": 1610612744,
+                    "season": "2024-25",
+                    "season_type": "Playoffs",
+                },
+                {
+                    "player_id": 2544,
+                    "team_id": 1610612747,
+                    "season": "2024-25",
+                    "season_type": "Playoffs",
+                },
+            ],
+            seasons=["2024-25"],
+            season_types=["Regular Season", "Playoffs"],
+        )
+        planner = BackfillPlanner(conn, journal, player_team_season_workloads=store)
+        _seed_done(
+            journal,
+            "video_details",
+            {
+                "player_id": 201939,
+                "team_id": 1610612744,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+        )
+
+        report = planner.detect_gaps(
+            endpoints=["video_details"],
+            patterns=["player_team_season"],
+            seasons=["2024-25"],
+            season_types=["Regular Season", "Playoffs"],
+        )
+
+        gaps = [g for g in report.gaps if g.endpoint == "video_details"]
+        assert len(gaps) == 1
+        assert gaps[0].expected == 4
+        assert gaps[0].actual == 1
+        assert gaps[0].missing == 3
+
+    def test_blocked_cross_product_remains_unknown_even_with_discovery_state(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        planner: BackfillPlanner,
+    ) -> None:
+        conn.execute("""
+            CREATE TABLE stg_common_all_players AS
+            SELECT * FROM (VALUES
+                (201939, 1610612744, '2024-25'),
+                (2544, 1610612747, '2024-25')
+            ) AS t(person_id, team_id, season)
+        """)
+
+        report = planner.detect_gaps(
+            endpoints=["player_vs_player"],
+            patterns=["player_team_season"],
+            seasons=["2024-25"],
+        )
+
+        gaps = [g for g in report.gaps if g.endpoint == "player_vs_player"]
+        assert len(gaps) == 1
+        assert gaps[0].expected is None
+        assert gaps[0].missing is None
