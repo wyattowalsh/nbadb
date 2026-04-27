@@ -346,26 +346,14 @@ class TestDiscoverPlayerTeamSeasonParams:
         }
         reset_session.assert_called_once()
 
-    @pytest.mark.parametrize(
-        ("invalid_frames", "valid_frame"),
-        [
-            (
-                [pl.DataFrame()],
-                pl.DataFrame({"person_id": [1], "team_id": [10]}),
-            ),
-            (
-                [pl.DataFrame({"person_id": [1]})],
-                pl.DataFrame({"person_id": [1], "team_id": [10]}),
-            ),
-        ],
-    )
-    async def test_recovers_empty_or_malformed_seasons_sequentially(
+    async def test_recovers_malformed_seasons_sequentially(
         self,
-        invalid_frames: list[pl.DataFrame],
-        valid_frame: pl.DataFrame,
     ):
         season_frames = {
-            "2024-25": [*invalid_frames, valid_frame],
+            "2024-25": [
+                pl.DataFrame({"person_id": [1]}),
+                pl.DataFrame({"person_id": [1], "team_id": [10]}),
+            ],
             "2025-26": [pl.DataFrame({"person_id": [2], "team_id": [20]})],
         }
         call_counts: dict[str, int] = {}

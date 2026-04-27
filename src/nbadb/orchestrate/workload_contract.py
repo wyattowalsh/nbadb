@@ -287,9 +287,7 @@ class PlayerTeamSeasonWorkloadStore:
     @staticmethod
     def _normalized_pairs(seasons: list[str], season_types: list[str]) -> set[tuple[str, str]]:
         return {
-            (str(season), str(season_type))
-            for season in seasons
-            for season_type in season_types
+            (str(season), str(season_type)) for season in seasons for season_type in season_types
         }
 
     @staticmethod
@@ -311,9 +309,13 @@ class PlayerTeamSeasonWorkloadStore:
         frame = pl.DataFrame(params, strict=False)
         if frame.is_empty():
             return pl.DataFrame(schema=_SCHEMA)
-        return frame.select(
-            pl.col("player_id").cast(pl.Int64, strict=False),
-            pl.col("team_id").cast(pl.Int64, strict=False),
-            pl.col("season").cast(pl.Utf8, strict=False),
-            pl.col("season_type").cast(pl.Utf8, strict=False),
-        ).drop_nulls().unique(subset=list(_COLUMNS))
+        return (
+            frame.select(
+                pl.col("player_id").cast(pl.Int64, strict=False),
+                pl.col("team_id").cast(pl.Int64, strict=False),
+                pl.col("season").cast(pl.Utf8, strict=False),
+                pl.col("season_type").cast(pl.Utf8, strict=False),
+            )
+            .drop_nulls()
+            .unique(subset=list(_COLUMNS))
+        )

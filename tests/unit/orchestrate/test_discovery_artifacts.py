@@ -55,7 +55,9 @@ def test_discovery_artifact_store_loads_frame_when_manifest_is_missing(tmp_path)
     assert loaded.to_dicts() == frame.to_dicts()
 
 
-def test_discovery_artifact_store_reuses_combo_scoped_game_logs_for_narrower_scope(tmp_path) -> None:
+def test_discovery_artifact_store_reuses_combo_scoped_game_logs_for_narrower_scope(
+    tmp_path,
+) -> None:
     store = DiscoveryArtifactStore.from_duckdb_path(tmp_path / "planner.duckdb")
     store.upsert_game_log_combo_frames(
         {

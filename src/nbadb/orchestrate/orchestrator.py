@@ -626,7 +626,10 @@ class Orchestrator:
                 )
             else:
                 logger.warning(
-                    "persisting {} covered game discovery combos individually and skipping aggregate cache for requested scope {}",
+                    (
+                        "persisting {} covered game discovery combos individually "
+                        "and skipping aggregate cache for requested scope {}"
+                    ),
                     len(game_discovery_result.covered_combos),
                     sorted(game_discovery_result.requested_combos),
                 )

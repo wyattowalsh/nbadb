@@ -347,7 +347,11 @@ class EntityDiscovery:
             )
 
         non_empty_frames = [df for df in combo_frames.values() if not df.is_empty()]
-        combined = pl.concat(non_empty_frames, how="diagonal_relaxed") if non_empty_frames else pl.DataFrame()
+        combined = (
+            pl.concat(non_empty_frames, how="diagonal_relaxed")
+            if non_empty_frames
+            else pl.DataFrame()
+        )
         game_ids = (
             combined.get_column("game_id").unique().sort().to_list()
             if not combined.is_empty() and "game_id" in combined.columns
@@ -672,7 +676,9 @@ class EntityDiscovery:
             .unique(subset=["player_id", "team_id", "season"])
             .sort(["season", "player_id", "team_id"])
             if non_empty_frames
-            else pl.DataFrame(schema={"player_id": pl.Int64, "team_id": pl.Int64, "season": pl.Utf8})
+            else pl.DataFrame(
+                schema={"player_id": pl.Int64, "team_id": pl.Int64, "season": pl.Utf8}
+            )
         )
         params: list[dict[str, int | str]] = []
         for row in combined.to_dicts():
@@ -683,9 +689,7 @@ class EntityDiscovery:
         return PlayerTeamSeasonDiscoveryResult(
             params=params,
             requested_pairs=frozenset(
-                (season, season_type)
-                for season in seasons
-                for season_type in resolved_season_types
+                (season, season_type) for season in seasons for season_type in resolved_season_types
             ),
             covered_pairs=frozenset(
                 (season, season_type)

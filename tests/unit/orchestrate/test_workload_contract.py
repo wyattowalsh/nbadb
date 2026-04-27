@@ -23,9 +23,7 @@ def test_store_tracks_zero_row_covered_pairs(tmp_path) -> None:
 
     manifest = json.loads(store.manifest_path.read_text(encoding="utf-8"))
     assert manifest["artifact_kind"] == "player_team_season_workload"
-    assert manifest["covered_pairs"] == [
-        {"season": "2024-25", "season_type": "Regular Season"}
-    ]
+    assert manifest["covered_pairs"] == [{"season": "2024-25", "season_type": "Regular Season"}]
 
 
 def test_store_replaces_overlapping_scope_and_keeps_other_pairs(tmp_path) -> None:

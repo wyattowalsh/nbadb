@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from nbadb.orchestrate.persistence import atomic_write_path, atomic_write_text
 
 
-def _tmp_sidecars(path: Path) -> list[Path]:
+def _tmp_sidecars(path):
     return list(path.parent.glob(f".{path.name}.*.tmp"))
 
 
-def test_atomic_write_text_allows_repeated_writes_without_tmp_collisions(tmp_path: Path) -> None:
+def test_atomic_write_text_allows_repeated_writes_without_tmp_collisions(tmp_path) -> None:
     path = tmp_path / "state.json"
 
     atomic_write_text(path, '{"status":"first"}\n')
@@ -19,10 +17,10 @@ def test_atomic_write_text_allows_repeated_writes_without_tmp_collisions(tmp_pat
     assert _tmp_sidecars(path) == []
 
 
-def test_atomic_write_path_cleans_up_temp_file_when_writer_fails(tmp_path: Path) -> None:
+def test_atomic_write_path_cleans_up_temp_file_when_writer_fails(tmp_path) -> None:
     path = tmp_path / "state.json"
 
-    def _writer(temp_path: Path) -> None:
+    def _writer(temp_path) -> None:
         temp_path.write_text("partial", encoding="utf-8")
         raise RuntimeError("boom")
 

@@ -87,7 +87,10 @@ class DiscoveryArtifactStore:
                 combo_frames.append(combo_frame)
 
         logger.info(
-            "reusing scoped league_game_log cache from {} combo artifacts for seasons={} season_types={}",
+            (
+                "reusing scoped league_game_log cache from {} combo artifacts "
+                "for seasons={} season_types={}"
+            ),
             len(combo_frames),
             list(scope.seasons),
             list(scope.season_types),
@@ -132,10 +135,7 @@ class DiscoveryArtifactStore:
         return [
             int(value)
             for value in (
-                frame.get_column(column)
-                .drop_nulls()
-                .cast(pl.Int64, strict=False)
-                .to_list()
+                frame.get_column(column).drop_nulls().cast(pl.Int64, strict=False).to_list()
             )
         ]
 
