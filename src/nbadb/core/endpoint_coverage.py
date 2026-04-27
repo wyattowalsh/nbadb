@@ -7,6 +7,7 @@ import inspect
 import json
 import pkgutil
 import re
+from collections.abc import Set as AbstractSet
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -659,10 +660,11 @@ class EndpointCoverageGenerator:
         return "stats"
 
     @staticmethod
-    def _execution_semantics(source_kind: str, param_patterns: set[str]) -> str:
+    def _execution_semantics(source_kind: str, param_patterns: AbstractSet[str]) -> str:
+        pattern_set = {str(pattern) for pattern in param_patterns}
         if source_kind == "live":
             return "live_snapshot"
-        if param_patterns and param_patterns <= {"static"}:
+        if pattern_set and pattern_set <= {"static"}:
             return "reference_snapshot"
         return "historical_backfill"
 
@@ -845,10 +847,6 @@ class EndpointCoverageGenerator:
                 )
 
             contract_gaps = list(coverage_gaps)
-            if season_type_contract_status == "blocked":
-                contract_gaps.append("season_type_contract_blocked")
-            elif season_type_contract_status == "mixed":
-                contract_gaps.append("season_type_contract_mixed")
             contract_gaps.extend(season_type_value_gaps)
             if source_kind == "live":
                 if not staging_keys:

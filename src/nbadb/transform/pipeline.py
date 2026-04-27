@@ -8,7 +8,7 @@ import traceback
 import uuid
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import pandera.polars as pa
 import polars as pl
@@ -44,6 +44,10 @@ class TransformResult:
     @property
     def failed_tables(self) -> list[str]:
         return [t for t, _ in self.failed]
+
+
+class _ProgressReporter(Protocol):
+    def advance_pattern(self, *, success: bool = True, rows: int = 0) -> None: ...
 
 
 def _table_name_from_schema_class(
@@ -267,7 +271,7 @@ class TransformPipeline:
         resume: bool = False,
         validate_input_schemas: bool = False,
         validate_output_schemas: bool = True,
-        on_progress: object | None = None,
+        on_progress: _ProgressReporter | None = None,
     ) -> dict[str, pl.DataFrame]:
         ordered = self._topological_sort()
         logger.info(f"Pipeline: {len(ordered)} transformers in dependency order")
@@ -310,7 +314,7 @@ class TransformPipeline:
                     result.completed.append(table)
                     self._metrics.skip_transformer(table)
                     if on_progress is not None:
-                        on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                        on_progress.advance_pattern(success=True)
                     continue
 
                 # Checkpoint resume: skip if table was checkpointed and exists in DuckDB
@@ -324,7 +328,7 @@ class TransformPipeline:
                         result.skipped.append(table)
                         self._metrics.skip_transformer(table)
                         if on_progress is not None:
-                            on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                            on_progress.advance_pattern(success=True)
                         logger.info(f"Skipping {table} (loaded from checkpoint)")
                         continue
                     except Exception as exc:
@@ -360,7 +364,7 @@ class TransformPipeline:
                     )
                     result.failed.append((table, error_msg))
                     if on_progress is not None:
-                        on_progress.advance_pattern(success=False)  # type: ignore[union-attr]
+                        on_progress.advance_pattern(success=False)
                     continue
                 self._outputs[table] = df
                 self._metrics.complete_transformer(table, df.shape[0], df.shape[1])
@@ -368,7 +372,7 @@ class TransformPipeline:
                 self._conn.register(table, df)
                 result.completed.append(table)
                 if on_progress is not None:
-                    on_progress.advance_pattern(success=True)  # type: ignore[union-attr]
+                    on_progress.advance_pattern(success=True)
                 self._save_checkpoint(table, df.shape[0])
                 logger.debug(f"Registered {table} in DuckDB ({df.shape[0]} rows)")
 

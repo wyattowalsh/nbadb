@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Literal, Protocol, cast
 
 import duckdb
 from loguru import logger
@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 
 
 DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
+type LoadMode = Literal["replace", "append"]
 
 
 def _apply_player_shard(player_ids: list[int]) -> list[int]:
@@ -123,6 +124,12 @@ class _ProgressReporter(Protocol):
     def update_circuit_breakers(self, tripped: list[str]) -> None: ...
 
     def export_summary(self) -> object: ...
+
+
+class _BoundLogger(Protocol):
+    def info(self, message: str, *args: object) -> None: ...
+
+    def warning(self, message: str, *args: object) -> None: ...
 
 
 class _DiscoveryService(Protocol):
@@ -330,7 +337,7 @@ class Orchestrator:
         db: DBManager,
         raw: dict[str, pl.DataFrame],
         journal: PipelineJournal,
-        mode: str = "replace",
+        mode: LoadMode = "replace",
     ) -> tuple[int, int, int]:
         """Run transform pipeline then load all outputs.
 
@@ -375,7 +382,7 @@ class Orchestrator:
                 logger.debug("skip load (empty): {}", table)
                 continue
             try:
-                loader.load(table, df, mode=mode)  # type: ignore[arg-type]
+                loader.load(table, df, mode=mode)
                 rows = df.shape[0]
                 tables_updated += 1
                 rows_total += rows
@@ -478,7 +485,7 @@ class Orchestrator:
         self,
         discovery: _DiscoveryService,
         seasons: list[str],
-        bound_log: object,
+        bound_log: _BoundLogger,
         *,
         season_types: list[str] | None = None,
         include_historical_players: bool = False,
@@ -598,7 +605,7 @@ class Orchestrator:
         _team_result = results[team_index] if team_index is not None else None
 
         if isinstance(_game_result, Exception):
-            bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)  # type: ignore[union-attr]
+            bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)
             game_ids = []
             game_log_df = pl.DataFrame()
         elif _game_result is None:
@@ -641,7 +648,7 @@ class Orchestrator:
                 pp.log_discovery("games", len(game_ids))
 
         if isinstance(_player_result, Exception):
-            bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)  # type: ignore[union-attr]
+            bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)
             player_ids = []
         elif _player_result is None:
             if not include_players:
@@ -663,7 +670,7 @@ class Orchestrator:
                 pp.log_discovery("players", len(player_ids))
 
         if isinstance(_team_result, Exception):
-            bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)  # type: ignore[union-attr]
+            bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)
             team_ids = []
         elif _team_result is None:
             if not include_teams:

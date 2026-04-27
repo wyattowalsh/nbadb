@@ -87,7 +87,34 @@ redundant-cast = "warn"
 possibly-missing-attribute = "warn"
 
 [tool.ty.analysis]
-allowed-unresolved-imports = ["pandera.**", "nba_api.**"]
+allowed-unresolved-imports = [
+    "aiolimiter",
+    "duckdb",
+    "kagglehub",
+    "loguru",
+    "nba_api.**",
+    "pandas",
+    "pandera.**",
+    "polars",
+    "pyarrow",
+    "pydantic",
+    "pydantic_settings",
+    "sqlalchemy",
+    "sqlfluff.core",
+    "sqlfluff.core.errors",
+    "sqlglot",
+    "sqlmodel",
+    "textual",
+    "textual.app",
+    "textual.binding",
+    "textual.containers",
+    "textual.css.query",
+    "textual.theme",
+    "textual.visual",
+    "textual.widgets",
+    "textual.widgets.data_table",
+    "typer",
+]
 respect-type-ignore-comments = true
 
 [[tool.ty.overrides]]

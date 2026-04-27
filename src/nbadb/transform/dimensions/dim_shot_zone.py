@@ -40,5 +40,5 @@ class DimShotZoneTransformer(BaseTransformer):
                 "shot_zone_basic",
                 "shot_zone_area",
                 "shot_zone_range",
-            ).collect()  # ty: ignore[invalid-return-type]
+            ).collect()
         )

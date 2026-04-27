@@ -342,7 +342,9 @@ def _reference_timeout_seconds(pattern: str) -> int:
 
 def _reference_endpoint_groups(pattern: str, endpoints: tuple[str, ...]) -> list[tuple[str, ...]]:
     singleton_endpoints = REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN.get(pattern, frozenset())
-    grouped_singletons = [(endpoint,) for endpoint in endpoints if endpoint in singleton_endpoints]
+    grouped_singletons: list[tuple[str, ...]] = [
+        (endpoint,) for endpoint in endpoints if endpoint in singleton_endpoints
+    ]
     remaining_endpoints = tuple(
         endpoint for endpoint in endpoints if endpoint not in singleton_endpoints
     )
@@ -362,7 +364,9 @@ def _adaptive_reference_endpoint_groups(
     planning_snapshot: WorkloadPlanningSnapshot,
 ) -> list[tuple[str, ...]]:
     singleton_endpoints = REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN.get(pattern, frozenset())
-    grouped_singletons = [(endpoint,) for endpoint in endpoints if endpoint in singleton_endpoints]
+    grouped_singletons: list[tuple[str, ...]] = [
+        (endpoint,) for endpoint in endpoints if endpoint in singleton_endpoints
+    ]
     remaining_endpoints = tuple(
         endpoint for endpoint in endpoints if endpoint not in singleton_endpoints
     )

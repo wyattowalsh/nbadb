@@ -28,5 +28,5 @@ class DimTeamTransformer(BaseTransformer):
             )
             .unique(subset=["team_id"], keep="last")
             .sort("team_id")
-            .collect()  # ty: ignore[invalid-return-type]
+            .collect()
         )

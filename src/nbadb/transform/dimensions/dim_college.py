@@ -25,5 +25,5 @@ class DimCollegeTransformer(BaseTransformer):
             colleges.select(
                 pl.col("college_id").cast(pl.Int32),
                 "college_name",
-            ).collect()  # ty: ignore[invalid-return-type]
+            ).collect()
         )

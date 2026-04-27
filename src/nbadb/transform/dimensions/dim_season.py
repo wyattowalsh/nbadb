@@ -24,5 +24,5 @@ class DimSeasonTransformer(BaseTransformer):
                 pl.col("game_date").max().alias("end_date"),
             )
             .sort("season_year")
-            .collect()  # ty: ignore[invalid-return-type]
+            .collect()
         )

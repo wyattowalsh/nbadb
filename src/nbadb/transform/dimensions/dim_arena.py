@@ -57,5 +57,5 @@ class DimArenaTransformer(BaseTransformer):
                 "arena_timezone",
             )
             .sort("arena_name")
-            .collect()  # ty: ignore[invalid-return-type]
+            .collect()
         )

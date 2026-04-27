@@ -31,5 +31,5 @@ class DimGameTransformer(BaseTransformer):
             games.join(arenas, on="game_id", how="left")
             .unique(subset=["game_id"], keep="last")
             .sort("game_date", "game_id")
-            .collect()  # ty: ignore[invalid-return-type]
+            .collect()
         )

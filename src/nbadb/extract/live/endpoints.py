@@ -12,7 +12,7 @@ from nbadb.extract.registry import registry
 _SCOREBOARD_GRAIN = ("game_id",)
 _ODDS_GRAIN = ("game_id",)
 _PLAY_BY_PLAY_GRAIN = ("game_id", "action_number")
-_BOX_SCORE_PACKETS = [
+_BOX_SCORE_PACKETS: list[tuple[str, str, tuple[str, ...]]] = [
     ("game_details", "live_box_score.game_details", ("game_id",)),
     ("arena", "live_box_score.arena", ("game_id",)),
     ("officials", "live_box_score.officials", ("game_id", "person_id")),

@@ -21,7 +21,7 @@ try:
 except ImportError:
     import logging
 
-    logger = logging.getLogger(__name__)  # ty: ignore[invalid-assignment]
+    logger = logging.getLogger(__name__)
 
 
 _DUCKDB_LOCK_ERROR_FRAGMENT = "Could not set lock on file"
