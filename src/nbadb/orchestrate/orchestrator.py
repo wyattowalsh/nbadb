@@ -5,6 +5,7 @@ import json
 import os
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -17,6 +18,9 @@ from nbadb.core.types import SeasonType
 from nbadb.extract.registry import registry as _global_registry
 from nbadb.load.multi import create_multi_loader
 from nbadb.orchestrate.discovery import EntityDiscovery
+from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, DiscoveryArtifactStore
+from nbadb.orchestrate.execution_policy import endpoint_family
+from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
 from nbadb.orchestrate.extractor_runner import ExtractorRunner
 from nbadb.orchestrate.journal import PipelineJournal
 from nbadb.orchestrate.live_snapshot import LiveSnapshotWarehouse
@@ -34,7 +38,7 @@ from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 from nbadb.transform.pipeline import TransformPipeline
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable
+    from collections.abc import Awaitable, Callable
     from concurrent.futures import ThreadPoolExecutor
 
     import polars as pl
@@ -217,6 +221,18 @@ class Orchestrator:
             return PlayerTeamSeasonWorkloadStore.from_duckdb_path(None)
         return PlayerTeamSeasonWorkloadStore.from_duckdb_path(duckdb_path)
 
+    def _discovery_artifacts(self) -> DiscoveryArtifactStore:
+        duckdb_path = self._settings.duckdb_path
+        if not isinstance(duckdb_path, Path):
+            return DiscoveryArtifactStore.from_duckdb_path(None)
+        return DiscoveryArtifactStore.from_duckdb_path(duckdb_path)
+
+    def _extraction_progress(self) -> ExtractionProgressStore:
+        duckdb_path = self._settings.duckdb_path
+        if not isinstance(duckdb_path, Path):
+            return ExtractionProgressStore.from_duckdb_path(None)
+        return ExtractionProgressStore.from_duckdb_path(duckdb_path)
+
     def _persist_player_team_season_workloads(
         self,
         params: list[dict[str, int | str]],
@@ -237,6 +253,21 @@ class Orchestrator:
         if season_types is None:
             return list(DEFAULT_SEASON_TYPES)
         return list(season_types)
+
+    async def _discover_current_team_ids(
+        self,
+        discovery: EntityDiscovery,
+        *,
+        seasons: list[str],
+    ) -> list[int]:
+        artifacts = self._discovery_artifacts()
+        scope = DiscoveryArtifactScope(kind="current_team_ids", seasons=tuple(seasons))
+        cached = artifacts.load_ids(scope)
+        if cached:
+            return cached
+        discovered = await discovery.discover_current_team_ids()
+        artifacts.upsert_ids(scope, discovered, provenance="discovery")
+        return discovered
 
     def _run_live_snapshot_upkeep(self, *, run_mode: str) -> tuple[int, int]:
         snapshot = LiveSnapshotWarehouse(settings=self._settings).run()
@@ -425,6 +456,8 @@ class Orchestrator:
         import polars as pl
 
         pp = self._progress
+        artifacts = self._discovery_artifacts()
+        resolved_season_types = tuple(season_types or ["Regular Season"])
 
         discovery_tasks: list[Awaitable[object]] = []
         game_index: int | None = None
@@ -432,22 +465,76 @@ class Orchestrator:
         team_index: int | None = None
 
         if include_games:
-            game_index = len(discovery_tasks)
-            discovery_tasks.append(
-                discovery.discover_game_ids(seasons, on_progress=pp, season_types=season_types)
+            game_scope = DiscoveryArtifactScope(
+                kind="league_game_log",
+                seasons=tuple(seasons),
+                season_types=resolved_season_types,
             )
+            cached_game_log = artifacts.load_frame(game_scope)
+            if cached_game_log is not None:
+                game_ids = cached_game_log.get_column("game_id").unique().sort().to_list()
+                game_log_df = cached_game_log
+                if pp is not None:
+                    pp.log_discovery("games", len(game_ids))
+                if include_dates:
+                    game_dates = (
+                        game_log_df.get_column("game_date").cast(pl.Utf8).unique().sort().to_list()
+                        if "game_date" in game_log_df.columns
+                        else []
+                    )
+                    if pp is not None:
+                        pp.log_discovery("dates", len(game_dates))
+                else:
+                    game_dates = []
+            else:
+                game_index = len(discovery_tasks)
+                discovery_tasks.append(
+                    discovery.discover_game_ids(seasons, on_progress=pp, season_types=season_types)
+                )
+                game_ids = []
+                game_log_df = pl.DataFrame()
+                game_dates = []
+        else:
+            game_ids = []
+            game_log_df = pl.DataFrame()
+            game_dates = []
 
         if include_players:
-            player_index = len(discovery_tasks)
-            discovery_tasks.append(
-                discovery.discover_all_player_ids()
-                if include_historical_players
-                else discovery.discover_player_ids()
+            player_scope = DiscoveryArtifactScope(
+                kind="player_ids_all" if include_historical_players else "player_ids_active",
+                seasons=tuple(seasons),
+                season_types=resolved_season_types if include_historical_players else (),
+                variant="historical" if include_historical_players else "active",
             )
+            cached_player_ids = artifacts.load_ids(player_scope)
+            if cached_player_ids:
+                player_ids = _apply_player_shard(cached_player_ids)
+                if pp is not None:
+                    pp.log_discovery("players", len(player_ids))
+            else:
+                player_index = len(discovery_tasks)
+                discovery_tasks.append(
+                    discovery.discover_all_player_ids()
+                    if include_historical_players
+                    else discovery.discover_player_ids()
+                )
+                player_ids = []
+        else:
+            player_ids = []
 
         if include_teams:
-            team_index = len(discovery_tasks)
-            discovery_tasks.append(discovery.discover_team_ids())
+            team_scope = DiscoveryArtifactScope(kind="team_ids", seasons=tuple(seasons))
+            cached_team_ids = artifacts.load_ids(team_scope)
+            if cached_team_ids:
+                team_ids = cached_team_ids
+                if pp is not None:
+                    pp.log_discovery("teams", len(team_ids))
+            else:
+                team_index = len(discovery_tasks)
+                discovery_tasks.append(discovery.discover_team_ids())
+                team_ids = []
+        else:
+            team_ids = []
 
         results = (
             await asyncio.gather(*discovery_tasks, return_exceptions=True)
@@ -461,42 +548,69 @@ class Orchestrator:
 
         if isinstance(_game_result, Exception):
             bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)  # type: ignore[union-attr]
-            game_ids: list[str] = []
-            game_log_df = pl.DataFrame()
-        elif _game_result is None:
             game_ids = []
             game_log_df = pl.DataFrame()
+        elif _game_result is None:
+            if not include_games:
+                game_ids = []
+                game_log_df = pl.DataFrame()
         else:
             game_ids, game_log_df = cast("tuple[list[str], pl.DataFrame]", _game_result)
+            artifacts.upsert_frame(
+                DiscoveryArtifactScope(
+                    kind="league_game_log",
+                    seasons=tuple(seasons),
+                    season_types=resolved_season_types,
+                ),
+                game_log_df,
+                provenance="discovery",
+            )
             if pp is not None:
                 pp.log_discovery("games", len(game_ids))
 
         if isinstance(_player_result, Exception):
             bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)  # type: ignore[union-attr]
-            player_ids: list[int] = []
-        elif _player_result is None:
             player_ids = []
+        elif _player_result is None:
+            if not include_players:
+                player_ids = []
         else:
             player_ids = cast("list[int]", _player_result)
+            artifacts.upsert_ids(
+                DiscoveryArtifactScope(
+                    kind="player_ids_all" if include_historical_players else "player_ids_active",
+                    seasons=tuple(seasons),
+                    season_types=resolved_season_types if include_historical_players else (),
+                    variant="historical" if include_historical_players else "active",
+                ),
+                player_ids,
+                provenance="discovery",
+            )
             player_ids = _apply_player_shard(player_ids)
             if pp is not None:
                 pp.log_discovery("players", len(player_ids))
 
         if isinstance(_team_result, Exception):
             bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)  # type: ignore[union-attr]
-            team_ids: list[int] = []
-        elif _team_result is None:
             team_ids = []
+        elif _team_result is None:
+            if not include_teams:
+                team_ids = []
         else:
             team_ids = cast("list[int]", _team_result)
+            artifacts.upsert_ids(
+                DiscoveryArtifactScope(kind="team_ids", seasons=tuple(seasons)),
+                team_ids,
+                provenance="discovery",
+            )
             if pp is not None:
                 pp.log_discovery("teams", len(team_ids))
 
-        if include_dates and not game_log_df.is_empty():
+        if include_dates and not game_log_df.is_empty() and not game_dates:
             game_dates = await discovery.discover_game_dates(game_log_df)
             if pp is not None:
                 pp.log_discovery("dates", len(game_dates))
-        else:
+        elif not include_dates:
             game_dates = []
 
         return game_ids, player_ids, team_ids, game_dates, game_log_df
@@ -516,6 +630,11 @@ class Orchestrator:
         include_static: bool = True,
         season_types: list[str] | None = None,
         skip_items: set[tuple[str, str]] | None = None,
+        run_mode: str | None = None,
+        journal: PipelineJournal | None = None,
+        progress_store: ExtractionProgressStore | None = None,
+        persist_results: Callable[[dict[str, pl.DataFrame]], None] | None = None,
+        retain_in_memory: bool = True,
     ) -> ExtractionOutcome:
         """Run all extraction patterns concurrently and return combined
         raw staging data.
@@ -557,18 +676,71 @@ class Orchestrator:
             entries = item.entries
             params = item.params
             n_tasks = item.task_count
+            lane_key = (
+                progress_store.slice_key(run_mode, item)
+                if progress_store is not None and run_mode is not None
+                else None
+            )
+            progress_store_local = progress_store
+            if (
+                lane_key is not None
+                and progress_store_local is not None
+                and progress_store_local.is_complete(lane_key)
+            ):
+                logger.info("skipping completed extraction slice: {}", label)
+                return {}
             logger.info("Step {}/{}: {} ({} tasks)", idx, len(plan), label, n_tasks)
             if pp is not None:
                 pp.start_pattern(f"{label} ({n_tasks:,})", total=n_tasks)
+            started_at = datetime.now(UTC)
+            if lane_key is not None and progress_store_local is not None:
+                progress_store_local.mark_started(lane_key, task_count=n_tasks)
+            result_raw: dict[str, pl.DataFrame]
             if skip_items:
-                return await runner.run_pattern(
+                result_raw = await runner.run_pattern(
                     pattern,
                     params,
                     entries,
                     on_progress=pp,
                     skip_items=skip_items,
                 )
-            return await runner.run_pattern(pattern, params, entries, on_progress=pp)
+            else:
+                result_raw = await runner.run_pattern(pattern, params, entries, on_progress=pp)
+
+            completed_at = datetime.now(UTC)
+            row_count = sum(df.height for df in result_raw.values() if not df.is_empty())
+            endpoint_families = sorted(
+                {
+                    endpoint_family(entry.endpoint_name, getattr(entry, "param_pattern", pattern))
+                    for entry in entries
+                }
+            )
+            if persist_results is not None and result_raw:
+                persist_results(result_raw)
+            if lane_key is not None and progress_store_local is not None:
+                progress_store_local.mark_complete(
+                    lane_key,
+                    task_count=n_tasks,
+                    row_count=row_count,
+                    wall_time_seconds=(completed_at - started_at).total_seconds(),
+                    staging_keys=sorted(result_raw),
+                    endpoint_families=endpoint_families,
+                )
+            if journal is not None and lane_key is not None:
+                journal.record_lane_metric(
+                    lane_id=lane_key.slug,
+                    run_mode=run_mode or "unknown",
+                    pattern=pattern,
+                    endpoint_families=endpoint_families,
+                    started_at=started_at,
+                    completed_at=completed_at,
+                    wall_time_seconds=(completed_at - started_at).total_seconds(),
+                    task_count=n_tasks,
+                    row_count=row_count,
+                    success_count=n_tasks,
+                    failure_count=0,
+                )
+            return result_raw
 
         # Group plan items by priority tier and run tiers sequentially.
         # Within each tier, patterns run concurrently.  This ensures
@@ -592,13 +764,48 @@ class Orchestrator:
                 if isinstance(result, BaseException):
                     failed_label = tier_items[j][1].label
                     pattern_failures += 1
+                    if progress_store is not None and run_mode is not None:
+                        lane_key = progress_store.slice_key(run_mode, tier_items[j][1])
+                        progress_store.mark_failed(
+                            lane_key,
+                            task_count=tier_items[j][1].task_count,
+                            error=type(result).__name__,
+                        )
+                        if journal is not None:
+                            failed_at = datetime.now(UTC)
+                            journal.record_lane_metric(
+                                lane_id=lane_key.slug,
+                                run_mode=run_mode,
+                                pattern=tier_items[j][1].pattern,
+                                endpoint_families=sorted(
+                                    {
+                                        endpoint_family(
+                                            entry.endpoint_name,
+                                            getattr(
+                                                entry,
+                                                "param_pattern",
+                                                tier_items[j][1].pattern,
+                                            ),
+                                        )
+                                        for entry in tier_items[j][1].entries
+                                    }
+                                ),
+                                started_at=failed_at,
+                                completed_at=failed_at,
+                                wall_time_seconds=0.0,
+                                task_count=tier_items[j][1].task_count,
+                                row_count=0,
+                                success_count=0,
+                                failure_count=tier_items[j][1].task_count,
+                            )
                     logger.error(
                         "pattern {} failed: {}",
                         failed_label,
                         type(result).__name__,
                     )
                     continue
-                raw.update(result)
+                if retain_in_memory:
+                    raw.update(result)
 
         if pp is not None:
             pp.complete_phase()
@@ -663,7 +870,7 @@ class Orchestrator:
                 season_types=season_types,
                 include_historical_players=True,
             )
-            current_team_ids = await discovery.discover_current_team_ids()
+            current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
             player_team_season_params = await discovery.discover_player_team_season_params(
                 seasons,
                 season_types=season_types,
@@ -698,19 +905,18 @@ class Orchestrator:
                 player_team_season_params=player_team_season_params,
                 game_log_df=game_log_df,
                 season_types=season_types,
+                run_mode="init",
+                journal=journal,
+                progress_store=self._extraction_progress(),
+                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                retain_in_memory=False,
             )
             raw = extraction.raw
 
-            # -- 2b. Persist staging (crash recovery) ------------------
-            bound_log.info("persisting {} staging tables to DuckDB", len(raw))
-            self._persist_staging_to_duckdb(db, raw)
-
-            # If extraction produced no new data (all skipped via journal),
-            # reload staging from DuckDB (recovery after prior crash).
-            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
-                bound_log.info("extraction produced no new data; loading staging from DuckDB")
-                raw = self._load_staging_from_duckdb(db)
-                bound_log.info("loaded {} staging tables from DuckDB", len(raw))
+            # -- 2b. Phase-B warehouse load from durable staged batches ----
+            bound_log.info("loading durable staged extraction batches from DuckDB")
+            raw = self._load_staging_from_duckdb(db)
+            bound_log.info("loaded {} staging tables from DuckDB", len(raw))
 
             # -- 3. Transform + Load --------------------------------
             if pp is not None:
@@ -805,7 +1011,7 @@ class Orchestrator:
             # -- 2. Discover active players + teams for lightweight refresh
             player_ids = await discovery.discover_player_ids()
             team_ids = await discovery.discover_team_ids()
-            current_team_ids = await discovery.discover_current_team_ids()
+            current_team_ids = await self._discover_current_team_ids(discovery, seasons=[season])
             player_team_season_params = await discovery.discover_player_team_season_params(
                 [season],
                 season_types=daily_season_types,
@@ -835,21 +1041,19 @@ class Orchestrator:
                 game_log_df=pl.DataFrame(),  # already seeded above
                 include_static=False,
                 season_types=daily_season_types,
+                run_mode="daily",
+                journal=journal,
+                progress_store=self._extraction_progress(),
+                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                retain_in_memory=False,
             )
             raw.update(extraction.raw)
             # Keep the seeded game_log_df (update may have cleared it)
             if not game_log_df.is_empty():
                 raw.setdefault("stg_league_game_log", game_log_df)
 
-            # Persist staging before transform (crash recovery)
-            self._persist_staging_to_duckdb(db, raw)
-
-            # If extraction produced no new data (all skipped via journal),
-            # reload staging from DuckDB (recovery after prior crash).
-            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
-                bound_log.info("daily extraction produced no new data; loading staging from DuckDB")
-                raw = self._load_staging_from_duckdb(db)
-                bound_log.info("daily loaded {} staging tables from DuckDB", len(raw))
+            raw = self._load_staging_from_duckdb(db)
+            bound_log.info("daily loaded {} staged tables from DuckDB", len(raw))
 
             # -- 3. Transform + Load --------------------------------
             tables_updated, rows_total, failed_loads = self._transform_and_load(
@@ -902,7 +1106,7 @@ class Orchestrator:
             game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
                 discovery, seasons, bound_log, season_types=monthly_season_types
             )
-            current_team_ids = await discovery.discover_current_team_ids()
+            current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
             player_team_season_params = await discovery.discover_player_team_season_params(
                 seasons,
                 season_types=monthly_season_types,
@@ -925,20 +1129,16 @@ class Orchestrator:
                 player_team_season_params=player_team_season_params,
                 game_log_df=game_log_df,
                 season_types=monthly_season_types,
+                run_mode="monthly",
+                journal=journal,
+                progress_store=self._extraction_progress(),
+                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                retain_in_memory=False,
             )
             raw = extraction.raw
 
-            # Persist staging before transform (crash recovery)
-            self._persist_staging_to_duckdb(db, raw)
-
-            # If extraction produced no new data (all skipped via journal),
-            # reload staging from DuckDB (recovery after prior crash).
-            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
-                bound_log.info(
-                    "monthly extraction produced no new data; loading staging from DuckDB"
-                )
-                raw = self._load_staging_from_duckdb(db)
-                bound_log.info("monthly loaded {} staging tables from DuckDB", len(raw))
+            raw = self._load_staging_from_duckdb(db)
+            bound_log.info("monthly loaded {} staged tables from DuckDB", len(raw))
 
             # -- 3. Transform + Load --------------------------------
             tables_updated, rows_total, failed_loads = self._transform_and_load(
@@ -1053,7 +1253,7 @@ class Orchestrator:
             game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
                 discovery, seasons, bound_log, season_types=_full_st
             )
-            current_team_ids = await discovery.discover_current_team_ids()
+            current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
             player_team_season_params = await discovery.discover_player_team_season_params(
                 seasons,
                 season_types=_full_st,
@@ -1079,18 +1279,16 @@ class Orchestrator:
                 game_log_df=game_log_df,
                 season_types=_full_st,
                 skip_items=attempted_retry_items,
+                run_mode="retry",
+                journal=journal,
+                progress_store=self._extraction_progress(),
+                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                retain_in_memory=False,
             )
             raw.update(extraction.raw)
 
-            # Persist staging before transform (crash recovery)
-            self._persist_staging_to_duckdb(db, raw)
-
-            # If extraction produced no new data (all skipped via journal),
-            # reload staging from DuckDB (recovery after prior crash).
-            if self._should_reload_persisted_staging(extraction, runner=runner, journal=journal):
-                bound_log.info("retry extraction produced no new data; loading staging from DuckDB")
-                raw = self._load_staging_from_duckdb(db)
-                bound_log.info("retry loaded {} staging tables from DuckDB", len(raw))
+            raw = self._load_staging_from_duckdb(db)
+            bound_log.info("retry loaded {} staged tables from DuckDB", len(raw))
 
             # -- 3. Transform + Load --------------------------------
             tables_updated = 0
@@ -1230,7 +1428,11 @@ class Orchestrator:
                 include_teams=needs_teams,
                 include_dates=needs_dates,
             )
-            current_team_ids = await discovery.discover_current_team_ids() if needs_teams else []
+            current_team_ids = (
+                await self._discover_current_team_ids(discovery, seasons=effective_seasons)
+                if needs_teams
+                else []
+            )
             if needs_player_team_season:
                 player_team_season_params = await discovery.discover_player_team_season_params(
                     effective_seasons,
@@ -1294,43 +1496,43 @@ class Orchestrator:
             if pp is not None:
                 pp.start_phase("Extraction", total=total_tasks)
 
-            for idx, item in enumerate(plan, 1):
-                bound_log.info(
-                    "backfill step {}/{}: {} ({} tasks)",
-                    idx,
-                    len(plan),
-                    item.label,
-                    item.task_count,
-                )
-                if pp is not None:
-                    pp.start_pattern(f"{item.label} ({item.task_count:,})", total=item.task_count)
-                result_raw = await runner.run_pattern(
-                    item.pattern, item.params, item.entries, on_progress=pp
-                )
-                raw.update(result_raw)
-
-            if pp is not None:
-                pp.complete_phase()
+            extraction = await self._extract_all_patterns(
+                runner,
+                seasons=effective_seasons,
+                game_ids=game_ids,
+                player_ids=player_ids,
+                team_ids=team_ids,
+                current_team_ids=current_team_ids,
+                game_dates=game_dates,
+                player_team_season_params=player_team_season_params,
+                game_log_df=game_log_df,
+                include_static=True,
+                season_types=season_types,
+                run_mode="backfill",
+                journal=journal,
+                progress_store=self._extraction_progress(),
+                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                retain_in_memory=False,
+            )
+            raw.update(extraction.raw)
 
             # -- 4. Transform + Load ─────────────────────────────────────
             tables_updated = 0
             rows_total = 0
             failed_loads = 0
 
-            if extract_only and raw:
-                bound_log.info("extract-only: persisting {} staging tables to DuckDB", len(raw))
-                self._persist_staging_to_duckdb(db, raw)
-                bound_log.info("extract-only: staging tables persisted")
-            elif raw:
-                # Persist staging before transform (crash recovery)
-                self._persist_staging_to_duckdb(db, raw)
-                if pp is not None:
+            if extract_only:
+                bound_log.info("extract-only: staged extraction slices persisted incrementally")
+            else:
+                raw = self._load_staging_from_duckdb(db, endpoints=endpoints, patterns=patterns)
+                if raw and pp is not None:
                     pp.start_phase("Transform & Load")
                     pp.update_phase_info(f"{len(raw)} staging tables")
-                tables_updated, rows_total, failed_loads = self._transform_and_load(
-                    db, raw, journal, mode="replace"
-                )
-                if pp is not None:
+                if raw:
+                    tables_updated, rows_total, failed_loads = self._transform_and_load(
+                        db, raw, journal, mode="replace"
+                    )
+                if raw and pp is not None:
                     pp.complete_phase()
 
             # -- 5. Result ───────────────────────────────────────────────

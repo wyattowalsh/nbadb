@@ -10,6 +10,7 @@ import duckdb
 import polars as pl
 import pytest
 
+from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope
 from nbadb.orchestrate.orchestrator import (
     ExtractionOutcome,
     Orchestrator,
@@ -157,6 +158,43 @@ class TestDiscoverEntities:
         mock_discovery.discover_all_player_ids.assert_not_called()
         mock_discovery.discover_game_dates.assert_not_called()
         mock_discovery.discover_team_ids.assert_awaited_once()
+
+    def test_uses_cached_scoped_discovery_artifacts(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        bound_log = MagicMock()
+        mock_discovery = AsyncMock()
+
+        artifact_store = orch._discovery_artifacts()
+        artifact_store.upsert_frame(
+            DiscoveryArtifactScope(
+                kind="league_game_log",
+                seasons=("2024-25",),
+                season_types=("Regular Season",),
+            ),
+            pl.DataFrame({"game_id": ["001"], "game_date": ["2024-10-22"]}),
+            provenance="test",
+        )
+
+        game_ids, player_ids, team_ids, game_dates, game_log_df = asyncio.run(
+            orch._discover_entities(
+                mock_discovery,
+                ["2024-25"],
+                bound_log,
+                include_games=True,
+                include_players=False,
+                include_teams=False,
+                include_dates=True,
+            )
+        )
+
+        assert game_ids == ["001"]
+        assert player_ids == []
+        assert team_ids == []
+        assert game_dates == ["2024-10-22"]
+        assert game_log_df.shape == (1, 2)
+        mock_discovery.discover_game_ids.assert_not_called()
 
 
 class TestPlayerSharding:
@@ -587,7 +625,7 @@ class TestRunInit:
         assert mock_transform.call_args.args[1] is recovered_raw
         assert result.tables_updated == 1
 
-    def test_run_init_does_not_reload_persisted_staging_after_current_run_failures(self):
+    def test_run_init_reloads_staged_batches_for_phase_b_after_current_run_failures(self):
         orch, db, journal = _build_orchestrator_with_mocks()
         journal.has_done_entries.return_value = True
 
@@ -623,12 +661,16 @@ class TestRunInit:
             patch(_REGISTRY),
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_extract_all_patterns", mock_extract),
-            patch.object(orch, "_load_staging_from_duckdb") as mock_load,
+            patch.object(
+                orch,
+                "_load_staging_from_duckdb",
+                return_value={"stg_league_game_log": game_log_df},
+            ) as mock_load,
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
         ):
             asyncio.run(orch.run_init())
 
-        mock_load.assert_not_called()
+        mock_load.assert_called_once_with(db)
         assert mock_transform.call_args.args[1] == {"stg_league_game_log": game_log_df}
 
 
@@ -869,7 +911,7 @@ class TestRunDaily:
         assert mock_transform.call_args.args[1] is recovered_raw
         assert result.tables_updated == 1
 
-    def test_run_daily_does_not_reload_persisted_staging_after_current_run_failure(self):
+    def test_run_daily_reloads_staged_batches_for_phase_b_after_current_run_failure(self):
         orch, db, journal = _build_orchestrator_with_mocks()
         journal.has_done_entries.return_value = True
 
@@ -901,13 +943,17 @@ class TestRunDaily:
             patch(_REGISTRY),
             patch.object(orch, "_build_runner", return_value=mock_runner),
             patch.object(orch, "_extract_all_patterns", mock_extract),
-            patch.object(orch, "_load_staging_from_duckdb") as mock_load,
+            patch.object(
+                orch,
+                "_load_staging_from_duckdb",
+                return_value={"stg_league_game_log": game_log_df},
+            ) as mock_load,
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
             patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)),
         ):
             asyncio.run(orch.run_daily())
 
-        mock_load.assert_not_called()
+        mock_load.assert_called_once_with(db)
         assert mock_transform.call_args.args[1]["stg_league_game_log"].equals(game_log_df)
 
     def test_run_daily_live_snapshot_failures_raise(self):

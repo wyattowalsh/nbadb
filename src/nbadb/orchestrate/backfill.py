@@ -87,6 +87,9 @@ class BackfillPlanner:
             if player_team_season_workloads is not None
             else PlayerTeamSeasonWorkloadStore.from_connection(conn)
         )
+        self._columns_cache: dict[str, set[str]] = {}
+        self._table_exists_cache: dict[str, bool] = {}
+        self._common_all_players_season_column = "__unset__"
 
     # ── gap detection ────────────────────────────────────────────
 
@@ -476,6 +479,8 @@ class BackfillPlanner:
 
         Returns None if the table doesn't exist.
         """
+        if not self._table_exists(table):
+            return None
         try:
             if seasons and "season_id" in self._get_columns(table):
                 placeholders = ", ".join(f"${i + 1}" for i in range(len(seasons)))
@@ -492,15 +497,29 @@ class BackfillPlanner:
 
     def _get_columns(self, table: str) -> set[str]:
         """Return column names for a DuckDB table, or empty set if missing."""
+        if table in self._columns_cache:
+            return self._columns_cache[table]
         try:
             rows = self._conn.execute(
                 "SELECT column_name FROM information_schema.columns "
                 "WHERE table_name = $1 AND table_schema = 'main'",
                 [table],
             ).fetchall()
-            return {r[0] for r in rows}
+            columns = {r[0] for r in rows}
+            self._columns_cache[table] = columns
+            self._table_exists_cache[table] = bool(columns)
+            return columns
         except duckdb.CatalogException:
+            self._columns_cache[table] = set()
+            self._table_exists_cache[table] = False
             return set()
+
+    def _table_exists(self, table: str) -> bool:
+        if table in self._table_exists_cache:
+            return self._table_exists_cache[table]
+        exists = bool(self._get_columns(table))
+        self._table_exists_cache[table] = exists
+        return exists
 
     def _distinct_values(self, table: str, column: str) -> list[str]:
         try:
@@ -558,11 +577,18 @@ class BackfillPlanner:
         return target_pairs <= coverage.covered_pairs
 
     def _player_team_season_season_column(self) -> str | None:
+        if self._common_all_players_season_column != "__unset__":
+            if self._common_all_players_season_column == "":
+                return None
+            return self._common_all_players_season_column
         columns = self._get_columns("stg_common_all_players")
         if "season" in columns:
-            return "season"
+            self._common_all_players_season_column = "season"
+            return self._common_all_players_season_column
         if "season_id" in columns:
-            return "season_id"
+            self._common_all_players_season_column = "season_id"
+            return self._common_all_players_season_column
+        self._common_all_players_season_column = ""
         return None
 
     def _count_player_team_season_pairs(self, season: str) -> int | None:

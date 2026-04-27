@@ -217,6 +217,24 @@ class DBManager:
                 PRIMARY KEY (run_id, table_name)
             )
         """)
+        self._duckdb_conn.execute("""
+            CREATE TABLE IF NOT EXISTS _lane_metrics (
+                lane_id VARCHAR NOT NULL,
+                run_mode VARCHAR NOT NULL,
+                pattern VARCHAR NOT NULL,
+                endpoint_families VARCHAR,
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                wall_time_seconds FLOAT,
+                task_count BIGINT,
+                row_count BIGINT,
+                success_count BIGINT,
+                failure_count BIGINT,
+                retry_inflation FLOAT DEFAULT 0,
+                queue_wait_seconds FLOAT DEFAULT 0,
+                PRIMARY KEY (lane_id)
+            )
+        """)
 
     @property
     def engine(self) -> Engine:

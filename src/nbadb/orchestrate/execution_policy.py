@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nbadb.core.config import NbaDbSettings
 
 _PLAYER_HISTORY_ENDPOINTS = frozenset(
     {
@@ -47,6 +51,12 @@ class EndpointExecutionPolicy:
     endpoint_name: str
     family: str
     throughput_tier: str
+    concurrency_ceiling: int
+    rate_limit: float
+    timeout_seconds: int
+    retry_budget: int
+    breaker_sensitivity: str
+    lane_split_preference: str
 
 
 def endpoint_family(endpoint_name: str, category: str | None = None) -> str:
@@ -87,20 +97,73 @@ def throughput_tier(
 def build_execution_policy(
     endpoint_name: str,
     *,
+    settings: NbaDbSettings | None = None,
     category: str | None = None,
     pattern: str | None = None,
     avg_duration_seconds: float = 0.0,
     retry_rate: float = 0.0,
     error_rate: float = 0.0,
 ) -> EndpointExecutionPolicy:
+    family = endpoint_family(endpoint_name, category)
+    tier = throughput_tier(
+        endpoint_name,
+        pattern=pattern,
+        avg_duration_seconds=avg_duration_seconds,
+        retry_rate=retry_rate,
+        error_rate=error_rate,
+    )
+    semaphore_tiers = getattr(settings, "semaphore_tiers", {}) if settings is not None else {}
+    endpoint_semaphore_limits = (
+        getattr(settings, "endpoint_semaphore_limits", {}) if settings is not None else {}
+    )
+    family_semaphore_limits = (
+        getattr(settings, "family_semaphore_limits", {}) if settings is not None else {}
+    )
+    endpoint_rate_limits = (
+        getattr(settings, "endpoint_rate_limits", {}) if settings is not None else {}
+    )
+    family_rate_limits = getattr(settings, "family_rate_limits", {}) if settings is not None else {}
+    endpoint_request_timeouts = (
+        getattr(settings, "endpoint_request_timeouts", {}) if settings is not None else {}
+    )
+    retry_budget = int(getattr(settings, "extract_max_retries", 0)) if settings is not None else 0
+    concurrency_ceiling = int(
+        endpoint_semaphore_limits.get(
+            endpoint_name,
+            family_semaphore_limits.get(
+                family,
+                semaphore_tiers.get(category or family, semaphore_tiers.get("default", 10)),
+            ),
+        )
+    )
+    rate_limit = float(
+        endpoint_rate_limits.get(
+            endpoint_name,
+            family_rate_limits.get(
+                family,
+                getattr(settings, "rate_limit", 10.0) if settings else 10.0,
+            ),
+        )
+    )
+    timeout_seconds = int(endpoint_request_timeouts.get(endpoint_name, 60))
+    breaker_sensitivity = "standard"
+    if tier == "expensive_flaky":
+        breaker_sensitivity = "high"
+    elif tier == "cheap_high_volume":
+        breaker_sensitivity = "low"
+    lane_split_preference = "default"
+    if pattern == "player_team_season":
+        lane_split_preference = "density_sensitive"
+    elif tier in {"expensive_flaky", "expensive_stable"}:
+        lane_split_preference = "narrow"
     return EndpointExecutionPolicy(
         endpoint_name=endpoint_name,
-        family=endpoint_family(endpoint_name, category),
-        throughput_tier=throughput_tier(
-            endpoint_name,
-            pattern=pattern,
-            avg_duration_seconds=avg_duration_seconds,
-            retry_rate=retry_rate,
-            error_rate=error_rate,
-        ),
+        family=family,
+        throughput_tier=tier,
+        concurrency_ceiling=concurrency_ceiling,
+        rate_limit=rate_limit,
+        timeout_seconds=timeout_seconds,
+        retry_budget=retry_budget,
+        breaker_sensitivity=breaker_sensitivity,
+        lane_split_preference=lane_split_preference,
     )
