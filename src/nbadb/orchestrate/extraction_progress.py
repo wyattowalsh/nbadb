@@ -50,7 +50,7 @@ class ExtractionProgressStore:
             sort_keys=True,
             separators=(",", ":"),
         )
-        scope_hash = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+        scope_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
         return ExtractionSliceKey(
             run_mode=run_mode,
             label=item.label,

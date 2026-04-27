@@ -38,7 +38,7 @@ class DiscoveryArtifactScope:
             sort_keys=True,
             separators=(",", ":"),
         )
-        return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 class DiscoveryArtifactStore:

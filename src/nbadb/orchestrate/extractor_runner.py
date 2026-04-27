@@ -726,10 +726,10 @@ class ExtractorRunner:
         max_retries = self._settings.extract_max_retries
         base_delay = self._settings.extract_retry_base_delay
         last_exc: Exception | None = None
+        family = self._endpoint_family(endpoint_name, getattr(extractor_cls, "category", "default"))
 
         self._journal.record_start(endpoint_name, params_json)
         t0 = time.perf_counter()
-        family = "default"
         isolated_scope = "global"
 
         for attempt in range(max_retries + 1):

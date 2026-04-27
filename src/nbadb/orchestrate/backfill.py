@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import duckdb
 
@@ -18,6 +18,8 @@ from nbadb.orchestrate.workload_contract import (
 
 if TYPE_CHECKING:
     from nbadb.orchestrate.journal import PipelineJournal
+
+_UNSET_SEASON_COLUMN = object()
 
 
 # ── data classes ─────────────────────────────────────────────────
@@ -89,7 +91,7 @@ class BackfillPlanner:
         )
         self._columns_cache: dict[str, set[str]] = {}
         self._table_exists_cache: dict[str, bool] = {}
-        self._common_all_players_season_column = "__unset__"
+        self._common_all_players_season_column: object | str | None = _UNSET_SEASON_COLUMN
 
     # ── gap detection ────────────────────────────────────────────
 
@@ -577,10 +579,8 @@ class BackfillPlanner:
         return target_pairs <= coverage.covered_pairs
 
     def _player_team_season_season_column(self) -> str | None:
-        if self._common_all_players_season_column != "__unset__":
-            if self._common_all_players_season_column == "":
-                return None
-            return self._common_all_players_season_column
+        if self._common_all_players_season_column is not _UNSET_SEASON_COLUMN:
+            return cast("str | None", self._common_all_players_season_column)
         columns = self._get_columns("stg_common_all_players")
         if "season" in columns:
             self._common_all_players_season_column = "season"
@@ -588,8 +588,8 @@ class BackfillPlanner:
         if "season_id" in columns:
             self._common_all_players_season_column = "season_id"
             return self._common_all_players_season_column
-        self._common_all_players_season_column = ""
-        return None
+        self._common_all_players_season_column = None
+        return self._common_all_players_season_column
 
     def _count_player_team_season_pairs(self, season: str) -> int | None:
         season_col = self._player_team_season_season_column()
