@@ -7,14 +7,16 @@ import inspect
 import json
 import pkgutil
 import re
-from collections.abc import Set as AbstractSet
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nbadb.orchestrate.extraction_contract import FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
 from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry
 from nbadb.schemas.registry import _INPUT_SCHEMA_ALIASES
+
+if TYPE_CHECKING:
+    from collections.abc import Set as AbstractSet
 
 _COVERAGE_KEYS = ("covered", "runtime_gap", "staging_only", "extractor_only", "source_only")
 _SOURCE_KINDS = ("stats", "static", "live")
@@ -1825,10 +1827,7 @@ class EndpointCoverageGenerator:
             f"| partial_endpoint_count | {summary['partial_endpoint_count']} |",
             f"| blocked_endpoint_count | {summary['blocked_endpoint_count']} |",
             f"| excluded_endpoint_count | {summary['excluded_endpoint_count']} |",
-            (
-                f"| season_type_contract_open_count | "
-                f"{summary['season_type_contract_open_count']} |"
-            ),
+            (f"| season_type_contract_open_count | {summary['season_type_contract_open_count']} |"),
             f"| ready_for_full_backfill | {summary['ready_for_full_backfill']} |",
         ]
 

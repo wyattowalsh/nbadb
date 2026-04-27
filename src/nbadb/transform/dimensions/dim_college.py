@@ -21,9 +21,7 @@ class DimCollegeTransformer(BaseTransformer):
             (pl.col("college_name").hash() % 2_147_483_647 + 1).cast(pl.Int32).alias("college_id")
         )
 
-        return (
-            colleges.select(
-                pl.col("college_id").cast(pl.Int32),
-                "college_name",
-            ).collect()
-        )
+        return colleges.select(
+            pl.col("college_id").cast(pl.Int32),
+            "college_name",
+        ).collect()

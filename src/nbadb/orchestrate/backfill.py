@@ -575,9 +575,7 @@ class BackfillPlanner:
     ) -> bool:
         if not seasons or not season_types:
             return False
-        target_pairs = {
-            (season, season_type) for season in seasons for season_type in season_types
-        }
+        target_pairs = {(season, season_type) for season in seasons for season_type in season_types}
         return target_pairs <= coverage.covered_pairs
 
     def _player_team_season_season_column(self) -> str | None:
@@ -779,7 +777,7 @@ class BackfillPlanner:
                             params=params,
                             priority=priority,
                         )
-                )
+                    )
                 continue
 
             if pattern == "player_team_season":

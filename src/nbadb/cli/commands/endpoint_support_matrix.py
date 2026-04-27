@@ -80,8 +80,7 @@ def endpoint_support_matrix(
     exclusions = summary.get("explicit_exclusion_breakdown", {})
     if exclusions:
         typer.echo(
-            "Exclusions: "
-            + " ".join(f"{key}={value}" for key, value in sorted(exclusions.items()))
+            "Exclusions: " + " ".join(f"{key}={value}" for key, value in sorted(exclusions.items()))
         )
 
     typer.echo(f"Artifacts dir: {written['extraction_summary'].parent}")

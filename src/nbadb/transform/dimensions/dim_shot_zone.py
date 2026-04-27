@@ -34,11 +34,9 @@ class DimShotZoneTransformer(BaseTransformer):
             .alias("zone_id")
         )
 
-        return (
-            zones.select(
-                pl.col("zone_id").cast(pl.Int32),
-                "shot_zone_basic",
-                "shot_zone_area",
-                "shot_zone_range",
-            ).collect()
-        )
+        return zones.select(
+            pl.col("zone_id").cast(pl.Int32),
+            "shot_zone_basic",
+            "shot_zone_area",
+            "shot_zone_range",
+        ).collect()

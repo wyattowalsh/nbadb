@@ -367,9 +367,7 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     support_matrix_payload = json.loads(written["support_matrix"].read_text(encoding="utf-8"))
     support_summary_payload = json.loads(written["support_summary"].read_text(encoding="utf-8"))
     support_report_text = written["support_report"].read_text(encoding="utf-8")
-    extraction_matrix_payload = json.loads(
-        written["extraction_matrix"].read_text(encoding="utf-8")
-    )
+    extraction_matrix_payload = json.loads(written["extraction_matrix"].read_text(encoding="utf-8"))
     extraction_summary_payload = json.loads(
         written["extraction_summary"].read_text(encoding="utf-8")
     )

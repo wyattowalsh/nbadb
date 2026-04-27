@@ -6,7 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
@@ -24,9 +24,6 @@ if TYPE_CHECKING:
     from nbadb.core.config import NbaDbSettings
     from nbadb.extract.registry import EndpointRegistry
     from nbadb.orchestrate.journal import PipelineJournal
-
-
-_T = TypeVar("_T")
 
 
 class _ExtractorLike(Protocol):
@@ -50,7 +47,7 @@ class _ProgressReporter(Protocol):
 # ── sync helpers ──────────────────────────────────────────────
 
 
-def _drive_coroutine(coro: Coroutine[Any, Any, _T]) -> _T:
+def _drive_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
     """Drive a coroutine that does no real async I/O to completion.
 
     All nba_api extractors are ``async def`` but perform only synchronous
