@@ -538,7 +538,7 @@ class EntityDiscovery:
                     logger.info("recovered player/team pairs for {}", label)
                 if df.is_empty():
                     logger.warning("no common_all_players data returned for {}", season)
-                    return season, df, True
+                    return season, None, False
 
                 required = {"person_id", "team_id"}
                 missing = required - set(df.columns)
@@ -550,8 +550,7 @@ class EntityDiscovery:
                     )
                     return season, None, False
 
-                return (
-                    season,
+                normalized = (
                     df.select(
                         pl.col("person_id").cast(pl.Int64, strict=False).alias("player_id"),
                         pl.col("team_id").cast(pl.Int64, strict=False).alias("team_id"),
@@ -562,9 +561,13 @@ class EntityDiscovery:
                         & (pl.col("team_id") > 0)
                     )
                     .with_columns(pl.lit(season).alias("season"))
-                    .unique(),
-                    True,
+                    .unique()
                 )
+                if normalized.is_empty():
+                    logger.warning("no valid player/team pairs returned for {}", season)
+                    return season, None, False
+
+                return season, normalized, True
 
             if not use_semaphore:
                 return await _run()

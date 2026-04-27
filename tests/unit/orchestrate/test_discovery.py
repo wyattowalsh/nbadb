@@ -237,7 +237,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25"])
         assert result == []
 
-    async def test_result_marks_empty_successful_seasons_as_covered(self):
+    async def test_result_treats_empty_player_discovery_as_uncovered(self):
         class _Ext:
             pass
 
@@ -255,11 +255,29 @@ class TestDiscoverPlayerTeamSeasonParams:
             )
 
         assert result.params == []
-        assert result.covered_pairs == {
-            ("2024-25", "Regular Season"),
-            ("2024-25", "Playoffs"),
-        }
-        assert result.is_complete is True
+        assert result.covered_pairs == frozenset()
+        assert result.is_complete is False
+
+    async def test_result_treats_filtered_empty_player_discovery_as_uncovered(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            return_value=pl.DataFrame({"person_id": [1], "team_id": [0]}),
+        ):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_team_season_params_result(
+                ["2024-25"],
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert result.params == []
+        assert result.covered_pairs == frozenset()
+        assert result.is_complete is False
 
     async def test_result_tracks_only_successfully_covered_seasons(self):
         class _Ext:

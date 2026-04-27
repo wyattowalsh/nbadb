@@ -128,3 +128,25 @@ def test_store_ignores_corrupted_manifest_and_keeps_frame_data(tmp_path) -> None
     assert coverage.covered_pairs == {("2024-25", "Regular Season")}
     repaired = json.loads(store.manifest_path.read_text(encoding="utf-8"))
     assert repaired["recovered_from_artifact"] is True
+
+
+def test_store_recovers_zero_row_covered_pairs_from_artifact(tmp_path) -> None:
+    store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(tmp_path / "planner.duckdb")
+    store.upsert(
+        [],
+        seasons=["2024-25"],
+        season_types=["Regular Season"],
+    )
+
+    store.manifest_path.write_text("{broken", encoding="utf-8")
+
+    assert store.load_params(seasons=["2024-25"], season_types=["Regular Season"]) == []
+    coverage = store.load_coverage(seasons=["2024-25"], season_types=["Regular Season"])
+    assert coverage.counts_by_pair == {}
+    assert coverage.covered_pairs == {("2024-25", "Regular Season")}
+
+    repaired = json.loads(store.manifest_path.read_text(encoding="utf-8"))
+    assert repaired["artifact_version"] == 2
+    assert repaired["recovered_from_artifact"] is True
+    assert repaired["total_params"] == 0
+    assert repaired["covered_pairs"] == [{"season": "2024-25", "season_type": "Regular Season"}]

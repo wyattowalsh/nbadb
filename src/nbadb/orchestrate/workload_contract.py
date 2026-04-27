@@ -16,11 +16,13 @@ if TYPE_CHECKING:
 
     from nbadb.orchestrate.planning import PlanParams
 
-_ARTIFACT_VERSION = 1
+_ARTIFACT_VERSION = 2
 _ARTIFACT_KIND = "player_team_season_workload"
 _ARTIFACT_SUFFIX = ".player-team-season-workload.parquet"
 _MANIFEST_SUFFIX = ".player-team-season-workload.json"
 _COLUMNS = ("player_id", "team_id", "season", "season_type")
+_COVERED_SENTINEL_PLAYER_ID = 0
+_COVERED_SENTINEL_TEAM_ID = 0
 _SCHEMA = {
     "player_id": pl.Int64,
     "team_id": pl.Int64,
@@ -97,8 +99,10 @@ class PlayerTeamSeasonWorkloadStore:
         existing = self._read_existing_frame()
         retained = self._exclude_pairs(existing, target_pairs)
         updated = self._normalize_params(params)
+        sentinel_pairs = target_pairs - self._frame_pairs(updated)
+        sentinels = self._sentinel_frame(sentinel_pairs)
         combined = (
-            pl.concat([retained, updated], how="vertical_relaxed")
+            pl.concat([retained, updated, sentinels], how="vertical_relaxed")
             .unique(subset=list(_COLUMNS))
             .sort(["season", "season_type", "player_id", "team_id"])
         )
@@ -113,7 +117,7 @@ class PlayerTeamSeasonWorkloadStore:
             "artifact_kind": _ARTIFACT_KIND,
             "artifact_path": str(artifact_path),
             "updated_at": datetime.now(UTC).isoformat(),
-            "total_params": combined.height,
+            "total_params": self._drop_sentinels(combined).height,
             "covered_pairs": [
                 {"season": season, "season_type": season_type}
                 for season, season_type in covered_pairs_list
@@ -186,6 +190,20 @@ class PlayerTeamSeasonWorkloadStore:
         seasons: list[str] | None,
         season_types: list[str] | None,
     ) -> pl.DataFrame | None:
+        frame = self._artifact_frame(
+            seasons=seasons,
+            season_types=season_types,
+        )
+        if frame is None:
+            return None
+        return self._drop_sentinels(frame)
+
+    def _artifact_frame(
+        self,
+        *,
+        seasons: list[str] | None,
+        season_types: list[str] | None,
+    ) -> pl.DataFrame | None:
         if not self.is_available():
             return None
 
@@ -210,7 +228,7 @@ class PlayerTeamSeasonWorkloadStore:
         )
 
     def _read_existing_frame(self) -> pl.DataFrame:
-        frame = self._filtered_frame(seasons=None, season_types=None)
+        frame = self._artifact_frame(seasons=None, season_types=None)
         if frame is not None:
             return frame
         return pl.DataFrame(schema=_SCHEMA)
@@ -237,10 +255,11 @@ class PlayerTeamSeasonWorkloadStore:
         return recovered
 
     def _rebuild_manifest_from_artifact(self) -> dict[str, object]:
-        frame = self._filtered_frame(seasons=None, season_types=None)
+        frame = self._artifact_frame(seasons=None, season_types=None)
         if frame is None:
             return {}
 
+        real_params = self._drop_sentinels(frame)
         grouped = (
             frame.group_by(["season", "season_type"])
             .len(name="count")
@@ -260,7 +279,7 @@ class PlayerTeamSeasonWorkloadStore:
             "artifact_kind": _ARTIFACT_KIND,
             "artifact_path": str(artifact_path),
             "updated_at": datetime.now(UTC).isoformat(),
-            "total_params": frame.height,
+            "total_params": real_params.height,
             "covered_pairs": covered_pairs,
             "covered_seasons": sorted({row["season"] for row in covered_pairs}),
             "covered_season_types": sorted({row["season_type"] for row in covered_pairs}),
@@ -318,4 +337,39 @@ class PlayerTeamSeasonWorkloadStore:
             )
             .drop_nulls()
             .unique(subset=list(_COLUMNS))
+        )
+
+    @staticmethod
+    def _frame_pairs(frame: pl.DataFrame) -> set[tuple[str, str]]:
+        if frame.is_empty():
+            return set()
+        grouped = frame.group_by(["season", "season_type"]).len(name="count")
+        return {(str(row["season"]), str(row["season_type"])) for row in grouped.to_dicts()}
+
+    @staticmethod
+    def _sentinel_frame(pairs: set[tuple[str, str]]) -> pl.DataFrame:
+        if not pairs:
+            return pl.DataFrame(schema=_SCHEMA)
+        return pl.DataFrame(
+            [
+                {
+                    "player_id": _COVERED_SENTINEL_PLAYER_ID,
+                    "team_id": _COVERED_SENTINEL_TEAM_ID,
+                    "season": season,
+                    "season_type": season_type,
+                }
+                for season, season_type in sorted(pairs)
+            ],
+            schema=_SCHEMA,
+        )
+
+    @staticmethod
+    def _drop_sentinels(frame: pl.DataFrame) -> pl.DataFrame:
+        if frame.is_empty():
+            return frame
+        return frame.filter(
+            ~(
+                (pl.col("player_id") == _COVERED_SENTINEL_PLAYER_ID)
+                & (pl.col("team_id") == _COVERED_SENTINEL_TEAM_ID)
+            )
         )
