@@ -947,3 +947,30 @@ def test_build_artifacts_includes_strict_support_contract_summary(tmp_path: Path
     assert support_summary["season_type_contract_open_count"] == 2
     assert support_summary["season_type_contract_untracked_count"] == 2
     assert "staging_only" not in support_summary["gap_breakdown"]
+
+
+def test_extraction_summary_ready_for_full_backfill_requires_closed_season_type_contract() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    extraction = EndpointCoverageGenerator._build_extraction_matrix(
+        support_matrix=[
+            {
+                "endpoint_name": "foo_endpoint",
+                "source_kind": "stats",
+                "execution_semantics": "historical_backfill",
+                "season_type_contract_status": "untracked",
+                "season_type_value_gaps": [],
+                "coverage_statuses": ["covered"],
+                "staging_keys": ["stg_foo"],
+                "input_schema_missing_staging_keys": [],
+                "param_patterns": ["season"],
+                "declared_supported_season_types": [],
+                "earliest_supported_season": "2024-25",
+                "support_windows": [],
+            }
+        ]
+    )
+
+    assert extraction["summary"]["partial_endpoint_count"] == 1
+    assert extraction["summary"]["season_type_contract_open_count"] == 1
+    assert extraction["summary"]["ready_for_full_backfill"] is False

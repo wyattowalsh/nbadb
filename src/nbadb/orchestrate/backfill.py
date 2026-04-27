@@ -11,6 +11,10 @@ from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
     StagingEntry,
 )
+from nbadb.orchestrate.workload_contract import (
+    PlayerTeamSeasonWorkloadCoverage,
+    PlayerTeamSeasonWorkloadStore,
+)
 
 if TYPE_CHECKING:
     from nbadb.orchestrate.journal import PipelineJournal
@@ -74,9 +78,15 @@ class BackfillPlanner:
         self,
         conn: duckdb.DuckDBPyConnection,
         journal: PipelineJournal,
+        player_team_season_workloads: PlayerTeamSeasonWorkloadStore | None = None,
     ) -> None:
         self._conn = conn
         self._journal = journal
+        self._player_team_season_workloads = (
+            player_team_season_workloads
+            if player_team_season_workloads is not None
+            else PlayerTeamSeasonWorkloadStore.from_connection(conn)
+        )
 
     # ── gap detection ────────────────────────────────────────────
 
@@ -333,41 +343,110 @@ class BackfillPlanner:
             and entry.season_type_capability == "supported"
             and entry.supported_season_types
         ):
-            season_col = self._player_team_season_season_column()
-            if season_col is not None:
-                target_seasons = seasons or self._distinct_values(
-                    "stg_common_all_players",
-                    season_col,
+            target_season_types = self._target_season_types_for_entry(entry, season_types)
+            target_seasons = self._target_player_team_season_seasons(
+                seasons=seasons,
+                season_types=target_season_types,
+            )
+            if target_seasons:
+                coverage = self._player_team_season_workload_coverage(
+                    seasons=target_seasons,
+                    season_types=target_season_types,
                 )
-                gaps: list[GapReport] = []
-                for season in target_seasons:
-                    target_season_types = self._target_season_types_for_entry(entry, season_types)
-                    expected_pairs = self._count_player_team_season_pairs(season)
-                    if expected_pairs is None:
-                        return self._unknown_cross_product_gap(entry, done_total_by_ep)
-                    expected = expected_pairs * max(len(target_season_types), 1)
-                    if target_season_types:
-                        actual = sum(
-                            done_map.get((entry.endpoint_name, season, season_type), 0)
-                            for season_type in target_season_types
-                        )
-                    else:
-                        actual = done_map.get((entry.endpoint_name, season, None), 0)
-                    if actual < expected:
-                        gaps.append(
-                            GapReport(
-                                endpoint=entry.endpoint_name,
-                                season=season,
-                                pattern=entry.param_pattern,
-                                expected=expected,
-                                actual=actual,
-                                missing=expected - actual,
-                                min_season=entry.min_season,
-                            )
-                        )
-                if gaps:
+                if self._coverage_matches_target(
+                    coverage,
+                    seasons=target_seasons,
+                    season_types=target_season_types,
+                ):
+                    gaps = self._gaps_from_player_team_season_coverage(
+                        entry,
+                        done_map=done_map,
+                        seasons=target_seasons,
+                        season_types=target_season_types,
+                        coverage=coverage,
+                    )
+                    if gaps:
+                        return gaps
+                    return []
+
+                gaps = self._gaps_from_staging_player_team_pairs(
+                    entry,
+                    done_map=done_map,
+                    done_total_by_ep=done_total_by_ep,
+                    seasons=target_seasons,
+                    season_types=target_season_types,
+                )
+                if gaps is not None:
                     return gaps
         return self._unknown_cross_product_gap(entry, done_total_by_ep)
+
+    def _gaps_from_player_team_season_coverage(
+        self,
+        entry: StagingEntry,
+        *,
+        done_map: dict[tuple[str, str | None, str | None], int],
+        seasons: list[str],
+        season_types: list[str],
+        coverage: PlayerTeamSeasonWorkloadCoverage,
+    ) -> list[GapReport]:
+        gaps: list[GapReport] = []
+        for season in seasons:
+            expected = sum(
+                coverage.counts_by_pair.get((season, season_type), 0) for season_type in season_types
+            )
+            actual = sum(
+                done_map.get((entry.endpoint_name, season, season_type), 0)
+                for season_type in season_types
+            )
+            if actual < expected:
+                gaps.append(
+                    GapReport(
+                        endpoint=entry.endpoint_name,
+                        season=season,
+                        pattern=entry.param_pattern,
+                        expected=expected,
+                        actual=actual,
+                        missing=expected - actual,
+                        min_season=entry.min_season,
+                    )
+                )
+        return gaps
+
+    def _gaps_from_staging_player_team_pairs(
+        self,
+        entry: StagingEntry,
+        *,
+        done_map: dict[tuple[str, str | None, str | None], int],
+        done_total_by_ep: dict[str, int],
+        seasons: list[str],
+        season_types: list[str],
+    ) -> list[GapReport] | None:
+        gaps: list[GapReport] = []
+        for season in seasons:
+            expected_pairs = self._count_player_team_season_pairs(season)
+            if expected_pairs is None:
+                return None
+            expected = expected_pairs * max(len(season_types), 1)
+            if season_types:
+                actual = sum(
+                    done_map.get((entry.endpoint_name, season, season_type), 0)
+                    for season_type in season_types
+                )
+            else:
+                actual = done_map.get((entry.endpoint_name, season, None), 0)
+            if actual < expected:
+                gaps.append(
+                    GapReport(
+                        endpoint=entry.endpoint_name,
+                        season=season,
+                        pattern=entry.param_pattern,
+                        expected=expected,
+                        actual=actual,
+                        missing=expected - actual,
+                        min_season=entry.min_season,
+                    )
+                )
+        return gaps
 
     @staticmethod
     def _unknown_cross_product_gap(
@@ -433,6 +512,51 @@ class BackfillPlanner:
         except duckdb.CatalogException:
             return []
         return [str(row[0]) for row in rows if row and row[0] is not None]
+
+    def _target_player_team_season_seasons(
+        self,
+        *,
+        seasons: list[str] | None,
+        season_types: list[str],
+    ) -> list[str]:
+        if seasons is not None:
+            return list(seasons)
+        coverage = self._player_team_season_workload_coverage(
+            seasons=None,
+            season_types=season_types,
+        )
+        discovered_seasons = sorted({season for season, _season_type in coverage.covered_pairs})
+        if discovered_seasons:
+            return discovered_seasons
+        season_col = self._player_team_season_season_column()
+        if season_col is None:
+            return []
+        return self._distinct_values("stg_common_all_players", season_col)
+
+    def _player_team_season_workload_coverage(
+        self,
+        *,
+        seasons: list[str] | None,
+        season_types: list[str] | None,
+    ) -> PlayerTeamSeasonWorkloadCoverage:
+        return self._player_team_season_workloads.load_coverage(
+            seasons=seasons,
+            season_types=season_types,
+        )
+
+    @staticmethod
+    def _coverage_matches_target(
+        coverage: PlayerTeamSeasonWorkloadCoverage,
+        *,
+        seasons: list[str],
+        season_types: list[str],
+    ) -> bool:
+        if not seasons or not season_types:
+            return False
+        target_pairs = {
+            (season, season_type) for season in seasons for season_type in season_types
+        }
+        return target_pairs <= coverage.covered_pairs
 
     def _player_team_season_season_column(self) -> str | None:
         columns = self._get_columns("stg_common_all_players")
@@ -627,7 +751,17 @@ class BackfillPlanner:
                             params=params,
                             priority=priority,
                         )
-                    )
+                )
+                continue
+
+            if pattern == "player_team_season":
+                for item in self._build_player_team_season_plan_items(
+                    entries=entries,
+                    seasons=effective_seasons,
+                    season_types=season_types,
+                    priority=priority,
+                ):
+                    plan_items.append(item)
                 continue
 
             params = self._build_params_for_pattern(
@@ -678,6 +812,47 @@ class BackfillPlanner:
             patterns=used_patterns,
             dry_run_summary="\n".join(summary_lines),
         )
+
+    def _build_player_team_season_plan_items(
+        self,
+        *,
+        entries: list[StagingEntry],
+        seasons: list[str],
+        season_types: list[str],
+        priority: int,
+    ) -> list[ExtractionPlanItem]:
+        supported_entries = [
+            entry
+            for entry in entries
+            if entry.season_type_capability == "supported" and bool(entry.supported_season_types)
+        ]
+        plan_items: list[ExtractionPlanItem] = []
+        for grouped_entries, start_year, grouped_season_types in self._season_entry_groups(
+            supported_entries,
+            season_types,
+        ):
+            grouped_seasons = self._filter_seasons_for_start_year(seasons, start_year)
+            if not grouped_seasons:
+                continue
+            params = self._player_team_season_workloads.load_params(
+                seasons=grouped_seasons,
+                season_types=grouped_season_types,
+            )
+            if not params:
+                continue
+            label = "backfill:player_team_season"
+            if grouped_season_types:
+                label = f"{label}[{'/'.join(grouped_season_types)}]"
+            plan_items.append(
+                ExtractionPlanItem(
+                    label=label,
+                    pattern="player_team_season",
+                    entries=grouped_entries,
+                    params=params,
+                    priority=priority,
+                )
+            )
+        return plan_items
 
     def force_reset(
         self,

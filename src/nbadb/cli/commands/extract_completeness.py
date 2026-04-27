@@ -17,7 +17,10 @@ RequireFullOption = Annotated[
     bool,
     typer.Option(
         "--require-full",
-        help="Exit non-zero when runtime_gap, staging_only, or extractor_only endpoints remain.",
+        help=(
+            "Exit non-zero when in-scope extraction readiness gaps remain for the "
+            "historical full-backfill contract."
+        ),
     ),
 ]
 RequireModelContractOption = Annotated[
@@ -40,8 +43,9 @@ def extract_completeness(
 ) -> None:
     """Generate endpoint coverage artifacts and report coverage counts."""
     generator = EndpointCoverageGenerator()
-    written = generator.write(output_dir=output_dir)
-    summary = json.loads(written["summary"].read_text(encoding="utf-8"))
+    artifacts = generator.build_artifacts()
+    written = generator.write_artifacts(artifacts, output_dir=output_dir)
+    summary = artifacts["summary"]
     extraction = summary.get("extraction_contract", {})
     extraction_ready = bool(extraction.get("ready_for_full_backfill", False))
     extractable = int(extraction.get("extractable_endpoint_count", 0))

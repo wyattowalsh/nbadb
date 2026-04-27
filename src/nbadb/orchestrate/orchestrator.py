@@ -5,6 +5,7 @@ import json
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
 import duckdb
@@ -29,6 +30,7 @@ from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.transformers import (
     discover_all_transformers,
 )
+from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 from nbadb.transform.pipeline import TransformPipeline
 
 if TYPE_CHECKING:
@@ -208,6 +210,27 @@ class Orchestrator:
         result.duration_seconds = time.perf_counter() - start_time
         result.errors = errors
         return result
+
+    def _player_team_season_workloads(self) -> PlayerTeamSeasonWorkloadStore:
+        duckdb_path = self._settings.duckdb_path
+        if not isinstance(duckdb_path, str | os.PathLike):
+            return PlayerTeamSeasonWorkloadStore.from_duckdb_path(None)
+        return PlayerTeamSeasonWorkloadStore.from_duckdb_path(Path(duckdb_path))
+
+    def _persist_player_team_season_workloads(
+        self,
+        params: list[dict[str, int | str]],
+        *,
+        seasons: list[str],
+        season_types: list[str],
+    ) -> list[dict[str, int | str]]:
+        store = self._player_team_season_workloads()
+        store.upsert(
+            params,
+            seasons=seasons,
+            season_types=season_types,
+        )
+        return store.load_params(seasons=seasons, season_types=season_types)
 
     @staticmethod
     def _resolved_season_types(season_types: list[str] | None) -> list[str]:
@@ -645,6 +668,11 @@ class Orchestrator:
                 seasons,
                 season_types=season_types,
             )
+            player_team_season_params = self._persist_player_team_season_workloads(
+                player_team_season_params,
+                seasons=seasons,
+                season_types=season_types,
+            )
 
             if pp is not None:
                 pp.complete_phase()
@@ -782,6 +810,11 @@ class Orchestrator:
                 [season],
                 season_types=daily_season_types,
             )
+            player_team_season_params = self._persist_player_team_season_workloads(
+                player_team_season_params,
+                seasons=[season],
+                season_types=daily_season_types,
+            )
             bound_log.info(
                 "daily: {} active players, {} teams, {} player-team seasons for refresh",
                 len(player_ids),
@@ -872,6 +905,11 @@ class Orchestrator:
             current_team_ids = await discovery.discover_current_team_ids()
             player_team_season_params = await discovery.discover_player_team_season_params(
                 seasons,
+                season_types=monthly_season_types,
+            )
+            player_team_season_params = self._persist_player_team_season_workloads(
+                player_team_season_params,
+                seasons=seasons,
                 season_types=monthly_season_types,
             )
 
@@ -1018,6 +1056,11 @@ class Orchestrator:
             current_team_ids = await discovery.discover_current_team_ids()
             player_team_season_params = await discovery.discover_player_team_season_params(
                 seasons,
+                season_types=_full_st,
+            )
+            player_team_season_params = self._persist_player_team_season_workloads(
+                player_team_season_params,
+                seasons=seasons,
                 season_types=_full_st,
             )
             if not game_log_df.is_empty():
@@ -1191,6 +1234,11 @@ class Orchestrator:
             if needs_player_team_season:
                 player_team_season_params = await discovery.discover_player_team_season_params(
                     effective_seasons,
+                    season_types=season_types,
+                )
+                player_team_season_params = self._persist_player_team_season_workloads(
+                    player_team_season_params,
+                    seasons=effective_seasons,
                     season_types=season_types,
                 )
             else:

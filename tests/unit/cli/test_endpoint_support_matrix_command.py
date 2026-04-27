@@ -77,11 +77,34 @@ def test_endpoint_support_matrix_prints_summary_and_uses_output_dir(tmp_path: Pa
         },
     )
     with patch(_GENERATOR_PATH) as mock_generator:
-        mock_generator.return_value.write.return_value = written
+        mock_generator.return_value.build_artifacts.return_value = {
+            "extraction_summary": {
+                "endpoint_count": 7,
+                "in_scope_endpoint_count": 5,
+                "extractable_endpoint_count": 2,
+                "partial_endpoint_count": 1,
+                "blocked_endpoint_count": 2,
+                "excluded_endpoint_count": 2,
+                "season_type_contract_open_count": 2,
+                "ready_for_full_backfill": False,
+                "execution_semantics_breakdown": {
+                    "historical_backfill": 3,
+                    "reference_snapshot": 2,
+                    "live_snapshot": 2,
+                },
+                "extraction_gap_breakdown": {
+                    "input_schema_missing": 1,
+                    "season_type_contract_untracked": 2,
+                },
+                "explicit_exclusion_breakdown": {"intentionally_deferred": 2},
+            }
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
         result = runner.invoke(app, ["endpoint-support-matrix", "--output-dir", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
-    mock_generator.return_value.write.assert_called_once_with(output_dir=tmp_path)
+    mock_generator.return_value.build_artifacts.assert_called_once_with()
+    mock_generator.return_value.write_artifacts.assert_called_once()
     assert "endpoints=7" in result.output
     assert "in_scope=5" in result.output
     assert "extractable=2" in result.output
@@ -116,7 +139,22 @@ def test_endpoint_support_matrix_require_complete_exits_when_gaps_exist(tmp_path
         },
     )
     with patch(_GENERATOR_PATH) as mock_generator:
-        mock_generator.return_value.write.return_value = written
+        mock_generator.return_value.build_artifacts.return_value = {
+            "extraction_summary": {
+                "endpoint_count": 4,
+                "in_scope_endpoint_count": 4,
+                "extractable_endpoint_count": 1,
+                "partial_endpoint_count": 0,
+                "blocked_endpoint_count": 3,
+                "excluded_endpoint_count": 0,
+                "season_type_contract_open_count": 0,
+                "ready_for_full_backfill": False,
+                "execution_semantics_breakdown": {},
+                "extraction_gap_breakdown": {},
+                "explicit_exclusion_breakdown": {},
+            }
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
         result = runner.invoke(app, ["endpoint-support-matrix", "--require-complete"])
 
     assert result.exit_code == 1
@@ -143,7 +181,22 @@ def test_endpoint_support_matrix_require_complete_exits_when_partial_remains(
         },
     )
     with patch(_GENERATOR_PATH) as mock_generator:
-        mock_generator.return_value.write.return_value = written
+        mock_generator.return_value.build_artifacts.return_value = {
+            "extraction_summary": {
+                "endpoint_count": 4,
+                "in_scope_endpoint_count": 4,
+                "extractable_endpoint_count": 1,
+                "partial_endpoint_count": 1,
+                "blocked_endpoint_count": 0,
+                "excluded_endpoint_count": 0,
+                "season_type_contract_open_count": 1,
+                "ready_for_full_backfill": False,
+                "execution_semantics_breakdown": {},
+                "extraction_gap_breakdown": {},
+                "explicit_exclusion_breakdown": {},
+            }
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
         result = runner.invoke(app, ["endpoint-support-matrix", "--require-complete"])
 
     assert result.exit_code == 1
@@ -177,7 +230,22 @@ def test_endpoint_support_matrix_require_season_type_contract_exits_when_untrack
         },
     )
     with patch(_GENERATOR_PATH) as mock_generator:
-        mock_generator.return_value.write.return_value = written
+        mock_generator.return_value.build_artifacts.return_value = {
+            "extraction_summary": {
+                "endpoint_count": 4,
+                "in_scope_endpoint_count": 4,
+                "extractable_endpoint_count": 2,
+                "partial_endpoint_count": 2,
+                "blocked_endpoint_count": 0,
+                "excluded_endpoint_count": 0,
+                "season_type_contract_open_count": 2,
+                "ready_for_full_backfill": False,
+                "execution_semantics_breakdown": {},
+                "extraction_gap_breakdown": {},
+                "explicit_exclusion_breakdown": {},
+            }
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
         result = runner.invoke(
             app,
             ["endpoint-support-matrix", "--require-season-type-contract"],

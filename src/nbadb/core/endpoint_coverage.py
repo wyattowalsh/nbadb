@@ -978,43 +978,13 @@ class EndpointCoverageGenerator:
                 extraction_gaps.append("season_type_contract_untracked")
             extraction_gaps.extend(season_type_value_gaps)
             extraction_gaps = sorted(set(extraction_gaps))
-
-            exclusion = FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT.get(endpoint_name)
-            exclusion_detail: dict[str, str] | None = None
-            if exclusion is not None:
-                exclusion_detail = exclusion.to_dict()
-                exclusion_breakdown[exclusion.classification] += 1
-                extractability_status = "excluded"
-            elif source_kind == "live":
-                exclusion_detail = {
-                    "endpoint_name": endpoint_name,
-                    "classification": "intentionally_deferred",
-                    "reason": (
-                        "Live snapshot endpoints are outside the resumable historical full-"
-                        "extraction contract."
-                    ),
-                    "owner": "extract",
-                    "revalidation_path": (
-                        "Define a durable historical contract for live snapshot surfaces before "
-                        "counting them as in-scope for full extraction."
-                    ),
-                    "scope": "full_extraction",
-                }
-                exclusion_breakdown["intentionally_deferred"] += 1
-                extractability_status = "excluded"
-            elif "season_type_contract_blocked" in extraction_gaps:
-                extractability_status = "blocked"
-            elif {
-                "season_type_contract_untracked",
-                "season_type_contract_mixed",
-                "supported_season_types_missing",
-                "supported_season_types_mixed",
-            } & set(extraction_gaps):
-                extractability_status = "partial"
-            elif extraction_gaps:
-                extractability_status = "blocked"
-            else:
-                extractability_status = "extractable"
+            extractability_status, exclusion_detail = cls._evaluate_extraction_status(
+                endpoint_name=endpoint_name,
+                source_kind=source_kind,
+                extraction_gaps=extraction_gaps,
+            )
+            if exclusion_detail is not None:
+                exclusion_breakdown[str(exclusion_detail["classification"])] += 1
 
             extraction_matrix.append(
                 {
@@ -1059,10 +1029,6 @@ class EndpointCoverageGenerator:
             "excluded_endpoint_count": extractability_breakdown.get("excluded", 0),
             "in_scope_endpoint_count": len(extraction_matrix)
             - extractability_breakdown.get("excluded", 0),
-            "ready_for_full_backfill": (
-                extractability_breakdown.get("partial", 0) == 0
-                and extractability_breakdown.get("blocked", 0) == 0
-            ),
             "season_type_contract_open_count": sum(
                 1
                 for row in extraction_matrix
@@ -1081,6 +1047,7 @@ class EndpointCoverageGenerator:
                 if row["exclusion"] is not None
             ],
         }
+        summary["ready_for_full_backfill"] = cls._extraction_ready_for_full_backfill(summary)
         return {"matrix": extraction_matrix, "summary": summary}
 
     @staticmethod
@@ -1115,11 +1082,63 @@ class EndpointCoverageGenerator:
                 "backfilled across its supported historical window, and is accounted for in "
                 "auditable source-completeness reporting."
             ),
-            "ready_for_full_backfill": extraction_summary["ready_for_full_backfill"]
-            and extraction_summary["season_type_contract_open_count"] == 0,
+            "ready_for_full_backfill": EndpointCoverageGenerator._extraction_ready_for_full_backfill(
+                extraction_summary
+            ),
             "checks": checks,
             "current_status": extraction_summary,
         }
+
+    @staticmethod
+    def _live_extraction_exclusion(endpoint_name: str) -> dict[str, str]:
+        return {
+            "endpoint_name": endpoint_name,
+            "classification": "intentionally_deferred",
+            "reason": (
+                "Live snapshot endpoints are outside the resumable historical full-"
+                "extraction contract."
+            ),
+            "owner": "extract",
+            "revalidation_path": (
+                "Define a durable historical contract for live snapshot surfaces before "
+                "counting them as in-scope for full extraction."
+            ),
+            "scope": "full_extraction",
+        }
+
+    @classmethod
+    def _evaluate_extraction_status(
+        cls,
+        *,
+        endpoint_name: str,
+        source_kind: str,
+        extraction_gaps: list[str],
+    ) -> tuple[str, dict[str, str] | None]:
+        exclusion = FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT.get(endpoint_name)
+        if exclusion is not None:
+            return "excluded", exclusion.to_dict()
+        if source_kind == "live":
+            return "excluded", cls._live_extraction_exclusion(endpoint_name)
+        if "season_type_contract_blocked" in extraction_gaps:
+            return "blocked", None
+        if {
+            "season_type_contract_untracked",
+            "season_type_contract_mixed",
+            "supported_season_types_missing",
+            "supported_season_types_mixed",
+        } & set(extraction_gaps):
+            return "partial", None
+        if extraction_gaps:
+            return "blocked", None
+        return "extractable", None
+
+    @staticmethod
+    def _extraction_ready_for_full_backfill(extraction_summary: dict[str, Any]) -> bool:
+        return (
+            int(extraction_summary.get("partial_endpoint_count", 0)) == 0
+            and int(extraction_summary.get("blocked_endpoint_count", 0)) == 0
+            and int(extraction_summary.get("season_type_contract_open_count", 0)) == 0
+        )
 
     def build_artifacts(
         self,
@@ -1871,11 +1890,10 @@ class EndpointCoverageGenerator:
         lines.append("")
         return "\n".join(lines)
 
-    def write(
+    def write_artifacts(
         self,
+        artifacts: dict[str, Any],
         output_dir: Path | None = None,
-        runtime_endpoint_classes: set[str] | None = None,
-        runtime_version: str | None = None,
     ) -> dict[str, Path]:
         destination = (
             Path(output_dir)
@@ -1883,11 +1901,6 @@ class EndpointCoverageGenerator:
             else self.project_root / "artifacts" / "endpoint-coverage"
         )
         destination.mkdir(parents=True, exist_ok=True)
-
-        artifacts = self.build_artifacts(
-            runtime_endpoint_classes=runtime_endpoint_classes,
-            runtime_version=runtime_version,
-        )
 
         matrix_path = destination / "endpoint-coverage-matrix.json"
         summary_path = destination / "endpoint-coverage-summary.json"
@@ -1953,6 +1966,18 @@ class EndpointCoverageGenerator:
             "extraction_report": extraction_report_path,
             "full_extraction_definition": full_extraction_definition_path,
         }
+
+    def write(
+        self,
+        output_dir: Path | None = None,
+        runtime_endpoint_classes: set[str] | None = None,
+        runtime_version: str | None = None,
+    ) -> dict[str, Path]:
+        artifacts = self.build_artifacts(
+            runtime_endpoint_classes=runtime_endpoint_classes,
+            runtime_version=runtime_version,
+        )
+        return self.write_artifacts(artifacts, output_dir=output_dir)
 
 
 def _build_parser() -> argparse.ArgumentParser:

@@ -45,8 +45,9 @@ def endpoint_support_matrix(
     """Generate the extraction support matrix and summary."""
 
     generator = EndpointCoverageGenerator()
-    written = generator.write(output_dir=output_dir)
-    summary = json.loads(written["extraction_summary"].read_text(encoding="utf-8"))
+    artifacts = generator.build_artifacts()
+    written = generator.write_artifacts(artifacts, output_dir=output_dir)
+    summary = artifacts["extraction_summary"]
 
     typer.echo(
         "Endpoint support: "
