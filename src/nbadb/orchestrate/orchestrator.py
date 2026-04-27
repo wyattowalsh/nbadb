@@ -213,9 +213,9 @@ class Orchestrator:
 
     def _player_team_season_workloads(self) -> PlayerTeamSeasonWorkloadStore:
         duckdb_path = self._settings.duckdb_path
-        if not isinstance(duckdb_path, str | os.PathLike):
+        if not isinstance(duckdb_path, Path):
             return PlayerTeamSeasonWorkloadStore.from_duckdb_path(None)
-        return PlayerTeamSeasonWorkloadStore.from_duckdb_path(Path(duckdb_path))
+        return PlayerTeamSeasonWorkloadStore.from_duckdb_path(duckdb_path)
 
     def _persist_player_team_season_workloads(
         self,
