@@ -14,6 +14,7 @@ from nbadb.orchestrate.full_extraction_control import (
     manifest_payload,
     merge_lane_databases,
     normalize_manifest,
+    redispatch_manifest_payload,
     validate_manifest,
 )
 
@@ -553,6 +554,55 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
         vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
     )
     assert manifest.lanes[0].lane_id == "reference-static"
+
+
+def test_redispatch_manifest_payload_round_trips_with_smaller_payload() -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id="reference-player",
+            lane_index=7,
+            lane_name="Reference Player 3/15",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("player",),
+            endpoints=("common_player_info", "player_profile_v2"),
+            resume_only=True,
+            timeout_seconds=4_200,
+            failure_streak=2,
+            last_failure_reason="extract-timeout",
+        )
+    ]
+    chain_state = FullExtractionChainState(
+        vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
+    )
+
+    full_payload = manifest_payload(lanes, chain_state=chain_state)
+    redispatch_payload = redispatch_manifest_payload(lanes, chain_state=chain_state)
+    manifest = normalize_manifest(redispatch_payload)
+
+    assert len(json.dumps(redispatch_payload, separators=(",", ":"))) < len(
+        json.dumps(full_payload, separators=(",", ":"))
+    )
+    assert manifest.chain_state == chain_state
+    assert manifest.lanes == (
+        FullExtractionLane(
+            lane_id="reference-player",
+            lane_index=0,
+            lane_name="Reference Player 3/15",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("player",),
+            season_types=(),
+            endpoints=("common_player_info", "player_profile_v2"),
+            use_vpn=True,
+            resume_only=True,
+            timeout_seconds=4_200,
+            failure_streak=2,
+            last_failure_reason="extract-timeout",
+        ),
+    )
 
 
 def test_validate_manifest_rejects_oversize_lane() -> None:
