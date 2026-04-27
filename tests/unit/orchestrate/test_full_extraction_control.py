@@ -601,6 +601,29 @@ def test_redispatch_manifest_payload_round_trips() -> None:
     )
 
 
+def test_redispatch_manifest_payload_preserves_non_default_use_vpn() -> None:
+    payload = redispatch_manifest_payload(
+        [
+            FullExtractionLane(
+                lane_id="reference-static",
+                lane_index=0,
+                lane_name="Reference Static",
+                lane_kind="reference",
+                season_start=None,
+                season_end=None,
+                patterns=("static",),
+                use_vpn=False,
+                timeout_seconds=1_800,
+            )
+        ]
+    )
+
+    manifest = normalize_manifest(payload)
+
+    assert payload["lanes"][0]["use_vpn"] is False
+    assert manifest.lanes[0].use_vpn is False
+
+
 def test_redispatch_manifest_payload_is_smaller_than_full_manifest() -> None:
     lanes = [
         FullExtractionLane(
@@ -622,6 +645,7 @@ def test_redispatch_manifest_payload_is_smaller_than_full_manifest() -> None:
     full_payload = manifest_payload(lanes)
     redispatch_payload = redispatch_manifest_payload(lanes)
 
+    assert "github_matrix" not in redispatch_payload
     assert len(json.dumps(redispatch_payload, separators=(",", ":"))) < len(
         json.dumps(full_payload, separators=(",", ":"))
     )

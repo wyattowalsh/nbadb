@@ -695,7 +695,7 @@ def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[st
     payload = asdict(lane)
     if compact:
         payload.pop("lane_index", None)
-        if lane.use_vpn:
+        if lane.use_vpn is True:
             payload.pop("use_vpn", None)
         if not lane.failure_streak:
             payload.pop("failure_streak", None)
