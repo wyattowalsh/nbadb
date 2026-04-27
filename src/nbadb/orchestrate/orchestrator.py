@@ -641,7 +641,10 @@ class Orchestrator:
                 include_historical_players=True,
             )
             current_team_ids = await discovery.discover_current_team_ids()
-            player_team_season_params = await discovery.discover_player_team_season_params(seasons)
+            player_team_season_params = await discovery.discover_player_team_season_params(
+                seasons,
+                season_types=season_types,
+            )
 
             if pp is not None:
                 pp.complete_phase()
@@ -775,7 +778,10 @@ class Orchestrator:
             player_ids = await discovery.discover_player_ids()
             team_ids = await discovery.discover_team_ids()
             current_team_ids = await discovery.discover_current_team_ids()
-            player_team_season_params = await discovery.discover_player_team_season_params([season])
+            player_team_season_params = await discovery.discover_player_team_season_params(
+                [season],
+                season_types=daily_season_types,
+            )
             bound_log.info(
                 "daily: {} active players, {} teams, {} player-team seasons for refresh",
                 len(player_ids),
@@ -864,7 +870,10 @@ class Orchestrator:
                 discovery, seasons, bound_log, season_types=monthly_season_types
             )
             current_team_ids = await discovery.discover_current_team_ids()
-            player_team_season_params = await discovery.discover_player_team_season_params(seasons)
+            player_team_season_params = await discovery.discover_player_team_season_params(
+                seasons,
+                season_types=monthly_season_types,
+            )
 
             # -- 2. Extract all patterns ----------------------------
             extraction = await self._extract_all_patterns(
@@ -1007,7 +1016,10 @@ class Orchestrator:
                 discovery, seasons, bound_log, season_types=_full_st
             )
             current_team_ids = await discovery.discover_current_team_ids()
-            player_team_season_params = await discovery.discover_player_team_season_params(seasons)
+            player_team_season_params = await discovery.discover_player_team_season_params(
+                seasons,
+                season_types=_full_st,
+            )
             if not game_log_df.is_empty():
                 raw.setdefault("stg_league_game_log", game_log_df)
 
@@ -1178,7 +1190,8 @@ class Orchestrator:
             current_team_ids = await discovery.discover_current_team_ids() if needs_teams else []
             if needs_player_team_season:
                 player_team_season_params = await discovery.discover_player_team_season_params(
-                    effective_seasons
+                    effective_seasons,
+                    season_types=season_types,
                 )
             else:
                 player_team_season_params = []

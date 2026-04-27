@@ -367,6 +367,16 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     support_matrix_payload = json.loads(written["support_matrix"].read_text(encoding="utf-8"))
     support_summary_payload = json.loads(written["support_summary"].read_text(encoding="utf-8"))
     support_report_text = written["support_report"].read_text(encoding="utf-8")
+    extraction_matrix_payload = json.loads(
+        written["extraction_matrix"].read_text(encoding="utf-8")
+    )
+    extraction_summary_payload = json.loads(
+        written["extraction_summary"].read_text(encoding="utf-8")
+    )
+    extraction_report_text = written["extraction_report"].read_text(encoding="utf-8")
+    full_extraction_definition = json.loads(
+        written["full_extraction_definition"].read_text(encoding="utf-8")
+    )
 
     assert "matrix" in matrix_payload
     assert "coverage" in summary_payload
@@ -376,6 +386,10 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     assert "matrix" in support_matrix_payload
     assert "gap_endpoint_count" in support_summary_payload
     assert "Endpoint Support Matrix" in support_report_text
+    assert "matrix" in extraction_matrix_payload
+    assert "extractable_endpoint_count" in extraction_summary_payload
+    assert "Endpoint Extraction Contract" in extraction_report_text
+    assert "ready_for_full_backfill" in full_extraction_definition
     assert "Strict Build Contract" in report_text
 
 

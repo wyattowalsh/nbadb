@@ -412,12 +412,14 @@ class EntityDiscovery:
     async def discover_player_team_season_params(
         self,
         seasons: list[str],
+        season_types: list[str] | None = None,
     ) -> list[dict[str, int | str]]:
         """Get season-scoped player/team tuples from common_all_players."""
         import polars as pl
 
         if not seasons:
             return []
+        resolved_season_types = list(season_types or ["Regular Season"])
 
         extractor_cls = self._registry.get("common_all_players")
         semaphore = asyncio.Semaphore(self._discovery_concurrency)
@@ -597,7 +599,10 @@ class EntityDiscovery:
             .unique(subset=["player_id", "team_id", "season"])
             .sort(["season", "player_id", "team_id"])
         )
-        params = combined.to_dicts()
+        params: list[dict[str, int | str]] = []
+        for row in combined.to_dicts():
+            for season_type in resolved_season_types:
+                params.append({**row, "season_type": season_type})
         logger.info("discovered {} player/team/season combos", len(params))
         return params
 

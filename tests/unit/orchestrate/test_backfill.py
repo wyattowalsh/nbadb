@@ -806,3 +806,65 @@ class TestCompletenessSummaryUnknown:
         assert report.summary["player_team_season_unknown"] >= 1
         # The numeric key should NOT be present (or should be 0)
         assert report.summary.get("player_team_season", 0) == 0
+
+    def test_supported_cross_product_uses_season_type_aware_expected_counts(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        journal: PipelineJournal,
+        planner: BackfillPlanner,
+    ) -> None:
+        conn.execute("""
+            CREATE TABLE stg_common_all_players AS
+            SELECT * FROM (VALUES
+                (201939, 1610612744, '2024-25'),
+                (2544, 1610612747, '2024-25')
+            ) AS t(person_id, team_id, season)
+        """)
+        _seed_done(
+            journal,
+            "video_details",
+            {
+                "player_id": 201939,
+                "team_id": 1610612744,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+        )
+
+        report = planner.detect_gaps(
+            endpoints=["video_details"],
+            patterns=["player_team_season"],
+            seasons=["2024-25"],
+            season_types=["Regular Season", "Playoffs"],
+        )
+
+        gaps = [g for g in report.gaps if g.endpoint == "video_details"]
+        assert len(gaps) == 1
+        assert gaps[0].season == "2024-25"
+        assert gaps[0].expected == 4
+        assert gaps[0].actual == 1
+        assert gaps[0].missing == 3
+
+    def test_blocked_cross_product_remains_unknown_even_with_discovery_state(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        planner: BackfillPlanner,
+    ) -> None:
+        conn.execute("""
+            CREATE TABLE stg_common_all_players AS
+            SELECT * FROM (VALUES
+                (201939, 1610612744, '2024-25'),
+                (2544, 1610612747, '2024-25')
+            ) AS t(person_id, team_id, season)
+        """)
+
+        report = planner.detect_gaps(
+            endpoints=["player_vs_player"],
+            patterns=["player_team_season"],
+            seasons=["2024-25"],
+        )
+
+        gaps = [g for g in report.gaps if g.endpoint == "player_vs_player"]
+        assert len(gaps) == 1
+        assert gaps[0].expected is None
+        assert gaps[0].missing is None

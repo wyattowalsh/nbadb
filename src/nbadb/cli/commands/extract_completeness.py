@@ -42,21 +42,21 @@ def extract_completeness(
     generator = EndpointCoverageGenerator()
     written = generator.write(output_dir=output_dir)
     summary = json.loads(written["summary"].read_text(encoding="utf-8"))
-    coverage = summary.get("coverage", {})
-
-    covered = int(coverage.get("covered", 0))
-    runtime_gap = int(coverage.get("runtime_gap", 0))
-    staging_only = int(coverage.get("staging_only", 0))
-    extractor_only = int(coverage.get("extractor_only", 0))
-    source_only = int(coverage.get("source_only", 0))
-    non_covered = runtime_gap + staging_only + extractor_only + source_only
+    extraction = summary.get("extraction_contract", {})
+    extraction_ready = bool(extraction.get("ready_for_full_backfill", False))
+    extractable = int(extraction.get("extractable_endpoint_count", 0))
+    partial = int(extraction.get("partial_endpoint_count", 0))
+    blocked = int(extraction.get("blocked_endpoint_count", 0))
+    excluded = int(extraction.get("excluded_endpoint_count", 0))
+    in_scope = int(extraction.get("in_scope_endpoint_count", 0))
+    season_type_open = int(extraction.get("season_type_contract_open_count", 0))
 
     typer.echo(
-        "Coverage counts: "
-        f"covered={covered} runtime_gap={runtime_gap} "
-        f"staging_only={staging_only} extractor_only={extractor_only} "
-        f"source_only={source_only} "
-        f"non_covered={non_covered}"
+        "Extraction readiness: "
+        f"in_scope={in_scope} extractable={extractable} "
+        f"partial={partial} blocked={blocked} excluded={excluded} "
+        f"season_type_open={season_type_open} "
+        f"ready_for_full_backfill={extraction_ready}"
     )
     model_ownership = summary.get("model_ownership", {})
     if model_ownership:
@@ -83,8 +83,11 @@ def extract_completeness(
         )
     typer.echo(f"Artifacts dir: {written['summary'].parent}")
 
-    if require_full and non_covered:
-        typer.echo("require-full check failed: non-covered endpoints remain", err=True)
+    if require_full and (partial or blocked or season_type_open):
+        typer.echo(
+            "require-full check failed: extraction contract gaps remain for in-scope endpoints",
+            err=True,
+        )
         raise typer.Exit(1)
     if require_model_contract and int(model_ownership.get("model_unowned_stats_endpoints", 0)):
         typer.echo(

@@ -359,7 +359,14 @@ class TestExtractAllPatterns:
                 min_season=None,
             )
         ]
-        player_team_season_entries = [MagicMock(endpoint_name="video_details")]
+        player_team_season_entries = [
+            SimpleNamespace(
+                endpoint_name="video_details",
+                season_type_capability="supported",
+                supported_season_types=("Regular Season",),
+                min_season=None,
+            )
+        ]
         team_season_entries = [
             SimpleNamespace(
                 endpoint_name="team_game_log",
@@ -393,8 +400,18 @@ class TestExtractAllPatterns:
                     team_ids=[1610612744],
                     game_dates=[],
                     player_team_season_params=[
-                        {"player_id": 201939, "team_id": 1610612744, "season": "2024-25"},
-                        {"player_id": 2544, "team_id": 1610612747, "season": "2025-26"},
+                        {
+                            "player_id": 201939,
+                            "team_id": 1610612744,
+                            "season": "2024-25",
+                            "season_type": "Regular Season",
+                        },
+                        {
+                            "player_id": 2544,
+                            "team_id": 1610612747,
+                            "season": "2025-26",
+                            "season_type": "Regular Season",
+                        },
                     ],
                     game_log_df=pl.DataFrame(),
                 )
@@ -449,8 +466,18 @@ class TestExtractAllPatterns:
         runner.run_pattern.assert_any_await(
             "player_team_season",
             [
-                {"player_id": 201939, "team_id": 1610612744, "season": "2024-25"},
-                {"player_id": 2544, "team_id": 1610612747, "season": "2025-26"},
+                {
+                    "player_id": 201939,
+                    "team_id": 1610612744,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "player_id": 2544,
+                    "team_id": 1610612747,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                },
             ],
             player_team_season_entries,
             on_progress=None,

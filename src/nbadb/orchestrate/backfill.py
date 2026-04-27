@@ -163,7 +163,13 @@ class BackfillPlanner:
         if pattern == "date":
             return self._gaps_date(entry, done_total_by_ep, seasons)
         if pattern in ("player_season", "team_season", "player_team_season"):
-            return self._gaps_cross_product(entry, done_total_by_ep, seasons)
+            return self._gaps_cross_product(
+                entry,
+                done_map,
+                done_total_by_ep,
+                seasons,
+                season_types,
+            )
 
         return []
 
@@ -311,8 +317,10 @@ class BackfillPlanner:
     def _gaps_cross_product(
         self,
         entry: StagingEntry,
+        done_map: dict[tuple[str, str | None, str | None], int],
         done_total_by_ep: dict[str, int],
         seasons: list[str] | None,
+        season_types: list[str],
     ) -> list[GapReport]:
         """Detect gaps for *_season pattern types.
 
@@ -320,6 +328,45 @@ class BackfillPlanner:
         determine per-season expected counts for cross-product patterns,
         we report a single aggregate gap.
         """
+        if (
+            entry.param_pattern == "player_team_season"
+            and entry.season_type_capability == "supported"
+            and entry.supported_season_types
+        ):
+            season_col = self._player_team_season_season_column()
+            if season_col is not None:
+                target_seasons = seasons or self._distinct_values(
+                    "stg_common_all_players",
+                    season_col,
+                )
+                gaps: list[GapReport] = []
+                for season in target_seasons:
+                    target_season_types = self._target_season_types_for_entry(entry, season_types)
+                    expected_pairs = self._count_player_team_season_pairs(season)
+                    if expected_pairs is None:
+                        break
+                    expected = expected_pairs * max(len(target_season_types), 1)
+                    if target_season_types:
+                        actual = sum(
+                            done_map.get((entry.endpoint_name, season, season_type), 0)
+                            for season_type in target_season_types
+                        )
+                    else:
+                        actual = done_map.get((entry.endpoint_name, season, None), 0)
+                    if actual < expected:
+                        gaps.append(
+                            GapReport(
+                                endpoint=entry.endpoint_name,
+                                season=season,
+                                pattern=entry.param_pattern,
+                                expected=expected,
+                                actual=actual,
+                                missing=expected - actual,
+                                min_season=entry.min_season,
+                            )
+                        )
+                if gaps:
+                    return gaps
         actual = done_total_by_ep.get(entry.endpoint_name, 0)
         # Can't determine expected without entity discovery — report as unknown
         return [
@@ -370,6 +417,50 @@ class BackfillPlanner:
             return {r[0] for r in rows}
         except duckdb.CatalogException:
             return set()
+
+    def _distinct_values(self, table: str, column: str) -> list[str]:
+        try:
+            rows = self._conn.execute(
+                f"SELECT DISTINCT {column} FROM {table} "
+                f"WHERE {column} IS NOT NULL ORDER BY {column}"
+            ).fetchall()
+        except duckdb.CatalogException:
+            return []
+        return [str(row[0]) for row in rows if row and row[0] is not None]
+
+    def _player_team_season_season_column(self) -> str | None:
+        columns = self._get_columns("stg_common_all_players")
+        if "season" in columns:
+            return "season"
+        if "season_id" in columns:
+            return "season_id"
+        return None
+
+    def _count_player_team_season_pairs(self, season: str) -> int | None:
+        season_col = self._player_team_season_season_column()
+        if season_col is None:
+            return None
+        columns = self._get_columns("stg_common_all_players")
+        if not {"person_id", "team_id"} <= columns:
+            return None
+        try:
+            row = self._conn.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM (
+                    SELECT DISTINCT person_id, team_id
+                    FROM stg_common_all_players
+                    WHERE {season_col} = $1
+                      AND person_id IS NOT NULL
+                      AND team_id IS NOT NULL
+                      AND team_id > 0
+                )
+                """,
+                [season],
+            ).fetchone()
+        except duckdb.CatalogException:
+            return None
+        return int(row[0]) if row else None
 
     @staticmethod
     def _supports_season_type(entries: list[StagingEntry]) -> bool:

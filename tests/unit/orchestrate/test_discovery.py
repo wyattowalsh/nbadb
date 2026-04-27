@@ -201,9 +201,24 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
-            {"player_id": 1, "team_id": 10, "season": "2024-25"},
-            {"player_id": 2, "team_id": 20, "season": "2024-25"},
-            {"player_id": 4, "team_id": 30, "season": "2025-26"},
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 4,
+                "team_id": 30,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
         ]
 
     async def test_returns_empty_on_failure(self):
@@ -254,8 +269,18 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
-            {"player_id": 1, "team_id": 10, "season": "2024-25"},
-            {"player_id": 2, "team_id": 20, "season": "2025-26"},
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
         ]
         assert call_counts == {
             "2024-25": 3,
@@ -302,8 +327,18 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
-            {"player_id": 1, "team_id": 10, "season": "2024-25"},
-            {"player_id": 2, "team_id": 20, "season": "2025-26"},
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
         ]
         assert call_counts == {
             "2024-25": 2,
@@ -341,8 +376,18 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
-            {"player_id": 1, "team_id": 10, "season": "2024-25"},
-            {"player_id": 2, "team_id": 20, "season": "2025-26"},
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
         ]
         assert call_counts == {
             "2024-25": 3,
@@ -383,8 +428,18 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25", "2025-26"])
 
         assert result == [
-            {"player_id": 1, "team_id": 10, "season": "2024-25"},
-            {"player_id": 2, "team_id": 20, "season": "2025-26"},
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
         ]
         assert call_counts == {
             "2024-25": 4,
@@ -416,11 +471,49 @@ class TestDiscoverPlayerTeamSeasonParams:
             disc = EntityDiscovery(reg, settings=settings)
             result = await disc.discover_player_team_season_params(["2024-25"])
 
-        assert result == [{"player_id": 1, "team_id": 10, "season": "2024-25"}]
+        assert result == [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            }
+        ]
         assert [kwargs.get("timeout") for kwargs in call_kwargs] == [
             _CONCURRENT_DISCOVERY_TIMEOUT,
             None,
             None,
+        ]
+
+    async def test_expands_player_team_season_params_across_requested_season_types(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            return_value=pl.DataFrame({"person_id": [1], "team_id": [10]}),
+        ):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_team_season_params(
+                ["2024-25"],
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert result == [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Playoffs",
+            },
         ]
 
 

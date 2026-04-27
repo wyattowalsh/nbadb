@@ -18,8 +18,9 @@ RequireCompleteOption = Annotated[
     typer.Option(
         "--require-complete",
         help=(
-            "Exit non-zero when endpoint contract gaps remain, including explicitly "
-            "excluded surfaces under the strict warehouse contract."
+            "Exit non-zero when in-scope extraction contract gaps remain for the full "
+            "historical backfill contract. explicitly excluded surfaces are reported "
+            "separately and do not fail this gate."
         ),
     ),
 ]
@@ -41,24 +42,24 @@ def endpoint_support_matrix(
     require_complete: RequireCompleteOption = False,
     require_season_type_contract: RequireSeasonTypeContractOption = False,
 ) -> None:
-    """Generate the strict-build endpoint support matrix and summary."""
+    """Generate the extraction support matrix and summary."""
 
     generator = EndpointCoverageGenerator()
     written = generator.write(output_dir=output_dir)
-    summary = json.loads(written["support_summary"].read_text(encoding="utf-8"))
+    summary = json.loads(written["extraction_summary"].read_text(encoding="utf-8"))
 
     typer.echo(
         "Endpoint support: "
         f"endpoints={summary.get('endpoint_count', 0)} "
-        f"complete={summary.get('complete_endpoint_count', 0)} "
+        f"in_scope={summary.get('in_scope_endpoint_count', 0)} "
+        f"extractable={summary.get('extractable_endpoint_count', 0)} "
         f"partial={summary.get('partial_endpoint_count', 0)} "
-        f"gaps={summary.get('gap_endpoint_count', 0)} "
+        f"blocked={summary.get('blocked_endpoint_count', 0)} "
+        f"excluded={summary.get('excluded_endpoint_count', 0)} "
         "season_type_open="
         f"{summary.get('season_type_contract_open_count', 0)} "
-        "season_type_untracked="
-        f"{summary.get('season_type_contract_untracked_count', 0)} "
-        "season_type_value_gaps="
-        f"{summary.get('season_type_value_gap_count', 0)}"
+        "ready_for_full_backfill="
+        f"{summary.get('ready_for_full_backfill', False)}"
     )
 
     semantics = summary.get("execution_semantics_breakdown", {})
@@ -70,17 +71,24 @@ def endpoint_support_matrix(
             f"live_snapshot={semantics.get('live_snapshot', 0)}"
         )
 
-    gaps = summary.get("gap_breakdown", {})
+    gaps = summary.get("extraction_gap_breakdown", {})
     if gaps:
         typer.echo(
             "Gap breakdown: " + " ".join(f"{key}={value}" for key, value in sorted(gaps.items()))
         )
 
-    typer.echo(f"Artifacts dir: {written['support_summary'].parent}")
+    exclusions = summary.get("explicit_exclusion_breakdown", {})
+    if exclusions:
+        typer.echo(
+            "Exclusions: "
+            + " ".join(f"{key}={value}" for key, value in sorted(exclusions.items()))
+        )
+
+    typer.echo(f"Artifacts dir: {written['extraction_summary'].parent}")
 
     if require_complete and (
-        int(summary.get("gap_endpoint_count", 0)) > 0
-        or int(summary.get("partial_endpoint_count", 0)) > 0
+        int(summary.get("partial_endpoint_count", 0)) > 0
+        or int(summary.get("blocked_endpoint_count", 0)) > 0
     ):
         typer.echo("require-complete check failed: endpoint contract gaps remain", err=True)
         raise typer.Exit(1)
