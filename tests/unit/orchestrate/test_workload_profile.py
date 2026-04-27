@@ -47,9 +47,36 @@ def test_build_workload_planning_snapshot_reads_metrics_and_cross_product_densit
         conn.execute(
             """
             INSERT INTO _extraction_journal VALUES
-                ('player_awards', '{"player_id": 1}', 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 12, NULL, 2),
-                ('player_awards', '{"player_id": 2}', 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 10, NULL, 1),
-                ('league_game_log', '{"season": "2024-25"}', 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 2000, NULL, 0)
+                (
+                    'player_awards',
+                    '{"player_id": 1}',
+                    'done',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP,
+                    12,
+                    NULL,
+                    2
+                ),
+                (
+                    'player_awards',
+                    '{"player_id": 2}',
+                    'done',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP,
+                    10,
+                    NULL,
+                    1
+                ),
+                (
+                    'league_game_log',
+                    '{"season": "2024-25"}',
+                    'done',
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP,
+                    2000,
+                    NULL,
+                    0
+                )
             """
         )
     finally:

@@ -369,7 +369,9 @@ def _adaptive_reference_endpoint_groups(
     if not remaining_endpoints:
         return grouped_singletons
 
-    target_batch_cost = float(REFERENCE_MAX_ENDPOINTS_BY_PATTERN.get(pattern, len(remaining_endpoints)))
+    target_batch_cost = float(
+        REFERENCE_MAX_ENDPOINTS_BY_PATTERN.get(pattern, len(remaining_endpoints))
+    )
     batches: list[tuple[str, ...]] = []
     current: list[str] = []
     current_cost = 0.0
@@ -479,9 +481,8 @@ def _adaptive_split_season_band(
     band_span = 0
     while cursor <= end:
         season_cost = max(1.0, float(season_costs.get(cursor, 1.0)))
-        should_split = (
-            band_span > 0
-            and (band_span >= max_span or band_cost + season_cost > max(target_cost, 1.0))
+        should_split = band_span > 0 and (
+            band_span >= max_span or band_cost + season_cost > max(target_cost, 1.0)
         )
         if should_split:
             bands.append((band_start, cursor - 1))

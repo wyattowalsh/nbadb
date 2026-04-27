@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import duckdb
@@ -11,6 +10,7 @@ from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,14 +42,14 @@ _DEFAULT_SPAN_BY_TIER = {
 }
 
 
-def _safe_float(value: object, default: float = 0.0) -> float:
+def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
 
 
-def _safe_int(value: object, default: int = 0) -> int:
+def _safe_int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -62,7 +62,11 @@ def _metrics_from_connection(
     tables = {
         row[0]
         for row in conn.execute(
-            "SELECT table_name FROM duckdb_tables() WHERE database_name = 'main' AND schema_name = 'main'"
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'main'
+            """
         ).fetchall()
     }
     if "_pipeline_metrics" not in tables:
@@ -154,11 +158,11 @@ def build_workload_planning_snapshot(
         conn = duckdb.connect(str(duckdb_path), read_only=True)
         try:
             metrics = _metrics_from_connection(conn)
-            cross_product_pair_counts = _cross_product_counts_from_store(
-                PlayerTeamSeasonWorkloadStore.from_connection(conn)
-            )
         finally:
             conn.close()
+        cross_product_pair_counts = _cross_product_counts_from_store(
+            PlayerTeamSeasonWorkloadStore.from_duckdb_path(duckdb_path)
+        )
 
     endpoint_profiles: dict[str, EndpointWorkloadProfile] = {}
     for row in support_matrix_rows:

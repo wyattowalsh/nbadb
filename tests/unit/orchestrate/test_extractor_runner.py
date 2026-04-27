@@ -656,7 +656,9 @@ class TestAdaptiveThrottleIntegration:
         )
         runner = ExtractorRunner(_make_registry(_make_extractor()), settings, journal)
 
-        chunk_size = runner._chunk_size_for_entries("player", [StagingEntry("ep1", "stg_ep1", "player")])
+        chunk_size = runner._chunk_size_for_entries(
+            "player", [StagingEntry("ep1", "stg_ep1", "player")]
+        )
         assert chunk_size == 100
 
     def test_default_settings_isolate_slow_player_history_endpoints(self):

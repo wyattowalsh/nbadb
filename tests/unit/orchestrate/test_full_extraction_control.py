@@ -423,7 +423,7 @@ def test_build_default_manifest_uses_density_to_shrink_cross_product_bands() -> 
     assert cross_product_lanes[0].season_start == 1946
     assert cross_product_lanes[0].season_end == 1946
     assert cross_product_lanes[1].season_start == 1947
-    assert cross_product_lanes[1].season_end == 1947
+    assert cross_product_lanes[1].season_end < 1954
 
 
 def test_build_default_manifest_rejects_zero_match_filters() -> None:

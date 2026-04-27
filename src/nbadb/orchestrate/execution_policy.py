@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 _PLAYER_HISTORY_ENDPOINTS = frozenset(
     {
         "common_player_info",

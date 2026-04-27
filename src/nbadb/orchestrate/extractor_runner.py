@@ -582,10 +582,16 @@ class ExtractorRunner:
         return self._semaphores[key]
 
     def _chunk_size_for_entries(self, pattern: str, entries: list[StagingEntry]) -> int:
-        base_chunk_size = self._settings.pbp_chunk_size if pattern == "game" else self._settings.default_chunk_size
+        base_chunk_size = (
+            self._settings.pbp_chunk_size
+            if pattern == "game"
+            else self._settings.default_chunk_size
+        )
         multipliers = getattr(self._settings, "family_chunk_multipliers", {})
         min_chunk_size = max(1, int(getattr(self._settings, "adaptive_chunk_min_size", 25)))
-        max_chunk_size = max(min_chunk_size, int(getattr(self._settings, "adaptive_chunk_max_size", base_chunk_size)))
+        max_chunk_size = max(
+            min_chunk_size, int(getattr(self._settings, "adaptive_chunk_max_size", base_chunk_size))
+        )
         multiplier = 1.0
         for entry in entries:
             family = self._endpoint_family(entry.endpoint_name, entry.param_pattern)
@@ -686,8 +692,12 @@ class ExtractorRunner:
             if adaptive is not None:
                 new_rate = adaptive.record_failure()
                 if new_rate is not None:
-                    self._family_rate_limiters[family] = AsyncLimiter(max_rate=new_rate, time_period=1.0)
-                    logger.warning("family adaptive rate [{}]: backing off to {:.1f} req/s", family, new_rate)
+                    self._family_rate_limiters[family] = AsyncLimiter(
+                        max_rate=new_rate, time_period=1.0
+                    )
+                    logger.warning(
+                        "family adaptive rate [{}]: backing off to {:.1f} req/s", family, new_rate
+                    )
 
     async def _run_with_journal(
         self,
