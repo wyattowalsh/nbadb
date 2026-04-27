@@ -17,6 +17,7 @@ from nbadb.orchestrate.full_extraction_control import (
     redispatch_manifest_payload,
     validate_manifest,
 )
+from nbadb.orchestrate.workload_profile import EndpointWorkloadProfile, WorkloadPlanningSnapshot
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -313,6 +314,45 @@ def test_build_default_manifest_isolates_timeout_prone_reference_team_endpoints(
     assert reference_lanes[4].endpoints == ("team_year_by_year",)
 
 
+def test_build_default_manifest_uses_cost_aware_reference_grouping() -> None:
+    rows = [
+        _support_row("team_endpoint_01", ["team"], None),
+        _support_row("team_endpoint_02", ["team"], None),
+        _support_row("team_endpoint_03", ["team"], None),
+    ]
+    planning_snapshot = WorkloadPlanningSnapshot(
+        endpoint_profiles={
+            endpoint_name: EndpointWorkloadProfile(
+                endpoint_name=endpoint_name,
+                endpoint_family="team_history",
+                throughput_tier="expensive_flaky",
+                avg_duration_seconds=40.0,
+                p95_duration_seconds=55.0,
+                retry_rate=0.2,
+                error_rate=0.1,
+                avg_rows_per_request=100.0,
+                lane_cost=7.0,
+                reference_batch_cost=7.0,
+                preferred_max_span=4,
+            )
+            for endpoint_name in ("team_endpoint_01", "team_endpoint_02", "team_endpoint_03")
+        },
+        cross_product_pair_counts={},
+    )
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        planning_snapshot=planning_snapshot,
+    )
+
+    reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+    assert [lane.lane_id for lane in reference_lanes] == [
+        "reference-team-01",
+        "reference-team-02",
+        "reference-team-03",
+    ]
+
+
 def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
     rows = [
         _support_row(
@@ -341,6 +381,49 @@ def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
         "historical-season-regular-season-playoffs-pre-season-all-star-2000-2017",
         "historical-season-regular-season-playoffs-pre-season-all-star-2018-2025",
     ]
+
+
+def test_build_default_manifest_uses_density_to_shrink_cross_product_bands() -> None:
+    rows = [
+        _support_row(
+            "video_details",
+            ["player_team_season"],
+            1946,
+            season_type_contract_status="supported",
+        )
+    ]
+    planning_snapshot = WorkloadPlanningSnapshot(
+        endpoint_profiles={
+            "video_details": EndpointWorkloadProfile(
+                endpoint_name="video_details",
+                endpoint_family="default",
+                throughput_tier="discovery_bound_cross_product",
+                avg_duration_seconds=0.0,
+                p95_duration_seconds=0.0,
+                retry_rate=0.0,
+                error_rate=0.0,
+                avg_rows_per_request=0.0,
+                lane_cost=6.0,
+                reference_batch_cost=6.0,
+                preferred_max_span=3,
+            )
+        },
+        cross_product_pair_counts={
+            ("1946-47", "Regular Season"): 4_000,
+            ("1947-48", "Regular Season"): 4_000,
+        },
+    )
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        planning_snapshot=planning_snapshot,
+    )
+
+    cross_product_lanes = [lane for lane in lanes if lane.lane_kind == "cross_product"]
+    assert cross_product_lanes[0].season_start == 1946
+    assert cross_product_lanes[0].season_end == 1946
+    assert cross_product_lanes[1].season_start == 1947
+    assert cross_product_lanes[1].season_end == 1947
 
 
 def test_build_default_manifest_rejects_zero_match_filters() -> None:

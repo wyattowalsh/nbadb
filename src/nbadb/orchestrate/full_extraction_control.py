@@ -13,6 +13,12 @@ import duckdb
 from nbadb.core.types import SeasonType
 from nbadb.orchestrate.extraction_contract import FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
 from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.workload_profile import (
+    WorkloadPlanningSnapshot,
+    build_workload_planning_snapshot,
+    endpoint_cost,
+    preferred_max_span,
+)
 
 DEFAULT_HISTORICAL_START = 1946
 MAX_CONSECUTIVE_FAILURES = 3
@@ -349,6 +355,37 @@ def _reference_endpoint_groups(pattern: str, endpoints: tuple[str, ...]) -> list
     ]
 
 
+def _adaptive_reference_endpoint_groups(
+    pattern: str,
+    endpoints: tuple[str, ...],
+    *,
+    planning_snapshot: WorkloadPlanningSnapshot,
+) -> list[tuple[str, ...]]:
+    singleton_endpoints = REFERENCE_SINGLETON_ENDPOINTS_BY_PATTERN.get(pattern, frozenset())
+    grouped_singletons = [(endpoint,) for endpoint in endpoints if endpoint in singleton_endpoints]
+    remaining_endpoints = tuple(
+        endpoint for endpoint in endpoints if endpoint not in singleton_endpoints
+    )
+    if not remaining_endpoints:
+        return grouped_singletons
+
+    target_batch_cost = float(REFERENCE_MAX_ENDPOINTS_BY_PATTERN.get(pattern, len(remaining_endpoints)))
+    batches: list[tuple[str, ...]] = []
+    current: list[str] = []
+    current_cost = 0.0
+    for endpoint_name in remaining_endpoints:
+        next_cost = endpoint_cost(planning_snapshot.endpoint_profiles, [endpoint_name])
+        if current and current_cost + next_cost > target_batch_cost:
+            batches.append(tuple(current))
+            current = []
+            current_cost = 0.0
+        current.append(endpoint_name)
+        current_cost += next_cost
+    if current:
+        batches.append(tuple(current))
+    return [*batches, *grouped_singletons]
+
+
 def _reference_lane_timeout_seconds(pattern: str, endpoints: tuple[str, ...]) -> int:
     timeout = _reference_timeout_seconds(pattern)
     for endpoint in endpoints:
@@ -425,6 +462,39 @@ def _split_season_band(start: int, end: int, *, max_span: int) -> list[tuple[int
     return bands
 
 
+def _adaptive_split_season_band(
+    start: int,
+    end: int,
+    *,
+    max_span: int,
+    target_cost: float,
+    season_costs: dict[int, float],
+) -> list[tuple[int, int]]:
+    if not season_costs:
+        return _split_season_band(start, end, max_span=max_span)
+    bands: list[tuple[int, int]] = []
+    cursor = start
+    band_start = start
+    band_cost = 0.0
+    band_span = 0
+    while cursor <= end:
+        season_cost = max(1.0, float(season_costs.get(cursor, 1.0)))
+        should_split = (
+            band_span > 0
+            and (band_span >= max_span or band_cost + season_cost > max(target_cost, 1.0))
+        )
+        if should_split:
+            bands.append((band_start, cursor - 1))
+            band_start = cursor
+            band_cost = 0.0
+            band_span = 0
+        band_cost += season_cost
+        band_span += 1
+        cursor += 1
+    bands.append((band_start, end))
+    return bands
+
+
 def validate_manifest(lanes: list[FullExtractionLane]) -> None:
     errors: list[str] = []
     for lane in lanes:
@@ -475,6 +545,7 @@ def build_default_manifest(
     support_matrix_rows: list[dict[str, Any]],
     selected_patterns: list[str] | None = None,
     selected_endpoints: list[str] | None = None,
+    planning_snapshot: WorkloadPlanningSnapshot | None = None,
 ) -> list[FullExtractionLane]:
     endpoint_patterns = _patterns_for_endpoints(support_matrix_rows, selected_endpoints)
     if selected_patterns is not None:
@@ -513,7 +584,15 @@ def build_default_manifest(
             endpoints = _endpoint_names(pattern_rows)
             if not endpoints:
                 continue
-            endpoint_groups = _reference_endpoint_groups(pattern, endpoints)
+            endpoint_groups = (
+                _adaptive_reference_endpoint_groups(
+                    pattern,
+                    endpoints,
+                    planning_snapshot=planning_snapshot,
+                )
+                if planning_snapshot is not None
+                else _reference_endpoint_groups(pattern, endpoints)
+            )
             for group_index, endpoint_group in enumerate(endpoint_groups, start=1):
                 chunk_suffix = f"-{group_index:02d}" if len(endpoint_groups) > 1 else ""
                 lane_name = f"Reference {pattern.replace('_', ' ').title()}"
@@ -547,11 +626,35 @@ def build_default_manifest(
                 pattern=pattern,
             ):
                 endpoints = _endpoint_names(grouped_rows)
+                adaptive_max_span = (
+                    preferred_max_span(planning_snapshot.endpoint_profiles, endpoints)
+                    if planning_snapshot is not None
+                    else None
+                )
+                season_cost = endpoint_cost(
+                    planning_snapshot.endpoint_profiles if planning_snapshot is not None else None,
+                    endpoints,
+                )
+                target_cost = max(float(_max_span_for_pattern(pattern)), season_cost * 3.0)
                 for start, end in _season_bands(grouped_rows, {pattern}):
-                    for band_start, band_end in _split_season_band(
-                        start,
-                        end,
-                        max_span=_max_span_for_pattern(pattern),
+                    season_costs = {year: season_cost for year in range(start, end + 1)}
+                    for band_start, band_end in (
+                        _adaptive_split_season_band(
+                            start,
+                            end,
+                            max_span=min(
+                                _max_span_for_pattern(pattern),
+                                adaptive_max_span or _max_span_for_pattern(pattern),
+                            ),
+                            target_cost=target_cost,
+                            season_costs=season_costs,
+                        )
+                        if planning_snapshot is not None
+                        else _split_season_band(
+                            start,
+                            end,
+                            max_span=_max_span_for_pattern(pattern),
+                        )
                     ):
                         lane_id = (
                             f"historical-{pattern}-{_season_type_slug(season_types)}-"
@@ -610,10 +713,35 @@ def build_default_manifest(
             )
             endpoints = _endpoint_names(grouped_rows)
             end_year = _current_end_year()
-            for band_start, band_end in _split_season_band(
-                DEFAULT_HISTORICAL_START,
-                end_year,
-                max_span=CROSS_PRODUCT_MAX_SPAN,
+            cross_product_costs = {
+                year: max(
+                    1.0,
+                    sum(
+                        count / 500.0
+                        for (season, _season_type), count in (
+                            planning_snapshot.cross_product_pair_counts.items()
+                            if planning_snapshot is not None
+                            else {}
+                        )
+                        if str(season).startswith(str(year))
+                    ),
+                )
+                for year in range(DEFAULT_HISTORICAL_START, end_year + 1)
+            }
+            for band_start, band_end in (
+                _adaptive_split_season_band(
+                    DEFAULT_HISTORICAL_START,
+                    end_year,
+                    max_span=CROSS_PRODUCT_MAX_SPAN,
+                    target_cost=max(6.0, CROSS_PRODUCT_MAX_SPAN * 1.5),
+                    season_costs=cross_product_costs,
+                )
+                if planning_snapshot is not None
+                else _split_season_band(
+                    DEFAULT_HISTORICAL_START,
+                    end_year,
+                    max_span=CROSS_PRODUCT_MAX_SPAN,
+                )
             ):
                 lanes.append(
                     FullExtractionLane(
@@ -892,10 +1020,19 @@ def _command_plan(args: argparse.Namespace) -> int:
             msg = "support-matrix-path is required when no explicit lane manifest is provided"
             raise ValueError(msg)
         support_matrix_rows = _load_matrix_payload(args.support_matrix_path)
+        planning_snapshot = (
+            build_workload_planning_snapshot(
+                support_matrix_rows,
+                duckdb_path=args.duckdb_path,
+            )
+            if args.duckdb_path is not None
+            else None
+        )
         lanes = build_default_manifest(
             support_matrix_rows=support_matrix_rows,
             selected_patterns=_parse_csv(args.backfill_patterns),
             selected_endpoints=_parse_csv(args.backfill_endpoints),
+            planning_snapshot=planning_snapshot,
         )
         chain_state = FullExtractionChainState()
     else:
@@ -946,6 +1083,7 @@ def _build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--lane-manifest-path", type=Path, default=None)
     plan.add_argument("--backfill-patterns", type=str, default=None)
     plan.add_argument("--backfill-endpoints", type=str, default=None)
+    plan.add_argument("--duckdb-path", type=Path, default=None)
     plan.add_argument("--output-path", type=Path, required=True)
     plan.set_defaults(func=_command_plan)
 
