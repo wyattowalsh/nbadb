@@ -344,7 +344,7 @@ class BackfillPlanner:
                     target_season_types = self._target_season_types_for_entry(entry, season_types)
                     expected_pairs = self._count_player_team_season_pairs(season)
                     if expected_pairs is None:
-                        break
+                        return self._unknown_cross_product_gap(entry, done_total_by_ep)
                     expected = expected_pairs * max(len(target_season_types), 1)
                     if target_season_types:
                         actual = sum(
@@ -367,8 +367,14 @@ class BackfillPlanner:
                         )
                 if gaps:
                     return gaps
+        return self._unknown_cross_product_gap(entry, done_total_by_ep)
+
+    @staticmethod
+    def _unknown_cross_product_gap(
+        entry: StagingEntry,
+        done_total_by_ep: dict[str, int],
+    ) -> list[GapReport]:
         actual = done_total_by_ep.get(entry.endpoint_name, 0)
-        # Can't determine expected without entity discovery — report as unknown
         return [
             GapReport(
                 endpoint=entry.endpoint_name,
