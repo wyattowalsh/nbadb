@@ -556,7 +556,7 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
     assert manifest.lanes[0].lane_id == "reference-static"
 
 
-def test_redispatch_manifest_payload_round_trips_with_smaller_payload() -> None:
+def test_redispatch_manifest_payload_round_trips() -> None:
     lanes = [
         FullExtractionLane(
             lane_id="reference-player",
@@ -577,13 +577,9 @@ def test_redispatch_manifest_payload_round_trips_with_smaller_payload() -> None:
         vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
     )
 
-    full_payload = manifest_payload(lanes, chain_state=chain_state)
     redispatch_payload = redispatch_manifest_payload(lanes, chain_state=chain_state)
     manifest = normalize_manifest(redispatch_payload)
 
-    assert len(json.dumps(redispatch_payload, separators=(",", ":"))) < len(
-        json.dumps(full_payload, separators=(",", ":"))
-    )
     assert manifest.chain_state == chain_state
     assert manifest.lanes == (
         FullExtractionLane(
@@ -602,6 +598,32 @@ def test_redispatch_manifest_payload_round_trips_with_smaller_payload() -> None:
             failure_streak=2,
             last_failure_reason="extract-timeout",
         ),
+    )
+
+
+def test_redispatch_manifest_payload_is_smaller_than_full_manifest() -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id="reference-player",
+            lane_index=7,
+            lane_name="Reference Player 3/15",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("player",),
+            endpoints=("common_player_info", "player_profile_v2"),
+            resume_only=True,
+            timeout_seconds=4_200,
+            failure_streak=2,
+            last_failure_reason="extract-timeout",
+        )
+    ]
+
+    full_payload = manifest_payload(lanes)
+    redispatch_payload = redispatch_manifest_payload(lanes)
+
+    assert len(json.dumps(redispatch_payload, separators=(",", ":"))) < len(
+        json.dumps(full_payload, separators=(",", ":"))
     )
 
 

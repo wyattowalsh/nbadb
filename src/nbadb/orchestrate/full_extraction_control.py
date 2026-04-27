@@ -681,7 +681,7 @@ def manifest_payload(
     *,
     chain_state: FullExtractionChainState | None = None,
 ) -> dict[str, Any]:
-    lane_dicts = [asdict(lane) for lane in lanes]
+    lane_dicts = [_lane_payload(lane) for lane in lanes]
     return {
         "manifest_version": 2,
         "lane_count": len(lanes),
@@ -691,34 +691,26 @@ def manifest_payload(
     }
 
 
+def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[str, Any]:
+    payload = asdict(lane)
+    if compact:
+        payload.pop("lane_index", None)
+        if lane.use_vpn:
+            payload.pop("use_vpn", None)
+        if not lane.failure_streak:
+            payload.pop("failure_streak", None)
+        if not lane.last_failure_reason:
+            payload.pop("last_failure_reason", None)
+    return payload
+
+
 def redispatch_manifest_payload(
     lanes: list[FullExtractionLane],
     *,
     chain_state: FullExtractionChainState | None = None,
 ) -> dict[str, Any]:
-    lane_dicts: list[dict[str, Any]] = []
-    for lane in lanes:
-        payload: dict[str, Any] = {
-            "lane_id": lane.lane_id,
-            "lane_name": lane.lane_name,
-            "lane_kind": lane.lane_kind,
-            "season_start": lane.season_start,
-            "season_end": lane.season_end,
-            "patterns": list(lane.patterns),
-            "season_types": list(lane.season_types),
-            "endpoints": list(lane.endpoints),
-            "resume_only": lane.resume_only,
-            "timeout_seconds": lane.timeout_seconds,
-        }
-        if not lane.use_vpn:
-            payload["use_vpn"] = lane.use_vpn
-        if lane.failure_streak:
-            payload["failure_streak"] = lane.failure_streak
-        if lane.last_failure_reason:
-            payload["last_failure_reason"] = lane.last_failure_reason
-        lane_dicts.append(payload)
     return {
-        "lanes": lane_dicts,
+        "lanes": [_lane_payload(lane, compact=True) for lane in lanes],
         "chain_state": (chain_state or FullExtractionChainState()).to_payload(),
     }
 
