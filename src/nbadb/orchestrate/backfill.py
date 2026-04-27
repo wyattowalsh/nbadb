@@ -597,6 +597,7 @@ class BackfillPlanner:
         season_col = self._player_team_season_season_column()
         if season_col is None:
             return None
+        safe_season_col = validate_sql_identifier(season_col)
         columns = self._get_columns("stg_common_all_players")
         if not {"person_id", "team_id"} <= columns:
             return None
@@ -607,7 +608,7 @@ class BackfillPlanner:
                 FROM (
                     SELECT DISTINCT person_id, team_id
                     FROM stg_common_all_players
-                    WHERE {season_col} = $1
+                    WHERE {safe_season_col} = $1
                       AND person_id IS NOT NULL
                       AND team_id IS NOT NULL
                       AND team_id > 0
