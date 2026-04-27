@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, cast
 
 import duckdb
 
-from nbadb.core.types import SeasonType
+from nbadb.core.types import SeasonType, validate_sql_identifier
 from nbadb.orchestrate.planning import PATTERN_PRIORITY, ExtractionPlanItem
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
@@ -524,10 +524,12 @@ class BackfillPlanner:
         return exists
 
     def _distinct_values(self, table: str, column: str) -> list[str]:
+        safe_table = validate_sql_identifier(table)
+        safe_column = validate_sql_identifier(column)
         try:
             rows = self._conn.execute(
-                f"SELECT DISTINCT {column} FROM {table} "
-                f"WHERE {column} IS NOT NULL ORDER BY {column}"
+                f"SELECT DISTINCT {safe_column} FROM {safe_table} "
+                f"WHERE {safe_column} IS NOT NULL ORDER BY {safe_column}"
             ).fetchall()
         except duckdb.CatalogException:
             return []

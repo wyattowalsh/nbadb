@@ -53,3 +53,10 @@ def test_discovery_artifact_store_loads_frame_when_manifest_is_missing(tmp_path)
     loaded = store.load_frame(scope)
     assert loaded is not None
     assert loaded.to_dicts() == frame.to_dicts()
+
+
+def test_discovery_artifact_store_returns_none_when_unavailable() -> None:
+    store = DiscoveryArtifactStore.from_duckdb_path(None)
+    scope = DiscoveryArtifactScope(kind="league_game_log")
+
+    assert store.load_frame(scope) is None
