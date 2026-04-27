@@ -45,3 +45,20 @@ def test_extraction_progress_store_marks_failures(tmp_path) -> None:
     payload = store.load(key)
     assert payload["status"] == "failed"
     assert payload["error"] == "TimeoutError"
+
+
+def test_extraction_progress_store_ignores_corrupted_json(tmp_path) -> None:
+    store = ExtractionProgressStore.from_duckdb_path(tmp_path / "planner.duckdb")
+    item = SimpleNamespace(
+        label="game",
+        pattern="game",
+        entries=[SimpleNamespace(endpoint_name="box_score_traditional")],
+        params=[{"game_id": "001"}],
+    )
+    key = store.slice_key("backfill", item)
+    path = store._path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{broken", encoding="utf-8")
+
+    assert store.load(key) == {}
+    assert store.is_complete(key) is False

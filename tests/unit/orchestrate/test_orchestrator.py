@@ -10,6 +10,7 @@ import duckdb
 import polars as pl
 import pytest
 
+from nbadb.orchestrate.discovery import GameDiscoveryResult
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope
 from nbadb.orchestrate.orchestrator import (
     ExtractionOutcome,
@@ -195,6 +196,56 @@ class TestDiscoverEntities:
         assert game_dates == ["2024-10-22"]
         assert game_log_df.shape == (1, 2)
         mock_discovery.discover_game_ids.assert_not_called()
+
+    def test_does_not_cache_partial_game_discovery_as_full_scope(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        bound_log = MagicMock()
+
+        class _Discovery:
+            async def discover_game_ids_result(self, *_args, **_kwargs):
+                return GameDiscoveryResult(
+                    game_ids=["001"],
+                    raw=pl.DataFrame({"game_id": ["001"], "game_date": ["2024-10-22"]}),
+                    requested_combos=frozenset(
+                        {
+                            ("2024-25", "Regular Season"),
+                            ("2024-25", "Playoffs"),
+                        }
+                    ),
+                    covered_combos=frozenset({("2024-25", "Regular Season")}),
+                )
+
+            async def discover_game_dates(self, game_log_df):
+                return game_log_df.get_column("game_date").to_list()
+
+        mock_discovery = _Discovery()
+
+        game_ids, _player_ids, _team_ids, game_dates, game_log_df = asyncio.run(
+            orch._discover_entities(
+                mock_discovery,
+                ["2024-25"],
+                bound_log,
+                include_games=True,
+                include_players=False,
+                include_teams=False,
+                include_dates=True,
+                season_types=["Regular Season", "Playoffs"],
+            )
+        )
+
+        cached = orch._discovery_artifacts().load_frame(
+            DiscoveryArtifactScope(
+                kind="league_game_log",
+                seasons=("2024-25",),
+                season_types=("Regular Season", "Playoffs"),
+            )
+        )
+        assert game_ids == ["001"]
+        assert game_dates == ["2024-10-22"]
+        assert game_log_df.shape == (1, 2)
+        assert cached is None
 
 
 class TestPlayerSharding:

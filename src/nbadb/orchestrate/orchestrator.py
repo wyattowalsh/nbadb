@@ -17,7 +17,11 @@ from nbadb.core.db import DBManager
 from nbadb.core.types import SeasonType
 from nbadb.extract.registry import registry as _global_registry
 from nbadb.load.multi import create_multi_loader
-from nbadb.orchestrate.discovery import EntityDiscovery
+from nbadb.orchestrate.discovery import (
+    EntityDiscovery,
+    GameDiscoveryResult,
+    PlayerTeamSeasonDiscoveryResult,
+)
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, DiscoveryArtifactStore
 from nbadb.orchestrate.execution_policy import endpoint_family
 from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
@@ -239,12 +243,14 @@ class Orchestrator:
         *,
         seasons: list[str],
         season_types: list[str],
+        covered_pairs: set[tuple[str, str]] | None = None,
     ) -> list[dict[str, int | str]]:
         store = self._player_team_season_workloads()
         store.upsert(
             params,
             seasons=seasons,
             season_types=season_types,
+            covered_pairs=covered_pairs,
         )
         return store.load_params(seasons=seasons, season_types=season_types)
 
@@ -268,6 +274,35 @@ class Orchestrator:
         discovered = await discovery.discover_current_team_ids()
         artifacts.upsert_ids(scope, discovered, provenance="discovery")
         return discovered
+
+    async def _discover_player_team_season_result(
+        self,
+        discovery: EntityDiscovery,
+        *,
+        seasons: list[str],
+        season_types: list[str],
+    ) -> PlayerTeamSeasonDiscoveryResult:
+        result_method = None
+        if hasattr(type(discovery), "discover_player_team_season_params_result"):
+            result_method = discovery.discover_player_team_season_params_result
+        if callable(result_method):
+            return await result_method(seasons, season_types=season_types)
+        return PlayerTeamSeasonDiscoveryResult(
+            params=await discovery.discover_player_team_season_params(
+                seasons,
+                season_types=season_types,
+            ),
+            requested_pairs=frozenset(
+                (season, season_type)
+                for season in seasons
+                for season_type in season_types
+            ),
+            covered_pairs=frozenset(
+                (season, season_type)
+                for season in seasons
+                for season_type in season_types
+            ),
+        )
 
     def _run_live_snapshot_upkeep(self, *, run_mode: str) -> tuple[int, int]:
         snapshot = LiveSnapshotWarehouse(settings=self._settings).run()
@@ -488,8 +523,17 @@ class Orchestrator:
                     game_dates = []
             else:
                 game_index = len(discovery_tasks)
+                game_result_method = None
+                if hasattr(type(discovery), "discover_game_ids_result"):
+                    game_result_method = discovery.discover_game_ids_result
                 discovery_tasks.append(
-                    discovery.discover_game_ids(seasons, on_progress=pp, season_types=season_types)
+                    game_result_method(seasons, on_progress=pp, season_types=season_types)
+                    if callable(game_result_method)
+                    else discovery.discover_game_ids(
+                        seasons,
+                        on_progress=pp,
+                        season_types=season_types,
+                    )
                 )
                 game_ids = []
                 game_log_df = pl.DataFrame()
@@ -555,16 +599,28 @@ class Orchestrator:
                 game_ids = []
                 game_log_df = pl.DataFrame()
         else:
-            game_ids, game_log_df = cast("tuple[list[str], pl.DataFrame]", _game_result)
-            artifacts.upsert_frame(
-                DiscoveryArtifactScope(
-                    kind="league_game_log",
-                    seasons=tuple(seasons),
-                    season_types=resolved_season_types,
-                ),
-                game_log_df,
-                provenance="discovery",
-            )
+            game_discovery_result: GameDiscoveryResult | None = None
+            if isinstance(_game_result, GameDiscoveryResult):
+                game_discovery_result = _game_result
+                game_ids = game_discovery_result.game_ids
+                game_log_df = game_discovery_result.raw
+            else:
+                game_ids, game_log_df = cast("tuple[list[str], pl.DataFrame]", _game_result)
+            if game_discovery_result is None or game_discovery_result.is_complete:
+                artifacts.upsert_frame(
+                    DiscoveryArtifactScope(
+                        kind="league_game_log",
+                        seasons=tuple(seasons),
+                        season_types=resolved_season_types,
+                    ),
+                    game_log_df,
+                    provenance="discovery",
+                )
+            else:
+                logger.warning(
+                    "skipping scoped game-log cache because discovery "
+                    "finished with partial coverage"
+                )
             if pp is not None:
                 pp.log_discovery("games", len(game_ids))
 
@@ -871,14 +927,16 @@ class Orchestrator:
                 include_historical_players=True,
             )
             current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
-            player_team_season_params = await discovery.discover_player_team_season_params(
-                seasons,
+            player_team_result = await self._discover_player_team_season_result(
+                discovery,
+                seasons=seasons,
                 season_types=season_types,
             )
             player_team_season_params = self._persist_player_team_season_workloads(
-                player_team_season_params,
+                player_team_result.params,
                 seasons=seasons,
                 season_types=season_types,
+                covered_pairs=set(player_team_result.covered_pairs),
             )
 
             if pp is not None:
@@ -1012,14 +1070,16 @@ class Orchestrator:
             player_ids = await discovery.discover_player_ids()
             team_ids = await discovery.discover_team_ids()
             current_team_ids = await self._discover_current_team_ids(discovery, seasons=[season])
-            player_team_season_params = await discovery.discover_player_team_season_params(
-                [season],
+            player_team_result = await self._discover_player_team_season_result(
+                discovery,
+                seasons=[season],
                 season_types=daily_season_types,
             )
             player_team_season_params = self._persist_player_team_season_workloads(
-                player_team_season_params,
+                player_team_result.params,
                 seasons=[season],
                 season_types=daily_season_types,
+                covered_pairs=set(player_team_result.covered_pairs),
             )
             bound_log.info(
                 "daily: {} active players, {} teams, {} player-team seasons for refresh",
@@ -1107,14 +1167,16 @@ class Orchestrator:
                 discovery, seasons, bound_log, season_types=monthly_season_types
             )
             current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
-            player_team_season_params = await discovery.discover_player_team_season_params(
-                seasons,
+            player_team_result = await self._discover_player_team_season_result(
+                discovery,
+                seasons=seasons,
                 season_types=monthly_season_types,
             )
             player_team_season_params = self._persist_player_team_season_workloads(
-                player_team_season_params,
+                player_team_result.params,
                 seasons=seasons,
                 season_types=monthly_season_types,
+                covered_pairs=set(player_team_result.covered_pairs),
             )
 
             # -- 2. Extract all patterns ----------------------------
@@ -1254,14 +1316,16 @@ class Orchestrator:
                 discovery, seasons, bound_log, season_types=_full_st
             )
             current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
-            player_team_season_params = await discovery.discover_player_team_season_params(
-                seasons,
+            player_team_result = await self._discover_player_team_season_result(
+                discovery,
+                seasons=seasons,
                 season_types=_full_st,
             )
             player_team_season_params = self._persist_player_team_season_workloads(
-                player_team_season_params,
+                player_team_result.params,
                 seasons=seasons,
                 season_types=_full_st,
+                covered_pairs=set(player_team_result.covered_pairs),
             )
             if not game_log_df.is_empty():
                 raw.setdefault("stg_league_game_log", game_log_df)
@@ -1434,14 +1498,16 @@ class Orchestrator:
                 else []
             )
             if needs_player_team_season:
-                player_team_season_params = await discovery.discover_player_team_season_params(
-                    effective_seasons,
+                player_team_result = await self._discover_player_team_season_result(
+                    discovery,
+                    seasons=effective_seasons,
                     season_types=season_types,
                 )
                 player_team_season_params = self._persist_player_team_season_workloads(
-                    player_team_season_params,
+                    player_team_result.params,
                     seasons=effective_seasons,
                     season_types=season_types,
+                    covered_pairs=set(player_team_result.covered_pairs),
                 )
             else:
                 player_team_season_params = []

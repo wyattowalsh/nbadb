@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, cast
 
 import polars as pl
 
+from nbadb.orchestrate.persistence import atomic_write_path, atomic_write_text, read_json_object
+
 if TYPE_CHECKING:
     import duckdb
 
@@ -76,6 +78,7 @@ class PlayerTeamSeasonWorkloadStore:
         *,
         seasons: list[str],
         season_types: list[str],
+        covered_pairs: set[tuple[str, str]] | None = None,
     ) -> None:
         if not self.is_available():
             return
@@ -85,7 +88,11 @@ class PlayerTeamSeasonWorkloadStore:
         assert artifact_path is not None
         assert manifest_path is not None
 
-        target_pairs = self._normalized_pairs(seasons, season_types)
+        target_pairs: set[tuple[str, str]] = (
+            {(str(pair[0]), str(pair[1])) for pair in covered_pairs}
+            if covered_pairs is not None
+            else self._normalized_pairs(seasons, season_types)
+        )
         existing = self._read_existing_frame()
         retained = self._exclude_pairs(existing, target_pairs)
         updated = self._normalize_params(params)
@@ -95,18 +102,11 @@ class PlayerTeamSeasonWorkloadStore:
             .sort(["season", "season_type", "player_id", "team_id"])
         )
 
-        artifact_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = artifact_path.with_suffix(f"{artifact_path.suffix}.tmp")
-        try:
-            combined.write_parquet(temp_path)
-            temp_path.replace(artifact_path)
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
+        atomic_write_path(artifact_path, combined.write_parquet)
 
         manifest = self._read_manifest()
         previous_pairs = self._manifest_pairs(manifest)
-        covered_pairs = sorted((previous_pairs - target_pairs) | target_pairs)
+        covered_pairs_list = sorted((previous_pairs - target_pairs) | target_pairs)
         manifest_payload = {
             "artifact_version": _ARTIFACT_VERSION,
             "artifact_kind": _ARTIFACT_KIND,
@@ -115,14 +115,14 @@ class PlayerTeamSeasonWorkloadStore:
             "total_params": combined.height,
             "covered_pairs": [
                 {"season": season, "season_type": season_type}
-                for season, season_type in covered_pairs
+                for season, season_type in covered_pairs_list
             ],
-            "covered_seasons": sorted({season for season, _season_type in covered_pairs}),
+            "covered_seasons": sorted({season for season, _season_type in covered_pairs_list}),
             "covered_season_types": sorted(
-                {season_type for _season, season_type in covered_pairs}
+                {season_type for _season, season_type in covered_pairs_list}
             ),
         }
-        manifest_path.write_text(json.dumps(manifest_payload, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(manifest_path, json.dumps(manifest_payload, indent=2) + "\n")
 
     def load_params(
         self,
@@ -219,9 +219,7 @@ class PlayerTeamSeasonWorkloadStore:
             return {}
         manifest_path = self._manifest_path
         assert manifest_path is not None
-        if not manifest_path.exists():
-            return {}
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
+        return read_json_object(manifest_path)
 
     @staticmethod
     def _manifest_pairs(manifest: dict[str, object]) -> set[tuple[str, str]]:

@@ -76,3 +76,55 @@ def test_store_replaces_overlapping_scope_and_keeps_other_pairs(tmp_path) -> Non
             "season_type": "Regular Season",
         },
     ]
+
+
+def test_store_upsert_uses_explicit_covered_pairs(tmp_path) -> None:
+    store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(tmp_path / "planner.duckdb")
+
+    store.upsert(
+        [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            }
+        ],
+        seasons=["2024-25", "2025-26"],
+        season_types=["Regular Season"],
+        covered_pairs={("2025-26", "Regular Season")},
+    )
+
+    coverage = store.load_coverage(seasons=["2024-25", "2025-26"], season_types=["Regular Season"])
+    assert coverage.covered_pairs == {("2025-26", "Regular Season")}
+    assert coverage.counts_by_pair == {("2025-26", "Regular Season"): 1}
+
+
+def test_store_ignores_corrupted_manifest_and_keeps_frame_data(tmp_path) -> None:
+    store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(tmp_path / "planner.duckdb")
+    store.upsert(
+        [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            }
+        ],
+        seasons=["2024-25"],
+        season_types=["Regular Season"],
+    )
+
+    store.manifest_path.write_text("{broken", encoding="utf-8")
+
+    assert store.load_params(seasons=["2024-25"], season_types=["Regular Season"]) == [
+        {
+            "player_id": 1,
+            "team_id": 10,
+            "season": "2024-25",
+            "season_type": "Regular Season",
+        }
+    ]
+    coverage = store.load_coverage(seasons=["2024-25"], season_types=["Regular Season"])
+    assert coverage.counts_by_pair == {("2024-25", "Regular Season"): 1}
+    assert coverage.covered_pairs == set()

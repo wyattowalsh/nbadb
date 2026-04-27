@@ -11,6 +11,8 @@ import pytest
 from nbadb.orchestrate.discovery import (
     _CONCURRENT_DISCOVERY_TIMEOUT,
     EntityDiscovery,
+    GameDiscoveryResult,
+    PlayerTeamSeasonDiscoveryResult,
     _extract_with_retry,
 )
 
@@ -234,6 +236,38 @@ class TestDiscoverPlayerTeamSeasonParams:
             disc = EntityDiscovery(reg)
             result = await disc.discover_player_team_season_params(["2024-25"])
         assert result == []
+
+    async def test_result_tracks_only_successfully_covered_seasons(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+
+        def _side_effect(*_args, **kwargs):
+            if kwargs["season"] == "2025-26":
+                raise ConnectionError("fail")
+            return pl.DataFrame({"person_id": [1], "team_id": [10]})
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_player_team_season_params_result(
+                ["2024-25", "2025-26"],
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert isinstance(result, PlayerTeamSeasonDiscoveryResult)
+        assert result.covered_pairs == {
+            ("2024-25", "Regular Season"),
+            ("2024-25", "Playoffs"),
+        }
+        assert result.requested_pairs == {
+            ("2024-25", "Regular Season"),
+            ("2024-25", "Playoffs"),
+            ("2025-26", "Regular Season"),
+            ("2025-26", "Playoffs"),
+        }
+        assert result.is_complete is False
 
     async def test_recovers_failed_seasons_sequentially(self):
         call_counts: dict[str, int] = {}
@@ -594,6 +628,31 @@ class TestDiscoverGameIds:
             ids, combined = await disc.discover_game_ids(["2024-25"])
         assert ids == []
         assert combined.is_empty()
+
+    async def test_result_marks_partial_combo_coverage_when_one_combo_fails(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+
+        def _side_effect(*_args, **kwargs):
+            combo = (kwargs["season"], kwargs["season_type"])
+            if combo == ("2025-26", "Playoffs"):
+                raise ConnectionError("fail")
+            return pl.DataFrame({"game_id": [f"{kwargs['season']}-{kwargs['season_type']}"]})
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_game_ids_result(
+                ["2024-25", "2025-26"],
+                season_types=["Regular Season", "Playoffs"],
+            )
+
+        assert isinstance(result, GameDiscoveryResult)
+        assert ("2025-26", "Playoffs") in result.requested_combos
+        assert ("2025-26", "Playoffs") not in result.covered_combos
+        assert result.is_complete is False
 
     async def test_multiple_seasons(self):
         call_count = 0

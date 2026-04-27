@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
     from nbadb.orchestrate.planning import ExtractionPlanItem
 
+from nbadb.orchestrate.persistence import atomic_write_text, read_json_object
+
 
 @dataclass(frozen=True, slots=True)
 class ExtractionSliceKey:
@@ -66,9 +68,7 @@ class ExtractionProgressStore:
         if not self.is_available():
             return {}
         path = self._path(key)
-        if not path.exists():
-            return {}
-        return json.loads(path.read_text(encoding="utf-8"))
+        return read_json_object(path)
 
     def mark_started(self, key: ExtractionSliceKey, *, task_count: int) -> None:
         self._write(
@@ -132,7 +132,7 @@ class ExtractionProgressStore:
             "scope_hash": key.scope_hash,
             **payload,
         }
-        path.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(path, json.dumps(body, indent=2) + "\n")
 
     def _path(self, key: ExtractionSliceKey) -> Path:
         root_dir = self._root_dir

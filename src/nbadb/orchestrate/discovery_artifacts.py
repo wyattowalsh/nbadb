@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
 import polars as pl
 
+from nbadb.orchestrate.persistence import atomic_write_path, atomic_write_text
+
 ArtifactKind = Literal[
     "league_game_log",
     "player_ids_active",
@@ -58,8 +60,7 @@ class DiscoveryArtifactStore:
         if not self.is_available():
             return None
         artifact_path = self._artifact_path(scope)
-        manifest_path = self._manifest_path(scope)
-        if not artifact_path.exists() or not manifest_path.exists():
+        if not artifact_path.exists():
             return None
         return pl.read_parquet(artifact_path)
 
@@ -74,14 +75,7 @@ class DiscoveryArtifactStore:
             return frame
         artifact_path = self._artifact_path(scope)
         manifest_path = self._manifest_path(scope)
-        artifact_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = artifact_path.with_suffix(f"{artifact_path.suffix}.tmp")
-        try:
-            frame.write_parquet(temp_path)
-            temp_path.replace(artifact_path)
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
+        atomic_write_path(artifact_path, frame.write_parquet)
         manifest_payload = {
             "artifact_kind": scope.kind,
             "artifact_version": 1,
@@ -95,7 +89,7 @@ class DiscoveryArtifactStore:
             "row_count": frame.height,
             "provenance": provenance,
         }
-        manifest_path.write_text(json.dumps(manifest_payload, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(manifest_path, json.dumps(manifest_payload, indent=2) + "\n")
         return frame
 
     def load_ids(self, scope: DiscoveryArtifactScope, *, column: str = "value") -> list[int]:

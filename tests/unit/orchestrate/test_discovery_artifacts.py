@@ -32,3 +32,24 @@ def test_discovery_artifact_store_round_trips_entity_ids(tmp_path) -> None:
     store.upsert_ids(scope, [3, 1, 3, 2], provenance="test")
 
     assert store.load_ids(scope) == [1, 2, 3]
+
+
+def test_discovery_artifact_store_loads_frame_when_manifest_is_missing(tmp_path) -> None:
+    store = DiscoveryArtifactStore.from_duckdb_path(tmp_path / "planner.duckdb")
+    scope = DiscoveryArtifactScope(
+        kind="league_game_log",
+        seasons=("2024-25",),
+        season_types=("Regular Season",),
+    )
+    frame = store.upsert_frame(
+        scope,
+        pl.DataFrame({"game_id": ["001"], "game_date": ["2024-10-22"]}),
+        provenance="test",
+    )
+
+    manifest_path = store._manifest_path(scope)
+    manifest_path.unlink()
+
+    loaded = store.load_frame(scope)
+    assert loaded is not None
+    assert loaded.to_dicts() == frame.to_dicts()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from aiolimiter import AsyncLimiter
@@ -34,6 +35,29 @@ _DISCOVERY_CONCURRENCY = 10
 _CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 1
 _CONCURRENT_DISCOVERY_TIMEOUT = (3.05, 10.0)
 _SERIAL_DISCOVERY_RECOVERY_WAVES = 2
+
+
+@dataclass(frozen=True, slots=True)
+class GameDiscoveryResult:
+    game_ids: list[str]
+    raw: pl.DataFrame
+    requested_combos: frozenset[tuple[str, str]]
+    covered_combos: frozenset[tuple[str, str]]
+
+    @property
+    def is_complete(self) -> bool:
+        return self.requested_combos <= self.covered_combos
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerTeamSeasonDiscoveryResult:
+    params: list[dict[str, int | str]]
+    requested_pairs: frozenset[tuple[str, str]]
+    covered_pairs: frozenset[tuple[str, str]]
+
+    @property
+    def is_complete(self) -> bool:
+        return self.requested_pairs <= self.covered_pairs
 
 
 def _reset_nba_stats_session() -> None:
@@ -120,12 +144,12 @@ class EntityDiscovery:
         )
         self._retry_delay = float(self._settings.extract_retry_base_delay)
 
-    async def discover_game_ids(
+    async def discover_game_ids_result(
         self,
         seasons: list[str],
         on_progress: _PatternProgress | None = None,
         season_types: list[str] | None = None,
-    ) -> tuple[list[str], pl.DataFrame]:
+    ) -> GameDiscoveryResult:
         """Extract league_game_log for given seasons and season_types.
 
         Returns (game_ids, raw_df). The raw_df is also usable as
@@ -314,7 +338,12 @@ class EntityDiscovery:
 
         if not frames:
             logger.warning("no game log data returned")
-            return [], pl.DataFrame()
+            return GameDiscoveryResult(
+                game_ids=[],
+                raw=pl.DataFrame(),
+                requested_combos=frozenset(combos),
+                covered_combos=frozenset(),
+            )
 
         combined = pl.concat(frames, how="diagonal_relaxed")
         game_ids = combined.get_column("game_id").unique().sort().to_list()
@@ -323,7 +352,34 @@ class EntityDiscovery:
             len(game_ids),
             len(combos),
         )
-        return game_ids, combined
+        covered_combos = {
+            combo for combo, _df, success in initial_results if success
+        } | {
+            combo for combo in combos if combo not in failed_combos
+        }
+        if failed_combos:
+            covered_combos = {
+                combo for combo in combos if combo not in unresolved_combos
+            }
+        return GameDiscoveryResult(
+            game_ids=game_ids,
+            raw=combined,
+            requested_combos=frozenset(combos),
+            covered_combos=frozenset(covered_combos),
+        )
+
+    async def discover_game_ids(
+        self,
+        seasons: list[str],
+        on_progress: _PatternProgress | None = None,
+        season_types: list[str] | None = None,
+    ) -> tuple[list[str], pl.DataFrame]:
+        result = await self.discover_game_ids_result(
+            seasons,
+            on_progress=on_progress,
+            season_types=season_types,
+        )
+        return result.game_ids, result.raw
 
     async def _discover_entity_ids(
         self,
@@ -409,16 +465,20 @@ class EntityDiscovery:
             params=params,
         )
 
-    async def discover_player_team_season_params(
+    async def discover_player_team_season_params_result(
         self,
         seasons: list[str],
         season_types: list[str] | None = None,
-    ) -> list[dict[str, int | str]]:
+    ) -> PlayerTeamSeasonDiscoveryResult:
         """Get season-scoped player/team tuples from common_all_players."""
         import polars as pl
 
         if not seasons:
-            return []
+            return PlayerTeamSeasonDiscoveryResult(
+                params=[],
+                requested_pairs=frozenset(),
+                covered_pairs=frozenset(),
+            )
         resolved_season_types = list(season_types or ["Regular Season"])
 
         extractor_cls = self._registry.get("common_all_players")
@@ -592,7 +652,15 @@ class EntityDiscovery:
                 )
 
         if not frames:
-            return []
+            return PlayerTeamSeasonDiscoveryResult(
+                params=[],
+                requested_pairs=frozenset(
+                    (season, season_type)
+                    for season in seasons
+                    for season_type in resolved_season_types
+                ),
+                covered_pairs=frozenset(),
+            )
 
         combined = (
             pl.concat(frames, how="vertical_relaxed")
@@ -604,7 +672,31 @@ class EntityDiscovery:
             for season_type in resolved_season_types:
                 params.append({**row, "season_type": season_type})
         logger.info("discovered {} player/team/season combos", len(params))
-        return params
+        successful_seasons = combined.get_column("season").cast(pl.Utf8).unique().sort().to_list()
+        return PlayerTeamSeasonDiscoveryResult(
+            params=params,
+            requested_pairs=frozenset(
+                (season, season_type)
+                for season in seasons
+                for season_type in resolved_season_types
+            ),
+            covered_pairs=frozenset(
+                (season, season_type)
+                for season in successful_seasons
+                for season_type in resolved_season_types
+            ),
+        )
+
+    async def discover_player_team_season_params(
+        self,
+        seasons: list[str],
+        season_types: list[str] | None = None,
+    ) -> list[dict[str, int | str]]:
+        result = await self.discover_player_team_season_params_result(
+            seasons,
+            season_types=season_types,
+        )
+        return result.params
 
     async def discover_team_ids(self) -> list[int]:
         """Get all team IDs from common_team_years."""
