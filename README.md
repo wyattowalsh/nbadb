@@ -35,7 +35,9 @@ For the current public contract, use the generated docs surfaces: **[Schema Refe
 
 ## 🏀 Data Coverage
 
-All data spans from the **1946-47 season to present** (auto-updating via the daily pipeline).
+nbadb covers the **1946-47 season to present** wherever `nba_api` exposes historical data, with current seasons auto-updated by the daily pipeline.
+
+Trust floor: preserve and improve full historical `nba_api` coverage for every year available per endpoint. If an endpoint/year/season-type combination is unavailable upstream or blocked by a known contract gap, classify it explicitly in coverage reports and support matrices instead of silently dropping it.
 
 - **Game-level** — box scores (traditional, advanced, misc, four factors, hustle, tracking), play-by-play, shot charts, rotations, win probability, game context, scoring runs
 - **Player-level** — career stats, season splits, matchups, awards, draft combine measurements, player tracking (speed, distance, touches, passes, rebounding, shooting), estimated metrics
@@ -76,22 +78,29 @@ All data spans from the **1946-47 season to present** (auto-updating via the dai
 
 ## ⌨️ CLI Reference
 
-| Command | Description |
-| ------- | ----------- |
-| `nbadb init` | Full pipeline — extract all endpoints, stage, transform, export |
-| `nbadb daily` | Incremental update for recent games |
-| `nbadb monthly` | Dimension refresh + recent data |
-| `nbadb backfill` | Retry failed work and fill extraction gaps |
-| `nbadb migrate` | Run schema migrations |
-| `nbadb run-quality` | Execute data quality checks and generate a report |
-| `nbadb export` | Re-export DuckDB → SQLite / Parquet / CSV |
-| `nbadb upload` | Push the dataset to Kaggle |
-| `nbadb download` | Pull the Kaggle dataset and seed local DuckDB |
-| `nbadb extract-completeness` | Report endpoint coverage gaps |
-| `nbadb docs-autogen` | Regenerate generator-owned schema, data dictionary, ER, and lineage artifacts |
-| `nbadb schema [TABLE]` | Show schema for a table or list all star tables |
-| `nbadb status` | Pipeline status, row counts, and watermarks |
-| `nbadb ask QUESTION` | Natural-language query interface (read-only) |
+| Command                         | Description                                                                      |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| `nbadb init`                    | Local full historical build                                                      |
+| `nbadb daily`                   | Current-season refresh plus automatic live snapshot append when games are active |
+| `nbadb monthly`                 | Last-3-seasons refresh plus automatic live snapshot append when games are active |
+| `nbadb backfill`                | Recovery and targeted historical repair                                          |
+| `nbadb live-snapshot`           | Manually append a live snapshot for active or explicit game ids                  |
+| `nbadb migrate`                 | Run schema migrations                                                            |
+| `nbadb scan`                    | Detect missing data, gaps, and quality issues                                    |
+| `nbadb export`                  | Re-export DuckDB → SQLite / Parquet / CSV                                        |
+| `nbadb upload`                  | Push the dataset to Kaggle                                                       |
+| `nbadb download`                | Pull the Kaggle dataset and seed local DuckDB                                    |
+| `nbadb extract-completeness`    | Report endpoint coverage gaps                                                    |
+| `nbadb endpoint-support-matrix` | Report strict endpoint support + warehouse contract coverage                     |
+| `nbadb audit-models`            | Generate end-to-end model + result-table audit artifacts                         |
+| `nbadb docs-autogen`            | Regenerate generator-owned schema, data dictionary, ER, and lineage artifacts    |
+| `nbadb schema [TABLE]`          | Show schema for a table or list all star tables                                  |
+| `nbadb status`                  | Pipeline status, row counts, and watermarks                                      |
+| `nbadb ask QUESTION`            | Natural-language query interface (read-only)                                     |
+| `nbadb chat`                    | AI-powered chat interface when the canonical `chat/` launcher files are present  |
+| `nbadb full`                    | Fill gaps and retry failed extractions (deprecated—use `backfill` instead)       |
+| `nbadb lint-sql`                | Lint SQL in transformers against SQLFluff rules                                  |
+| `nbadb metadata`                | Generate Kaggle metadata JSON                                                    |
 
 Run `nbadb --help` or `nbadb <command> --help` for full option details.
 
@@ -100,6 +109,19 @@ For docs-site maintenance, regenerate generator-owned artifacts from the repo ro
 ```bash
 uv run nbadb docs-autogen --docs-root docs/content/docs
 ```
+
+That command owns the generated schema references, data-dictionary tier pages,
+ER/lineage auto pages, `docs/lib/generated/*`, and `docs/lib/site-metrics.generated.ts`.
+
+## 🧭 Companion Surfaces
+
+This repository now carries two repo-owned companion surfaces alongside the warehouse code:
+
+- `chat/` — the canonical Chainlit chat application surface; `nbadb chat` uses it when `chat/chainlit_app.py` and `chat/pyproject.toml` are present in your checkout
+- `src/nbadb/chat/` — shared launcher, notebook, runtime, tracing, SQL, catalog, and memory helpers that back the chat UX
+- `kb/` — an intentional Obsidian-native companion knowledge base for maintainers and agents; it supplements repo canon and public docs, but does not replace them
+
+`README.md`, `AGENTS.md`, `docs/`, and `src/nbadb/` remain canonical material. The `kb/` vault is additive-first and exists to improve navigation, provenance, and maintainer context without replacing the public docs site.
 
 ## 🤖 AI Query Interface
 
@@ -156,20 +178,20 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 
 ## 🔧 Tech Stack
 
-| Component | Technology |
-| --------- | ---------- |
-| Language | Python 3.13 |
-| Package Manager | [uv](https://docs.astral.sh/uv/) |
-| DataFrames | [Polars](https://pola.rs/) 1.38 |
-| Validation | [Pandera](https://pandera.readthedocs.io/) (Polars backend) |
-| Analytics DB | [DuckDB](https://duckdb.org/) 1.4 |
-| Relational DB | [SQLModel](https://sqlmodel.tiangolo.com/) + SQLite |
-| HTTP / Proxy | [proxywhirl](https://github.com/wyattowalsh/proxywhirl) |
-| CLI | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
-| Type Checking | [ty](https://github.com/astral-sh/ty) |
-| Linting | [Ruff](https://docs.astral.sh/ruff/) |
-| Docs | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) |
-| CI | GitHub Actions (SHA-pinned) |
+| Component       | Technology                                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Language        | Python ≥3.12                                                                                                           |
+| Package Manager | [uv](https://docs.astral.sh/uv/)                                                                                        |
+| DataFrames      | [Polars](https://pola.rs/) 1.38                                                                                         |
+| Validation      | [Pandera](https://pandera.readthedocs.io/) (Polars backend)                                                             |
+| Analytics DB    | [DuckDB](https://duckdb.org/) 1.4                                                                                       |
+| Relational DB   | [SQLModel](https://sqlmodel.tiangolo.com/) + SQLite                                                                     |
+| HTTP / Proxy    | [proxywhirl](https://github.com/wyattowalsh/proxywhirl)                                                                 |
+| CLI             | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
+| Type Checking   | [ty](https://github.com/astral-sh/ty)                                                                                   |
+| Linting         | [Ruff](https://docs.astral.sh/ruff/)                                                                                    |
+| Docs            | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) + [pnpm](https://pnpm.io/) 9+                |
+| CI              | GitHub Actions (SHA-pinned)                                                                                             |
 
 ## 📖 Documentation
 
@@ -181,7 +203,8 @@ Full documentation lives at **[nbadb.w4w.dev](https://nbadb.w4w.dev)**.
 - **[Data Dictionary](https://nbadb.w4w.dev/docs/data-dictionary)** — glossary plus generated raw/staging/star field references
 - **[Diagrams](https://nbadb.w4w.dev/docs/diagrams)** — ER, endpoint map, and pipeline visuals
 - **[Lineage](https://nbadb.w4w.dev/docs/lineage)** — trace endpoints and staging inputs to final tables
-- **[Guides](https://nbadb.w4w.dev/docs/guides/role-based-onboarding-hub)** — onboarding, query recipes, Parquet, Kaggle, and troubleshooting
+- **[Guides](https://nbadb.w4w.dev/docs/guides)** — onboarding, query recipes, Parquet, Kaggle, and troubleshooting
+- **[Playground](https://nbadb.w4w.dev/docs/playground)** — in-browser DuckDB SQL exploration
 
 ## 📄 License
 

@@ -9,7 +9,7 @@ aliases:
   - nbadb Overview
 kind: concept
 status: active
-updated: 2026-04-16
+updated: 2026-04-30
 source_count: 7
 ---
 
@@ -39,7 +39,7 @@ Use this note when you need the shortest repo-local answer to "what is nbadb, wh
 | `chat/` | The richer chat and agent-facing analytical surface | [[wiki/topics/chat-surface|Chat Surface]] |
 
 ## Current project shape
-- Runtime scope: `147` endpoint classes, `151` registered extractors, and `118` star-schema outputs.
+- Runtime scope: `152` registered extractors, `414` staging entries, and `252` transform outputs (`244` historical/star outputs plus `8` live snapshot outputs).
 - Primary stack: Python 3.13, Polars, DuckDB, Pandera, SQLModel, Typer, Textual.
 - Public model families: `dim_*`, `fact_*`, `bridge_*`, `agg_*`, `analytics_*`.
 - Release surfaces: hosted docs, PyPI package, and Kaggle dataset all point back to the same warehouse contract.
@@ -54,7 +54,7 @@ Use this note when you need the shortest repo-local answer to "what is nbadb, wh
 | Claim or section | Raw or canonical material | Notes |
 |------------------|---------------------------|-------|
 | project scope, ELT flow, output formats | `README.md` | public project framing |
-| endpoint, extractor, and output counts; module map; naming families | `AGENTS.md` | maintainer contract |
+| endpoint, extractor, staging, and output counts; module map; naming families | runtime audit/count verification; `AGENTS.md` | maintainer contract |
 | docs app exists as a separate surface | `docs/AGENTS.md` | docs ownership and app boundary |
 | repo-local canonical anchors | `raw/extracts/internal/repo-canon-inventory.md` | KB ingest seed |
 | docs-surface boundary and planned KB coverage | `raw/extracts/internal/docs-surface-inventory.md` | KB ingest seed |

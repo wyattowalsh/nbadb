@@ -3,13 +3,14 @@
 ## Project Overview
 
 nbadb is a comprehensive NBA database built around the current `nba_api` runtime surface
-(147 endpoint classes), 151 registered extractors, and 118 star schema outputs.
+with 152 registered extractors, 414 staging entries, and 252 transform outputs
+(244 historical/star outputs plus 8 live snapshot outputs).
 It follows an ELT pipeline: extract from NBA API → stage in DuckDB → transform into the
 analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 
 ## Tech Stack
 
-- Python 3.13, uv (package manager), hatchling (build)
+- Python ≥3.12, uv (package manager), hatchling (build)
 - Polars 1.38 (primary DataFrame engine)
 - DuckDB 1.4 (staging engine, zero-copy Arrow interchange)
 - Pandera[polars] 0.29 (3-tier schema validation: raw → staging → star)
@@ -21,7 +22,7 @@ analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 
 ```text
 src/nbadb/
-├── extract/          # 151 registered extractors wrapping nba_api endpoints
+├── extract/          # 152 registered extractors wrapping nba_api endpoints
 │   ├── stats/        # Statistical endpoint extractors
 │   ├── static/       # Static data extractors (players, teams, arenas, awards)
 │   └── live/         # Live game data extractors
@@ -29,11 +30,11 @@ src/nbadb/
 │   ├── raw/          # Raw extraction schemas
 │   ├── staging/      # Staging schemas + STAGING_MAP-backed staging keys
 │   └── star/         # Output table schemas for final analytics model
-├── transform/        # 118 star schema outputs
+├── transform/        # 252 transform outputs (244 historical + 8 live snapshot outputs)
 │   ├── dimensions/   # 18 dimension builders (dim_*)
-│   ├── facts/        # 64 fact builders + 5 bridge builders
+│   ├── facts/        # 133 fact builders + 5 bridge builders
 │   ├── derived/      # 19 aggregate builders (agg_* outputs live here)
-│   └── views/        # 12 analytics_* builders
+│   └── views/        # 14 analytics_* builders
 ├── load/             # SQLite/DuckDB/Parquet/CSV loaders
 ├── orchestrate/      # Pipeline orchestration + staging map
 ├── cli/              # Typer CLI + Textual TUI surface
@@ -43,7 +44,20 @@ src/nbadb/
 └── docs_gen/         # Auto-generates schema/data-dictionary/ER/lineage artifacts
 ```
 
+Additional repo-owned surfaces:
+
+```text
+chat/                # Canonical Chainlit app surface; `nbadb chat` uses it when launcher files are present
+src/nbadb/chat/      # Shared chat launcher, notebook, runtime, tracing, SQL, catalog, and memory helpers
+kb/                  # Companion Obsidian-native knowledge base for maintainers and agents
+```
+
 ## Key Conventions
+
+### Coverage Trust Floor
+
+- Preserve and improve full historical `nba_api` coverage for every year available per endpoint.
+- If an endpoint/year/season-type combination is unavailable upstream or blocked by a known contract gap, classify it explicitly in audits/support matrices instead of silently dropping it.
 
 ### Naming
 
@@ -70,7 +84,7 @@ Most transformers (100+) extend `SqlTransformer(BaseTransformer)` — define `_S
 
 ### Test Patterns
 
-- 2113+ test functions collected across 144 test files
+- 2481+ test functions collected across 173 test files
 - `conftest.py` autouse fixture calls `get_settings.cache_clear()` (settings use `@lru_cache`)
 - Use `--import-mode=importlib` — the `nbadb/` root dir shadows `src/nbadb/`
 
@@ -102,7 +116,7 @@ uv run nbadb migrate                              # Create/migrate pipeline tabl
 uv run nbadb scan                                 # Detect missing data and gaps
 uv run nbadb schema                               # Star schema info + lineage
 uv run nbadb ask "Who scored the most in 1996?"   # Natural-language query
-uv run nbadb chat                                 # AI chat UI
+uv run nbadb chat                                 # AI chat UI when chat/chainlit_app.py and chat/pyproject.toml are present
 uv run nbadb audit-models                          # nba_api endpoint coverage audit
 uv run nbadb lint-sql                              # SQLFluff lint on transformer SQL
 uv run nbadb metadata                              # Generate Kaggle metadata JSON
@@ -130,6 +144,14 @@ cd docs && pnpm format:check     # Docs formatting check
 - `nbadb docs-autogen` prints `updated:` / `unchanged:` lines for each generated artifact.
 - The docs site lives in `docs/` and uses Fumadocs 16 + Next.js 16 via pnpm.
 
+## Chat + KB Workflow
+
+- Treat `chat/` as the canonical app surface; `apps/chat/` is retired and should not be reintroduced. The CLI and notebook launchers should fail closed if `chat/chainlit_app.py` or `chat/pyproject.toml` are absent.
+- Keep reusable chat logic in `src/nbadb/chat/`; path-based launchers, notebooks, and workflows should resolve through `chat/` plus these shared helpers.
+- Treat `kb/` as intentional repo content, not scratch output.
+- The KB is companion material: additive-first, Obsidian-native, and subordinate to repo canon such as `README.md`, `AGENTS.md`, `docs/`, and `src/nbadb/`.
+- Keep project-safe shared vault surfaces tracked under `kb/.obsidian/templates/` and `kb/.obsidian/snippets/`, but do not commit volatile editor-local workspace state if it appears later.
+
 ## Internal Pipeline Tables (8)
 
 These DuckDB tables track pipeline state — do not modify directly:
@@ -147,10 +169,12 @@ These DuckDB tables track pipeline state — do not modify directly:
 
 - **Import shadowing**: `nbadb/` directory at repo root shadows `src/nbadb/` — always use `--import-mode=importlib` for pytest
 - **Settings caching**: `get_settings()` uses `@lru_cache` — tests must call `cache_clear()` via autouse fixture
+- **Chat surface split**: `chat/` holds the app package and assets, while `src/nbadb/chat/` holds shared runtime helpers used by the CLI, notebooks, and focused validation jobs
 - **Pipeline UI**: `init`, `daily`, `monthly`, and `full` use the Textual TUI when stdout is a TTY and `--verbose` is not set; CI/non-interactive runs get plain output
 - **Graceful stop**: first `Ctrl+C` during pipeline commands cancels cleanly and preserves journal/checkpoint state; second `Ctrl+C` forces exit
 - **ReadOnlyGuard**: Strips SQL comments, normalizes Unicode (NFKC), always wraps queries in LIMIT, uses word-boundary keyword matching
 - **Season params**: `season_type` param format varies by endpoint; `DraftBoard` uses `season_year` (int), `PlayoffPicture` uses `season_id` (str "2YYYY")
+- **Coverage messaging**: public trust-floor language should promise full-history preservation only where `nba_api` exposes it, and should require explicit classification of upstream-unavailable or contract-blocked combinations
 - **SCD2 dimensions**: `dim_player` and `dim_team_history` use SCD Type 2 (surrogate keys, valid_from/valid_to/is_current); all other dimensions use Type 1
 - **Transform naming**: `fact_box_score_*` is team-level, `fact_player_game_*` is player-level — intentional
 - **fact_rotation**: Depends on `[stg_rotation_away, stg_rotation_home]` (UNION of both)

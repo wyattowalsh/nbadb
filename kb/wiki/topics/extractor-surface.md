@@ -9,7 +9,7 @@ aliases:
   - Extractor Surface Map
 kind: concept
 status: active
-updated: 2026-04-14
+updated: 2026-04-30
 source_count: 6
 ---
 
@@ -23,9 +23,9 @@ The extractor registry is discovery-based, not hand-enumerated. `EndpointRegistr
 - `nbadb.extract.static`
 - `nbadb.extract.live`
 
-At current runtime, discovery yields `151` registered extractor classes.
+At current runtime, discovery yields `152` registered extractor classes.
 
-The staging surface is larger because one extractor can fan out into multiple result sets and multiple staging targets. The current `STAGING_MAP` contains `402` staging entries.
+The staging surface is larger because one extractor can fan out into multiple result sets and multiple staging targets. The current `STAGING_MAP` contains `414` staging entries.
 
 ## Boundary contract in `BaseExtractor`
 `BaseExtractor` centralizes the extraction boundary so individual extractors stay thin.

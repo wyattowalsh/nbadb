@@ -1,6 +1,6 @@
 ---
 title: Analytics Views
-description: Playbook for the 12 analytics_ outputs that pre-join common analytical workflows
+description: Playbook for the 14 analytics_ outputs that pre-join common analytical workflows
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
@@ -12,7 +12,7 @@ Analytics views are the warehouse fast break: pre-joined `analytics_*` outputs t
 <StatGrid columns={3}>
   <StatPill
     label="analytics_ views"
-    value="12"
+    value="14"
     note="pre-joined surfaces for quick analyst reads"
   />
   <StatPill
@@ -82,14 +82,16 @@ Analytics views are the warehouse fast break: pre-joined `analytics_*` outputs t
 
 ### Specialized analysis views
 
-| View                            | Row grain                              | What it already packs together                                              | Best first use                                               |
-| ------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `analytics_clutch_performance`  | one player-clutch-split row            | clutch stat splits with player and team context                             | clutch-time analysis, pressure performance ranking           |
-| `analytics_player_matchup`      | one player-matchup row                 | player-vs-player matchup stats with player and team context                 | defensive matchup study, assignment analysis                 |
-| `analytics_shooting_efficiency` | one shot-chart row with league context | shot chart detail joined with league-average zones, player and game context | shot quality analysis, zone comparison to league baseline    |
-| `analytics_player_impact`       | one player-season impact row           | on/off splits combined with season aggregates and player/team context       | player value analysis, on-court impact measurement           |
-| `analytics_draft_value`         | one draft-pick row with career context | draft facts joined with career aggregates and player identity               | draft class evaluation, pick value analysis                  |
-| `analytics_league_benchmarks`   | one league-season benchmark row        | player and team season aggregates for league-wide percentile context        | league-wide comparison, percentile ranking, baseline setting |
+| View                              | Row grain                              | What it already packs together                                              | Best first use                                               |
+| --------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `analytics_clutch_performance`    | one player-clutch-split row            | clutch stat splits with player and team context                             | clutch-time analysis, pressure performance ranking           |
+| `analytics_player_general_splits` | one player-season-split row            | player general splits with season-overall baselines and delta columns       | home/away, rest, month, and win/loss split analysis          |
+| `analytics_player_matchup`        | one player-matchup row                 | player-vs-player matchup stats with player and team context                 | defensive matchup study, assignment analysis                 |
+| `analytics_shooting_efficiency`   | one shot-chart row with league context | shot chart detail joined with league-average zones, player and game context | shot quality analysis, zone comparison to league baseline    |
+| `analytics_player_impact`         | one player-season impact row           | on/off splits combined with season aggregates and player/team context       | player value analysis, on-court impact measurement           |
+| `analytics_draft_value`           | one draft-pick row with career context | draft facts joined with career aggregates and player identity               | draft class evaluation, pick value analysis                  |
+| `analytics_league_benchmarks`     | one league-season benchmark row        | player and team season aggregates for league-wide percentile context        | league-wide comparison, percentile ranking, baseline setting |
+| `analytics_team_general_splits`   | one team-season-split row              | team general splits with season-overall baselines and delta columns         | schedule-context, home/away, and rest split analysis         |
 
 ## View chooser
 
@@ -102,11 +104,13 @@ Analytics views are the warehouse fast break: pre-joined `analytics_*` outputs t
 | Game recap with both teams               | `analytics_game_summary`           | Game result with both team sides already joined                                            |
 | Rivalry or opponent scouting summaries   | `analytics_head_to_head`           | Team-vs-team results and scoring margins are already grouped for you                       |
 | Clutch-time performance                  | `analytics_clutch_performance`     | Clutch splits with player and team context pre-joined                                      |
+| Player context split deltas              | `analytics_player_general_splits`  | General split rows already carry season-overall baselines and deltas                       |
 | Defensive matchup study                  | `analytics_player_matchup`         | Player-vs-player matchup stats already shaped for comparison                               |
 | Shot quality vs league baseline          | `analytics_shooting_efficiency`    | Shot chart detail with league-average zone context pre-joined                              |
 | Player on-court impact                   | `analytics_player_impact`          | On/off splits and season aggregates with player identity in one surface                    |
 | Draft class evaluation                   | `analytics_draft_value`            | Draft facts joined with career outcomes for pick-value analysis                            |
 | League-wide percentile context           | `analytics_league_benchmarks`      | Season-level player and team aggregates for benchmarking                                   |
+| Team context split deltas                | `analytics_team_general_splits`    | Team split rows already carry season-overall baselines and deltas                          |
 
 ## View scouting reports
 
@@ -174,6 +178,14 @@ Analytics views are the warehouse fast break: pre-joined `analytics_*` outputs t
     <strong>Best when:</strong> you are studying pressure-situation performance
     or ranking clutch-time contributors.
   </ScoutCard>
+  <ScoutCard title="analytics_player_general_splits" label="View surface">
+    Player dashboard split rows enriched with player identity plus
+    season-overall baselines and deltas for fast context analysis.
+    <br />
+    <br />
+    <strong>Best when:</strong> you want quick home/away, rest, month, or
+    win/loss split comparisons without rebuilding the overall baseline join.
+  </ScoutCard>
   <ScoutCard title="analytics_player_matchup" label="View surface">
     Player-vs-player matchup data joined with player identity and team context.
     <br />
@@ -210,6 +222,14 @@ Analytics views are the warehouse fast break: pre-joined `analytics_*` outputs t
     <br />
     <strong>Best when:</strong> you need a benchmarking surface for league-wide
     comparison or percentile ranking.
+  </ScoutCard>
+  <ScoutCard title="analytics_team_general_splits" label="View surface">
+    Team dashboard split rows enriched with team identity plus season-overall
+    baselines and deltas for quick context reads.
+    <br />
+    <br />
+    <strong>Best when:</strong> you need team home/away, rest, or month splits
+    compared to the club's overall season line.
   </ScoutCard>
 </div>
 

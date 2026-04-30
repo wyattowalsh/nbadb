@@ -254,16 +254,18 @@ nbadb scan --category data_quality,missing_table --severity warning --fail-on er
 
 ## Distribution and artifact commands
 
-| Command                      | What it is for                                                   | Notes                                                                        |
-| ---------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `nbadb export`               | Re-export public tables from DuckDB                              | Uses repeatable `--format/-f`; defaults come from `NBADB_FORMATS`            |
-| `nbadb download`             | Pull the latest published Kaggle dataset into the data directory | Seeds `nba.duckdb` from `nba.sqlite` if DuckDB is missing                    |
-| `nbadb upload`               | Publish the data directory to Kaggle                             | Ensures `dataset-metadata.json` exists first                                 |
-| `nbadb docs-autogen`         | Regenerate generated docs artifacts                              | Defaults `--docs-root` to `docs/content/docs`                                |
-| `nbadb extract-completeness` | Generate endpoint coverage artifacts                             | Supports `--output-dir/-o`, `--require-full`, and `--require-model-contract` |
-| `nbadb audit-models`         | Generate end-to-end model audit artifacts                        | Supports `--mode`, `--strictness`, `--output-dir/-o`, and `--baseline`       |
-| `nbadb metadata`             | Generate Kaggle `dataset-metadata.json` from table catalog       | Supports `--output/-o` and `--data-dir/-d`                                   |
-| `nbadb migrate`              | Create or migrate pipeline tables                                | Usually a setup or recovery command                                          |
+| Command                             | What it is for                                                     | Notes                                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `nbadb export`                      | Re-export public tables from DuckDB                                | Uses repeatable `--format/-f`; defaults come from `NBADB_FORMATS`                                         |
+| `nbadb download`                    | Pull the latest published Kaggle dataset into the data directory   | Seeds `nba.duckdb` from `nba.sqlite` if DuckDB is missing                                                 |
+| `nbadb upload`                      | Publish the data directory to Kaggle                               | Ensures `dataset-metadata.json` exists first                                                              |
+| `nbadb docs-autogen`                | Regenerate generated docs artifacts                                | Defaults `--docs-root` to `docs/content/docs`                                                             |
+| `nbadb extract-completeness`        | Generate endpoint coverage artifacts                               | Supports `--output-dir/-o`, `--require-full`, and `--require-model-contract`                              |
+| `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix | Supports `--output-dir/-o`, `--require-complete`, and `--require-season-type-contract`                    |
+| `nbadb endpoint-adequacy-scorecard` | Generate the endpoint adequacy scorecard and report                | Supports `--output-dir/-o`                                                                                |
+| `nbadb audit-models`                | Generate end-to-end model + result-table audit artifacts           | Supports `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`, and `--require-result-table-contract` |
+| `nbadb metadata`                    | Generate Kaggle `dataset-metadata.json` from table catalog         | Supports `--output/-o` and `--data-dir/-d`                                                                |
+| `nbadb migrate`                     | Create or migrate pipeline tables                                  | Usually a setup or recovery command                                                                       |
 
 ### `nbadb extract-completeness`
 
@@ -282,9 +284,50 @@ Use `--require-full` in CI to fail when any of these source-coverage gaps remain
 - `extractor_only`
 - `source_only`
 
-Use `--require-model-contract` to fail when a staged stats surface has neither downstream transform ownership nor an explicit exclusion decision. The command summary also prints model-ownership counts so you can distinguish owned, excluded, and still-unowned surfaces.
+Use `--require-model-contract` to fail when a staged stats surface still lacks an explicit downstream decision. The command summary prints separate counts for analytically modeled, passthrough-only, compatibility/reference-only, explicitly excluded, and still-unowned surfaces.
 
 That endpoint-level contract is intentionally separate from the output-schema audit. The same summary now prints **star schema coverage** counts for transform outputs so you can see, independently, how many tables have a schema-backed final-tier contract versus how many still bypass star-schema validation.
+
+### `nbadb endpoint-support-matrix`
+
+Use this when you need the strictest repo-local answer to "is every endpoint wired into the repo contract, and what kind of downstream ownership does it have?"
+
+```bash
+uv run nbadb endpoint-support-matrix --require-complete --require-season-type-contract
+```
+
+By default this writes companion artifacts next to `extract-completeness` under `artifacts/endpoint-coverage/`:
+
+- `endpoint-support-matrix.json`
+- `endpoint-support-summary.json`
+- `endpoint-support-report.md`
+
+It also refreshes the shared endpoint-coverage bundle in that directory, including the adequacy scorecard, so CI can gate the full contract from a single regeneration pass.
+
+The command distinguishes three execution semantics:
+
+- `historical_backfill` for stats/static surfaces that can be rebuilt from their earliest supported season or date
+- `reference_snapshot` for reference/static snapshots
+- `live_snapshot` for append-only live feeds such as scoreboard, odds, live play-by-play, and live box score packets
+
+Use `--require-complete` to fail whenever any endpoint remains only partially wired into staging, transforms, or schemas. The summary also breaks downstream semantics into analytically modeled, passthrough-only, compatibility/reference-only, explicitly excluded, and unowned buckets so compatibility surfaces do not get mistaken for full analytical ownership. Use `--require-season-type-contract` to fail whenever a historical surface still lacks explicit season-type semantics or remains deliberately blocked from that contract.
+
+### `nbadb endpoint-adequacy-scorecard`
+
+Use this when you want the endpoint-centric view that combines extraction coverage, support contract state, and downstream ownership into a single scorecard:
+
+```bash
+uv run nbadb endpoint-adequacy-scorecard
+```
+
+By default this writes companion artifacts next to `extract-completeness` under `artifacts/endpoint-coverage/`:
+
+- `endpoint-adequacy-scorecard.json`
+- `endpoint-adequacy-scorecard-report.md`
+
+If you already regenerated `endpoint-support-matrix` or `extract-completeness`, those shared coverage runs also refresh this scorecard; use this command when you only need the adequacy pair itself.
+
+The scorecard surfaces endpoint-level adequacy, downstream ownership, execution semantics, and the underlying coverage/support gap counts so you can quickly see whether each endpoint is analytically modeled, passthrough-only, compatibility/reference-only, explicitly excluded, or still unowned.
 
 ### `nbadb audit-models`
 
@@ -299,19 +342,28 @@ The command writes model-audit artifacts under `artifacts/model-audit/` by defau
 - `inventory.json`
 - `matrix.json`
 - `report.md`
+- `result-table-inventory.json`
 
 `probe`, `build`, and `full` modes also emit:
 
 - `live-probes.json`
 - `build-validation.json`
 
-When `--baseline` is provided, the command also writes `baseline-comparison.json` and enables `no-regressions` or `zero-gaps` enforcement.
+When `--baseline` is provided, the command also writes `baseline-comparison.json` and enables `no-regressions` or `zero-gaps` enforcement. Pass `--require-result-table-contract` to fail when any runtime result table is still missing from staging, unowned downstream, or only weakly classified because schema coverage is incomplete.
 
 Use the strictness levels progressively:
 
 - `consistency` fails on discovery and audit-contract inconsistencies
-- `no-regressions` compares the current inventory summary against a committed baseline
-- `zero-gaps` requires both a baseline and zero remaining audit problems
+- `no-regressions` compares the current inventory summary against a committed baseline, including new result-table contract failures
+- `zero-gaps` requires both a baseline and zero remaining audit problems or result-table contract failures
+
+The result-table inventory keeps warehouse ownership semantics explicit per runtime result set:
+
+- `modeled` — analytically modeled with non-passthrough ownership
+- `passthrough_only` — owned only by passthrough/union surfaces
+- `compatibility_reference_only` — intentionally retained for compatibility/reference visibility
+- `excluded` / `deprecated` — explicitly non-modeled but still visible
+- `unowned`, `weakly_classified`, and `missing` — contract failures that should be fixed or explicitly classified
 
 For CI canaries, keep `--mode probe` and use the repository’s configured canary profile so PRs exercise each source kind and parameter pattern without running the full live matrix.
 
@@ -411,16 +463,18 @@ The matrix below mirrors the current Typer command signatures in `src/nbadb/cli/
 
 ### Distribution and artifact commands
 
-| Command                      | What it does                                                                           | Positional args | Options                                                           |
-| ---------------------------- | -------------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------- |
-| `nbadb export`               | Re-export user tables from DuckDB into configured output formats                       | —               | `--data-dir/-d`, `--format/-f` (repeatable)                       |
-| `nbadb download`             | Download the latest Kaggle dataset into the data directory                             | —               | `--data-dir/-d`                                                   |
-| `nbadb upload`               | Upload the dataset directory to Kaggle                                                 | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`)   |
-| `nbadb migrate`              | Create or migrate pipeline tables                                                      | —               | `--data-dir/-d`                                                   |
-| `nbadb docs-autogen`         | Regenerate generated docs artifacts under `docs/content/docs` and `docs/lib/generated` | —               | `--docs-root` (default: `docs/content/docs`)                      |
-| `nbadb extract-completeness` | Generate endpoint coverage artifacts                                                   | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`   |
-| `nbadb audit-models`         | Generate end-to-end model audit artifacts                                              | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`         |
-| `nbadb metadata`             | Generate Kaggle `dataset-metadata.json` from table catalog                             | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d` |
+| Command                             | What it does                                                                           | Positional args | Options                                                                                      |
+| ----------------------------------- | -------------------------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------- |
+| `nbadb export`                      | Re-export user tables from DuckDB into configured output formats                       | —               | `--data-dir/-d`, `--format/-f` (repeatable)                                                  |
+| `nbadb download`                    | Download the latest Kaggle dataset into the data directory                             | —               | `--data-dir/-d`                                                                              |
+| `nbadb upload`                      | Upload the dataset directory to Kaggle                                                 | —               | `--data-dir/-d`, `--message/-m` (default: `"Automated update"`)                              |
+| `nbadb migrate`                     | Create or migrate pipeline tables                                                      | —               | `--data-dir/-d`                                                                              |
+| `nbadb docs-autogen`                | Regenerate generated docs artifacts under `docs/content/docs` and `docs/lib/generated` | —               | `--docs-root` (default: `docs/content/docs`)                                                 |
+| `nbadb extract-completeness`        | Generate endpoint coverage artifacts                                                   | —               | `--output-dir/-o`, `--require-full`, `--require-model-contract`                              |
+| `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix                     | —               | `--output-dir/-o`, `--require-complete`, `--require-season-type-contract`                    |
+| `nbadb endpoint-adequacy-scorecard` | Generate the endpoint adequacy scorecard and report                                    | —               | `--output-dir/-o`                                                                            |
+| `nbadb audit-models`                | Generate end-to-end model + result-table audit artifacts                               | —               | `--mode`, `--strictness`, `--output-dir/-o`, `--baseline`, `--require-result-table-contract` |
+| `nbadb metadata`                    | Generate Kaggle `dataset-metadata.json` from table catalog                             | —               | `--output/-o` (default: `dataset-metadata.json`), `--data-dir/-d`                            |
 
 ## Related guides
 
