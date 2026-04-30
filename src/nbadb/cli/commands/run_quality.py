@@ -15,7 +15,7 @@ _REPORT_PATH_OPTION = typer.Option(
 )
 
 
-@app.command("run-quality", deprecated=True)
+@app.command("run-quality", deprecated=True, hidden=True)
 def run_quality(
     data_dir: DataDirOption = None,
     report_path: str | None = _REPORT_PATH_OPTION,
