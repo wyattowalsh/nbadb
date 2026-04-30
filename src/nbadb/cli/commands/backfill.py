@@ -205,6 +205,7 @@ def _dry_run(
             endpoints=endpoints,
             patterns=patterns,
             force=force,
+            apply_force_reset=False,
         )
         typer.echo(plan.dry_run_summary)
     finally:

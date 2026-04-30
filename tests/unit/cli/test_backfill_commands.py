@@ -117,6 +117,46 @@ class TestBackfillRun:
         assert result.exit_code == 0, result.output
         assert "Backfill plan" in result.output
 
+    def test_run_dry_run_force_does_not_update_journal(self, tmp_path: Path) -> None:
+        """--dry-run --force renders force scope without mutating read-only DB."""
+        db_path = tmp_path / "nba.duckdb"
+        _make_db(db_path)
+        _insert_journal_entries(db_path)
+
+        with patch(_SETTINGS_PATH, return_value=_settings_mock(db_path)):
+            result = runner.invoke(
+                app,
+                [
+                    "backfill",
+                    "run",
+                    "--dry-run",
+                    "--force",
+                    "--endpoint",
+                    "box_score_traditional",
+                    "--seasons",
+                    "2024-25",
+                ],
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "Backfill plan" in result.output
+        assert "Force: True" in result.output
+
+        conn = duckdb.connect(str(db_path), read_only=True)
+        try:
+            status = conn.execute(
+                """
+                SELECT status
+                FROM _extraction_journal
+                WHERE endpoint = 'box_score_traditional'
+                  AND params = '{"season": "2024-25", "season_type": "Regular Season"}'
+                """
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+        assert status == "done"
+
     def test_run_dry_run_no_db(self, tmp_path: Path) -> None:
         """--dry-run when database does not exist must exit 1."""
         missing = tmp_path / "nonexistent.duckdb"

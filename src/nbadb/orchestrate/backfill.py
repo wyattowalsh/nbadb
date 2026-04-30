@@ -723,11 +723,13 @@ class BackfillPlanner:
         patterns: list[str] | None = None,
         force: bool = False,
         season_types: list[str] | None = None,
+        apply_force_reset: bool = True,
     ) -> BackfillPlan:
         """Build a targeted extraction plan.
 
         When ``force=True``, resets matching journal entries before
-        planning so they become eligible for extraction.
+        planning so they become eligible for extraction. Dry-run callers can
+        disable the reset while still rendering the requested force scope.
         """
         from nbadb.orchestrate.seasons import season_range
 
@@ -736,7 +738,7 @@ class BackfillPlanner:
 
         effective_seasons = seasons if seasons is not None else season_range()
 
-        if force:
+        if force and apply_force_reset:
             self.force_reset(seasons=seasons, endpoints=endpoints, patterns=patterns)
 
         # Filter STAGING_MAP entries
