@@ -13,3 +13,23 @@ class FactLeagueShotLocationsTransformer(SqlTransformer):
         SELECT *
         FROM stg_league_team_shot_locations
     """
+
+
+class FactLeagueTeamShotLocationsTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_team_shot_locations"
+    depends_on: ClassVar[list[str]] = ["stg_league_team_shot_locations"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_league_team_shot_locations
+    """
+
+
+class FactLeaguePlayerShotLocationsTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_player_shot_locations"
+    depends_on: ClassVar[list[str]] = ["stg_shot_locations"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_shot_locations
+    """

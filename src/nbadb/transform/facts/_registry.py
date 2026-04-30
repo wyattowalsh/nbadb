@@ -28,6 +28,27 @@ FactHustleAvailabilityTransformer = make_union(
     "hustle_type",
     {"availability": "stg_hustle_stats_available", "box_score": "stg_box_score_hustle_box"},
 )
+FactDraftHistoryTransformer = make_passthrough("fact_draft_history", "stg_draft")
+FactDraftCombineStatsTransformer = make_passthrough(
+    "fact_draft_combine_stats",
+    "stg_draft_combine",
+)
+FactDraftCombineDrillResultsTransformer = make_passthrough(
+    "fact_draft_combine_drill_results",
+    "stg_draft_combine_drills",
+)
+FactDraftCombineNonStationaryShootingTransformer = make_passthrough(
+    "fact_draft_combine_non_stationary_shooting",
+    "stg_draft_combine_nonstat_shooting",
+)
+FactDraftCombinePlayerAnthroTransformer = make_passthrough(
+    "fact_draft_combine_player_anthro",
+    "stg_draft_combine_anthro",
+)
+FactDraftCombineSpotShootingTransformer = make_passthrough(
+    "fact_draft_combine_spot_shooting",
+    "stg_draft_combine_spot_shooting",
+)
 FactLineupStatsTransformer = make_union(
     "fact_lineup_stats",
     "lineup_source",
@@ -37,6 +58,14 @@ FactFranchiseDetailTransformer = make_union(
     "fact_franchise_detail",
     "detail_type",
     {"leaders": "stg_franchise_leaders", "players": "stg_franchise_players"},
+)
+FactFranchiseLeadersTransformer = make_passthrough(
+    "fact_franchise_leaders",
+    "stg_franchise_leaders",
+)
+FactFranchisePlayersTransformer = make_passthrough(
+    "fact_franchise_players",
+    "stg_franchise_players",
 )
 FactPlayerSeasonRanksTransformer = make_union(
     "fact_player_season_ranks",

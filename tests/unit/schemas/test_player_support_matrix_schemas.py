@@ -82,7 +82,9 @@ from nbadb.schemas.star.player_support_matrix import (
     FactPlayerMatchupsSchema,
     FactPlayerNextGamesSchema,
     FactPlayerProfileSchema,
+    FactPlayerPtPassSchema,
     FactPlayerPtRebDetailSchema,
+    FactPlayerPtShotDefendSchema,
     FactPlayerPtShotsDetailSchema,
     FactPlayerPtTrackingSchema,
     FactPlayerSeasonRanksSchema,
@@ -176,7 +178,9 @@ def test_player_family_output_schema_registry_covers_remaining_support_tables() 
         "fact_player_matchups": FactPlayerMatchupsSchema,
         "fact_player_next_games": FactPlayerNextGamesSchema,
         "fact_player_profile": FactPlayerProfileSchema,
+        "fact_player_pt_pass": FactPlayerPtPassSchema,
         "fact_player_pt_reb_detail": FactPlayerPtRebDetailSchema,
+        "fact_player_pt_shot_defend": FactPlayerPtShotDefendSchema,
         "fact_player_pt_shots_detail": FactPlayerPtShotsDetailSchema,
         "fact_player_pt_tracking": FactPlayerPtTrackingSchema,
         "fact_player_season_ranks": FactPlayerSeasonRanksSchema,
@@ -256,3 +260,49 @@ def test_player_family_schemas_validate_representative_rows() -> None:
     assert FactPlayerNextGamesSchema.validate(next_games).height == 1
     assert StagingPlayerGameStreakFinderSchema.validate(streak).height == 1
     assert StagingWinProbPbpSchema.validate(win_prob).height == 1
+
+    pt_pass = pl.DataFrame(
+        {
+            "player_id": [2544],
+            "player_name_last_first": ["James, LeBron"],
+            "team_name": ["Lakers"],
+            "team_id": [1610612747],
+            "team_abbreviation": ["LAL"],
+            "pass_type": ["made"],
+            "g": [82],
+            "pass_to": [None],
+            "pass_from": ["LeBron James"],
+            "pass_teammate_player_id": [1627759],
+            "frequency": [0.148],
+            "pass": [312],
+            "ast": [28],
+            "fgm": [41],
+            "fga": [88],
+            "fg_pct": [0.466],
+            "fg2m": [23],
+            "fg2a": [40],
+            "fg2_pct": [0.575],
+            "fg3m": [18],
+            "fg3a": [48],
+            "fg3_pct": [0.375],
+            "season_type": ["Regular Season"],
+        }
+    )
+    shot_defend = pl.DataFrame(
+        {
+            "close_def_person_id": [2544],
+            "gp": [20],
+            "g": [20],
+            "defense_category": ["Overall"],
+            "freq": [0.33],
+            "d_fgm": [4],
+            "d_fga": [9],
+            "d_fg_pct": [0.444],
+            "normal_fg_pct": [0.49],
+            "pct_plusminus": [-0.046],
+            "season_type": ["Regular Season"],
+        }
+    )
+
+    assert FactPlayerPtPassSchema.validate(pt_pass).height == 1
+    assert FactPlayerPtShotDefendSchema.validate(shot_defend).height == 1

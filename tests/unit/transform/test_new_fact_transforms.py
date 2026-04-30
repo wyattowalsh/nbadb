@@ -2,17 +2,39 @@ from __future__ import annotations
 
 import duckdb
 import polars as pl
+import pytest
 
 from nbadb.transform.facts._registry import (
+    FactDraftCombineDrillResultsTransformer,
+    FactDraftCombineNonStationaryShootingTransformer,
+    FactDraftCombinePlayerAnthroTransformer,
+    FactDraftCombineSpotShootingTransformer,
+    FactDraftCombineStatsTransformer,
+    FactDraftHistoryTransformer,
     FactFranchiseDetailTransformer,
+    FactFranchiseLeadersTransformer,
+    FactFranchisePlayersTransformer,
     FactPlayerSeasonRanksTransformer,
 )
 from nbadb.transform.facts.fact_cumulative_stats import FactCumulativeStatsTransformer
 from nbadb.transform.facts.fact_draft_board import FactDraftBoardTransformer
 from nbadb.transform.facts.fact_draft_combine_detail import FactDraftCombineDetailTransformer
 from nbadb.transform.facts.fact_fantasy import FactFantasyTransformer
+from nbadb.transform.facts.fact_fantasy_family import (
+    FactFantasyWidgetTransformer,
+    FactInfographicFanduelPlayerTransformer,
+    FactPlayerFantasyProfileLastFiveGamesAvgTransformer,
+    FactPlayerFantasyProfileSeasonAvgTransformer,
+)
 from nbadb.transform.facts.fact_game_context import FactGameContextTransformer
 from nbadb.transform.facts.fact_ist_standings import FactIstStandingsTransformer
+from nbadb.transform.facts.fact_leader_family import (
+    FactAssistLeadersTransformer,
+    FactAssistTrackerTransformer,
+    FactDunkScoreLeadersTransformer,
+    FactGravityLeadersTransformer,
+    FactLeagueLeadersTransformer,
+)
 from nbadb.transform.facts.fact_league_hustle import FactLeagueHustleTransformer
 from nbadb.transform.facts.fact_league_leaders_detail import FactLeagueLeadersDetailTransformer
 from nbadb.transform.facts.fact_league_pt_shots import FactLeaguePtShotsTransformer
@@ -147,6 +169,76 @@ class TestFactDraftBoard:
         result = _run(FactDraftBoardTransformer(), staging)
         assert result.shape[0] == 1
         assert "player_id" in result.columns
+
+
+# ---------------------------------------------------------------------------
+# 5. draft/franchise passthrough endpoints
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    ("transformer_cls", "expected_output_table", "source_table", "payload"),
+    [
+        (
+            FactDraftHistoryTransformer,
+            "fact_draft_history",
+            "stg_draft",
+            {"person_id": [1], "season": ["2003"], "player_name": ["Test Player"]},
+        ),
+        (
+            FactDraftCombineStatsTransformer,
+            "fact_draft_combine_stats",
+            "stg_draft_combine",
+            {"player_id": [1], "season": ["2003"], "height_w_shoes": [80.0]},
+        ),
+        (
+            FactDraftCombineDrillResultsTransformer,
+            "fact_draft_combine_drill_results",
+            "stg_draft_combine_drills",
+            {"player_id": [1], "season": ["2003"], "standing_vertical_leap": [30.0]},
+        ),
+        (
+            FactDraftCombineNonStationaryShootingTransformer,
+            "fact_draft_combine_non_stationary_shooting",
+            "stg_draft_combine_nonstat_shooting",
+            {"player_id": [1], "season": ["2003"], "on_move_fifteen_pct": [0.41]},
+        ),
+        (
+            FactDraftCombinePlayerAnthroTransformer,
+            "fact_draft_combine_player_anthro",
+            "stg_draft_combine_anthro",
+            {"player_id": [1], "season": ["2003"], "wingspan": [84.0]},
+        ),
+        (
+            FactDraftCombineSpotShootingTransformer,
+            "fact_draft_combine_spot_shooting",
+            "stg_draft_combine_spot_shooting",
+            {"player_id": [1], "season": ["2003"], "nba_top_key_pct": [0.39]},
+        ),
+        (
+            FactFranchiseLeadersTransformer,
+            "fact_franchise_leaders",
+            "stg_franchise_leaders",
+            {"team_id": [1], "pts": [100.0], "pts_player": ["Test Player"]},
+        ),
+        (
+            FactFranchisePlayersTransformer,
+            "fact_franchise_players",
+            "stg_franchise_players",
+            {"team_id": [1], "person_id": [2], "player": ["Test Player"]},
+        ),
+    ],
+)
+def test_passthrough_new_draft_and_franchise_transformers(
+    transformer_cls: type,
+    expected_output_table: str,
+    source_table: str,
+    payload: dict[str, list[object]],
+) -> None:
+    assert transformer_cls.output_table == expected_output_table
+    staging = {source_table: pl.DataFrame(payload).lazy()}
+    result = _run(transformer_cls(), staging)
+
+    assert result.shape[0] == 1
+    assert set(result.columns) == set(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -493,11 +585,11 @@ class TestFactLeagueLeadersDetail:
 
     def test_union_with_leader_type(self) -> None:
         staging = {
-            "stg_league_leaders": pl.DataFrame({"player_id": [1], "pts": [30]}).lazy(),
-            "stg_assist_leaders": pl.DataFrame({"player_id": [2], "ast": [12]}).lazy(),
-            "stg_assist_tracker": pl.DataFrame({"player_id": [3], "ast": [10]}).lazy(),
-            "stg_dunk_score_leaders": pl.DataFrame({"player_id": [4], "dunks": [8]}).lazy(),
-            "stg_gravity_leaders": pl.DataFrame({"player_id": [5], "gravity": [1.5]}).lazy(),
+            "fact_league_leaders": pl.DataFrame({"player_id": [1], "pts": [30]}).lazy(),
+            "fact_assist_leaders": pl.DataFrame({"player_id": [2], "ast": [12]}).lazy(),
+            "fact_assist_tracker": pl.DataFrame({"player_id": [3], "ast": [10]}).lazy(),
+            "fact_dunk_score_leaders": pl.DataFrame({"player_id": [4], "dunk_score": [8]}).lazy(),
+            "fact_gravity_leaders": pl.DataFrame({"player_id": [5], "gravityscore": [1.5]}).lazy(),
         }
         result = _run(FactLeagueLeadersDetailTransformer(), staging)
         assert result.shape[0] == 5
@@ -512,7 +604,28 @@ class TestFactLeagueLeadersDetail:
 
 
 # ---------------------------------------------------------------------------
-# 17. fact_league_pt_shots — UNION ALL BY NAME with shot_type (5 tables)
+# 17. fact_leader_family — endpoint-specific passthroughs
+# ---------------------------------------------------------------------------
+class TestFactLeaderFamily:
+    @pytest.mark.parametrize(
+        ("transformer_cls", "output_table", "staging_key"),
+        [
+            (FactLeagueLeadersTransformer, "fact_league_leaders", "stg_league_leaders"),
+            (FactAssistLeadersTransformer, "fact_assist_leaders", "stg_assist_leaders"),
+            (FactAssistTrackerTransformer, "fact_assist_tracker", "stg_assist_tracker"),
+            (FactDunkScoreLeadersTransformer, "fact_dunk_score_leaders", "stg_dunk_score_leaders"),
+            (FactGravityLeadersTransformer, "fact_gravity_leaders", "stg_gravity_leaders"),
+        ],
+    )
+    def test_passthrough_transformers(self, transformer_cls, output_table, staging_key) -> None:
+        assert transformer_cls.output_table == output_table
+        result = _run(transformer_cls(), {staging_key: pl.DataFrame({"player_id": [1]}).lazy()})
+        assert result.shape[0] == 1
+        assert "player_id" in result.columns
+
+
+# ---------------------------------------------------------------------------
+# 18. fact_league_pt_shots — UNION ALL BY NAME with shot_type (5 tables)
 # ---------------------------------------------------------------------------
 class TestFactLeaguePtShots:
     def test_class_attrs(self) -> None:
@@ -540,7 +653,7 @@ class TestFactLeaguePtShots:
 
 
 # ---------------------------------------------------------------------------
-# 18. fact_game_context — LEFT JOINs on game_id
+# 19. fact_game_context — LEFT JOINs on game_id
 # ---------------------------------------------------------------------------
 class TestFactGameContext:
     def test_class_attrs(self) -> None:
@@ -580,7 +693,7 @@ class TestFactGameContext:
 
 
 # ---------------------------------------------------------------------------
-# 19. fact_season_matchups — UNION ALL BY NAME with matchup_type
+# 20. fact_season_matchups — UNION ALL BY NAME with matchup_type
 # ---------------------------------------------------------------------------
 class TestFactSeasonMatchups:
     def test_class_attrs(self) -> None:
@@ -599,30 +712,66 @@ class TestFactSeasonMatchups:
 
 
 # ---------------------------------------------------------------------------
-# 20. fact_fantasy — SELECT * passthrough
+# 21. fact_fantasy_family — endpoint-specific passthroughs
+# ---------------------------------------------------------------------------
+class TestFactFantasyFamily:
+    @pytest.mark.parametrize(
+        ("transformer_cls", "output_table", "staging_key"),
+        [
+            (
+                FactFantasyWidgetTransformer,
+                "fact_fantasy_widget",
+                "stg_fantasy_widget",
+            ),
+            (
+                FactInfographicFanduelPlayerTransformer,
+                "fact_infographic_fanduel_player",
+                "stg_fanduel_player",
+            ),
+            (
+                FactPlayerFantasyProfileLastFiveGamesAvgTransformer,
+                "fact_player_fantasy_profile_last_five_games_avg",
+                "stg_player_fantasy_profile_last_five_games_avg",
+            ),
+            (
+                FactPlayerFantasyProfileSeasonAvgTransformer,
+                "fact_player_fantasy_profile_season_avg",
+                "stg_player_fantasy_profile_season_avg",
+            ),
+        ],
+    )
+    def test_passthrough_transformers(self, transformer_cls, output_table, staging_key) -> None:
+        assert transformer_cls.output_table == output_table
+        result = _run(transformer_cls(), {staging_key: pl.DataFrame({"player_id": [1]}).lazy()})
+        assert result.shape[0] == 1
+        assert "player_id" in result.columns
+
+
+# ---------------------------------------------------------------------------
+# 22. fact_fantasy — SELECT * passthrough
 # ---------------------------------------------------------------------------
 class TestFactFantasy:
     def test_class_attrs(self) -> None:
         assert FactFantasyTransformer.output_table == "fact_fantasy"
         assert set(FactFantasyTransformer.depends_on) == {
-            "stg_fanduel_player",
-            "stg_fantasy_widget",
-            "stg_player_fantasy_profile_last_five_games_avg",
-            "stg_player_fantasy_profile_season_avg",
+            "fact_infographic_fanduel_player",
+            "fact_fantasy_widget",
+            "fact_player_fantasy_profile_last_five_games_avg",
+            "fact_player_fantasy_profile_season_avg",
         }
 
     def test_transform_union(self) -> None:
         staging = {
-            "stg_fanduel_player": pl.DataFrame(
+            "fact_infographic_fanduel_player": pl.DataFrame(
                 {"player_id": [1], "fantasy_pts": [45.2], "salary": [8500]}
             ).lazy(),
-            "stg_fantasy_widget": pl.DataFrame(
+            "fact_fantasy_widget": pl.DataFrame(
                 {"player_id": [2], "fantasy_pts": [38.0], "salary": [7200]}
             ).lazy(),
-            "stg_player_fantasy_profile_last_five_games_avg": pl.DataFrame(
+            "fact_player_fantasy_profile_last_five_games_avg": pl.DataFrame(
                 {"player_id": [3], "fantasy_pts": [26.1]}
             ).lazy(),
-            "stg_player_fantasy_profile_season_avg": pl.DataFrame(
+            "fact_player_fantasy_profile_season_avg": pl.DataFrame(
                 {"player_id": [4], "fantasy_pts": [41.7]}
             ).lazy(),
         }
@@ -630,7 +779,7 @@ class TestFactFantasy:
         assert result.shape[0] == 4
         assert "fantasy_source" in result.columns
         assert set(result["fantasy_source"].to_list()) == {
-            "fanduel",
+            "infographic_fanduel_player",
             "fantasy_widget",
             "player_fantasy_profile_last_five_games_avg",
             "player_fantasy_profile_season_avg",

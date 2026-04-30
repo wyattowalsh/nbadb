@@ -5,6 +5,8 @@ import pandera.polars as pa
 from nbadb.schemas.base import BaseSchema, derived_output_schema
 from nbadb.schemas.staging.player_support_matrix import (
     StagingPlayerNextGamesSchema,
+    StagingPlayerPtPassSchema,
+    StagingPlayerPtShotDefendSchema,
     _PlayerCareerRecordSchema,
     _PlayerCollegeRollupSchema,
     _PlayerGameLogsSchema,
@@ -145,6 +147,14 @@ class FactPlayerPtTrackingSchema(BaseSchema):
         nullable=False,
         isin=["pass", "pass_received", "rebound", "shots", "shot_defend"],
     )
+
+
+class FactPlayerPtPassSchema(StagingPlayerPtPassSchema):
+    pass
+
+
+class FactPlayerPtShotDefendSchema(StagingPlayerPtShotDefendSchema):
+    pass
 
 
 class FactPlayerPtRebDetailSchema(_PlayerPtRebSchema):
@@ -313,6 +323,8 @@ derived_output_schema(literal_fields={"rank_type"})(FactPlayerSeasonRanksSchema)
 derived_output_schema(literal_fields={"rollup_type"})(FactCollegeRollupSchema)
 derived_output_schema(literal_fields={"matchup_type"})(FactPlayerMatchupsSchema)
 derived_output_schema(literal_fields={"tracking_type"})(FactPlayerPtTrackingSchema)
+derived_output_schema()(FactPlayerPtPassSchema)
+derived_output_schema()(FactPlayerPtShotDefendSchema)
 derived_output_schema(literal_fields={"breakdown_type"})(FactPlayerPtRebDetailSchema)
 derived_output_schema(literal_fields={"breakdown_type"})(FactPlayerPtShotsDetailSchema)
 derived_output_schema()(FactPlayerShootingSplitsDetailSchema)

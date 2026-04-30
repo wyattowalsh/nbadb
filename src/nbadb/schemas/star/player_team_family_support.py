@@ -16,6 +16,8 @@ from nbadb.schemas.staging.player_dashboard import (
 )
 from nbadb.schemas.staging.player_team_family_support import (
     StagingBoxScoreHustleTeamSchema,
+    StagingFranchiseLeadersSchema,
+    StagingFranchisePlayersSchema,
     StagingGlAlumBoxScoreSimilarityScoreSchema,
     StagingPlayerAvailableSeasonsSchema,
     StagingPlayerHeadlineStatsSchema,
@@ -99,7 +101,7 @@ class FactFantasySchema(BaseSchema):
     fantasy_source: str = pa.Field(
         nullable=False,
         isin=[
-            "fanduel",
+            "infographic_fanduel_player",
             "fantasy_widget",
             "player_fantasy_profile_last_five_games_avg",
             "player_fantasy_profile_season_avg",
@@ -145,6 +147,14 @@ class FactFranchiseDetailSchema(BaseSchema):
     stl_person_id: int | None = pa.Field(nullable=True, gt=0)
     stl_player: str | None = pa.Field(nullable=True)
     detail_type: str = pa.Field(nullable=False, isin=["leaders", "players"])
+
+
+class FactFranchiseLeadersSchema(StagingFranchiseLeadersSchema):
+    pass
+
+
+class FactFranchisePlayersSchema(StagingFranchisePlayersSchema):
+    pass
 
 
 class FactHustleAvailabilitySchema(BaseSchema):
@@ -239,6 +249,8 @@ derived_output_schema()(FactLeagueDashTeamStatsSchema)
 derived_output_schema()(FactTeamGameHustleSchema)
 derived_output_schema(literal_fields={"fantasy_source"})(FactFantasySchema)
 derived_output_schema(literal_fields={"detail_type"})(FactFranchiseDetailSchema)
+derived_output_schema()(FactFranchiseLeadersSchema)
+derived_output_schema()(FactFranchisePlayersSchema)
 derived_output_schema(literal_fields={"hustle_type"})(FactHustleAvailabilitySchema)
 derived_output_schema(literal_fields={"clutch_window"})(FactPlayerClutchDetailSchema)
 derived_output_schema(literal_fields={"split_type"})(FactPlayerGameSplitsDetailSchema)

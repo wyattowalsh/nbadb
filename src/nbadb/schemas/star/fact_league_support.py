@@ -3,14 +3,26 @@ from __future__ import annotations
 import pandera.polars as pa
 
 from nbadb.schemas.base import BaseSchema, derived_output_schema
+from nbadb.schemas.raw.draft import (
+    RawDraftCombineDrillResultsSchema,
+    RawDraftCombineNonStationaryShootingSchema,
+    RawDraftCombinePlayerAnthroSchema,
+    RawDraftCombineSpotShootingSchema,
+)
 from nbadb.schemas.staging.league_stats import StagingLeagueDashPlayerStatsSchema
 from nbadb.schemas.staging.league_support import (
     LeaguePtShotsBaseSchema,
     StagingBoxScoreUsageTeamSchema,
     StagingCommonPlayoffSeriesSchema,
     StagingIstStandingsSchema,
+    StagingLeagueOppPtShotSchema,
+    StagingLeaguePlayerPtShotSchema,
+    StagingLeaguePtStatsSchema,
+    StagingLeaguePtTeamDefendSchema,
     StagingLeagueTeamClutchSchema,
+    StagingLeagueTeamPtShotSchema,
     StagingLeagueTeamShotLocationsSchema,
+    StagingShotLocationsSchema,
 )
 
 
@@ -31,6 +43,34 @@ class FactLeagueTeamClutchSchema(StagingLeagueTeamClutchSchema):
 
 
 class FactLeagueShotLocationsSchema(StagingLeagueTeamShotLocationsSchema):
+    pass
+
+
+class FactLeagueTeamShotLocationsSchema(StagingLeagueTeamShotLocationsSchema):
+    pass
+
+
+class FactLeaguePlayerShotLocationsSchema(StagingShotLocationsSchema):
+    pass
+
+
+class FactLeaguePtStatsSchema(StagingLeaguePtStatsSchema):
+    pass
+
+
+class FactLeaguePtTeamDefendSchema(StagingLeaguePtTeamDefendSchema):
+    pass
+
+
+class FactLeagueTeamPtShotSchema(StagingLeagueTeamPtShotSchema):
+    pass
+
+
+class FactLeagueOppPtShotSchema(StagingLeagueOppPtShotSchema):
+    pass
+
+
+class FactLeaguePlayerPtShotSchema(StagingLeaguePlayerPtShotSchema):
     pass
 
 
@@ -58,6 +98,22 @@ class FactDraftCombineDetailSchema(BaseSchema):
         isin=["drills", "anthro", "nonstat_shooting", "spot_shooting"],
         metadata={"description": "Draft-combine detail packet discriminator"},
     )
+
+
+class FactDraftCombineDrillResultsSchema(RawDraftCombineDrillResultsSchema):
+    pass
+
+
+class FactDraftCombineNonStationaryShootingSchema(RawDraftCombineNonStationaryShootingSchema):
+    pass
+
+
+class FactDraftCombinePlayerAnthroSchema(RawDraftCombinePlayerAnthroSchema):
+    pass
+
+
+class FactDraftCombineSpotShootingSchema(RawDraftCombineSpotShootingSchema):
+    pass
 
 
 class FactLeaguePtShotsSchema(LeaguePtShotsBaseSchema):
@@ -98,7 +154,18 @@ derived_output_schema()(FactIstStandingsSchema)
 derived_output_schema()(FactLeagueDashPlayerStatsSchema)
 derived_output_schema()(FactLeagueTeamClutchSchema)
 derived_output_schema()(FactLeagueShotLocationsSchema)
+derived_output_schema()(FactLeagueTeamShotLocationsSchema)
+derived_output_schema()(FactLeaguePlayerShotLocationsSchema)
+derived_output_schema()(FactLeaguePtStatsSchema)
+derived_output_schema()(FactLeaguePtTeamDefendSchema)
+derived_output_schema()(FactLeagueTeamPtShotSchema)
+derived_output_schema()(FactLeagueOppPtShotSchema)
+derived_output_schema()(FactLeaguePlayerPtShotSchema)
 derived_output_schema()(FactBoxScoreUsageTeamSchema)
 derived_output_schema(literal_fields={"detail_type"})(FactDraftCombineDetailSchema)
+derived_output_schema()(FactDraftCombineDrillResultsSchema)
+derived_output_schema()(FactDraftCombineNonStationaryShootingSchema)
+derived_output_schema()(FactDraftCombinePlayerAnthroSchema)
+derived_output_schema()(FactDraftCombineSpotShootingSchema)
 derived_output_schema(literal_fields={"shot_type"})(FactLeaguePtShotsSchema)
 derived_output_schema(literal_fields={"entity_type"})(FactLeagueHustleSchema)

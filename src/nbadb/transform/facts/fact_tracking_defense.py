@@ -13,3 +13,13 @@ class FactTrackingDefenseTransformer(SqlTransformer):
         SELECT *
         FROM stg_tracking_defense
     """
+
+
+class FactLeaguePtDefendTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_pt_defend"
+    depends_on: ClassVar[list[str]] = ["stg_tracking_defense"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_tracking_defense
+    """

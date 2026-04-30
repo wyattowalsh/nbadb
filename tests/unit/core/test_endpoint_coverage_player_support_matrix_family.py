@@ -70,4 +70,4 @@ def test_player_support_matrix_family_chunk() -> None:
     assert player_vs_player["input_schema_missing_staging_keys"] == []
     assert player_vs_player["output_schema_missing_tables"] == []
     assert player_vs_player["contract_gaps"] == []
-    assert player_vs_player["model_exclusion_reasons"] == []
+    assert player_vs_player["downstream_status"] == "passthrough_only"

@@ -31,3 +31,23 @@ class FactPlayerPtTrackingTransformer(SqlTransformer):
         SELECT *, 'shot_defend' AS tracking_type
         FROM stg_player_pt_shot_defend
     """
+
+
+class FactPlayerPtPassTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_player_pt_pass"
+    depends_on: ClassVar[list[str]] = ["stg_player_pt_pass"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_player_pt_pass
+    """
+
+
+class FactPlayerPtShotDefendTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_player_pt_shot_defend"
+    depends_on: ClassVar[list[str]] = ["stg_player_pt_shot_defend"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_player_pt_shot_defend
+    """

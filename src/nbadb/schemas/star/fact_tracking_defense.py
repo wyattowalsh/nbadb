@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
 
 
 class FactTrackingDefenseSchema(BaseSchema):
@@ -94,3 +94,8 @@ class FactTrackingDefenseSchema(BaseSchema):
             "description": ("Season year (e.g. 2024-25)"),
         },
     )
+
+
+@derived_output_schema()
+class FactLeaguePtDefendSchema(FactTrackingDefenseSchema):
+    pass

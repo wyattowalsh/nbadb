@@ -31,3 +31,53 @@ class FactLeaguePtShotsTransformer(SqlTransformer):
         SELECT *, 'player' AS shot_type
         FROM stg_league_player_pt_shot
     """
+
+
+class FactLeaguePtStatsTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_pt_stats"
+    depends_on: ClassVar[list[str]] = ["stg_league_pt_stats"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_league_pt_stats
+    """
+
+
+class FactLeaguePtTeamDefendTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_pt_team_defend"
+    depends_on: ClassVar[list[str]] = ["stg_league_pt_team_defend"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_league_pt_team_defend
+    """
+
+
+class FactLeagueTeamPtShotTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_team_pt_shot"
+    depends_on: ClassVar[list[str]] = ["stg_league_team_pt_shot"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_league_team_pt_shot
+    """
+
+
+class FactLeagueOppPtShotTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_opp_pt_shot"
+    depends_on: ClassVar[list[str]] = ["stg_league_opp_pt_shot"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_league_opp_pt_shot
+    """
+
+
+class FactLeaguePlayerPtShotTransformer(SqlTransformer):
+    output_table: ClassVar[str] = "fact_league_player_pt_shot"
+    depends_on: ClassVar[list[str]] = ["stg_league_player_pt_shot"]
+
+    _SQL: ClassVar[str] = """
+        SELECT *
+        FROM stg_league_player_pt_shot
+    """

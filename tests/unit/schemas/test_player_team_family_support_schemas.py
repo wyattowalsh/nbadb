@@ -17,6 +17,8 @@ from nbadb.schemas.staging.player_team_family_support import (
 from nbadb.schemas.star.player_team_family_support import (
     FactFantasySchema,
     FactFranchiseDetailSchema,
+    FactFranchiseLeadersSchema,
+    FactFranchisePlayersSchema,
     FactHustleAvailabilitySchema,
     FactPlayerClutchDetailSchema,
     FactPlayerGameSplitsDetailSchema,
@@ -96,6 +98,28 @@ def test_fantasy_and_franchise_staging_schemas_validate_rows() -> None:
 
     assert StagingFantasyWidgetSchema.validate(fantasy).shape[0] == 1
     assert StagingFranchiseLeadersSchema.validate(leaders).shape[0] == 1
+
+
+def test_fact_franchise_passthrough_schemas_validate_rows() -> None:
+    leaders = pl.DataFrame(
+        {
+            "team_id": [1610612738],
+            "pts": [26395.0],
+            "pts_person_id": [78049],
+            "pts_player": ["John Havlicek"],
+        }
+    )
+    players = pl.DataFrame(
+        {
+            "team_id": [1610612738],
+            "person_id": [2544],
+            "player": ["LeBron James"],
+            "season_type": ["Regular Season"],
+        }
+    )
+
+    assert FactFranchiseLeadersSchema.validate(leaders).shape == (1, 4)
+    assert FactFranchisePlayersSchema.validate(players).shape == (1, 4)
 
 
 def test_lineup_and_team_dashboard_staging_schemas_validate_rows() -> None:
@@ -305,7 +329,7 @@ def test_support_family_output_schemas_validate_union_rows() -> None:
             "pts": [27.1],
             "plus_minus": [6.2],
             "season_type": ["Regular Season"],
-            "fantasy_source": ["fanduel"],
+            "fantasy_source": ["infographic_fanduel_player"],
         }
     )
     franchise = pl.DataFrame(

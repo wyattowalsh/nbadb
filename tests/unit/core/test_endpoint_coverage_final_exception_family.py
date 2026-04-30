@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+from nbadb.core.types import SeasonType
 from nbadb.orchestrate.staging_map import STAGING_MAP
 
 
@@ -39,5 +40,11 @@ def test_final_exception_endpoints_are_support_matrix_complete() -> None:
         assert row["input_schema_missing_staging_keys"] == [], endpoint_name
         assert row["output_schema_missing_tables"] == [], endpoint_name
 
+    expected_supported_season_types = [season_type.value for season_type in SeasonType]
+    assert rows["player_vs_player"]["season_type_contract_status"] == "supported"
+    assert (
+        rows["player_vs_player"]["declared_supported_season_types"]
+        == expected_supported_season_types
+    )
     assert rows["video_details"]["season_type_contract_status"] == "supported"
     assert rows["video_details_asset"]["season_type_contract_status"] == "supported"

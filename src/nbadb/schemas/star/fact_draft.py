@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pandera.polars as pa
 
-from nbadb.schemas.base import BaseSchema
+from nbadb.schemas.base import BaseSchema, derived_output_schema
+from nbadb.schemas.staging.draft import (
+    StagingDraftCombineStatsSchema,
+    StagingDraftHistorySchema,
+)
 
 
 class FactDraftSchema(BaseSchema):
@@ -81,3 +85,15 @@ class FactDraftSchema(BaseSchema):
             "description": ("Has player profile (1=yes)"),
         },
     )
+
+
+class FactDraftHistorySchema(StagingDraftHistorySchema):
+    pass
+
+
+class FactDraftCombineStatsSchema(StagingDraftCombineStatsSchema):
+    pass
+
+
+derived_output_schema()(FactDraftHistorySchema)
+derived_output_schema()(FactDraftCombineStatsSchema)

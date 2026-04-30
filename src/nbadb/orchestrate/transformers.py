@@ -22,7 +22,7 @@ _TRANSFORM_PACKAGES = [
 def discover_all_transformers(*, include_live: bool = True) -> list[BaseTransformer]:
     """Auto-discover and instantiate all transformer classes.
 
-    Walks the four transform sub-packages and collects every
+    Walks the configured transform packages and collects every
     concrete ``BaseTransformer`` subclass that defines an
     ``output_table``.
     """

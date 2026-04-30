@@ -31,7 +31,7 @@ class TestDiscoverAllTransformers:
 
         with patch(_PATCH_TARGET, side_effect=_failing_import):
             result = discover_all_transformers()
-        # Should still return transformers from the other 3 packages
+        # Should still return transformers from the other packages
         assert isinstance(result, list)
 
     def test_module_import_error_is_handled(self) -> None:
@@ -46,8 +46,8 @@ class TestDiscoverAllTransformers:
             result = discover_all_transformers()
         assert isinstance(result, list)
 
-    def test_all_four_packages_import_error_returns_empty(self) -> None:
-        """When ALL packages fail to import, result is empty."""
+    def test_all_packages_import_error_returns_empty(self) -> None:
+        """When all configured packages fail to import, result is empty."""
         with patch(_PATCH_TARGET, side_effect=ImportError("all fail")):
             result = discover_all_transformers()
         assert result == []
