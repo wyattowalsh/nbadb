@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-import duckdb
+from typing import TYPE_CHECKING
+
 import polars as pl
 import pytest
 
+if TYPE_CHECKING:
+    import duckdb
+
 
 @pytest.fixture()
-def conn() -> duckdb.DuckDBPyConnection:
-    return duckdb.connect(":memory:")
+def conn(duckdb_memory_conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
+    """Alias for canonical duckdb_memory_conn fixture."""
+    return duckdb_memory_conn
 
 
 def _make_stg_schedule_int(**overrides: object) -> pl.DataFrame:

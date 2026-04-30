@@ -1,51 +1,19 @@
 from __future__ import annotations
 
-import duckdb
+from typing import TYPE_CHECKING
+
 import pytest
 
 from nbadb.orchestrate.journal import PipelineJournal
 
+if TYPE_CHECKING:
+    import duckdb
+
 
 @pytest.fixture
-def journal() -> PipelineJournal:
-    """Create an in-memory DuckDB with pipeline tables."""
-    conn = duckdb.connect(":memory:")
-    # Create the same tables as DBManager._create_pipeline_tables()
-    conn.execute("""
-        CREATE TABLE _pipeline_watermarks (
-            table_name VARCHAR NOT NULL,
-            watermark_type VARCHAR NOT NULL,
-            watermark_value VARCHAR,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            row_count_at_watermark BIGINT,
-            PRIMARY KEY (table_name, watermark_type)
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE _extraction_journal (
-            endpoint VARCHAR NOT NULL,
-            params VARCHAR,
-            status VARCHAR NOT NULL,
-            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP,
-            rows_extracted BIGINT,
-            error_message VARCHAR,
-            retry_count INTEGER DEFAULT 0,
-            PRIMARY KEY (endpoint, params)
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE _pipeline_metrics (
-            endpoint VARCHAR NOT NULL,
-            run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            duration_seconds FLOAT,
-            rows_extracted BIGINT,
-            error_count INT DEFAULT 0,
-            PRIMARY KEY (endpoint, run_timestamp)
-        )
-    """)
-    yield PipelineJournal(conn)
-    conn.close()
+def journal(duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection) -> PipelineJournal:
+    """Create PipelineJournal with canonical in-memory DuckDB (with pipeline tables)."""
+    return PipelineJournal(duckdb_memory_with_pipeline_tables)
 
 
 class TestJournalWatermarks:

@@ -108,7 +108,69 @@ def sample_box_score_df() -> pl.DataFrame:
 
 @pytest.fixture
 def mock_duckdb_conn() -> duckdb.DuckDBPyConnection:
-    return duckdb.connect()
+    """In-memory DuckDB connection for testing.
+
+    Contract: Returns a bare in-memory DuckDB connection with no tables.
+    Use specialized fixtures (duckdb_memory_with_pipeline_tables, etc.) for pre-configured tables.
+    """
+    return duckdb.connect(":memory:")
+
+
+@pytest.fixture
+def duckdb_memory_conn() -> duckdb.DuckDBPyConnection:
+    """Canonical in-memory DuckDB connection for testing.
+
+    Contract: Returns a bare in-memory DuckDB connection with no tables.
+    Use specialized fixtures for pre-configured tables.
+    """
+    conn = duckdb.connect(":memory:")
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
+def duckdb_memory_with_pipeline_tables() -> duckdb.DuckDBPyConnection:
+    """In-memory DuckDB with standard pipeline tracking tables.
+
+    Contract: Creates _pipeline_watermarks, _extraction_journal, _pipeline_metrics
+    tables as defined in nbadb.orchestrate.journal.
+    """
+    conn = duckdb.connect(":memory:")
+    conn.execute("""
+        CREATE TABLE _pipeline_watermarks (
+            table_name VARCHAR NOT NULL,
+            watermark_type VARCHAR NOT NULL,
+            watermark_value VARCHAR,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            row_count_at_watermark BIGINT,
+            PRIMARY KEY (table_name, watermark_type)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE _extraction_journal (
+            endpoint VARCHAR NOT NULL,
+            params VARCHAR,
+            status VARCHAR NOT NULL,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            rows_extracted BIGINT,
+            error_message VARCHAR,
+            retry_count INTEGER DEFAULT 0,
+            PRIMARY KEY (endpoint, params)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE _pipeline_metrics (
+            endpoint VARCHAR NOT NULL,
+            run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            duration_seconds FLOAT,
+            rows_extracted BIGINT,
+            error_count INT DEFAULT 0,
+            PRIMARY KEY (endpoint, run_timestamp)
+        )
+    """)
+    yield conn
+    conn.close()
 
 
 @pytest.fixture
@@ -118,3 +180,30 @@ def fixture_loader() -> callable:
             return json.load(f)
 
     return _load
+
+
+@pytest.fixture
+def sample_db(tmp_path: Path) -> Path:
+    """Canonical sample DuckDB for chat tests.
+
+    Consolidated fixture (Lane K) that provides:
+    - dim_player: player_id, full_name, is_current
+    - fact_player_game_log: player_id, pts, reb, ast
+    - fact_game_log: game_id, pts (for backward compat with test_db.py)
+    """
+    db_path = tmp_path / "test.duckdb"
+    with duckdb.connect(str(db_path)) as conn:
+        # Core player dimension with SCD Type 2 marker
+        conn.execute(
+            "CREATE TABLE dim_player (player_id INT, full_name VARCHAR, is_current BOOLEAN)"
+        )
+        conn.execute(
+            "INSERT INTO dim_player VALUES (1, 'LeBron James', TRUE), (2, 'Stephen Curry', TRUE)"
+        )
+        # Player-level fact table
+        conn.execute("CREATE TABLE fact_player_game_log (player_id INT, pts INT, reb INT, ast INT)")
+        conn.execute("INSERT INTO fact_player_game_log VALUES (1, 30, 8, 10), (2, 35, 5, 7)")
+        # Game-level fact table (for backward compat with test_db.py)
+        conn.execute("CREATE TABLE fact_game_log (game_id INT, pts INT)")
+        conn.execute("INSERT INTO fact_game_log VALUES (100, 30)")
+    return db_path

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
-import duckdb
 import pytest
 
 from nbadb.orchestrate.backfill import BackfillPlanner
 from nbadb.orchestrate.journal import PipelineJournal
 from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
+
+if TYPE_CHECKING:
+    import duckdb
 
 _ALL_SEASON_TYPES = ("Regular Season", "Playoffs", "Pre Season", "All Star")
 
@@ -15,44 +18,11 @@ _ALL_SEASON_TYPES = ("Regular Season", "Playoffs", "Pre Season", "All Star")
 
 
 @pytest.fixture
-def conn() -> duckdb.DuckDBPyConnection:
-    """In-memory DuckDB with pipeline tables."""
-    c = duckdb.connect(":memory:")
-    c.execute("""
-        CREATE TABLE _pipeline_watermarks (
-            table_name VARCHAR NOT NULL,
-            watermark_type VARCHAR NOT NULL,
-            watermark_value VARCHAR,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            row_count_at_watermark BIGINT,
-            PRIMARY KEY (table_name, watermark_type)
-        )
-    """)
-    c.execute("""
-        CREATE TABLE _extraction_journal (
-            endpoint VARCHAR NOT NULL,
-            params VARCHAR,
-            status VARCHAR NOT NULL,
-            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP,
-            rows_extracted BIGINT,
-            error_message VARCHAR,
-            retry_count INTEGER DEFAULT 0,
-            PRIMARY KEY (endpoint, params)
-        )
-    """)
-    c.execute("""
-        CREATE TABLE _pipeline_metrics (
-            endpoint VARCHAR NOT NULL,
-            run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            duration_seconds FLOAT,
-            rows_extracted BIGINT,
-            error_count INT DEFAULT 0,
-            PRIMARY KEY (endpoint, run_timestamp)
-        )
-    """)
-    yield c
-    c.close()
+def conn(
+    duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+) -> duckdb.DuckDBPyConnection:
+    """Alias for canonical duckdb_memory_with_pipeline_tables fixture."""
+    return duckdb_memory_with_pipeline_tables
 
 
 @pytest.fixture

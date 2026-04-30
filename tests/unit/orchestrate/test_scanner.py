@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-import duckdb
 import pytest
 
 from nbadb.orchestrate.scanner import (
@@ -13,16 +13,20 @@ from nbadb.orchestrate.scanner import (
     ScanSeverity,
 )
 
+if TYPE_CHECKING:
+    import duckdb
+
 # ── fixtures ──────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def conn():
-    """In-memory DuckDB with representative tables for scan testing."""
-    c = duckdb.connect(":memory:")
+def conn(duckdb_memory_conn: duckdb.DuckDBPyConnection):
+    """In-memory DuckDB with representative tables for scan testing.
 
+    Extends canonical duckdb_memory_conn with dim_game, dim_player, dim_team.
+    """
     # dim_game — 3 games
-    c.execute("""
+    duckdb_memory_conn.execute("""
         CREATE TABLE dim_game (
             game_id VARCHAR NOT NULL,
             game_date DATE,
@@ -31,7 +35,7 @@ def conn():
             visitor_team_id INTEGER
         )
     """)
-    c.execute("""
+    duckdb_memory_conn.execute("""
         INSERT INTO dim_game VALUES
             ('0021400001', '2024-10-22', '2024-25', 1, 2),
             ('0021400002', '2024-10-23', '2024-25', 3, 4),
@@ -39,25 +43,24 @@ def conn():
     """)
 
     # dim_player — 2 players
-    c.execute("""
+    duckdb_memory_conn.execute("""
         CREATE TABLE dim_player (
             player_id INTEGER NOT NULL,
             player_name VARCHAR
         )
     """)
-    c.execute("INSERT INTO dim_player VALUES (101, 'Player A'), (102, 'Player B')")
+    duckdb_memory_conn.execute("INSERT INTO dim_player VALUES (101, 'Player A'), (102, 'Player B')")
 
     # dim_team — 2 teams
-    c.execute("""
+    duckdb_memory_conn.execute("""
         CREATE TABLE dim_team (
             team_id INTEGER NOT NULL,
             team_name VARCHAR
         )
     """)
-    c.execute("INSERT INTO dim_team VALUES (1, 'Team A'), (2, 'Team B')")
+    duckdb_memory_conn.execute("INSERT INTO dim_team VALUES (1, 'Team A'), (2, 'Team B')")
 
-    yield c
-    c.close()
+    return duckdb_memory_conn
 
 
 def _stub_transformer(output_table: str, depends_on: list[str] | None = None):
