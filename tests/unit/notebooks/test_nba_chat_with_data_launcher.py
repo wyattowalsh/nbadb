@@ -8,11 +8,11 @@ import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
-import httpx
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 NOTEBOOK_PATH = PROJECT_ROOT / "notebooks" / "nba_chat_with_data.ipynb"
-CHAT_DIR = PROJECT_ROOT / "apps" / "chat"
+CHAT_DIR = PROJECT_ROOT / "chat"
 
 
 def _code_cells() -> list[str]:
@@ -28,7 +28,7 @@ def _code_cells() -> list[str]:
 
 def _load_cell1_namespace() -> dict[str, object]:
     source = _code_cells()[0]
-    prelude = source.split("CHAT_DIR = _find_checked_out_chat_dir() or _clone_pinned_repo()", 1)[0]
+    prelude = source.split("CHAT_DIR = _require_checked_out_chat_dir()", 1)[0]
     ns: dict[str, object] = {}
     exec(prelude, ns)  # noqa: S102
     return ns
@@ -37,10 +37,26 @@ def _load_cell1_namespace() -> dict[str, object]:
 def _load_cell5_namespace() -> dict[str, object]:
     source = _code_cells()[4]
     prelude = source.split("process = _run_chainlit()", 1)[0]
+    prelude = prelude.replace("import httpx\n", "")
     prelude = prelude.replace("from IPython.display import HTML, display\n", "")
+
+    class _RequestError(Exception):
+        pass
+
+    class _ConnectError(_RequestError):
+        def __init__(self, message: str, request: object | None = None) -> None:
+            super().__init__(message)
+            self.request = request
+
     ns: dict[str, object] = {
         "HTML": lambda content: content,
         "display": lambda *_args, **_kwargs: None,
+        "httpx": SimpleNamespace(
+            RequestError=_RequestError,
+            ConnectError=_ConnectError,
+            Request=lambda method, url: SimpleNamespace(method=method, url=url),
+            get=lambda *_args, **_kwargs: None,
+        ),
     }
     exec(prelude, ns)  # noqa: S102
     return ns
@@ -48,7 +64,7 @@ def _load_cell5_namespace() -> dict[str, object]:
 
 def test_prefers_checked_out_chat_app(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
-    chat_dir = repo_root / "apps" / "chat"
+    chat_dir = repo_root / "chat"
     chat_dir.mkdir(parents=True)
     (chat_dir / "chainlit_app.py").write_text("# app\n")
     (chat_dir / "pyproject.toml").write_text("[project]\nname='chat'\nversion='0.1.0'\n")
@@ -62,44 +78,50 @@ def test_prefers_checked_out_chat_app(monkeypatch, tmp_path: Path) -> None:
     assert resolved == chat_dir
 
 
-def test_clone_fallback_is_pinned_to_current_commit(monkeypatch, tmp_path: Path) -> None:
+def test_missing_launcher_files_raise_runtime_error(monkeypatch, tmp_path: Path) -> None:
     ns = _load_cell1_namespace()
-    commands: list[list[str]] = []
+    monkeypatch.chdir(tmp_path)
 
-    def fake_check_call(cmd: list[str], stdout=None, stderr=None) -> None:
-        commands.append(cmd)
-
-    ns["WORK_DIR"] = tmp_path
-    monkeypatch.setattr(ns["subprocess"], "check_call", fake_check_call)
-
-    repo_ref = ns["REPO_REF"]
-    chat_dir = ns["_clone_pinned_repo"]()
-    clone_dir = tmp_path / f"nbadb-{repo_ref[:8]}"
-
-    assert chat_dir == clone_dir / "apps" / "chat"
-    assert commands == [
-        ["git", "clone", ns["REPO_URL"], str(clone_dir)],
-        ["git", "-C", str(clone_dir), "checkout", "--detach", repo_ref],
-    ]
+    with pytest.raises(RuntimeError, match="canonical chat launcher is unavailable"):
+        ns["_require_checked_out_chat_dir"]()
 
 
-def test_dependency_installation_is_derived_from_chat_pyproject(monkeypatch) -> None:
+def test_dependency_installation_is_derived_from_chat_pyproject(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
     ns = _load_cell1_namespace()
     source = _code_cells()[0]
     suffix = source.split('PYPROJECT_PATH = CHAT_DIR / "pyproject.toml"\n', 1)[1]
     install_block = 'PYPROJECT_PATH = CHAT_DIR / "pyproject.toml"\n' + suffix
 
+    chat_dir = tmp_path / "chat"
+    chat_dir.mkdir()
+    (chat_dir / "pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[project]",
+                "name = 'chat'",
+                "version = '0.1.0'",
+                "dependencies = ['alpha', 'beta']",
+                "[project.optional-dependencies]",
+                "viz = ['beta', 'gamma']",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
     commands: list[list[str]] = []
 
     def fake_check_call(cmd: list[str], stdout=None, stderr=None) -> None:
         commands.append(cmd)
 
-    ns["CHAT_DIR"] = CHAT_DIR
+    ns["CHAT_DIR"] = chat_dir
     monkeypatch.setattr(ns["subprocess"], "check_call", fake_check_call)
 
     exec(install_block, ns)  # noqa: S102
 
-    with (CHAT_DIR / "pyproject.toml").open("rb") as handle:
+    with (chat_dir / "pyproject.toml").open("rb") as handle:
         project = tomllib.load(handle)["project"]
     expected_deps = list(project["dependencies"])
     for extra in project.get("optional-dependencies", {}).values():
@@ -146,8 +168,8 @@ def test_wait_for_chainlit_polls_until_http_ready(monkeypatch) -> None:
     def fake_get(url: str, timeout: float):
         attempts["count"] += 1
         if attempts["count"] < 3:
-            request = httpx.Request("GET", url)
-            raise httpx.ConnectError("still starting", request=request)
+            request = ns["httpx"].Request("GET", url)
+            raise ns["httpx"].ConnectError("still starting", request=request)
         return SimpleNamespace(status_code=200)
 
     monkeypatch.setattr(ns["time"], "monotonic", fake_monotonic)
@@ -180,3 +202,5 @@ def test_wait_for_chainlit_raises_if_process_exits(monkeypatch) -> None:
 def test_notebook_copy_mentions_open_chat() -> None:
     content = NOTEBOOK_PATH.read_text()
     assert "Open NBA Chat" in content
+    assert "`chat`" in content
+    assert "`apps/chat`" not in content

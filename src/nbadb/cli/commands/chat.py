@@ -9,7 +9,7 @@ import typer
 from nbadb.cli.app import app
 
 # src/nbadb/cli/commands/chat.py → parents[4] = project root
-CHAT_APP = Path(__file__).resolve().parents[4] / "apps" / "chat"
+CHAT_APP = Path(__file__).resolve().parents[4] / "chat"
 
 
 @app.command()
@@ -20,8 +20,13 @@ def chat(
     """Launch the AI-powered NBA data analytics chat UI."""
     chat_dir = CHAT_APP.resolve()
     app_file = chat_dir / "chainlit_app.py"
-    if not app_file.exists():
-        typer.echo(f"Error: chat app not found at {app_file}")
+    pyproject_file = chat_dir / "pyproject.toml"
+    missing = [path.name for path in (app_file, pyproject_file) if not path.exists()]
+    if missing:
+        typer.echo(
+            "Error: canonical chat launcher is unavailable at "
+            f"{chat_dir} (missing: {', '.join(missing)})"
+        )
         raise typer.Exit(1)
 
     uv = shutil.which("uv")

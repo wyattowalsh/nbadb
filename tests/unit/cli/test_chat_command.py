@@ -20,13 +20,26 @@ runner = CliRunner()
 
 def test_chat_app_file_missing(tmp_path) -> None:  # noqa: ANN001
     """Exit 1 when chainlit_app.py does not exist."""
-    fake_chat_dir = tmp_path / "apps" / "chat"
+    fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
 
     with patch("nbadb.cli.commands.chat.CHAT_APP", fake_chat_dir):
         result = runner.invoke(app, ["chat"])
     assert result.exit_code == 1
-    assert "chat app not found" in result.output
+    assert "canonical chat launcher is unavailable" in result.output
+
+
+def test_chat_pyproject_missing(tmp_path) -> None:  # noqa: ANN001
+    """Exit 1 when the canonical chat surface lacks pyproject metadata."""
+    fake_chat_dir = tmp_path / "chat"
+    fake_chat_dir.mkdir(parents=True)
+    (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
+
+    with patch("nbadb.cli.commands.chat.CHAT_APP", fake_chat_dir):
+        result = runner.invoke(app, ["chat"])
+
+    assert result.exit_code == 1
+    assert "missing: pyproject.toml" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -36,9 +49,10 @@ def test_chat_app_file_missing(tmp_path) -> None:  # noqa: ANN001
 
 def test_chat_uv_not_found(tmp_path) -> None:  # noqa: ANN001
     """Exit 1 when uv is not on PATH."""
-    fake_chat_dir = tmp_path / "apps" / "chat"
+    fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
     (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
+    (fake_chat_dir / "pyproject.toml").write_text("[project]\nname='chat'\n", encoding="utf-8")
 
     with (
         patch("nbadb.cli.commands.chat.CHAT_APP", fake_chat_dir),
@@ -56,9 +70,10 @@ def test_chat_uv_not_found(tmp_path) -> None:  # noqa: ANN001
 
 def test_chat_success(tmp_path) -> None:  # noqa: ANN001
     """Successful launch calls subprocess.run with correct arguments."""
-    fake_chat_dir = tmp_path / "apps" / "chat"
+    fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
     (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
+    (fake_chat_dir / "pyproject.toml").write_text("[project]\nname='chat'\n", encoding="utf-8")
 
     mock_run = MagicMock()
 
@@ -86,9 +101,10 @@ def test_chat_success(tmp_path) -> None:  # noqa: ANN001
 
 def test_chat_default_options(tmp_path) -> None:  # noqa: ANN001
     """Default host and port are used when no flags are provided."""
-    fake_chat_dir = tmp_path / "apps" / "chat"
+    fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
     (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
+    (fake_chat_dir / "pyproject.toml").write_text("[project]\nname='chat'\n", encoding="utf-8")
 
     mock_run = MagicMock()
 
@@ -109,9 +125,10 @@ def test_chat_default_options(tmp_path) -> None:  # noqa: ANN001
 
 def test_chat_keyboard_interrupt(tmp_path) -> None:  # noqa: ANN001
     """KeyboardInterrupt is caught and prints stop message."""
-    fake_chat_dir = tmp_path / "apps" / "chat"
+    fake_chat_dir = tmp_path / "chat"
     fake_chat_dir.mkdir(parents=True)
     (fake_chat_dir / "chainlit_app.py").write_text("# app", encoding="utf-8")
+    (fake_chat_dir / "pyproject.toml").write_text("[project]\nname='chat'\n", encoding="utf-8")
 
     with (
         patch("nbadb.cli.commands.chat.CHAT_APP", fake_chat_dir),

@@ -95,3 +95,5 @@ tmp-model-audit*/
 session*.txt
 sesh*.txt
 scripts/
+!chat/skills/**/scripts/
+!chat/skills/**/scripts/*.py
