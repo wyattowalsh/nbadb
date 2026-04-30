@@ -8,7 +8,7 @@ from nbadb.cli.options import DataDirOption, VerboseOption  # noqa: TC001
 from nbadb.orchestrate import Orchestrator
 
 
-@app.command(deprecated=True)
+@app.command(deprecated=True, hidden=True)
 def full(
     data_dir: DataDirOption = None,
     verbose: VerboseOption = False,

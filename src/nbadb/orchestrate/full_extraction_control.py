@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 from contextlib import suppress
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -953,21 +952,77 @@ def merge_lane_databases(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     target_path = output_dir / "nba.duckdb"
+    if target_path.exists():
+        target_path.unlink()
 
-    base_path = max(db_paths, key=lambda path: path.stat().st_size)
-    shutil.copy2(base_path, target_path)
+    def quote_identifier(identifier: str) -> str:
+        return '"' + identifier.replace('"', '""') + '"'
+
+    def table_exists(conn: duckdb.DuckDBPyConnection, database: str, table_name: str) -> bool:
+        return bool(
+            row_count(
+                conn,
+                """
+                SELECT COUNT(*)
+                FROM duckdb_tables()
+                WHERE database_name = ?
+                  AND schema_name = 'main'
+                  AND table_name = ?
+                """,
+                [database, table_name],
+            )
+        )
+
+    def table_schema(
+        conn: duckdb.DuckDBPyConnection,
+        database: str,
+        table_name: str,
+    ) -> list[tuple[str, str]]:
+        return conn.execute(
+            """
+            SELECT column_name, data_type
+            FROM duckdb_columns()
+            WHERE database_name = ?
+              AND schema_name = 'main'
+              AND table_name = ?
+            ORDER BY column_index
+            """,
+            [database, table_name],
+        ).fetchall()
+
+    def row_count(
+        conn: duckdb.DuckDBPyConnection,
+        sql: str,
+        parameters: list[Any] | None = None,
+    ) -> int:
+        row = conn.execute(sql, parameters).fetchone()
+        if row is None:
+            msg = f"Expected COUNT(*) query to return a row: {sql}"
+            raise RuntimeError(msg)
+        return int(row[0])
 
     target = duckdb.connect(str(target_path))
-    merged_databases = 1
+    attached_aliases: list[str] = []
+    merge_failed = False
     merged_tables = 0
+    table_reports: dict[str, dict[str, Any]] = {}
+    journal_report: dict[str, Any] = {
+        "source_rows": 0,
+        "inserted_rows": 0,
+        "duplicate_rows": 0,
+        "source_count": 0,
+        "per_source": [],
+    }
 
     try:
         for index, db_path in enumerate(db_paths):
-            if db_path == base_path:
-                continue
             alias = f"src_{index}"
             target.execute(f"ATTACH '{db_path}' AS {alias} (READ_ONLY)")
-            try:
+            attached_aliases.append(alias)
+
+        target.execute("BEGIN TRANSACTION")
+        try:
+            for alias, db_path in zip(attached_aliases, db_paths, strict=True):
                 tables = [
                     row[0]
                     for row in target.execute(
@@ -977,44 +1032,126 @@ def merge_lane_databases(
                     ).fetchall()
                 ]
                 for table_name in tables:
-                    try:
+                    quoted_table = quote_identifier(table_name)
+                    source_schema = table_schema(target, alias, table_name)
+                    if not table_exists(target, "nba", table_name):
                         target.execute(
-                            f'INSERT INTO main."{table_name}" '
-                            f'SELECT * FROM {alias}."{table_name}" '
-                            f'EXCEPT SELECT * FROM main."{table_name}"'
+                            f"CREATE TABLE main.{quoted_table} AS "
+                            f"SELECT * FROM {alias}.{quoted_table} WHERE FALSE"
                         )
-                    except duckdb.CatalogException:
-                        target.execute(
-                            f'CREATE TABLE main."{table_name}" AS '
-                            f'SELECT * FROM {alias}."{table_name}"'
+                    target_schema = table_schema(target, "nba", table_name)
+                    if target_schema != source_schema:
+                        msg = (
+                            f"Schema mismatch while merging {table_name} from {db_path}: "
+                            f"expected {target_schema}, got {source_schema}"
                         )
+                        raise ValueError(msg)
+
+                    source_rows = row_count(target, f"SELECT COUNT(*) FROM {alias}.{quoted_table}")
+                    before_rows = row_count(target, f"SELECT COUNT(*) FROM main.{quoted_table}")
+                    target.execute(
+                        f"INSERT INTO main.{quoted_table} "
+                        f"SELECT * FROM {alias}.{quoted_table} "
+                        f"EXCEPT SELECT * FROM main.{quoted_table}"
+                    )
+                    after_rows = row_count(target, f"SELECT COUNT(*) FROM main.{quoted_table}")
+                    inserted_rows = after_rows - before_rows
+                    duplicate_rows = max(source_rows - inserted_rows, 0)
+                    report = table_reports.setdefault(
+                        table_name,
+                        {
+                            "source_rows": 0,
+                            "inserted_rows": 0,
+                            "duplicate_rows": 0,
+                            "source_count": 0,
+                            "per_source": [],
+                        },
+                    )
+                    report["source_rows"] += source_rows
+                    report["inserted_rows"] += inserted_rows
+                    report["duplicate_rows"] += duplicate_rows
+                    report["source_count"] += 1
+                    report["per_source"].append(
+                        {
+                            "database_path": str(db_path),
+                            "source_rows": source_rows,
+                            "inserted_rows": inserted_rows,
+                            "duplicate_rows": duplicate_rows,
+                        }
+                    )
                     merged_tables += 1
 
-                with suppress(duckdb.CatalogException):
-                    target.execute(
-                        "INSERT INTO main._extraction_journal "
-                        "SELECT src.endpoint, src.params, src.status, "
-                        "src.started_at, src.completed_at, "
-                        f"src.rows_extracted, src.error_message, src.retry_count "
-                        f"FROM {alias}._extraction_journal AS src "
-                        "WHERE NOT EXISTS ("
-                        "  SELECT 1 FROM main._extraction_journal AS dst "
-                        "  WHERE dst.endpoint = src.endpoint "
-                        "    AND dst.params IS NOT DISTINCT FROM src.params"
-                        ")"
+                if table_exists(target, alias, "_extraction_journal"):
+                    source_schema = table_schema(target, alias, "_extraction_journal")
+                    if not table_exists(target, "nba", "_extraction_journal"):
+                        target.execute(
+                            "CREATE TABLE main._extraction_journal AS "
+                            f"SELECT * FROM {alias}._extraction_journal WHERE FALSE"
+                        )
+                    target_schema = table_schema(target, "nba", "_extraction_journal")
+                    if target_schema != source_schema:
+                        msg = (
+                            "Schema mismatch while merging _extraction_journal "
+                            f"from {db_path}: expected {target_schema}, got {source_schema}"
+                        )
+                        raise ValueError(msg)
+                    source_rows = row_count(
+                        target,
+                        f"SELECT COUNT(*) FROM {alias}._extraction_journal",
                     )
-
-                merged_databases += 1
-            finally:
-                target.execute(f"DETACH {alias}")
+                    before_rows = row_count(target, "SELECT COUNT(*) FROM main._extraction_journal")
+                    target.execute(
+                        f"""
+                        INSERT INTO main._extraction_journal
+                        SELECT src.*
+                        FROM {alias}._extraction_journal AS src
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM main._extraction_journal AS dst
+                            WHERE dst.endpoint = src.endpoint
+                              AND dst.params IS NOT DISTINCT FROM src.params
+                        )
+                        """
+                    )
+                    after_rows = row_count(target, "SELECT COUNT(*) FROM main._extraction_journal")
+                    inserted_rows = after_rows - before_rows
+                    duplicate_rows = max(source_rows - inserted_rows, 0)
+                    journal_report["source_rows"] += source_rows
+                    journal_report["inserted_rows"] += inserted_rows
+                    journal_report["duplicate_rows"] += duplicate_rows
+                    journal_report["source_count"] += 1
+                    journal_report["per_source"].append(
+                        {
+                            "database_path": str(db_path),
+                            "source_rows": source_rows,
+                            "inserted_rows": inserted_rows,
+                            "duplicate_rows": duplicate_rows,
+                        }
+                    )
+            target.execute("COMMIT")
+        except Exception:
+            with suppress(Exception):
+                target.execute("ROLLBACK")
+            raise
+    except Exception:
+        merge_failed = True
+        raise
     finally:
-        target.close()
+        for alias in reversed(attached_aliases):
+            with suppress(Exception):
+                target.execute(f"DETACH {alias}")
+        with suppress(Exception):
+            target.close()
+        if merge_failed:
+            with suppress(FileNotFoundError):
+                target_path.unlink()
 
     return {
-        "base_path": str(base_path),
-        "merged_database_count": merged_databases,
+        "merged_database_count": len(db_paths),
         "merged_table_operations": merged_tables,
         "output_path": str(target_path),
+        "table_reports": table_reports,
+        "journal_report": journal_report,
     }
 
 

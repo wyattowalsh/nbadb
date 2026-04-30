@@ -775,7 +775,15 @@ def test_merge_lane_databases_merges_without_special_base(tmp_path: Path) -> Non
     summary = merge_lane_databases(artifacts_dir=tmp_path, output_dir=output_dir)
 
     assert summary["merged_database_count"] == 2
-    assert summary["merged_table_operations"] >= 2
+    assert summary["merged_table_operations"] == 3
+    assert summary["table_reports"]["stg_alpha"]["source_rows"] == 4
+    assert summary["table_reports"]["stg_alpha"]["inserted_rows"] == 3
+    assert summary["table_reports"]["stg_alpha"]["duplicate_rows"] == 1
+    assert summary["table_reports"]["stg_beta"]["source_rows"] == 1
+    assert summary["table_reports"]["stg_beta"]["inserted_rows"] == 1
+    assert summary["journal_report"]["source_rows"] == 3
+    assert summary["journal_report"]["inserted_rows"] == 2
+    assert summary["journal_report"]["duplicate_rows"] == 1
 
     conn = duckdb.connect(str(output_dir / "nba.duckdb"))
     try:
@@ -794,3 +802,46 @@ def test_merge_lane_databases_merges_without_special_base(tmp_path: Path) -> Non
     assert alpha_values == [1, 2, 3]
     assert beta_values == [9]
     assert journal_rows == [("endpoint_a", "{}"), ("endpoint_b", '{"season": "2024-25"}')]
+
+
+def test_merge_lane_databases_rejects_schema_mismatch_and_cleans_target(
+    tmp_path: Path,
+) -> None:
+    lane_a = tmp_path / "lane-a"
+    lane_b = tmp_path / "lane-b"
+    lane_a.mkdir()
+    lane_b.mkdir()
+
+    _write_lane_db(
+        lane_a / "nba.duckdb",
+        alpha_rows=[1],
+        beta_rows=[],
+        journal_rows=[("endpoint_a", "{}")],
+    )
+
+    conn = duckdb.connect(str(lane_b / "nba.duckdb"))
+    try:
+        conn.execute("CREATE TABLE stg_alpha (value VARCHAR)")
+        conn.execute("INSERT INTO stg_alpha VALUES ('one')")
+        conn.execute(
+            """
+            CREATE TABLE _extraction_journal (
+                endpoint VARCHAR,
+                params VARCHAR,
+                status VARCHAR,
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                rows_extracted BIGINT,
+                error_message VARCHAR,
+                retry_count INTEGER
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    output_dir = tmp_path / "merged"
+    with pytest.raises(ValueError, match="Schema mismatch while merging stg_alpha"):
+        merge_lane_databases(artifacts_dir=tmp_path, output_dir=output_dir)
+
+    assert not (output_dir / "nba.duckdb").exists()

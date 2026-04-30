@@ -102,7 +102,7 @@ jobs:
 
       - run: uv sync
 
-      - name: Generate support matrix artifacts
+      - name: Generate support bundle artifacts
         if: ${{ inputs.lane_manifest_json == '' }}
         run: |
           mkdir -p artifacts/endpoint-coverage
@@ -156,6 +156,53 @@ jobs:
               f"allowing {blocked_count} blocked cross-product support gaps"
           )
           PY
+
+      - name: Validate adequacy scorecard artifacts
+        if: ${{ inputs.lane_manifest_json == '' }}
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          summary = json.loads(
+              Path("artifacts/endpoint-coverage/endpoint-adequacy-scorecard.json").read_text(
+                  encoding="utf-8"
+              )
+          )["summary"]
+
+          failures: list[str] = []
+          if int(summary.get("adequate_endpoint_count", 0)) != int(summary.get("endpoint_count", 0)):
+              failures.append("endpoint adequacy is not fully green")
+          if int(summary.get("coverage_gap_endpoint_count", 0)) > 0:
+              failures.append("coverage gaps remain")
+          if int(summary.get("contract_gap_endpoint_count", 0)) > 0:
+              failures.append("contract gaps remain")
+          if int(summary.get("downstream_unowned_endpoint_count", 0)) > 0:
+              failures.append("unowned downstream endpoints remain")
+          if int(summary.get("downstream_excluded_endpoint_count", 0)) > 0:
+              failures.append("downstream exclusions remain")
+
+          if failures:
+              for failure in failures:
+                  print(f"full extraction adequacy gate failed: {failure}", file=sys.stderr)
+              sys.exit(1)
+
+          print(
+              "full extraction adequacy gate passed: "
+              f"{summary.get('downstream_not_applicable_endpoint_count', 0)} non-model "
+              "endpoints are intentionally not applicable"
+          )
+          PY
+
+      - name: Validate result-table contract artifacts
+        if: ${{ inputs.lane_manifest_json == '' }}
+        run: |
+          uv run nbadb audit-models \
+            --mode inventory \
+            --strictness consistency \
+            --require-result-table-contract \
+            --output-dir artifacts/model-audit
 
       - name: Build lane manifest
         id: manifest
@@ -877,7 +924,6 @@ jobs:
       - name: Scan data quality
         id: scan
         if: needs.extract.result == 'success'
-        continue-on-error: true
         uses: ./.github/actions/scan-report
         with:
           report-name: full-extraction-scan-report
