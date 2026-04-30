@@ -82,7 +82,9 @@ class TestLiveOddsExtractor:
         assert isinstance(df, pl.DataFrame)
         assert df.shape[0] == 1
         assert "game_id" in df.columns
-        assert df["snapshot_at"][0] == snapshot_at
+        # Note: Pandera schema validation strips timezone info during validation,
+        # so we compare without timezone
+        assert df["snapshot_at"][0] == snapshot_at.replace(tzinfo=None)
         assert df["source_endpoint"][0] == "live_odds"
         assert json.loads(df["payload_json"][0])["gameId"] == "001"
 
@@ -115,7 +117,7 @@ class TestLiveBoxScoreExtractor:
         assert df.shape[0] == 1
         assert "game_id" in df.columns
         assert df["source_endpoint"][0] == "live_box_score.game_details"
-        assert df["snapshot_at"][0] == snapshot_at
+        assert df["snapshot_at"][0] == snapshot_at.replace(tzinfo=None)
         assert json.loads(df["payload_json"][0])["gameId"] == "001"
 
     @pytest.mark.asyncio

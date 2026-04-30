@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import polars as pl
 import pytest
 
+from nbadb.core.errors import ExtractionError, TransientError
 from nbadb.orchestrate.discovery import (
     _CONCURRENT_DISCOVERY_TIMEOUT,
     EntityDiscovery,
@@ -39,6 +41,38 @@ def _fast_retry(monkeypatch):
 
 
 class TestExtractWithRetry:
+    def test_retries_transient_error_then_succeeds_without_async_plugin(self):
+        ext = MagicMock()
+        df = pl.DataFrame({"a": [1]})
+        call_count = 0
+
+        def _side_effect(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise TransientError("retry me")
+            return df
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            result = asyncio.run(_extract_with_retry(ext, "test"))
+
+        assert result.shape[0] == 1
+        assert call_count == 3
+
+    def test_does_not_retry_non_retryable_extraction_error_without_async_plugin(self):
+        ext = MagicMock()
+
+        with (
+            patch(
+                "nbadb.orchestrate.discovery._sync_extract",
+                side_effect=ExtractionError("boom"),
+            ) as mock_sync_extract,
+            pytest.raises(ExtractionError, match="boom"),
+        ):
+            asyncio.run(_extract_with_retry(ext, "test"))
+
+        assert mock_sync_extract.call_count == 1
+
     async def test_success_on_first_try(self):
         ext = MagicMock()
         df = pl.DataFrame({"a": [1]})
@@ -70,7 +104,7 @@ class TestExtractWithRetry:
                 "nbadb.orchestrate.discovery._sync_extract",
                 side_effect=ConnectionError("fail"),
             ),
-            pytest.raises(ConnectionError, match="fail"),
+            pytest.raises(TransientError, match="test: transient extraction failure"),
         ):
             await _extract_with_retry(ext, "test")
 

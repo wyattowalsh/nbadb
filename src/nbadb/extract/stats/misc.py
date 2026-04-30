@@ -167,7 +167,16 @@ class TeamGameStreakFinderExtractor(BaseExtractor):
     category = "misc"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        return self._from_nba_api(TeamGameStreakFinder, **params)
+        api_params = dict(params)
+        for alias, nba_api_name in (
+            ("team_id", "team_id_nullable"),
+            ("season", "season_nullable"),
+            ("season_type", "season_type_nullable"),
+        ):
+            if alias in api_params:
+                value = api_params.pop(alias)
+                api_params.setdefault(nba_api_name, value)
+        return self._from_nba_api(TeamGameStreakFinder, **api_params)
 
 
 @registry.register

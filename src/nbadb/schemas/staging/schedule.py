@@ -1414,3 +1414,12 @@ class StagingScheduleIntWeeksSchema(BaseSchema):
     week_name: str | None = pa.Field(nullable=True)
     start_date: str | None = pa.Field(nullable=True)
     end_date: str | None = pa.Field(nullable=True)
+
+
+class StagingScheduleIntBroadcasterSchema(BaseSchema):
+    league_id: str | None = pa.Field(nullable=True)
+    season_year: str | None = pa.Field(nullable=True)
+    broadcaster_abbreviation: str | None = pa.Field(nullable=True)
+    broadcaster_display: str | None = pa.Field(nullable=True)
+    broadcaster_id: int | None = pa.Field(nullable=True)
+    region_id: int | None = pa.Field(nullable=True)

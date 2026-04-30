@@ -7,7 +7,9 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
+from nbadb.core.errors import ValidationError as NbaDbValidationError
 from nbadb.extract.base import BaseExtractor
+from nbadb.extract.raw_schema_registry import get_raw_schema
 
 
 class _StubExtractor(BaseExtractor):
@@ -64,6 +66,24 @@ class TestFromNbaApiMulti:
         assert len(results) == 2
         assert "game_id" in results[0].columns
         assert "team_id" in results[1].columns
+
+    def test_skips_unsafe_generic_validation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = _StubExtractor()
+        mock_endpoint = MagicMock()
+        import pandas as pd
+
+        mock_endpoint.return_value.get_data_frames.return_value = [
+            pd.DataFrame({"GAME_ID": ["001"]}),
+            pd.DataFrame({"TEAM_ID": [1]}),
+        ]
+        monkeypatch.setattr(
+            ext,
+            "_validate",
+            lambda _df: (_ for _ in ()).throw(AssertionError("should not validate multi packets")),
+        )
+
+        results = ext._from_nba_api_multi(mock_endpoint)
+        assert len(results) == 2
 
 
 class TestTimeoutInjection:
@@ -137,7 +157,7 @@ class TestSafeFromPandas:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise Exception("simulated Arrow failure")
+                raise TypeError("simulated Arrow failure")
             return orig_from_pandas(*args, **kwargs)
 
         with _patch("nbadb.extract.base.pl.from_pandas", side_effect=_failing_from_pandas):
@@ -161,7 +181,7 @@ class TestSafeFromPandas:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise Exception("simulated Arrow failure")
+                raise TypeError("simulated Arrow failure")
             return orig_from_pandas(*args, **kwargs)
 
         with _patch("nbadb.extract.base.pl.from_pandas", side_effect=_failing_from_pandas):
@@ -214,7 +234,10 @@ class TestLiveSnapshotContract:
     def test_raises_when_non_empty_live_payload_lacks_required_key(self) -> None:
         frame = pl.DataFrame({"value": [1]})
 
-        with pytest.raises(ValueError, match="missing required natural keys: game_id"):
+        with pytest.raises(
+            NbaDbValidationError,
+            match="missing required natural keys: game_id",
+        ):
             BaseExtractor._apply_live_snapshot_contract(
                 frame,
                 source_endpoint="live_score_board",
@@ -222,3 +245,59 @@ class TestLiveSnapshotContract:
                 snapshot_at=datetime(2026, 4, 17, tzinfo=UTC),
                 params={},
             )
+
+
+class TestSchemaValidationTranslation:
+    def test_validate_translates_schema_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ext = _StubExtractor()
+
+        class _BrokenSchema:
+            @staticmethod
+            def validate(_df: pl.DataFrame) -> pl.DataFrame:
+                raise ValueError("bad schema")
+
+        monkeypatch.setattr("nbadb.extract.base.get_raw_schema", lambda _endpoint: _BrokenSchema)
+
+        with pytest.raises(NbaDbValidationError, match="stub: raw schema validation failed"):
+            ext._validate(pl.DataFrame({"a": [1]}))
+
+    def test_live_validation_translates_schema_errors(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = _StubExtractor()
+
+        class _BrokenSchema:
+            @staticmethod
+            def validate(_df: pl.DataFrame) -> pl.DataFrame:
+                raise ValueError("bad live schema")
+
+        class _LiveResult:
+            games = [{"gameId": "001"}]
+
+        monkeypatch.setattr(
+            "nbadb.extract.base.get_raw_schema",
+            lambda endpoint: _BrokenSchema if endpoint == "live_score_board" else None,
+        )
+
+        with pytest.raises(
+            NbaDbValidationError,
+            match="live_score_board: raw schema validation failed",
+        ):
+            ext._from_nba_live(
+                lambda **_kwargs: _LiveResult(),
+                "games",
+                source_endpoint="live_score_board",
+                natural_keys=("game_id",),
+            )
+
+
+class TestRawSchemaRegistry:
+    def test_get_raw_schema_uses_shared_registry_aliases(self) -> None:
+        schedule_schema = get_raw_schema("schedule")
+        live_schema = get_raw_schema("live_box_score.home_team_stats")
+
+        assert schedule_schema is not None
+        assert schedule_schema.__name__ == "RawScheduleLeagueV2Schema"
+        assert live_schema is not None
+        assert live_schema.__name__ == "RawLiveBoxScoreTeamStatsSchema"

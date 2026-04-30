@@ -8,8 +8,19 @@ import polars as pl
 import pytest
 
 from nbadb.core.config import NbaDbSettings
+from nbadb.core.errors import (
+    ExtractionError,
+    TransientError,
+)
+from nbadb.core.errors import (
+    ValidationError as NbaDbValidationError,
+)
 from nbadb.extract.base import BaseExtractor
-from nbadb.orchestrate.extractor_runner import ExtractorRunner, _AdaptiveThrottle
+from nbadb.orchestrate.extractor_runner import (
+    ExtractorRunner,
+    _AdaptiveThrottle,
+    _sync_extract,
+)
 from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
 from nbadb.orchestrate.staging_map import StagingEntry
 
@@ -76,6 +87,38 @@ def _make_registry(extractor_cls):
     return r
 
 
+class TestSyncExtractBoundary:
+    def test_wraps_retryable_errors_as_transient(self):
+        class _Ext:
+            endpoint_name = "ep1"
+
+            async def extract(self, **kwargs):
+                raise ConnectionError("boom")
+
+        with pytest.raises(TransientError, match="ep1: transient extraction failure"):
+            _sync_extract(_Ext())
+
+    def test_wraps_non_retryable_errors_as_extraction(self):
+        class _Ext:
+            endpoint_name = "ep1"
+
+            async def extract(self, **kwargs):
+                raise RuntimeError("boom")
+
+        with pytest.raises(ExtractionError, match="ep1: extraction failed"):
+            _sync_extract(_Ext())
+
+    def test_preserves_existing_taxonomy_errors(self):
+        class _Ext:
+            endpoint_name = "ep1"
+
+            async def extract(self, **kwargs):
+                raise NbaDbValidationError("already translated")
+
+        with pytest.raises(NbaDbValidationError, match="already translated"):
+            _sync_extract(_Ext())
+
+
 # ---------------------------------------------------------------------------
 # _extract_single tests
 # ---------------------------------------------------------------------------
@@ -111,7 +154,7 @@ class TestExtractSingle:
 
     @pytest.mark.asyncio
     async def test_records_failure_with_type_name(self):
-        """HR-A-001: record_failure should use type(exc).__name__, not str(exc)."""
+        """HR-A-001: record_failure should use the translated error type, not str(exc)."""
         journal = _make_journal(already_done=False)
         settings = _make_settings()
         registry = _make_registry(_make_extractor(exc=ConnectionError("proxy://secret:1234")))
@@ -122,7 +165,7 @@ class TestExtractSingle:
         assert result is None
         call_args = journal.record_failure.call_args
         error_msg = call_args[0][2]
-        assert error_msg == "ConnectionError"
+        assert error_msg == "TransientError"
         assert "secret" not in error_msg
 
     @pytest.mark.asyncio
@@ -210,7 +253,7 @@ class TestExtractMulti:
 
     @pytest.mark.asyncio
     async def test_records_failure_with_type_name(self):
-        """HR-A-001: record_failure in multi path uses type(exc).__name__."""
+        """HR-A-001: multi-path record_failure uses the translated type name."""
         journal = _make_journal(already_done=False)
         settings = _make_settings()
         registry = _make_registry(_make_extractor(exc=TimeoutError("proxy://secret:9999")))
@@ -222,7 +265,7 @@ class TestExtractMulti:
         result = await runner._extract_multi("ep_multi", entries, {"season": "2024-25"})
         assert result is None
         error_msg = journal.record_failure.call_args[0][2]
-        assert error_msg == "TimeoutError"
+        assert error_msg == "ExtractionError"
         assert "secret" not in error_msg
 
     @pytest.mark.asyncio
@@ -415,7 +458,7 @@ class TestRunPattern:
         journal.record_failure.assert_called_once_with(
             endpoint_name,
             '{"game_date": "02/11/1968"}',
-            "ConnectionError",
+            "TransientError",
         )
         mock_sleep.assert_awaited_once_with(1.0)
 
@@ -438,7 +481,7 @@ class TestRunPattern:
         journal.record_failure.assert_called_once_with(
             "video_status",
             '{"game_date": "02/11/1968"}',
-            "ConnectionError",
+            "TransientError",
         )
         mock_sleep.assert_not_awaited()
 

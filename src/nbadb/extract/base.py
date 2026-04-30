@@ -11,6 +11,9 @@ import pandas as pd
 import polars as pl
 from loguru import logger
 
+from nbadb.core.errors import ValidationError as NbaDbValidationError
+from nbadb.extract.raw_schema_registry import get_raw_schema
+
 _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
 _UPPER_TOKEN_RE = re.compile(r"^[A-Z0-9_]+$")
 
@@ -89,7 +92,7 @@ def _safe_from_pandas(pdf: Any) -> pl.DataFrame:
     """
     try:
         return pl.from_pandas(pdf, nan_to_null=True, include_index=False)
-    except Exception:
+    except (TypeError, ValueError, RuntimeError):
         coerced: list[str] = []
         for col in pdf.columns:
             if pdf[col].dtype == object:
@@ -114,6 +117,29 @@ class BaseExtractor(ABC):
 
     @abstractmethod
     async def extract(self, **params: Any) -> pl.DataFrame: ...
+
+    def _validate(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Apply raw schema validation to extracted DataFrame.
+
+        Looks up the schema for this endpoint in the raw schema registry and
+        validates the DataFrame. Returns the validated DataFrame (may have
+        columns stripped per schema config).
+
+        If no schema is registered for this endpoint, validation is skipped.
+        """
+        schema_cls = get_raw_schema(self.endpoint_name)
+        if schema_cls is None:
+            return df
+
+        try:
+            validated = schema_cls.validate(df)
+            logger.debug(f"{self.endpoint_name}: validation passed")
+            return validated
+        except Exception as exc:
+            logger.error(f"{self.endpoint_name}: validation failed: {exc}")
+            raise NbaDbValidationError(
+                f"{self.endpoint_name}: raw schema validation failed"
+            ) from exc
 
     def _inject_timeout(self, kwargs: dict[str, Any]) -> None:
         """Apply timeout override for nba_api endpoint calls.
@@ -159,17 +185,21 @@ class BaseExtractor(ABC):
         nba_api returns pandas DataFrames with UPPERCASE columns.
         We lowercase all column names at this boundary and inject a
         ``season_type`` column when the endpoint was queried with one.
+        Applies raw schema validation before returning.
         """
         converted = self._call_nba_api(endpoint_cls, **kwargs)
         if not converted:
             logger.warning(f"{self.endpoint_name}: no data frames returned")
             return pl.DataFrame()
-        return converted[0]
+        return self._validate(converted[0])
 
     def _from_nba_api_multi(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
         """Call nba_api endpoint returning multiple result sets.
 
         Injects ``season_type`` column into each result set when applicable.
+        Generic validation is intentionally skipped here because multi-result
+        endpoints often return heterogeneous packets that need packet-aware
+        schema selection.
         """
         return self._call_nba_api(endpoint_cls, **kwargs)
 
@@ -224,7 +254,7 @@ class BaseExtractor(ABC):
 
         if missing:
             missing_keys = ", ".join(missing)
-            raise ValueError(
+            raise NbaDbValidationError(
                 f"{source_endpoint}: live payload missing required natural keys: {missing_keys}"
             )
 
@@ -248,7 +278,10 @@ class BaseExtractor(ABC):
         natural_keys: tuple[str, ...],
         **kwargs: Any,
     ) -> pl.DataFrame:
-        """Call nba_api live endpoint and convert a single dataset to Polars."""
+        """Call nba_api live endpoint and convert a single dataset to Polars.
+
+        Applies raw schema validation using source_endpoint as the lookup key.
+        """
         snapshot_at = _coerce_snapshot_at(kwargs.pop("snapshot_at", None))
         self._inject_timeout(kwargs)
         result = endpoint_cls(**kwargs)
@@ -258,13 +291,24 @@ class BaseExtractor(ABC):
             frame = pl.DataFrame()
         else:
             frame = self._live_payload_to_frame(dataset)
-        return self._apply_live_snapshot_contract(
+        frame = self._apply_live_snapshot_contract(
             frame,
             source_endpoint=source_endpoint,
             natural_keys=natural_keys,
             snapshot_at=snapshot_at,
             params=kwargs,
         )
+        # Validate using source_endpoint as the schema lookup key
+        schema_cls = get_raw_schema(source_endpoint)
+        if schema_cls is not None:
+            try:
+                frame = schema_cls.validate(frame)
+            except Exception as exc:
+                logger.error(f"{source_endpoint}: live validation failed: {exc}")
+                raise NbaDbValidationError(
+                    f"{source_endpoint}: raw schema validation failed"
+                ) from exc
+        return frame
 
     def _from_nba_live_multi(
         self,
@@ -272,7 +316,10 @@ class BaseExtractor(ABC):
         specs: list[tuple[str, str, tuple[str, ...]]],
         **kwargs: Any,
     ) -> list[pl.DataFrame]:
-        """Call nba_api live endpoint and convert multiple datasets to Polars."""
+        """Call nba_api live endpoint and convert multiple datasets to Polars.
+
+        Applies raw schema validation to each dataset using source_endpoint as the lookup key.
+        """
         snapshot_at = _coerce_snapshot_at(kwargs.pop("snapshot_at", None))
         self._inject_timeout(kwargs)
         result = endpoint_cls(**kwargs)
@@ -284,13 +331,22 @@ class BaseExtractor(ABC):
                 frame = pl.DataFrame()
             else:
                 frame = self._live_payload_to_frame(dataset)
-            frames.append(
-                self._apply_live_snapshot_contract(
-                    frame,
-                    source_endpoint=source_endpoint,
-                    natural_keys=natural_keys,
-                    snapshot_at=snapshot_at,
-                    params=kwargs,
-                )
+            frame = self._apply_live_snapshot_contract(
+                frame,
+                source_endpoint=source_endpoint,
+                natural_keys=natural_keys,
+                snapshot_at=snapshot_at,
+                params=kwargs,
             )
+            # Validate using source_endpoint as the schema lookup key
+            schema_cls = get_raw_schema(source_endpoint)
+            if schema_cls is not None:
+                try:
+                    frame = schema_cls.validate(frame)
+                except Exception as exc:
+                    logger.error(f"{source_endpoint}: live validation failed: {exc}")
+                    raise NbaDbValidationError(
+                        f"{source_endpoint}: raw schema validation failed"
+                    ) from exc
+            frames.append(frame)
         return frames

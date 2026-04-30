@@ -107,10 +107,19 @@ class DraftCombineDrillResultsExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        return self._from_nba_api(
+        season = str(params["season"])
+        converted = self._call_nba_api(
             DraftCombineDrillResults,
-            season_year=int(str(params["season"])[:4]),
+            season_year=int(season[:4]),
         )
+        if not converted:
+            logger.warning(f"{self.endpoint_name}: no data frames returned")
+            return pl.DataFrame()
+
+        df = converted[0]
+        if "season" not in df.columns:
+            df = df.with_columns(pl.lit(season).alias("season"))
+        return self._validate(df)
 
 
 @registry.register

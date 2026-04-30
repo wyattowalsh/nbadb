@@ -17,6 +17,12 @@ from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.seasons import current_season
 
+# ── Player Dashboard Season Type Mapping ───────────────────────────────────
+# All PlayerDashboard* endpoints from nba_api use the `season_type_playoffs`
+# parameter (string: "Regular Season", "Playoffs", etc.), NOT season_type_all_star.
+# This mapping ensures consistent parameter passing across all extractors.
+# See: https://github.com/swar/nba_api for endpoint parameter documentation
+
 
 def _attach_player_dashboard_context(
     df: pl.DataFrame,
@@ -99,7 +105,7 @@ class PlayerDashboardByYearOverYearExtractor(BaseExtractor):
             player_id=player_id,
             season=season,
             season_type=season_type,
-            season_type_kw="season_type_all_star",
+            season_type_kw="season_type_playoffs",
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -112,7 +118,7 @@ class PlayerDashboardByYearOverYearExtractor(BaseExtractor):
             player_id=player_id,
             season=season,
             season_type=season_type,
-            season_type_kw="season_type_all_star",
+            season_type_kw="season_type_playoffs",
         )
 
 
@@ -131,7 +137,7 @@ class PlayerDashboardByLastNGamesExtractor(BaseExtractor):
             player_id=player_id,
             season=season,
             season_type=season_type,
-            season_type_kw="season_type_all_star",
+            season_type_kw="season_type_playoffs",
         )
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
@@ -144,7 +150,7 @@ class PlayerDashboardByLastNGamesExtractor(BaseExtractor):
             player_id=player_id,
             season=season,
             season_type=season_type,
-            season_type_kw="season_type_all_star",
+            season_type_kw="season_type_playoffs",
         )
 
 

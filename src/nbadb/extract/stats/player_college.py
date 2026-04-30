@@ -20,14 +20,18 @@ class PlayerCareerByCollegeExtractor(BaseExtractor):
     category = "player_info"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        college: str = params.get("college", "")
-        season: str = params.get("season", "")
-        season_type: str = params.get("season_type", "Regular Season")
+        api_params = dict(params)
+        college: str = api_params.pop("college", "")
+
+        if "season" in api_params:
+            api_params.setdefault("season_nullable", api_params.pop("season"))
+        if "season_type" in api_params:
+            api_params.setdefault("season_type_all_star", api_params.pop("season_type"))
+
         return self._from_nba_api(
             PlayerCareerByCollege,
             college=college,
-            season_nullable=season,
-            season_type_nullable=season_type,
+            **api_params,
         )
 
 

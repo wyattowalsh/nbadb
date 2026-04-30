@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from nbadb.core.types import SeasonType
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
     StagingEntry,
@@ -61,6 +62,7 @@ _MULTI_ROUTE_REGRESSION_ROWS = {
     "stg_player_dashboard_clutch": "player_dashboard_clutch",
     "stg_player_vs_player": "player_vs_player",
     "stg_schedule_int": "schedule_int",
+    "stg_schedule_int_broadcaster": "schedule_int",
     "stg_schedule_int_weeks": "schedule_int",
     "stg_team_and_players_vs": "team_and_players_vs",
     "stg_team_dash_general_splits": "team_dashboard_general_splits",
@@ -77,6 +79,7 @@ _MULTI_ROUTE_NONZERO_INDICES = {
     "stg_player_dash_shooting_splits": 2,
     "stg_player_dash_yoy": 1,
     "stg_player_dashboard_clutch": 10,
+    "stg_schedule_int_broadcaster": 2,
     "stg_schedule_int_weeks": 1,
 }
 
@@ -135,7 +138,7 @@ def _extractor_endpoint_metadata() -> dict[str, tuple[str, bool]]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        assert len(STAGING_MAP) == 413
+        assert len(STAGING_MAP) == 414
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -143,7 +146,7 @@ class TestStagingMap:
 
     def test_get_by_pattern_season(self) -> None:
         entries = get_by_pattern("season")
-        assert len(entries) == 89
+        assert len(entries) == 90
         assert all(e.param_pattern == "season" for e in entries)
         assert any(e.endpoint_name == "player_career_by_college" for e in entries)
 
@@ -283,11 +286,12 @@ class TestStagingMap:
             assert entry.season_type_capability == "not_applicable"
             assert entry.supported_season_types == ()
 
-    def test_staging_map_player_team_season_entries_split_supported_and_blocked(self) -> None:
+    def test_staging_map_player_team_season_entries_are_explicitly_supported(self) -> None:
         entries = get_by_pattern("player_team_season")
 
         assert entries
         capabilities = {entry.endpoint_name: entry.season_type_capability for entry in entries}
+        supported_season_types = tuple(season_type.value for season_type in SeasonType)
 
         assert {
             endpoint_name: capability
@@ -296,17 +300,21 @@ class TestStagingMap:
         } == {
             "video_details": "supported",
             "video_details_asset": "supported",
+            "player_vs_player": "supported",
+            "team_and_players_vs": "supported",
+            "team_and_players_vs_players": "supported",
+            "team_vs_player": "supported",
         }
-        assert {
-            endpoint_name: capability
-            for endpoint_name, capability in capabilities.items()
-            if capability == "blocked"
-        } == {
-            "player_vs_player": "blocked",
-            "team_and_players_vs": "blocked",
-            "team_and_players_vs_players": "blocked",
-            "team_vs_player": "blocked",
-        }
+
+        for endpoint_name in (
+            "player_vs_player",
+            "team_and_players_vs",
+            "team_and_players_vs_players",
+            "team_vs_player",
+        ):
+            entry = next(entry for entry in entries if entry.endpoint_name == endpoint_name)
+            assert entry.season_type_capability == "supported"
+            assert entry.supported_season_types == supported_season_types
 
     def test_problem_endpoints_route_to_runnable_or_blocked_patterns(self) -> None:
         expected_patterns = {
@@ -403,7 +411,7 @@ class TestStagingMap:
         assert entry.result_set_index == 6
 
     def test_known_multi_result_regression_rows_use_expected_index(self) -> None:
-        assert len(_MULTI_ROUTE_REGRESSION_ROWS) == 26
+        assert len(_MULTI_ROUTE_REGRESSION_ROWS) == 27
 
         for staging_key, endpoint_name in _MULTI_ROUTE_REGRESSION_ROWS.items():
             entry = get_by_staging_key(staging_key)

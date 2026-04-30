@@ -104,7 +104,26 @@ def _schedule_int_payload_to_frames(payload: dict[str, Any]) -> list[pl.DataFram
             }
         )
 
-    return [pl.from_dicts(game_rows), pl.from_dicts(week_rows)]
+    broadcaster_rows: list[dict[str, Any]] = []
+    for broadcaster in league_schedule.get("broadcasterList", []):
+        if not isinstance(broadcaster, dict):
+            continue
+        broadcaster_rows.append(
+            {
+                "league_id": league_id,
+                "season_year": season_year,
+                "broadcaster_abbreviation": broadcaster.get("broadcasterAbbreviation"),
+                "broadcaster_display": broadcaster.get("broadcasterDisplay"),
+                "broadcaster_id": broadcaster.get("broadcasterId"),
+                "region_id": broadcaster.get("regionId"),
+            }
+        )
+
+    return [
+        pl.from_dicts(game_rows),
+        pl.from_dicts(week_rows),
+        pl.from_dicts(broadcaster_rows),
+    ]
 
 
 @registry.register

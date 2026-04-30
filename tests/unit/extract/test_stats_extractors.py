@@ -1346,7 +1346,14 @@ class TestScheduleIntExtractor:
                         "endDate": "2023-10-11",
                     }
                 ],
-                "broadcasterList": [],
+                "broadcasterList": [
+                    {
+                        "broadcasterAbbreviation": "TNT",
+                        "broadcasterDisplay": "TNT",
+                        "broadcasterId": 7,
+                        "regionId": 1,
+                    }
+                ],
             },
         }
 
@@ -1381,7 +1388,7 @@ class TestScheduleIntExtractor:
             _fake_send_api_request,
         )
 
-        games, weeks = await ext.extract_all(season="2023-24")
+        games, weeks, broadcasters = await ext.extract_all(season="2023-24")
 
         assert games.to_dicts() == [
             {
@@ -1447,6 +1454,16 @@ class TestScheduleIntExtractor:
                 "end_date": "2023-10-11",
             }
         ]
+        assert broadcasters.to_dicts() == [
+            {
+                "league_id": "00",
+                "season_year": "2023-24",
+                "broadcaster_abbreviation": "TNT",
+                "broadcaster_display": "TNT",
+                "broadcaster_id": 7,
+                "region_id": 1,
+            }
+        ]
 
     @pytest.mark.asyncio
     async def test_extract_returns_first_frame_when_shape_error_occurs(
@@ -1502,9 +1519,9 @@ _EXTRACT_PARAMS: dict[str, dict[str, object]] = {
     "common_all_players": {"season": "2024-25"},
     # player_info: PlayerEstimatedMetrics only needs season (no player_id)
     "player_estimated_metrics": {"season": "2024-25"},
-    # player_info: PlayerGameStreakFinder passes **params through
+    # player_info: PlayerGameStreakFinder maps season aliases to nba_api nullable params
     "player_game_streak_finder": {"season": "2024-25"},
-    # player_info: PlayerCareerByCollege* pass through or use optional params
+    # player_info: PlayerCareerByCollege maps season aliases to nba_api params
     "player_career_by_college": {"season": "2024-25"},
     "player_career_by_college_rollup": {"season": "2024-25"},
     # player_compare special cases
@@ -1553,7 +1570,7 @@ _EXTRACT_PARAMS: dict[str, dict[str, object]] = {
         "team_id": 1610612744,
         "season": "2024-25",
     },
-    # misc: LeagueGameFinder / TeamGameStreakFinder pass **params
+    # misc: LeagueGameFinder passes **params; TeamGameStreakFinder maps season aliases
     "league_game_finder": {"season": "2024-25"},
     "team_game_streak_finder": {"season": "2024-25"},
     "team_game_logs": {"team_id": 1610612744, "season": "2024-25"},
@@ -1619,7 +1636,7 @@ _ALL_WITH_ALIASES = _ALL_EXTRACTORS + [
     ids=[t[1] for t in _ALL_WITH_ALIASES],
 )
 class TestExtractMethodCoverage:
-    """Verify every extractor's extract() runs through _from_nba_api."""
+    """Verify every extractor's extract() returns a dataframe with mocked API calls."""
 
     @pytest.mark.asyncio
     async def test_extract_returns_dataframe(
@@ -1653,6 +1670,9 @@ class TestExtractMethodCoverage:
                 "_from_nba_api_multi",
                 lambda endpoint_cls, **kwargs: [dummy_df, pl.DataFrame()],
             )
+        elif cls is DraftCombineDrillResultsExtractor:
+            monkeypatch.setattr(ext, "_call_nba_api", lambda endpoint_cls, **kwargs: [dummy_df])
+            monkeypatch.setattr(ext, "_validate", lambda df: df)
         else:
             monkeypatch.setattr(ext, "_from_nba_api", _fake)
         params = _get_params(endpoint_name, category)
@@ -1789,6 +1809,59 @@ class TestHustleExtractors:
         assert captured["season_type_all_star"] == "Playoffs"
 
 
+# draft: DraftCombineDrillResultsExtractor extract()
+class TestDraftCombineExtractors:
+    @pytest.mark.asyncio
+    async def test_draft_combine_drill_results_injects_season_before_validation(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = DraftCombineDrillResultsExtractor()
+        captured_call: dict[str, object] = {}
+        captured_validate: dict[str, pl.DataFrame] = {}
+
+        def _fake_call(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
+            captured_call.update(kw)
+            return [pl.DataFrame({"player_id": [1]})]
+
+        def _fake_validate(df: pl.DataFrame) -> pl.DataFrame:
+            captured_validate["df"] = df
+            return df
+
+        monkeypatch.setattr(ext, "_call_nba_api", _fake_call)
+        monkeypatch.setattr(ext, "_validate", _fake_validate)
+
+        result = await ext.extract(season="2024-25")
+
+        assert isinstance(result, pl.DataFrame)
+        assert captured_call["season_year"] == 2024
+        assert captured_validate["df"]["season"].to_list() == ["2024-25"]
+
+
+# player_college: PlayerCareerByCollegeExtractor extract()
+class TestPlayerCollegeExtractors:
+    @pytest.mark.asyncio
+    async def test_player_career_by_college_extract_maps_api_params(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerCareerByCollegeExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
+            captured.update(kw)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        result = await ext.extract(college="Duke", season="2024-25", season_type="Playoffs")
+        assert isinstance(result, pl.DataFrame)
+        assert captured["college"] == "Duke"
+        assert captured["season_nullable"] == "2024-25"
+        assert captured["season_type_all_star"] == "Playoffs"
+        assert "season" not in captured
+        assert "season_type" not in captured
+
+
 # player_game_log: PlayerGameLogsV2Extractor and PlayerStreakFinderExtractor extract()
 class TestPlayerGameLogV2Extractors:
     @pytest.mark.asyncio
@@ -1821,6 +1894,50 @@ class TestPlayerGameLogV2Extractors:
         assert isinstance(result, pl.DataFrame)
         assert captured["player_id_nullable"] == 2544
         assert captured["season_nullable"] == "2024-25"
+
+    @pytest.mark.asyncio
+    async def test_player_game_streak_finder_extract_maps_nullable_params(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerGameStreakFinderExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
+            captured.update(kw)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        result = await ext.extract(player_id=2544, season="2024-25", season_type="Playoffs")
+        assert isinstance(result, pl.DataFrame)
+        assert captured["player_id_nullable"] == 2544
+        assert captured["season_nullable"] == "2024-25"
+        assert captured["season_type_nullable"] == "Playoffs"
+        assert "player_id" not in captured
+        assert "season" not in captured
+        assert "season_type" not in captured
+
+    @pytest.mark.asyncio
+    async def test_team_game_streak_finder_extract_maps_nullable_params(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = TeamGameStreakFinderExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kw: object) -> pl.DataFrame:
+            captured.update(kw)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        result = await ext.extract(team_id=1610612744, season="2024-25", season_type="Playoffs")
+        assert isinstance(result, pl.DataFrame)
+        assert captured["team_id_nullable"] == 1610612744
+        assert captured["season_nullable"] == "2024-25"
+        assert captured["season_type_nullable"] == "Playoffs"
+        assert "team_id" not in captured
+        assert "season" not in captured
+        assert "season_type" not in captured
 
 
 class TestPlayByPlayV2Extractor:

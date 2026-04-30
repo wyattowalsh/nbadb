@@ -18,6 +18,15 @@
       "rowSet": [
         ["00", "2024", 1, "Week 1", "2024-10-22", "2024-10-28"]
       ]
+    },
+    {
+      "name": "BroadcasterList",
+      "headers": [
+        "leagueId", "seasonYear", "broadcasterAbbreviation", "broadcasterDisplay", "broadcasterId", "regionId"
+      ],
+      "rowSet": [
+        ["00", "2024", "TNT", "TNT", 7, 1]
+      ]
     }
   ]
 }

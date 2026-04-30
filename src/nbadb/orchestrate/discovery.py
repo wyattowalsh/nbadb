@@ -10,6 +10,8 @@ from loguru import logger
 from nba_api.stats.library.http import NBAStatsHTTP
 
 from nbadb.core.config import get_settings
+from nbadb.core.errors import ExtractionError, NbaDbError, TransientError
+from nbadb.extract.base import is_retryable_error
 from nbadb.orchestrate.extractor_runner import _sync_extract
 from nbadb.orchestrate.seasons import season_range
 
@@ -102,6 +104,17 @@ async def _extract_with_retry(
                     )
             return df
         except Exception as exc:
+            if isinstance(exc, TransientError):
+                retryable = True
+            elif isinstance(exc, NbaDbError):
+                raise
+            elif is_retryable_error(exc):
+                retryable = True
+            else:
+                raise ExtractionError(f"{label}: extraction failed") from exc
+
+            if not retryable:
+                raise
             if attempt < attempts:
                 delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
                 logger.warning(
@@ -120,7 +133,9 @@ async def _extract_with_retry(
                     attempts,
                     type(exc).__name__,
                 )
-                raise
+                if isinstance(exc, TransientError):
+                    raise
+                raise TransientError(f"{label}: transient extraction failure") from exc
     return pl.DataFrame()  # unreachable, satisfies type checker
 
 
@@ -217,7 +232,7 @@ class EntityDiscovery:
                         rate_limiter=self._rate_limiter,
                         **request_params,
                     )
-                except Exception as exc:
+                except NbaDbError as exc:
                     message = (
                         "failed to recover game log for {}: {}"
                         if phase == "recovering"
@@ -419,7 +434,7 @@ class EntityDiscovery:
                 rate_limiter=self._rate_limiter,
                 **params,
             )
-        except Exception as exc:
+        except NbaDbError as exc:
             logger.error(
                 "failed to discover {} IDs: {}",
                 staging_key,
@@ -525,7 +540,7 @@ class EntityDiscovery:
                         rate_limiter=self._rate_limiter,
                         **request_params,
                     )
-                except Exception as exc:
+                except NbaDbError as exc:
                     message = (
                         "failed to recover player/team pairs for {}: {}"
                         if phase == "recovering"

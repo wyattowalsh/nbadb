@@ -6,11 +6,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
 
+from nbadb.core.errors import ExtractionError, NbaDbError, TransientError
 from nbadb.extract.base import BaseExtractor, is_retryable_error
 from nbadb.orchestrate.execution_policy import endpoint_family
 from nbadb.orchestrate.resilience import _AdaptiveThrottle, _CircuitBreaker, _LatencyTracker
@@ -76,12 +77,33 @@ def _drive_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
 
 def _sync_extract(extractor: object, **kwargs: object) -> pl.DataFrame:
     """Call extractor.extract() synchronously (for asyncio.to_thread)."""
-    return _drive_coroutine(cast("_ExtractorLike", extractor).extract(**kwargs))
+    try:
+        return _drive_coroutine(cast("_ExtractorLike", extractor).extract(**kwargs))
+    except Exception as exc:
+        _raise_extraction_boundary_error(extractor, exc)
+        raise AssertionError("unreachable") from exc
 
 
 def _sync_extract_all(extractor: object, **kwargs: object) -> list[pl.DataFrame]:
     """Call extractor.extract_all() synchronously."""
-    return _drive_coroutine(cast("_MultiExtractorLike", extractor).extract_all(**kwargs))
+    try:
+        return _drive_coroutine(cast("_MultiExtractorLike", extractor).extract_all(**kwargs))
+    except Exception as exc:
+        _raise_extraction_boundary_error(extractor, exc)
+        raise AssertionError("unreachable") from exc
+
+
+def _raise_extraction_boundary_error(extractor: object, exc: Exception) -> NoReturn:
+    if isinstance(exc, NbaDbError):
+        raise exc
+
+    endpoint_name = getattr(extractor, "endpoint_name", type(extractor).__name__)
+    if is_retryable_error(exc):
+        raise TransientError(
+            f"{endpoint_name}: transient extraction failure ({type(exc).__name__})"
+        ) from exc
+
+    raise ExtractionError(f"{endpoint_name}: extraction failed ({type(exc).__name__})") from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -655,7 +677,7 @@ class ExtractorRunner:
     @staticmethod
     def _is_retryable(exc: Exception) -> bool:
         """Return True if the exception is transient and worth retrying."""
-        return is_retryable_error(exc)
+        return isinstance(exc, TransientError) or is_retryable_error(exc)
 
     def _should_delay_replay(
         self,
