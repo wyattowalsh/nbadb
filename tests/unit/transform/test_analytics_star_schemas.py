@@ -17,12 +17,14 @@ _ANALYTICS_TABLES = [
     "analytics_game_summary",
     "analytics_head_to_head",
     "analytics_league_benchmarks",
+    "analytics_player_general_splits",
     "analytics_player_game_complete",
     "analytics_player_impact",
     "analytics_player_matchup",
     "analytics_player_season_complete",
     "analytics_shooting_efficiency",
     "analytics_team_game_complete",
+    "analytics_team_general_splits",
     "analytics_team_season_summary",
 ]
 
@@ -223,6 +225,55 @@ class TestAnalyticsDraftValueSchema:
                 "seasons_played": None,
                 "first_season": None,
                 "last_season": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+
+class TestAnalyticsPlayerGeneralSplitsSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "analytics_player_general_splits",
+            {
+                "player_id": 2544,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "split_type": "location",
+                "group_set": "Location",
+                "group_value": "Home",
+                "player_name": "LeBron James",
+                "gp": 41,
+                "w": 30,
+                "l": 11,
+                "w_pct": 0.732,
+                "min": 35.2,
+                "pts": 28.1,
+                "reb": 8.0,
+                "ast": 8.4,
+                "fg_pct": 0.545,
+                "fg3_pct": 0.401,
+                "ft_pct": 0.781,
+                "plus_minus": 7.2,
+                "overall_gp": 70,
+                "overall_w_pct": 0.643,
+                "overall_min": 34.7,
+                "overall_pts": 26.8,
+                "overall_reb": 7.5,
+                "overall_ast": 8.1,
+                "overall_fg_pct": 0.523,
+                "overall_fg3_pct": 0.386,
+                "overall_ft_pct": 0.754,
+                "overall_plus_minus": 5.4,
+                "gp_share": 0.586,
+                "w_pct_delta": 0.089,
+                "min_delta": 0.5,
+                "pts_delta": 1.3,
+                "reb_delta": 0.5,
+                "ast_delta": 0.3,
+                "fg_pct_delta": 0.022,
+                "fg3_pct_delta": 0.015,
+                "ft_pct_delta": 0.027,
+                "plus_minus_delta": 1.8,
             },
         )
         assert isinstance(result, pl.DataFrame)
@@ -928,6 +979,56 @@ class TestAnalyticsTeamGameCompleteSchema:
                 "spd": None,
                 "tchs": None,
                 "passes": None,
+            },
+        )
+        assert isinstance(result, pl.DataFrame)
+
+
+class TestAnalyticsTeamGeneralSplitsSchema:
+    def test_valid_row(self) -> None:
+        result = _validate(
+            "analytics_team_general_splits",
+            {
+                "team_id": 1610612747,
+                "season_year": "2024-25",
+                "season_type": "Regular Season",
+                "split_type": "days_rest",
+                "group_set": "DaysRest",
+                "group_value": "0 Days",
+                "team_name": "Los Angeles Lakers",
+                "team_abbreviation": "LAL",
+                "gp": 11,
+                "w": 5,
+                "l": 6,
+                "w_pct": 0.455,
+                "min": 240.0,
+                "pts": 111.0,
+                "reb": 43.0,
+                "ast": 25.0,
+                "fg_pct": 0.470,
+                "fg3_pct": 0.342,
+                "ft_pct": 0.790,
+                "plus_minus": -0.8,
+                "overall_gp": 82,
+                "overall_w_pct": 0.671,
+                "overall_min": 240.0,
+                "overall_pts": 118.0,
+                "overall_reb": 45.0,
+                "overall_ast": 28.0,
+                "overall_fg_pct": 0.495,
+                "overall_fg3_pct": 0.385,
+                "overall_ft_pct": 0.812,
+                "overall_plus_minus": 7.5,
+                "gp_share": 0.134,
+                "w_pct_delta": -0.216,
+                "min_delta": 0.0,
+                "pts_delta": -7.0,
+                "reb_delta": -2.0,
+                "ast_delta": -3.0,
+                "fg_pct_delta": -0.025,
+                "fg3_pct_delta": -0.043,
+                "ft_pct_delta": -0.022,
+                "plus_minus_delta": -8.3,
             },
         )
         assert isinstance(result, pl.DataFrame)

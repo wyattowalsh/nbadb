@@ -1,4 +1,4 @@
-"""Pandera star-schema contracts for all 12 analytics_* view output tables."""
+"""Pandera star-schema contracts for all 14 analytics_* view output tables."""
 
 from __future__ import annotations
 
@@ -360,6 +360,106 @@ class AnalyticsLeagueBenchmarksSchema(BaseSchema):
     )
 
 
+class AnalyticsPlayerGeneralSplitsSchema(BaseSchema):
+    """Player general splits with season-overall baselines and deltas."""
+
+    player_id: int = pa.Field(gt=0, metadata={"description": "Player identifier"})
+    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
+    season_type: str = pa.Field(metadata={"description": "Season type"})
+    split_type: str = pa.Field(
+        metadata={"description": "Split family (location, rest, month, etc.)"}
+    )
+    group_set: str | None = pa.Field(
+        nullable=True, metadata={"description": "Upstream dashboard grouping set"}
+    )
+    group_value: str | None = pa.Field(
+        nullable=True, metadata={"description": "Specific split value within the grouping set"}
+    )
+    player_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player display name"}
+    )
+    gp: int | None = pa.Field(nullable=True, metadata={"description": "Games played in the split"})
+    w: int | None = pa.Field(nullable=True, metadata={"description": "Wins in the split"})  # noqa: E741
+    l: int | None = pa.Field(nullable=True, metadata={"description": "Losses in the split"})  # noqa: E741
+    w_pct: float | None = pa.Field(nullable=True, metadata={"description": "Win percentage"})
+    min: float | None = pa.Field(nullable=True, metadata={"description": "Minutes per game"})
+    pts: float | None = pa.Field(nullable=True, metadata={"description": "Points per game"})
+    reb: float | None = pa.Field(nullable=True, metadata={"description": "Rebounds per game"})
+    ast: float | None = pa.Field(nullable=True, metadata={"description": "Assists per game"})
+    fg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Field goal percentage"}
+    )
+    fg3_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Three-point percentage"}
+    )
+    ft_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Free throw percentage"}
+    )
+    plus_minus: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average plus-minus in the split"}
+    )
+    overall_gp: int | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall games played baseline"}
+    )
+    overall_w_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall win percentage baseline"}
+    )
+    overall_min: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall minutes baseline"}
+    )
+    overall_pts: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall points baseline"}
+    )
+    overall_reb: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall rebounds baseline"}
+    )
+    overall_ast: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall assists baseline"}
+    )
+    overall_fg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall field goal percentage baseline"}
+    )
+    overall_fg3_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall three-point percentage baseline"}
+    )
+    overall_ft_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall free throw percentage baseline"}
+    )
+    overall_plus_minus: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall plus-minus baseline"}
+    )
+    gp_share: float | None = pa.Field(
+        nullable=True, metadata={"description": "Share of overall games represented by the split"}
+    )
+    w_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Win percentage delta versus overall"}
+    )
+    min_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Minutes delta versus overall"}
+    )
+    pts_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Points delta versus overall"}
+    )
+    reb_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Rebounds delta versus overall"}
+    )
+    ast_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Assists delta versus overall"}
+    )
+    fg_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Field goal percentage delta versus overall"}
+    )
+    fg3_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Three-point percentage delta versus overall"}
+    )
+    ft_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Free throw percentage delta versus overall"}
+    )
+    plus_minus_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Plus-minus delta versus overall"}
+    )
+
+
 class AnalyticsPlayerGameCompleteSchema(
     _MinutesStatMixin,
     _TraditionalStatsMixin,
@@ -684,6 +784,107 @@ class AnalyticsTeamGameCompleteSchema(
     )
 
 
+class AnalyticsTeamGeneralSplitsSchema(BaseSchema):
+    """Team general splits with season-overall baselines and deltas."""
+
+    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
+    season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
+    season_type: str = pa.Field(metadata={"description": "Season type"})
+    split_type: str = pa.Field(
+        metadata={"description": "Split family (location, rest, month, etc.)"}
+    )
+    group_set: str | None = pa.Field(
+        nullable=True, metadata={"description": "Upstream dashboard grouping set"}
+    )
+    group_value: str | None = pa.Field(
+        nullable=True, metadata={"description": "Specific split value within the grouping set"}
+    )
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team full name"})
+    team_abbreviation: str | None = pa.Field(
+        nullable=True, metadata={"description": "Team abbreviation"}
+    )
+    gp: int | None = pa.Field(nullable=True, metadata={"description": "Games played in the split"})
+    w: int | None = pa.Field(nullable=True, metadata={"description": "Wins in the split"})  # noqa: E741
+    l: int | None = pa.Field(nullable=True, metadata={"description": "Losses in the split"})  # noqa: E741
+    w_pct: float | None = pa.Field(nullable=True, metadata={"description": "Win percentage"})
+    min: float | None = pa.Field(nullable=True, metadata={"description": "Minutes per game"})
+    pts: float | None = pa.Field(nullable=True, metadata={"description": "Points per game"})
+    reb: float | None = pa.Field(nullable=True, metadata={"description": "Rebounds per game"})
+    ast: float | None = pa.Field(nullable=True, metadata={"description": "Assists per game"})
+    fg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Field goal percentage"}
+    )
+    fg3_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Three-point percentage"}
+    )
+    ft_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Free throw percentage"}
+    )
+    plus_minus: float | None = pa.Field(
+        nullable=True, metadata={"description": "Average plus-minus in the split"}
+    )
+    overall_gp: int | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall games played baseline"}
+    )
+    overall_w_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall win percentage baseline"}
+    )
+    overall_min: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall minutes baseline"}
+    )
+    overall_pts: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall points baseline"}
+    )
+    overall_reb: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall rebounds baseline"}
+    )
+    overall_ast: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall assists baseline"}
+    )
+    overall_fg_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall field goal percentage baseline"}
+    )
+    overall_fg3_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall three-point percentage baseline"}
+    )
+    overall_ft_pct: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall free throw percentage baseline"}
+    )
+    overall_plus_minus: float | None = pa.Field(
+        nullable=True, metadata={"description": "Season-overall plus-minus baseline"}
+    )
+    gp_share: float | None = pa.Field(
+        nullable=True, metadata={"description": "Share of overall games represented by the split"}
+    )
+    w_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Win percentage delta versus overall"}
+    )
+    min_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Minutes delta versus overall"}
+    )
+    pts_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Points delta versus overall"}
+    )
+    reb_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Rebounds delta versus overall"}
+    )
+    ast_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Assists delta versus overall"}
+    )
+    fg_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Field goal percentage delta versus overall"}
+    )
+    fg3_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Three-point percentage delta versus overall"}
+    )
+    ft_pct_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Free throw percentage delta versus overall"}
+    )
+    plus_minus_delta: float | None = pa.Field(
+        nullable=True, metadata={"description": "Plus-minus delta versus overall"}
+    )
+
+
 class AnalyticsTeamSeasonSummarySchema(BaseSchema):
     """Team season summary combining aggregates with standings."""
 
@@ -731,10 +932,12 @@ derived_output_schema()(AnalyticsDraftValueSchema)
 derived_output_schema()(AnalyticsGameSummarySchema)
 derived_output_schema()(AnalyticsHeadToHeadSchema)
 derived_output_schema()(AnalyticsLeagueBenchmarksSchema)
+derived_output_schema()(AnalyticsPlayerGeneralSplitsSchema)
 derived_output_schema()(AnalyticsPlayerGameCompleteSchema)
 derived_output_schema()(AnalyticsPlayerImpactSchema)
 derived_output_schema()(AnalyticsPlayerMatchupSchema)
 derived_output_schema()(AnalyticsPlayerSeasonCompleteSchema)
 derived_output_schema()(AnalyticsShootingEfficiencySchema)
 derived_output_schema()(AnalyticsTeamGameCompleteSchema)
+derived_output_schema()(AnalyticsTeamGeneralSplitsSchema)
 derived_output_schema()(AnalyticsTeamSeasonSummarySchema)
