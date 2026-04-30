@@ -1489,7 +1489,19 @@ class Orchestrator:
                 force,
             )
 
-            requested_patterns = set(patterns) if patterns else None
+            if patterns:
+                requested_patterns = set(patterns)
+            elif endpoints is not None:
+                endpoint_set = set(endpoints)
+                requested_patterns = {
+                    entry.param_pattern
+                    for entry in STAGING_MAP
+                    if entry.endpoint_name in endpoint_set
+                }
+                if "league_game_log" in endpoint_set:
+                    requested_patterns.add("game")
+            else:
+                requested_patterns = None
             needs_games = requested_patterns is None or bool({"game", "date"} & requested_patterns)
             needs_players = requested_patterns is None or bool(
                 {"player", "player_season"} & requested_patterns

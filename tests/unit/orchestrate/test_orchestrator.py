@@ -880,6 +880,41 @@ class TestPersistStagingToDuckdb:
 
 
 class TestRunBackfill:
+    def test_run_backfill_endpoint_scope_skips_unneeded_game_discovery(self):
+        orch, _db, _journal = _build_orchestrator_with_mocks()
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids.return_value = ([], pl.DataFrame())
+        mock_discovery.discover_all_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_game_dates.return_value = []
+        mock_discovery.discover_player_team_season_params.return_value = []
+        mock_discovery.discover_current_team_ids.return_value = []
+
+        mock_runner = _mock_runner()
+
+        with (
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+        ):
+            asyncio.run(
+                orch.run_backfill(
+                    seasons=["2024-25"],
+                    endpoints=["draft_combine_drill_results"],
+                    extract_only=True,
+                )
+            )
+
+        mock_discovery.discover_game_ids.assert_not_called()
+        mock_discovery.discover_all_player_ids.assert_not_called()
+        mock_discovery.discover_team_ids.assert_not_called()
+        mock_discovery.discover_game_dates.assert_not_called()
+        mock_discovery.discover_current_team_ids.assert_not_called()
+        mock_discovery.discover_player_team_season_params.assert_not_called()
+        mock_runner.run_pattern.assert_awaited_once()
+        assert mock_runner.run_pattern.await_args.args[0] == "season"
+
     def test_run_backfill_scopes_discovery_to_requested_patterns(self):
         orch, _db, _journal = _build_orchestrator_with_mocks()
 
