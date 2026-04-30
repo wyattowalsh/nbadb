@@ -52,3 +52,14 @@ def test_box_game_scoreboard_family_support_matrix_gaps_are_closed() -> None:
         assert row["input_schema_missing_staging_keys"] == [], endpoint_name
         assert row["output_schema_missing_tables"] == [], endpoint_name
         assert row["contract_gaps"] == [], endpoint_name
+
+    assert rows["box_score_summary_v3"]["downstream_status"] == "modeled"
+    assert rows["scoreboard_v2"]["downstream_status"] == "modeled"
+    assert rows["scoreboard_v3"]["downstream_status"] == "modeled"
+
+    assert (
+        "fact_box_score_summary_v3_game_summary"
+        in rows["box_score_summary_v3"]["transform_outputs"]
+    )
+    assert "fact_scoreboard_conference_standings" in rows["scoreboard_v2"]["transform_outputs"]
+    assert "fact_scoreboard_v3_game_summary" in rows["scoreboard_v3"]["transform_outputs"]
