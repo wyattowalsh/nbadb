@@ -5,12 +5,24 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from nbadb.load.parquet_loader import PARTITIONED_TABLES, ParquetLoader
+from nbadb.orchestrate.transformers import discover_all_transformers
+
+PARTITIONED_SAMPLE_TABLE = "fact_player_game_traditional"
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
 class TestParquetLoader:
+    def test_partitioned_tables_are_discovered_transform_outputs(self) -> None:
+        transform_outputs = {
+            transformer.output_table
+            for transformer in discover_all_transformers(include_live=False)
+        }
+
+        assert PARTITIONED_SAMPLE_TABLE in PARTITIONED_TABLES
+        assert transform_outputs >= PARTITIONED_TABLES
+
     def test_writes_single_file(self, tmp_path: Path) -> None:
         loader = ParquetLoader(tmp_path)
         df = pl.DataFrame(
@@ -26,7 +38,7 @@ class TestParquetLoader:
         assert loaded.shape == (2, 2)
 
     def test_partitioned_by_season(self, tmp_path: Path) -> None:
-        table = next(iter(PARTITIONED_TABLES))
+        table = PARTITIONED_SAMPLE_TABLE
         loader = ParquetLoader(tmp_path)
         df = pl.DataFrame(
             {
@@ -40,7 +52,7 @@ class TestParquetLoader:
         assert (tmp_path / table / "season_year=2024-25" / "part0.parquet").exists()
 
     def test_partitioned_drops_season_column(self, tmp_path: Path) -> None:
-        table = next(iter(PARTITIONED_TABLES))
+        table = PARTITIONED_SAMPLE_TABLE
         loader = ParquetLoader(tmp_path)
         df = pl.DataFrame(
             {
@@ -68,7 +80,7 @@ class TestParquetLoader:
         assert not (tmp_path / "small_table" / "season_year=2024-25").exists()
 
     def test_partitioned_table_without_season_col(self, tmp_path: Path) -> None:
-        table = next(iter(PARTITIONED_TABLES))
+        table = PARTITIONED_SAMPLE_TABLE
         loader = ParquetLoader(tmp_path)
         df = pl.DataFrame({"game_id": ["001"], "pts": [100]})
         loader.load(table, df)
