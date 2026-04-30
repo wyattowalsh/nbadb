@@ -7,9 +7,9 @@ import inspect
 import json
 import pkgutil
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from nbadb.orchestrate.extraction_contract import FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
 from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry
@@ -20,6 +20,19 @@ if TYPE_CHECKING:
 
 _COVERAGE_KEYS = ("covered", "runtime_gap", "staging_only", "extractor_only", "source_only")
 _SOURCE_KINDS = ("stats", "static", "live")
+_ENDPOINT_ADEQUACY_ARTIFACT_KEYS = (
+    "endpoint_adequacy_scorecard",
+    "endpoint_adequacy_report",
+)
+_TRANSFORM_SEMANTICS = ("modeled", "passthrough")
+_DOWNSTREAM_STATUS_KEYS = (
+    "modeled",
+    "passthrough_only",
+    "compatibility_reference_only",
+    "excluded",
+    "unowned",
+    "not_applicable",
+)
 _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
 _CAMEL_RE_1 = re.compile(r"(.)([A-Z][a-z]+)")
 _CAMEL_RE_2 = re.compile(r"([a-z0-9])([A-Z])")
@@ -34,6 +47,14 @@ _HISTORICAL_PARAM_PATTERNS = {
     "team_season",
     "date",
 }
+
+
+class _StagingStatusDetail(TypedDict):
+    staging_key: str
+    downstream_status: str
+    downstream_reasons: list[str]
+    transform_outputs: list[str]
+
 
 # Legacy/alternate extractor endpoint names mapped to canonical staging names.
 _ENDPOINT_ALIASES: dict[str, str] = {
@@ -139,6 +160,37 @@ _MODEL_EXCLUDED_STATS_ENDPOINTS: dict[str, str] = {
     ),
 }
 
+_COMPATIBILITY_REFERENCE_STATS_ENDPOINTS: dict[str, str] = {
+    "gl_alum_box_score_similarity_score": (
+        "Exploratory similarity feed is retained as a compatibility/reference surface and "
+        "is not promoted into the analytical model."
+    ),
+    "play_by_play_v2": (
+        "Legacy play-by-play source is retained for compatibility; the analytical model "
+        "uses the canonical play_by_play surface."
+    ),
+    "player_index": (
+        "Supplemental roster index feed is retained for reference; the analytical model "
+        "uses canonical player dimensions."
+    ),
+    "video_details": (
+        "Auxiliary video metadata is retained as a compatibility/reference surface and is "
+        "not promoted into the analytical model."
+    ),
+    "video_details_asset": (
+        "Auxiliary video asset metadata is retained as a compatibility/reference surface "
+        "and is not promoted into the analytical model."
+    ),
+    "video_events": (
+        "Auxiliary video event metadata is retained as a compatibility/reference surface "
+        "and is not promoted into the analytical model."
+    ),
+    "video_status": (
+        "Auxiliary video status metadata is retained as a compatibility/reference surface "
+        "and is not promoted into the analytical model."
+    ),
+}
+
 _MODEL_EXCLUDED_STAGING_KEYS: dict[str, str] = {
     "stg_hustle_stats_available": (
         "Availability-only hustle flag is retained for landing completeness; modeled hustle "
@@ -147,6 +199,10 @@ _MODEL_EXCLUDED_STAGING_KEYS: dict[str, str] = {
     "stg_play_by_play_video_available": (
         "Auxiliary play-by-play video flag is retained for landing completeness and is not "
         "promoted beyond the canonical play-by-play/game-context model."
+    ),
+    "stg_schedule_int_broadcaster": (
+        "ScheduleLeagueV2Int broadcaster directory is retained for packet completeness; "
+        "game-level schedule outputs already carry the modeled broadcast context."
     ),
     "stg_pvp_player_info": (
         "Duplicate player bio packet; the analytical model uses the canonical "
@@ -165,6 +221,45 @@ _MODEL_EXCLUDED_STAGING_KEYS: dict[str, str] = {
         "history and season facts already cover the analytical use cases."
     ),
 }
+
+_COMPATIBILITY_REFERENCE_STAGING_KEYS: dict[str, str] = {
+    "stg_pvp_player_info": (
+        "Duplicate player bio packet is retained as a compatibility/reference surface; the "
+        "analytical model uses canonical player dimensions."
+    ),
+    "stg_pvp_vs_player_info": (
+        "Duplicate opposing-player bio packet is retained as a compatibility/reference "
+        "surface; the analytical model uses canonical player dimensions."
+    ),
+    "stg_scoreboard_win_probability": (
+        "Scoreboard win-probability snapshot is retained as a compatibility/reference "
+        "surface; the analytical model uses the canonical win_probability surface."
+    ),
+    "stg_team_available_seasons": (
+        "Reference-only season-availability list is retained as a compatibility/reference "
+        "surface; modeled team history and season facts cover the analytical use cases."
+    ),
+}
+
+
+def _ownership_override_for_endpoint(endpoint_name: str) -> tuple[str | None, str | None]:
+    reason = _COMPATIBILITY_REFERENCE_STATS_ENDPOINTS.get(endpoint_name)
+    if reason is not None:
+        return "compatibility_reference_only", reason
+    reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(endpoint_name)
+    if reason is not None:
+        return "excluded", reason
+    return None, None
+
+
+def _ownership_override_for_staging_key(staging_key: str) -> tuple[str | None, str | None]:
+    reason = _COMPATIBILITY_REFERENCE_STAGING_KEYS.get(staging_key)
+    if reason is not None:
+        return "compatibility_reference_only", reason
+    reason = _MODEL_EXCLUDED_STAGING_KEYS.get(staging_key)
+    if reason is not None:
+        return "excluded", reason
+    return None, None
 
 
 def _to_snake_case(name: str) -> str:
@@ -235,7 +330,7 @@ class EndpointCoverageGenerator:
     def _generated_transform_signature(
         cls,
         value: ast.AST,
-    ) -> tuple[str, list[str]] | None:
+    ) -> tuple[str, list[str], str] | None:
         if not isinstance(value, ast.Call):
             return None
 
@@ -253,7 +348,7 @@ class EndpointCoverageGenerator:
             output_table = cls._constant_string(target_call.args[0])
             dependency = cls._constant_string(target_call.args[1])
             if output_table is not None and dependency is not None:
-                return output_table, [dependency]
+                return output_table, [dependency], "passthrough"
 
         if call_name == "make_union" and len(target_call.args) >= 3:
             output_table = cls._constant_string(target_call.args[0])
@@ -265,9 +360,38 @@ class EndpointCoverageGenerator:
                     if dependency is not None:
                         dependencies.append(dependency)
             if output_table is not None and dependencies:
-                return output_table, dependencies
+                return output_table, dependencies, "passthrough"
 
         return None
+
+    @staticmethod
+    def _merge_transform_semantics(current: str | None, new: str) -> str:
+        if current == "modeled" or new == "modeled":
+            return "modeled"
+        return "passthrough"
+
+    @staticmethod
+    def _normalize_sql(sql: str) -> str:
+        return re.sub(r"\s+", " ", sql.strip().rstrip(";")).strip().lower()
+
+    @classmethod
+    def _class_transform_semantics(cls, depends_on: list[str], sql: str | None) -> str:
+        if not depends_on or not sql:
+            return "modeled"
+
+        normalized_sql = cls._normalize_sql(sql)
+        if len(depends_on) == 1 and normalized_sql == f"select * from {depends_on[0].lower()}":
+            return "passthrough"
+
+        if "union all by name" not in normalized_sql:
+            return "modeled"
+        if any(token in normalized_sql for token in (" join ", " where ", " group by ", " with ")):
+            return "modeled"
+        if not all(f" from {dependency.lower()}" in normalized_sql for dependency in depends_on):
+            return "modeled"
+        if "select * from " in normalized_sql or "select *, " in normalized_sql:
+            return "passthrough"
+        return "modeled"
 
     @staticmethod
     def _table_name_from_schema_class_name(class_name: str) -> str:
@@ -429,9 +553,10 @@ class EndpointCoverageGenerator:
             )
         return surfaces
 
-    def _transform_catalog(self) -> tuple[dict[str, set[str]], set[str]]:
+    def _transform_catalog(self) -> tuple[dict[str, set[str]], set[str], dict[str, str]]:
         output_map: dict[str, set[str]] = defaultdict(set)
         output_tables: set[str] = set()
+        output_semantics: dict[str, str] = {}
         transform_root = self.project_root / "src" / "nbadb" / "transform"
         for subdir in ("dimensions", "facts", "derived", "views", "live"):
             current_dir = transform_root / subdir
@@ -449,6 +574,7 @@ class EndpointCoverageGenerator:
                     if isinstance(node, ast.ClassDef):
                         output_table: str | None = None
                         depends_on: list[str] = []
+                        sql_text: str | None = None
 
                         for stmt in node.body:
                             if isinstance(stmt, ast.Assign):
@@ -457,6 +583,8 @@ class EndpointCoverageGenerator:
                                         output_table = self._constant_string(stmt.value)
                                     elif isinstance(target, ast.Name) and target.id == "depends_on":
                                         depends_on = self._constant_string_list(stmt.value)
+                                    elif isinstance(target, ast.Name) and target.id == "_SQL":
+                                        sql_text = self._constant_string(stmt.value)
                             elif isinstance(stmt, ast.AnnAssign):
                                 if (
                                     isinstance(stmt.target, ast.Name)
@@ -472,10 +600,19 @@ class EndpointCoverageGenerator:
                                     depends_on = (
                                         self._constant_string_list(stmt.value) if stmt.value else []
                                     )
+                                elif isinstance(stmt.target, ast.Name) and stmt.target.id == "_SQL":
+                                    sql_text = (
+                                        self._constant_string(stmt.value) if stmt.value else None
+                                    )
 
                         if output_table is None:
                             continue
                         output_tables.add(output_table)
+                        semantics = self._class_transform_semantics(depends_on, sql_text)
+                        output_semantics[output_table] = self._merge_transform_semantics(
+                            output_semantics.get(output_table),
+                            semantics,
+                        )
                         for dependency in depends_on:
                             output_map[dependency].add(output_table)
                         continue
@@ -484,11 +621,15 @@ class EndpointCoverageGenerator:
                         signature = self._generated_transform_signature(node.value)
                         if signature is None:
                             continue
-                        output_table, dependencies = signature
+                        output_table, dependencies, semantics = signature
                         output_tables.add(output_table)
+                        output_semantics[output_table] = self._merge_transform_semantics(
+                            output_semantics.get(output_table),
+                            semantics,
+                        )
                         for dependency in dependencies:
                             output_map[dependency].add(output_table)
-        return dict(output_map), output_tables
+        return dict(output_map), output_tables, output_semantics
 
     def _star_schema_tables(self) -> set[str]:
         schema_dir = self.project_root / "src" / "nbadb" / "schemas" / "star"
@@ -701,6 +842,14 @@ class EndpointCoverageGenerator:
                     declared.append(value)
         return declared
 
+    @staticmethod
+    def _staging_result_set_shape(entry: StagingEntry) -> str:
+        if not entry.use_multi:
+            return "single_result"
+        if entry.result_set_index == 0:
+            return "multi_result_primary"
+        return "multi_result_secondary"
+
     @classmethod
     def _season_type_value_gaps(
         cls,
@@ -729,12 +878,65 @@ class EndpointCoverageGenerator:
         return sorted(value_gaps)
 
     @classmethod
+    def _staging_downstream_status(
+        cls,
+        *,
+        endpoint_name: str,
+        staging_key: str,
+        transform_outputs_by_staging: dict[str, set[str]],
+        transform_semantics_by_output: dict[str, str],
+    ) -> tuple[str, list[str], list[str]]:
+        outputs = sorted(transform_outputs_by_staging.get(staging_key, set()))
+        status, reason = _ownership_override_for_staging_key(staging_key)
+        if status is None:
+            status, reason = _ownership_override_for_endpoint(endpoint_name)
+        if status == "compatibility_reference_only":
+            return (
+                status,
+                outputs,
+                [str(reason)],
+            )
+        if status == "excluded" and not outputs:
+            return "excluded", outputs, [str(reason)]
+        if not outputs:
+            return "unowned", [], []
+
+        if any(
+            transform_semantics_by_output.get(output, "modeled") == "modeled" for output in outputs
+        ):
+            return "modeled", outputs, []
+        return "passthrough_only", outputs, []
+
+    @staticmethod
+    def _endpoint_downstream_status(
+        *,
+        source_kind: str,
+        staging_statuses: list[str],
+    ) -> str:
+        if source_kind != "stats":
+            return "not_applicable"
+        if not staging_statuses:
+            return "not_applicable"
+        if "modeled" in staging_statuses:
+            return "modeled"
+        if "passthrough_only" in staging_statuses:
+            return "passthrough_only"
+        if "compatibility_reference_only" in staging_statuses:
+            return "compatibility_reference_only"
+        if "excluded" in staging_statuses:
+            return "excluded"
+        if "unowned" in staging_statuses:
+            return "unowned"
+        return "not_applicable"
+
+    @classmethod
     def _build_support_matrix(
         cls,
         *,
         matrix: list[dict[str, Any]],
         staging_entries_by_endpoint: dict[str, list[StagingEntry]],
         transform_outputs_by_staging: dict[str, set[str]],
+        transform_semantics_by_output: dict[str, str],
         staging_schema_tables: set[str],
         raw_schema_tables: set[str],
         star_schema_tables: set[str],
@@ -745,6 +947,7 @@ class EndpointCoverageGenerator:
 
         support_matrix: list[dict[str, Any]] = []
         contract_status_breakdown: dict[str, int] = defaultdict(int)
+        downstream_status_breakdown: dict[str, int] = defaultdict(int)
         execution_semantics_breakdown: dict[str, int] = defaultdict(int)
         source_kind_breakdown: dict[str, int] = defaultdict(int)
         gap_breakdown: dict[str, int] = defaultdict(int)
@@ -782,6 +985,36 @@ class EndpointCoverageGenerator:
                 {entry.staging_key for entry in entries}
                 | {str(key) for row in endpoint_rows for key in row["staging_keys"]}
             )
+            staging_status_details: list[_StagingStatusDetail] = [
+                {
+                    "staging_key": entry.staging_key,
+                    "downstream_status": status,
+                    "downstream_reasons": reasons,
+                    "transform_outputs": outputs,
+                }
+                for entry in sorted(
+                    entries, key=lambda item: (item.staging_key, item.result_set_index)
+                )
+                for status, outputs, reasons in [
+                    cls._staging_downstream_status(
+                        endpoint_name=endpoint_name,
+                        staging_key=entry.staging_key,
+                        transform_outputs_by_staging=transform_outputs_by_staging,
+                        transform_semantics_by_output=transform_semantics_by_output,
+                    )
+                ]
+            ]
+            downstream_status = cls._endpoint_downstream_status(
+                source_kind=source_kind,
+                staging_statuses=[detail["downstream_status"] for detail in staging_status_details],
+            )
+            downstream_reasons = sorted(
+                {
+                    reason
+                    for detail in staging_status_details
+                    for reason in detail["downstream_reasons"]
+                }
+            )
             transform_outputs = sorted(
                 {
                     output
@@ -804,20 +1037,6 @@ class EndpointCoverageGenerator:
                 for table_name in transform_outputs
                 if table_name not in star_schema_tables
             )
-            model_exclusion_reasons = sorted(
-                {
-                    str(reason)
-                    for row in endpoint_rows
-                    for reason in [row.get("model_exclusion_reason")]
-                    if reason and not row.get("transform_outputs")
-                }
-                | {
-                    str(reason)
-                    for entry in entries
-                    for reason in [_MODEL_EXCLUDED_STAGING_KEYS.get(entry.staging_key)]
-                    if reason and not transform_outputs_by_staging.get(entry.staging_key)
-                }
-            )
 
             support_windows = [
                 {
@@ -833,9 +1052,23 @@ class EndpointCoverageGenerator:
                         staging_schema_tables=staging_schema_tables,
                         raw_schema_tables=raw_schema_tables,
                     ),
-                    "transform_outputs": sorted(
-                        transform_outputs_by_staging.get(entry.staging_key, set())
-                    ),
+                    **{
+                        "transform_outputs": next(
+                            detail["transform_outputs"]
+                            for detail in staging_status_details
+                            if detail["staging_key"] == entry.staging_key
+                        ),
+                        "downstream_status": next(
+                            detail["downstream_status"]
+                            for detail in staging_status_details
+                            if detail["staging_key"] == entry.staging_key
+                        ),
+                        "downstream_reasons": next(
+                            detail["downstream_reasons"]
+                            for detail in staging_status_details
+                            if detail["staging_key"] == entry.staging_key
+                        ),
+                    },
                 }
                 for entry in sorted(
                     entries, key=lambda item: (item.staging_key, item.result_set_index)
@@ -858,7 +1091,7 @@ class EndpointCoverageGenerator:
             else:
                 if not staging_keys:
                     contract_gaps.append("staging_contract_missing")
-                if model_exclusion_reasons:
+                if downstream_status == "excluded":
                     contract_gaps.append("model_excluded")
                 if not transform_outputs:
                     contract_gaps.append("transform_contract_missing")
@@ -883,6 +1116,8 @@ class EndpointCoverageGenerator:
                     "coverage_statuses": coverage_gaps or ["covered"],
                     "contract_status": contract_status,
                     "contract_gaps": contract_gaps,
+                    "downstream_status": downstream_status,
+                    "downstream_reasons": downstream_reasons,
                     "season_type_contract_status": season_type_contract_status,
                     "declared_supported_season_types": declared_supported_season_types,
                     "season_type_value_gaps": season_type_value_gaps,
@@ -891,13 +1126,14 @@ class EndpointCoverageGenerator:
                     "transform_outputs": transform_outputs,
                     "input_schema_missing_staging_keys": input_schema_missing_staging_keys,
                     "output_schema_missing_tables": output_schema_missing_tables,
-                    "model_exclusion_reasons": model_exclusion_reasons,
+                    "staging_status_details": staging_status_details,
                     "earliest_supported_season": earliest_supported_season,
                     "support_windows": support_windows,
                 }
             )
 
             contract_status_breakdown[contract_status] += 1
+            downstream_status_breakdown[downstream_status] += 1
             execution_semantics_breakdown[execution_semantics] += 1
             source_kind_breakdown[source_kind] += 1
             for gap in contract_gaps:
@@ -906,6 +1142,7 @@ class EndpointCoverageGenerator:
         summary = {
             "endpoint_count": len(support_matrix),
             "contract_status_breakdown": dict(sorted(contract_status_breakdown.items())),
+            "downstream_status_breakdown": dict(sorted(downstream_status_breakdown.items())),
             "execution_semantics_breakdown": dict(sorted(execution_semantics_breakdown.items())),
             "source_kind_breakdown": dict(sorted(source_kind_breakdown.items())),
             "season_type_contract_breakdown": dict(
@@ -1140,6 +1377,166 @@ class EndpointCoverageGenerator:
             and int(extraction_summary.get("season_type_contract_open_count", 0)) == 0
         )
 
+    @classmethod
+    def _build_temporal_support_ledger(
+        cls,
+        support_matrix: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        ledger: list[dict[str, Any]] = []
+        support_window_count = 0
+
+        for row in support_matrix:
+            if row["source_kind"] != "stats" or row["execution_semantics"] != "historical_backfill":
+                continue
+
+            for window in row["support_windows"]:
+                support_window_count += 1
+                supported_season_types = list(window["supported_season_types"])
+                season_types = supported_season_types or [None]
+                for season_type in season_types:
+                    ledger.append(
+                        {
+                            "ledger_key": (
+                                f"{row['endpoint_name']}:{window['staging_key']}:"
+                                f"{season_type or 'all'}:{window['result_set_index']}"
+                            ),
+                            "endpoint_name": row["endpoint_name"],
+                            "source_kind": row["source_kind"],
+                            "execution_semantics": row["execution_semantics"],
+                            "param_pattern": window["param_pattern"],
+                            "staging_key": window["staging_key"],
+                            "result_set_index": window["result_set_index"],
+                            "historical_start_season": (
+                                window["min_season"] or _DEFAULT_HISTORICAL_START_SEASON
+                            ),
+                            "deprecated_after": window["deprecated_after"],
+                            "season_type": season_type,
+                            "season_type_capability": window["season_type_capability"],
+                            "supported_season_types": supported_season_types,
+                            "input_schema_present": window["input_schema_present"],
+                            "transform_outputs": window["transform_outputs"],
+                        }
+                    )
+
+        summary = {
+            "endpoint_count": len({row["endpoint_name"] for row in ledger}),
+            "ledger_row_count": len(ledger),
+            "support_window_count": support_window_count,
+            "season_type_row_count": sum(1 for row in ledger if row["season_type"] is not None),
+            "untracked_season_type_row_count": sum(
+                1 for row in ledger if row["season_type"] is None
+            ),
+            "season_type_capability_breakdown": dict(
+                sorted(
+                    Counter(
+                        row["season_type_capability"]
+                        for row in ledger
+                        if row["season_type_capability"] is not None
+                    ).items()
+                )
+            ),
+        }
+
+        return {"ledger": ledger, "summary": summary}
+
+    @staticmethod
+    def _downstream_ownership_status(row: dict[str, Any]) -> str:
+        return str(row.get("downstream_status", "not_applicable"))
+
+    @classmethod
+    def _build_endpoint_adequacy_scorecard(
+        cls,
+        support_matrix: list[dict[str, Any]],
+        support_summary: dict[str, Any],
+        temporal_support_ledger: dict[str, Any],
+    ) -> dict[str, Any]:
+        scorecard: list[dict[str, Any]] = []
+        adequacy_status_breakdown: Counter[str] = Counter()
+        downstream_status_breakdown: Counter[str] = Counter()
+        coverage_status_breakdown: Counter[str] = Counter()
+        contract_status_breakdown: Counter[str] = Counter()
+        source_kind_breakdown: Counter[str] = Counter()
+
+        for row in support_matrix:
+            coverage_statuses = list(row["coverage_statuses"])
+            coverage_status = (
+                coverage_statuses[0]
+                if len(coverage_statuses) == 1
+                else "mixed"
+                if coverage_statuses
+                else "covered"
+            )
+            downstream_status = cls._downstream_ownership_status(row)
+            if coverage_status != "covered":
+                adequacy_status = coverage_status
+            elif row["contract_status"] != "complete":
+                adequacy_status = "gap"
+            elif row["source_kind"] == "stats" and downstream_status != "modeled":
+                adequacy_status = downstream_status
+            else:
+                adequacy_status = "adequate"
+
+            scorecard.append(
+                {
+                    "endpoint_name": row["endpoint_name"],
+                    "source_kind": row["source_kind"],
+                    "coverage_status": coverage_status,
+                    "coverage_statuses": coverage_statuses,
+                    "contract_status": row["contract_status"],
+                    "adequacy_status": adequacy_status,
+                    "downstream_status": downstream_status,
+                    "execution_semantics": row["execution_semantics"],
+                    "season_type_contract_status": row["season_type_contract_status"],
+                    "support_window_count": len(row["support_windows"]),
+                    "staging_key_count": len(row["staging_keys"]),
+                    "transform_output_count": len(row["transform_outputs"]),
+                    "coverage_gap_count": 0
+                    if coverage_status == "covered"
+                    else len(coverage_statuses),
+                    "contract_gap_count": len(row["contract_gaps"]),
+                    "input_schema_missing_count": len(row["input_schema_missing_staging_keys"]),
+                    "output_schema_missing_count": len(row["output_schema_missing_tables"]),
+                    "downstream_reason_count": len(row["downstream_reasons"]),
+                    "season_type_value_gap_count": len(row["season_type_value_gaps"]),
+                }
+            )
+            adequacy_status_breakdown[adequacy_status] += 1
+            downstream_status_breakdown[downstream_status] += 1
+            coverage_status_breakdown[coverage_status] += 1
+            contract_status_breakdown[row["contract_status"]] += 1
+            source_kind_breakdown[row["source_kind"]] += 1
+
+        summary = {
+            "endpoint_count": len(scorecard),
+            "adequate_endpoint_count": adequacy_status_breakdown.get("adequate", 0),
+            "coverage_gap_endpoint_count": sum(
+                1 for row in scorecard if row["coverage_status"] != "covered"
+            ),
+            "contract_gap_endpoint_count": sum(
+                1 for row in scorecard if row["contract_status"] != "complete"
+            ),
+            "downstream_modeled_endpoint_count": downstream_status_breakdown.get("modeled", 0),
+            "downstream_passthrough_only_endpoint_count": downstream_status_breakdown.get(
+                "passthrough_only", 0
+            ),
+            "downstream_compatibility_reference_only_endpoint_count": (
+                downstream_status_breakdown.get("compatibility_reference_only", 0)
+            ),
+            "downstream_excluded_endpoint_count": downstream_status_breakdown.get("excluded", 0),
+            "downstream_unowned_endpoint_count": downstream_status_breakdown.get("unowned", 0),
+            "downstream_not_applicable_endpoint_count": downstream_status_breakdown.get(
+                "not_applicable", 0
+            ),
+            "adequacy_status_breakdown": dict(sorted(adequacy_status_breakdown.items())),
+            "coverage_status_breakdown": dict(sorted(coverage_status_breakdown.items())),
+            "contract_status_breakdown": dict(sorted(contract_status_breakdown.items())),
+            "downstream_status_breakdown": dict(sorted(downstream_status_breakdown.items())),
+            "source_kind_breakdown": dict(sorted(source_kind_breakdown.items())),
+            "support_contract": support_summary,
+            "temporal_support_ledger": temporal_support_ledger["summary"],
+        }
+        return {"scorecard": scorecard, "summary": summary}
+
     def build_artifacts(
         self,
         runtime_endpoint_classes: set[str] | None = None,
@@ -1150,7 +1547,11 @@ class EndpointCoverageGenerator:
         extractor_map = self._extractor_endpoint_map()
         static_extractors = self._static_extractor_surfaces()
         live_extractors = self._live_extractor_surfaces()
-        transform_outputs_by_staging, unique_outputs = self._transform_catalog()
+        (
+            transform_outputs_by_staging,
+            unique_outputs,
+            transform_semantics_by_output,
+        ) = self._transform_catalog()
         staging_schema_tables = self._staging_schema_tables()
         raw_schema_tables = self._raw_schema_tables()
         star_schema_tables = self._star_schema_tables()
@@ -1225,16 +1626,35 @@ class EndpointCoverageGenerator:
                     for output in transform_outputs_by_staging.get(staging_key, set())
                 }
             )
+            staging_status_details: list[_StagingStatusDetail] = [
+                {
+                    "staging_key": entry.staging_key,
+                    "downstream_status": status,
+                    "transform_outputs": outputs,
+                    "downstream_reasons": reasons,
+                }
+                for entry in entries
+                for status, outputs, reasons in [
+                    self._staging_downstream_status(
+                        endpoint_name=endpoint_name,
+                        staging_key=entry.staging_key,
+                        transform_outputs_by_staging=transform_outputs_by_staging,
+                        transform_semantics_by_output=transform_semantics_by_output,
+                    )
+                ]
+            ]
             param_pattern = entries[0].param_pattern if entries else "extractor_only"
-            model_exclusion_reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(endpoint_name)
-            if transform_outputs:
-                model_status = "transform_owned"
-            elif staging_present and model_exclusion_reason is not None:
-                model_status = "excluded"
-            elif staging_present:
-                model_status = "unowned"
-            else:
-                model_status = "not_applicable"
+            model_status = self._endpoint_downstream_status(
+                source_kind="stats",
+                staging_statuses=[detail["downstream_status"] for detail in staging_status_details],
+            )
+            model_status_reasons = sorted(
+                {
+                    reason
+                    for detail in staging_status_details
+                    for reason in detail["downstream_reasons"]
+                }
+            )
 
             matrix.append(
                 {
@@ -1252,7 +1672,7 @@ class EndpointCoverageGenerator:
                     "transform_outputs": transform_outputs,
                     "transform_present": bool(transform_outputs),
                     "model_status": model_status,
-                    "model_exclusion_reason": model_exclusion_reason,
+                    "model_status_reasons": model_status_reasons,
                     "coverage_status": coverage_status,
                 }
             )
@@ -1280,7 +1700,7 @@ class EndpointCoverageGenerator:
                     "transform_outputs": [],
                     "transform_present": False,
                     "model_status": "not_applicable",
-                    "model_exclusion_reason": None,
+                    "model_status_reasons": [],
                     "coverage_status": (
                         "covered"
                         if runtime_present and extractor_present
@@ -1315,7 +1735,7 @@ class EndpointCoverageGenerator:
                     "transform_outputs": [],
                     "transform_present": False,
                     "model_status": "not_applicable",
-                    "model_exclusion_reason": None,
+                    "model_status_reasons": [],
                     "coverage_status": (
                         "covered"
                         if runtime_present and extractor_present
@@ -1365,53 +1785,89 @@ class EndpointCoverageGenerator:
                     source_summary[status] = int(source_summary[status]) + 1
             source_breakdown.append(source_summary)
 
-        owned_staging_entries = sum(
-            1
-            for entry in self.staging_entries
-            if transform_outputs_by_staging.get(entry.staging_key)
+        staging_result_set_shape_breakdown = Counter(
+            self._staging_result_set_shape(entry) for entry in self.staging_entries
         )
+        staging_entry_statuses: list[dict[str, Any]] = []
+        for entry in self.staging_entries:
+            endpoint_name = _ENDPOINT_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
+            status, outputs, reasons = self._staging_downstream_status(
+                endpoint_name=endpoint_name,
+                staging_key=entry.staging_key,
+                transform_outputs_by_staging=transform_outputs_by_staging,
+                transform_semantics_by_output=transform_semantics_by_output,
+            )
+            staging_entry_statuses.append(
+                {
+                    "staging_key": entry.staging_key,
+                    "endpoint_name": endpoint_name,
+                    "downstream_status": status,
+                    "transform_outputs": outputs,
+                    "reasons": reasons,
+                }
+            )
+        staging_status_breakdown = Counter(
+            row["downstream_status"] for row in staging_entry_statuses
+        )
+        stats_rows = [
+            row for row in matrix if row["source_kind"] == "stats" and row["staging_present"]
+        ]
+        stats_status_breakdown = Counter(row["model_status"] for row in stats_rows)
+        passthrough_stats_endpoints = [
+            {
+                "endpoint_name": row["endpoint_name"],
+                "staging_keys": row["staging_keys"],
+                "transform_outputs": row["transform_outputs"],
+            }
+            for row in stats_rows
+            if row["model_status"] == "passthrough_only"
+        ]
+        compatibility_reference_stats_endpoints = [
+            {
+                "endpoint_name": row["endpoint_name"],
+                "reason": "; ".join(row["model_status_reasons"]),
+                "staging_keys": row["staging_keys"],
+                "transform_outputs": row["transform_outputs"],
+            }
+            for row in stats_rows
+            if row["model_status"] == "compatibility_reference_only"
+        ]
         excluded_stats_endpoints = [
             {
                 "endpoint_name": row["endpoint_name"],
-                "reason": row["model_exclusion_reason"],
+                "reason": "; ".join(row["model_status_reasons"]),
                 "staging_keys": row["staging_keys"],
             }
-            for row in matrix
-            if row["source_kind"] == "stats" and row["model_status"] == "excluded"
+            for row in stats_rows
+            if row["model_status"] == "excluded"
         ]
         unowned_stats_endpoints = [
             {
                 "endpoint_name": row["endpoint_name"],
                 "staging_keys": row["staging_keys"],
             }
-            for row in matrix
-            if row["source_kind"] == "stats" and row["model_status"] == "unowned"
+            for row in stats_rows
+            if row["model_status"] == "unowned"
         ]
-        excluded_staging_entries_detail_by_key: dict[str, dict[str, str]] = {}
-        for entry in self.staging_entries:
-            if transform_outputs_by_staging.get(entry.staging_key):
-                continue
-            endpoint_name = _ENDPOINT_ALIASES.get(entry.endpoint_name, entry.endpoint_name)
-            reason = _MODEL_EXCLUDED_STAGING_KEYS.get(entry.staging_key)
-            if reason is None:
-                reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(endpoint_name)
-            if reason is None:
-                continue
-            excluded_staging_entries_detail_by_key[entry.staging_key] = {
-                "staging_key": entry.staging_key,
-                "endpoint_name": endpoint_name,
-                "reason": reason,
+        compatibility_reference_staging_entries_detail = [
+            {
+                "staging_key": row["staging_key"],
+                "endpoint_name": row["endpoint_name"],
+                "reason": "; ".join(row["reasons"]),
+                "transform_outputs": row["transform_outputs"],
             }
-        excluded_staging_entries_detail = [
-            excluded_staging_entries_detail_by_key[key]
-            for key in sorted(excluded_staging_entries_detail_by_key)
+            for row in staging_entry_statuses
+            if row["downstream_status"] == "compatibility_reference_only"
         ]
-        excluded_staging_entries = len(excluded_staging_entries_detail)
-        owned_stats_endpoints = sum(
-            1
-            for row in matrix
-            if row["source_kind"] == "stats" and row["staging_present"] and row["transform_present"]
-        )
+        excluded_staging_entries_detail = [
+            {
+                "staging_key": row["staging_key"],
+                "endpoint_name": row["endpoint_name"],
+                "reason": "; ".join(row["reasons"]),
+            }
+            for row in staging_entry_statuses
+            if row["downstream_status"] == "excluded"
+        ]
         schema_backed_outputs = sorted(unique_outputs & star_schema_tables)
         schema_missing_outputs = sorted(unique_outputs - star_schema_tables)
         schema_only_tables = sorted(star_schema_tables - unique_outputs)
@@ -1435,16 +1891,36 @@ class EndpointCoverageGenerator:
             "pattern_heatmap": [heatmap[key] for key in sorted(heatmap)],
             "model_ownership": {
                 "staging_entry_count": len(self.staging_entries),
-                "transform_owned_staging_entries": owned_staging_entries,
-                "model_excluded_staging_entries": excluded_staging_entries,
-                "model_unowned_staging_entries": (
-                    len(self.staging_entries) - owned_staging_entries - excluded_staging_entries
+                "analytically_modeled_staging_entries": staging_status_breakdown.get("modeled", 0),
+                "passthrough_only_staging_entries": staging_status_breakdown.get(
+                    "passthrough_only", 0
+                ),
+                "compatibility_reference_only_staging_entries": staging_status_breakdown.get(
+                    "compatibility_reference_only", 0
+                ),
+                "model_excluded_staging_entries": staging_status_breakdown.get("excluded", 0),
+                "model_unowned_staging_entries": staging_status_breakdown.get("unowned", 0),
+                "staging_result_set_shape_breakdown": dict(
+                    sorted(staging_result_set_shape_breakdown.items())
                 ),
                 "stats_endpoint_count": len(staging_entries_by_endpoint),
-                "transform_owned_stats_endpoints": owned_stats_endpoints,
-                "model_excluded_stats_endpoints": len(excluded_stats_endpoints),
-                "model_unowned_stats_endpoints": len(unowned_stats_endpoints),
+                "analytically_modeled_stats_endpoints": stats_status_breakdown.get("modeled", 0),
+                "passthrough_only_stats_endpoints": stats_status_breakdown.get(
+                    "passthrough_only", 0
+                ),
+                "compatibility_reference_only_stats_endpoints": stats_status_breakdown.get(
+                    "compatibility_reference_only", 0
+                ),
+                "model_excluded_stats_endpoints": stats_status_breakdown.get("excluded", 0),
+                "model_unowned_stats_endpoints": stats_status_breakdown.get("unowned", 0),
+                "passthrough_stats_endpoints": passthrough_stats_endpoints,
+                "compatibility_reference_stats_endpoints": (
+                    compatibility_reference_stats_endpoints
+                ),
                 "excluded_stats_endpoints": excluded_stats_endpoints,
+                "compatibility_reference_staging_entries_detail": (
+                    compatibility_reference_staging_entries_detail
+                ),
                 "excluded_staging_entries_detail": excluded_staging_entries_detail,
                 "unowned_stats_endpoints": unowned_stats_endpoints,
                 "transform_output_count": len(unique_outputs),
@@ -1467,6 +1943,7 @@ class EndpointCoverageGenerator:
             matrix=matrix,
             staging_entries_by_endpoint=staging_entries_by_endpoint,
             transform_outputs_by_staging=transform_outputs_by_staging,
+            transform_semantics_by_output=transform_semantics_by_output,
             staging_schema_tables=staging_schema_tables,
             raw_schema_tables=raw_schema_tables,
             star_schema_tables=star_schema_tables,
@@ -1474,11 +1951,18 @@ class EndpointCoverageGenerator:
         extraction_contract = self._build_extraction_matrix(
             support_matrix=support_contract["matrix"],
         )
+        temporal_support_ledger = self._build_temporal_support_ledger(support_contract["matrix"])
+        endpoint_adequacy_scorecard = self._build_endpoint_adequacy_scorecard(
+            support_contract["matrix"],
+            support_contract["summary"],
+            temporal_support_ledger,
+        )
         summary["support_contract"] = support_contract["summary"]
         summary["extraction_contract"] = extraction_contract["summary"]
         full_extraction_definition = self._full_extraction_definition_of_done(
             extraction_contract["summary"]
         )
+        summary["support_contract"]["temporal_support_ledger"] = temporal_support_ledger["summary"]
 
         return {
             "matrix": matrix,
@@ -1488,6 +1972,8 @@ class EndpointCoverageGenerator:
             "extraction_matrix": extraction_contract["matrix"],
             "extraction_summary": extraction_contract["summary"],
             "full_extraction_definition": full_extraction_definition,
+            "temporal_support_ledger": temporal_support_ledger,
+            "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard,
         }
 
     @staticmethod
@@ -1531,15 +2017,23 @@ class EndpointCoverageGenerator:
                 "| Metric | Count |",
                 "|--------|-------|",
                 f"| staging_entry_count | {model_ownership['staging_entry_count']} |",
-                f"| transform_owned_staging_entries | "
-                f"{model_ownership['transform_owned_staging_entries']} |",
+                f"| analytically_modeled_staging_entries | "
+                f"{model_ownership['analytically_modeled_staging_entries']} |",
+                f"| passthrough_only_staging_entries | "
+                f"{model_ownership['passthrough_only_staging_entries']} |",
+                f"| compatibility_reference_only_staging_entries | "
+                f"{model_ownership['compatibility_reference_only_staging_entries']} |",
                 f"| model_excluded_staging_entries | "
                 f"{model_ownership['model_excluded_staging_entries']} |",
                 f"| model_unowned_staging_entries | "
                 f"{model_ownership['model_unowned_staging_entries']} |",
                 f"| stats_endpoint_count | {model_ownership['stats_endpoint_count']} |",
-                f"| transform_owned_stats_endpoints | "
-                f"{model_ownership['transform_owned_stats_endpoints']} |",
+                f"| analytically_modeled_stats_endpoints | "
+                f"{model_ownership['analytically_modeled_stats_endpoints']} |",
+                f"| passthrough_only_stats_endpoints | "
+                f"{model_ownership['passthrough_only_stats_endpoints']} |",
+                f"| compatibility_reference_only_stats_endpoints | "
+                f"{model_ownership['compatibility_reference_only_stats_endpoints']} |",
                 f"| model_excluded_stats_endpoints | "
                 f"{model_ownership['model_excluded_stats_endpoints']} |",
                 f"| model_unowned_stats_endpoints | "
@@ -1547,6 +2041,44 @@ class EndpointCoverageGenerator:
                 f"| transform_output_count | {model_ownership['transform_output_count']} |",
             ]
         )
+        lines.extend(
+            [
+                "",
+                "### Staging Result-Set Shape Breakdown",
+                "",
+                "| Shape | Count |",
+                "|-------|-------|",
+            ]
+        )
+        for shape_name, count in model_ownership["staging_result_set_shape_breakdown"].items():
+            lines.append(f"| {shape_name} | {count} |")
+        if model_ownership.get("passthrough_stats_endpoints"):
+            lines.extend(
+                [
+                    "",
+                    "### Passthrough-Only Stats Endpoints",
+                    "",
+                    "| Endpoint | Staging Keys | Transform Outputs |",
+                    "|----------|--------------|-------------------|",
+                ]
+            )
+            for row in model_ownership["passthrough_stats_endpoints"]:
+                lines.append(
+                    f"| {row['endpoint_name']} | {', '.join(row['staging_keys'])} | "
+                    f"{', '.join(row['transform_outputs'])} |"
+                )
+        if model_ownership.get("compatibility_reference_stats_endpoints"):
+            lines.extend(
+                [
+                    "",
+                    "### Compatibility/Reference-Only Stats Endpoints",
+                    "",
+                    "| Endpoint | Reason |",
+                    "|----------|--------|",
+                ]
+            )
+            for row in model_ownership["compatibility_reference_stats_endpoints"]:
+                lines.append(f"| {row['endpoint_name']} | {row['reason']} |")
         if model_ownership["excluded_stats_endpoints"]:
             lines.extend(
                 [
@@ -1559,6 +2091,18 @@ class EndpointCoverageGenerator:
             )
             for row in model_ownership["excluded_stats_endpoints"]:
                 lines.append(f"| {row['endpoint_name']} | {row['reason']} |")
+        if model_ownership.get("compatibility_reference_staging_entries_detail"):
+            lines.extend(
+                [
+                    "",
+                    "### Compatibility/Reference-Only Staging Entries",
+                    "",
+                    "| Staging Key | Endpoint | Reason |",
+                    "|-------------|----------|--------|",
+                ]
+            )
+            for row in model_ownership["compatibility_reference_staging_entries_detail"]:
+                lines.append(f"| {row['staging_key']} | {row['endpoint_name']} | {row['reason']} |")
         if model_ownership.get("excluded_staging_entries_detail"):
             lines.extend(
                 [
@@ -1741,6 +2285,45 @@ class EndpointCoverageGenerator:
                 )
                 for gap, count in support_contract["gap_breakdown"].items():
                     lines.append(f"| {gap} | {count} |")
+            temporal_support_ledger = support_contract.get("temporal_support_ledger", {})
+            if temporal_support_ledger:
+                lines.extend(
+                    [
+                        "",
+                        "## Temporal Support Ledger",
+                        "",
+                        "| Metric | Count |",
+                        "|--------|-------|",
+                        f"| endpoint_count | {temporal_support_ledger['endpoint_count']} |",
+                        f"| ledger_row_count | {temporal_support_ledger['ledger_row_count']} |",
+                        (
+                            f"| support_window_count | "
+                            f"{temporal_support_ledger['support_window_count']} |"
+                        ),
+                        (
+                            f"| season_type_row_count | "
+                            f"{temporal_support_ledger['season_type_row_count']} |"
+                        ),
+                        (
+                            f"| untracked_season_type_row_count | "
+                            f"{temporal_support_ledger['untracked_season_type_row_count']} |"
+                        ),
+                    ]
+                )
+                if temporal_support_ledger.get("season_type_capability_breakdown"):
+                    lines.extend(
+                        [
+                            "",
+                            "### Season Type Capability Breakdown",
+                            "",
+                            "| Capability | Count |",
+                            "|------------|-------|",
+                        ]
+                    )
+                    for capability, count in temporal_support_ledger[
+                        "season_type_capability_breakdown"
+                    ].items():
+                        lines.append(f"| {capability} | {count} |")
 
         lines.extend(
             [
@@ -1782,6 +2365,7 @@ class EndpointCoverageGenerator:
 
         for section_name, title, value_header in (
             ("contract_status_breakdown", "Contract Status Breakdown", "Status"),
+            ("downstream_status_breakdown", "Downstream Status Breakdown", "Downstream Status"),
             ("execution_semantics_breakdown", "Execution Semantics Breakdown", "Semantics"),
             ("source_kind_breakdown", "Source Kind Breakdown", "Source Kind"),
             (
@@ -1806,6 +2390,182 @@ class EndpointCoverageGenerator:
             for key, count in breakdown.items():
                 lines.append(f"| {key} | {count} |")
 
+        temporal_support_ledger = summary.get("temporal_support_ledger", {})
+        if temporal_support_ledger:
+            lines.extend(
+                [
+                    "",
+                    "## Temporal Support Ledger",
+                    "",
+                    "| Metric | Count |",
+                    "|--------|-------|",
+                    f"| endpoint_count | {temporal_support_ledger['endpoint_count']} |",
+                    f"| ledger_row_count | {temporal_support_ledger['ledger_row_count']} |",
+                    (
+                        f"| support_window_count | "
+                        f"{temporal_support_ledger['support_window_count']} |"
+                    ),
+                    (
+                        f"| season_type_row_count | "
+                        f"{temporal_support_ledger['season_type_row_count']} |"
+                    ),
+                    (
+                        f"| untracked_season_type_row_count | "
+                        f"{temporal_support_ledger['untracked_season_type_row_count']} |"
+                    ),
+                ]
+            )
+            if temporal_support_ledger.get("season_type_capability_breakdown"):
+                lines.extend(
+                    [
+                        "",
+                        "### Season Type Capability Breakdown",
+                        "",
+                        "| Capability | Count |",
+                        "|------------|-------|",
+                    ]
+                )
+                for capability, count in temporal_support_ledger[
+                    "season_type_capability_breakdown"
+                ].items():
+                    lines.append(f"| {capability} | {count} |")
+
+        lines.append("")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _endpoint_adequacy_scorecard_report_text(payload: dict[str, Any]) -> str:
+        summary = payload["summary"]
+        scorecard = payload["scorecard"]
+        lines = [
+            "# Endpoint Adequacy Scorecard",
+            "",
+            "## Summary",
+            "",
+            "| Metric | Count |",
+            "|--------|-------|",
+            f"| endpoint_count | {summary['endpoint_count']} |",
+            f"| adequate_endpoint_count | {summary['adequate_endpoint_count']} |",
+            f"| coverage_gap_endpoint_count | {summary['coverage_gap_endpoint_count']} |",
+            f"| contract_gap_endpoint_count | {summary['contract_gap_endpoint_count']} |",
+            (
+                f"| downstream_modeled_endpoint_count | "
+                f"{summary['downstream_modeled_endpoint_count']} |"
+            ),
+            (
+                f"| downstream_passthrough_only_endpoint_count | "
+                f"{summary['downstream_passthrough_only_endpoint_count']} |"
+            ),
+            (
+                f"| downstream_compatibility_reference_only_endpoint_count | "
+                f"{summary['downstream_compatibility_reference_only_endpoint_count']} |"
+            ),
+            (
+                f"| downstream_excluded_endpoint_count | "
+                f"{summary['downstream_excluded_endpoint_count']} |"
+            ),
+            (
+                f"| downstream_unowned_endpoint_count | "
+                f"{summary['downstream_unowned_endpoint_count']} |"
+            ),
+            (
+                f"| downstream_not_applicable_endpoint_count | "
+                f"{summary['downstream_not_applicable_endpoint_count']} |"
+            ),
+        ]
+
+        for section_name, title, value_header in (
+            ("adequacy_status_breakdown", "Adequacy Status Breakdown", "Status"),
+            ("coverage_status_breakdown", "Coverage Status Breakdown", "Coverage Status"),
+            ("contract_status_breakdown", "Contract Status Breakdown", "Contract Status"),
+            ("downstream_status_breakdown", "Downstream Status Breakdown", "Downstream Status"),
+            ("source_kind_breakdown", "Source Kind Breakdown", "Source Kind"),
+        ):
+            breakdown = summary.get(section_name, {})
+            if not breakdown:
+                continue
+            lines.extend(
+                [
+                    "",
+                    f"## {title}",
+                    "",
+                    f"| {value_header} | Count |",
+                    "|----------------|-------|",
+                ]
+            )
+            for key, count in breakdown.items():
+                lines.append(f"| {key} | {count} |")
+
+        lines.extend(
+            [
+                "",
+                "## Endpoint Scorecard",
+                "",
+                (
+                    "| Endpoint | Source | Coverage | Contract | Adequacy | Downstream | "
+                    "Semantics | Season Type | Support Windows | Staging Keys | "
+                    "Transform Outputs | Input Schema Missing | Output Schema Missing |"
+                ),
+                (
+                    "|----------|--------|----------|----------|----------|------------|"
+                    "-----------|-------------|-----------------|--------------|-------------------|"
+                    "----------------------|-----------------------|"
+                ),
+            ]
+        )
+        for row in scorecard:
+            lines.append(
+                f"| {row['endpoint_name']} | {row['source_kind']} | "
+                f"{row['coverage_status']} | {row['contract_status']} | "
+                f"{row['adequacy_status']} | {row['downstream_status']} | "
+                f"{row['execution_semantics']} | {row['season_type_contract_status']} | "
+                f"{row['support_window_count']} | {row['staging_key_count']} | "
+                f"{row['transform_output_count']} | {row['input_schema_missing_count']} | "
+                f"{row['output_schema_missing_count']} |"
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Coverage/Support Crosswalk",
+                "",
+                (
+                    "| Endpoint | Coverage Gaps | Contract Gaps | Downstream Reasons | "
+                    "Season Type Value Gaps |"
+                ),
+                "|----------|---------------|---------------|------------------|-----------------------|",
+            ]
+        )
+        for row in scorecard:
+            lines.append(
+                f"| {row['endpoint_name']} | {row['coverage_gap_count']} | "
+                f"{row['contract_gap_count']} | {row['downstream_reason_count']} | "
+                f"{row['season_type_value_gap_count']} |"
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Temporal Support Ledger",
+                "",
+                "| Metric | Count |",
+                "|--------|-------|",
+                f"| endpoint_count | {summary['temporal_support_ledger']['endpoint_count']} |",
+                f"| ledger_row_count | {summary['temporal_support_ledger']['ledger_row_count']} |",
+                (
+                    f"| support_window_count | "
+                    f"{summary['temporal_support_ledger']['support_window_count']} |"
+                ),
+                (
+                    f"| season_type_row_count | "
+                    f"{summary['temporal_support_ledger']['season_type_row_count']} |"
+                ),
+                (
+                    f"| untracked_season_type_row_count | "
+                    f"{summary['temporal_support_ledger']['untracked_season_type_row_count']} |"
+                ),
+            ]
+        )
         lines.append("")
         return "\n".join(lines)
 
@@ -1892,77 +2652,148 @@ class EndpointCoverageGenerator:
         artifacts: dict[str, Any],
         output_dir: Path | None = None,
     ) -> dict[str, Path]:
+        artifacts = self.build_artifacts(
+            runtime_endpoint_classes=runtime_endpoint_classes,
+            runtime_version=runtime_version,
+        )
+        destination = self._coverage_output_dir(output_dir)
+        return self._write_artifacts(destination=destination, artifacts=artifacts)
+
+    def write_endpoint_adequacy_scorecard(
+        self,
+        output_dir: Path | None = None,
+        runtime_endpoint_classes: set[str] | None = None,
+        runtime_version: str | None = None,
+    ) -> dict[str, Path]:
+        artifacts = self.build_artifacts(
+            runtime_endpoint_classes=runtime_endpoint_classes,
+            runtime_version=runtime_version,
+        )
+        destination = self._coverage_output_dir(output_dir)
+        return self._write_artifacts(
+            destination=destination,
+            artifacts=artifacts,
+            artifact_keys=_ENDPOINT_ADEQUACY_ARTIFACT_KEYS,
+        )
+
+    def _coverage_output_dir(self, output_dir: Path | None) -> Path:
         destination = (
             Path(output_dir)
             if output_dir is not None
             else self.project_root / "artifacts" / "endpoint-coverage"
         )
         destination.mkdir(parents=True, exist_ok=True)
+        return destination
 
+    def _write_artifacts(
+        self,
+        destination: Path,
+        artifacts: dict[str, Any],
+        artifact_keys: tuple[str, ...] | None = None,
+    ) -> dict[str, Path]:
         matrix_path = destination / "endpoint-coverage-matrix.json"
         summary_path = destination / "endpoint-coverage-summary.json"
         report_path = destination / "endpoint-coverage-report.md"
         support_matrix_path = destination / "endpoint-support-matrix.json"
         support_summary_path = destination / "endpoint-support-summary.json"
+        temporal_support_ledger_path = destination / "endpoint-temporal-support-ledger.json"
         support_report_path = destination / "endpoint-support-report.md"
         extraction_matrix_path = destination / "endpoint-extraction-matrix.json"
         extraction_summary_path = destination / "endpoint-extraction-summary.json"
         extraction_report_path = destination / "endpoint-extraction-report.md"
         full_extraction_definition_path = destination / "full-extraction-definition.json"
-
-        matrix_path.write_text(
-            json.dumps({"matrix": artifacts["matrix"]}, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        summary_path.write_text(
-            json.dumps(artifacts["summary"], indent=2) + "\n",
-            encoding="utf-8",
-        )
-        report_path.write_text(self._report_text(artifacts["summary"]), encoding="utf-8")
-        support_matrix_path.write_text(
-            json.dumps({"matrix": artifacts["support_matrix"]}, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        support_summary_path.write_text(
-            json.dumps(artifacts["support_summary"], indent=2) + "\n",
-            encoding="utf-8",
-        )
-        support_report_path.write_text(
-            self._support_report_text(artifacts["support_summary"]),
-            encoding="utf-8",
-        )
-        extraction_matrix_path.write_text(
-            json.dumps({"matrix": artifacts["extraction_matrix"]}, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        extraction_summary_path.write_text(
-            json.dumps(artifacts["extraction_summary"], indent=2) + "\n",
-            encoding="utf-8",
-        )
-        extraction_report_path.write_text(
-            self._extraction_report_text(
-                artifacts["extraction_summary"],
-                artifacts["full_extraction_definition"],
-            ),
-            encoding="utf-8",
-        )
-        full_extraction_definition_path.write_text(
-            json.dumps(artifacts["full_extraction_definition"], indent=2) + "\n",
-            encoding="utf-8",
-        )
-
-        return {
+        endpoint_adequacy_scorecard_path = destination / "endpoint-adequacy-scorecard.json"
+        endpoint_adequacy_report_path = destination / "endpoint-adequacy-scorecard-report.md"
+        written = {
             "matrix": matrix_path,
             "summary": summary_path,
             "report": report_path,
             "support_matrix": support_matrix_path,
             "support_summary": support_summary_path,
+            "temporal_support_ledger": temporal_support_ledger_path,
             "support_report": support_report_path,
             "extraction_matrix": extraction_matrix_path,
             "extraction_summary": extraction_summary_path,
             "extraction_report": extraction_report_path,
             "full_extraction_definition": full_extraction_definition_path,
+            "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard_path,
+            "endpoint_adequacy_report": endpoint_adequacy_report_path,
         }
+        selected_keys = artifact_keys or tuple(written)
+
+        for key in selected_keys:
+            if key == "matrix":
+                matrix_path.write_text(
+                    json.dumps({"matrix": artifacts["matrix"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "summary":
+                summary_path.write_text(
+                    json.dumps(artifacts["summary"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "report":
+                report_path.write_text(self._report_text(artifacts["summary"]), encoding="utf-8")
+            elif key == "support_matrix":
+                support_matrix_path.write_text(
+                    json.dumps({"matrix": artifacts["support_matrix"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "support_summary":
+                support_summary_path.write_text(
+                    json.dumps(artifacts["support_summary"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "temporal_support_ledger":
+                temporal_support_ledger_path.write_text(
+                    json.dumps(artifacts["temporal_support_ledger"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "support_report":
+                support_report_path.write_text(
+                    self._support_report_text(artifacts["support_summary"]),
+                    encoding="utf-8",
+                )
+            elif key == "extraction_matrix":
+                extraction_matrix_path.write_text(
+                    json.dumps({"matrix": artifacts["extraction_matrix"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "extraction_summary":
+                extraction_summary_path.write_text(
+                    json.dumps(artifacts["extraction_summary"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "extraction_report":
+                extraction_report_path.write_text(
+                    self._extraction_report_text(
+                        artifacts["extraction_summary"],
+                        artifacts["full_extraction_definition"],
+                    ),
+                    encoding="utf-8",
+                )
+            elif key == "full_extraction_definition":
+                full_extraction_definition_path.write_text(
+                    json.dumps(artifacts["full_extraction_definition"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "endpoint_adequacy_scorecard":
+                endpoint_adequacy_scorecard_path.write_text(
+                    json.dumps(artifacts["endpoint_adequacy_scorecard"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "endpoint_adequacy_report":
+                endpoint_adequacy_report_path.write_text(
+                    self._endpoint_adequacy_scorecard_report_text(
+                        artifacts["endpoint_adequacy_scorecard"]
+                    ),
+                    encoding="utf-8",
+                )
+            else:
+                msg = f"Unknown endpoint coverage artifact key: {key}"
+                raise ValueError(msg)
+
+        return {key: written[key] for key in selected_keys}
 
     def write(
         self,

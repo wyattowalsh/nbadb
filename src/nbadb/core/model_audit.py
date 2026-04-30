@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
+import importlib
+import inspect
 import json
 import logging
 import os
+import pkgutil
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime
@@ -23,6 +27,8 @@ from nbadb.core.endpoint_coverage import (
     _MODEL_EXCLUDED_STATS_ENDPOINTS,
     _STATIC_SURFACE_ALIASES,
     EndpointCoverageGenerator,
+    _ownership_override_for_endpoint,
+    _ownership_override_for_staging_key,
     _runtime_class_to_surface_name,
 )
 from nbadb.core.types import validate_sql_identifier
@@ -40,6 +46,21 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_OUTPUT_DIR = Path("artifacts/model-audit")
 _PROBLEM_DECISIONS = {"runtime_gap", "source_gap", "schema_gap", "validation_gap"}
+_LIVE_SINGLE_PACKET_RESULT_SET_NAMES: dict[str, str] = {
+    "live_score_board": "games",
+    "live_odds": "games",
+    "live_play_by_play": "actions",
+}
+_RESULT_TABLE_RUNTIME_OVERRIDES: dict[tuple[str, int], tuple[str, str]] = {
+    (
+        "schedule_int",
+        2,
+    ): (
+        "compatibility_reference_only",
+        "ScheduleLeagueV2Int broadcaster directory is retained as a compatibility/reference "
+        "surface; game-level schedule outputs already carry the modeled broadcast context.",
+    ),
+}
 
 
 class AuditMode(StrEnum):
@@ -215,6 +236,23 @@ def _is_problem(record: AuditRecord) -> bool:
     return record.decision in _PROBLEM_DECISIONS
 
 
+def _transform_kind(transformer: Any) -> str:
+    sql = getattr(transformer, "_SQL", None)
+    depends_on = list(getattr(transformer, "depends_on", []))
+    if not isinstance(sql, str):
+        return "python"
+
+    normalized_sql = " ".join(sql.split())
+    if len(depends_on) == 1 and normalized_sql == f"SELECT * FROM {depends_on[0]}":
+        return "passthrough"
+
+    union_parts = [part.strip() for part in sql.split("UNION ALL BY NAME")]
+    if "UNION ALL BY NAME" in sql and all(part.startswith("SELECT *,") for part in union_parts):
+        return "union"
+
+    return "sql"
+
+
 def _summarize_records(
     records: list[AuditRecord],
     *,
@@ -293,6 +331,12 @@ def compare_baseline(
 ) -> dict[str, Any]:
     current_problem_keys = set(current_summary.get("problem_keys", []))
     baseline_problem_keys = set(baseline_summary.get("problem_keys", []))
+    current_result_table_failures = set(
+        current_summary.get("result_table_contract", {}).get("failure_keys", [])
+    )
+    baseline_result_table_failures = set(
+        baseline_summary.get("result_table_contract", {}).get("failure_keys", [])
+    )
 
     current_decisions = Counter(current_summary.get("decision_breakdown", {}))
     baseline_decisions = Counter(baseline_summary.get("decision_breakdown", {}))
@@ -305,6 +349,12 @@ def compare_baseline(
 
     new_problem_keys = sorted(current_problem_keys - baseline_problem_keys)
     resolved_problem_keys = sorted(baseline_problem_keys - current_problem_keys)
+    new_result_table_failure_keys = sorted(
+        current_result_table_failures - baseline_result_table_failures
+    )
+    resolved_result_table_failure_keys = sorted(
+        baseline_result_table_failures - current_result_table_failures
+    )
 
     return {
         "baseline_generated_at": baseline_summary.get("generated_at"),
@@ -312,8 +362,14 @@ def compare_baseline(
         "baseline_problem_count": len(baseline_problem_keys),
         "new_problem_keys": new_problem_keys,
         "resolved_problem_keys": resolved_problem_keys,
+        "current_result_table_failure_count": len(current_result_table_failures),
+        "baseline_result_table_failure_count": len(baseline_result_table_failures),
+        "new_result_table_failure_keys": new_result_table_failure_keys,
+        "resolved_result_table_failure_keys": resolved_result_table_failure_keys,
         "increased_problem_counts": increased_problem_counts,
-        "regression_detected": bool(new_problem_keys or increased_problem_counts),
+        "regression_detected": bool(
+            new_problem_keys or increased_problem_counts or new_result_table_failure_keys
+        ),
     }
 
 
@@ -371,7 +427,7 @@ class ModelAuditEngine:
                 if dependency.startswith("stg_"):
                     transform_outputs_by_staging[dependency].add(transformer.output_table)
 
-        _, legacy_outputs = self._coverage._transform_catalog()
+        legacy_outputs = self._coverage._transform_catalog()[1]
         return _TransformCatalog(
             transformers=transformers,
             runtime_transform_outputs=runtime_transform_outputs,
@@ -929,6 +985,319 @@ class ModelAuditEngine:
             "inventory_meta": inventory_meta,
             "discovery_issues": inventory.discovery_issues,
             "summary": inventory_summary,
+            "inventory_context": inventory,
+        }
+
+    @staticmethod
+    def _result_table_ownership_status(
+        staging_record: AuditRecord,
+        *,
+        transform_kind_by_output: dict[str, str],
+    ) -> str:
+        if staging_record.decision == AuditDecision.DEPRECATED.value:
+            return "deprecated"
+        if staging_record.endpoint_name is not None and staging_record.result_set_index is not None:
+            override, _ = ModelAuditEngine._result_table_runtime_override(
+                str(staging_record.endpoint_name),
+                int(staging_record.result_set_index),
+            )
+            if override is not None:
+                return override
+        if staging_record.staging_key:
+            override, _ = _ownership_override_for_staging_key(staging_record.staging_key)
+            if override is not None:
+                return override
+        if staging_record.endpoint_name:
+            override, _ = _ownership_override_for_endpoint(staging_record.endpoint_name)
+            if override is not None:
+                return override
+        if staging_record.decision in {
+            AuditDecision.RUNTIME_GAP.value,
+            AuditDecision.SOURCE_GAP.value,
+            AuditDecision.SCHEMA_GAP.value,
+        }:
+            return "missing"
+
+        transform_outputs = list(staging_record.details.get("transform_outputs", []))
+        if not transform_outputs:
+            return "unowned"
+        transform_kinds = {
+            transform_kind_by_output[output]
+            for output in transform_outputs
+            if output in transform_kind_by_output
+        }
+        if transform_outputs and transform_kinds and transform_kinds <= {"passthrough", "union"}:
+            return "passthrough_only"
+        return "modeled"
+
+    @staticmethod
+    def _result_table_contract_strength(staging_record: AuditRecord) -> str:
+        if staging_record.decision == AuditDecision.DEPRECATED.value:
+            return "deprecated"
+        if staging_record.decision in {
+            AuditDecision.RUNTIME_GAP.value,
+            AuditDecision.SOURCE_GAP.value,
+            AuditDecision.SCHEMA_GAP.value,
+        }:
+            return "missing"
+        if any(issue in {"unowned_staging", "unowned_surface"} for issue in staging_record.issues):
+            return "unowned"
+        if staging_record.decision == AuditDecision.VALIDATION_GAP.value:
+            return "weakly_classified"
+        return "explicit"
+
+    @staticmethod
+    def _result_table_runtime_override(
+        endpoint_name: str,
+        result_set_index: int,
+    ) -> tuple[str | None, str | None]:
+        return _RESULT_TABLE_RUNTIME_OVERRIDES.get((endpoint_name, result_set_index), (None, None))
+
+    def _runtime_result_sets_by_endpoint(self) -> dict[str, dict[int, dict[str, Any]]]:
+        result_sets_by_endpoint: dict[str, dict[int, dict[str, Any]]] = defaultdict(dict)
+        extractor_runtime_refs = self._coverage._extractor_endpoint_map()
+
+        with contextlib.suppress(Exception):
+            from nba_api.stats import endpoints as stats_endpoints
+
+            runtime_classes: dict[str, Any] = {
+                name: obj for name, obj in inspect.getmembers(stats_endpoints, inspect.isclass)
+            }
+            package_path = getattr(stats_endpoints, "__path__", None)
+            if package_path is not None:
+                for module_info in pkgutil.iter_modules(package_path):
+                    with contextlib.suppress(Exception):
+                        module = importlib.import_module(
+                            f"{stats_endpoints.__name__}.{module_info.name}"
+                        )
+                        for name, obj in inspect.getmembers(module, inspect.isclass):
+                            if obj.__module__ == module.__name__:
+                                runtime_classes.setdefault(name, obj)
+
+            for endpoint_name, runtime_refs in sorted(extractor_runtime_refs.items()):
+                for runtime_ref in sorted(runtime_refs):
+                    runtime_cls = runtime_classes.get(runtime_ref)
+                    expected_data = getattr(runtime_cls, "expected_data", None)
+                    if not isinstance(expected_data, dict):
+                        continue
+                    if expected_data:
+                        for index, result_set_name in enumerate(expected_data):
+                            result_sets_by_endpoint[endpoint_name][index] = {
+                                "runtime_class_name": runtime_ref,
+                                "result_set_name": result_set_name,
+                                "runtime_metadata_present": True,
+                            }
+                    else:
+                        result_sets_by_endpoint[endpoint_name][0] = {
+                            "runtime_class_name": runtime_ref,
+                            "result_set_name": None,
+                            "runtime_metadata_present": False,
+                        }
+                    break
+
+        with contextlib.suppress(Exception):
+            registry.discover()
+            for endpoint_name, fallback_name in _LIVE_SINGLE_PACKET_RESULT_SET_NAMES.items():
+                extractor_cls = registry.get(endpoint_name)
+                result_sets_by_endpoint[endpoint_name][0] = {
+                    "runtime_class_name": extractor_cls.__name__,
+                    "result_set_name": fallback_name,
+                    "runtime_metadata_present": True,
+                }
+
+            live_box_score_cls = registry.get("live_box_score")
+            for index, (packet_name, _, _) in enumerate(
+                getattr(live_box_score_cls, "snapshot_packets", ())
+            ):
+                result_sets_by_endpoint["live_box_score"][index] = {
+                    "runtime_class_name": live_box_score_cls.__name__,
+                    "result_set_name": packet_name,
+                    "runtime_metadata_present": True,
+                }
+        return result_sets_by_endpoint
+
+    def _build_result_table_inventory(self, inventory_sections: dict[str, Any]) -> dict[str, Any]:
+        staging_surface_records: list[AuditRecord] = inventory_sections["staging_surfaces"]
+        inventory_context = inventory_sections.get("inventory_context")
+        if inventory_context is None:
+            extractors = self._discover_extractors()
+            inventory_context = self._discover_inventory_context(extractors)
+
+        transformer_by_output = {
+            transformer.output_table: transformer
+            for transformer in inventory_context.transforms.transformers
+        }
+        transform_kind_by_output = {
+            output_table: _transform_kind(transformer)
+            for output_table, transformer in transformer_by_output.items()
+        }
+        result_sets_by_endpoint = self._runtime_result_sets_by_endpoint()
+        staged_indexes_by_endpoint: dict[str, set[int]] = defaultdict(set)
+        rows: list[dict[str, Any]] = []
+
+        for record in staging_surface_records:
+            result_set_endpoint = str(record.runtime_surface or record.endpoint_name or "")
+            result_set_metadata = result_sets_by_endpoint.get(result_set_endpoint, {}).get(
+                int(record.result_set_index or 0),
+                {},
+            )
+            ownership_status = self._result_table_ownership_status(
+                record,
+                transform_kind_by_output=transform_kind_by_output,
+            )
+            contract_strength = self._result_table_contract_strength(record)
+            staged_indexes_by_endpoint[result_set_endpoint].add(int(record.result_set_index or 0))
+
+            transform_outputs = list(record.details.get("transform_outputs", []))
+            output_families = Counter(_table_family(output) for output in transform_outputs)
+            output_kinds = Counter(
+                transform_kind_by_output.get(output, "unknown") for output in transform_outputs
+            )
+            issues = list(record.issues)
+            if not result_set_metadata.get("runtime_metadata_present", True):
+                issues.append("runtime_result_set_name_missing")
+
+            rows.append(
+                {
+                    "source_kind": record.source_kind,
+                    "endpoint_name": record.endpoint_name,
+                    "runtime_surface": record.runtime_surface,
+                    "runtime_class_name": result_set_metadata.get("runtime_class_name"),
+                    "result_set_index": record.result_set_index,
+                    "result_set_name": result_set_metadata.get("result_set_name"),
+                    "staging_key": record.staging_key,
+                    "param_pattern": record.param_pattern,
+                    "silver_coverage": (
+                        "explicit" if record.details.get("input_schema_present") else "missing"
+                    ),
+                    "gold_coverage": "explicit"
+                    if record.decision == AuditDecision.MODELED.value
+                    else "none",
+                    "classification": ownership_status,
+                    "ownership_status": ownership_status,
+                    "contract_strength": contract_strength,
+                    "decision": record.decision,
+                    "decision_reason": record.decision_reason,
+                    "transform_outputs": transform_outputs,
+                    "transform_output_families": dict(sorted(output_families.items())),
+                    "transform_output_kinds": dict(sorted(output_kinds.items())),
+                    "issues": sorted(set(issues)),
+                    "runtime_metadata_present": result_set_metadata.get(
+                        "runtime_metadata_present",
+                        bool(result_set_metadata),
+                    ),
+                }
+            )
+
+        for endpoint_name, result_sets in sorted(result_sets_by_endpoint.items()):
+            source_kind = (
+                "live"
+                if endpoint_name.startswith("live_")
+                else "static"
+                if endpoint_name.startswith("static_")
+                else "stats"
+            )
+            for index, metadata in sorted(result_sets.items()):
+                if index in staged_indexes_by_endpoint.get(endpoint_name, set()):
+                    continue
+                override_status, override_reason = self._result_table_runtime_override(
+                    endpoint_name,
+                    index,
+                )
+                issues = [] if override_status is not None else ["staging_missing"]
+                rows.append(
+                    {
+                        "source_kind": source_kind,
+                        "endpoint_name": endpoint_name,
+                        "runtime_surface": endpoint_name,
+                        "runtime_class_name": metadata.get("runtime_class_name"),
+                        "result_set_index": index,
+                        "result_set_name": metadata.get("result_set_name"),
+                        "staging_key": None,
+                        "param_pattern": None,
+                        "silver_coverage": "not_applicable"
+                        if override_status is not None
+                        else "missing",
+                        "gold_coverage": "none",
+                        "classification": override_status or "missing",
+                        "ownership_status": override_status or "missing",
+                        "contract_strength": (
+                            "explicit" if override_status is not None else "missing"
+                        ),
+                        "decision": (
+                            AuditDecision.EXCLUDED.value
+                            if override_status is not None
+                            else AuditDecision.SOURCE_GAP.value
+                        ),
+                        "decision_reason": (
+                            override_reason
+                            if override_status is not None
+                            else "Runtime result set is not represented in STAGING_MAP."
+                        ),
+                        "transform_outputs": [],
+                        "transform_output_families": {},
+                        "transform_output_kinds": {},
+                        "issues": issues,
+                        "runtime_metadata_present": metadata.get("runtime_metadata_present", True),
+                    }
+                )
+
+        classification_breakdown = Counter(row["classification"] for row in rows)
+        contract_strength_breakdown = Counter(row["contract_strength"] for row in rows)
+        source_kind_breakdown: dict[str, dict[str, int]] = defaultdict(dict)
+        failing_contract_statuses = {"weakly_classified", "unowned", "missing"}
+        contract_failure_endpoint_counts = Counter[str]()
+        contract_failure_keys: list[str] = []
+        for row in rows:
+            source_kind_breakdown[row["source_kind"]][row["classification"]] = (
+                source_kind_breakdown[row["source_kind"]].get(row["classification"], 0) + 1
+            )
+            if row["contract_strength"] in failing_contract_statuses:
+                contract_failure_endpoint_counts[str(row["endpoint_name"])] += 1
+                contract_failure_keys.append(
+                    ":".join(
+                        (
+                            str(row["endpoint_name"]),
+                            str(row["result_set_index"]),
+                            str(
+                                row.get("staging_key")
+                                or row.get("result_set_name")
+                                or "runtime_only"
+                            ),
+                            str(row["contract_strength"]),
+                        )
+                    )
+                )
+
+        contract_failure_breakdown = {
+            status: int(contract_strength_breakdown.get(status, 0))
+            for status in sorted(failing_contract_statuses)
+            if int(contract_strength_breakdown.get(status, 0)) > 0
+        }
+        contract_failure_count = sum(contract_failure_breakdown.values())
+
+        return {
+            "generated_at": _now_iso(),
+            "summary": {
+                "row_count": len(rows),
+                "classification_breakdown": dict(sorted(classification_breakdown.items())),
+                "ownership_status_breakdown": dict(sorted(classification_breakdown.items())),
+                "contract_strength_breakdown": dict(sorted(contract_strength_breakdown.items())),
+                "source_kind_breakdown": {
+                    source_kind: dict(sorted(counts.items()))
+                    for source_kind, counts in sorted(source_kind_breakdown.items())
+                },
+                "contract": {
+                    "passes": contract_failure_count == 0,
+                    "failure_count": contract_failure_count,
+                    "failure_breakdown": contract_failure_breakdown,
+                    "failure_keys": sorted(contract_failure_keys),
+                },
+                "contract_failure_endpoint_counts": dict(
+                    contract_failure_endpoint_counts.most_common(25)
+                ),
+            },
+            "rows": rows,
         }
 
     async def _build_probe_requests(self) -> tuple[list[ProbeRequest], list[AuditRecord]]:
@@ -1609,6 +1978,7 @@ class ModelAuditEngine:
         summary: dict[str, Any],
         baseline_comparison: dict[str, Any] | None,
         inventory_sections: dict[str, Any],
+        result_table_summary: dict[str, Any],
     ) -> str:
         lines = [
             "# Model Audit Report",
@@ -1648,6 +2018,35 @@ class ModelAuditEngine:
         for decision, count in sorted(summary["decision_breakdown"].items()):
             lines.append(f"| `{decision}` | {count} |")
 
+        lines.extend(
+            [
+                "",
+                "## Result Table Contract",
+                "",
+                f"- Contract pass: `{result_table_summary['contract']['passes']}`",
+                f"- Result-table failures: `{result_table_summary['contract']['failure_count']}`",
+                "",
+                "### Ownership Status",
+                "",
+                "| Ownership status | Count |",
+                "|------------------|------:|",
+            ]
+        )
+        for status, count in sorted(result_table_summary["ownership_status_breakdown"].items()):
+            lines.append(f"| `{status}` | {count} |")
+
+        lines.extend(
+            [
+                "",
+                "### Contract Strength",
+                "",
+                "| Contract strength | Count |",
+                "|-------------------|------:|",
+            ]
+        )
+        for status, count in sorted(result_table_summary["contract_strength_breakdown"].items()):
+            lines.append(f"| `{status}` | {count} |")
+
         if summary["discovery_issues"]:
             lines.extend(["", "## Discovery Issues", ""])
             for issue in summary["discovery_issues"]:
@@ -1659,6 +2058,10 @@ class ModelAuditEngine:
             lines.append(f"- New problem keys: `{len(baseline_comparison['new_problem_keys'])}`")
             resolved_count = len(baseline_comparison["resolved_problem_keys"])
             lines.append(f"- Resolved problem keys: `{resolved_count}`")
+            lines.append(
+                "- New result-table failure keys: "
+                f"`{len(baseline_comparison['new_result_table_failure_keys'])}`"
+            )
 
         lines.extend(["", "## Top Problem Keys", ""])
         for key in summary["problem_keys"][:50]:
@@ -1703,16 +2106,19 @@ class ModelAuditEngine:
             inventory_meta=inventory_sections["inventory_meta"],
             discovery_issues=inventory_sections["discovery_issues"],
         )
+        result_table_inventory_payload = self._build_result_table_inventory(inventory_sections)
+        summary["result_table_contract"] = result_table_inventory_payload["summary"]["contract"]
 
         baseline_comparison: dict[str, Any] | None = None
         if baseline_path is not None:
             baseline_summary = _load_baseline(baseline_path)
-            baseline_comparison = compare_baseline(inventory_sections["summary"], baseline_summary)
+            baseline_comparison = compare_baseline(summary, baseline_summary)
 
         self._enforce(
             strictness=strictness,
             summary=summary,
             inventory_summary=inventory_sections["summary"],
+            result_table_summary=result_table_inventory_payload["summary"],
             baseline_comparison=baseline_comparison,
             baseline_path=baseline_path,
         )
@@ -1743,21 +2149,25 @@ class ModelAuditEngine:
             summary=summary,
             baseline_comparison=baseline_comparison,
             inventory_sections=inventory_sections,
+            result_table_summary=result_table_inventory_payload["summary"],
         )
 
         destination = (output_dir or _DEFAULT_OUTPUT_DIR).resolve()
         inventory_path = destination / "inventory.json"
         matrix_path = destination / "matrix.json"
         report_path = destination / "report.md"
+        result_table_inventory_path = destination / "result-table-inventory.json"
 
         _write_json(inventory_path, payload)
         _write_json(matrix_path, matrix_payload)
         _write_text(report_path, report)
+        _write_json(result_table_inventory_path, result_table_inventory_payload)
 
         written = {
             "inventory": inventory_path,
             "matrix": matrix_path,
             "report": report_path,
+            "result_table_inventory": result_table_inventory_path,
         }
 
         if live_probe_payload is not None:
@@ -1784,6 +2194,7 @@ class ModelAuditEngine:
         strictness: AuditStrictness,
         summary: dict[str, Any],
         inventory_summary: dict[str, Any],
+        result_table_summary: dict[str, Any],
         baseline_comparison: dict[str, Any] | None,
         baseline_path: Path | None,
     ) -> None:
@@ -1805,8 +2216,13 @@ class ModelAuditEngine:
                     "no-regressions check failed: new audit regressions detected"
                 )
 
-        if strictness == AuditStrictness.ZERO_GAPS and summary.get("problem_count", 0) > 0:
-            raise AuditFailureError("zero-gaps check failed: audit problems remain")
+        if strictness == AuditStrictness.ZERO_GAPS:
+            if summary.get("problem_count", 0) > 0:
+                raise AuditFailureError("zero-gaps check failed: audit problems remain")
+            if result_table_summary.get("contract", {}).get("failure_count", 0) > 0:
+                raise AuditFailureError(
+                    "zero-gaps check failed: result-table contract failures remain"
+                )
 
 
 __all__ = [

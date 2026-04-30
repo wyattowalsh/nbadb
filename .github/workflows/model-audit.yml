@@ -41,13 +41,19 @@ jobs:
       - run: uv sync --extra dev
 
       - name: Inventory consistency
-        run: uv run nbadb audit-models --mode inventory --strictness consistency --output-dir artifacts/model-audit/inventory
+        run: |
+          uv run nbadb audit-models \
+            --mode inventory \
+            --strictness consistency \
+            --require-result-table-contract \
+            --output-dir artifacts/model-audit/inventory
 
       - name: Inventory no-regressions
         run: |
           uv run nbadb audit-models \
             --mode inventory \
             --strictness no-regressions \
+            --require-result-table-contract \
             --baseline .github/baselines/model-audit-summary.json \
             --output-dir artifacts/model-audit/no-regressions
 
@@ -57,6 +63,7 @@ jobs:
           uv run nbadb audit-models \
             --mode probe \
             --strictness consistency \
+            --require-result-table-contract \
             --output-dir artifacts/model-audit/canary
 
           python - <<'PY'
@@ -104,7 +111,12 @@ jobs:
       - run: uv sync --extra dev
 
       - name: Full model audit
-        run: uv run nbadb audit-models --mode full --strictness consistency --output-dir artifacts/model-audit/full
+        run: |
+          uv run nbadb audit-models \
+            --mode full \
+            --strictness consistency \
+            --require-result-table-contract \
+            --output-dir artifacts/model-audit/full
 
       - name: Upload model audit artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2

@@ -70,11 +70,15 @@ def test_extract_completeness_prints_summary_and_uses_output_dir(tmp_path: Path)
         },
         "model_ownership": {
             "stats_endpoint_count": 4,
-            "transform_owned_stats_endpoints": 3,
+            "analytically_modeled_stats_endpoints": 1,
+            "passthrough_only_stats_endpoints": 2,
+            "compatibility_reference_only_stats_endpoints": 1,
             "model_excluded_stats_endpoints": 1,
             "model_unowned_stats_endpoints": 0,
             "staging_entry_count": 9,
-            "transform_owned_staging_entries": 7,
+            "analytically_modeled_staging_entries": 2,
+            "passthrough_only_staging_entries": 4,
+            "compatibility_reference_only_staging_entries": 1,
             "model_excluded_staging_entries": 1,
             "model_unowned_staging_entries": 1,
         },
@@ -104,11 +108,15 @@ def test_extract_completeness_prints_summary_and_uses_output_dir(tmp_path: Path)
     assert "season_type_open=1" in result.output
     assert "ready_for_full_backfill=False" in result.output
     assert "stats_endpoints=4" in result.output
-    assert "transform_owned_endpoints=3" in result.output
+    assert "modeled_endpoints=1" in result.output
+    assert "passthrough_endpoints=2" in result.output
+    assert "compatibility_reference_endpoints=1" in result.output
     assert "model_excluded_endpoints=1" in result.output
     assert "model_unowned_endpoints=0" in result.output
     assert "staging_entries=9" in result.output
-    assert "transform_owned=7" in result.output
+    assert "modeled=2" in result.output
+    assert "passthrough=4" in result.output
+    assert "compatibility_reference=1" in result.output
     assert "model_excluded=1" in result.output
     assert "model_unowned=1" in result.output
     assert "Star schema coverage:" in result.output
@@ -187,11 +195,15 @@ def test_extract_completeness_require_model_contract_exits_when_unowned(tmp_path
         },
         "model_ownership": {
             "stats_endpoint_count": 5,
-            "transform_owned_stats_endpoints": 4,
+            "analytically_modeled_stats_endpoints": 3,
+            "passthrough_only_stats_endpoints": 1,
+            "compatibility_reference_only_stats_endpoints": 0,
             "model_excluded_stats_endpoints": 0,
             "model_unowned_stats_endpoints": 1,
             "staging_entry_count": 9,
-            "transform_owned_staging_entries": 7,
+            "analytically_modeled_staging_entries": 5,
+            "passthrough_only_staging_entries": 2,
+            "compatibility_reference_only_staging_entries": 0,
             "model_excluded_staging_entries": 0,
             "model_unowned_staging_entries": 2,
         },

@@ -17,6 +17,7 @@ from nbadb.cli.commands import (  # noqa: E402, F401
     daily,
     docs_autogen,
     download,
+    endpoint_adequacy_scorecard,
     export,
     extract_completeness,
     full,

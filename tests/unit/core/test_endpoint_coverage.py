@@ -224,6 +224,27 @@ class LiveScoreBoardExtractor(BaseExtractor):
     )
 
 
+def _write_play_by_play_extractor(project_root: Path) -> None:
+    stats_dir = project_root / "src" / "nbadb" / "extract" / "stats"
+    stats_dir.mkdir(parents=True, exist_ok=True)
+    (stats_dir / "__init__.py").write_text("", encoding="utf-8")
+    (stats_dir / "play_by_play_extractors.py").write_text(
+        """
+from nba_api.stats.endpoints import PlayByPlayV3
+from nbadb.extract.base import BaseExtractor
+
+
+class PlayByPlayExtractor(BaseExtractor):
+    endpoint_name = "play_by_play"
+
+    async def extract(self, **params):
+        return self._from_nba_api(PlayByPlayV3, **params)
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _write_sample_transforms(project_root: Path) -> None:
     facts_dir = project_root / "src" / "nbadb" / "transform" / "facts"
     facts_dir.mkdir(parents=True, exist_ok=True)
@@ -341,6 +362,119 @@ def test_build_artifacts_emits_matrix_and_pattern_heatmap(tmp_path: Path) -> Non
     assert heatmap["player"]["staging_only"] == 1
 
 
+def test_staging_result_set_shape_helper_classifies_multi_result_entries() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    assert (
+        EndpointCoverageGenerator._staging_result_set_shape(
+            StagingEntry("foo", "stg_foo", "season")
+        )
+        == "single_result"
+    )
+    assert (
+        EndpointCoverageGenerator._staging_result_set_shape(
+            StagingEntry("foo", "stg_foo", "season", result_set_index=0, use_multi=True)
+        )
+        == "multi_result_primary"
+    )
+    assert (
+        EndpointCoverageGenerator._staging_result_set_shape(
+            StagingEntry("foo", "stg_foo", "season", result_set_index=3, use_multi=True)
+        )
+        == "multi_result_secondary"
+    )
+
+
+def test_season_type_value_gaps_flags_missing_supported_season_types() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    entries = [
+        StagingEntry(
+            "foo_endpoint",
+            "stg_foo_primary",
+            "season",
+            season_type_capability="supported",
+            supported_season_types=("Regular Season", "Playoffs"),
+        ),
+        StagingEntry(
+            "foo_endpoint",
+            "stg_foo_secondary",
+            "season",
+            season_type_capability="supported",
+        ),
+    ]
+
+    assert EndpointCoverageGenerator._season_type_value_gaps(entries, "historical_backfill") == [
+        "supported_season_types_missing"
+    ]
+
+
+def test_season_type_value_gaps_flags_mixed_supported_season_types() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    entries = [
+        StagingEntry(
+            "foo_endpoint",
+            "stg_foo_regular",
+            "season",
+            season_type_capability="supported",
+            supported_season_types=("Regular Season",),
+        ),
+        StagingEntry(
+            "foo_endpoint",
+            "stg_foo_playoffs",
+            "season",
+            season_type_capability="supported",
+            supported_season_types=("Playoffs",),
+        ),
+    ]
+
+    assert EndpointCoverageGenerator._season_type_value_gaps(entries, "historical_backfill") == [
+        "supported_season_types_mixed"
+    ]
+
+
+def test_build_artifacts_includes_staging_result_set_shape_breakdown(tmp_path: Path) -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    _write_sample_transforms(project_root)
+    staging_entries = [
+        StagingEntry("foo_endpoint", "stg_foo", "season"),
+        StagingEntry(
+            "gap_endpoint",
+            "stg_gap_primary",
+            "game",
+            result_set_index=0,
+            use_multi=True,
+        ),
+        StagingEntry(
+            "gap_endpoint",
+            "stg_gap_detail",
+            "game",
+            result_set_index=1,
+            use_multi=True,
+        ),
+    ]
+
+    generator = EndpointCoverageGenerator(
+        project_root=project_root,
+        staging_entries=staging_entries,
+    )
+    artifacts = generator.build_artifacts(
+        runtime_endpoint_classes={"FooEndpoint", "GapEndpoint"},
+        runtime_version="shape-test-runtime",
+    )
+
+    model_ownership = artifacts["summary"]["model_ownership"]
+    assert model_ownership["staging_result_set_shape_breakdown"] == {
+        "multi_result_primary": 1,
+        "multi_result_secondary": 1,
+        "single_result": 1,
+    }
+
+
 def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
 
@@ -366,6 +500,12 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     report_text = written["report"].read_text(encoding="utf-8")
     support_matrix_payload = json.loads(written["support_matrix"].read_text(encoding="utf-8"))
     support_summary_payload = json.loads(written["support_summary"].read_text(encoding="utf-8"))
+    temporal_support_ledger_payload = json.loads(
+        written["temporal_support_ledger"].read_text(encoding="utf-8")
+    )
+    endpoint_adequacy_payload = json.loads(
+        written["endpoint_adequacy_scorecard"].read_text(encoding="utf-8")
+    )
     support_report_text = written["support_report"].read_text(encoding="utf-8")
     extraction_matrix_payload = json.loads(written["extraction_matrix"].read_text(encoding="utf-8"))
     extraction_summary_payload = json.loads(
@@ -375,6 +515,7 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     full_extraction_definition = json.loads(
         written["full_extraction_definition"].read_text(encoding="utf-8")
     )
+    endpoint_adequacy_report_text = written["endpoint_adequacy_report"].read_text(encoding="utf-8")
 
     assert "matrix" in matrix_payload
     assert "coverage" in summary_payload
@@ -383,12 +524,243 @@ def test_write_outputs_machine_and_human_artifacts(tmp_path: Path) -> None:
     assert "| Param Pattern |" in report_text
     assert "matrix" in support_matrix_payload
     assert "gap_endpoint_count" in support_summary_payload
+    assert "ledger" in temporal_support_ledger_payload
+    assert "summary" in temporal_support_ledger_payload
     assert "Endpoint Support Matrix" in support_report_text
     assert "matrix" in extraction_matrix_payload
     assert "extractable_endpoint_count" in extraction_summary_payload
     assert "Endpoint Extraction Contract" in extraction_report_text
     assert "ready_for_full_backfill" in full_extraction_definition
+    assert "Temporal Support Ledger" in support_report_text
+    assert "scorecard" in endpoint_adequacy_payload
+    assert "Endpoint Adequacy Scorecard" in endpoint_adequacy_report_text
     assert "Strict Build Contract" in report_text
+
+
+def test_build_artifacts_emits_endpoint_adequacy_scorecard(tmp_path: Path) -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    _write_play_by_play_extractor(project_root)
+    _write_sample_transforms(project_root)
+    _write_sample_staging_schemas(project_root)
+    _write_sample_star_schemas(project_root)
+    staging_entries = [
+        StagingEntry("foo_endpoint", "stg_foo", "season"),
+        StagingEntry("gap_endpoint", "stg_gap", "game"),
+        StagingEntry("play_by_play", "stg_play_by_play_video_available", "game"),
+        StagingEntry("staging_only", "stg_only", "player"),
+    ]
+
+    generator = EndpointCoverageGenerator(
+        project_root=project_root,
+        staging_entries=staging_entries,
+    )
+    artifacts = generator.build_artifacts(
+        runtime_endpoint_classes={"FooEndpoint", "PlayByPlayV3"},
+        runtime_version="test-runtime",
+    )
+
+    scorecard = artifacts["endpoint_adequacy_scorecard"]
+    rows = {row["endpoint_name"]: row for row in scorecard["scorecard"]}
+
+    assert rows["foo_endpoint"]["adequacy_status"] == "adequate"
+    assert rows["foo_endpoint"]["downstream_status"] == "modeled"
+    assert rows["gap_endpoint"]["adequacy_status"] == "runtime_gap"
+    assert rows["gap_endpoint"]["downstream_status"] == "unowned"
+    assert rows["play_by_play"]["adequacy_status"] == "gap"
+    assert rows["play_by_play"]["downstream_status"] == "excluded"
+
+    summary = scorecard["summary"]
+    assert summary["endpoint_count"] >= 5
+    assert summary["adequate_endpoint_count"] == 1
+    assert summary["downstream_modeled_endpoint_count"] == 1
+    assert summary["downstream_passthrough_only_endpoint_count"] == 0
+    assert summary["downstream_compatibility_reference_only_endpoint_count"] == 0
+    assert summary["downstream_excluded_endpoint_count"] == 1
+    assert summary["downstream_unowned_endpoint_count"] == 2
+
+
+def test_write_endpoint_adequacy_scorecard_only_emits_scorecard_pair(tmp_path: Path) -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    _write_play_by_play_extractor(project_root)
+    _write_sample_transforms(project_root)
+    _write_sample_staging_schemas(project_root)
+    _write_sample_star_schemas(project_root)
+
+    generator = EndpointCoverageGenerator(
+        project_root=project_root,
+        staging_entries=[
+            StagingEntry("foo_endpoint", "stg_foo", "season"),
+            StagingEntry("gap_endpoint", "stg_gap", "game"),
+            StagingEntry("play_by_play", "stg_play_by_play_video_available", "game"),
+        ],
+    )
+    destination = tmp_path / "out"
+
+    written = generator.write_endpoint_adequacy_scorecard(
+        output_dir=destination,
+        runtime_endpoint_classes={"FooEndpoint", "PlayByPlayV3"},
+        runtime_version="test-runtime",
+    )
+
+    assert set(written) == {"endpoint_adequacy_scorecard", "endpoint_adequacy_report"}
+    assert written["endpoint_adequacy_scorecard"].exists()
+    assert written["endpoint_adequacy_report"].exists()
+    assert not (destination / "endpoint-support-summary.json").exists()
+    assert not (destination / "endpoint-coverage-summary.json").exists()
+
+
+def test_build_artifacts_distinguishes_passthrough_only_downstream_status(
+    tmp_path: Path,
+) -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    _write_sample_staging_schemas(project_root)
+    star_dir = project_root / "src" / "nbadb" / "schemas" / "star"
+    facts_dir = project_root / "src" / "nbadb" / "transform" / "facts"
+    star_dir.mkdir(parents=True, exist_ok=True)
+    staging_dir = project_root / "src" / "nbadb" / "schemas" / "staging"
+    facts_dir.mkdir(parents=True, exist_ok=True)
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    (star_dir / "__init__.py").write_text("", encoding="utf-8")
+    (facts_dir / "__init__.py").write_text("", encoding="utf-8")
+    (staging_dir / "__init__.py").write_text("", encoding="utf-8")
+    (staging_dir / "stg_gap.py").write_text(
+        """
+class StagingGapSchema:
+    pass
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (star_dir / "fact_gap.py").write_text(
+        """
+class FactGapSchema:
+    pass
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (facts_dir / "fact_gap_passthrough.py").write_text(
+        """
+from nbadb.transform.base import make_passthrough
+
+FactGapTransformer = make_passthrough("fact_gap", "stg_gap")
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    generator = EndpointCoverageGenerator(
+        project_root=project_root,
+        staging_entries=[StagingEntry("gap_endpoint", "stg_gap", "game")],
+    )
+    artifacts = generator.build_artifacts(
+        runtime_endpoint_classes={"GapEndpoint"},
+        runtime_version="test-runtime",
+    )
+
+    rows = {row["endpoint_name"]: row for row in artifacts["matrix"]}
+    assert rows["gap_endpoint"]["model_status"] == "passthrough_only"
+
+    support_rows = {row["endpoint_name"]: row for row in artifacts["support_matrix"]}
+    assert support_rows["gap_endpoint"]["contract_status"] == "complete"
+    assert support_rows["gap_endpoint"]["downstream_status"] == "passthrough_only"
+
+    scorecard_rows = {
+        row["endpoint_name"]: row for row in artifacts["endpoint_adequacy_scorecard"]["scorecard"]
+    }
+    assert scorecard_rows["gap_endpoint"]["adequacy_status"] == "passthrough_only"
+
+
+def test_build_artifacts_emits_temporal_support_ledger(tmp_path: Path) -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+
+    project_root = tmp_path / "project"
+    stats_dir = project_root / "src" / "nbadb" / "extract" / "stats"
+    stats_dir.mkdir(parents=True, exist_ok=True)
+    (stats_dir / "__init__.py").write_text("", encoding="utf-8")
+    (stats_dir / "temporal_extractors.py").write_text(
+        """
+from nba_api.stats.endpoints import BlockedSeason, HistoricalSeason
+from nbadb.extract.base import BaseExtractor
+
+
+class HistoricalSeasonExtractor(BaseExtractor):
+    endpoint_name = "historical_season"
+
+    async def extract(self, **params):
+        return self._from_nba_api(HistoricalSeason, **params)
+
+
+class BlockedSeasonExtractor(BaseExtractor):
+    endpoint_name = "blocked_season"
+
+    async def extract(self, **params):
+        return self._from_nba_api(BlockedSeason, **params)
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    generator = EndpointCoverageGenerator(
+        project_root=project_root,
+        staging_entries=[
+            StagingEntry(
+                "historical_season",
+                "stg_historical_season",
+                "season",
+                season_type_capability="supported",
+                supported_season_types=("Regular Season", "Playoffs"),
+                min_season=2001,
+            ),
+            StagingEntry(
+                "blocked_season",
+                "stg_blocked_season",
+                "player_team_season",
+                season_type_capability="blocked",
+                min_season=2010,
+            ),
+        ],
+    )
+    artifacts = generator.build_artifacts(
+        runtime_endpoint_classes={"HistoricalSeason", "BlockedSeason"},
+        runtime_version="test-runtime",
+    )
+
+    ledger = artifacts["temporal_support_ledger"]
+    rows = {row["ledger_key"]: row for row in ledger["ledger"]}
+
+    assert ledger["summary"]["endpoint_count"] == 2
+    assert ledger["summary"]["ledger_row_count"] == 3
+    assert ledger["summary"]["support_window_count"] == 2
+    assert ledger["summary"]["season_type_row_count"] == 2
+    assert ledger["summary"]["untracked_season_type_row_count"] == 1
+    assert ledger["summary"]["season_type_capability_breakdown"] == {
+        "blocked": 1,
+        "supported": 2,
+    }
+
+    supported_regular = rows["historical_season:stg_historical_season:Regular Season:0"]
+    assert supported_regular["historical_start_season"] == 2001
+    assert supported_regular["season_type_capability"] == "supported"
+    assert supported_regular["supported_season_types"] == [
+        "Regular Season",
+        "Playoffs",
+    ]
+    assert supported_regular["transform_outputs"] == []
+
+    blocked_row = rows["blocked_season:stg_blocked_season:all:0"]
+    assert blocked_row["season_type"] is None
+    assert blocked_row["season_type_capability"] == "blocked"
+    assert blocked_row["historical_start_season"] == 2010
 
 
 def test_build_artifacts_canonicalizes_aliases_and_keeps_extractor_only_endpoints(
@@ -564,33 +936,40 @@ def test_build_artifacts_counts_explicit_staging_key_exclusions(tmp_path: Path) 
     )
 
     model_ownership = artifacts["summary"]["model_ownership"]
-    assert model_ownership["transform_owned_staging_entries"] == 0
-    assert model_ownership["model_excluded_staging_entries"] == 2
+    assert model_ownership["analytically_modeled_staging_entries"] == 0
+    assert model_ownership["passthrough_only_staging_entries"] == 0
+    assert model_ownership["compatibility_reference_only_staging_entries"] == 2
+    assert model_ownership["model_excluded_staging_entries"] == 0
     assert model_ownership["model_unowned_staging_entries"] == 0
-    assert model_ownership["excluded_staging_entries_detail"] == [
+    assert model_ownership["compatibility_reference_staging_entries_detail"] == [
         {
             "staging_key": "stg_pvp_player_info",
             "endpoint_name": "player_vs_player",
             "reason": (
-                "Duplicate player bio packet; the analytical model uses the canonical "
-                "player dimensions instead of matchup-scoped profile copies."
+                "Duplicate player bio packet is retained as a compatibility/reference "
+                "surface; the analytical model uses canonical player dimensions."
             ),
+            "transform_outputs": [],
         },
         {
             "staging_key": "stg_pvp_vs_player_info",
             "endpoint_name": "player_vs_player",
             "reason": (
-                "Duplicate opposing-player bio packet; the analytical model uses the "
-                "canonical player dimensions instead of matchup-scoped profile copies."
+                "Duplicate opposing-player bio packet is retained as a "
+                "compatibility/reference surface; the analytical model uses canonical "
+                "player dimensions."
             ),
+            "transform_outputs": [],
         },
     ]
+    assert model_ownership["excluded_staging_entries_detail"] == []
 
     support_rows = {row["endpoint_name"]: row for row in artifacts["support_matrix"]}
     assert support_rows["player_vs_player"]["contract_status"] == "gap"
-    assert "model_excluded" in support_rows["player_vs_player"]["contract_gaps"]
-    assert len(support_rows["player_vs_player"]["model_exclusion_reasons"]) == 2
-    assert artifacts["support_summary"]["gap_breakdown"]["model_excluded"] == 1
+    assert support_rows["player_vs_player"]["downstream_status"] == "compatibility_reference_only"
+    assert len(support_rows["player_vs_player"]["downstream_reasons"]) == 2
+    assert "model_excluded" not in support_rows["player_vs_player"]["contract_gaps"]
+    assert "transform_contract_missing" in support_rows["player_vs_player"]["contract_gaps"]
 
 
 def test_build_artifacts_does_not_mark_consumed_excluded_staging_keys_as_model_excluded(
@@ -826,12 +1205,13 @@ def test_normalizes_runtime_aliases_and_covers_video_endpoints(tmp_path: Path) -
     assert rows["video_details_asset"]["coverage_status"] == "covered"
     assert rows["video_events"]["coverage_status"] == "covered"
     assert rows["video_status"]["coverage_status"] == "covered"
-    assert rows["video_status"]["model_status"] == "excluded"
-    assert rows["video_status"]["model_exclusion_reason"] is not None
+    assert rows["video_status"]["model_status"] == "compatibility_reference_only"
+    assert rows["video_status"]["model_status_reasons"] != []
 
     support_rows = {row["endpoint_name"]: row for row in artifacts["support_matrix"]}
     assert support_rows["video_status"]["contract_status"] == "gap"
-    assert "model_excluded" in support_rows["video_status"]["contract_gaps"]
+    assert support_rows["video_status"]["downstream_status"] == "compatibility_reference_only"
+    assert "transform_contract_missing" in support_rows["video_status"]["contract_gaps"]
 
 
 def test_build_artifacts_includes_static_live_surfaces_and_model_ownership(tmp_path: Path) -> None:
@@ -876,10 +1256,14 @@ def test_build_artifacts_includes_static_live_surfaces_and_model_ownership(tmp_p
 
     model_ownership = artifacts["summary"]["model_ownership"]
     assert model_ownership["staging_entry_count"] == 1
-    assert model_ownership["transform_owned_staging_entries"] == 1
+    assert model_ownership["analytically_modeled_staging_entries"] == 1
+    assert model_ownership["passthrough_only_staging_entries"] == 0
+    assert model_ownership["compatibility_reference_only_staging_entries"] == 0
     assert model_ownership["model_excluded_staging_entries"] == 0
     assert model_ownership["model_unowned_staging_entries"] == 0
-    assert model_ownership["transform_owned_stats_endpoints"] == 1
+    assert model_ownership["analytically_modeled_stats_endpoints"] == 1
+    assert model_ownership["passthrough_only_stats_endpoints"] == 0
+    assert model_ownership["compatibility_reference_only_stats_endpoints"] == 0
     assert model_ownership["model_excluded_stats_endpoints"] == 0
     assert model_ownership["model_unowned_stats_endpoints"] == 0
 

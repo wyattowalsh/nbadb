@@ -174,11 +174,17 @@ def test_compare_baseline_detects_new_problem_keys() -> None:
     current_summary = {
         "problem_keys": ["RuntimeSurface:stats:foo:source_gap"],
         "decision_breakdown": {"modeled": 1, "source_gap": 1},
+        "result_table_contract": {
+            "failure_keys": [],
+        },
     }
     baseline_summary = {
         "generated_at": "2026-03-28T00:00:00+00:00",
         "problem_keys": [],
         "decision_breakdown": {"modeled": 1},
+        "result_table_contract": {
+            "failure_keys": [],
+        },
     }
 
     comparison = compare_baseline(current_summary, baseline_summary)
@@ -186,6 +192,7 @@ def test_compare_baseline_detects_new_problem_keys() -> None:
     assert comparison["regression_detected"] is True
     assert comparison["new_problem_keys"] == ["RuntimeSurface:stats:foo:source_gap"]
     assert comparison["increased_problem_counts"] == {"source_gap": 1}
+    assert comparison["new_result_table_failure_keys"] == []
 
 
 def test_write_emits_inventory_matrix_report_and_baseline_comparison(tmp_path: Path) -> None:
@@ -225,6 +232,12 @@ def test_write_emits_inventory_matrix_report_and_baseline_comparison(tmp_path: P
         "issue_breakdown": {},
         "problem_count": 0,
         "problem_keys": [],
+        "result_table_contract": {
+            "passes": True,
+            "failure_count": 0,
+            "failure_breakdown": {},
+            "failure_keys": [],
+        },
     }
     sections = {
         "runtime_surfaces": [record],
@@ -235,11 +248,15 @@ def test_write_emits_inventory_matrix_report_and_baseline_comparison(tmp_path: P
         "inventory_meta": inventory_meta,
         "discovery_issues": [],
         "summary": summary,
+        "inventory_context": SimpleNamespace(transforms=SimpleNamespace(transformers=[])),
     }
     baseline_path = tmp_path / "baseline.json"
     baseline_path.write_text(json.dumps({"summary": summary}) + "\n", encoding="utf-8")
 
-    with patch.object(engine, "_build_inventory_sections", return_value=sections):
+    with (
+        patch.object(engine, "_build_inventory_sections", return_value=sections),
+        patch.object(engine, "_runtime_result_sets_by_endpoint", return_value={}),
+    ):
         written = engine.write(
             mode=AuditMode.INVENTORY,
             strictness=AuditStrictness.NO_REGRESSIONS,
@@ -251,14 +268,20 @@ def test_write_emits_inventory_matrix_report_and_baseline_comparison(tmp_path: P
         "inventory",
         "matrix",
         "report",
+        "result_table_inventory",
         "baseline_comparison",
     }
     inventory_payload = json.loads((tmp_path / "artifacts" / "inventory.json").read_text())
     matrix_payload = json.loads((tmp_path / "artifacts" / "matrix.json").read_text())
+    result_table_payload = json.loads(
+        (tmp_path / "artifacts" / "result-table-inventory.json").read_text()
+    )
     baseline_payload = json.loads((tmp_path / "artifacts" / "baseline-comparison.json").read_text())
 
     assert inventory_payload["summary"]["problem_count"] == 0
+    assert inventory_payload["summary"]["result_table_contract"]["failure_count"] == 0
     assert matrix_payload["matrix"][0]["key"] == "stats:foo"
+    assert isinstance(result_table_payload["summary"]["row_count"], int)
     assert baseline_payload["comparison"]["regression_detected"] is False
 
 
@@ -266,6 +289,9 @@ def test_compare_baseline_detects_resolved_problems() -> None:
     current_summary = {
         "problem_keys": [],
         "decision_breakdown": {"modeled": 2},
+        "result_table_contract": {
+            "failure_keys": [],
+        },
     }
     baseline_summary = {
         "generated_at": "2026-03-28T00:00:00+00:00",
@@ -274,6 +300,9 @@ def test_compare_baseline_detects_resolved_problems() -> None:
             "RuntimeSurface:stats:baz:runtime_gap",
         ],
         "decision_breakdown": {"modeled": 2, "source_gap": 1, "runtime_gap": 1},
+        "result_table_contract": {
+            "failure_keys": [],
+        },
     }
 
     comparison = compare_baseline(current_summary, baseline_summary)
@@ -326,6 +355,107 @@ def test_table_family_classification() -> None:
     assert EndpointCoverageGenerator._table_family("unknown_table") == "other"
 
 
+def test_result_table_inventory_classifies_schedule_int_broadcaster_as_compatibility_only(
+    tmp_path: Path,
+) -> None:
+    engine = ModelAuditEngine(project_root=tmp_path)
+    record = AuditRecord(
+        layer="StagingSurface",
+        key="StagingSurface:stats:schedule_int:2",
+        decision=AuditDecision.EXCLUDED.value,
+        decision_reason=(
+            "ScheduleLeagueV2Int broadcaster directory is retained for packet completeness; "
+            "game-level schedule outputs already carry the modeled broadcast context."
+        ),
+        source_kind="stats",
+        endpoint_name="schedule_int",
+        runtime_surface="schedule_int",
+        result_set_index=2,
+        staging_key="stg_schedule_int_broadcaster",
+        param_pattern="season",
+        details={"input_schema_present": True, "transform_outputs": []},
+    )
+    sections = {
+        "staging_surfaces": [record],
+        "inventory_context": SimpleNamespace(transforms=SimpleNamespace(transformers=[])),
+    }
+
+    with patch.object(
+        engine,
+        "_runtime_result_sets_by_endpoint",
+        return_value={
+            "schedule_int": {
+                2: {
+                    "runtime_class_name": "ScheduleLeagueV2Int",
+                    "result_set_name": "BroadcasterList",
+                    "runtime_metadata_present": True,
+                }
+            }
+        },
+    ):
+        payload = engine._build_result_table_inventory(sections)
+
+    assert payload["summary"]["classification_breakdown"] == {"compatibility_reference_only": 1}
+    assert payload["summary"]["contract_strength_breakdown"] == {"explicit": 1}
+    assert payload["summary"]["contract"]["passes"] is True
+    assert payload["rows"] == [
+        {
+            "source_kind": "stats",
+            "endpoint_name": "schedule_int",
+            "runtime_surface": "schedule_int",
+            "runtime_class_name": "ScheduleLeagueV2Int",
+            "result_set_index": 2,
+            "result_set_name": "BroadcasterList",
+            "staging_key": "stg_schedule_int_broadcaster",
+            "param_pattern": "season",
+            "silver_coverage": "explicit",
+            "gold_coverage": "none",
+            "classification": "compatibility_reference_only",
+            "ownership_status": "compatibility_reference_only",
+            "contract_strength": "explicit",
+            "decision": "excluded",
+            "decision_reason": record.decision_reason,
+            "transform_outputs": [],
+            "transform_output_families": {},
+            "transform_output_kinds": {},
+            "issues": [],
+            "runtime_metadata_present": True,
+        }
+    ]
+
+
+def test_result_table_inventory_runtime_only_override_is_not_treated_as_missing(
+    tmp_path: Path,
+) -> None:
+    engine = ModelAuditEngine(project_root=tmp_path)
+    sections = {
+        "staging_surfaces": [],
+        "inventory_context": SimpleNamespace(transforms=SimpleNamespace(transformers=[])),
+    }
+
+    with patch.object(
+        engine,
+        "_runtime_result_sets_by_endpoint",
+        return_value={
+            "schedule_int": {
+                2: {
+                    "runtime_class_name": "ScheduleLeagueV2Int",
+                    "result_set_name": "BroadcasterList",
+                    "runtime_metadata_present": True,
+                }
+            }
+        },
+    ):
+        payload = engine._build_result_table_inventory(sections)
+
+    assert payload["summary"]["classification_breakdown"] == {"compatibility_reference_only": 1}
+    assert payload["summary"]["contract"]["failure_count"] == 0
+    assert payload["rows"][0]["classification"] == "compatibility_reference_only"
+    assert payload["rows"][0]["contract_strength"] == "explicit"
+    assert payload["rows"][0]["silver_coverage"] == "not_applicable"
+    assert payload["rows"][0]["issues"] == []
+
+
 def test_write_no_regression_round_trip(tmp_path: Path) -> None:
     engine = ModelAuditEngine(project_root=tmp_path)
     record = AuditRecord(
@@ -363,6 +493,12 @@ def test_write_no_regression_round_trip(tmp_path: Path) -> None:
         "issue_breakdown": {},
         "problem_count": 0,
         "problem_keys": [],
+        "result_table_contract": {
+            "passes": True,
+            "failure_count": 0,
+            "failure_breakdown": {},
+            "failure_keys": [],
+        },
     }
     sections = {
         "runtime_surfaces": [record],
@@ -373,11 +509,15 @@ def test_write_no_regression_round_trip(tmp_path: Path) -> None:
         "inventory_meta": inventory_meta,
         "discovery_issues": [],
         "summary": summary,
+        "inventory_context": SimpleNamespace(transforms=SimpleNamespace(transformers=[])),
     }
 
     # First write — produces a baseline (CONSISTENCY does not require baseline_path)
     baseline_dir = tmp_path / "baseline_artifacts"
-    with patch.object(engine, "_build_inventory_sections", return_value=sections):
+    with (
+        patch.object(engine, "_build_inventory_sections", return_value=sections),
+        patch.object(engine, "_runtime_result_sets_by_endpoint", return_value={}),
+    ):
         first_written = engine.write(
             mode=AuditMode.INVENTORY,
             strictness=AuditStrictness.CONSISTENCY,
@@ -388,7 +528,10 @@ def test_write_no_regression_round_trip(tmp_path: Path) -> None:
 
     # Second write — reads back the baseline and compares
     output_dir = tmp_path / "round_trip_artifacts"
-    with patch.object(engine, "_build_inventory_sections", return_value=sections):
+    with (
+        patch.object(engine, "_build_inventory_sections", return_value=sections),
+        patch.object(engine, "_runtime_result_sets_by_endpoint", return_value={}),
+    ):
         second_written = engine.write(
             mode=AuditMode.INVENTORY,
             strictness=AuditStrictness.NO_REGRESSIONS,
@@ -401,17 +544,24 @@ def test_write_no_regression_round_trip(tmp_path: Path) -> None:
     assert comparison_payload["comparison"]["regression_detected"] is False
     assert comparison_payload["comparison"]["new_problem_keys"] == []
     assert comparison_payload["comparison"]["resolved_problem_keys"] == []
+    assert comparison_payload["comparison"]["new_result_table_failure_keys"] == []
 
 
 def test_compare_baseline_empty_baseline() -> None:
     current_summary = {
         "problem_keys": [],
         "decision_breakdown": {"modeled": 5},
+        "result_table_contract": {
+            "failure_keys": [],
+        },
     }
     baseline_summary = {
         "generated_at": "2026-03-28T00:00:00+00:00",
         "problem_keys": [],
         "decision_breakdown": {"modeled": 5},
+        "result_table_contract": {
+            "failure_keys": [],
+        },
     }
 
     comparison = compare_baseline(current_summary, baseline_summary)
@@ -422,3 +572,4 @@ def test_compare_baseline_empty_baseline() -> None:
     assert comparison["increased_problem_counts"] == {}
     assert comparison["current_problem_count"] == 0
     assert comparison["baseline_problem_count"] == 0
+    assert comparison["new_result_table_failure_keys"] == []
