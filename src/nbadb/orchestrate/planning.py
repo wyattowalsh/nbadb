@@ -23,6 +23,12 @@ PATTERN_PRIORITY: dict[str, int] = {
     "player_team_season": 3,
     "game": 4,
 }
+PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS = frozenset(
+    {
+        "video_details",
+        "video_details_asset",
+    }
+)
 _CURRENT_TEAM_ONLY_ENDPOINTS = frozenset(
     {
         "team_details",
@@ -327,7 +333,9 @@ def build_extraction_plan(
         supported_cross_product_entries = [
             entry
             for entry in player_team_season_entries
-            if _season_type_capability(entry) == "supported" and _supported_season_types(entry)
+            if entry.endpoint_name in PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS
+            and _season_type_capability(entry) == "supported"
+            and _supported_season_types(entry)
         ]
         for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
             supported_cross_product_entries,

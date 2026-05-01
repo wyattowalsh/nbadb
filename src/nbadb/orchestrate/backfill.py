@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, cast
 import duckdb
 
 from nbadb.core.types import SeasonType, validate_sql_identifier
-from nbadb.orchestrate.planning import PATTERN_PRIORITY, ExtractionPlanItem
+from nbadb.orchestrate.planning import (
+    PATTERN_PRIORITY,
+    PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS,
+    ExtractionPlanItem,
+)
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
     StagingEntry,
@@ -345,6 +349,7 @@ class BackfillPlanner:
         """
         if (
             entry.param_pattern == "player_team_season"
+            and entry.endpoint_name in PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS
             and entry.season_type_capability == "supported"
             and entry.supported_season_types
         ):
@@ -852,7 +857,9 @@ class BackfillPlanner:
         supported_entries = [
             entry
             for entry in entries
-            if entry.season_type_capability == "supported" and bool(entry.supported_season_types)
+            if entry.endpoint_name in PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS
+            and entry.season_type_capability == "supported"
+            and bool(entry.supported_season_types)
         ]
         plan_items: list[ExtractionPlanItem] = []
         for grouped_entries, start_year, grouped_season_types in self._season_entry_groups(

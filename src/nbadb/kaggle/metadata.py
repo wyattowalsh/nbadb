@@ -37,7 +37,7 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "bridge_lineup_player": "Exploded bridge linking lineup group IDs to individual players and lineup slot order.",
     "bridge_play_player": "Many-to-many bridge linking play-by-play events to involved players.",
     "bridge_player_team_season": "Bridge linking players to teams by season with jersey number and listed position.",
-    # --- Facts (182) ---
+    # --- Facts (179) ---
     "fact_box_score_advanced_team": "Team-level advanced box score stats per game: offensive/defensive rating, pace, eFG%, TS%, AST ratio.",
     "fact_box_score_defensive_team": "Team-level defensive box score stats per game.",
     "fact_box_score_four_factors": "Player-level Four Factors stats per game: eFG%, TOV%, OREB%, FT rate.",
@@ -119,9 +119,6 @@ TABLE_DESCRIPTIONS: dict[str, str] = {
     "fact_player_pt_pass": "Player tracking passing passthrough.",
     "fact_player_pt_shot_defend": "Player tracking shot-defense passthrough.",
     "fact_matchup": "Head-to-head matchup statistics between teams across seasons.",
-    "fact_static_players": "Static player directory passthrough.",
-    "fact_static_teams": "Static team directory passthrough.",
-    "fact_team_streak_finder": "Team streak finder passthrough for longest win/loss streak results.",
     "fact_on_off_detail": "Detailed on/off court impact stats — team performance when a player is on vs. off the floor.",
     "fact_play_by_play": "Every play-by-play event with game clock, score, event type (made_shot, rebound, foul, etc.), and up to 3 involved players.",
     "fact_play_by_play_video": "Play-by-play video availability flags per game.",
@@ -367,9 +364,6 @@ TABLE_CATEGORIES: dict[str, list[str]] = {
         "fact_player_pt_pass",
         "fact_player_pt_shot_defend",
         "fact_matchup",
-        "fact_static_players",
-        "fact_static_teams",
-        "fact_team_streak_finder",
         "fact_on_off_detail",
         "fact_play_by_play",
         "fact_play_by_play_video",

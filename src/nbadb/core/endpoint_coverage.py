@@ -437,6 +437,8 @@ class EndpointCoverageGenerator:
                 continue
             if isinstance(child.func, ast.Attribute):
                 if child.func.attr not in {
+                    "_call_nba_api",
+                    "_call_nba_api_multi",
                     "_from_nba_api",
                     "_from_nba_api_multi",
                     "_from_nba_live",
@@ -2652,10 +2654,6 @@ class EndpointCoverageGenerator:
         artifacts: dict[str, Any],
         output_dir: Path | None = None,
     ) -> dict[str, Path]:
-        artifacts = self.build_artifacts(
-            runtime_endpoint_classes=runtime_endpoint_classes,
-            runtime_version=runtime_version,
-        )
         destination = self._coverage_output_dir(output_dir)
         return self._write_artifacts(destination=destination, artifacts=artifacts)
 

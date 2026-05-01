@@ -698,6 +698,7 @@ class Orchestrator:
         self,
         runner: ExtractorRunner,
         *,
+        plan: list[ExtractionPlanItem] | None = None,
         seasons: list[str],
         game_ids: list[str],
         player_ids: list[int],
@@ -727,17 +728,18 @@ class Orchestrator:
         if not game_log_df.is_empty():
             raw["stg_league_game_log"] = game_log_df
 
-        plan = build_extraction_plan(
-            seasons=seasons,
-            game_ids=game_ids,
-            player_ids=player_ids,
-            team_ids=team_ids,
-            current_team_ids=current_team_ids,
-            game_dates=game_dates,
-            player_team_season_params=player_team_season_params,
-            include_static=include_static,
-            season_types=season_types,
-        )
+        if plan is None:
+            plan = build_extraction_plan(
+                seasons=seasons,
+                game_ids=game_ids,
+                player_ids=player_ids,
+                team_ids=team_ids,
+                current_team_ids=current_team_ids,
+                game_dates=game_dates,
+                player_team_season_params=player_team_season_params,
+                include_static=include_static,
+                season_types=season_types,
+            )
 
         # Compute total extraction tasks for the progress bar
         total_tasks = sum(item.task_count for item in plan)
@@ -917,7 +919,7 @@ class Orchestrator:
         """
         season_types = self._resolved_season_types(season_types)
 
-        bound_log = logger.bind(run_mode="init")
+        bound_log = cast("_BoundLogger", logger.bind(run_mode="init"))
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
@@ -1051,7 +1053,7 @@ class Orchestrator:
         """
         import polars as pl
 
-        bound_log = logger.bind(run_mode="daily")
+        bound_log = cast("_BoundLogger", logger.bind(run_mode="daily"))
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
@@ -1177,7 +1179,7 @@ class Orchestrator:
         supported season-type universe, then appends a live snapshot when
         active games exist.
         """
-        bound_log = logger.bind(run_mode="monthly")
+        bound_log = cast("_BoundLogger", logger.bind(run_mode="monthly"))
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
@@ -1270,7 +1272,7 @@ class Orchestrator:
         3. Check watermarks for missing seasons
         4. Transform + load
         """
-        bound_log = logger.bind(run_mode="retry")
+        bound_log = cast("_BoundLogger", logger.bind(run_mode="retry"))
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
@@ -1444,7 +1446,7 @@ class Orchestrator:
         """
         season_types = self._resolved_season_types(season_types)
 
-        bound_log = logger.bind(run_mode="backfill")
+        bound_log = cast("_BoundLogger", logger.bind(run_mode="backfill"))
         t0 = time.perf_counter()
 
         db, journal = self._init_db()
@@ -1602,6 +1604,7 @@ class Orchestrator:
 
             extraction = await self._extract_all_patterns(
                 runner,
+                plan=plan,
                 seasons=effective_seasons,
                 game_ids=game_ids,
                 player_ids=player_ids,
