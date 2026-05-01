@@ -1670,9 +1670,35 @@ class TestExtractMethodCoverage:
                 "_from_nba_api_multi",
                 lambda endpoint_cls, **kwargs: [dummy_df, pl.DataFrame()],
             )
+        elif cls is PlayerCareerStatsExtractor:
+            monkeypatch.setattr(
+                ext, "_from_nba_api_multi", lambda endpoint_cls, **kwargs: [dummy_df]
+            )
         elif cls is DraftCombineDrillResultsExtractor:
             monkeypatch.setattr(ext, "_call_nba_api", lambda endpoint_cls, **kwargs: [dummy_df])
             monkeypatch.setattr(ext, "_validate", lambda df: df)
+        elif cls is DunkScoreLeadersExtractor:
+            monkeypatch.setattr(
+                "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
+                lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
+                    payload={
+                        "dunks": [
+                            {
+                                "gameId": "0022400001",
+                                "playerId": 1,
+                                "dunkScore": 8.5,
+                            }
+                        ]
+                    }
+                ),
+            )
+        elif cls is GravityLeadersExtractor:
+            monkeypatch.setattr(
+                "nbadb.extract.stats.misc.NBAStatsHTTP.send_api_request",
+                lambda self, **_kwargs: TestMiscLeadersExtractors._FakeResponse(
+                    payload={"leaders": [{"PLAYERID": 1, "GRAVITYSCORE": 1.5}]}
+                ),
+            )
         else:
             monkeypatch.setattr(ext, "_from_nba_api", _fake)
         params = _get_params(endpoint_name, category)
