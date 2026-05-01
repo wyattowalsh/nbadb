@@ -36596,6 +36596,56 @@
     ]
   },
   {
+    "table_name": "staging_schedule_int_broadcaster",
+    "class_name": "StagingScheduleIntBroadcasterSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "region_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      }
+    ]
+  },
+  {
     "table_name": "staging_schedule_int",
     "class_name": "StagingScheduleIntSchema",
     "coerce": true,

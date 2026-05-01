@@ -245,6 +245,16 @@ erDiagram
 
 ```mermaid
 erDiagram
+    fact_assist_leaders {
+        int rank
+        int team_id PK
+        str team_abbreviation
+        str team_name
+        float ast
+    }
+    fact_assist_tracker {
+        float assists
+    }
     fact_box_score_advanced_team {
         str game_id PK
         int team_id PK
@@ -447,6 +457,118 @@ erDiagram
         int bench_points
         int video_available_flag
         str summary_type
+    }
+    fact_box_score_summary_v3_available_video {
+        str game_id PK
+        int video_available_flag
+        int pt_available
+        int pt_xyz_available
+        int wh_status
+        int hustle_status
+        int historical_status
+    }
+    fact_box_score_summary_v3_game_info {
+        str game_id PK
+        str game_date
+        int attendance
+        str game_duration
+    }
+    fact_box_score_summary_v3_game_summary {
+        str game_id PK
+        str game_code
+        int game_status
+        str game_status_text
+        int period
+        str game_clock
+        str game_time_utc
+        str game_et
+        int away_team_id PK
+        int home_team_id PK
+        str duration
+        int attendance
+        int sellout
+    }
+    fact_box_score_summary_v3_inactive_players {
+        str game_id PK
+        int team_id PK
+        int person_id PK
+        str first_name
+        str family_name
+        str jersey_num
+    }
+    fact_box_score_summary_v3_last_five_meetings {
+        int recency_order
+        str game_id PK
+        str game_time_utc
+        str game_et
+        int game_status
+        str game_status_text
+        int away_team_id PK
+        str away_team_city
+        str away_team_name
+        str away_team_tricode
+        int away_team_score
+        int away_team_wins
+        int away_team_losses
+        int home_team_id PK
+        str home_team_city
+        str home_team_name
+        str home_team_tricode
+        int home_team_score
+        int home_team_wins
+        int home_team_losses
+    }
+    fact_box_score_summary_v3_line_score {
+        str game_id PK
+        int team_id PK
+        str team_city
+        str team_name
+        str team_tricode
+        str team_slug
+        int team_wins
+        int team_losses
+        int period1_score
+        int period2_score
+        int period3_score
+        int period4_score
+        int score
+    }
+    fact_box_score_summary_v3_officials {
+        str game_id PK
+        int person_id PK
+        str name
+        str name_i
+        str first_name
+        str family_name
+        str jersey_num
+    }
+    fact_box_score_summary_v3_other_stats {
+        str game_id PK
+        int team_id PK
+        str team_city
+        str team_name
+        str team_tricode
+        int points
+        int rebounds_total
+        int assists
+        int steals
+        int blocks
+        int turnovers
+        float field_goals_percentage
+        float three_pointers_percentage
+        float free_throws_percentage
+        int points_in_the_paint
+        int points_second_chance
+        int points_fast_break
+        int biggest_lead
+        int lead_changes
+        int times_tied
+        int biggest_scoring_run
+        int turnovers_team
+        int turnovers_total
+        int rebounds_team
+        int points_from_turnovers
+        int bench_points
     }
     fact_box_score_team {
         str game_id PK
@@ -732,6 +854,165 @@ erDiagram
         float pct
         str detail_type
     }
+    fact_draft_combine_drill_results {
+        str season
+        int player_id PK
+        str first_name
+        str last_name
+        str player_name
+        str position
+        float standing_vertical_leap
+        float max_vertical_leap
+        float lane_agility_time
+        float modified_lane_agility_time
+        float three_quarter_sprint
+        float bench_press
+    }
+    fact_draft_combine_non_stationary_shooting {
+        str season
+        int player_id PK
+        str first_name
+        str last_name
+        str player_name
+        str position
+        int off_drib_fifteen_break_left_made
+        int off_drib_fifteen_break_left_attempt
+        float off_drib_fifteen_break_left_pct
+        int off_drib_fifteen_top_key_made
+        int off_drib_fifteen_top_key_attempt
+        float off_drib_fifteen_top_key_pct
+        int off_drib_college_break_left_made
+        int off_drib_college_break_left_attempt
+        float off_drib_college_break_left_pct
+        int off_drib_college_top_key_made
+        int off_drib_college_top_key_attempt
+        float off_drib_college_top_key_pct
+        int on_move_fifteen_made
+        int on_move_fifteen_attempt
+        float on_move_fifteen_pct
+        int on_move_college_made
+        int on_move_college_attempt
+        float on_move_college_pct
+    }
+    fact_draft_combine_player_anthro {
+        str season
+        int player_id PK
+        str first_name
+        str last_name
+        str player_name
+        str position
+        float height_wo_shoes
+        str height_wo_shoes_ft_in
+        float height_w_shoes
+        str height_w_shoes_ft_in
+        float weight
+        float wingspan
+        str wingspan_ft_in
+        float standing_reach
+        str standing_reach_ft_in
+        float body_fat_pct
+        float hand_length
+        float hand_width
+    }
+    fact_draft_combine_spot_shooting {
+        str season
+        int player_id PK
+        str first_name
+        str last_name
+        str player_name
+        str position
+        int nba_break_left_made
+        int nba_break_left_attempt
+        float nba_break_left_pct
+        int nba_break_right_made
+        int nba_break_right_attempt
+        float nba_break_right_pct
+        int nba_corner_left_made
+        int nba_corner_left_attempt
+        float nba_corner_left_pct
+        int nba_corner_right_made
+        int nba_corner_right_attempt
+        float nba_corner_right_pct
+        int nba_top_key_made
+        int nba_top_key_attempt
+        float nba_top_key_pct
+        int college_break_left_made
+        int college_break_left_attempt
+        float college_break_left_pct
+        int college_break_right_made
+        int college_break_right_attempt
+        float college_break_right_pct
+        int college_corner_left_made
+        int college_corner_left_attempt
+        float college_corner_left_pct
+        int college_corner_right_made
+        int college_corner_right_attempt
+        float college_corner_right_pct
+        int college_top_key_made
+        int college_top_key_attempt
+        float college_top_key_pct
+        int fifteen_break_left_made
+        int fifteen_break_left_attempt
+        float fifteen_break_left_pct
+        int fifteen_break_right_made
+        int fifteen_break_right_attempt
+        float fifteen_break_right_pct
+        int fifteen_corner_left_made
+        int fifteen_corner_left_attempt
+        float fifteen_corner_left_pct
+        int fifteen_corner_right_made
+        int fifteen_corner_right_attempt
+        float fifteen_corner_right_pct
+        int fifteen_top_key_made
+        int fifteen_top_key_attempt
+        float fifteen_top_key_pct
+    }
+    fact_draft_combine_stats {
+        str season
+        int player_id PK
+        str first_name
+        str last_name
+        str player_name
+        str position
+        float height_wo_shoes
+        str height_wo_shoes_ft_in
+        float height_w_shoes
+        str height_w_shoes_ft_in
+        float weight
+        float wingspan
+        str wingspan_ft_in
+        float standing_reach
+        str standing_reach_ft_in
+        float body_fat_pct
+        float hand_length
+        float hand_width
+        float standing_vertical_leap
+        float max_vertical_leap
+        float lane_agility_time
+        float modified_lane_agility_time
+        float three_quarter_sprint
+        float bench_press
+    }
+    fact_draft_history {
+        int person_id PK
+        str player_name
+        str season
+        int round_number
+        int round_pick
+        int overall_pick
+        str draft_type
+        int team_id PK
+        str team_city
+        str team_name
+        str team_abbreviation
+        str organization
+        str organization_type
+        int player_profile_flag
+    }
+    fact_dunk_score_leaders {
+        int player_id PK
+        float dunk_score
+    }
     fact_estimated_metrics {
         int player_id PK
         int team_id PK
@@ -789,6 +1070,29 @@ erDiagram
         str season_type
         str fantasy_source
     }
+    fact_fantasy_widget {
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_abbreviation
+        float fan_duel_pts
+        float nba_fantasy_pts
+        float pts
+        float reb
+        float ast
+        float fg3m
+        float ft_pct
+        float stl
+        float blk
+        float tov
+        float fg_pct
+        str player_position
+        int gp
+        float min
+        float fga
+        float fta
+        str season_type
+    }
     fact_franchise_detail {
         int team_id PK
         str league_id PK
@@ -827,6 +1131,52 @@ erDiagram
         int stl_person_id PK
         str stl_player
         str detail_type
+    }
+    fact_franchise_leaders {
+        int team_id PK
+        float pts
+        int pts_person_id PK
+        str pts_player
+        float ast
+        int ast_person_id PK
+        str ast_player
+        float reb
+        int reb_person_id PK
+        str reb_player
+        float blk
+        int blk_person_id PK
+        str blk_player
+        float stl
+        int stl_person_id PK
+        str stl_player
+    }
+    fact_franchise_players {
+        str league_id PK
+        int team_id PK
+        str team
+        int person_id PK
+        str player
+        str season_type
+        int active_with_team
+        float gp
+        float fgm
+        float fga
+        float fg_pct
+        float fg3m
+        float fg3a
+        float fg3_pct
+        float ftm
+        float fta
+        float ft_pct
+        float oreb
+        float dreb
+        float reb
+        float ast
+        float pf
+        float stl
+        float tov
+        float blk
+        float pts
     }
     fact_game_context {
         str game_id PK
@@ -914,6 +1264,10 @@ erDiagram
         int team_id PK
         float similarity_score
     }
+    fact_gravity_leaders {
+        int playerid
+        float gravityscore
+    }
     fact_homepage {
         str homepage_source
         int rank
@@ -990,6 +1344,41 @@ erDiagram
         int box_out_player_rebs
         int box_outs
         str hustle_type
+    }
+    fact_infographic_fanduel_player {
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_abbreviation
+        float fan_duel_pts
+        float nba_fantasy_pts
+        float pts
+        float reb
+        float ast
+        float fg3m
+        float ft_pct
+        float stl
+        float blk
+        float tov
+        float fg_pct
+        str team_name
+        str jersey_num
+        str player_position
+        str location
+        float usg_pct
+        float min
+        float fgm
+        float fga
+        float fg3a
+        float fg3_pct
+        float ftm
+        float fta
+        float oreb
+        float dreb
+        float blka
+        float pf
+        float pfd
+        float plus_minus
     }
     fact_ist_standings {
         int team_id PK
@@ -1185,6 +1574,13 @@ erDiagram
         float min
         float deflections
     }
+    fact_league_leaders {
+        int player_id PK
+        int rank
+        str player
+        str team
+        float pts
+    }
     fact_league_leaders_detail {
         str leader_type
         int player_id PK
@@ -1248,6 +1644,85 @@ erDiagram
         float opp_fta_rate
         float opp_tov_pct
     }
+    fact_league_opp_pt_shot {
+        int id
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_name
+        str team_abbreviation
+        str season_year
+        int g
+        int sort_order
+        str close_def_dist_range
+        float fga_frequency
+        int fgm
+        int fga
+        float fg_pct
+        float efg_pct
+        int fg2m
+        int fg2a
+        float fg2_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int dfgm
+        int dfga
+        float dfg_pct
+    }
+    fact_league_player_pt_shot {
+        int id
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_name
+        str team_abbreviation
+        str season_year
+        int g
+        int sort_order
+        str close_def_dist_range
+        float fga_frequency
+        int fgm
+        int fga
+        float fg_pct
+        float efg_pct
+        int fg2m
+        int fg2a
+        float fg2_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int dfgm
+        int dfga
+        float dfg_pct
+    }
+    fact_league_player_shot_locations {
+        str season_year
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_abbreviation
+        str shot_zone_basic
+        str shot_zone_area
+        str shot_zone_range
+        float fgm
+        float fga
+        float fg_pct
+    }
+    fact_league_pt_defend {
+        int player_id PK
+        int team_id PK
+        str defense_category
+        int gp
+        int g
+        float freq
+        int d_fgm
+        int d_fga
+        float d_fg_pct
+        float normal_fg_pct
+        float pct_plusminus
+        str season_year
+    }
     fact_league_pt_shots {
         int id
         int player_id PK
@@ -1275,6 +1750,58 @@ erDiagram
         float dfg_pct
         str shot_type
     }
+    fact_league_pt_stats {
+        int id
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_name
+        str team_abbreviation
+        str season_year
+        int g
+        int sort_order
+        str close_def_dist_range
+        float fga_frequency
+        int fgm
+        int fga
+        float fg_pct
+        float efg_pct
+        int fg2m
+        int fg2a
+        float fg2_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int dfgm
+        int dfga
+        float dfg_pct
+    }
+    fact_league_pt_team_defend {
+        int id
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_name
+        str team_abbreviation
+        str season_year
+        int g
+        int sort_order
+        str close_def_dist_range
+        float fga_frequency
+        int fgm
+        int fga
+        float fg_pct
+        float efg_pct
+        int fg2m
+        int fg2a
+        float fg2_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int dfgm
+        int dfga
+        float dfg_pct
+    }
     fact_league_shot_locations {
         int team_id PK
         str team_name
@@ -1298,6 +1825,43 @@ erDiagram
         float fg_pct
         float ft_pct
         float plus_minus
+    }
+    fact_league_team_pt_shot {
+        int id
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_name
+        str team_abbreviation
+        str season_year
+        int g
+        int sort_order
+        str close_def_dist_range
+        float fga_frequency
+        int fgm
+        int fga
+        float fg_pct
+        float efg_pct
+        int fg2m
+        int fg2a
+        float fg2_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        int dfgm
+        int dfga
+        float dfg_pct
+    }
+    fact_league_team_shot_locations {
+        int team_id PK
+        str team_name
+        str season_year
+        str shot_zone_basic
+        str shot_zone_area
+        str shot_zone_range
+        float fgm
+        float fga
+        float fg_pct
     }
     fact_lineup_stats {
         str group_set
@@ -2077,6 +2641,40 @@ erDiagram
         float e_usg_pct
         str season_year
     }
+    fact_player_fantasy_profile_last_five_games_avg {
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_abbreviation
+        float fan_duel_pts
+        float nba_fantasy_pts
+        float pts
+        float reb
+        float ast
+        float fg3m
+        float ft_pct
+        float stl
+        float blk
+        float tov
+        float fg_pct
+    }
+    fact_player_fantasy_profile_season_avg {
+        int player_id PK
+        str player_name
+        int team_id PK
+        str team_abbreviation
+        float fan_duel_pts
+        float nba_fantasy_pts
+        float pts
+        float reb
+        float ast
+        float fg3m
+        float ft_pct
+        float stl
+        float blk
+        float tov
+        float fg_pct
+    }
     fact_player_game_advanced {
         str game_id PK
         int player_id PK
@@ -2707,6 +3305,31 @@ erDiagram
         int rank_eff
         str profile_type
     }
+    fact_player_pt_pass {
+        int player_id PK
+        str player_name_last_first
+        str team_name
+        int team_id PK
+        str team_abbreviation
+        str pass_type
+        int g
+        str pass_to
+        str pass_from
+        int pass_teammate_player_id PK
+        float frequency
+        int pass_
+        int ast
+        int fgm
+        int fga
+        float fg_pct
+        int fg2m
+        int fg2a
+        float fg2_pct
+        int fg3m
+        int fg3a
+        float fg3_pct
+        str season_type
+    }
     fact_player_pt_reb_detail {
         int player_id PK
         str player_name_last_first
@@ -2731,6 +3354,19 @@ erDiagram
         float uc_reb_pct
         str season_type
         str breakdown_type
+    }
+    fact_player_pt_shot_defend {
+        int close_def_person_id PK
+        int gp
+        int g
+        str defense_category
+        float freq
+        int d_fgm
+        int d_fga
+        float d_fg_pct
+        float normal_fg_pct
+        float pct_plusminus
+        str season_type
     }
     fact_player_pt_shots_detail {
         int player_id PK
@@ -3215,6 +3851,22 @@ erDiagram
         float usg_pct
         str side
     }
+    fact_scoreboard_conference_standings {
+        int team_id PK
+        str league_id PK
+        str season_id PK
+        str standings_date
+        str conference
+        str team
+        int g
+        int w
+        int losses
+        float w_pct
+        str home_record
+        str road_record
+        str return_to_play
+        str conference_scope
+    }
     fact_scoreboard_detail {
         str game_id PK
         str game_date_est
@@ -3245,6 +3897,101 @@ erDiagram
         float visitor_pct
         str detail_type
     }
+    fact_scoreboard_game_header {
+        str game_date_est
+        int game_sequence
+        str game_id PK
+        int game_status_id PK
+        str game_status_text
+        str gamecode
+        int home_team_id PK
+        int visitor_team_id PK
+        str season
+        int live_period
+        str live_pc_time
+        str natl_tv_broadcaster_abbreviation
+        str home_tv_broadcaster_abbreviation
+        str away_tv_broadcaster_abbreviation
+        str live_period_time_bcast
+        str arena_name
+        int wh_status
+    }
+    fact_scoreboard_last_meeting {
+        str game_id PK
+        str last_game_id PK
+        str last_game_date_est
+        int last_game_home_team_id PK
+        str last_game_home_team_city
+        str last_game_home_team_name
+        str last_game_home_team_abbreviation
+        int last_game_home_team_points
+        int last_game_visitor_team_id PK
+        str last_game_visitor_team_city
+        str last_game_visitor_team_name
+        str last_game_visitor_team_city1
+        int last_game_visitor_team_points
+    }
+    fact_scoreboard_line_score {
+        str game_date_est
+        int game_sequence
+        str game_id PK
+        int team_id PK
+        str team_abbreviation
+        str team_city_name
+        str team_name
+        str team_wins_losses
+        int pts_qtr1
+        int pts_qtr2
+        int pts_qtr3
+        int pts_qtr4
+        int pts_ot1
+        int pts_ot2
+        int pts_ot3
+        int pts_ot4
+        int pts_ot5
+        int pts_ot6
+        int pts_ot7
+        int pts_ot8
+        int pts_ot9
+        int pts_ot10
+        int pts
+        float fg_pct
+        float ft_pct
+        float fg3_pct
+        int ast
+        int reb
+        int tov
+    }
+    fact_scoreboard_series_standings {
+        str game_id PK
+        int home_team_id PK
+        int visitor_team_id PK
+        str game_date_est
+        int home_team_wins
+        int home_team_losses
+        str series_leader
+        str series_scope
+    }
+    fact_scoreboard_team_leaders {
+        str game_id PK
+        int team_id PK
+        str team_city
+        str team_nickname
+        str team_abbreviation
+        int pts_player_id PK
+        str pts_player_name
+        int pts
+        int reb_player_id PK
+        str reb_player_name
+        int reb
+        int ast_player_id PK
+        str ast_player_name
+        int ast
+    }
+    fact_scoreboard_ticket_links {
+        str game_id PK
+        str leag_tix
+    }
     fact_scoreboard_v3 {
         str game_date
         str league_id PK
@@ -3261,6 +4008,68 @@ erDiagram
         str broadcaster_type
         str broadcast_display
         str scoreboard_type
+    }
+    fact_scoreboard_v3_broadcaster {
+        str game_id PK
+        str broadcaster_type
+        int broadcaster_id PK
+        str broadcast_display
+        int broadcaster_team_id PK
+        str broadcaster_description
+    }
+    fact_scoreboard_v3_game_summary {
+        str game_id PK
+        str game_code
+        int game_status
+        str game_status_text
+        int period
+        str game_clock
+        str game_time_utc
+        str game_et
+        int regulation_periods
+        int series_game_number
+        str game_label
+        str game_sub_label
+        str series_text
+        str if_necessary
+        str series_conference
+        str po_round_desc
+        str game_subtype
+        int is_neutral
+    }
+    fact_scoreboard_v3_line_score {
+        str game_id PK
+        int team_id PK
+        str team_city
+        str team_name
+        str team_tricode
+        str team_slug
+        int wins
+        int losses
+        int score
+        int seed
+        int in_bonus
+        int timeouts_remaining
+    }
+    fact_scoreboard_v3_metadata {
+        str game_date
+        str league_id PK
+        str league_name
+    }
+    fact_scoreboard_v3_team_leaders {
+        str game_id PK
+        int team_id PK
+        str leader_type
+        int person_id PK
+        str name
+        str player_slug
+        str jersey_num
+        str position
+        str team_tricode
+        int points
+        int rebounds
+        int assists
+        int season_leaders_flag
     }
     fact_scoreboard_win_probability {
         str game_id PK
@@ -4878,6 +5687,47 @@ erDiagram
         float usg_pct
         float dfg_pct
     }
+    analytics_player_general_splits {
+        int player_id PK
+        str season_year
+        str season_type
+        str split_type
+        str group_set
+        str group_value
+        str player_name
+        int gp
+        int w
+        int l
+        float w_pct
+        float min
+        float pts
+        float reb
+        float ast
+        float fg_pct
+        float fg3_pct
+        float ft_pct
+        float plus_minus
+        int overall_gp
+        float overall_w_pct
+        float overall_min
+        float overall_pts
+        float overall_reb
+        float overall_ast
+        float overall_fg_pct
+        float overall_fg3_pct
+        float overall_ft_pct
+        float overall_plus_minus
+        float gp_share
+        float w_pct_delta
+        float min_delta
+        float pts_delta
+        float reb_delta
+        float ast_delta
+        float fg_pct_delta
+        float fg3_pct_delta
+        float ft_pct_delta
+        float plus_minus_delta
+    }
     analytics_player_impact {
         int player_id PK
         int team_id PK
@@ -5039,6 +5889,48 @@ erDiagram
         str game_date
         str team_name
         str team_abbreviation
+    }
+    analytics_team_general_splits {
+        int team_id PK
+        str season_year
+        str season_type
+        str split_type
+        str group_set
+        str group_value
+        str team_name
+        str team_abbreviation
+        int gp
+        int w
+        int l
+        float w_pct
+        float min
+        float pts
+        float reb
+        float ast
+        float fg_pct
+        float fg3_pct
+        float ft_pct
+        float plus_minus
+        int overall_gp
+        float overall_w_pct
+        float overall_min
+        float overall_pts
+        float overall_reb
+        float overall_ast
+        float overall_fg_pct
+        float overall_fg3_pct
+        float overall_ft_pct
+        float overall_plus_minus
+        float gp_share
+        float w_pct_delta
+        float min_delta
+        float pts_delta
+        float reb_delta
+        float ast_delta
+        float fg_pct_delta
+        float fg3_pct_delta
+        float ft_pct_delta
+        float plus_minus_delta
     }
     analytics_team_season_summary {
         int team_id PK

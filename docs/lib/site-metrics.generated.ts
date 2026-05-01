@@ -2,11 +2,11 @@
 // Do not edit by hand.
 import type { SiteMetric } from "@/lib/site-config";
 
-export const siteInventory = {"modelCount": "204", "extractorCount": "152", "docsPageCount": "51", "publicOutputCount": "204", "derivedOutputCount": "31", "tableFamilyCounts": {"dimensions": "18", "facts": "149", "bridges": "6", "aggregates": "19", "analytics": "12"}, "scdType2Dimensions": ["dim_player", "dim_team_history"]} as const;
+export const siteInventory = {"modelCount": "253", "extractorCount": "152", "docsPageCount": "51", "publicOutputCount": "253", "derivedOutputCount": "33", "tableFamilyCounts": {"dimensions": "18", "facts": "196", "bridges": "6", "aggregates": "19", "analytics": "14"}, "scdType2Dimensions": ["dim_player", "dim_team_history"]} as const;
 
 export const siteMetrics: SiteMetric[] = [
-  {"label": "Models", "value": "204", "note": "discovered star-schema models"},
+  {"label": "Models", "value": "253", "note": "discovered star-schema models"},
   {"label": "Extractors", "value": "152", "note": "registered extractor wrappers"},
   {"label": "Docs Pages", "value": "51", "note": "authored + generated MDX routes"},
-  {"label": "Derived Models", "value": "31", "note": "agg_* and analytics_* outputs"}
+  {"label": "Derived Models", "value": "33", "note": "agg_* and analytics_* outputs"}
 ];

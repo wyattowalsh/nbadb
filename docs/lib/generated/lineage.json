@@ -2861,6 +2861,254 @@
       ]
     }
   },
+  "analytics_player_general_splits": {
+    "schema_lineage": {
+      "class": "AnalyticsPlayerGeneralSplitsSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "analytics_player_general_splits"
+        },
+        "ast_delta": {
+          "endpoint": "derived",
+          "field": "ast_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "fg3_pct_delta": {
+          "endpoint": "derived",
+          "field": "fg3_pct_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "fg_pct_delta": {
+          "endpoint": "derived",
+          "field": "fg_pct_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "ft_pct": {
+          "endpoint": "derived",
+          "field": "ft_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "ft_pct_delta": {
+          "endpoint": "derived",
+          "field": "ft_pct_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "gp": {
+          "endpoint": "derived",
+          "field": "gp",
+          "result_set": "analytics_player_general_splits"
+        },
+        "gp_share": {
+          "endpoint": "derived",
+          "field": "gp_share",
+          "result_set": "analytics_player_general_splits"
+        },
+        "group_set": {
+          "endpoint": "derived",
+          "field": "group_set",
+          "result_set": "analytics_player_general_splits"
+        },
+        "group_value": {
+          "endpoint": "derived",
+          "field": "group_value",
+          "result_set": "analytics_player_general_splits"
+        },
+        "l": {
+          "endpoint": "derived",
+          "field": "l",
+          "result_set": "analytics_player_general_splits"
+        },
+        "min": {
+          "endpoint": "derived",
+          "field": "min",
+          "result_set": "analytics_player_general_splits"
+        },
+        "min_delta": {
+          "endpoint": "derived",
+          "field": "min_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_ast": {
+          "endpoint": "derived",
+          "field": "overall_ast",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_fg3_pct": {
+          "endpoint": "derived",
+          "field": "overall_fg3_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_fg_pct": {
+          "endpoint": "derived",
+          "field": "overall_fg_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_ft_pct": {
+          "endpoint": "derived",
+          "field": "overall_ft_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_gp": {
+          "endpoint": "derived",
+          "field": "overall_gp",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_min": {
+          "endpoint": "derived",
+          "field": "overall_min",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_plus_minus": {
+          "endpoint": "derived",
+          "field": "overall_plus_minus",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_pts": {
+          "endpoint": "derived",
+          "field": "overall_pts",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_reb": {
+          "endpoint": "derived",
+          "field": "overall_reb",
+          "result_set": "analytics_player_general_splits"
+        },
+        "overall_w_pct": {
+          "endpoint": "derived",
+          "field": "overall_w_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "analytics_player_general_splits"
+        },
+        "plus_minus": {
+          "endpoint": "derived",
+          "field": "plus_minus",
+          "result_set": "analytics_player_general_splits"
+        },
+        "plus_minus_delta": {
+          "endpoint": "derived",
+          "field": "plus_minus_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "analytics_player_general_splits"
+        },
+        "pts_delta": {
+          "endpoint": "derived",
+          "field": "pts_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "analytics_player_general_splits"
+        },
+        "reb_delta": {
+          "endpoint": "derived",
+          "field": "reb_delta",
+          "result_set": "analytics_player_general_splits"
+        },
+        "season_type": {
+          "endpoint": "derived",
+          "field": "season_type",
+          "result_set": "analytics_player_general_splits"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "analytics_player_general_splits"
+        },
+        "split_type": {
+          "endpoint": "derived",
+          "field": "split_type",
+          "result_set": "analytics_player_general_splits"
+        },
+        "w": {
+          "endpoint": "derived",
+          "field": "w",
+          "result_set": "analytics_player_general_splits"
+        },
+        "w_pct": {
+          "endpoint": "derived",
+          "field": "w_pct",
+          "result_set": "analytics_player_general_splits"
+        },
+        "w_pct_delta": {
+          "endpoint": "derived",
+          "field": "w_pct_delta",
+          "result_set": "analytics_player_general_splits"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "AnalyticsPlayerGeneralSplitsTransformer",
+      "columns": [
+        "player_id",
+        "season_year",
+        "season_type",
+        "split_type",
+        "group_set",
+        "group_value",
+        "player_name",
+        "gp",
+        "w",
+        "l",
+        "w_pct",
+        "min",
+        "pts",
+        "reb",
+        "ast",
+        "fg_pct",
+        "fg3_pct",
+        "ft_pct",
+        "plus_minus",
+        "overall_gp",
+        "overall_w_pct",
+        "overall_min",
+        "overall_pts",
+        "overall_reb",
+        "overall_ast",
+        "overall_fg_pct",
+        "overall_fg3_pct",
+        "overall_ft_pct",
+        "overall_plus_minus",
+        "gp_share",
+        "w_pct_delta",
+        "min_delta",
+        "pts_delta",
+        "reb_delta",
+        "ast_delta",
+        "fg_pct_delta",
+        "fg3_pct_delta",
+        "ft_pct_delta",
+        "plus_minus_delta"
+      ],
+      "source_tables": [
+        "dim_player",
+        "fact_player_general_splits_detail"
+      ]
+    }
+  },
   "analytics_player_impact": {
     "schema_lineage": {
       "class": "AnalyticsPlayerImpactSchema",
@@ -3839,6 +4087,260 @@
         "fact_box_score_player_track_team",
         "fact_team_game",
         "fact_team_game_hustle"
+      ]
+    }
+  },
+  "analytics_team_general_splits": {
+    "schema_lineage": {
+      "class": "AnalyticsTeamGeneralSplitsSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "analytics_team_general_splits"
+        },
+        "ast_delta": {
+          "endpoint": "derived",
+          "field": "ast_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "fg3_pct_delta": {
+          "endpoint": "derived",
+          "field": "fg3_pct_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "fg_pct_delta": {
+          "endpoint": "derived",
+          "field": "fg_pct_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "ft_pct": {
+          "endpoint": "derived",
+          "field": "ft_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "ft_pct_delta": {
+          "endpoint": "derived",
+          "field": "ft_pct_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "gp": {
+          "endpoint": "derived",
+          "field": "gp",
+          "result_set": "analytics_team_general_splits"
+        },
+        "gp_share": {
+          "endpoint": "derived",
+          "field": "gp_share",
+          "result_set": "analytics_team_general_splits"
+        },
+        "group_set": {
+          "endpoint": "derived",
+          "field": "group_set",
+          "result_set": "analytics_team_general_splits"
+        },
+        "group_value": {
+          "endpoint": "derived",
+          "field": "group_value",
+          "result_set": "analytics_team_general_splits"
+        },
+        "l": {
+          "endpoint": "derived",
+          "field": "l",
+          "result_set": "analytics_team_general_splits"
+        },
+        "min": {
+          "endpoint": "derived",
+          "field": "min",
+          "result_set": "analytics_team_general_splits"
+        },
+        "min_delta": {
+          "endpoint": "derived",
+          "field": "min_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_ast": {
+          "endpoint": "derived",
+          "field": "overall_ast",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_fg3_pct": {
+          "endpoint": "derived",
+          "field": "overall_fg3_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_fg_pct": {
+          "endpoint": "derived",
+          "field": "overall_fg_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_ft_pct": {
+          "endpoint": "derived",
+          "field": "overall_ft_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_gp": {
+          "endpoint": "derived",
+          "field": "overall_gp",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_min": {
+          "endpoint": "derived",
+          "field": "overall_min",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_plus_minus": {
+          "endpoint": "derived",
+          "field": "overall_plus_minus",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_pts": {
+          "endpoint": "derived",
+          "field": "overall_pts",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_reb": {
+          "endpoint": "derived",
+          "field": "overall_reb",
+          "result_set": "analytics_team_general_splits"
+        },
+        "overall_w_pct": {
+          "endpoint": "derived",
+          "field": "overall_w_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "plus_minus": {
+          "endpoint": "derived",
+          "field": "plus_minus",
+          "result_set": "analytics_team_general_splits"
+        },
+        "plus_minus_delta": {
+          "endpoint": "derived",
+          "field": "plus_minus_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "analytics_team_general_splits"
+        },
+        "pts_delta": {
+          "endpoint": "derived",
+          "field": "pts_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "analytics_team_general_splits"
+        },
+        "reb_delta": {
+          "endpoint": "derived",
+          "field": "reb_delta",
+          "result_set": "analytics_team_general_splits"
+        },
+        "season_type": {
+          "endpoint": "derived",
+          "field": "season_type",
+          "result_set": "analytics_team_general_splits"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "analytics_team_general_splits"
+        },
+        "split_type": {
+          "endpoint": "derived",
+          "field": "split_type",
+          "result_set": "analytics_team_general_splits"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "analytics_team_general_splits"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "analytics_team_general_splits"
+        },
+        "w": {
+          "endpoint": "derived",
+          "field": "w",
+          "result_set": "analytics_team_general_splits"
+        },
+        "w_pct": {
+          "endpoint": "derived",
+          "field": "w_pct",
+          "result_set": "analytics_team_general_splits"
+        },
+        "w_pct_delta": {
+          "endpoint": "derived",
+          "field": "w_pct_delta",
+          "result_set": "analytics_team_general_splits"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "AnalyticsTeamGeneralSplitsTransformer",
+      "columns": [
+        "team_id",
+        "season_year",
+        "season_type",
+        "split_type",
+        "group_set",
+        "group_value",
+        "team_name",
+        "team_abbreviation",
+        "gp",
+        "w",
+        "l",
+        "w_pct",
+        "min",
+        "pts",
+        "reb",
+        "ast",
+        "fg_pct",
+        "fg3_pct",
+        "ft_pct",
+        "plus_minus",
+        "overall_gp",
+        "overall_w_pct",
+        "overall_min",
+        "overall_pts",
+        "overall_reb",
+        "overall_ast",
+        "overall_fg_pct",
+        "overall_fg3_pct",
+        "overall_ft_pct",
+        "overall_plus_minus",
+        "gp_share",
+        "w_pct_delta",
+        "min_delta",
+        "pts_delta",
+        "reb_delta",
+        "ast_delta",
+        "fg_pct_delta",
+        "fg3_pct_delta",
+        "ft_pct_delta",
+        "plus_minus_delta"
+      ],
+      "source_tables": [
+        "dim_team",
+        "fact_team_general_splits_detail"
       ]
     }
   },
@@ -5425,6 +5927,66 @@
       ]
     }
   },
+  "fact_assist_leaders": {
+    "schema_lineage": {
+      "class": "FactAssistLeadersSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_assist_leaders"
+        },
+        "rank": {
+          "endpoint": "derived",
+          "field": "rank",
+          "result_set": "fact_assist_leaders"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_assist_leaders"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_assist_leaders"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactAssistLeadersTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_assist_leaders"
+      ]
+    }
+  },
+  "fact_assist_tracker": {
+    "schema_lineage": {
+      "class": "FactAssistTrackerSchema",
+      "columns": {
+        "assists": {
+          "endpoint": "derived",
+          "field": "assists",
+          "result_set": "fact_assist_tracker"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactAssistTrackerTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_assist_tracker"
+      ]
+    }
+  },
   "fact_box_score_advanced_team": {
     "schema_lineage": {
       "class": "FactBoxScoreAdvancedTeamSchema",
@@ -6513,6 +7075,719 @@
         "stg_summary_v3_last_five_meetings",
         "stg_summary_v3_line_score",
         "stg_summary_v3_officials",
+        "stg_summary_v3_other_stats"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_available_video": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3AvailableVideoSchema",
+      "columns": {
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "AvailableVideo"
+        },
+        "historical_status": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "historicalStatus",
+          "result_set": "AvailableVideo"
+        },
+        "hustle_status": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "hustleStatus",
+          "result_set": "AvailableVideo"
+        },
+        "pt_available": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "ptAvailable",
+          "result_set": "AvailableVideo"
+        },
+        "pt_xyz_available": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "ptXYZAvailable",
+          "result_set": "AvailableVideo"
+        },
+        "video_available_flag": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "videoAvailableFlag",
+          "result_set": "AvailableVideo"
+        },
+        "wh_status": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "whStatus",
+          "result_set": "AvailableVideo"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3AvailableVideoTransformer",
+      "columns": [
+        "game_id",
+        "video_available_flag",
+        "pt_available",
+        "pt_xyz_available",
+        "wh_status",
+        "hustle_status",
+        "historical_status"
+      ],
+      "source_tables": [
+        "stg_summary_v3_available_video"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_game_info": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3GameInfoSchema",
+      "columns": {
+        "attendance": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "attendance",
+          "result_set": "GameInfo"
+        },
+        "game_date": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameDate",
+          "result_set": "GameInfo"
+        },
+        "game_duration": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameDuration",
+          "result_set": "GameInfo"
+        },
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "GameInfo"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3GameInfoTransformer",
+      "columns": [
+        "game_id",
+        "game_date",
+        "attendance",
+        "game_duration"
+      ],
+      "source_tables": [
+        "stg_summary_v3_game_info"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_game_summary": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3GameSummarySchema",
+      "columns": {
+        "attendance": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "attendance",
+          "result_set": "GameSummary"
+        },
+        "away_team_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "GameSummary"
+        },
+        "duration": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "duration",
+          "result_set": "GameSummary"
+        },
+        "game_clock": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameClock",
+          "result_set": "GameSummary"
+        },
+        "game_code": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameCode",
+          "result_set": "GameSummary"
+        },
+        "game_et": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameEt",
+          "result_set": "GameSummary"
+        },
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "GameSummary"
+        },
+        "game_status": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameStatus",
+          "result_set": "GameSummary"
+        },
+        "game_status_text": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameStatusText",
+          "result_set": "GameSummary"
+        },
+        "game_time_utc": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameTimeUTC",
+          "result_set": "GameSummary"
+        },
+        "home_team_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "GameSummary"
+        },
+        "period": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "period",
+          "result_set": "GameSummary"
+        },
+        "sellout": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "sellout",
+          "result_set": "GameSummary"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3GameSummaryTransformer",
+      "columns": [
+        "game_id",
+        "game_code",
+        "game_status",
+        "game_status_text",
+        "period",
+        "game_clock",
+        "game_time_utc",
+        "game_et",
+        "away_team_id",
+        "home_team_id",
+        "duration",
+        "attendance",
+        "sellout"
+      ],
+      "source_tables": [
+        "stg_summary_v3_game_summary"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_inactive_players": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3InactivePlayersSchema",
+      "columns": {
+        "family_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "familyName",
+          "result_set": "InactivePlayers"
+        },
+        "first_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "firstName",
+          "result_set": "InactivePlayers"
+        },
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "InactivePlayers"
+        },
+        "jersey_num": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "jerseyNum",
+          "result_set": "InactivePlayers"
+        },
+        "person_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "personId",
+          "fk_ref": "staging_player.person_id",
+          "result_set": "InactivePlayers"
+        },
+        "team_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "InactivePlayers"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3InactivePlayersTransformer",
+      "columns": [
+        "game_id",
+        "team_id",
+        "person_id",
+        "first_name",
+        "family_name",
+        "jersey_num"
+      ],
+      "source_tables": [
+        "stg_summary_v3_inactive_players"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_last_five_meetings": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3LastFiveMeetingsSchema",
+      "columns": {
+        "away_team_city": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamCity",
+          "result_set": "LastFiveMeetings"
+        },
+        "away_team_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamId",
+          "fk_ref": "dim_team.team_id",
+          "result_set": "LastFiveMeetings"
+        },
+        "away_team_losses": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamLosses",
+          "result_set": "LastFiveMeetings"
+        },
+        "away_team_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamName",
+          "result_set": "LastFiveMeetings"
+        },
+        "away_team_score": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamScore",
+          "result_set": "LastFiveMeetings"
+        },
+        "away_team_tricode": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamTricode",
+          "result_set": "LastFiveMeetings"
+        },
+        "away_team_wins": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "awayTeamWins",
+          "result_set": "LastFiveMeetings"
+        },
+        "game_et": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameEt",
+          "result_set": "LastFiveMeetings"
+        },
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "LastFiveMeetings"
+        },
+        "game_status": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameStatus",
+          "result_set": "LastFiveMeetings"
+        },
+        "game_status_text": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameStatusText",
+          "result_set": "LastFiveMeetings"
+        },
+        "game_time_utc": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameTimeUTC",
+          "result_set": "LastFiveMeetings"
+        },
+        "home_team_city": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamCity",
+          "result_set": "LastFiveMeetings"
+        },
+        "home_team_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamId",
+          "fk_ref": "dim_team.team_id",
+          "result_set": "LastFiveMeetings"
+        },
+        "home_team_losses": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamLosses",
+          "result_set": "LastFiveMeetings"
+        },
+        "home_team_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamName",
+          "result_set": "LastFiveMeetings"
+        },
+        "home_team_score": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamScore",
+          "result_set": "LastFiveMeetings"
+        },
+        "home_team_tricode": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamTricode",
+          "result_set": "LastFiveMeetings"
+        },
+        "home_team_wins": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "homeTeamWins",
+          "result_set": "LastFiveMeetings"
+        },
+        "recency_order": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "recencyOrder",
+          "result_set": "LastFiveMeetings"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3LastFiveMeetingsTransformer",
+      "columns": [
+        "recency_order",
+        "game_id",
+        "game_time_utc",
+        "game_et",
+        "game_status",
+        "game_status_text",
+        "away_team_id",
+        "away_team_city",
+        "away_team_name",
+        "away_team_tricode",
+        "away_team_score",
+        "away_team_wins",
+        "away_team_losses",
+        "home_team_id",
+        "home_team_city",
+        "home_team_name",
+        "home_team_tricode",
+        "home_team_score",
+        "home_team_wins",
+        "home_team_losses"
+      ],
+      "source_tables": [
+        "stg_summary_v3_last_five_meetings"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_line_score": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3LineScoreSchema",
+      "columns": {
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "LineScore"
+        },
+        "period1_score": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "period1Score",
+          "result_set": "LineScore"
+        },
+        "period2_score": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "period2Score",
+          "result_set": "LineScore"
+        },
+        "period3_score": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "period3Score",
+          "result_set": "LineScore"
+        },
+        "period4_score": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "period4Score",
+          "result_set": "LineScore"
+        },
+        "score": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "score",
+          "result_set": "LineScore"
+        },
+        "team_city": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamCity",
+          "result_set": "LineScore"
+        },
+        "team_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "LineScore"
+        },
+        "team_losses": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamLosses",
+          "result_set": "LineScore"
+        },
+        "team_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamName",
+          "result_set": "LineScore"
+        },
+        "team_slug": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamSlug",
+          "result_set": "LineScore"
+        },
+        "team_tricode": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamTricode",
+          "result_set": "LineScore"
+        },
+        "team_wins": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamWins",
+          "result_set": "LineScore"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3LineScoreTransformer",
+      "columns": [
+        "game_id",
+        "team_id",
+        "team_city",
+        "team_name",
+        "team_tricode",
+        "team_slug",
+        "team_wins",
+        "team_losses",
+        "period1_score",
+        "period2_score",
+        "period3_score",
+        "period4_score",
+        "score"
+      ],
+      "source_tables": [
+        "stg_summary_v3_line_score"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_officials": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3OfficialsSchema",
+      "columns": {
+        "family_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "familyName",
+          "result_set": "Officials"
+        },
+        "first_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "firstName",
+          "result_set": "Officials"
+        },
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "Officials"
+        },
+        "jersey_num": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "jerseyNum",
+          "result_set": "Officials"
+        },
+        "name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "name",
+          "result_set": "Officials"
+        },
+        "name_i": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "nameI",
+          "result_set": "Officials"
+        },
+        "person_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "personId",
+          "fk_ref": "dim_player.player_id",
+          "result_set": "Officials"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3OfficialsTransformer",
+      "columns": [
+        "game_id",
+        "person_id",
+        "name",
+        "name_i",
+        "first_name",
+        "family_name",
+        "jersey_num"
+      ],
+      "source_tables": [
+        "stg_summary_v3_officials"
+      ]
+    }
+  },
+  "fact_box_score_summary_v3_other_stats": {
+    "schema_lineage": {
+      "class": "FactBoxScoreSummaryV3OtherStatsSchema",
+      "columns": {
+        "assists": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "assists",
+          "result_set": "OtherStats"
+        },
+        "bench_points": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "benchPoints",
+          "result_set": "OtherStats"
+        },
+        "biggest_lead": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "biggestLead",
+          "result_set": "OtherStats"
+        },
+        "biggest_scoring_run": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "biggestScoringRun",
+          "result_set": "OtherStats"
+        },
+        "blocks": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "blocks",
+          "result_set": "OtherStats"
+        },
+        "field_goals_percentage": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "fieldGoalsPercentage",
+          "result_set": "OtherStats"
+        },
+        "free_throws_percentage": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "freeThrowsPercentage",
+          "result_set": "OtherStats"
+        },
+        "game_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "OtherStats"
+        },
+        "lead_changes": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "leadChanges",
+          "result_set": "OtherStats"
+        },
+        "points": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "points",
+          "result_set": "OtherStats"
+        },
+        "points_fast_break": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "pointsFastBreak",
+          "result_set": "OtherStats"
+        },
+        "points_from_turnovers": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "pointsFromTurnovers",
+          "result_set": "OtherStats"
+        },
+        "points_in_the_paint": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "pointsInThePaint",
+          "result_set": "OtherStats"
+        },
+        "points_second_chance": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "pointsSecondChance",
+          "result_set": "OtherStats"
+        },
+        "rebounds_team": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "reboundsTeam",
+          "result_set": "OtherStats"
+        },
+        "rebounds_total": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "reboundsTotal",
+          "result_set": "OtherStats"
+        },
+        "steals": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "steals",
+          "result_set": "OtherStats"
+        },
+        "team_city": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamCity",
+          "result_set": "OtherStats"
+        },
+        "team_id": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "OtherStats"
+        },
+        "team_name": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamName",
+          "result_set": "OtherStats"
+        },
+        "team_tricode": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "teamTricode",
+          "result_set": "OtherStats"
+        },
+        "three_pointers_percentage": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "threePointersPercentage",
+          "result_set": "OtherStats"
+        },
+        "times_tied": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "timesTied",
+          "result_set": "OtherStats"
+        },
+        "turnovers": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "turnovers",
+          "result_set": "OtherStats"
+        },
+        "turnovers_team": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "turnoversTeam",
+          "result_set": "OtherStats"
+        },
+        "turnovers_total": {
+          "endpoint": "BoxScoreSummaryV3",
+          "field": "turnoversTotal",
+          "result_set": "OtherStats"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactBoxScoreSummaryV3OtherStatsTransformer",
+      "columns": [
+        "game_id",
+        "team_id",
+        "team_city",
+        "team_name",
+        "team_tricode",
+        "points",
+        "rebounds_total",
+        "assists",
+        "steals",
+        "blocks",
+        "turnovers",
+        "field_goals_percentage",
+        "three_pointers_percentage",
+        "free_throws_percentage",
+        "points_in_the_paint",
+        "points_second_chance",
+        "points_fast_break",
+        "biggest_lead",
+        "lead_changes",
+        "times_tied",
+        "biggest_scoring_run",
+        "turnovers_team",
+        "turnovers_total",
+        "rebounds_team",
+        "points_from_turnovers",
+        "bench_points"
+      ],
+      "source_tables": [
         "stg_summary_v3_other_stats"
       ]
     }
@@ -8014,6 +9289,848 @@
       ]
     }
   },
+  "fact_draft_combine_drill_results": {
+    "schema_lineage": {
+      "class": "FactDraftCombineDrillResultsSchema",
+      "columns": {
+        "bench_press": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "BENCH_PRESS",
+          "result_set": "Results"
+        },
+        "first_name": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "FIRST_NAME",
+          "result_set": "Results"
+        },
+        "lane_agility_time": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "LANE_AGILITY_TIME",
+          "result_set": "Results"
+        },
+        "last_name": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "LAST_NAME",
+          "result_set": "Results"
+        },
+        "max_vertical_leap": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "MAX_VERTICAL_LEAP",
+          "result_set": "Results"
+        },
+        "modified_lane_agility_time": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "MODIFIED_LANE_AGILITY_TIME",
+          "result_set": "Results"
+        },
+        "player_id": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "PLAYER_ID",
+          "fk_ref": "dim_player.player_id",
+          "result_set": "Results"
+        },
+        "player_name": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "PLAYER_NAME",
+          "result_set": "Results"
+        },
+        "position": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "POSITION",
+          "result_set": "Results"
+        },
+        "season": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "SEASON",
+          "result_set": "Results"
+        },
+        "standing_vertical_leap": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "STANDING_VERTICAL_LEAP",
+          "result_set": "Results"
+        },
+        "three_quarter_sprint": {
+          "endpoint": "DraftCombineDrillResults",
+          "field": "THREE_QUARTER_SPRINT",
+          "result_set": "Results"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactDraftCombineDrillResultsTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_draft_combine_drills"
+      ]
+    }
+  },
+  "fact_draft_combine_non_stationary_shooting": {
+    "schema_lineage": {
+      "class": "FactDraftCombineNonStationaryShootingSchema",
+      "columns": {
+        "first_name": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "FIRST_NAME",
+          "result_set": "Results"
+        },
+        "last_name": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "LAST_NAME",
+          "result_set": "Results"
+        },
+        "off_drib_college_break_left_attempt": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_COLLEGE_BREAK_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "off_drib_college_break_left_made": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_COLLEGE_BREAK_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "off_drib_college_break_left_pct": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_COLLEGE_BREAK_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "off_drib_college_top_key_attempt": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_COLLEGE_TOP_KEY_ATTEMPT",
+          "result_set": "Results"
+        },
+        "off_drib_college_top_key_made": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_COLLEGE_TOP_KEY_MADE",
+          "result_set": "Results"
+        },
+        "off_drib_college_top_key_pct": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_COLLEGE_TOP_KEY_PCT",
+          "result_set": "Results"
+        },
+        "off_drib_fifteen_break_left_attempt": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_FIFTEEN_BREAK_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "off_drib_fifteen_break_left_made": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_FIFTEEN_BREAK_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "off_drib_fifteen_break_left_pct": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_FIFTEEN_BREAK_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "off_drib_fifteen_top_key_attempt": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_FIFTEEN_TOP_KEY_ATTEMPT",
+          "result_set": "Results"
+        },
+        "off_drib_fifteen_top_key_made": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_FIFTEEN_TOP_KEY_MADE",
+          "result_set": "Results"
+        },
+        "off_drib_fifteen_top_key_pct": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "OFF_DRIB_FIFTEEN_TOP_KEY_PCT",
+          "result_set": "Results"
+        },
+        "on_move_college_attempt": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "ON_MOVE_COLLEGE_ATTEMPT",
+          "result_set": "Results"
+        },
+        "on_move_college_made": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "ON_MOVE_COLLEGE_MADE",
+          "result_set": "Results"
+        },
+        "on_move_college_pct": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "ON_MOVE_COLLEGE_PCT",
+          "result_set": "Results"
+        },
+        "on_move_fifteen_attempt": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "ON_MOVE_FIFTEEN_ATTEMPT",
+          "result_set": "Results"
+        },
+        "on_move_fifteen_made": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "ON_MOVE_FIFTEEN_MADE",
+          "result_set": "Results"
+        },
+        "on_move_fifteen_pct": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "ON_MOVE_FIFTEEN_PCT",
+          "result_set": "Results"
+        },
+        "player_id": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "PLAYER_ID",
+          "fk_ref": "dim_player.player_id",
+          "result_set": "Results"
+        },
+        "player_name": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "PLAYER_NAME",
+          "result_set": "Results"
+        },
+        "position": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "POSITION",
+          "result_set": "Results"
+        },
+        "season": {
+          "endpoint": "DraftCombineNonStationaryShooting",
+          "field": "SEASON",
+          "result_set": "Results"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactDraftCombineNonStationaryShootingTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_draft_combine_nonstat_shooting"
+      ]
+    }
+  },
+  "fact_draft_combine_player_anthro": {
+    "schema_lineage": {
+      "class": "FactDraftCombinePlayerAnthroSchema",
+      "columns": {
+        "body_fat_pct": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "BODY_FAT_PCT",
+          "result_set": "Results"
+        },
+        "first_name": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "FIRST_NAME",
+          "result_set": "Results"
+        },
+        "hand_length": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "HAND_LENGTH",
+          "result_set": "Results"
+        },
+        "hand_width": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "HAND_WIDTH",
+          "result_set": "Results"
+        },
+        "height_w_shoes": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "HEIGHT_W_SHOES",
+          "result_set": "Results"
+        },
+        "height_w_shoes_ft_in": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "HEIGHT_W_SHOES_FT_IN",
+          "result_set": "Results"
+        },
+        "height_wo_shoes": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "HEIGHT_WO_SHOES",
+          "result_set": "Results"
+        },
+        "height_wo_shoes_ft_in": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "HEIGHT_WO_SHOES_FT_IN",
+          "result_set": "Results"
+        },
+        "last_name": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "LAST_NAME",
+          "result_set": "Results"
+        },
+        "player_id": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "PLAYER_ID",
+          "fk_ref": "dim_player.player_id",
+          "result_set": "Results"
+        },
+        "player_name": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "PLAYER_NAME",
+          "result_set": "Results"
+        },
+        "position": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "POSITION",
+          "result_set": "Results"
+        },
+        "season": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "SEASON",
+          "result_set": "Results"
+        },
+        "standing_reach": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "STANDING_REACH",
+          "result_set": "Results"
+        },
+        "standing_reach_ft_in": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "STANDING_REACH_FT_IN",
+          "result_set": "Results"
+        },
+        "weight": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "WEIGHT",
+          "result_set": "Results"
+        },
+        "wingspan": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "WINGSPAN",
+          "result_set": "Results"
+        },
+        "wingspan_ft_in": {
+          "endpoint": "DraftCombinePlayerAnthro",
+          "field": "WINGSPAN_FT_IN",
+          "result_set": "Results"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactDraftCombinePlayerAnthroTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_draft_combine_anthro"
+      ]
+    }
+  },
+  "fact_draft_combine_spot_shooting": {
+    "schema_lineage": {
+      "class": "FactDraftCombineSpotShootingSchema",
+      "columns": {
+        "college_break_left_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_BREAK_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "college_break_left_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_BREAK_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "college_break_left_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_BREAK_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "college_break_right_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_BREAK_RIGHT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "college_break_right_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_BREAK_RIGHT_MADE",
+          "result_set": "Results"
+        },
+        "college_break_right_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_BREAK_RIGHT_PCT",
+          "result_set": "Results"
+        },
+        "college_corner_left_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_CORNER_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "college_corner_left_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_CORNER_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "college_corner_left_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_CORNER_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "college_corner_right_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_CORNER_RIGHT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "college_corner_right_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_CORNER_RIGHT_MADE",
+          "result_set": "Results"
+        },
+        "college_corner_right_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_CORNER_RIGHT_PCT",
+          "result_set": "Results"
+        },
+        "college_top_key_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_TOP_KEY_ATTEMPT",
+          "result_set": "Results"
+        },
+        "college_top_key_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_TOP_KEY_MADE",
+          "result_set": "Results"
+        },
+        "college_top_key_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "COLLEGE_TOP_KEY_PCT",
+          "result_set": "Results"
+        },
+        "fifteen_break_left_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_BREAK_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "fifteen_break_left_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_BREAK_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "fifteen_break_left_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_BREAK_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "fifteen_break_right_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_BREAK_RIGHT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "fifteen_break_right_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_BREAK_RIGHT_MADE",
+          "result_set": "Results"
+        },
+        "fifteen_break_right_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_BREAK_RIGHT_PCT",
+          "result_set": "Results"
+        },
+        "fifteen_corner_left_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_CORNER_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "fifteen_corner_left_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_CORNER_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "fifteen_corner_left_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_CORNER_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "fifteen_corner_right_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_CORNER_RIGHT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "fifteen_corner_right_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_CORNER_RIGHT_MADE",
+          "result_set": "Results"
+        },
+        "fifteen_corner_right_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_CORNER_RIGHT_PCT",
+          "result_set": "Results"
+        },
+        "fifteen_top_key_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_TOP_KEY_ATTEMPT",
+          "result_set": "Results"
+        },
+        "fifteen_top_key_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_TOP_KEY_MADE",
+          "result_set": "Results"
+        },
+        "fifteen_top_key_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIFTEEN_TOP_KEY_PCT",
+          "result_set": "Results"
+        },
+        "first_name": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "FIRST_NAME",
+          "result_set": "Results"
+        },
+        "last_name": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "LAST_NAME",
+          "result_set": "Results"
+        },
+        "nba_break_left_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_BREAK_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "nba_break_left_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_BREAK_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "nba_break_left_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_BREAK_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "nba_break_right_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_BREAK_RIGHT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "nba_break_right_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_BREAK_RIGHT_MADE",
+          "result_set": "Results"
+        },
+        "nba_break_right_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_BREAK_RIGHT_PCT",
+          "result_set": "Results"
+        },
+        "nba_corner_left_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_CORNER_LEFT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "nba_corner_left_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_CORNER_LEFT_MADE",
+          "result_set": "Results"
+        },
+        "nba_corner_left_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_CORNER_LEFT_PCT",
+          "result_set": "Results"
+        },
+        "nba_corner_right_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_CORNER_RIGHT_ATTEMPT",
+          "result_set": "Results"
+        },
+        "nba_corner_right_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_CORNER_RIGHT_MADE",
+          "result_set": "Results"
+        },
+        "nba_corner_right_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_CORNER_RIGHT_PCT",
+          "result_set": "Results"
+        },
+        "nba_top_key_attempt": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_TOP_KEY_ATTEMPT",
+          "result_set": "Results"
+        },
+        "nba_top_key_made": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_TOP_KEY_MADE",
+          "result_set": "Results"
+        },
+        "nba_top_key_pct": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "NBA_TOP_KEY_PCT",
+          "result_set": "Results"
+        },
+        "player_id": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "PLAYER_ID",
+          "fk_ref": "dim_player.player_id",
+          "result_set": "Results"
+        },
+        "player_name": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "PLAYER_NAME",
+          "result_set": "Results"
+        },
+        "position": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "POSITION",
+          "result_set": "Results"
+        },
+        "season": {
+          "endpoint": "DraftCombineSpotShooting",
+          "field": "SEASON",
+          "result_set": "Results"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactDraftCombineSpotShootingTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_draft_combine_spot_shooting"
+      ]
+    }
+  },
+  "fact_draft_combine_stats": {
+    "schema_lineage": {
+      "class": "FactDraftCombineStatsSchema",
+      "columns": {
+        "bench_press": {
+          "endpoint": "DraftCombineStats",
+          "field": "BENCH_PRESS",
+          "result_set": "DraftCombineStats"
+        },
+        "body_fat_pct": {
+          "endpoint": "DraftCombineStats",
+          "field": "BODY_FAT_PCT",
+          "result_set": "DraftCombineStats"
+        },
+        "first_name": {
+          "endpoint": "DraftCombineStats",
+          "field": "FIRST_NAME",
+          "result_set": "DraftCombineStats"
+        },
+        "hand_length": {
+          "endpoint": "DraftCombineStats",
+          "field": "HAND_LENGTH",
+          "result_set": "DraftCombineStats"
+        },
+        "hand_width": {
+          "endpoint": "DraftCombineStats",
+          "field": "HAND_WIDTH",
+          "result_set": "DraftCombineStats"
+        },
+        "height_w_shoes": {
+          "endpoint": "DraftCombineStats",
+          "field": "HEIGHT_W_SHOES",
+          "result_set": "DraftCombineStats"
+        },
+        "height_w_shoes_ft_in": {
+          "endpoint": "DraftCombineStats",
+          "field": "HEIGHT_W_SHOES_FT_IN",
+          "result_set": "DraftCombineStats"
+        },
+        "height_wo_shoes": {
+          "endpoint": "DraftCombineStats",
+          "field": "HEIGHT_WO_SHOES",
+          "result_set": "DraftCombineStats"
+        },
+        "height_wo_shoes_ft_in": {
+          "endpoint": "DraftCombineStats",
+          "field": "HEIGHT_WO_SHOES_FT_IN",
+          "result_set": "DraftCombineStats"
+        },
+        "lane_agility_time": {
+          "endpoint": "DraftCombineStats",
+          "field": "LANE_AGILITY_TIME",
+          "result_set": "DraftCombineStats"
+        },
+        "last_name": {
+          "endpoint": "DraftCombineStats",
+          "field": "LAST_NAME",
+          "result_set": "DraftCombineStats"
+        },
+        "max_vertical_leap": {
+          "endpoint": "DraftCombineStats",
+          "field": "MAX_VERTICAL_LEAP",
+          "result_set": "DraftCombineStats"
+        },
+        "modified_lane_agility_time": {
+          "endpoint": "DraftCombineStats",
+          "field": "MODIFIED_LANE_AGILITY_TIME",
+          "result_set": "DraftCombineStats"
+        },
+        "player_id": {
+          "endpoint": "DraftCombineStats",
+          "field": "PLAYER_ID",
+          "fk_ref": "staging_player.person_id",
+          "result_set": "DraftCombineStats"
+        },
+        "player_name": {
+          "endpoint": "DraftCombineStats",
+          "field": "PLAYER_NAME",
+          "result_set": "DraftCombineStats"
+        },
+        "position": {
+          "endpoint": "DraftCombineStats",
+          "field": "POSITION",
+          "result_set": "DraftCombineStats"
+        },
+        "season": {
+          "endpoint": "DraftCombineStats",
+          "field": "SEASON",
+          "result_set": "DraftCombineStats"
+        },
+        "standing_reach": {
+          "endpoint": "DraftCombineStats",
+          "field": "STANDING_REACH",
+          "result_set": "DraftCombineStats"
+        },
+        "standing_reach_ft_in": {
+          "endpoint": "DraftCombineStats",
+          "field": "STANDING_REACH_FT_IN",
+          "result_set": "DraftCombineStats"
+        },
+        "standing_vertical_leap": {
+          "endpoint": "DraftCombineStats",
+          "field": "STANDING_VERTICAL_LEAP",
+          "result_set": "DraftCombineStats"
+        },
+        "three_quarter_sprint": {
+          "endpoint": "DraftCombineStats",
+          "field": "THREE_QUARTER_SPRINT",
+          "result_set": "DraftCombineStats"
+        },
+        "weight": {
+          "endpoint": "DraftCombineStats",
+          "field": "WEIGHT",
+          "result_set": "DraftCombineStats"
+        },
+        "wingspan": {
+          "endpoint": "DraftCombineStats",
+          "field": "WINGSPAN",
+          "result_set": "DraftCombineStats"
+        },
+        "wingspan_ft_in": {
+          "endpoint": "DraftCombineStats",
+          "field": "WINGSPAN_FT_IN",
+          "result_set": "DraftCombineStats"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactDraftCombineStatsTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_draft_combine"
+      ]
+    }
+  },
+  "fact_draft_history": {
+    "schema_lineage": {
+      "class": "FactDraftHistorySchema",
+      "columns": {
+        "draft_type": {
+          "endpoint": "DraftHistory",
+          "field": "DRAFT_TYPE",
+          "result_set": "DraftHistory"
+        },
+        "organization": {
+          "endpoint": "DraftHistory",
+          "field": "ORGANIZATION",
+          "result_set": "DraftHistory"
+        },
+        "organization_type": {
+          "endpoint": "DraftHistory",
+          "field": "ORGANIZATION_TYPE",
+          "result_set": "DraftHistory"
+        },
+        "overall_pick": {
+          "endpoint": "DraftHistory",
+          "field": "OVERALL_PICK",
+          "result_set": "DraftHistory"
+        },
+        "person_id": {
+          "endpoint": "DraftHistory",
+          "field": "PERSON_ID",
+          "fk_ref": "staging_player.person_id",
+          "result_set": "DraftHistory"
+        },
+        "player_name": {
+          "endpoint": "DraftHistory",
+          "field": "PLAYER_NAME",
+          "result_set": "DraftHistory"
+        },
+        "player_profile_flag": {
+          "endpoint": "DraftHistory",
+          "field": "PLAYER_PROFILE_FLAG",
+          "result_set": "DraftHistory"
+        },
+        "round_number": {
+          "endpoint": "DraftHistory",
+          "field": "ROUND_NUMBER",
+          "result_set": "DraftHistory"
+        },
+        "round_pick": {
+          "endpoint": "DraftHistory",
+          "field": "ROUND_PICK",
+          "result_set": "DraftHistory"
+        },
+        "season": {
+          "endpoint": "DraftHistory",
+          "field": "SEASON",
+          "result_set": "DraftHistory"
+        },
+        "team_abbreviation": {
+          "endpoint": "DraftHistory",
+          "field": "TEAM_ABBREVIATION",
+          "result_set": "DraftHistory"
+        },
+        "team_city": {
+          "endpoint": "DraftHistory",
+          "field": "TEAM_CITY",
+          "result_set": "DraftHistory"
+        },
+        "team_id": {
+          "endpoint": "DraftHistory",
+          "field": "TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "DraftHistory"
+        },
+        "team_name": {
+          "endpoint": "DraftHistory",
+          "field": "TEAM_NAME",
+          "result_set": "DraftHistory"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactDraftHistoryTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_draft"
+      ]
+    }
+  },
+  "fact_dunk_score_leaders": {
+    "schema_lineage": {
+      "class": "FactDunkScoreLeadersSchema",
+      "columns": {
+        "dunk_score": {
+          "endpoint": "derived",
+          "field": "dunk_score",
+          "result_set": "fact_dunk_score_leaders"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactDunkScoreLeadersTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_dunk_score_leaders"
+      ]
+    }
+  },
   "fact_estimated_metrics": {
     "schema_lineage": {
       "class": "FactEstimatedMetricsSchema",
@@ -8297,10 +10414,127 @@
         "fantasy_source"
       ],
       "source_tables": [
-        "stg_fanduel_player",
-        "stg_fantasy_widget",
-        "stg_player_fantasy_profile_last_five_games_avg",
-        "stg_player_fantasy_profile_season_avg"
+        "fact_fantasy_widget",
+        "fact_infographic_fanduel_player",
+        "fact_player_fantasy_profile_last_five_games_avg",
+        "fact_player_fantasy_profile_season_avg"
+      ]
+    }
+  },
+  "fact_fantasy_widget": {
+    "schema_lineage": {
+      "class": "FactFantasyWidgetSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_fantasy_widget"
+        },
+        "blk": {
+          "endpoint": "derived",
+          "field": "blk",
+          "result_set": "fact_fantasy_widget"
+        },
+        "fan_duel_pts": {
+          "endpoint": "derived",
+          "field": "fan_duel_pts",
+          "result_set": "fact_fantasy_widget"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_fantasy_widget"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_fantasy_widget"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_fantasy_widget"
+        },
+        "ft_pct": {
+          "endpoint": "derived",
+          "field": "ft_pct",
+          "result_set": "fact_fantasy_widget"
+        },
+        "fta": {
+          "endpoint": "derived",
+          "field": "fta",
+          "result_set": "fact_fantasy_widget"
+        },
+        "gp": {
+          "endpoint": "derived",
+          "field": "gp",
+          "result_set": "fact_fantasy_widget"
+        },
+        "min": {
+          "endpoint": "derived",
+          "field": "min",
+          "result_set": "fact_fantasy_widget"
+        },
+        "nba_fantasy_pts": {
+          "endpoint": "derived",
+          "field": "nba_fantasy_pts",
+          "result_set": "fact_fantasy_widget"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_fantasy_widget"
+        },
+        "player_position": {
+          "endpoint": "derived",
+          "field": "player_position",
+          "result_set": "fact_fantasy_widget"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "fact_fantasy_widget"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "fact_fantasy_widget"
+        },
+        "season_type": {
+          "endpoint": "derived",
+          "field": "season_type",
+          "result_set": "fact_fantasy_widget"
+        },
+        "stl": {
+          "endpoint": "derived",
+          "field": "stl",
+          "result_set": "fact_fantasy_widget"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_fantasy_widget"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "tov": {
+          "endpoint": "derived",
+          "field": "tov",
+          "result_set": "fact_fantasy_widget"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactFantasyWidgetTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_fantasy_widget"
       ]
     }
   },
@@ -8489,6 +10723,232 @@
       ],
       "source_tables": [
         "stg_franchise_leaders",
+        "stg_franchise_players"
+      ]
+    }
+  },
+  "fact_franchise_leaders": {
+    "schema_lineage": {
+      "class": "FactFranchiseLeadersSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_franchise_leaders"
+        },
+        "ast_person_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "ast_player": {
+          "endpoint": "derived",
+          "field": "ast_player",
+          "result_set": "fact_franchise_leaders"
+        },
+        "blk": {
+          "endpoint": "derived",
+          "field": "blk",
+          "result_set": "fact_franchise_leaders"
+        },
+        "blk_person_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "blk_player": {
+          "endpoint": "derived",
+          "field": "blk_player",
+          "result_set": "fact_franchise_leaders"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "fact_franchise_leaders"
+        },
+        "pts_person_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "pts_player": {
+          "endpoint": "derived",
+          "field": "pts_player",
+          "result_set": "fact_franchise_leaders"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "fact_franchise_leaders"
+        },
+        "reb_person_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "reb_player": {
+          "endpoint": "derived",
+          "field": "reb_player",
+          "result_set": "fact_franchise_leaders"
+        },
+        "stl": {
+          "endpoint": "derived",
+          "field": "stl",
+          "result_set": "fact_franchise_leaders"
+        },
+        "stl_person_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "stl_player": {
+          "endpoint": "derived",
+          "field": "stl_player",
+          "result_set": "fact_franchise_leaders"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactFranchiseLeadersTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_franchise_leaders"
+      ]
+    }
+  },
+  "fact_franchise_players": {
+    "schema_lineage": {
+      "class": "FactFranchisePlayersSchema",
+      "columns": {
+        "active_with_team": {
+          "endpoint": "derived",
+          "field": "active_with_team",
+          "result_set": "fact_franchise_players"
+        },
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_franchise_players"
+        },
+        "blk": {
+          "endpoint": "derived",
+          "field": "blk",
+          "result_set": "fact_franchise_players"
+        },
+        "dreb": {
+          "endpoint": "derived",
+          "field": "dreb",
+          "result_set": "fact_franchise_players"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_franchise_players"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_franchise_players"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_franchise_players"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_franchise_players"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_franchise_players"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_franchise_players"
+        },
+        "ft_pct": {
+          "endpoint": "derived",
+          "field": "ft_pct",
+          "result_set": "fact_franchise_players"
+        },
+        "fta": {
+          "endpoint": "derived",
+          "field": "fta",
+          "result_set": "fact_franchise_players"
+        },
+        "ftm": {
+          "endpoint": "derived",
+          "field": "ftm",
+          "result_set": "fact_franchise_players"
+        },
+        "gp": {
+          "endpoint": "derived",
+          "field": "gp",
+          "result_set": "fact_franchise_players"
+        },
+        "league_id": {
+          "endpoint": "derived",
+          "field": "league_id",
+          "result_set": "fact_franchise_players"
+        },
+        "oreb": {
+          "endpoint": "derived",
+          "field": "oreb",
+          "result_set": "fact_franchise_players"
+        },
+        "person_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "pf": {
+          "endpoint": "derived",
+          "field": "pf",
+          "result_set": "fact_franchise_players"
+        },
+        "player": {
+          "endpoint": "derived",
+          "field": "player",
+          "result_set": "fact_franchise_players"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "fact_franchise_players"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "fact_franchise_players"
+        },
+        "season_type": {
+          "endpoint": "derived",
+          "field": "season_type",
+          "result_set": "fact_franchise_players"
+        },
+        "stl": {
+          "endpoint": "derived",
+          "field": "stl",
+          "result_set": "fact_franchise_players"
+        },
+        "team": {
+          "endpoint": "derived",
+          "field": "team",
+          "result_set": "fact_franchise_players"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "tov": {
+          "endpoint": "derived",
+          "field": "tov",
+          "result_set": "fact_franchise_players"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactFranchisePlayersTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
         "stg_franchise_players"
       ]
     }
@@ -8990,6 +11450,32 @@
       ]
     }
   },
+  "fact_gravity_leaders": {
+    "schema_lineage": {
+      "class": "FactGravityLeadersSchema",
+      "columns": {
+        "gravityscore": {
+          "endpoint": "derived",
+          "field": "gravityscore",
+          "result_set": "fact_gravity_leaders"
+        },
+        "playerid": {
+          "endpoint": "derived",
+          "field": "playerid",
+          "result_set": "fact_gravity_leaders"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactGravityLeadersTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_gravity_leaders"
+      ]
+    }
+  },
   "fact_homepage": {
     "schema_lineage": {
       "class": "FactHomepageSchema",
@@ -9385,6 +11871,183 @@
       "source_tables": [
         "stg_box_score_hustle_box",
         "stg_hustle_stats_available"
+      ]
+    }
+  },
+  "fact_infographic_fanduel_player": {
+    "schema_lineage": {
+      "class": "FactInfographicFanduelPlayerSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "blk": {
+          "endpoint": "derived",
+          "field": "blk",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "blka": {
+          "endpoint": "derived",
+          "field": "blka",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "dreb": {
+          "endpoint": "derived",
+          "field": "dreb",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fan_duel_pts": {
+          "endpoint": "derived",
+          "field": "fan_duel_pts",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "ft_pct": {
+          "endpoint": "derived",
+          "field": "ft_pct",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "fta": {
+          "endpoint": "derived",
+          "field": "fta",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "ftm": {
+          "endpoint": "derived",
+          "field": "ftm",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "jersey_num": {
+          "endpoint": "derived",
+          "field": "jersey_num",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "location": {
+          "endpoint": "derived",
+          "field": "location",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "min": {
+          "endpoint": "derived",
+          "field": "min",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "nba_fantasy_pts": {
+          "endpoint": "derived",
+          "field": "nba_fantasy_pts",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "oreb": {
+          "endpoint": "derived",
+          "field": "oreb",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "pf": {
+          "endpoint": "derived",
+          "field": "pf",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "pfd": {
+          "endpoint": "derived",
+          "field": "pfd",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "player_position": {
+          "endpoint": "derived",
+          "field": "player_position",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "plus_minus": {
+          "endpoint": "derived",
+          "field": "plus_minus",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "stl": {
+          "endpoint": "derived",
+          "field": "stl",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "tov": {
+          "endpoint": "derived",
+          "field": "tov",
+          "result_set": "fact_infographic_fanduel_player"
+        },
+        "usg_pct": {
+          "endpoint": "derived",
+          "field": "usg_pct",
+          "result_set": "fact_infographic_fanduel_player"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactInfographicFanduelPlayerTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_fanduel_player"
       ]
     }
   },
@@ -10395,6 +13058,45 @@
       ]
     }
   },
+  "fact_league_leaders": {
+    "schema_lineage": {
+      "class": "FactLeagueLeadersSchema",
+      "columns": {
+        "player": {
+          "endpoint": "derived",
+          "field": "player",
+          "result_set": "fact_league_leaders"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "fact_league_leaders"
+        },
+        "rank": {
+          "endpoint": "derived",
+          "field": "rank",
+          "result_set": "fact_league_leaders"
+        },
+        "team": {
+          "endpoint": "derived",
+          "field": "team",
+          "result_set": "fact_league_leaders"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeagueLeadersTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_leaders"
+      ]
+    }
+  },
   "fact_league_leaders_detail": {
     "schema_lineage": {
       "class": "FactLeagueLeadersDetailSchema",
@@ -10579,11 +13281,11 @@
         "leader_type"
       ],
       "source_tables": [
-        "stg_assist_leaders",
-        "stg_assist_tracker",
-        "stg_dunk_score_leaders",
-        "stg_gravity_leaders",
-        "stg_league_leaders"
+        "fact_assist_leaders",
+        "fact_assist_tracker",
+        "fact_dunk_score_leaders",
+        "fact_gravity_leaders",
+        "fact_league_leaders"
       ]
     }
   },
@@ -10721,6 +13423,415 @@
       ],
       "source_tables": [
         "stg_league_lineup_viz"
+      ]
+    }
+  },
+  "fact_league_opp_pt_shot": {
+    "schema_lineage": {
+      "class": "FactLeagueOppPtShotSchema",
+      "columns": {
+        "close_def_dist_range": {
+          "endpoint": "derived",
+          "field": "close_def_dist_range",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "dfg_pct": {
+          "endpoint": "derived",
+          "field": "dfg_pct",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "dfga": {
+          "endpoint": "derived",
+          "field": "dfga",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "dfgm": {
+          "endpoint": "derived",
+          "field": "dfgm",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "efg_pct": {
+          "endpoint": "derived",
+          "field": "efg_pct",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fg2_pct": {
+          "endpoint": "derived",
+          "field": "fg2_pct",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fg2a": {
+          "endpoint": "derived",
+          "field": "fg2a",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fg2m": {
+          "endpoint": "derived",
+          "field": "fg2m",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fga_frequency": {
+          "endpoint": "derived",
+          "field": "fga_frequency",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "g": {
+          "endpoint": "derived",
+          "field": "g",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "id": {
+          "endpoint": "derived",
+          "field": "id",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "player_id": {
+          "fk_ref": "staging_player.person_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "sort_order": {
+          "endpoint": "derived",
+          "field": "sort_order",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_league_opp_pt_shot"
+        },
+        "team_id": {
+          "fk_ref": "staging_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_league_opp_pt_shot"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeagueOppPtShotTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_opp_pt_shot"
+      ]
+    }
+  },
+  "fact_league_player_pt_shot": {
+    "schema_lineage": {
+      "class": "FactLeaguePlayerPtShotSchema",
+      "columns": {
+        "close_def_dist_range": {
+          "endpoint": "derived",
+          "field": "close_def_dist_range",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "dfg_pct": {
+          "endpoint": "derived",
+          "field": "dfg_pct",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "dfga": {
+          "endpoint": "derived",
+          "field": "dfga",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "dfgm": {
+          "endpoint": "derived",
+          "field": "dfgm",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "efg_pct": {
+          "endpoint": "derived",
+          "field": "efg_pct",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fg2_pct": {
+          "endpoint": "derived",
+          "field": "fg2_pct",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fg2a": {
+          "endpoint": "derived",
+          "field": "fg2a",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fg2m": {
+          "endpoint": "derived",
+          "field": "fg2m",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fga_frequency": {
+          "endpoint": "derived",
+          "field": "fga_frequency",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "g": {
+          "endpoint": "derived",
+          "field": "g",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "id": {
+          "endpoint": "derived",
+          "field": "id",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "player_id": {
+          "fk_ref": "staging_player.person_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "sort_order": {
+          "endpoint": "derived",
+          "field": "sort_order",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_league_player_pt_shot"
+        },
+        "team_id": {
+          "fk_ref": "staging_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_league_player_pt_shot"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeaguePlayerPtShotTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_player_pt_shot"
+      ]
+    }
+  },
+  "fact_league_player_shot_locations": {
+    "schema_lineage": {
+      "class": "FactLeaguePlayerShotLocationsSchema",
+      "columns": {
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "player_id": {
+          "fk_ref": "staging_player.person_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "shot_zone_area": {
+          "endpoint": "derived",
+          "field": "shot_zone_area",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "shot_zone_basic": {
+          "endpoint": "derived",
+          "field": "shot_zone_basic",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "shot_zone_range": {
+          "endpoint": "derived",
+          "field": "shot_zone_range",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_league_player_shot_locations"
+        },
+        "team_id": {
+          "fk_ref": "staging_team.team_id"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeaguePlayerShotLocationsTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_shot_locations"
+      ]
+    }
+  },
+  "fact_league_pt_defend": {
+    "schema_lineage": {
+      "class": "FactLeaguePtDefendSchema",
+      "columns": {
+        "d_fg_pct": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "D_FG_PCT",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "d_fga": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "D_FGA",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "d_fgm": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "D_FGM",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "defense_category": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "DEFENSE_CATEGORY",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "freq": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "FREQ",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "g": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "G",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "gp": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "GP",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "normal_fg_pct": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "NORMAL_FG_PCT",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "pct_plusminus": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "PCT_PLUSMINUS",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "player_id": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "CLOSE_DEF_PERSON_ID",
+          "fk_ref": "dim_player.player_id",
+          "result_set": "LeagueDashPtDefend"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": ""
+        },
+        "team_id": {
+          "endpoint": "LeagueDashPtDefend",
+          "field": "TEAM_ID",
+          "fk_ref": "dim_team.team_id",
+          "result_set": "LeagueDashPtDefend"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeaguePtDefendTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_tracking_defense"
       ]
     }
   },
@@ -10866,6 +13977,270 @@
       ]
     }
   },
+  "fact_league_pt_stats": {
+    "schema_lineage": {
+      "class": "FactLeaguePtStatsSchema",
+      "columns": {
+        "close_def_dist_range": {
+          "endpoint": "derived",
+          "field": "close_def_dist_range",
+          "result_set": "fact_league_pt_stats"
+        },
+        "dfg_pct": {
+          "endpoint": "derived",
+          "field": "dfg_pct",
+          "result_set": "fact_league_pt_stats"
+        },
+        "dfga": {
+          "endpoint": "derived",
+          "field": "dfga",
+          "result_set": "fact_league_pt_stats"
+        },
+        "dfgm": {
+          "endpoint": "derived",
+          "field": "dfgm",
+          "result_set": "fact_league_pt_stats"
+        },
+        "efg_pct": {
+          "endpoint": "derived",
+          "field": "efg_pct",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fg2_pct": {
+          "endpoint": "derived",
+          "field": "fg2_pct",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fg2a": {
+          "endpoint": "derived",
+          "field": "fg2a",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fg2m": {
+          "endpoint": "derived",
+          "field": "fg2m",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fga_frequency": {
+          "endpoint": "derived",
+          "field": "fga_frequency",
+          "result_set": "fact_league_pt_stats"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_league_pt_stats"
+        },
+        "g": {
+          "endpoint": "derived",
+          "field": "g",
+          "result_set": "fact_league_pt_stats"
+        },
+        "id": {
+          "endpoint": "derived",
+          "field": "id",
+          "result_set": "fact_league_pt_stats"
+        },
+        "player_id": {
+          "fk_ref": "staging_player.person_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_league_pt_stats"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "fact_league_pt_stats"
+        },
+        "sort_order": {
+          "endpoint": "derived",
+          "field": "sort_order",
+          "result_set": "fact_league_pt_stats"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_league_pt_stats"
+        },
+        "team_id": {
+          "fk_ref": "staging_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_league_pt_stats"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeaguePtStatsTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_pt_stats"
+      ]
+    }
+  },
+  "fact_league_pt_team_defend": {
+    "schema_lineage": {
+      "class": "FactLeaguePtTeamDefendSchema",
+      "columns": {
+        "close_def_dist_range": {
+          "endpoint": "derived",
+          "field": "close_def_dist_range",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "dfg_pct": {
+          "endpoint": "derived",
+          "field": "dfg_pct",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "dfga": {
+          "endpoint": "derived",
+          "field": "dfga",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "dfgm": {
+          "endpoint": "derived",
+          "field": "dfgm",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "efg_pct": {
+          "endpoint": "derived",
+          "field": "efg_pct",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fg2_pct": {
+          "endpoint": "derived",
+          "field": "fg2_pct",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fg2a": {
+          "endpoint": "derived",
+          "field": "fg2a",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fg2m": {
+          "endpoint": "derived",
+          "field": "fg2m",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fga_frequency": {
+          "endpoint": "derived",
+          "field": "fga_frequency",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "g": {
+          "endpoint": "derived",
+          "field": "g",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "id": {
+          "endpoint": "derived",
+          "field": "id",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "player_id": {
+          "fk_ref": "staging_player.person_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "sort_order": {
+          "endpoint": "derived",
+          "field": "sort_order",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_league_pt_team_defend"
+        },
+        "team_id": {
+          "fk_ref": "staging_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_league_pt_team_defend"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeaguePtTeamDefendTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_pt_team_defend"
+      ]
+    }
+  },
   "fact_league_shot_locations": {
     "schema_lineage": {
       "class": "FactLeagueShotLocationsSchema",
@@ -10991,6 +14366,197 @@
       ],
       "source_tables": [
         "stg_league_team_clutch"
+      ]
+    }
+  },
+  "fact_league_team_pt_shot": {
+    "schema_lineage": {
+      "class": "FactLeagueTeamPtShotSchema",
+      "columns": {
+        "close_def_dist_range": {
+          "endpoint": "derived",
+          "field": "close_def_dist_range",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "dfg_pct": {
+          "endpoint": "derived",
+          "field": "dfg_pct",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "dfga": {
+          "endpoint": "derived",
+          "field": "dfga",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "dfgm": {
+          "endpoint": "derived",
+          "field": "dfgm",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "efg_pct": {
+          "endpoint": "derived",
+          "field": "efg_pct",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fg2_pct": {
+          "endpoint": "derived",
+          "field": "fg2_pct",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fg2a": {
+          "endpoint": "derived",
+          "field": "fg2a",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fg2m": {
+          "endpoint": "derived",
+          "field": "fg2m",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fga_frequency": {
+          "endpoint": "derived",
+          "field": "fga_frequency",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "g": {
+          "endpoint": "derived",
+          "field": "g",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "id": {
+          "endpoint": "derived",
+          "field": "id",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "player_id": {
+          "fk_ref": "staging_player.person_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "sort_order": {
+          "endpoint": "derived",
+          "field": "sort_order",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_league_team_pt_shot"
+        },
+        "team_id": {
+          "fk_ref": "staging_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_league_team_pt_shot"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeagueTeamPtShotTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_team_pt_shot"
+      ]
+    }
+  },
+  "fact_league_team_shot_locations": {
+    "schema_lineage": {
+      "class": "FactLeagueTeamShotLocationsSchema",
+      "columns": {
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_league_team_shot_locations"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_league_team_shot_locations"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_league_team_shot_locations"
+        },
+        "season_year": {
+          "endpoint": "derived",
+          "field": "season_year",
+          "result_set": "fact_league_team_shot_locations"
+        },
+        "shot_zone_area": {
+          "endpoint": "derived",
+          "field": "shot_zone_area",
+          "result_set": "fact_league_team_shot_locations"
+        },
+        "shot_zone_basic": {
+          "endpoint": "derived",
+          "field": "shot_zone_basic",
+          "result_set": "fact_league_team_shot_locations"
+        },
+        "shot_zone_range": {
+          "endpoint": "derived",
+          "field": "shot_zone_range",
+          "result_set": "fact_league_team_shot_locations"
+        },
+        "team_id": {
+          "fk_ref": "staging_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_league_team_shot_locations"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactLeagueTeamShotLocationsTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_league_team_shot_locations"
       ]
     }
   },
@@ -15089,6 +18655,180 @@
       ]
     }
   },
+  "fact_player_fantasy_profile_last_five_games_avg": {
+    "schema_lineage": {
+      "class": "FactPlayerFantasyProfileLastFiveGamesAvgSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "blk": {
+          "endpoint": "derived",
+          "field": "blk",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "fan_duel_pts": {
+          "endpoint": "derived",
+          "field": "fan_duel_pts",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "ft_pct": {
+          "endpoint": "derived",
+          "field": "ft_pct",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "nba_fantasy_pts": {
+          "endpoint": "derived",
+          "field": "nba_fantasy_pts",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "stl": {
+          "endpoint": "derived",
+          "field": "stl",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "tov": {
+          "endpoint": "derived",
+          "field": "tov",
+          "result_set": "fact_player_fantasy_profile_last_five_games_avg"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactPlayerFantasyProfileLastFiveGamesAvgTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_fantasy_profile_last_five_games_avg"
+      ]
+    }
+  },
+  "fact_player_fantasy_profile_season_avg": {
+    "schema_lineage": {
+      "class": "FactPlayerFantasyProfileSeasonAvgSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "blk": {
+          "endpoint": "derived",
+          "field": "blk",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "fan_duel_pts": {
+          "endpoint": "derived",
+          "field": "fan_duel_pts",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "ft_pct": {
+          "endpoint": "derived",
+          "field": "ft_pct",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "nba_fantasy_pts": {
+          "endpoint": "derived",
+          "field": "nba_fantasy_pts",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "player_name": {
+          "endpoint": "derived",
+          "field": "player_name",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "pts": {
+          "endpoint": "derived",
+          "field": "pts",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "reb": {
+          "endpoint": "derived",
+          "field": "reb",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "stl": {
+          "endpoint": "derived",
+          "field": "stl",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "tov": {
+          "endpoint": "derived",
+          "field": "tov",
+          "result_set": "fact_player_fantasy_profile_season_avg"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactPlayerFantasyProfileSeasonAvgTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_fantasy_profile_season_avg"
+      ]
+    }
+  },
   "fact_player_game_advanced": {
     "schema_lineage": {
       "class": "FactPlayerGameAdvancedSchema",
@@ -18485,6 +22225,131 @@
       ]
     }
   },
+  "fact_player_pt_pass": {
+    "schema_lineage": {
+      "class": "FactPlayerPtPassSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "derived",
+          "field": "ast",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fg2_pct": {
+          "endpoint": "derived",
+          "field": "fg2_pct",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fg2a": {
+          "endpoint": "derived",
+          "field": "fg2a",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fg2m": {
+          "endpoint": "derived",
+          "field": "fg2m",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fg3_pct": {
+          "endpoint": "derived",
+          "field": "fg3_pct",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fg3a": {
+          "endpoint": "derived",
+          "field": "fg3a",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fg3m": {
+          "endpoint": "derived",
+          "field": "fg3m",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fg_pct": {
+          "endpoint": "derived",
+          "field": "fg_pct",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fga": {
+          "endpoint": "derived",
+          "field": "fga",
+          "result_set": "fact_player_pt_pass"
+        },
+        "fgm": {
+          "endpoint": "derived",
+          "field": "fgm",
+          "result_set": "fact_player_pt_pass"
+        },
+        "frequency": {
+          "endpoint": "derived",
+          "field": "frequency",
+          "result_set": "fact_player_pt_pass"
+        },
+        "g": {
+          "endpoint": "derived",
+          "field": "g",
+          "result_set": "fact_player_pt_pass"
+        },
+        "pass": {
+          "endpoint": "derived",
+          "field": "pass",
+          "result_set": "fact_player_pt_pass"
+        },
+        "pass_from": {
+          "endpoint": "derived",
+          "field": "pass_from",
+          "result_set": "fact_player_pt_pass"
+        },
+        "pass_teammate_player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "pass_to": {
+          "endpoint": "derived",
+          "field": "pass_to",
+          "result_set": "fact_player_pt_pass"
+        },
+        "pass_type": {
+          "endpoint": "derived",
+          "field": "pass_type",
+          "result_set": "fact_player_pt_pass"
+        },
+        "player_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "player_name_last_first": {
+          "endpoint": "derived",
+          "field": "player_name_last_first",
+          "result_set": "fact_player_pt_pass"
+        },
+        "season_type": {
+          "endpoint": "derived",
+          "field": "season_type",
+          "result_set": "fact_player_pt_pass"
+        },
+        "team_abbreviation": {
+          "endpoint": "derived",
+          "field": "team_abbreviation",
+          "result_set": "fact_player_pt_pass"
+        },
+        "team_id": {
+          "fk_ref": "dim_team.team_id"
+        },
+        "team_name": {
+          "endpoint": "derived",
+          "field": "team_name",
+          "result_set": "fact_player_pt_pass"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactPlayerPtPassTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_pt_pass"
+      ]
+    }
+  },
   "fact_player_pt_reb_detail": {
     "schema_lineage": {
       "class": "FactPlayerPtRebDetailSchema",
@@ -18616,6 +22481,75 @@
         "stg_player_pt_reb_overall",
         "stg_player_pt_reb_shot_dist",
         "stg_player_pt_reb_shot_type"
+      ]
+    }
+  },
+  "fact_player_pt_shot_defend": {
+    "schema_lineage": {
+      "class": "FactPlayerPtShotDefendSchema",
+      "columns": {
+        "close_def_person_id": {
+          "fk_ref": "dim_player.player_id"
+        },
+        "d_fg_pct": {
+          "endpoint": "derived",
+          "field": "d_fg_pct",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "d_fga": {
+          "endpoint": "derived",
+          "field": "d_fga",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "d_fgm": {
+          "endpoint": "derived",
+          "field": "d_fgm",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "defense_category": {
+          "endpoint": "derived",
+          "field": "defense_category",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "freq": {
+          "endpoint": "derived",
+          "field": "freq",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "g": {
+          "endpoint": "derived",
+          "field": "g",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "gp": {
+          "endpoint": "derived",
+          "field": "gp",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "normal_fg_pct": {
+          "endpoint": "derived",
+          "field": "normal_fg_pct",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "pct_plusminus": {
+          "endpoint": "derived",
+          "field": "pct_plusminus",
+          "result_set": "fact_player_pt_shot_defend"
+        },
+        "season_type": {
+          "endpoint": "derived",
+          "field": "season_type",
+          "result_set": "fact_player_pt_shot_defend"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactPlayerPtShotDefendTransformer",
+      "columns": [
+        "*"
+      ],
+      "source_tables": [
+        "stg_player_pt_shot_defend"
       ]
     }
   },
@@ -21112,6 +25046,107 @@
       ]
     }
   },
+  "fact_scoreboard_conference_standings": {
+    "schema_lineage": {
+      "class": "FactScoreboardConferenceStandingsSchema",
+      "columns": {
+        "conference": {
+          "endpoint": "ScoreboardV2",
+          "field": "CONFERENCE",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "conference_scope": {
+          "endpoint": "literal",
+          "field": "conference_scope",
+          "result_set": ""
+        },
+        "g": {
+          "endpoint": "ScoreboardV2",
+          "field": "G",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "home_record": {
+          "endpoint": "ScoreboardV2",
+          "field": "HOME_RECORD",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "l": {
+          "endpoint": "ScoreboardV2",
+          "field": "L",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "league_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "LEAGUE_ID",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "return_to_play": {
+          "endpoint": "ScoreboardV2",
+          "field": "RETURNTOPLAY",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "road_record": {
+          "endpoint": "ScoreboardV2",
+          "field": "ROAD_RECORD",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "season_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "SEASON_ID",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "standings_date": {
+          "endpoint": "ScoreboardV2",
+          "field": "STANDINGSDATE",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "team": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "w": {
+          "endpoint": "ScoreboardV2",
+          "field": "W",
+          "result_set": "EastConfStandingsByDay"
+        },
+        "w_pct": {
+          "endpoint": "ScoreboardV2",
+          "field": "W_PCT",
+          "result_set": "EastConfStandingsByDay"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardConferenceStandingsTransformer",
+      "columns": [
+        "team_id",
+        "league_id",
+        "season_id",
+        "standings_date",
+        "conference",
+        "team",
+        "g",
+        "w",
+        "l",
+        "w_pct",
+        "home_record",
+        "road_record",
+        "return_to_play",
+        "conference_scope"
+      ],
+      "source_tables": [
+        "stg_scoreboard_east_conf",
+        "stg_scoreboard_west_conf"
+      ]
+    }
+  },
   "fact_scoreboard_detail": {
     "schema_lineage": {
       "class": "FactScoreboardDetailSchema",
@@ -21269,6 +25304,609 @@
       ]
     }
   },
+  "fact_scoreboard_game_header": {
+    "schema_lineage": {
+      "class": "FactScoreboardGameHeaderSchema",
+      "columns": {
+        "arena_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "ARENA_NAME",
+          "result_set": "GameHeader"
+        },
+        "away_tv_broadcaster_abbreviation": {
+          "endpoint": "ScoreboardV2",
+          "field": "AWAY_TV_BROADCASTER_ABBREVIATION",
+          "result_set": "GameHeader"
+        },
+        "game_date_est": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_DATE_EST",
+          "result_set": "GameHeader"
+        },
+        "game_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_ID",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "GameHeader"
+        },
+        "game_sequence": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_SEQUENCE",
+          "result_set": "GameHeader"
+        },
+        "game_status_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_STATUS_ID",
+          "result_set": "GameHeader"
+        },
+        "game_status_text": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_STATUS_TEXT",
+          "result_set": "GameHeader"
+        },
+        "gamecode": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAMECODE",
+          "result_set": "GameHeader"
+        },
+        "home_team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "HOME_TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "GameHeader"
+        },
+        "home_tv_broadcaster_abbreviation": {
+          "endpoint": "ScoreboardV2",
+          "field": "HOME_TV_BROADCASTER_ABBREVIATION",
+          "result_set": "GameHeader"
+        },
+        "live_pc_time": {
+          "endpoint": "ScoreboardV2",
+          "field": "LIVE_PC_TIME",
+          "result_set": "GameHeader"
+        },
+        "live_period": {
+          "endpoint": "ScoreboardV2",
+          "field": "LIVE_PERIOD",
+          "result_set": "GameHeader"
+        },
+        "live_period_time_bcast": {
+          "endpoint": "ScoreboardV2",
+          "field": "LIVE_PERIOD_TIME_BCAST",
+          "result_set": "GameHeader"
+        },
+        "natl_tv_broadcaster_abbreviation": {
+          "endpoint": "ScoreboardV2",
+          "field": "NATL_TV_BROADCASTER_ABBREVIATION",
+          "result_set": "GameHeader"
+        },
+        "season": {
+          "endpoint": "ScoreboardV2",
+          "field": "SEASON",
+          "result_set": "GameHeader"
+        },
+        "visitor_team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "VISITOR_TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "GameHeader"
+        },
+        "wh_status": {
+          "endpoint": "ScoreboardV2",
+          "field": "WH_STATUS",
+          "result_set": "GameHeader"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardGameHeaderTransformer",
+      "columns": [
+        "game_date_est",
+        "game_sequence",
+        "game_id",
+        "game_status_id",
+        "game_status_text",
+        "gamecode",
+        "home_team_id",
+        "visitor_team_id",
+        "season",
+        "live_period",
+        "live_pc_time",
+        "natl_tv_broadcaster_abbreviation",
+        "home_tv_broadcaster_abbreviation",
+        "away_tv_broadcaster_abbreviation",
+        "live_period_time_bcast",
+        "arena_name",
+        "wh_status"
+      ],
+      "source_tables": [
+        "stg_scoreboard"
+      ]
+    }
+  },
+  "fact_scoreboard_last_meeting": {
+    "schema_lineage": {
+      "class": "FactScoreboardLastMeetingSchema",
+      "columns": {
+        "game_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_ID",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "LastMeeting"
+        },
+        "last_game_date_est": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_DATE_EST",
+          "result_set": "LastMeeting"
+        },
+        "last_game_home_team_abbreviation": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_HOME_TEAM_ABBREVIATION",
+          "result_set": "LastMeeting"
+        },
+        "last_game_home_team_city": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_HOME_TEAM_CITY",
+          "result_set": "LastMeeting"
+        },
+        "last_game_home_team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_HOME_TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "LastMeeting"
+        },
+        "last_game_home_team_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_HOME_TEAM_NAME",
+          "result_set": "LastMeeting"
+        },
+        "last_game_home_team_points": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_HOME_TEAM_POINTS",
+          "result_set": "LastMeeting"
+        },
+        "last_game_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_ID",
+          "result_set": "LastMeeting"
+        },
+        "last_game_visitor_team_city": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_VISITOR_TEAM_CITY",
+          "result_set": "LastMeeting"
+        },
+        "last_game_visitor_team_city1": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_VISITOR_TEAM_CITY1",
+          "result_set": "LastMeeting"
+        },
+        "last_game_visitor_team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_VISITOR_TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "LastMeeting"
+        },
+        "last_game_visitor_team_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_VISITOR_TEAM_NAME",
+          "result_set": "LastMeeting"
+        },
+        "last_game_visitor_team_points": {
+          "endpoint": "ScoreboardV2",
+          "field": "LAST_GAME_VISITOR_TEAM_POINTS",
+          "result_set": "LastMeeting"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardLastMeetingTransformer",
+      "columns": [
+        "game_id",
+        "last_game_id",
+        "last_game_date_est",
+        "last_game_home_team_id",
+        "last_game_home_team_city",
+        "last_game_home_team_name",
+        "last_game_home_team_abbreviation",
+        "last_game_home_team_points",
+        "last_game_visitor_team_id",
+        "last_game_visitor_team_city",
+        "last_game_visitor_team_name",
+        "last_game_visitor_team_city1",
+        "last_game_visitor_team_points"
+      ],
+      "source_tables": [
+        "stg_scoreboard_last_meeting"
+      ]
+    }
+  },
+  "fact_scoreboard_line_score": {
+    "schema_lineage": {
+      "class": "FactScoreboardLineScoreSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "ScoreboardV2",
+          "field": "AST",
+          "result_set": "LineScore"
+        },
+        "fg3_pct": {
+          "endpoint": "ScoreboardV2",
+          "field": "FG3_PCT",
+          "result_set": "LineScore"
+        },
+        "fg_pct": {
+          "endpoint": "ScoreboardV2",
+          "field": "FG_PCT",
+          "result_set": "LineScore"
+        },
+        "ft_pct": {
+          "endpoint": "ScoreboardV2",
+          "field": "FT_PCT",
+          "result_set": "LineScore"
+        },
+        "game_date_est": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_DATE_EST",
+          "result_set": "LineScore"
+        },
+        "game_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_ID",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "LineScore"
+        },
+        "game_sequence": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_SEQUENCE",
+          "result_set": "LineScore"
+        },
+        "pts": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS",
+          "result_set": "LineScore"
+        },
+        "pts_ot1": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT1",
+          "result_set": "LineScore"
+        },
+        "pts_ot10": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT10",
+          "result_set": "LineScore"
+        },
+        "pts_ot2": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT2",
+          "result_set": "LineScore"
+        },
+        "pts_ot3": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT3",
+          "result_set": "LineScore"
+        },
+        "pts_ot4": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT4",
+          "result_set": "LineScore"
+        },
+        "pts_ot5": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT5",
+          "result_set": "LineScore"
+        },
+        "pts_ot6": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT6",
+          "result_set": "LineScore"
+        },
+        "pts_ot7": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT7",
+          "result_set": "LineScore"
+        },
+        "pts_ot8": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT8",
+          "result_set": "LineScore"
+        },
+        "pts_ot9": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_OT9",
+          "result_set": "LineScore"
+        },
+        "pts_qtr1": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_QTR1",
+          "result_set": "LineScore"
+        },
+        "pts_qtr2": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_QTR2",
+          "result_set": "LineScore"
+        },
+        "pts_qtr3": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_QTR3",
+          "result_set": "LineScore"
+        },
+        "pts_qtr4": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_QTR4",
+          "result_set": "LineScore"
+        },
+        "reb": {
+          "endpoint": "ScoreboardV2",
+          "field": "REB",
+          "result_set": "LineScore"
+        },
+        "team_abbreviation": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_ABBREVIATION",
+          "result_set": "LineScore"
+        },
+        "team_city_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_CITY_NAME",
+          "result_set": "LineScore"
+        },
+        "team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "LineScore"
+        },
+        "team_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_NAME",
+          "result_set": "LineScore"
+        },
+        "team_wins_losses": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_WINS_LOSSES",
+          "result_set": "LineScore"
+        },
+        "tov": {
+          "endpoint": "ScoreboardV2",
+          "field": "TOV",
+          "result_set": "LineScore"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardLineScoreTransformer",
+      "columns": [
+        "game_date_est",
+        "game_sequence",
+        "game_id",
+        "team_id",
+        "team_abbreviation",
+        "team_city_name",
+        "team_name",
+        "team_wins_losses",
+        "pts_qtr1",
+        "pts_qtr2",
+        "pts_qtr3",
+        "pts_qtr4",
+        "pts_ot1",
+        "pts_ot2",
+        "pts_ot3",
+        "pts_ot4",
+        "pts_ot5",
+        "pts_ot6",
+        "pts_ot7",
+        "pts_ot8",
+        "pts_ot9",
+        "pts_ot10",
+        "pts",
+        "fg_pct",
+        "ft_pct",
+        "fg3_pct",
+        "ast",
+        "reb",
+        "tov"
+      ],
+      "source_tables": [
+        "stg_scoreboard_line_score"
+      ]
+    }
+  },
+  "fact_scoreboard_series_standings": {
+    "schema_lineage": {
+      "class": "FactScoreboardSeriesStandingsSchema",
+      "columns": {
+        "game_date_est": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_DATE_EST",
+          "result_set": "SeriesStandings"
+        },
+        "game_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_ID",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "SeriesStandings"
+        },
+        "home_team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "HOME_TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "SeriesStandings"
+        },
+        "home_team_losses": {
+          "endpoint": "ScoreboardV2",
+          "field": "HOME_TEAM_LOSSES",
+          "result_set": "SeriesStandings"
+        },
+        "home_team_wins": {
+          "endpoint": "ScoreboardV2",
+          "field": "HOME_TEAM_WINS",
+          "result_set": "SeriesStandings"
+        },
+        "series_leader": {
+          "endpoint": "ScoreboardV2",
+          "field": "SERIES_LEADER",
+          "result_set": "SeriesStandings"
+        },
+        "series_scope": {
+          "endpoint": "literal",
+          "field": "series_scope",
+          "result_set": ""
+        },
+        "visitor_team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "VISITOR_TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "SeriesStandings"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardSeriesStandingsTransformer",
+      "columns": [
+        "game_id",
+        "home_team_id",
+        "visitor_team_id",
+        "game_date_est",
+        "home_team_wins",
+        "home_team_losses",
+        "series_leader",
+        "series_scope"
+      ],
+      "source_tables": [
+        "stg_scoreboard_series_standings",
+        "stg_scoreboard_v2_series_standings"
+      ]
+    }
+  },
+  "fact_scoreboard_team_leaders": {
+    "schema_lineage": {
+      "class": "FactScoreboardTeamLeadersSchema",
+      "columns": {
+        "ast": {
+          "endpoint": "ScoreboardV2",
+          "field": "AST",
+          "result_set": "TeamLeaders"
+        },
+        "ast_player_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "AST_PLAYER_ID",
+          "result_set": "TeamLeaders"
+        },
+        "ast_player_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "AST_PLAYER_NAME",
+          "result_set": "TeamLeaders"
+        },
+        "game_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_ID",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "TeamLeaders"
+        },
+        "pts": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS",
+          "result_set": "TeamLeaders"
+        },
+        "pts_player_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_PLAYER_ID",
+          "result_set": "TeamLeaders"
+        },
+        "pts_player_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "PTS_PLAYER_NAME",
+          "result_set": "TeamLeaders"
+        },
+        "reb": {
+          "endpoint": "ScoreboardV2",
+          "field": "REB",
+          "result_set": "TeamLeaders"
+        },
+        "reb_player_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "REB_PLAYER_ID",
+          "result_set": "TeamLeaders"
+        },
+        "reb_player_name": {
+          "endpoint": "ScoreboardV2",
+          "field": "REB_PLAYER_NAME",
+          "result_set": "TeamLeaders"
+        },
+        "team_abbreviation": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_ABBREVIATION",
+          "result_set": "TeamLeaders"
+        },
+        "team_city": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_CITY",
+          "result_set": "TeamLeaders"
+        },
+        "team_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_ID",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "TeamLeaders"
+        },
+        "team_nickname": {
+          "endpoint": "ScoreboardV2",
+          "field": "TEAM_NICKNAME",
+          "result_set": "TeamLeaders"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardTeamLeadersTransformer",
+      "columns": [
+        "game_id",
+        "team_id",
+        "team_city",
+        "team_nickname",
+        "team_abbreviation",
+        "pts_player_id",
+        "pts_player_name",
+        "pts",
+        "reb_player_id",
+        "reb_player_name",
+        "reb",
+        "ast_player_id",
+        "ast_player_name",
+        "ast"
+      ],
+      "source_tables": [
+        "stg_scoreboard_team_leaders"
+      ]
+    }
+  },
+  "fact_scoreboard_ticket_links": {
+    "schema_lineage": {
+      "class": "FactScoreboardTicketLinksSchema",
+      "columns": {
+        "game_id": {
+          "endpoint": "ScoreboardV2",
+          "field": "GAME_ID",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "TicketLinks"
+        },
+        "leag_tix": {
+          "endpoint": "ScoreboardV2",
+          "field": "LEAG_TIX",
+          "result_set": "TicketLinks"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardTicketLinksTransformer",
+      "columns": [
+        "game_id",
+        "leag_tix"
+      ],
+      "source_tables": [
+        "stg_scoreboard_ticket_links"
+      ]
+    }
+  },
   "fact_scoreboard_v3": {
     "schema_lineage": {
       "class": "FactScoreboardV3Schema",
@@ -21355,6 +25993,401 @@
         "stg_scoreboard_v3_line_score",
         "stg_scoreboard_v3_metadata",
         "stg_scoreboard_v3_summary",
+        "stg_scoreboard_v3_team_stats"
+      ]
+    }
+  },
+  "fact_scoreboard_v3_broadcaster": {
+    "schema_lineage": {
+      "class": "FactScoreboardV3BroadcasterSchema",
+      "columns": {
+        "broadcast_display": {
+          "endpoint": "ScoreboardV3",
+          "field": "broadcastDisplay",
+          "result_set": "Broadcasters"
+        },
+        "broadcaster_description": {
+          "endpoint": "ScoreboardV3",
+          "field": "broadcasterDescription",
+          "result_set": "Broadcasters"
+        },
+        "broadcaster_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "broadcasterId",
+          "result_set": "Broadcasters"
+        },
+        "broadcaster_team_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "broadcasterTeamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "Broadcasters"
+        },
+        "broadcaster_type": {
+          "endpoint": "ScoreboardV3",
+          "field": "broadcasterType",
+          "result_set": "Broadcasters"
+        },
+        "game_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "Broadcasters"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardV3BroadcasterTransformer",
+      "columns": [
+        "game_id",
+        "broadcaster_type",
+        "broadcaster_id",
+        "broadcast_display",
+        "broadcaster_team_id",
+        "broadcaster_description"
+      ],
+      "source_tables": [
+        "stg_scoreboard_v3_broadcaster"
+      ]
+    }
+  },
+  "fact_scoreboard_v3_game_summary": {
+    "schema_lineage": {
+      "class": "FactScoreboardV3GameSummarySchema",
+      "columns": {
+        "game_clock": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameClock",
+          "result_set": "GameHeader"
+        },
+        "game_code": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameCode",
+          "result_set": "GameHeader"
+        },
+        "game_et": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameEt",
+          "result_set": "GameHeader"
+        },
+        "game_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "GameHeader"
+        },
+        "game_label": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameLabel",
+          "result_set": "GameHeader"
+        },
+        "game_status": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameStatus",
+          "result_set": "GameHeader"
+        },
+        "game_status_text": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameStatusText",
+          "result_set": "GameHeader"
+        },
+        "game_sub_label": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameSubLabel",
+          "result_set": "GameHeader"
+        },
+        "game_subtype": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameSubtype",
+          "result_set": "GameHeader"
+        },
+        "game_time_utc": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameTimeUTC",
+          "result_set": "GameHeader"
+        },
+        "if_necessary": {
+          "endpoint": "ScoreboardV3",
+          "field": "ifNecessary",
+          "result_set": "GameHeader"
+        },
+        "is_neutral": {
+          "endpoint": "ScoreboardV3",
+          "field": "isNeutral",
+          "result_set": "GameHeader"
+        },
+        "period": {
+          "endpoint": "ScoreboardV3",
+          "field": "period",
+          "result_set": "GameHeader"
+        },
+        "po_round_desc": {
+          "endpoint": "ScoreboardV3",
+          "field": "poRoundDesc",
+          "result_set": "GameHeader"
+        },
+        "regulation_periods": {
+          "endpoint": "ScoreboardV3",
+          "field": "regulationPeriods",
+          "result_set": "GameHeader"
+        },
+        "series_conference": {
+          "endpoint": "ScoreboardV3",
+          "field": "seriesConference",
+          "result_set": "GameHeader"
+        },
+        "series_game_number": {
+          "endpoint": "ScoreboardV3",
+          "field": "seriesGameNumber",
+          "result_set": "GameHeader"
+        },
+        "series_text": {
+          "endpoint": "ScoreboardV3",
+          "field": "seriesText",
+          "result_set": "GameHeader"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardV3GameSummaryTransformer",
+      "columns": [
+        "game_id",
+        "game_code",
+        "game_status",
+        "game_status_text",
+        "period",
+        "game_clock",
+        "game_time_utc",
+        "game_et",
+        "regulation_periods",
+        "series_game_number",
+        "game_label",
+        "game_sub_label",
+        "series_text",
+        "if_necessary",
+        "series_conference",
+        "po_round_desc",
+        "game_subtype",
+        "is_neutral"
+      ],
+      "source_tables": [
+        "stg_scoreboard_v3_summary"
+      ]
+    }
+  },
+  "fact_scoreboard_v3_line_score": {
+    "schema_lineage": {
+      "class": "FactScoreboardV3LineScoreSchema",
+      "columns": {
+        "game_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "LineScore"
+        },
+        "in_bonus": {
+          "endpoint": "ScoreboardV3",
+          "field": "inBonus",
+          "result_set": "LineScore"
+        },
+        "losses": {
+          "endpoint": "ScoreboardV3",
+          "field": "losses",
+          "result_set": "LineScore"
+        },
+        "score": {
+          "endpoint": "ScoreboardV3",
+          "field": "score",
+          "result_set": "LineScore"
+        },
+        "seed": {
+          "endpoint": "ScoreboardV3",
+          "field": "seed",
+          "result_set": "LineScore"
+        },
+        "team_city": {
+          "endpoint": "ScoreboardV3",
+          "field": "teamCity",
+          "result_set": "LineScore"
+        },
+        "team_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "teamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "LineScore"
+        },
+        "team_name": {
+          "endpoint": "ScoreboardV3",
+          "field": "teamName",
+          "result_set": "LineScore"
+        },
+        "team_slug": {
+          "endpoint": "ScoreboardV3",
+          "field": "teamSlug",
+          "result_set": "LineScore"
+        },
+        "team_tricode": {
+          "endpoint": "ScoreboardV3",
+          "field": "teamTricode",
+          "result_set": "LineScore"
+        },
+        "timeouts_remaining": {
+          "endpoint": "ScoreboardV3",
+          "field": "timeoutsRemaining",
+          "result_set": "LineScore"
+        },
+        "wins": {
+          "endpoint": "ScoreboardV3",
+          "field": "wins",
+          "result_set": "LineScore"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardV3LineScoreTransformer",
+      "columns": [
+        "game_id",
+        "team_id",
+        "team_city",
+        "team_name",
+        "team_tricode",
+        "team_slug",
+        "wins",
+        "losses",
+        "score",
+        "seed",
+        "in_bonus",
+        "timeouts_remaining"
+      ],
+      "source_tables": [
+        "stg_scoreboard_v3_line_score"
+      ]
+    }
+  },
+  "fact_scoreboard_v3_metadata": {
+    "schema_lineage": {
+      "class": "FactScoreboardV3MetadataSchema",
+      "columns": {
+        "game_date": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameDate",
+          "result_set": "ScoreboardInfo"
+        },
+        "league_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "leagueId",
+          "result_set": "ScoreboardInfo"
+        },
+        "league_name": {
+          "endpoint": "ScoreboardV3",
+          "field": "leagueName",
+          "result_set": "ScoreboardInfo"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardV3MetadataTransformer",
+      "columns": [
+        "game_date",
+        "league_id",
+        "league_name"
+      ],
+      "source_tables": [
+        "stg_scoreboard_v3_metadata"
+      ]
+    }
+  },
+  "fact_scoreboard_v3_team_leaders": {
+    "schema_lineage": {
+      "class": "FactScoreboardV3TeamLeadersSchema",
+      "columns": {
+        "assists": {
+          "endpoint": "ScoreboardV3",
+          "field": "assists",
+          "result_set": "TeamLeaders"
+        },
+        "game_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "gameId",
+          "fk_ref": "dim_game.game_id",
+          "result_set": "TeamLeaders"
+        },
+        "jersey_num": {
+          "endpoint": "ScoreboardV3",
+          "field": "jerseyNum",
+          "result_set": "TeamLeaders"
+        },
+        "leader_type": {
+          "endpoint": "ScoreboardV3",
+          "field": "leaderType",
+          "result_set": "TeamLeaders"
+        },
+        "name": {
+          "endpoint": "ScoreboardV3",
+          "field": "name",
+          "result_set": "TeamLeaders"
+        },
+        "person_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "personId",
+          "fk_ref": "staging_player.person_id",
+          "result_set": "TeamLeaders"
+        },
+        "player_slug": {
+          "endpoint": "ScoreboardV3",
+          "field": "playerSlug",
+          "result_set": "TeamLeaders"
+        },
+        "points": {
+          "endpoint": "ScoreboardV3",
+          "field": "points",
+          "result_set": "TeamLeaders"
+        },
+        "position": {
+          "endpoint": "ScoreboardV3",
+          "field": "position",
+          "result_set": "TeamLeaders"
+        },
+        "rebounds": {
+          "endpoint": "ScoreboardV3",
+          "field": "rebounds",
+          "result_set": "TeamLeaders"
+        },
+        "season_leaders_flag": {
+          "endpoint": "ScoreboardV3",
+          "field": "seasonLeadersFlag",
+          "result_set": "TeamLeaders"
+        },
+        "team_id": {
+          "endpoint": "ScoreboardV3",
+          "field": "teamId",
+          "fk_ref": "staging_team.team_id",
+          "result_set": "TeamLeaders"
+        },
+        "team_tricode": {
+          "endpoint": "ScoreboardV3",
+          "field": "teamTricode",
+          "result_set": "TeamLeaders"
+        }
+      }
+    },
+    "sql_lineage": {
+      "class_name": "FactScoreboardV3TeamLeadersTransformer",
+      "columns": [
+        "game_id",
+        "team_id",
+        "leader_type",
+        "person_id",
+        "name",
+        "player_slug",
+        "jersey_num",
+        "position",
+        "team_tricode",
+        "points",
+        "rebounds",
+        "assists",
+        "season_leaders_flag"
+      ],
+      "source_tables": [
         "stg_scoreboard_v3_team_stats"
       ]
     }

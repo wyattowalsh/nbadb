@@ -2290,6 +2290,207 @@
       "family": "analytics",
       "relationships": []
     },
+    "analytics_player_general_splits": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "split_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_set",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_value",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "overall_w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "gp_share",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "w_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_delta",
+          "type": "float"
+        }
+      ],
+      "family": "analytics",
+      "relationships": []
+    },
     "analytics_player_impact": {
       "columns": [
         {
@@ -3075,6 +3276,212 @@
           "key": "",
           "name": "team_abbreviation",
           "type": "str"
+        }
+      ],
+      "family": "analytics",
+      "relationships": []
+    },
+    "analytics_team_general_splits": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "split_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_set",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "group_value",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "overall_w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "overall_plus_minus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "gp_share",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "w_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct_delta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_delta",
+          "type": "float"
         }
       ],
       "family": "analytics",
@@ -4425,6 +4832,48 @@
       "family": "dim",
       "relationships": []
     },
+    "fact_assist_leaders": {
+      "columns": [
+        {
+          "key": "",
+          "name": "rank",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_assist_tracker": {
+      "columns": [
+        {
+          "key": "",
+          "name": "assists",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_box_score_advanced_team": {
       "columns": [
         {
@@ -5395,6 +5844,534 @@
           "key": "",
           "name": "summary_type",
           "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_available_video": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "video_available_flag",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pt_available",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pt_xyz_available",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "wh_status",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "hustle_status",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "historical_status",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_game_info": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_date",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "attendance",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_duration",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_game_summary": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_code",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_status",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status_text",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "period",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_clock",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_time_utc",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_et",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "away_team_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "home_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "duration",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "attendance",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "sellout",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_inactive_players": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "family_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "jersey_num",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_last_five_meetings": {
+      "columns": [
+        {
+          "key": "",
+          "name": "recency_order",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_time_utc",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_et",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_status",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status_text",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "away_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "away_team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "away_team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "away_team_tricode",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "away_team_score",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "away_team_wins",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "away_team_losses",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "home_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "home_team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "home_team_tricode",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "home_team_score",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_team_wins",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_team_losses",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_line_score": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_tricode",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_wins",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_losses",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "period1_score",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "period2_score",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "period3_score",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "period4_score",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "score",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_officials": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "name_i",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "family_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "jersey_num",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_box_score_summary_v3_other_stats": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_tricode",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "rebounds_total",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "assists",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "steals",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blocks",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "turnovers",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "field_goals_percentage",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "three_pointers_percentage",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "free_throws_percentage",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "points_in_the_paint",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "points_second_chance",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "points_fast_break",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "biggest_lead",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "lead_changes",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "times_tied",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "biggest_scoring_run",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "turnovers_team",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "turnovers_total",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "rebounds_team",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "points_from_turnovers",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "bench_points",
+          "type": "int"
         }
       ],
       "family": "fact",
@@ -6780,6 +7757,773 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_draft_combine_drill_results": {
+      "columns": [
+        {
+          "key": "",
+          "name": "season",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "standing_vertical_leap",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "max_vertical_leap",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "lane_agility_time",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "modified_lane_agility_time",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "three_quarter_sprint",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "bench_press",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_draft_combine_non_stationary_shooting": {
+      "columns": [
+        {
+          "key": "",
+          "name": "season",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_break_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_break_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_break_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_top_key_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_top_key_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_top_key_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_top_key_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_top_key_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_top_key_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "on_move_fifteen_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "on_move_fifteen_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "on_move_fifteen_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "on_move_college_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "on_move_college_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "on_move_college_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_draft_combine_player_anthro": {
+      "columns": [
+        {
+          "key": "",
+          "name": "season",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "height_wo_shoes",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "height_wo_shoes_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "height_w_shoes",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "height_w_shoes_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "weight",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "wingspan",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "wingspan_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "standing_reach",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "standing_reach_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "body_fat_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "hand_length",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "hand_width",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_draft_combine_spot_shooting": {
+      "columns": [
+        {
+          "key": "",
+          "name": "season",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "nba_break_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_break_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_break_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_break_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_break_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_break_right_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_corner_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_corner_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_corner_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_corner_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_corner_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_corner_right_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_top_key_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_top_key_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "nba_top_key_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "college_break_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_break_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_break_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "college_break_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_break_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_break_right_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "college_corner_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_corner_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_corner_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "college_corner_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_corner_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_corner_right_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "college_top_key_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_top_key_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "college_top_key_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fifteen_break_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_break_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_break_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fifteen_break_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_break_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_break_right_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fifteen_corner_left_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_corner_left_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_corner_left_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fifteen_corner_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_corner_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_corner_right_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fifteen_top_key_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_top_key_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fifteen_top_key_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_draft_combine_stats": {
+      "columns": [
+        {
+          "key": "",
+          "name": "season",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "height_wo_shoes",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "height_wo_shoes_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "height_w_shoes",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "height_w_shoes_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "weight",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "wingspan",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "wingspan_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "standing_reach",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "standing_reach_ft_in",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "body_fat_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "hand_length",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "hand_width",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "standing_vertical_leap",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "max_vertical_leap",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "lane_agility_time",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "modified_lane_agility_time",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "three_quarter_sprint",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "bench_press",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_draft_history": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "round_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "round_pick",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "overall_pick",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "draft_type",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "organization",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "organization_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_profile_flag",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_dunk_score_leaders": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dunk_score",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_estimated_metrics": {
       "columns": [
         {
@@ -7057,6 +8801,117 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_fantasy_widget": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fan_duel_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_fantasy_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "player_position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_franchise_detail": {
       "columns": [
         {
@@ -7243,6 +9098,228 @@
           "key": "",
           "name": "detail_type",
           "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_franchise_leaders": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "PK",
+          "name": "pts_person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_player",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "PK",
+          "name": "ast_person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_player",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "PK",
+          "name": "reb_person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb_player",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "PK",
+          "name": "blk_person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blk_player",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "PK",
+          "name": "stl_person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "stl_player",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_franchise_players": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "league_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "active_with_team",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ftm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
         }
       ],
       "family": "fact",
@@ -7658,6 +9735,22 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_gravity_leaders": {
+      "columns": [
+        {
+          "key": "",
+          "name": "playerid",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "gravityscore",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_homepage": {
       "columns": [
         {
@@ -8018,6 +10111,177 @@
           "key": "",
           "name": "hustle_type",
           "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_infographic_fanduel_player": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fan_duel_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_fantasy_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "jersey_num",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "location",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "usg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ftm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blka",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pfd",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus",
+          "type": "float"
         }
       ],
       "family": "fact",
@@ -8965,6 +11229,37 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_league_leaders": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_league_leaders_detail": {
       "columns": [
         {
@@ -9272,6 +11567,385 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_league_opp_pt_shot": {
+      "columns": [
+        {
+          "key": "",
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "sort_order",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "close_def_dist_range",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dfgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_league_player_pt_shot": {
+      "columns": [
+        {
+          "key": "",
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "sort_order",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "close_def_dist_range",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dfgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_league_player_shot_locations": {
+      "columns": [
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "shot_zone_basic",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "shot_zone_area",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "shot_zone_range",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_league_pt_defend": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "defense_category",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "freq",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "d_fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "d_fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "d_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "normal_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pct_plusminus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_league_pt_shots": {
       "columns": [
         {
@@ -9403,6 +12077,258 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_league_pt_stats": {
+      "columns": [
+        {
+          "key": "",
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "sort_order",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "close_def_dist_range",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dfgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_league_pt_team_defend": {
+      "columns": [
+        {
+          "key": "",
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "sort_order",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "close_def_dist_range",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dfgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_league_shot_locations": {
       "columns": [
         {
@@ -9509,6 +12435,183 @@
         {
           "key": "",
           "name": "plus_minus",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_league_team_pt_shot": {
+      "columns": [
+        {
+          "key": "",
+          "name": "id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "sort_order",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "close_def_dist_range",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "efg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dfgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dfg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_league_team_shot_locations": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "shot_zone_basic",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "shot_zone_area",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "shot_zone_range",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
           "type": "float"
         }
       ],
@@ -13301,6 +16404,168 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_player_fantasy_profile_last_five_games_avg": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fan_duel_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_fantasy_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_player_fantasy_profile_season_avg": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "fan_duel_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "nba_fantasy_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_player_game_advanced": {
       "columns": [
         {
@@ -16383,6 +19648,127 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_player_pt_pass": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_name_last_first",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "pass_type",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pass_to",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "pass_from",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "pass_teammate_player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pass_",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg2_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "season_type",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_player_pt_reb_detail": {
       "columns": [
         {
@@ -16498,6 +19884,67 @@
         {
           "key": "",
           "name": "breakdown_type",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_player_pt_shot_defend": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "close_def_person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "defense_category",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "freq",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "d_fgm",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "d_fga",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "d_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "normal_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pct_plusminus",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "season_type",
           "type": "str"
         }
       ],
@@ -18879,6 +22326,82 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_scoreboard_conference_standings": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "league_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "season_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "standings_date",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "conference",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "g",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "losses",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "home_record",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "road_record",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "return_to_play",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "conference_scope",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_scoreboard_detail": {
       "columns": [
         {
@@ -19025,6 +22548,457 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_scoreboard_game_header": {
+      "columns": [
+        {
+          "key": "",
+          "name": "game_date_est",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_sequence",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "game_status_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status_text",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "gamecode",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "home_team_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "visitor_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "season",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "live_period",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "live_pc_time",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "natl_tv_broadcaster_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "home_tv_broadcaster_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "away_tv_broadcaster_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "live_period_time_bcast",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "arena_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "wh_status",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_last_meeting": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "last_game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_game_date_est",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "last_game_home_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "last_game_home_team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_game_home_team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_game_home_team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_game_home_team_points",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "last_game_visitor_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "last_game_visitor_team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_game_visitor_team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_game_visitor_team_city1",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "last_game_visitor_team_points",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_line_score": {
+      "columns": [
+        {
+          "key": "",
+          "name": "game_date_est",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_sequence",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_city_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_wins_losses",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "pts_qtr1",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_qtr2",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_qtr3",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_qtr4",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot1",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot2",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot3",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot4",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot5",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot6",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot7",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot8",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot9",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_ot10",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ft_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_series_standings": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "home_team_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "visitor_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_date_est",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "home_team_wins",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "home_team_losses",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "series_leader",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "series_scope",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_team_leaders": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_nickname",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "pts_player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pts_player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "reb_player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb_player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "int"
+        },
+        {
+          "key": "PK",
+          "name": "ast_player_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast_player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_ticket_links": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "leag_tix",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_scoreboard_v3": {
       "columns": [
         {
@@ -19101,6 +23075,296 @@
           "key": "",
           "name": "scoreboard_type",
           "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_v3_broadcaster": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "broadcaster_type",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "broadcaster_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "broadcast_display",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "broadcaster_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "broadcaster_description",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_v3_game_summary": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_code",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_status",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status_text",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "period",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_clock",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_time_utc",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_et",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "regulation_periods",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "series_game_number",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_label",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_sub_label",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "series_text",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "if_necessary",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "series_conference",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "po_round_desc",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_subtype",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "is_neutral",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_v3_line_score": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_tricode",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "wins",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "losses",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "score",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "seed",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "in_bonus",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "timeouts_remaining",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_v3_metadata": {
+      "columns": [
+        {
+          "key": "",
+          "name": "game_date",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "league_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "league_name",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_scoreboard_v3_team_leaders": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "leader_type",
+          "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "person_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "jersey_num",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_tricode",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "points",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "rebounds",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "assists",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "season_leaders_flag",
+          "type": "int"
         }
       ],
       "family": "fact",

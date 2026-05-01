@@ -40838,6 +40838,59 @@
     ]
   },
   {
+    "table_name": "staging_schedule_int_broadcaster",
+    "fields": [
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "region_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
     "table_name": "staging_schedule_int",
     "fields": [
       {
