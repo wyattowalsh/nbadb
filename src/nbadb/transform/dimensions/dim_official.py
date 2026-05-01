@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from nbadb.transform.base import BaseTransformer
 
@@ -14,7 +14,8 @@ class DimOfficialTransformer(BaseTransformer):
 
     def transform(self, staging: dict[str, pl.LazyFrame]) -> pl.DataFrame:
         off = staging["stg_officials"]
-        return (
+        return cast(
+            "pl.DataFrame",
             off.select(
                 "official_id",
                 "first_name",
@@ -23,5 +24,5 @@ class DimOfficialTransformer(BaseTransformer):
             )
             .unique(subset=["official_id"], keep="last")
             .sort("official_id")
-            .collect()
+            .collect(),
         )

@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import duckdb
+from loguru import logger
 from sqlalchemy import Engine, text
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -15,14 +16,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import duckdb as _duckdb_type
-
-try:
-    from loguru import logger
-except ImportError:
-    import logging
-
-    logger = logging.getLogger(__name__)
-
 
 _DUCKDB_LOCK_ERROR_FRAGMENT = "Could not set lock on file"
 _DUCKDB_LOCK_RETRY_ATTEMPTS = 4
