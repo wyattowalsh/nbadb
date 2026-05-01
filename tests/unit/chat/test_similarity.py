@@ -13,7 +13,6 @@ import pytest
 # Load similarity module dynamically since it's a skill script, not a package.
 _PATH = (
     Path(__file__).resolve().parents[3]
-    / "apps"
     / "chat"
     / "skills"
     / "nba-data-analytics"

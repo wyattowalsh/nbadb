@@ -12,7 +12,6 @@ import pytest
 
 _PATH = (
     Path(__file__).resolve().parents[3]
-    / "apps"
     / "chat"
     / "skills"
     / "nba-data-analytics"

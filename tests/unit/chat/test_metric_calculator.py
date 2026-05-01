@@ -11,7 +11,6 @@ import pytest
 # Load metric_calculator dynamically since it's a skill script, not a package.
 _CALC_PATH = (
     Path(__file__).resolve().parents[3]
-    / "apps"
     / "chat"
     / "skills"
     / "nba-data-analytics"

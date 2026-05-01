@@ -17,7 +17,6 @@ import pandas as pd  # noqa: E402
 # Load court module dynamically (skill script, not a package).
 _COURT_PATH = (
     Path(__file__).resolve().parents[3]
-    / "apps"
     / "chat"
     / "skills"
     / "nba-data-analytics"
