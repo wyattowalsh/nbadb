@@ -207,9 +207,34 @@ class PlayerAwardsExtractor(BaseExtractor):
     endpoint_name = "player_awards"
     category = "player_info"
 
+    @staticmethod
+    def _normalize_award_fields(df: pl.DataFrame) -> pl.DataFrame:
+        if "all_nba_team_number" not in df.columns:
+            return df
+
+        cleaned = pl.col("all_nba_team_number").cast(pl.Utf8, strict=False).str.strip_chars()
+        normalized = (
+            pl.when(cleaned.is_null() | cleaned.str.to_lowercase().is_in(["", "nan", "none"]))
+            .then(None)
+            .otherwise(cleaned)
+            .alias("_all_nba_team_number_clean")
+        )
+        return (
+            df.with_columns(normalized)
+            .with_columns(
+                pl.col("_all_nba_team_number_clean")
+                .cast(pl.Int64, strict=True)
+                .alias("all_nba_team_number")
+            )
+            .drop("_all_nba_team_number_clean")
+        )
+
     async def extract(self, **params: Any) -> pl.DataFrame:
         player_id: int = params["player_id"]
-        return self._from_nba_api(PlayerAwards, player_id=player_id)
+        converted = self._call_nba_api(PlayerAwards, player_id=player_id)
+        if not converted:
+            return pl.DataFrame()
+        return self._validate(self._normalize_award_fields(converted[0]))
 
 
 @registry.register

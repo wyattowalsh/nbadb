@@ -1821,6 +1821,42 @@ _EXTRACT_ALL_CASES = [
 ]
 
 
+@pytest.mark.asyncio
+async def test_player_awards_normalizes_blank_all_nba_team_number(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ext = PlayerAwardsExtractor()
+    raw = pl.DataFrame(
+        {
+            "person_id": [77907, 77917, 201939, 78017],
+            "first_name": ["Bill", "Phil", "Stephen", "John"],
+            "last_name": ["Russell", "Smith", "Curry", "Doe"],
+            "team": ["", "", "Golden State Warriors", ""],
+            "description": [
+                "NBA Champion",
+                "All-Rookie Team",
+                "All-NBA",
+                "Hall of Fame Inductee",
+            ],
+            "all_nba_team_number": ["", "1", " 2 ", None],
+            "season": ["1956-57", "1971-72", "2024-25", "1982"],
+            "month": [None, None, None, None],
+            "week": [None, None, None, None],
+            "conference": ["", "", "", ""],
+            "type": ["Award", "Award", "Award", "Award"],
+            "subtype1": ["", "", "", ""],
+            "subtype2": ["", "", "", ""],
+            "subtype3": ["", "", "", ""],
+        }
+    )
+
+    monkeypatch.setattr(ext, "_call_nba_api", lambda endpoint_cls, **kwargs: [raw])
+
+    result = await ext.extract(player_id=77907)
+
+    assert result.get_column("all_nba_team_number").to_list() == [None, 1, 2, None]
+
+
 @pytest.mark.parametrize(
     "cls, test_id, params",
     _EXTRACT_ALL_CASES,
