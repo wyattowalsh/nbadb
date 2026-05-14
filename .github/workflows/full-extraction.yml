@@ -346,17 +346,28 @@ jobs:
         id: vpn
         timeout-minutes: 3
         continue-on-error: true
-        uses: ./.github/actions/nordvpn-connect
-        with:
-          openvpn-user: ${{ secrets.OPENVPN_USER }}
-          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
-          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
-          lane-index: "0"
-          server-limit: "1"
-          fallback-technology: "openvpn_tcp"
-          connect-timeout-seconds: "30"
-          overall-timeout-seconds: "120"
-          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+        env:
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          LANE_INDEX: "0"
+          SERVER_LIMIT: "1"
+          FALLBACK_TECHNOLOGY: "openvpn_tcp"
+          CONNECT_TIMEOUT_SECONDS: "30"
+          OVERALL_TIMEOUT_SECONDS: "120"
+          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+        run: |
+          set +e
+          timeout --kill-after=15s 180s python3 .github/actions/nordvpn-connect/supervise.py
+          rc=$?
+          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ] || [ "$rc" -eq 143 ]; then
+            {
+              echo "status=vpn_connect_timeout"
+              echo "attempted-servers-json=[]"
+              echo "failed-servers-json=[]"
+            } >> "$GITHUB_OUTPUT"
+          fi
+          exit "$rc"
 
       - name: Summarize preflight VPN validation
         if: always()
@@ -510,19 +521,30 @@ jobs:
         id: vpn
         if: ${{ !matrix.resume_only }}
         timeout-minutes: 6
-        uses: ./.github/actions/nordvpn-connect
-        with:
-          openvpn-user: ${{ secrets.OPENVPN_USER }}
-          openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
-          nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
-          lane-index: ${{ matrix.lane_index }}
+        env:
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          LANE_INDEX: ${{ matrix.lane_index }}
           # Give active extract lanes a broader recommendation pool so the chain
           # does not burn an iteration on a few bad NordVPN hosts.
-          server-limit: "6"
-          fallback-technology: "openvpn_tcp"
-          connect-timeout-seconds: "30"
-          overall-timeout-seconds: "300"
-          quarantined-servers-json: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+          SERVER_LIMIT: "6"
+          FALLBACK_TECHNOLOGY: "openvpn_tcp"
+          CONNECT_TIMEOUT_SECONDS: "30"
+          OVERALL_TIMEOUT_SECONDS: "300"
+          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+        run: |
+          set +e
+          timeout --kill-after=15s 360s python3 .github/actions/nordvpn-connect/supervise.py
+          rc=$?
+          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ] || [ "$rc" -eq 143 ]; then
+            {
+              echo "status=vpn_connect_timeout"
+              echo "attempted-servers-json=[]"
+              echo "failed-servers-json=[]"
+            } >> "$GITHUB_OUTPUT"
+          fi
+          exit "$rc"
 
       # ── Configure environment ──
       - name: Configure extraction environment
