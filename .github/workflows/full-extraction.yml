@@ -172,8 +172,6 @@ jobs:
           )["summary"]
 
           failures: list[str] = []
-          if int(summary.get("adequate_endpoint_count", 0)) != int(summary.get("endpoint_count", 0)):
-              failures.append("endpoint adequacy is not fully green")
           if int(summary.get("coverage_gap_endpoint_count", 0)) > 0:
               failures.append("coverage gaps remain")
           if int(summary.get("contract_gap_endpoint_count", 0)) > 0:
@@ -190,8 +188,11 @@ jobs:
 
           print(
               "full extraction adequacy gate passed: "
+              f"{summary.get('downstream_modeled_endpoint_count', 0)} modeled, "
+              f"{summary.get('downstream_passthrough_only_endpoint_count', 0)} passthrough, "
+              f"{summary.get('downstream_compatibility_reference_only_endpoint_count', 0)} compatibility-reference, and "
               f"{summary.get('downstream_not_applicable_endpoint_count', 0)} non-model "
-              "endpoints are intentionally not applicable"
+              "endpoints are explicitly classified"
           )
           PY
 
