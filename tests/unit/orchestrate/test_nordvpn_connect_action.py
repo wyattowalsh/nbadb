@@ -47,6 +47,9 @@ def test_env_int_validates_type_and_minimum(
 
     assert module.env_int("SHARD_INDEX", 7, minimum=0) == 7
 
+    monkeypatch.setenv("SHARD_INDEX", "")
+    assert module.env_int("SHARD_INDEX", 7, minimum=0) == 7
+
     monkeypatch.setenv("SHARD_INDEX", "oops")
     with pytest.raises(module.ActionError, match="SHARD_INDEX must be an integer"):
         module.env_int("SHARD_INDEX", 7, minimum=0)
