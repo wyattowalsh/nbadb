@@ -71,7 +71,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────
 #  plan → lane extract(matrix) → merge → chain
@@ -830,6 +830,18 @@ jobs:
           pid: ${{ steps.vpn.outputs.pid }}
           pid-file: ${{ steps.vpn.outputs.pid-file }}
           work-dir: ${{ steps.vpn.outputs.work-dir }}
+
+      - name: Fail incomplete lane after artifacts
+        if: ${{ always() && steps.lane_status.outputs.status != 'complete' }}
+        env:
+          LANE_ID: ${{ matrix.lane_id }}
+          STATUS: ${{ steps.lane_status.outputs.status }}
+          EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
+          EXTRACT_EXIT_CODE: ${{ steps.extract.outputs.exit-code || '' }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status || 'unknown' }}
+        run: |
+          echo "::error::Lane $LANE_ID did not complete: status=$STATUS extract_status=$EXTRACT_STATUS exit_code=${EXTRACT_EXIT_CODE:-n/a} vpn_status=$VPN_STATUS"
+          exit 1
 
   # ─────────────────────────────────────────────────────────────
   #  Merge all lane artifacts once all lanes are complete

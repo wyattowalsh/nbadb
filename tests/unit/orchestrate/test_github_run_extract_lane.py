@@ -45,14 +45,14 @@ def test_build_command_includes_lane_filters(monkeypatch: pytest.MonkeyPatch) ->
     ]
 
 
-def test_effective_timeout_caps_singleton_player_lanes(
+def test_effective_timeout_uses_manifest_timeout_for_singleton_player_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load_module()
     monkeypatch.setenv("PATTERNS", "player")
     monkeypatch.setenv("BACKFILL_ENDPOINTS", "common_player_info")
 
-    assert module.effective_timeout_seconds(7200) == 3300
+    assert module.effective_timeout_seconds(7200) == 7200
 
 
 def test_effective_timeout_does_not_cap_multi_endpoint_player_lanes(
@@ -80,5 +80,30 @@ def test_status_for_exit_code_classifies_runner_interrupts() -> None:
     assert module.status_for_exit_code(124) == "extract-timeout"
     assert module.status_for_exit_code(130) == "extract-timeout"
     assert module.status_for_exit_code(137) == "extract-timeout"
+    assert module.status_for_exit_code(143) == "extract-timeout"
     assert module.status_for_exit_code(-module.signal.SIGINT) == "extract-timeout"
+    assert module.status_for_exit_code(-module.signal.SIGTERM) == "extract-timeout"
     assert module.status_for_exit_code(2) == "extract-error"
+
+
+def test_main_reports_interrupted_child_without_canceling_post_steps(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    output_path = tmp_path / "github-output.txt"
+
+    class FakeProcess:
+        pid = 12345
+
+        def poll(self) -> int:
+            return 130
+
+    monkeypatch.setenv("LANE_TIMEOUT_SECONDS", "7200")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *_args, **_kwargs: FakeProcess())
+
+    assert module.main() == 0
+    output = output_path.read_text(encoding="utf-8")
+    assert "exit-code=130" in output
+    assert "status=extract-timeout" in output

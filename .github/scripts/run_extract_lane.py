@@ -92,21 +92,21 @@ def env_timeout_seconds() -> int:
 
 
 def effective_timeout_seconds(timeout_seconds: int) -> int:
-    patterns = os.environ.get("PATTERNS", "").strip()
-    endpoints = os.environ.get("BACKFILL_ENDPOINTS", "").strip()
-    is_singleton_player_lane = patterns == "player" and bool(endpoints) and "," not in endpoints
-    if is_singleton_player_lane and timeout_seconds > 3300:
-        print(
-            "::notice::Capping singleton player lane timeout to 3300s for resumable checkpointing"
-        )
-        return 3300
     return timeout_seconds
 
 
 def status_for_exit_code(exit_code: int) -> str:
     if exit_code == 0:
         return "complete"
-    if exit_code in {124, 130, 137, -signal.SIGINT, -signal.SIGKILL}:
+    if exit_code in {
+        124,
+        130,
+        137,
+        143,
+        -signal.SIGINT,
+        -signal.SIGTERM,
+        -signal.SIGKILL,
+    }:
         return "extract-timeout"
     return "extract-error"
 
@@ -143,7 +143,9 @@ def main() -> int:
     append_output("finished-at", finished_at)
     append_output("exit-code", str(exit_code))
     append_output("status", status)
-    return exit_code
+    if status != "complete":
+        print(f"::warning::Extraction lane finished with status={status} exit_code={exit_code}")
+    return 0
 
 
 if __name__ == "__main__":
