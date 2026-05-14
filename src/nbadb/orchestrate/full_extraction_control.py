@@ -66,11 +66,11 @@ REFERENCE_TIMEOUT_SECONDS_BY_PATTERN: dict[str, int] = {
     "player": 3_600,
 }
 REFERENCE_TIMEOUT_SECONDS_BY_ENDPOINT: dict[str, int] = {
-    "common_player_info": 4_200,
-    "player_profile_v2": 5_400,
-    "player_awards": 4_200,
-    "player_career_stats": 4_800,
-    "player_compare": 4_800,
+    "common_player_info": 9_000,
+    "player_profile_v2": 10_800,
+    "player_awards": 9_000,
+    "player_career_stats": 9_000,
+    "player_compare": 9_000,
     "team_historical_leaders": 4_200,
 }
 FULL_EXTRACTION_EXCLUDED_ENDPOINTS: dict[str, str] = {

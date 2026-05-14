@@ -391,6 +391,58 @@ class TestRunPattern:
         assert runner.skipped_due_to_journal == 0
 
     @pytest.mark.asyncio
+    async def test_run_pattern_persists_chunk_before_journal_success(self):
+        class _SeasonEchoExtractor:
+            category = "default"
+
+            async def extract(self, **kwargs):
+                return pl.DataFrame({"season": [kwargs["season"]]})
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(default_chunk_size=1)
+        registry = _make_registry(_SeasonEchoExtractor)
+        runner = ExtractorRunner(registry, settings, journal)
+        persist_events: list[str] = []
+
+        def persist_chunk(frames: dict[str, pl.DataFrame]) -> None:
+            assert journal.record_success.call_count == len(persist_events)
+            persist_events.append(frames["stg_ep1"]["season"].item())
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner.run_pattern(
+            "season",
+            [{"season": "2024-25"}, {"season": "2025-26"}],
+            [entry],
+            persist_chunk_results=persist_chunk,
+        )
+
+        assert persist_events == ["2024-25", "2025-26"]
+        assert result["stg_ep1"].shape[0] == 2
+        assert journal.record_success.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_pattern_does_not_mark_success_when_chunk_persist_fails(self):
+        df = pl.DataFrame({"col": [10, 20]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(default_chunk_size=1)
+        registry = _make_registry(_make_extractor(df=df))
+        runner = ExtractorRunner(registry, settings, journal)
+
+        def fail_persist(_frames: dict[str, pl.DataFrame]) -> None:
+            raise RuntimeError("staging unavailable")
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        with pytest.raises(RuntimeError, match="staging unavailable"):
+            await runner.run_pattern(
+                "season",
+                [{"season": "2024-25"}],
+                [entry],
+                persist_chunk_results=fail_persist,
+            )
+
+        journal.record_success.assert_not_called()
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("endpoint_name", "staging_key"),
         [

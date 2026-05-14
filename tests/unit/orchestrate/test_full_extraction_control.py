@@ -219,11 +219,11 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         "reference-player-05",
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
-        (("common_player_info",), 4200),
-        (("player_profile_v2",), 5400),
-        (("player_awards",), 4200),
-        (("player_career_stats",), 4800),
-        (("player_compare",), 4800),
+        (("common_player_info",), 9000),
+        (("player_profile_v2",), 10800),
+        (("player_awards",), 9000),
+        (("player_career_stats",), 9000),
+        (("player_compare",), 9000),
     }
     assert all(lane.use_vpn is True for lane in reference_lanes)
 

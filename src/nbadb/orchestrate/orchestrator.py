@@ -777,7 +777,17 @@ class Orchestrator:
             if lane_key is not None and progress_store_local is not None:
                 progress_store_local.mark_started(lane_key, task_count=n_tasks)
             result_raw: dict[str, pl.DataFrame]
-            if skip_items:
+            chunk_persist_results = persist_results
+            if skip_items and chunk_persist_results is not None:
+                result_raw = await runner.run_pattern(
+                    pattern,
+                    params,
+                    entries,
+                    on_progress=pp,
+                    skip_items=skip_items,
+                    persist_chunk_results=chunk_persist_results,
+                )
+            elif skip_items:
                 result_raw = await runner.run_pattern(
                     pattern,
                     params,
@@ -785,8 +795,21 @@ class Orchestrator:
                     on_progress=pp,
                     skip_items=skip_items,
                 )
+            elif chunk_persist_results is not None:
+                result_raw = await runner.run_pattern(
+                    pattern,
+                    params,
+                    entries,
+                    on_progress=pp,
+                    persist_chunk_results=chunk_persist_results,
+                )
             else:
-                result_raw = await runner.run_pattern(pattern, params, entries, on_progress=pp)
+                result_raw = await runner.run_pattern(
+                    pattern,
+                    params,
+                    entries,
+                    on_progress=pp,
+                )
 
             completed_at = datetime.now(UTC)
             row_count = sum(df.height for df in result_raw.values() if not df.is_empty())
@@ -796,8 +819,6 @@ class Orchestrator:
                     for entry in entries
                 }
             )
-            if persist_results is not None and result_raw:
-                persist_results(result_raw)
             if lane_key is not None and progress_store_local is not None:
                 progress_store_local.mark_complete(
                     lane_key,
