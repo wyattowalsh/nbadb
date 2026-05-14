@@ -304,6 +304,71 @@ def test_attempt_server_records_verified_tunnel_details(
     assert action.failed_servers == []
 
 
+def test_attempt_server_classifies_auth_failure_when_openvpn_exits_early(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_file.write_text("user\npassword\n", encoding="utf-8")
+
+    def _fake_retry_http_get(label: str, output_path: Path, url: str, *extra_args: str) -> bool:
+        if label.startswith("NordVPN OpenVPN config download"):
+            output_path.write_text("client\n", encoding="utf-8")
+            return True
+        raise AssertionError(f"unexpected retry label: {label}")
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+    monkeypatch.setattr(
+        action, "config_url", lambda server, technology: "https://example.test/server.ovpn"
+    )
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(action, "cleanup_openvpn", lambda: None)
+
+    class _AuthFailedProcess:
+        pid = 98765
+
+        def poll(self):
+            return 0
+
+    def _fake_popen(cmd: list[str], **kwargs) -> _AuthFailedProcess:
+        action.log_file.write_text(
+            "AUTH: Received control message: AUTH_FAILED\n",
+            encoding="utf-8",
+        )
+        return _AuthFailedProcess()
+
+    monkeypatch.setattr(module.subprocess, "Popen", _fake_popen)
+
+    assert action.attempt_server("us1001.nordvpn.com", "openvpn_udp") is False
+    assert action.failed_servers == ["us1001.nordvpn.com"]
+
+
+def test_run_reports_auth_failure_after_all_recommended_servers_reject_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    monkeypatch.setattr(action, "prepare_workdir", lambda: None)
+    monkeypatch.setattr(action, "install_dependencies", lambda: None)
+    monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
+    monkeypatch.setattr(action, "prepare_auth", lambda: None)
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(action, "cleanup_openvpn", lambda: None)
+    monkeypatch.setattr(action, "recommendation_servers", lambda technology: ["us1001.nordvpn.com"])
+    monkeypatch.setattr(action, "attempt_server", lambda server, technology: False)
+    monkeypatch.setattr(action, "auth_failed_in_log", lambda: True)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.run()
+
+    assert excinfo.value.status == "vpn_auth_failure"
+
+
 def test_install_dependencies_skips_when_tools_are_already_present(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,

@@ -597,14 +597,6 @@ class NordVpnConnectAction:
         while time.monotonic() < attempt_deadline:
             if self.openvpn_process is None:
                 break
-            process_rc = self.openvpn_process.poll()
-            if process_rc is not None:
-                self.append_unique(self.failed_servers, server)
-                raise ActionError(
-                    "vpn_connect_timeout",
-                    f"OpenVPN exited early for {server} over {technology} "
-                    f"with exit code {process_rc}",
-                )
             if self.auth_failed_in_log():
                 auth_failed = True
                 print(
@@ -612,6 +604,21 @@ class NordVpnConnectAction:
                     f"for {server} over {technology}; trying the next recommended server"
                 )
                 break
+            process_rc = self.openvpn_process.poll()
+            if process_rc is not None:
+                self.append_unique(self.failed_servers, server)
+                if self.auth_failed_in_log():
+                    auth_failed = True
+                    print(
+                        "::warning::NordVPN rejected the OpenVPN credentials "
+                        f"for {server} over {technology}; trying the next recommended server"
+                    )
+                    break
+                raise ActionError(
+                    "vpn_connect_timeout",
+                    f"OpenVPN exited early for {server} over {technology} "
+                    f"with exit code {process_rc}",
+                )
 
             pid = (
                 self.pid_file.read_text(encoding="utf-8", errors="replace").strip()
