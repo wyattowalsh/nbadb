@@ -253,6 +253,11 @@ def test_player_family_schemas_validate_representative_rows() -> None:
             "location": ["H"],
             "pctimestring": ["00:32.4"],
             "isvisible": [1],
+            "game_date": ["2025-04-13"],
+            "home_team_abr": ["GSW"],
+            "visitor_team_abr": ["BOS"],
+            "home_team_pts": [104],
+            "visitor_team_pts": [98],
         }
     )
 

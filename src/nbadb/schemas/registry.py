@@ -33,6 +33,7 @@ _INPUT_SCHEMA_ALIASES: dict[str, str] = {
     "stg_player_info": "raw_common_player_info",
     "stg_player_awards": "raw_player_awards",
     "stg_team_info": "raw_team_info_common",
+    "stg_team_roster": "raw_common_team_roster",
     "stg_coaches": "raw_common_team_roster_coaches",
     "stg_franchise": "raw_franchise_history",
     "stg_box_score_misc": "raw_box_score_misc_player",

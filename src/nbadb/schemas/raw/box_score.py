@@ -32,6 +32,14 @@ class RawBoxScoreTraditionalPlayerSchema(BaseSchema):
             "description": "Team city name",
         },
     )
+    team_name: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.teamName"},
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.teamSlug"},
+    )
     player_id: int = pa.Field(
         gt=0,
         metadata={
@@ -45,6 +53,26 @@ class RawBoxScoreTraditionalPlayerSchema(BaseSchema):
             "source": ("BoxScoreTraditionalV3.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
+    )
+    first_name: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.firstName"},
+    )
+    family_name: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.familyName"},
+    )
+    name_i: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.nameI"},
+    )
+    player_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.playerSlug"},
+    )
+    jersey_num: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.jerseyNum"},
     )
     nickname: str | None = pa.Field(
         nullable=True,
@@ -242,6 +270,10 @@ class RawBoxScoreTraditionalTeamSchema(BaseSchema):
             "source": ("BoxScoreTraditionalV3.TeamStats.TEAM_CITY"),
             "description": "Team city name",
         },
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.TeamStats.teamSlug"},
     )
     min: float | None = pa.Field(
         nullable=True,
@@ -637,6 +669,8 @@ class RawBoxScoreMiscPlayerSchema(BaseSchema):
             "description": "Team city name",
         },
     )
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         metadata={
@@ -651,6 +685,18 @@ class RawBoxScoreMiscPlayerSchema(BaseSchema):
             "description": "Player full name",
         },
     )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
+    )
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
     nickname: str | None = pa.Field(
         nullable=True,
         metadata={
@@ -792,6 +838,8 @@ class RawBoxScoreScoringPlayerSchema(BaseSchema):
             "description": "Team city name",
         },
     )
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         metadata={
@@ -806,6 +854,18 @@ class RawBoxScoreScoringPlayerSchema(BaseSchema):
             "description": "Player full name",
         },
     )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
+    )
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
     nickname: str | None = pa.Field(
         nullable=True,
         metadata={
@@ -968,6 +1028,8 @@ class RawBoxScoreUsagePlayerSchema(BaseSchema):
             "description": "Team city name",
         },
     )
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         metadata={
@@ -982,6 +1044,18 @@ class RawBoxScoreUsagePlayerSchema(BaseSchema):
             "description": "Player full name",
         },
     )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
+    )
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
     nickname: str | None = pa.Field(
         nullable=True,
         metadata={

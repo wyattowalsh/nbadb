@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -597,6 +598,10 @@ def _available_format_specs(inventory: ExportInventory) -> list[tuple[str, str, 
     return available
 
 
+def _available_format_labels(inventory: ExportInventory) -> list[str]:
+    return [label for label, _, _ in _available_format_specs(inventory)]
+
+
 def _human_join(items: list[str]) -> str:
     if not items:
         return ""
@@ -607,16 +612,16 @@ def _human_join(items: list[str]) -> str:
 
 def _render_subtitle(inventory: ExportInventory) -> str:
     total_tables = _total_table_count()
-    format_names = [label for label, _, _ in _available_format_specs(inventory)]
-    return (
-        f"Comprehensive NBA database: {total_tables}-table star schema (1946-present) "
-        f"with {_human_join(format_names)} exports"
-    )
+    format_names = _available_format_labels(inventory)
+    formats = "/".join(format_names) or "catalog metadata"
+    return f"{total_tables}-table star schema for NBA, 1946-present: {formats}"
 
 
-def _render_schema_overview() -> str:
+def _render_what_you_get() -> str:
     rows = [
-        "## Schema Overview",
+        "## What You Get",
+        "",
+        "A warehouse-style NBA dataset with normalized dimensions, event facts, aggregate rollups, and ready-to-query analytics views.",
         "",
         "| Layer | Count | Description |",
         "|-------|------:|-------------|",
@@ -661,6 +666,60 @@ def _render_data_coverage() -> str:
     )
 
 
+def _render_start_here(inventory: ExportInventory) -> str:
+    available = _available_format_labels(inventory)
+    formats = _human_join(available)
+    if not available:
+        guidance = (
+            "This metadata catalogs the expected nbadb outputs, but no concrete export "
+            "artifacts were detected in the selected data directory."
+        )
+    else:
+        guidance = f"This release includes {formats}. Choose the format that matches your workflow."
+    return "\n".join(
+        [
+            "## Start Here",
+            "",
+            guidance,
+            f"This release documents {_total_table_count()} cataloged outputs across {formats or 'the available exports'}.",
+        ]
+    )
+
+
+def _render_quick_queries() -> str:
+    return "\n".join(
+        [
+            "## Quick Queries",
+            "",
+            "```python",
+            "import duckdb",
+            'con = duckdb.connect("nba.duckdb", read_only=True)',
+            "",
+            "# Player season averages",
+            "con.sql(\"SELECT * FROM agg_player_season WHERE season_year = '2024-25' ORDER BY avg_pts DESC LIMIT 10\")",
+            "",
+            "# Shot chart for a player",
+            'con.sql("SELECT loc_x, loc_y, shot_made_flag FROM fact_shot_chart WHERE player_id = 201939")',
+            "",
+            "# Team standings",
+            "con.sql(\"SELECT * FROM fact_standings WHERE season_year = '2024-25' ORDER BY conference_rank\")",
+            "```",
+        ]
+    )
+
+
+def _render_coverage_notes() -> str:
+    return "\n".join(
+        [
+            "## Coverage Notes",
+            "",
+            "nbadb preserves full-history coverage wherever `nba_api` exposes the upstream endpoint surface. Endpoint/year/season-type combinations that are upstream-unavailable or contract-blocked are classified explicitly in project audits instead of being silently dropped.",
+            "",
+            "The dataset is built from public NBA API responses and normalized into analytics-ready outputs. It is not an official NBA records system; use the included provenance, schema, and refresh notes when citing or redistributing derived work.",
+        ]
+    )
+
+
 def _render_available_formats(inventory: ExportInventory) -> str:
     rows = [
         "## Available Formats",
@@ -670,12 +729,15 @@ def _render_available_formats(inventory: ExportInventory) -> str:
     ]
     for label, path, description in _available_format_specs(inventory):
         rows.append(f"| {label} | `{path}` | {description} |")
-    rows.extend(
-        [
-            "",
-            "DuckDB and Parquet exports use zstd compression for efficient storage.",
-        ]
-    )
+    if len(rows) == 4:
+        rows.append("| None detected | — | Run `nbadb export` before publishing this bundle |")
+    if inventory.duckdb_available or inventory.parquet_tables > 0:
+        rows.extend(
+            [
+                "",
+                "DuckDB and Parquet exports use zstd compression for efficient storage.",
+            ]
+        )
     return "\n".join(rows)
 
 
@@ -699,23 +761,18 @@ def _render_export_inventory(inventory: ExportInventory) -> str:
     )
 
 
-def _render_getting_started() -> str:
+def _render_file_layout(inventory: ExportInventory) -> str:
+    paths = [path for _, path, _ in _available_format_specs(inventory)]
+    if not paths:
+        paths = ["dataset-metadata.json"]
+    elif "dataset-metadata.json" not in paths:
+        paths.append("dataset-metadata.json")
     return "\n".join(
         [
-            "## Getting Started",
+            "## File Layout",
             "",
-            "```python",
-            "import duckdb",
-            'con = duckdb.connect("nba.duckdb", read_only=True)',
-            "",
-            "# Player season averages",
-            "con.sql(\"SELECT * FROM agg_player_season WHERE season_year = '2024-25' ORDER BY avg_pts DESC LIMIT 10\")",
-            "",
-            "# Shot chart for a player",
-            'con.sql("SELECT loc_x, loc_y, shot_made_flag FROM fact_shot_chart WHERE player_id = 201939")',
-            "",
-            "# Team standings",
-            "con.sql(\"SELECT * FROM fact_standings WHERE season_year = '2024-25' ORDER BY conference_rank\")",
+            "```text",
+            *paths,
             "```",
         ]
     )
@@ -766,12 +823,62 @@ def _render_companion_notebooks() -> str:
     )
 
 
-def _render_update_schedule() -> str:
+def _render_refresh_and_versioning() -> str:
     return "\n".join(
         [
-            "## Update Schedule",
+            "## Refresh And Versioning",
             "",
-            "Updated daily during the NBA season via the automated pipeline. Full rebuilds run on the first week of each month.",
+            "Updated daily during the NBA season via the automated pipeline. Full rebuilds run on the first week of each month, and Kaggle version notes summarize each publish event.",
+        ]
+    )
+
+
+def _render_intended_uses() -> str:
+    return "\n".join(
+        [
+            "## Intended Uses",
+            "",
+            "- Historical NBA analysis, BI dashboards, and reproducible notebooks.",
+            "- Player, team, lineup, shot, and game modeling where public NBA API provenance is acceptable.",
+            "- Teaching warehouse modeling, feature engineering, and sports analytics workflows.",
+        ]
+    )
+
+
+def _render_not_intended_for() -> str:
+    return "\n".join(
+        [
+            "## Not Intended For",
+            "",
+            "- Official NBA records, legal, financial, betting, or personnel decision infrastructure.",
+            "- Workflows that require guaranteed availability for every upstream endpoint/year/season-type combination.",
+            "- Real-time production systems; live snapshot outputs are useful context, not a service-level feed.",
+        ]
+    )
+
+
+def _render_citation_and_attribution() -> str:
+    return "\n".join(
+        [
+            "## Citation And Attribution",
+            "",
+            "If this dataset supports your work, cite the Kaggle dataset and link back to the project documentation or repository:",
+            "",
+            "```text",
+            "Wyatt Walsh. NBA Basketball Database. Kaggle: wyattowalsh/basketball.",
+            f"Documentation: {PROJECT_DOCS_URL}",
+            f"Source: {PROJECT_REPO_URL}",
+            "```",
+        ]
+    )
+
+
+def _render_license() -> str:
+    return "\n".join(
+        [
+            "## License",
+            "",
+            "Published under CC-BY-SA-4.0. NBA data remains subject to the terms and availability of the upstream public sources.",
         ]
     )
 
@@ -780,27 +887,41 @@ def _render_dataset_description(inventory: ExportInventory) -> str:
     sections = [
         "# NBA Basketball Database",
         "",
-        "The most comprehensive open NBA database available — 137 stats.nba.com endpoint classes extracted via [nba_api](https://github.com/swar/nba_api), normalized into a star schema covering every season from 1946-47 to present.",
+        f"The most comprehensive open NBA database available — a {_total_table_count()}-table analytics warehouse extracted from the current `nba_api` runtime surface and normalized into a star schema covering every season from 1946-47 to present.",
+        "",
+        _render_start_here(inventory),
+        "",
+        _render_quick_queries(),
+        "",
+        _render_what_you_get(),
         "",
         _render_source_and_provenance(),
         "",
-        _render_schema_overview(),
-        "",
-        _render_data_coverage(),
+        _render_coverage_notes(),
         "",
         _render_available_formats(inventory),
         "",
+        _render_file_layout(inventory),
+        "",
         _render_export_inventory(inventory),
         "",
-        _render_getting_started(),
+        _render_data_coverage(),
         "",
         _render_key_relationships(),
+        "",
+        _render_intended_uses(),
+        "",
+        _render_not_intended_for(),
         "",
         _render_table_catalog(),
         "",
         _render_companion_notebooks(),
         "",
-        _render_update_schedule(),
+        _render_refresh_and_versioning(),
+        "",
+        _render_citation_and_attribution(),
+        "",
+        _render_license(),
     ]
     return "\n".join(sections)
 
@@ -828,6 +949,7 @@ def generate_metadata(output_path: Path, data_dir: Path | None = None) -> None:
     """Generate dataset-metadata.json from the table catalog and optional export data."""
     settings = get_settings()
     inventory = _resolve_export_inventory(data_dir)
+    resource_data_dir = data_dir if data_dir is not None and data_dir.exists() else None
     metadata = {
         "id": settings.kaggle_dataset,
         "id_no": None,
@@ -859,7 +981,10 @@ def generate_metadata(output_path: Path, data_dir: Path | None = None) -> None:
         ],
         "collaborators": [],
         "data": [],
-        "resources": _build_resources(data_dir=data_dir),
+        "resources": _build_resources(
+            data_dir=resource_data_dir,
+            validate_csv_headers=resource_data_dir is not None,
+        ),
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
@@ -936,7 +1061,7 @@ def _resolve_parquet_resource_path(table: str, data_dir: Path | None = None) -> 
         table_file = table_dir / f"{table}.parquet"
         if table_file.exists():
             return f"parquet/{table}/{table}.parquet"
-        if table_dir.exists():
+        if table in PARTITIONED_TABLES and any(table_dir.rglob("*.parquet")):
             return f"parquet/{table}"
         return None
 
@@ -945,7 +1070,27 @@ def _resolve_parquet_resource_path(table: str, data_dir: Path | None = None) -> 
     return f"parquet/{table}/{table}.parquet"
 
 
-def _build_resources(data_dir: Path | None = None) -> list[dict]:
+def _validate_csv_header(csv_path: Path, schema_fields: list[dict], *, resource_path: str) -> None:
+    """Validate that a CSV export header matches Kaggle schema field order."""
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.reader(handle)
+        try:
+            header = next(reader)
+        except StopIteration as exc:
+            msg = f"CSV header mismatch for {resource_path}: file is empty"
+            raise ValueError(msg) from exc
+
+    expected = [field["name"] for field in schema_fields]
+    if header != expected:
+        msg = f"CSV header mismatch for {resource_path}: expected {expected}, got {header}"
+        raise ValueError(msg)
+
+
+def _build_resources(
+    data_dir: Path | None = None,
+    *,
+    validate_csv_headers: bool = False,
+) -> list[dict]:
     """Build resource entries for exported tables, filtering by data_dir when provided."""
     resources: list[dict] = []
     total_tables = _total_table_count()
@@ -975,13 +1120,16 @@ def _build_resources(data_dir: Path | None = None) -> list[dict]:
         schema_fields = _extract_column_schema(table)
 
         csv_path = f"csv/{table}.csv"
-        if data_dir is None or (data_dir / csv_path).exists():
+        csv_file = None if data_dir is None else data_dir / csv_path
+        if data_dir is None or (csv_file is not None and csv_file.exists()):
             csv_resource: dict = {
                 "path": csv_path,
                 "name": display_name,
                 "description": description,
             }
             if schema_fields:
+                if validate_csv_headers and csv_file is not None:
+                    _validate_csv_header(csv_file, schema_fields, resource_path=csv_path)
                 csv_resource["schema"] = {"fields": schema_fields}
             resources.append(csv_resource)
 

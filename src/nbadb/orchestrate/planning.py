@@ -188,8 +188,9 @@ def build_extraction_plan(
     """Build the pattern execution plan for a pipeline run.
 
     The returned plan preserves the current runtime behavior of
-    ``Orchestrator._extract_all_patterns``. Eligibility checks such as
-    ``min_season`` remain enforced at execution time by ``ExtractorRunner``.
+    ``Orchestrator._extract_all_patterns``. If a future staging entry carries
+    a documented upstream support floor, that ``min_season`` still narrows the
+    generated workload; production entries otherwise start at 1946.
     """
 
     plan: list[ExtractionPlanItem] = []

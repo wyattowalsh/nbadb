@@ -19,6 +19,12 @@ FactTeamHofTransformer = make_passthrough("fact_team_hof", "stg_team_hof")
 FactTeamSocialSitesTransformer = make_passthrough("fact_team_social_sites", "stg_team_social_sites")
 FactTeamAwardsConfTransformer = make_passthrough("fact_team_awards_conf", "stg_team_awards_conf")
 FactTeamAwardsDivTransformer = make_passthrough("fact_team_awards_div", "stg_team_awards_div")
+FactTeamAwardsChampionshipsTransformer = make_passthrough(
+    "fact_team_awards_championships", "stg_team_awards_championships"
+)
+FactScoreboardAvailableTransformer = make_passthrough(
+    "fact_scoreboard_available", "stg_scoreboard_available"
+)
 
 # ---------------------------------------------------------------------------
 # Union transforms

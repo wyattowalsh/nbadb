@@ -201,16 +201,11 @@ class StagingEntry:
     but current data is unreliable after the cutoff date.
     """
     min_season: int | None = None
-    """Earliest season year (e.g. 2013) for which this endpoint returns data.
+    """Earliest season year for a hard upstream availability window.
 
-    The orchestrator skips API calls for seasons before this threshold.
-    ``None`` means the endpoint is available for all historical seasons.
-
-    Common thresholds:
-    - 2013: Player tracking, hustle stats, matchups
-    - 2016: Hustle box scores
-    - 2020: IST / In-Season Tournament standings
-    - 2023: BoxScoreSummaryV3, DunkScoreLeaders
+    Production entries default to ``None`` so historical sweeps attempt every
+    season from 1946 onward. Use this only for a concrete, documented upstream
+    impossibility rather than as a local performance or caution cutoff.
     """
     season_type_capability: SeasonTypeCapability | None = None
     """Historical season_type contract capability for this staging surface.
@@ -222,6 +217,8 @@ class StagingEntry:
     """
     supported_season_types: SupportedSeasonTypes | None = None
     """Explicit supported season_type values for historical season-aware surfaces."""
+    allow_missing_result_set: bool = False
+    """Whether a multi-result packet is optional in upstream responses."""
 
     def __post_init__(self) -> None:
         capability = self.season_type_capability
@@ -273,7 +270,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=0,
         use_multi=True,
-        min_season=2016,
     ),
     StagingEntry(
         "schedule_int",
@@ -281,7 +277,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=1,
         use_multi=True,
-        min_season=2016,
     ),
     StagingEntry(
         "schedule_int",
@@ -289,7 +284,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=2,
         use_multi=True,
-        min_season=2016,
     ),
     StagingEntry("league_standings", "stg_standings", "season"),
     StagingEntry("draft_history", "stg_draft", "season"),
@@ -305,8 +299,8 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
     ),
     StagingEntry("league_lineup_viz", "stg_league_lineup_viz", "season"),
-    StagingEntry("synergy_play_types", "stg_synergy", "season", min_season=2015),
-    StagingEntry("league_dash_pt_defend", "stg_tracking_defense", "season", min_season=2013),
+    StagingEntry("synergy_play_types", "stg_synergy", "season"),
+    StagingEntry("league_dash_pt_defend", "stg_tracking_defense", "season"),
     StagingEntry(
         "league_dash_player_shot_locations",
         "stg_shot_locations",
@@ -346,7 +340,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_misc",
@@ -354,7 +347,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_scoring",
@@ -362,7 +354,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_usage",
@@ -370,7 +361,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_four_factors",
@@ -378,7 +368,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_hustle",
@@ -386,7 +375,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=2016,
     ),
     StagingEntry(
         "box_score_player_track",
@@ -394,7 +382,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "box_score_defensive",
@@ -402,20 +389,18 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=2016,
     ),
-    StagingEntry("play_by_play", "stg_play_by_play", "game", result_set_index=0, use_multi=True),
+    StagingEntry("play_by_play", "stg_play_by_play", "game", result_set_index=1, use_multi=True),
     StagingEntry(
         "win_probability",
         "stg_win_probability",
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=2015,
     ),
     StagingEntry("video_events", "stg_video_events", "game"),
     StagingEntry("video_events_asset", "stg_video_events_asset", "game"),
-    StagingEntry("box_score_matchups", "stg_matchup", "game", min_season=2016),
+    StagingEntry("box_score_matchups", "stg_matchup", "game"),
     StagingEntry(
         "box_score_summary",
         "stg_game_summary_available_video",
@@ -485,7 +470,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -493,7 +477,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -501,7 +484,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=2,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -509,7 +491,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=3,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -517,7 +498,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=4,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -525,7 +505,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=5,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -533,7 +512,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=6,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -541,7 +519,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=7,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "box_score_summary_v3",
@@ -549,7 +526,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=8,
         use_multi=True,
-        min_season=2023,
     ),
     StagingEntry(
         "game_rotation",
@@ -568,9 +544,16 @@ STAGING_MAP: list[StagingEntry] = [
     # ── Date-level (12) ───────────────────────────────────────────
     StagingEntry(
         "scoreboard_v2",
-        "stg_scoreboard",
+        "stg_scoreboard_available",
         "date",
         result_set_index=0,
+        use_multi=True,
+    ),
+    StagingEntry(
+        "scoreboard_v2",
+        "stg_scoreboard",
+        "date",
+        result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
@@ -584,7 +567,7 @@ STAGING_MAP: list[StagingEntry] = [
         "scoreboard_v2",
         "stg_scoreboard_v2_series_standings",
         "date",
-        result_set_index=2,
+        result_set_index=5,
         use_multi=True,
     ),
     StagingEntry(
@@ -699,16 +682,15 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "shot_chart_detail",
         "stg_shot_chart",
-        "player",
-        result_set_index=0,
+        "player_season",
+        result_set_index=1,
         use_multi=True,
-        min_season=1996,
     ),
-    StagingEntry("player_estimated_metrics", "stg_player_tracking", "season", min_season=2013),
+    StagingEntry("player_estimated_metrics", "stg_player_tracking", "season"),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_dashboard_clutch",
-        "player",
+        "player_season",
         result_set_index=10,
         use_multi=True,
     ),
@@ -722,7 +704,7 @@ STAGING_MAP: list[StagingEntry] = [
     ),
     StagingEntry(
         "common_team_roster",
-        "stg_team_info",
+        "stg_team_roster",
         "team_season",
         result_set_index=1,
         use_multi=True,
@@ -731,7 +713,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_estimated_metrics",
         "stg_team_dashboard_estimated",
         "season",
-        min_season=2013,
     ),
     StagingEntry(
         "team_player_on_off_details",
@@ -814,21 +795,17 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=5,
         use_multi=True,
     ),
-    StagingEntry("ist_standings", "stg_ist_standings", "season", min_season=2020),
+    StagingEntry("ist_standings", "stg_ist_standings", "season"),
     StagingEntry("common_playoff_series", "stg_common_playoff_series", "season"),
     # --- merged from patch files ---
     # Season-level additions
-    StagingEntry("league_hustle_player", "stg_league_hustle_player", "season", min_season=2016),
-    StagingEntry("league_hustle_team", "stg_league_hustle_team", "season", min_season=2016),
-    StagingEntry("league_dash_pt_stats", "stg_league_pt_stats", "season", min_season=2013),
-    StagingEntry(
-        "league_dash_pt_team_defend", "stg_league_pt_team_defend", "season", min_season=2013
-    ),
-    StagingEntry("league_dash_team_pt_shot", "stg_league_team_pt_shot", "season", min_season=2013),
-    StagingEntry("league_dash_opp_pt_shot", "stg_league_opp_pt_shot", "season", min_season=2013),
-    StagingEntry(
-        "league_dash_player_pt_shot", "stg_league_player_pt_shot", "season", min_season=2013
-    ),
+    StagingEntry("league_hustle_player", "stg_league_hustle_player", "season"),
+    StagingEntry("league_hustle_team", "stg_league_hustle_team", "season"),
+    StagingEntry("league_dash_pt_stats", "stg_league_pt_stats", "season"),
+    StagingEntry("league_dash_pt_team_defend", "stg_league_pt_team_defend", "season"),
+    StagingEntry("league_dash_team_pt_shot", "stg_league_team_pt_shot", "season"),
+    StagingEntry("league_dash_opp_pt_shot", "stg_league_opp_pt_shot", "season"),
+    StagingEntry("league_dash_player_pt_shot", "stg_league_player_pt_shot", "season"),
     StagingEntry("league_dash_team_clutch", "stg_league_team_clutch", "season"),
     StagingEntry(
         "league_dash_team_shot_locations",
@@ -839,8 +816,8 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("league_leaders", "stg_league_leaders", "season"),
     StagingEntry("assist_leaders", "stg_assist_leaders", "season"),
     StagingEntry("assist_tracker", "stg_assist_tracker", "season"),
-    StagingEntry("dunk_score_leaders", "stg_dunk_score_leaders", "season", min_season=2023),
-    StagingEntry("gravity_leaders", "stg_gravity_leaders", "season", min_season=2023),
+    StagingEntry("dunk_score_leaders", "stg_dunk_score_leaders", "season"),
+    StagingEntry("gravity_leaders", "stg_gravity_leaders", "season"),
     StagingEntry(
         "leaders_tiles",
         "stg_leaders_tiles",
@@ -862,13 +839,11 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
     ),
-    StagingEntry(
-        "league_player_on_details", "stg_player_on_details", "team_season", min_season=2013
-    ),
-    StagingEntry("league_season_matchups", "stg_season_matchups", "season", min_season=2016),
-    StagingEntry("matchups_rollup", "stg_matchups_rollup", "season", min_season=2016),
+    StagingEntry("league_player_on_details", "stg_player_on_details", "team_season"),
+    StagingEntry("league_season_matchups", "stg_season_matchups", "season"),
+    StagingEntry("matchups_rollup", "stg_matchups_rollup", "season"),
     # defense_hub index 0 covered by stg_defense_hub_stat1 in Phase 4 multi-result section
-    StagingEntry("shot_chart_league_wide", "stg_shot_chart_league_wide", "season", min_season=1996),
+    StagingEntry("shot_chart_league_wide", "stg_shot_chart_league_wide", "season"),
     # Requires group_id (lineup ID) — not available in season-pattern sweep
     StagingEntry(
         "shot_chart_lineup",
@@ -876,8 +851,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=0,
         use_multi=True,
-        min_season=1996,
-        deprecated_after="2000-01-01",
     ),
     StagingEntry(
         "draft_combine_drill_results",
@@ -932,8 +905,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=0,
         use_multi=True,
-        min_season=1996,
-        deprecated_after="2000-01-01",
     ),
     # Game-level additions
     StagingEntry(
@@ -942,7 +913,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=2016,
     ),
     StagingEntry(
         "hustle_stats_box_score",
@@ -950,15 +920,13 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=2,
         use_multi=True,
-        min_season=2016,
     ),
     StagingEntry(
         "play_by_play_v2",
         "stg_play_by_play_v2",
         "game",
-        result_set_index=0,
+        result_set_index=1,
         use_multi=True,
-        min_season=1996,
     ),
     # Player-level additions — PlayerCareerStats multi-result
     StagingEntry(
@@ -1149,91 +1117,86 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dash_game_splits",
         "stg_player_dash_game_splits",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_dash_general_splits",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_last_n_games",
         "stg_player_dash_last_n_games",
-        "player",
+        "player_season",
         result_set_index=5,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_dash_shooting_splits",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_team_perf",
         "stg_player_dash_team_perf",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_yoy",
         "stg_player_dash_yoy",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_pt_pass",
         "stg_player_pt_pass",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_pass",
         "stg_player_pt_pass_received",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_reb",
         "stg_player_pt_reb",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_shot_defend",
         "stg_player_pt_shot_defend",
-        "player",
-        min_season=2013,
+        "player_season",
     ),
     StagingEntry(
         "player_dash_pt_shots",
         "stg_player_pt_shots",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_game_logs_v2",
         "stg_player_game_logs_v2",
-        "player",
+        "player_season",
         season_type_capability="supported",
     ),
-    StagingEntry("player_streak_finder", "stg_player_streak_finder", "player"),
-    StagingEntry("player_next_games", "stg_player_next_games", "player"),
+    StagingEntry("player_streak_finder", "stg_player_streak_finder", "player_season"),
+    StagingEntry("player_next_games", "stg_player_next_games", "player_season"),
     StagingEntry(
         "player_vs_player",
         "stg_player_vs_player",
@@ -1256,42 +1219,42 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dashboard_game_splits",
         "stg_player_dashboard_game_splits",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_general_splits",
         "stg_player_dashboard_general_splits",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_last_n_games",
         "stg_player_dashboard_last_n_games",
-        "player",
+        "player_season",
         result_set_index=5,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_shooting_splits",
         "stg_player_dashboard_shooting_splits",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_team_performance",
         "stg_player_dashboard_team_performance",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_year_over_year",
         "stg_player_dashboard_year_over_year",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
@@ -1357,7 +1320,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_pass",
@@ -1365,7 +1327,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_reb",
@@ -1373,7 +1334,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_shots",
@@ -1381,9 +1341,8 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
-    StagingEntry("team_details", "stg_team_details", "team", result_set_index=0, use_multi=True),
+    StagingEntry("team_details", "stg_team_details", "team", result_set_index=3, use_multi=True),
     StagingEntry(
         "team_info_common",
         "stg_team_info_common",
@@ -1477,7 +1436,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_misc",
@@ -1485,7 +1443,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_scoring",
@@ -1493,7 +1450,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_usage",
@@ -1501,7 +1457,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_four_factors",
@@ -1509,7 +1464,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=1996,
     ),
     StagingEntry(
         "box_score_player_track",
@@ -1517,7 +1471,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "box_score_defensive",
@@ -1525,7 +1478,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=2016,
     ),
     StagingEntry(
         "box_score_hustle",
@@ -1533,84 +1485,83 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=2016,
     ),
     # ── Phase 2: Player Dashboard Multi-Result ───────────────────────
     # PlayerDashboardByClutch (11 sets)
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last10sec_3pt2",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last10sec_3pt",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last1min_5pt",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last1min_pm5",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last30sec_3pt2",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last30sec_3pt",
-        "player",
+        "player_season",
         result_set_index=5,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last3min_5pt",
-        "player",
+        "player_season",
         result_set_index=6,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last3min_pm5",
-        "player",
+        "player_season",
         result_set_index=7,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last5min_5pt",
-        "player",
+        "player_season",
         result_set_index=8,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_last5min_pm5",
-        "player",
+        "player_season",
         result_set_index=9,
         use_multi=True,
     ),
     StagingEntry(
         "player_dashboard_clutch",
         "stg_player_clutch_overall",
-        "player",
+        "player_season",
         result_set_index=10,
         use_multi=True,
     ),
@@ -1618,35 +1569,35 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dash_game_splits",
         "stg_player_split_actual_margin",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_game_splits",
         "stg_player_split_by_half",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_game_splits",
         "stg_player_split_by_period",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_game_splits",
         "stg_player_split_score_margin",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_game_splits",
         "stg_player_split_game_overall",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
     ),
@@ -1654,49 +1605,49 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_split_days_rest",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_split_location",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_split_month",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_split_general_overall",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_split_pre_post_allstar",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_split_starting_pos",
-        "player",
+        "player_season",
         result_set_index=5,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_general_splits",
         "stg_player_split_wins_losses",
-        "player",
+        "player_season",
         result_set_index=6,
         use_multi=True,
     ),
@@ -1704,42 +1655,42 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dash_last_n_games",
         "stg_player_lastn_game_number",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_last_n_games",
         "stg_player_lastn_last10",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_last_n_games",
         "stg_player_lastn_last15",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_last_n_games",
         "stg_player_lastn_last20",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_last_n_games",
         "stg_player_lastn_last5",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_last_n_games",
         "stg_player_lastn_overall",
-        "player",
+        "player_season",
         result_set_index=5,
         use_multi=True,
     ),
@@ -1747,56 +1698,56 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_assisted_by",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_assisted_shot",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_overall",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_5ft",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_8ft",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_area",
-        "player",
+        "player_season",
         result_set_index=5,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_type",
-        "player",
+        "player_season",
         result_set_index=6,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_shooting_splits",
         "stg_player_shoot_type_summary",
-        "player",
+        "player_season",
         result_set_index=7,
         use_multi=True,
     ),
@@ -1804,37 +1755,45 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dash_team_perf",
         "stg_player_perf_overall",
-        "player",
+        "player_season",
         result_set_index=0,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_team_perf",
         "stg_player_perf_pts_scored",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_team_perf",
         "stg_player_perf_pts_against",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
     ),
     StagingEntry(
         "player_dash_team_perf",
         "stg_player_perf_score_diff",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
     ),
     # PlayerDashboardByYearOverYear (2 sets)
     StagingEntry(
-        "player_dash_yoy", "stg_player_yoy_by_year", "player", result_set_index=0, use_multi=True
+        "player_dash_yoy",
+        "stg_player_yoy_by_year",
+        "player_season",
+        result_set_index=0,
+        use_multi=True,
     ),
     StagingEntry(
-        "player_dash_yoy", "stg_player_yoy_overall", "player", result_set_index=1, use_multi=True
+        "player_dash_yoy",
+        "stg_player_yoy_overall",
+        "player_season",
+        result_set_index=1,
+        use_multi=True,
     ),
     # ── Phase 2: Team Dashboard Multi-Result ─────────────────────────
     # TeamDashboardByGeneralSplits (6 sets)
@@ -1935,83 +1894,73 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "player_dash_pt_shots",
         "stg_player_pt_shots_closest_def",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_shots",
         "stg_player_pt_shots_dribble",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_shots",
         "stg_player_pt_shots_general",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_shots",
         "stg_player_pt_shots_overall",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_shots",
         "stg_player_pt_shots_shot_clock",
-        "player",
+        "player_season",
         result_set_index=5,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_shots",
         "stg_player_pt_shots_touch_time",
-        "player",
+        "player_season",
         result_set_index=6,
         use_multi=True,
-        min_season=2013,
     ),
     # PlayerDashPtReb (5 sets — index 0 already captured as stg_player_pt_reb)
     StagingEntry(
         "player_dash_pt_reb",
         "stg_player_pt_reb_overall",
-        "player",
+        "player_season",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_reb",
         "stg_player_pt_reb_distance",
-        "player",
+        "player_season",
         result_set_index=2,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_reb",
         "stg_player_pt_reb_shot_dist",
-        "player",
+        "player_season",
         result_set_index=3,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "player_dash_pt_reb",
         "stg_player_pt_reb_shot_type",
-        "player",
+        "player_season",
         result_set_index=4,
         use_multi=True,
-        min_season=2013,
     ),
     # TeamDashPtShots (6 sets — index 0 already captured as stg_team_pt_shots)
     StagingEntry(
@@ -2020,7 +1969,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_shots",
@@ -2028,7 +1976,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=2,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_shots",
@@ -2036,7 +1983,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=3,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_shots",
@@ -2044,7 +1990,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=4,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_shots",
@@ -2052,7 +1997,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=5,
         use_multi=True,
-        min_season=2013,
     ),
     # TeamDashPtReb (5 sets — index 0 already captured as stg_team_pt_reb)
     StagingEntry(
@@ -2061,7 +2005,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_reb",
@@ -2069,7 +2012,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=2,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_reb",
@@ -2077,7 +2019,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=3,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "team_dash_pt_reb",
@@ -2085,7 +2026,6 @@ STAGING_MAP: list[StagingEntry] = [
         "team_season",
         result_set_index=4,
         use_multi=True,
-        min_season=2013,
     ),
     # TeamDashLineups (2 sets)
     StagingEntry(
@@ -2095,7 +2035,14 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=1,
         use_multi=True,
     ),
-    # ── Phase 4: Team Details (8 sets — index 0 already captured as stg_team_details)
+    # ── Phase 4: Team Details (8 sets — TeamBackground already captured as stg_team_details)
+    StagingEntry(
+        "team_details",
+        "stg_team_awards_championships",
+        "team",
+        result_set_index=0,
+        use_multi=True,
+    ),
     StagingEntry(
         "team_details", "stg_team_awards_conf", "team", result_set_index=1, use_multi=True
     ),
@@ -2185,7 +2132,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=0,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2193,7 +2139,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=1,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2201,7 +2146,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=2,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2209,7 +2153,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=3,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2217,7 +2160,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=4,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2225,7 +2167,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=5,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2233,7 +2174,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=6,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2241,7 +2181,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=7,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2249,7 +2188,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=8,
         use_multi=True,
-        min_season=2013,
     ),
     StagingEntry(
         "defense_hub",
@@ -2257,7 +2195,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=9,
         use_multi=True,
-        min_season=2013,
     ),
     # HomePageV2 (8 sets)
     StagingEntry(
@@ -2685,10 +2622,9 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry(
         "shot_chart_detail",
         "stg_shot_chart_league_averages",
-        "player",
-        result_set_index=1,
+        "player_season",
+        result_set_index=0,
         use_multi=True,
-        min_season=1996,
     ),
     # ShotChartLineupDetail (2 sets)
     # Requires group_id (lineup ID) — not available in season-pattern sweep
@@ -2698,8 +2634,6 @@ STAGING_MAP: list[StagingEntry] = [
         "season",
         result_set_index=1,
         use_multi=True,
-        min_season=1996,
-        deprecated_after="2000-01-01",
     ),
     # HustleStatsBoxScore — missing index 0 (HustleStatsAvailable)
     StagingEntry(
@@ -2708,7 +2642,6 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=0,
         use_multi=True,
-        min_season=2016,
     ),
     # TeamInfoCommon — missing index 0 (AvailableSeasons)
     StagingEntry(
@@ -2721,24 +2654,22 @@ STAGING_MAP: list[StagingEntry] = [
         "game",
         result_set_index=1,
         use_multi=True,
-        min_season=2015,
     ),
-    # PlayByPlayV3 — capture AvailableVideo at index 1
+    # PlayByPlayV3 — capture AvailableVideo at index 0
     StagingEntry(
         "play_by_play",
         "stg_play_by_play_video_available",
         "game",
-        result_set_index=1,
+        result_set_index=0,
         use_multi=True,
     ),
-    # PlayByPlayV2 — index 0 already captured as stg_play_by_play_v2
+    # PlayByPlayV2 — capture AvailableVideo at index 0
     StagingEntry(
         "play_by_play_v2",
         "stg_play_by_play_v2_video_available",
         "game",
-        result_set_index=1,
+        result_set_index=0,
         use_multi=True,
-        min_season=1996,
     ),
     # ScoreboardV2 — missing index 9 (WinProbability)
     StagingEntry(
@@ -2747,6 +2678,7 @@ STAGING_MAP: list[StagingEntry] = [
         "date",
         result_set_index=9,
         use_multi=True,
+        allow_missing_result_set=True,
     ),
     # ── Live snapshot surfaces (10) ───────────────────────────
     StagingEntry("live_score_board", "stg_live_score_board", "live"),

@@ -298,12 +298,8 @@
 - `raw/extracts/internal/lineage-audit-inventory.md`
 - `raw/extracts/internal/helper-module-breakdown.md`
 - `raw/extracts/internal/docs-admin-search-inventory.md`
-- `raw/extracts/internal/docs-chrome-inventory.md`
-- `raw/extracts/internal/docs-telemetry-inventory.md`
-- `raw/extracts/internal/prompt-profile-manifest.md`
-- `raw/extracts/internal/artifact-runtime-manifest.md`
-- `raw/extracts/internal/mcp-server-inventory.md`
-- `raw/extracts/internal/chat-skill-inventory.md`
+- `raw/extracts/internal/chat-service-layer-inventory.md`
+- `raw/extracts/internal/docs-admin-page-inventory.md`
 - `raw/extracts/internal/docs-chrome-inventory.md`
 - `raw/extracts/internal/docs-telemetry-inventory.md`
 - `raw/extracts/internal/prompt-profile-manifest.md`

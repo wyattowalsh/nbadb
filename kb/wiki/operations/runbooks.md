@@ -9,7 +9,7 @@ aliases:
   - Runbook Index
 kind: index
 status: active
-updated: 2026-04-30
+updated: 2026-05-07
 source_count: 7
 ---
 
@@ -21,7 +21,7 @@ Central index for operational procedures. Use this page to find the exact runboo
 
 - **[[run-modes|Run Modes]]** — Choose between `init`, `daily`, `monthly`, and `backfill run` based on your refresh scope
 - **[[../routes/operator-route|Operator Route]]** — Game-day operations board: symptom chooser and recovery loop
-- **`docs/content/docs/ops/daily-updates.mdx`** — Authored daily operations runbook in docs site
+- **`docs/content/docs/guides/daily-updates.mdx`** — Authored daily operations runbook in docs site
 
 ## Troubleshooting & Recovery
 
@@ -36,7 +36,7 @@ Central index for operational procedures. Use this page to find the exact runboo
 ## Kaggle Management
 
 - **[[kaggle-distribution|Kaggle Distribution]]** — Download (seed) and upload (publish) workflows
-- **`docs/content/docs/ops/kaggle.mdx`** — Authored Kaggle delivery guide in docs site
+- **`docs/content/docs/guides/kaggle-setup.mdx`** — Authored Kaggle delivery guide in docs site
 - **Key commands**:
   ```bash
   uv run nbadb download                        # Seed local data dir from Kaggle
@@ -46,9 +46,9 @@ Central index for operational procedures. Use this page to find the exact runboo
 
 ## Pipeline Maintenance
 
-- **`kb/config/maintenance-triage.md`** — Vault maintenance decisions and escalation triggers (for KB stewards)
-- **`kb/config/shard-governance.md`** — Migration and change management rules (for KB stewards)
-- **`docs/content/docs/ops/troubleshooting.mdx`** — Authored troubleshooting guide in docs site
+- **[[../../config/note-admission|Note Admission]]** — Vault maintenance decisions and admission checks for KB stewards
+- **[[../../config/provenance|Provenance Contract]]** — Evidence and traceability rules for KB stewards
+- **`docs/content/docs/guides/troubleshooting-playbook.mdx`** — Authored troubleshooting guide in docs site
 
 ## Emergency Procedures
 
@@ -80,7 +80,7 @@ Central index for operational procedures. Use this page to find the exact runboo
 | Type | Location | Format |
 | --- | --- | --- |
 | Internal KB runbooks | `kb/wiki/operations/` | Obsidian markdown with wikilinks |
-| Authored public runbooks | `docs/content/docs/ops/` | MDX (Next.js components) |
+| Authored public runbooks | `docs/content/docs/guides/` | MDX (Next.js components) |
 | Maintenance/governance | `kb/config/` | Obsidian markdown |
 | Role-based entry points | `kb/wiki/routes/` | Obsidian markdown |
 
@@ -93,13 +93,14 @@ Central index for operational procedures. Use this page to find the exact runboo
 | operator route | `kb/wiki/routes/operator-route.md` | internal KB |
 | troubleshooting | `kb/wiki/operations/troubleshooting.md` | internal KB |
 | kaggle operations | `kb/wiki/operations/kaggle-distribution.md` | internal KB |
-| daily updates | `docs/content/docs/ops/daily-updates.mdx` | public authored |
-| troubleshooting | `docs/content/docs/ops/troubleshooting.mdx` | public authored |
-| kaggle guide | `docs/content/docs/ops/kaggle.mdx` | public authored |
-| vault governance | `kb/config/maintenance-triage.md` | internal governance |
+| daily updates | `docs/content/docs/guides/daily-updates.mdx` | public authored |
+| troubleshooting | `docs/content/docs/guides/troubleshooting-playbook.mdx` | public authored |
+| kaggle guide | `docs/content/docs/guides/kaggle-setup.mdx` | public authored |
+| vault governance | `kb/config/note-admission.md`, `kb/config/provenance.md` | internal governance |
 | public commands | `AGENTS.md` > Commands section | maintainer contract |
 
 ## Related Indexes
 
-- [[../../indexes/fleet-lane-map|Fleet Lane Map]] — Lane ownership and handoff points
-- [[../../../config/upkeep-standards|Upkeep Standards]] — Scheduled maintenance cadences
+- [[../../indexes/topic-family-map|Topic Family Map]] — Lane-oriented topic routing and handoff points
+- [[../../indexes/source-map|Source Map]] — Evidence and source-to-wiki traceability
+- [[../../indexes/coverage|Coverage]] — Maintained page coverage and review status

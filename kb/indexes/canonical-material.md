@@ -41,14 +41,14 @@ These paths are committed `canonical material`, but the repo already states that
 
 | Path | Ownership note |
 |------|----------------|
-| `docs/content/docs/model/schema/raw-reference.mdx` | Generated docs artifact |
-| `docs/content/docs/model/schema/staging-reference.mdx` | Generated docs artifact |
-| `docs/content/docs/model/schema/star-reference.mdx` | Generated docs artifact |
-| `docs/content/docs/model/dictionary/raw.mdx` | Generated docs artifact |
-| `docs/content/docs/model/dictionary/staging.mdx` | Generated docs artifact |
-| `docs/content/docs/model/dictionary/star.mdx` | Generated docs artifact |
-| `docs/content/docs/model/diagrams/er-auto.mdx` | Generated docs artifact |
-| `docs/content/docs/model/lineage/lineage-auto.mdx` | Generated docs artifact |
+| `docs/content/docs/schema/raw-reference.mdx` | Generated docs artifact |
+| `docs/content/docs/schema/staging-reference.mdx` | Generated docs artifact |
+| `docs/content/docs/schema/star-reference.mdx` | Generated docs artifact |
+| `docs/content/docs/data-dictionary/raw.mdx` | Generated docs artifact |
+| `docs/content/docs/data-dictionary/staging.mdx` | Generated docs artifact |
+| `docs/content/docs/data-dictionary/star.mdx` | Generated docs artifact |
+| `docs/content/docs/diagrams/er-auto.mdx` | Generated docs artifact |
+| `docs/content/docs/lineage/lineage-auto.mdx` | Generated docs artifact |
 | `docs/lib/generated/` | Generated machine-readable docs backing data |
 
 ## Not canonical by default

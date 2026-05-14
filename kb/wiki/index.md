@@ -10,7 +10,7 @@ aliases:
   - nbadb Wiki Home
 kind: overview
 status: active
-updated: 2026-04-22
+updated: 2026-05-07
 source_count: 7
 ---
 
@@ -51,7 +51,7 @@ The KB is additive-first. Existing docs, code, and committed project instruction
 ## Browse by system area
 - Warehouse model: [[wiki/model/table-family-guide|Table Family Guide]], [[wiki/model/schema-wayfinding|Schema Wayfinding]], [[wiki/model/lineage-wayfinding|Lineage Wayfinding]], [[wiki/model/endpoint-coverage|Endpoint Coverage]]
 - Source boundary: [[wiki/topics/upstream-nba-api|Upstream NBA API]], [[wiki/topics/extraction-boundary|Extraction Boundary]]
-- Operations: [[wiki/operations/run-modes|Run Modes]], [[wiki/operations/kaggle-distribution|Kaggle Distribution]], [[wiki/operations/troubleshooting|Troubleshooting]]
+- Operations: [[wiki/operations/runbooks|Runbook Registry]], [[wiki/operations/run-modes|Run Modes]], [[wiki/operations/kaggle-distribution|Kaggle Distribution]], [[wiki/operations/troubleshooting|Troubleshooting]]
 - Tooling: [[wiki/tooling/duckdb-polars-pandera-stack|DuckDB, Polars, and Pandera in nbadb]], [[wiki/tooling/sqlmodel-typer-textual-stack|SQLModel, Typer, and Textual in nbadb]], [[wiki/tooling/obsidian-vault-conventions|Obsidian Vault Conventions for nbadb KB]]
 - Project orientation: [[wiki/topics/project-overview|Project Overview]]
 - Execution roadmap: [[wiki/topics/strict-source-complete-roadmap|Strict Source-Complete Roadmap]], [[wiki/topics/full-extraction-control-plane|Full Extraction Control Plane]], [[wiki/topics/live-snapshot-contract|Live Snapshot Contract]]
@@ -107,6 +107,6 @@ The KB is additive-first. Existing docs, code, and committed project instruction
 | repo module map and command vocabulary | `AGENTS.md` | maintainer-facing operating contract |
 | docs ownership boundary | `docs/AGENTS.md` | authored vs generated docs rules |
 | route orientation | `docs/content/docs/index.mdx` | public docs landing |
-| architecture and warehouse framing | `docs/content/docs/start/architecture.mdx` | ELT model and public surface |
-| role-based reader routes | `docs/content/docs/start/onboarding.mdx` | analyst/operator route logic |
+| architecture and warehouse framing | `docs/content/docs/architecture.mdx` | ELT model and public surface |
+| role-based reader routes | `docs/content/docs/guides/role-based-onboarding-hub.mdx` | analyst/operator route logic |
 | analytics skill linkage | `chat/skills/nba-data-analytics/SKILL.md` | chat-side query surface |

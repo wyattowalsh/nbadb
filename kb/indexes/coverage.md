@@ -3,17 +3,18 @@
 | Wiki path | Page type | Backing raw or canonical material | Coverage status | Last reviewed | Notes |
 |-----------|-----------|-----------------------------------|-----------------|---------------|-------|
 | `wiki/index.md` | overview | `README.md`, `AGENTS.md`, `docs/AGENTS.md` | active | 2026-04-22 | Root map and companion-KB contract |
-| `wiki/routes/start-here.md` | overview | `docs/content/docs/index.mdx`, `docs/content/docs/start/onboarding.mdx` | active | 2026-04-22 | Reader route hub |
-| `wiki/routes/analyst-route.md` | overview | `docs/content/docs/start/analytics-quickstart.mdx`, `chat/skills/nba-data-analytics/` | active | 2026-04-22 | Analytics-first route |
-| `wiki/routes/operator-route.md` | overview | `docs/content/docs/ops/daily-updates.mdx`, `docs/content/docs/ops/troubleshooting.mdx` | active | 2026-04-22 | Operator-first route |
+| `wiki/routes/start-here.md` | overview | `docs/content/docs/index.mdx`, `docs/content/docs/guides/role-based-onboarding-hub.mdx` | active | 2026-05-07 | Reader route hub |
+| `wiki/routes/analyst-route.md` | overview | `docs/content/docs/guides/analytics-quickstart.mdx`, `chat/skills/nba-data-analytics/` | active | 2026-05-07 | Analytics-first route |
+| `wiki/routes/operator-route.md` | overview | `docs/content/docs/guides/daily-updates.mdx`, `docs/content/docs/guides/troubleshooting-playbook.mdx` | active | 2026-05-07 | Operator-first route |
 | `wiki/routes/contributor-route.md` | overview | `AGENTS.md`, `docs/AGENTS.md`, CLI/docs workflow sources | active | 2026-04-22 | Contributor/maintainer route |
 | `wiki/routes/stakeholder-route.md` | overview | public docs, README, published examples | active | 2026-04-14 | Stakeholder/high-level route |
 | `wiki/model/table-family-guide.md` | concept | `README.md`, `AGENTS.md`, schema docs | active | 2026-04-14 | Prefix and grain guide |
 | `wiki/model/schema-wayfinding.md` | concept | schema docs, data dictionary docs, schema coverage artifact | active | 2026-04-14 | Routing note |
 | `wiki/model/lineage-wayfinding.md` | concept | model/lineage docs, endpoint docs, `AGENTS.md` | active | 2026-04-22 | Dependency routing note |
 | `wiki/model/endpoint-coverage.md` | concept | endpoint docs, endpoint coverage report, `AGENTS.md` | active | 2026-04-14 | Coverage interpretation note |
+| `wiki/operations/runbooks.md` | index | operations wiki pages, guides docs, `AGENTS.md` command contract, KB config/indexes | active | 2026-05-07 | Operational runbook registry and entrypoint |
 | `wiki/operations/run-modes.md` | concept | architecture, CLI reference, daily-updates guide | active | 2026-04-14 | Run-mode decision note |
-| `wiki/operations/kaggle-distribution.md` | concept | kaggle guide, CLI code, config | active | 2026-04-14 | Distribution lane |
+| `wiki/operations/kaggle-distribution.md` | concept | Kaggle guide, CLI code, config, metadata/client implementation | active | 2026-05-07 | Distribution lane aligned to current `--data-dir data/nbadb` command contract |
 | `wiki/operations/troubleshooting.md` | concept | troubleshooting guide, config, CLI docs | active | 2026-04-14 | Troubleshooting lane |
 | `wiki/tooling/duckdb-polars-pandera-stack.md` | concept | `pyproject.toml`, README, repo code, external docs targets | active | 2026-04-14 | Data stack explainer |
 | `wiki/tooling/sqlmodel-typer-textual-stack.md` | concept | `pyproject.toml`, CLI code, external docs targets | active | 2026-04-14 | App/control surface explainer |
@@ -43,7 +44,7 @@
 | `wiki/topics/lineup-trend-helpers.md` | concept | lineup and trends helpers, canonical chat runtime, and helper manifests | active | 2026-04-22 | lineup/trend helper note |
 | `wiki/topics/lineage-internals.md` | concept | lineage generator, model/lineage docs, dependency graph, and lineage/audit inventory | active | 2026-04-22 | lineage computation note |
 | `wiki/topics/docs-admin-surface.md` | concept | docs admin routes, auth, telemetry, charts | active | 2026-04-14 | docs admin/runtime note |
-| `wiki/topics/kaggle-publishing-lane.md` | concept | Kaggle metadata, client integration, publish/download lane | active | 2026-04-14 | Kaggle publishing note |
+| `wiki/topics/kaggle-publishing-lane.md` | concept | Kaggle metadata, client integration, publish/download lane, published-example index | active | 2026-05-07 | Kaggle publishing note aligned to metadata generation and upload/download boundaries |
 | `wiki/topics/docs-search-surface.md` | concept | docs search runtime and source-backed search | active | 2026-04-14 | docs search/runtime note |
 | `wiki/topics/chainlit-runtime.md` | concept | Chainlit session/render/export runtime | active | 2026-04-14 | Chainlit runtime note |
 | `wiki/topics/export-share-artifacts.md` | concept | export, embed, spreadsheet, social-card surfaces | active | 2026-04-14 | export/share artifact note |

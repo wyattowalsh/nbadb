@@ -182,7 +182,11 @@ def test_team_family_schemas_validate_representative_rows() -> None:
             "team_name": ["Boston Celtics"],
             "sort_order": [1],
             "g": [82],
+            "overall": ["Overall"],
             "reb_num_contesting_range": ["0-2"],
+            "reb_dist_range": ["0-3 Feet"],
+            "shot_dist_range": ["Less Than 6Ft"],
+            "shot_type_range": ["2PT Field Goal"],
             "reb_frequency": [0.314],
             "oreb": [94],
             "dreb": [228],
@@ -205,6 +209,10 @@ def test_team_family_schemas_validate_representative_rows() -> None:
             "sort_order": [1],
             "g": [82],
             "close_def_dist_range": ["6+ Feet - Wide Open"],
+            "dribble_range": ["0 Dribbles"],
+            "shot_type": ["Catch and Shoot"],
+            "shot_clock_range": ["24-22"],
+            "touch_time_range": ["Touch < 2 Seconds"],
             "fga_frequency": [0.286],
             "fgm": [205],
             "fga": [420],
@@ -381,7 +389,15 @@ def test_team_family_schemas_validate_representative_rows() -> None:
     assert StagingTeamPtPassSchema.validate(pass_row).shape[0] == 1
     assert StagingTeamPtPassReceivedSchema.validate(pass_row).shape[0] == 1
     assert StagingTeamPtRebSchema.validate(reb_row).shape[0] == 1
+    assert StagingTeamPtRebDistanceSchema.validate(reb_row).shape[0] == 1
+    assert StagingTeamPtRebOverallSchema.validate(reb_row).shape[0] == 1
+    assert StagingTeamPtRebShotDistSchema.validate(reb_row).shape[0] == 1
+    assert StagingTeamPtRebShotTypeSchema.validate(reb_row).shape[0] == 1
     assert StagingTeamPtShotsSchema.validate(shots_row).shape[0] == 1
+    assert StagingTeamPtShotsDribbleSchema.validate(shots_row).shape[0] == 1
+    assert StagingTeamPtShotsGeneralSchema.validate(shots_row).shape[0] == 1
+    assert StagingTeamPtShotsShotClockSchema.validate(shots_row).shape[0] == 1
+    assert StagingTeamPtShotsTouchTimeSchema.validate(shots_row).shape[0] == 1
     assert StagingTeamVsPlayerSchema.validate(matchup_row).shape[0] == 1
     assert StagingTeamAndPlayersVsSchema.validate(matchup_row).shape[0] == 1
     assert StagingTapvpTeamOnSchema.validate(matchup_row).shape[0] == 1

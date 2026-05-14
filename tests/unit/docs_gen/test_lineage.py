@@ -41,6 +41,26 @@ class TestTableNameFromClass:
         assert result == "foo_schema"
 
 
+class TestParseSourceMetadata:
+    def test_parses_endpoint_result_set_field_source(self):
+        assert LineageGenerator._parse_source_metadata(
+            "TeamInfoCommon.TeamInfoCommon.TEAM_DIVISION"
+        ) == {
+            "endpoint": "TeamInfoCommon",
+            "result_set": "TeamInfoCommon",
+            "field": "TEAM_DIVISION",
+        }
+
+    def test_preserves_nba_api_static_helper_as_specific_endpoint(self):
+        assert LineageGenerator._parse_source_metadata(
+            "nba_api.stats.static.teams.get_teams.id"
+        ) == {
+            "endpoint": "nba_api.stats.static.teams.get_teams",
+            "result_set": "",
+            "field": "id",
+        }
+
+
 # ---------------------------------------------------------------------------
 # build_lineage_graph
 # ---------------------------------------------------------------------------

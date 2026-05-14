@@ -25,6 +25,10 @@ class StagingTeamAwardsDivSchema(FactTeamAwardsDivSchema):
     pass
 
 
+class StagingTeamAwardsChampionshipsSchema(FactTeamAwardsConfSchema):
+    pass
+
+
 class StagingTeamBackgroundSchema(StagingTeamDetailsSchema):
     pass
 
@@ -266,15 +270,66 @@ class _TeamOnOffDetailedSchema(_TeamOnOffSummarySchema):
 
 
 class StagingTeamDashboardOnOffSchema(BaseSchema):
+    group_set: str | None = pa.Field(nullable=True)
+    group_value: str | None = pa.Field(nullable=True)
     team_id: int = pa.Field(gt=0, nullable=False)
+    team_abbreviation: str | None = pa.Field(nullable=True)
+    team_name: str | None = pa.Field(nullable=True)
     season_year: str = pa.Field(nullable=False)
     season_type: str = pa.Field(nullable=False)
     on_off: str = pa.Field(nullable=False)
     gp: int | None = pa.Field(nullable=True, ge=0)
+    gp_rank: int | None = pa.Field(nullable=True, ge=0)
+    w: int | None = pa.Field(nullable=True, ge=0)
+    w_rank: int | None = pa.Field(nullable=True, ge=0)
+    l: int | None = pa.Field(nullable=True, ge=0)  # noqa: E741
+    l_rank: int | None = pa.Field(nullable=True, ge=0)  # noqa: E741
+    w_pct: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    w_pct_rank: int | None = pa.Field(nullable=True, ge=0)
     min: float | None = pa.Field(nullable=True, ge=0.0)
+    min_rank: int | None = pa.Field(nullable=True, ge=0)
     pts: float | None = pa.Field(nullable=True, ge=0.0)
+    pts_rank: int | None = pa.Field(nullable=True, ge=0)
+    fgm: float | None = pa.Field(nullable=True, ge=0.0)
+    fgm_rank: int | None = pa.Field(nullable=True, ge=0)
+    fga: float | None = pa.Field(nullable=True, ge=0.0)
+    fga_rank: int | None = pa.Field(nullable=True, ge=0)
+    fg_pct: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    fg_pct_rank: int | None = pa.Field(nullable=True, ge=0)
+    fg3m: float | None = pa.Field(nullable=True, ge=0.0)
+    fg3m_rank: int | None = pa.Field(nullable=True, ge=0)
+    fg3a: float | None = pa.Field(nullable=True, ge=0.0)
+    fg3a_rank: int | None = pa.Field(nullable=True, ge=0)
+    fg3_pct: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    fg3_pct_rank: int | None = pa.Field(nullable=True, ge=0)
+    ftm: float | None = pa.Field(nullable=True, ge=0.0)
+    ftm_rank: int | None = pa.Field(nullable=True, ge=0)
+    fta: float | None = pa.Field(nullable=True, ge=0.0)
+    fta_rank: int | None = pa.Field(nullable=True, ge=0)
+    ft_pct: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    ft_pct_rank: int | None = pa.Field(nullable=True, ge=0)
+    oreb: float | None = pa.Field(nullable=True, ge=0.0)
+    oreb_rank: int | None = pa.Field(nullable=True, ge=0)
+    dreb: float | None = pa.Field(nullable=True, ge=0.0)
+    dreb_rank: int | None = pa.Field(nullable=True, ge=0)
     reb: float | None = pa.Field(nullable=True, ge=0.0)
+    reb_rank: int | None = pa.Field(nullable=True, ge=0)
     ast: float | None = pa.Field(nullable=True, ge=0.0)
+    ast_rank: int | None = pa.Field(nullable=True, ge=0)
+    tov: float | None = pa.Field(nullable=True, ge=0.0)
+    tov_rank: int | None = pa.Field(nullable=True, ge=0)
+    stl: float | None = pa.Field(nullable=True, ge=0.0)
+    stl_rank: int | None = pa.Field(nullable=True, ge=0)
+    blk: float | None = pa.Field(nullable=True, ge=0.0)
+    blk_rank: int | None = pa.Field(nullable=True, ge=0)
+    blka: float | None = pa.Field(nullable=True, ge=0.0)
+    blka_rank: int | None = pa.Field(nullable=True, ge=0)
+    pf: float | None = pa.Field(nullable=True, ge=0.0)
+    pf_rank: int | None = pa.Field(nullable=True, ge=0)
+    pfd: float | None = pa.Field(nullable=True, ge=0.0)
+    pfd_rank: int | None = pa.Field(nullable=True, ge=0)
+    plus_minus: float | None = pa.Field(nullable=True)
+    plus_minus_rank: int | None = pa.Field(nullable=True, ge=0)
     off_rating: float | None = pa.Field(nullable=True)
     def_rating: float | None = pa.Field(nullable=True)
     net_rating: float | None = pa.Field(nullable=True)

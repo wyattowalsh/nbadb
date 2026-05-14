@@ -34,7 +34,10 @@ export function getDocSlugFromHref(href: string): string[] | undefined {
     return undefined;
   }
 
-  const slug = href.replace(/^\/docs\/?/, "").split("/").filter(Boolean);
+  const slug = href
+    .replace(/^\/docs\/?/, "")
+    .split("/")
+    .filter(Boolean);
   return slug.length ? slug : undefined;
 }
 

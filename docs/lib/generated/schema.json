@@ -4903,6 +4903,11 @@
         },
         {
           "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "min",
           "type": "str"
         },
@@ -5054,6 +5059,11 @@
         },
         {
           "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "min",
           "type": "str"
         }
@@ -5146,6 +5156,21 @@
         },
         {
           "key": "",
+          "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "effective_field_goal_percentage",
           "type": "float"
         },
@@ -5201,6 +5226,26 @@
           "type": "int"
         },
         {
+          "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
           "key": "PK",
           "name": "player_id",
           "type": "int"
@@ -5208,6 +5253,41 @@
         {
           "key": "",
           "name": "player_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "first_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "family_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "name_i",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "player_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "position",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "comment",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "jersey_num",
           "type": "str"
         },
         {
@@ -5259,6 +5339,41 @@
           "key": "",
           "name": "box_outs",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "offensive_box_outs",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "defensive_box_outs",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "loose_balls_recovered_offensive",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "loose_balls_recovered_defensive",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "box_out_player_rebounds",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "box_out_player_team_rebounds",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "points",
+          "type": "float"
         }
       ],
       "family": "fact",
@@ -5289,6 +5404,11 @@
         {
           "key": "",
           "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
           "type": "str"
         },
         {
@@ -5385,6 +5505,11 @@
         {
           "key": "",
           "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
           "type": "str"
         },
         {
@@ -5520,6 +5645,11 @@
         },
         {
           "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "min",
           "type": "str"
         },
@@ -5627,6 +5757,11 @@
         {
           "key": "",
           "name": "team_city",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
           "type": "str"
         },
         {
@@ -6406,6 +6541,11 @@
         },
         {
           "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "min",
           "type": "float"
         },
@@ -6533,6 +6673,11 @@
         {
           "key": "",
           "name": "team_name",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
           "type": "str"
         },
         {
@@ -7766,6 +7911,11 @@
         },
         {
           "key": "PK",
+          "name": "temp_player_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
           "name": "player_id",
           "type": "int"
         },
@@ -7832,6 +7982,11 @@
         },
         {
           "key": "PK",
+          "name": "temp_player_id",
+          "type": "int"
+        },
+        {
+          "key": "PK",
           "name": "player_id",
           "type": "int"
         },
@@ -7887,6 +8042,21 @@
         },
         {
           "key": "",
+          "name": "off_drib_fifteen_break_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_break_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_break_right_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "off_drib_college_break_left_made",
           "type": "int"
         },
@@ -7913,6 +8083,21 @@
         {
           "key": "",
           "name": "off_drib_college_top_key_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_right_made",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_right_attempt",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_right_pct",
           "type": "float"
         },
         {
@@ -7955,6 +8140,11 @@
           "key": "",
           "name": "season",
           "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "temp_player_id",
+          "type": "int"
         },
         {
           "key": "PK",
@@ -8051,6 +8241,11 @@
           "key": "",
           "name": "season",
           "type": "str"
+        },
+        {
+          "key": "PK",
+          "name": "temp_player_id",
+          "type": "int"
         },
         {
           "key": "PK",
@@ -8427,6 +8622,121 @@
           "key": "",
           "name": "bench_press",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "spot_fifteen_corner_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_fifteen_break_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_fifteen_top_key",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_fifteen_break_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_fifteen_corner_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_college_corner_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_college_break_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_college_top_key",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_college_break_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_college_corner_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_nba_corner_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_nba_break_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_nba_top_key",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_nba_break_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "spot_nba_corner_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_break_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_top_key",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "off_drib_fifteen_break_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_left",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_top_key",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "off_drib_college_break_right",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "on_move_fifteen",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "on_move_college",
+          "type": "str"
         }
       ],
       "family": "fact",
@@ -10291,8 +10601,23 @@
       "columns": [
         {
           "key": "PK",
+          "name": "league_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "season_year",
+          "type": "str"
+        },
+        {
+          "key": "PK",
           "name": "team_id",
           "type": "int"
+        },
+        {
+          "key": "",
+          "name": "team_city",
+          "type": "str"
         },
         {
           "key": "",
@@ -10301,8 +10626,48 @@
         },
         {
           "key": "",
+          "name": "team_abbreviation",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "team_slug",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "conference",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "ist_group",
+          "type": "str"
+        },
+        {
+          "key": "",
           "name": "group_name",
           "type": "str"
+        },
+        {
+          "key": "",
+          "name": "clinch_indicator",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "clinched_ist_group",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "clinched_ist_knockout",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "clinched_ist_wildcard",
+          "type": "int"
         },
         {
           "key": "",
@@ -10313,6 +10678,11 @@
           "key": "",
           "name": "losses",
           "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pct",
+          "type": "float"
         },
         {
           "key": "",
@@ -10333,6 +10703,166 @@
           "key": "",
           "name": "point_diff",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "opp_pts",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "diff",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ist_group_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ist_group_gb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ist_wildcard_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ist_wildcard_gb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ist_knockout_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_id1",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_id2",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_id3",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_id4",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_status1",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status2",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status3",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status4",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "game_status_text1",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_status_text2",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_status_text3",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "game_status_text4",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "location1",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "location2",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "location3",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "location4",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "opponent_team_abbreviation1",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "opponent_team_abbreviation2",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "opponent_team_abbreviation3",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "opponent_team_abbreviation4",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "outcome1",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "outcome2",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "outcome3",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "outcome4",
+          "type": "str"
         }
       ],
       "family": "fact",
@@ -11606,6 +12136,11 @@
         },
         {
           "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "g",
           "type": "int"
         },
@@ -11622,6 +12157,16 @@
         {
           "key": "",
           "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2a_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_frequency",
           "type": "float"
         },
         {
@@ -11732,6 +12277,11 @@
         },
         {
           "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "g",
           "type": "int"
         },
@@ -11748,6 +12298,16 @@
         {
           "key": "",
           "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2a_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_frequency",
           "type": "float"
         },
         {
@@ -11814,6 +12374,21 @@
           "key": "",
           "name": "dfg_pct",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "age",
+          "type": "float"
+        },
+        {
+          "key": "PK",
+          "name": "player_last_team_id",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "player_last_team_abbreviation",
+          "type": "str"
         }
       ],
       "family": "fact",
@@ -11985,6 +12560,11 @@
         },
         {
           "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "g",
           "type": "int"
         },
@@ -12001,6 +12581,16 @@
         {
           "key": "",
           "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2a_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_frequency",
           "type": "float"
         },
         {
@@ -12116,6 +12706,11 @@
         },
         {
           "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "g",
           "type": "int"
         },
@@ -12132,6 +12727,16 @@
         {
           "key": "",
           "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2a_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_frequency",
           "type": "float"
         },
         {
@@ -12197,6 +12802,61 @@
         {
           "key": "",
           "name": "dfg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "w",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dist_feet",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dist_miles",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dist_miles_off",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dist_miles_def",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "avg_speed",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "avg_speed_off",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "avg_speed_def",
           "type": "float"
         }
       ],
@@ -12242,6 +12902,11 @@
         },
         {
           "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "g",
           "type": "int"
         },
@@ -12258,6 +12923,16 @@
         {
           "key": "",
           "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2a_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_frequency",
           "type": "float"
         },
         {
@@ -12323,6 +12998,36 @@
         {
           "key": "",
           "name": "dfg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "freq",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "d_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "d_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "d_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "normal_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pct_plusminus",
           "type": "float"
         }
       ],
@@ -12404,6 +13109,26 @@
         },
         {
           "key": "",
+          "name": "gp_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "l_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "w_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "w",
           "type": "int"
         },
@@ -12414,8 +13139,18 @@
         },
         {
           "key": "",
+          "name": "w_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "min",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "min_rank",
+          "type": "int"
         },
         {
           "key": "",
@@ -12424,8 +13159,88 @@
         },
         {
           "key": "",
+          "name": "pts_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fgm_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fga_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "fg_pct",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3m",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3m_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3a",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ftm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ftm_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "fta",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fta_rank",
+          "type": "int"
         },
         {
           "key": "",
@@ -12434,8 +13249,128 @@
         },
         {
           "key": "",
+          "name": "ft_pct_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "oreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "oreb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "dreb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "dreb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "reb",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "reb_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "ast",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "ast_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "tov",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "tov_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "stl",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "stl_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blk",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blk_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "blka",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "blka_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pf",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pf_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "pfd",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "pfd_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "plus_minus",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "plus_minus_rank",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "cfid",
+          "type": "int"
+        },
+        {
+          "key": "",
+          "name": "cfparams",
+          "type": "str"
         }
       ],
       "family": "fact",
@@ -12480,6 +13415,11 @@
         },
         {
           "key": "",
+          "name": "gp",
+          "type": "int"
+        },
+        {
+          "key": "",
           "name": "g",
           "type": "int"
         },
@@ -12496,6 +13436,16 @@
         {
           "key": "",
           "name": "fga_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg2a_frequency",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "fg3a_frequency",
           "type": "float"
         },
         {
@@ -22326,6 +23276,22 @@
       "family": "fact",
       "relationships": []
     },
+    "fact_scoreboard_available": {
+      "columns": [
+        {
+          "key": "PK",
+          "name": "game_id",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "pt_available",
+          "type": "int"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
     "fact_scoreboard_conference_standings": {
       "columns": [
         {
@@ -24201,6 +25167,22 @@
         {
           "key": "PK",
           "name": "season_id",
+          "type": "str"
+        }
+      ],
+      "family": "fact",
+      "relationships": []
+    },
+    "fact_team_awards_championships": {
+      "columns": [
+        {
+          "key": "",
+          "name": "yearawarded",
+          "type": "str"
+        },
+        {
+          "key": "",
+          "name": "oppositeteam",
           "type": "str"
         }
       ],

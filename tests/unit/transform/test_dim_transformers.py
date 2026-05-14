@@ -170,17 +170,22 @@ class TestDimTeamTransformer:
         from nbadb.transform.dimensions.dim_team import DimTeamTransformer
 
         staging = {
-            "stg_team_info": pl.DataFrame(
+            "stg_static_teams": pl.DataFrame(
                 {
-                    "team_id": [1, 2],
+                    "id": [1, 2],
                     "abbreviation": ["BOS", "LAL"],
                     "full_name": ["Boston Celtics", "Los Angeles Lakers"],
                     "city": ["Boston", "Los Angeles"],
                     "state": ["Massachusetts", "California"],
-                    "arena": ["TD Garden", "Crypto.com Arena"],
                     "year_founded": [1946, 1947],
-                    "conference": ["East", "West"],
-                    "division": ["Atlantic", "Pacific"],
+                }
+            ).lazy(),
+            "stg_team_details": pl.DataFrame({"team_id": [1], "arena": ["TD Garden"]}).lazy(),
+            "stg_team_info_common": pl.DataFrame(
+                {
+                    "team_id": [1],
+                    "team_conference": ["East"],
+                    "team_division": ["Atlantic"],
                 }
             ).lazy(),
         }
@@ -190,28 +195,67 @@ class TestDimTeamTransformer:
         assert "team_id" in result.columns
         assert "conference" in result.columns
         assert "division" in result.columns
+        assert result.filter(pl.col("team_id") == 1)["arena"][0] == "TD Garden"
+        assert result.filter(pl.col("team_id") == 1)["conference"][0] == "East"
+        assert result.filter(pl.col("team_id") == 1)["division"][0] == "Atlantic"
 
     def test_deduplicates_by_team_id(self) -> None:
         from nbadb.transform.dimensions.dim_team import DimTeamTransformer
 
         staging = {
-            "stg_team_info": pl.DataFrame(
+            "stg_static_teams": pl.DataFrame(
                 {
-                    "team_id": [1, 1],
+                    "id": [1, 1],
                     "abbreviation": ["BOS", "BOS"],
                     "full_name": ["Boston Celtics", "Boston Celtics"],
                     "city": ["Boston", "Boston"],
                     "state": ["MA", "MA"],
-                    "arena": ["Old Arena", "TD Garden"],
                     "year_founded": [1946, 1946],
-                    "conference": ["East", "East"],
-                    "division": ["Atlantic", "Atlantic"],
+                }
+            ).lazy(),
+            "stg_team_details": pl.DataFrame({"team_id": [1], "arena": ["TD Garden"]}).lazy(),
+            "stg_team_info_common": pl.DataFrame(
+                {
+                    "team_id": [1],
+                    "team_conference": ["East"],
+                    "team_division": ["Atlantic"],
                 }
             ).lazy(),
         }
         t = DimTeamTransformer()
         result = t.transform(staging)
         assert result.shape[0] == 1
+
+    def test_missing_enrichment_keeps_static_team(self) -> None:
+        from nbadb.transform.dimensions.dim_team import DimTeamTransformer
+
+        staging = {
+            "stg_static_teams": pl.DataFrame(
+                {
+                    "id": [1, 2],
+                    "abbreviation": ["BOS", "LAL"],
+                    "full_name": ["Boston Celtics", "Los Angeles Lakers"],
+                    "city": ["Boston", "Los Angeles"],
+                    "state": ["MA", "CA"],
+                    "year_founded": [1946, 1947],
+                }
+            ).lazy(),
+            "stg_team_details": pl.DataFrame({"team_id": [1], "arena": ["TD Garden"]}).lazy(),
+            "stg_team_info_common": pl.DataFrame(
+                {
+                    "team_id": [1],
+                    "team_conference": ["East"],
+                    "team_division": ["Atlantic"],
+                }
+            ).lazy(),
+        }
+
+        result = DimTeamTransformer().transform(staging)
+
+        assert result.shape[0] == 2
+        assert result.filter(pl.col("team_id") == 2)["arena"][0] is None
+        assert result.filter(pl.col("team_id") == 2)["conference"][0] is None
+        assert result.filter(pl.col("team_id") == 2)["division"][0] is None
 
     def test_output_table_name(self) -> None:
         from nbadb.transform.dimensions.dim_team import DimTeamTransformer

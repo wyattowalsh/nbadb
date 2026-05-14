@@ -11,7 +11,7 @@ from nbadb.transform.dimensions.dim_team_history import DimTeamHistoryTransforme
 class TestDimTeamHistory:
     def test_class_attributes(self) -> None:
         assert DimTeamHistoryTransformer.output_table == "dim_team_history"
-        assert "stg_team_info" in DimTeamHistoryTransformer.depends_on
+        assert "stg_team_info_common" in DimTeamHistoryTransformer.depends_on
         assert "stg_franchise" in DimTeamHistoryTransformer.depends_on
 
     def test_scd2_detects_city_change(self) -> None:
@@ -20,9 +20,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1, 1],
-                "city": ["Seattle", "Oklahoma City"],
-                "full_name": ["SuperSonics", "Thunder"],
-                "abbreviation": ["SEA", "OKC"],
+                "team_city": ["Seattle", "Oklahoma City"],
+                "team_name": ["SuperSonics", "Thunder"],
+                "team_abbreviation": ["SEA", "OKC"],
                 "season_year": ["2007-08", "2008-09"],
             }
         )
@@ -33,7 +33,7 @@ class TestDimTeamHistory:
                 "league_id": ["00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -55,9 +55,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1, 1, 1],
-                "city": ["Boston", "Boston", "Boston"],
-                "full_name": ["Celtics", "Celtics", "Celtics"],
-                "abbreviation": ["BOS", "BOS", "BOS"],
+                "team_city": ["Boston", "Boston", "Boston"],
+                "team_name": ["Celtics", "Celtics", "Celtics"],
+                "team_abbreviation": ["BOS", "BOS", "BOS"],
                 "season_year": ["2022-23", "2023-24", "2024-25"],
             }
         )
@@ -68,7 +68,7 @@ class TestDimTeamHistory:
                 "league_id": ["00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -86,9 +86,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1, 1, 2],
-                "city": ["New Jersey", "Brooklyn", "Los Angeles"],
-                "full_name": ["Nets", "Nets", "Lakers"],
-                "abbreviation": ["NJN", "BKN", "LAL"],
+                "team_city": ["New Jersey", "Brooklyn", "Los Angeles"],
+                "team_name": ["Nets", "Nets", "Lakers"],
+                "team_abbreviation": ["NJN", "BKN", "LAL"],
                 "season_year": ["2011-12", "2012-13", "2012-13"],
             }
         )
@@ -99,7 +99,7 @@ class TestDimTeamHistory:
                 "league_id": ["00", "00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -119,9 +119,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1, 1],
-                "city": ["Washington", "Washington"],
-                "full_name": ["Bullets", "Wizards"],
-                "abbreviation": ["WAS", "WAS"],
+                "team_city": ["Washington", "Washington"],
+                "team_name": ["Bullets", "Wizards"],
+                "team_abbreviation": ["WAS", "WAS"],
                 "season_year": ["1996-97", "1997-98"],
             }
         )
@@ -132,7 +132,7 @@ class TestDimTeamHistory:
                 "league_id": ["00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -152,9 +152,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1, 1],
-                "city": ["Charlotte", "Charlotte"],
-                "full_name": ["Hornets", "Hornets"],
-                "abbreviation": ["CHA", "CHH"],
+                "team_city": ["Charlotte", "Charlotte"],
+                "team_name": ["Hornets", "Hornets"],
+                "team_abbreviation": ["CHA", "CHH"],
                 "season_year": ["2013-14", "2014-15"],
             }
         )
@@ -165,7 +165,7 @@ class TestDimTeamHistory:
                 "league_id": ["00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -181,9 +181,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1, 1, 1],
-                "city": ["Seattle", "Oklahoma City", "Oklahoma City"],
-                "full_name": ["SuperSonics", "Thunder", "Sonics Revival"],
-                "abbreviation": ["SEA", "OKC", "OKC"],
+                "team_city": ["Seattle", "Oklahoma City", "Oklahoma City"],
+                "team_name": ["SuperSonics", "Thunder", "Sonics Revival"],
+                "team_abbreviation": ["SEA", "OKC", "OKC"],
                 "season_year": ["2006-07", "2008-09", "2030-31"],
             }
         )
@@ -194,7 +194,7 @@ class TestDimTeamHistory:
                 "league_id": ["00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -217,9 +217,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1, 1, 2, 2],
-                "city": ["Seattle", "Oklahoma City", "Vancouver", "Memphis"],
-                "full_name": ["SuperSonics", "Thunder", "Grizzlies", "Grizzlies"],
-                "abbreviation": ["SEA", "OKC", "VAN", "MEM"],
+                "team_city": ["Seattle", "Oklahoma City", "Vancouver", "Memphis"],
+                "team_name": ["SuperSonics", "Thunder", "Grizzlies", "Grizzlies"],
+                "team_abbreviation": ["SEA", "OKC", "VAN", "MEM"],
                 "season_year": ["2007-08", "2008-09", "2000-01", "2001-02"],
             }
         )
@@ -230,7 +230,7 @@ class TestDimTeamHistory:
                 "league_id": ["00", "00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -250,9 +250,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [1],
-                "city": ["Los Angeles"],
-                "full_name": ["Lakers"],
-                "abbreviation": ["LAL"],
+                "team_city": ["Los Angeles"],
+                "team_name": ["Lakers"],
+                "team_abbreviation": ["LAL"],
                 "season_year": ["2024-25"],
             }
         )
@@ -263,7 +263,7 @@ class TestDimTeamHistory:
                 "league_id": ["00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()
@@ -281,9 +281,9 @@ class TestDimTeamHistory:
         team_info = pl.DataFrame(
             {
                 "team_id": [999],
-                "city": ["Atlantis"],
-                "full_name": ["Dolphins"],
-                "abbreviation": ["ATL"],
+                "team_city": ["Atlantis"],
+                "team_name": ["Dolphins"],
+                "team_abbreviation": ["ATL"],
                 "season_year": ["2024-25"],
             }
         )
@@ -294,7 +294,7 @@ class TestDimTeamHistory:
                 "league_id": ["00"],
             }
         )
-        conn.register("stg_team_info", team_info)
+        conn.register("stg_team_info_common", team_info)
         conn.register("stg_franchise", franchise)
 
         t = DimTeamHistoryTransformer()

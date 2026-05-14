@@ -7,7 +7,7 @@ tags:
 aliases: []
 kind: source-summary
 status: active
-updated: 2026-04-22
+updated: 2026-05-07
 source_count: 6
 ---
 
@@ -22,7 +22,7 @@ source_count: 6
 | Status | seeded |
 
 ## Summary
-This source set establishes that the docs site is a separate `docs/` app built on Fumadocs + Next.js, now organized around canonical public hubs under `docs/content/docs/{start,model,sources,ops}` plus route-registry logic in `docs/lib/site-config/*`. It still mixes hand-authored MDX with generator-owned reference artifacts and relies on `nbadb docs-autogen` to refresh schema, data-dictionary, ER, lineage, and site-metrics outputs.
+This source set establishes that the docs site is a separate `docs/` app built on Fumadocs + Next.js, now organized around root getting-started pages (`index`, `installation`, `architecture`, `cli-reference`), reference sections (`schema`, `data-dictionary`, `diagrams`, `endpoints`, `lineage`), and `guides/` plus `playground.mdx`. It still mixes hand-authored MDX with generator-owned reference artifacts and relies on `nbadb docs-autogen` to refresh schema, data-dictionary, ER, lineage, and site-metrics outputs.
 
 ## Planned wiki coverage
 - `wiki/model/schema-wayfinding.md`
@@ -36,7 +36,7 @@ This source set establishes that the docs site is a separate `docs/` app built o
 |------------------|----------|-------|
 | Framework and docs app structure | `docs/AGENTS.md` | Establishes stack and directory layout |
 | Package-level versions and scripts | `docs/package.json` | Confirms commands, dependencies, and Node requirement |
-| Canonical hubs and legacy redirect policy | `docs/AGENTS.md`; `docs/lib/site-config/routes.ts` | Current route contract |
+| Canonical hubs and navigation policy | `docs/AGENTS.md`; `docs/content/docs/meta.json`; section `meta.json` files | Current route contract |
 | Root nav ordering | `docs/content/docs/meta.json` | Confirms top-level section layout |
-| Hub-level content tree | `docs/content/docs/start/`; `docs/content/docs/model/`; `docs/content/docs/sources/`; `docs/content/docs/ops/` | Current public docs topology |
+| Hub-level content tree | `docs/content/docs/{schema,data-dictionary,diagrams,endpoints,lineage,guides}/`; root `installation.mdx`, `architecture.mdx`, `cli-reference.mdx`, `playground.mdx` | Current public docs topology |
 | Docs generator outputs | `src/nbadb/docs_gen/autogen.py` | Shows generated docs and machine-readable outputs |

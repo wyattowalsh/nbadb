@@ -7399,7 +7399,7 @@
         "type": "Int64",
         "nullable": false,
         "description": "NBA team identifier",
-        "source": "CommonTeamYears.CommonTeamYears.TEAM_ID",
+        "source": "nba_api.stats.static.teams.get_teams.id",
         "fk_ref": ""
       },
       {
@@ -7407,7 +7407,7 @@
         "type": "String",
         "nullable": false,
         "description": "Team abbreviation (e.g. LAL)",
-        "source": "CommonTeamYears.CommonTeamYears.ABBREVIATION",
+        "source": "nba_api.stats.static.teams.get_teams.abbreviation",
         "fk_ref": ""
       },
       {
@@ -7415,7 +7415,7 @@
         "type": "String",
         "nullable": false,
         "description": "Full team name",
-        "source": "derived.full_name",
+        "source": "nba_api.stats.static.teams.get_teams.full_name",
         "fk_ref": ""
       },
       {
@@ -7423,7 +7423,7 @@
         "type": "String",
         "nullable": true,
         "description": "Team city",
-        "source": "TeamDetails.TeamBackground.CITY",
+        "source": "nba_api.stats.static.teams.get_teams.city",
         "fk_ref": ""
       },
       {
@@ -7431,7 +7431,7 @@
         "type": "String",
         "nullable": true,
         "description": "Team state",
-        "source": "TeamDetails.TeamBackground.STATE",
+        "source": "nba_api.stats.static.teams.get_teams.state",
         "fk_ref": ""
       },
       {
@@ -7447,7 +7447,7 @@
         "type": "Int64",
         "nullable": true,
         "description": "Year team was founded",
-        "source": "CommonTeamYears.CommonTeamYears.MIN_YEAR",
+        "source": "nba_api.stats.static.teams.get_teams.year_founded",
         "fk_ref": ""
       },
       {
@@ -7455,7 +7455,7 @@
         "type": "String",
         "nullable": true,
         "description": "Conference (East/West)",
-        "source": "TeamDetails.TeamBackground.CONFERENCE",
+        "source": "TeamInfoCommon.TeamInfoCommon.TEAM_CONFERENCE",
         "fk_ref": ""
       },
       {
@@ -7463,7 +7463,7 @@
         "type": "String",
         "nullable": true,
         "description": "Division name",
-        "source": "TeamDetails.TeamBackground.DIVISION",
+        "source": "TeamInfoCommon.TeamInfoCommon.TEAM_DIVISION",
         "fk_ref": ""
       }
     ]
@@ -7567,6 +7567,14 @@
         "nullable": true,
         "description": "Team city name",
         "source": "BoxScoreAdvancedV3.TeamStats.TEAM_CITY",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreAdvancedV3.TeamStats.teamSlug",
         "fk_ref": ""
       },
       {
@@ -7807,6 +7815,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreDefensiveV2.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -7945,6 +7961,30 @@
         "fk_ref": ""
       },
       {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreFourFactorsV3.TeamStats.teamCity",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreFourFactorsV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreFourFactorsV3.TeamStats.MIN",
+        "fk_ref": ""
+      },
+      {
         "name": "effective_field_goal_percentage",
         "type": "Float64",
         "nullable": true,
@@ -8030,6 +8070,38 @@
         "fk_ref": "staging_team.team_id"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation code",
+        "source": "derived.fact_box_score_hustle_player.team_abbreviation",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "derived.fact_box_score_hustle_player.team_city",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "derived.fact_box_score_hustle_player.team_name",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "derived.fact_box_score_hustle_player.team_slug",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -8043,6 +8115,62 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreHustleV2.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "derived.fact_box_score_hustle_player.first_name",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "derived.fact_box_score_hustle_player.family_name",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "derived.fact_box_score_hustle_player.name_i",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "derived.fact_box_score_hustle_player.player_slug",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "derived.fact_box_score_hustle_player.position",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "description": "Player status comment",
+        "source": "derived.fact_box_score_hustle_player.comment",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "derived.fact_box_score_hustle_player.jersey_num",
         "fk_ref": ""
       },
       {
@@ -8124,6 +8252,62 @@
         "description": "Box outs",
         "source": "BoxScoreHustleV2.PlayerStats.BOX_OUTS",
         "fk_ref": ""
+      },
+      {
+        "name": "offensive_box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_box_score_hustle_player.offensive_box_outs",
+        "fk_ref": ""
+      },
+      {
+        "name": "defensive_box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_box_score_hustle_player.defensive_box_outs",
+        "fk_ref": ""
+      },
+      {
+        "name": "loose_balls_recovered_offensive",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_box_score_hustle_player.loose_balls_recovered_offensive",
+        "fk_ref": ""
+      },
+      {
+        "name": "loose_balls_recovered_defensive",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_box_score_hustle_player.loose_balls_recovered_defensive",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_out_player_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_box_score_hustle_player.box_out_player_rebounds",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_out_player_team_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_box_score_hustle_player.box_out_player_team_rebounds",
+        "fk_ref": ""
+      },
+      {
+        "name": "points",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_box_score_hustle_player.points",
+        "fk_ref": ""
       }
     ]
   },
@@ -8168,6 +8352,14 @@
         "nullable": true,
         "description": "Team city name",
         "source": "BoxScoreMiscV3.TeamStats.TEAM_CITY",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreMiscV3.TeamStats.teamSlug",
         "fk_ref": ""
       },
       {
@@ -8317,6 +8509,14 @@
         "nullable": true,
         "description": "Team city name",
         "source": "BoxScorePlayerTrackV3.TeamStats.TEAM_CITY",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScorePlayerTrackV3.TeamStats.teamSlug",
         "fk_ref": ""
       },
       {
@@ -8525,6 +8725,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreScoringV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -8695,6 +8903,14 @@
         "nullable": true,
         "description": "Team city name",
         "source": "BoxScoreTraditionalV3.TeamStarterBenchStats.TEAM_CITY",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.TeamStarterBenchStats.teamSlug",
         "fk_ref": ""
       },
       {
@@ -9892,6 +10108,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
@@ -10094,6 +10318,14 @@
         "nullable": true,
         "description": "Team name",
         "source": "derived.fact_box_score_usage_team.team_name",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "derived.fact_box_score_usage_team.team_slug",
         "fk_ref": ""
       },
       {
@@ -11937,6 +12169,14 @@
         "fk_ref": ""
       },
       {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombineDrillResults.Results.TEMP_PLAYER_ID",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -12038,6 +12278,14 @@
         "fk_ref": ""
       },
       {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombineNonStationaryShooting.Results.TEMP_PLAYER_ID",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -12126,6 +12374,30 @@
         "fk_ref": ""
       },
       {
+        "name": "off_drib_fifteen_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_non_stationary_shooting.off_drib_fifteen_break_right_made",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_non_stationary_shooting.off_drib_fifteen_break_right_attempt",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_non_stationary_shooting.off_drib_fifteen_break_right_pct",
+        "fk_ref": ""
+      },
+      {
         "name": "off_drib_college_break_left_made",
         "type": "Int64",
         "nullable": true,
@@ -12171,6 +12443,30 @@
         "nullable": true,
         "description": "Off-dribble college top of key shooting percentage",
         "source": "DraftCombineNonStationaryShooting.Results.OFF_DRIB_COLLEGE_TOP_KEY_PCT",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_non_stationary_shooting.off_drib_college_break_right_made",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_non_stationary_shooting.off_drib_college_break_right_attempt",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_non_stationary_shooting.off_drib_college_break_right_pct",
         "fk_ref": ""
       },
       {
@@ -12232,6 +12528,14 @@
         "nullable": false,
         "description": "Combine season year",
         "source": "DraftCombinePlayerAnthro.Results.SEASON",
+        "fk_ref": ""
+      },
+      {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombinePlayerAnthro.Results.TEMP_PLAYER_ID",
         "fk_ref": ""
       },
       {
@@ -12381,6 +12685,14 @@
         "nullable": false,
         "description": "Combine season year",
         "source": "DraftCombineSpotShooting.Results.SEASON",
+        "fk_ref": ""
+      },
+      {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombineSpotShooting.Results.TEMP_PLAYER_ID",
         "fk_ref": ""
       },
       {
@@ -12978,6 +13290,190 @@
         "nullable": true,
         "description": "Bench press repetitions",
         "source": "DraftCombineStats.DraftCombineStats.BENCH_PRESS",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_fifteen_corner_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_fifteen_break_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_fifteen_top_key",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_fifteen_break_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_fifteen_corner_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_college_corner_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_college_break_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_college_top_key",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_college_break_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_college_corner_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_nba_corner_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_nba_break_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_nba_top_key",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_nba_break_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.spot_nba_corner_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.off_drib_fifteen_break_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.off_drib_fifteen_top_key",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.off_drib_fifteen_break_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.off_drib_college_break_left",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.off_drib_college_top_key",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.off_drib_college_break_right",
+        "fk_ref": ""
+      },
+      {
+        "name": "on_move_fifteen",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.on_move_fifteen",
+        "fk_ref": ""
+      },
+      {
+        "name": "on_move_college",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_draft_combine_stats.on_move_college",
         "fk_ref": ""
       }
     ]
@@ -15947,12 +16443,36 @@
     "table_name": "fact_ist_standings",
     "fields": [
       {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "description": "League identifier",
+        "source": "derived.fact_ist_standings.league_id",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "description": "Season year",
+        "source": "derived.fact_ist_standings.season_year",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
         "description": "Team identifier",
         "source": "",
         "fk_ref": "staging_team.team_id"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "derived.fact_ist_standings.team_city",
+        "fk_ref": ""
       },
       {
         "name": "team_name",
@@ -15963,11 +16483,75 @@
         "fk_ref": ""
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation",
+        "source": "derived.fact_ist_standings.team_abbreviation",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "derived.fact_ist_standings.team_slug",
+        "fk_ref": ""
+      },
+      {
+        "name": "conference",
+        "type": "String",
+        "nullable": true,
+        "description": "Conference",
+        "source": "derived.fact_ist_standings.conference",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_group",
+        "type": "String",
+        "nullable": true,
+        "description": "Cup group",
+        "source": "derived.fact_ist_standings.ist_group",
+        "fk_ref": ""
+      },
+      {
         "name": "group_name",
         "type": "String",
         "nullable": true,
         "description": "Cup group name",
         "source": "derived.fact_ist_standings.group_name",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinch_indicator",
+        "type": "String",
+        "nullable": true,
+        "description": "Cup clinch status indicator",
+        "source": "derived.fact_ist_standings.clinch_indicator",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinched_ist_group",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Cup group clinch flag",
+        "source": "derived.fact_ist_standings.clinched_ist_group",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinched_ist_knockout",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Cup knockout clinch flag",
+        "source": "derived.fact_ist_standings.clinched_ist_knockout",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinched_ist_wildcard",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Cup wildcard clinch flag",
+        "source": "derived.fact_ist_standings.clinched_ist_wildcard",
         "fk_ref": ""
       },
       {
@@ -15984,6 +16568,14 @@
         "nullable": true,
         "description": "Cup losses",
         "source": "derived.fact_ist_standings.losses",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Cup win pct",
+        "source": "derived.fact_ist_standings.pct",
         "fk_ref": ""
       },
       {
@@ -16016,6 +16608,262 @@
         "nullable": true,
         "description": "Point differential in cup play",
         "source": "derived.fact_ist_standings.point_diff",
+        "fk_ref": ""
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Points",
+        "source": "derived.fact_ist_standings.pts",
+        "fk_ref": ""
+      },
+      {
+        "name": "opp_pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Opponent points",
+        "source": "derived.fact_ist_standings.opp_pts",
+        "fk_ref": ""
+      },
+      {
+        "name": "diff",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Point differential",
+        "source": "derived.fact_ist_standings.diff",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_group_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.ist_group_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_group_gb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.ist_group_gb",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_wildcard_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.ist_wildcard_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_wildcard_gb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.ist_wildcard_gb",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_knockout_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.ist_knockout_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_id1",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_id2",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_id3",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_id4",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status1",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status1",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status2",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status2",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status3",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status3",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status4",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status4",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status_text1",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status_text2",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status_text3",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.game_status_text4",
+        "fk_ref": ""
+      },
+      {
+        "name": "location1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.location1",
+        "fk_ref": ""
+      },
+      {
+        "name": "location2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.location2",
+        "fk_ref": ""
+      },
+      {
+        "name": "location3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.location3",
+        "fk_ref": ""
+      },
+      {
+        "name": "location4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.location4",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.opponent_team_abbreviation1",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.opponent_team_abbreviation2",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.opponent_team_abbreviation3",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.opponent_team_abbreviation4",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.outcome1",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.outcome2",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.outcome3",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_ist_standings.outcome4",
         "fk_ref": ""
       }
     ]
@@ -18005,6 +18853,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "derived.fact_league_opp_pt_shot.gp",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -18034,6 +18890,22 @@
         "nullable": true,
         "description": "Shot-attempt frequency",
         "source": "derived.fact_league_opp_pt_shot.fga_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_opp_pt_shot.fg2a_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_opp_pt_shot.fg3a_frequency",
         "fk_ref": ""
       },
       {
@@ -18202,6 +19074,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "derived.fact_league_player_pt_shot.gp",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -18231,6 +19111,22 @@
         "nullable": true,
         "description": "Shot-attempt frequency",
         "source": "derived.fact_league_player_pt_shot.fga_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_player_pt_shot.fg2a_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_player_pt_shot.fg3a_frequency",
         "fk_ref": ""
       },
       {
@@ -18335,6 +19231,30 @@
         "nullable": true,
         "description": "Defended FG percentage",
         "source": "derived.fact_league_player_pt_shot.dfg_pct",
+        "fk_ref": ""
+      },
+      {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player age",
+        "source": "derived.fact_league_player_pt_shot.age",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_last_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Player last team identifier",
+        "source": "",
+        "fk_ref": "staging_team.team_id"
+      },
+      {
+        "name": "player_last_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Player last team abbreviation",
+        "source": "derived.fact_league_player_pt_shot.player_last_team_abbreviation",
         "fk_ref": ""
       }
     ]
@@ -18593,6 +19513,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "derived.fact_league_pt_shots.gp",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -18622,6 +19550,22 @@
         "nullable": true,
         "description": "Shot-attempt frequency",
         "source": "derived.fact_league_pt_shots.fga_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_shots.fg2a_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_shots.fg3a_frequency",
         "fk_ref": ""
       },
       {
@@ -18798,6 +19742,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "derived.fact_league_pt_stats.gp",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -18827,6 +19779,22 @@
         "nullable": true,
         "description": "Shot-attempt frequency",
         "source": "derived.fact_league_pt_stats.fga_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.fg2a_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.fg3a_frequency",
         "fk_ref": ""
       },
       {
@@ -18932,6 +19900,94 @@
         "description": "Defended FG percentage",
         "source": "derived.fact_league_pt_stats.dfg_pct",
         "fk_ref": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Wins",
+        "source": "derived.fact_league_pt_stats.w",
+        "fk_ref": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Losses",
+        "source": "derived.fact_league_pt_stats.l",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Win pct",
+        "source": "derived.fact_league_pt_stats.w_pct",
+        "fk_ref": ""
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Minutes",
+        "source": "derived.fact_league_pt_stats.min",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_feet",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.dist_feet",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_miles",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.dist_miles",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_miles_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.dist_miles_off",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_miles_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.dist_miles_def",
+        "fk_ref": ""
+      },
+      {
+        "name": "avg_speed",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.avg_speed",
+        "fk_ref": ""
+      },
+      {
+        "name": "avg_speed_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.avg_speed_off",
+        "fk_ref": ""
+      },
+      {
+        "name": "avg_speed_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_stats.avg_speed_def",
+        "fk_ref": ""
       }
     ]
   },
@@ -18995,6 +20051,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "derived.fact_league_pt_team_defend.gp",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -19024,6 +20088,22 @@
         "nullable": true,
         "description": "Shot-attempt frequency",
         "source": "derived.fact_league_pt_team_defend.fga_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.fg2a_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.fg3a_frequency",
         "fk_ref": ""
       },
       {
@@ -19128,6 +20208,54 @@
         "nullable": true,
         "description": "Defended FG percentage",
         "source": "derived.fact_league_pt_team_defend.dfg_pct",
+        "fk_ref": ""
+      },
+      {
+        "name": "freq",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.freq",
+        "fk_ref": ""
+      },
+      {
+        "name": "d_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.d_fgm",
+        "fk_ref": ""
+      },
+      {
+        "name": "d_fga",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.d_fga",
+        "fk_ref": ""
+      },
+      {
+        "name": "d_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.d_fg_pct",
+        "fk_ref": ""
+      },
+      {
+        "name": "normal_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.normal_fg_pct",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_plusminus",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_pt_team_defend.pct_plusminus",
         "fk_ref": ""
       }
     ]
@@ -19245,6 +20373,38 @@
         "fk_ref": ""
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.gp_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.w_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.l_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.w_pct_rank",
+        "fk_ref": ""
+      },
+      {
         "name": "w",
         "type": "Int64",
         "nullable": true,
@@ -19261,11 +20421,27 @@
         "fk_ref": ""
       },
       {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Win pct",
+        "source": "derived.fact_league_team_clutch.w_pct",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
         "description": "Minutes",
         "source": "derived.fact_league_team_clutch.min",
+        "fk_ref": ""
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.min_rank",
         "fk_ref": ""
       },
       {
@@ -19277,11 +20453,139 @@
         "fk_ref": ""
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.pts_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fgm",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fgm_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fga",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fga_rank",
+        "fk_ref": ""
+      },
+      {
         "name": "fg_pct",
         "type": "Float64",
         "nullable": true,
         "description": "Field goal percentage",
         "source": "derived.fact_league_team_clutch.fg_pct",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fg_pct_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fg3m",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fg3m_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fg3a",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fg3a_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fg3_pct",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fg3_pct_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.ftm",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.ftm_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fta",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.fta_rank",
         "fk_ref": ""
       },
       {
@@ -19293,11 +20597,203 @@
         "fk_ref": ""
       },
       {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.ft_pct_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.oreb",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.oreb_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.dreb",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.dreb_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.reb",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.reb_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.ast",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.ast_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.tov",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.tov_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.stl",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.stl_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.blk",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.blk_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.blka",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.blka_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.pf",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.pf_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.pfd",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.pfd_rank",
+        "fk_ref": ""
+      },
+      {
         "name": "plus_minus",
         "type": "Float64",
         "nullable": true,
         "description": "Plus-minus",
         "source": "derived.fact_league_team_clutch.plus_minus",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.plus_minus_rank",
+        "fk_ref": ""
+      },
+      {
+        "name": "cfid",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.cfid",
+        "fk_ref": ""
+      },
+      {
+        "name": "cfparams",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_clutch.cfparams",
         "fk_ref": ""
       }
     ]
@@ -19362,6 +20858,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "derived.fact_league_team_pt_shot.gp",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -19391,6 +20895,22 @@
         "nullable": true,
         "description": "Shot-attempt frequency",
         "source": "derived.fact_league_team_pt_shot.fga_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_pt_shot.fg2a_frequency",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_league_team_pt_shot.fg3a_frequency",
         "fk_ref": ""
       },
       {
@@ -34843,6 +36363,27 @@
     ]
   },
   {
+    "table_name": "fact_scoreboard_available",
+    "fields": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Unique game identifier",
+        "source": "ScoreboardV2.Available.GAME_ID",
+        "fk_ref": "dim_game.game_id"
+      },
+      {
+        "name": "pt_available",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Player-tracking availability flag",
+        "source": "ScoreboardV2.Available.PT_AVAILABLE",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
     "table_name": "fact_scoreboard_conference_standings",
     "fields": [
       {
@@ -37728,6 +39269,27 @@
         "nullable": false,
         "description": "",
         "source": "derived.fact_team_available_seasons.season_id",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "fact_team_awards_championships",
+    "fields": [
+      {
+        "name": "yearawarded",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_team_awards_championships.yearawarded",
+        "fk_ref": ""
+      },
+      {
+        "name": "oppositeteam",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_team_awards_championships.oppositeteam",
         "fk_ref": ""
       }
     ]

@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  Component,
-  type ComponentType,
-  type ReactNode,
-  type JSX,
-} from "react";
+import { Component, type ComponentType, type ReactNode, type JSX } from "react";
 import dynamic from "next/dynamic";
 
 /* ── Shared loading placeholder ─────────────────────── */
@@ -110,33 +105,26 @@ function createDynamicWidget<T extends object>(
 
 const loadObservablePlotModule = () => import("./observable-plot");
 
-export const ObservablePlot = createDynamicWidget(
-  "Observable Plot",
-  () => loadObservablePlotModule().then((module) => module.ObservablePlot),
+export const ObservablePlot = createDynamicWidget("Observable Plot", () =>
+  loadObservablePlotModule().then((module) => module.ObservablePlot),
 );
-export const ShotChart = createDynamicWidget(
-  "Shot Chart",
-  () => loadObservablePlotModule().then((module) => module.ShotChart),
+export const ShotChart = createDynamicWidget("Shot Chart", () =>
+  loadObservablePlotModule().then((module) => module.ShotChart),
 );
-export const GameFlow = createDynamicWidget(
-  "Game Flow",
-  () => loadObservablePlotModule().then((module) => module.GameFlow),
+export const GameFlow = createDynamicWidget("Game Flow", () =>
+  loadObservablePlotModule().then((module) => module.GameFlow),
 );
-export const PlayerCompare = createDynamicWidget(
-  "Player Compare",
-  () => loadObservablePlotModule().then((module) => module.PlayerCompare),
+export const PlayerCompare = createDynamicWidget("Player Compare", () =>
+  loadObservablePlotModule().then((module) => module.PlayerCompare),
 );
-export const SeasonTrend = createDynamicWidget(
-  "Season Trend",
-  () => loadObservablePlotModule().then((module) => module.SeasonTrend),
+export const SeasonTrend = createDynamicWidget("Season Trend", () =>
+  loadObservablePlotModule().then((module) => module.SeasonTrend),
 );
-export const DistributionPlot = createDynamicWidget(
-  "Distribution Plot",
-  () => loadObservablePlotModule().then((module) => module.DistributionPlot),
+export const DistributionPlot = createDynamicWidget("Distribution Plot", () =>
+  loadObservablePlotModule().then((module) => module.DistributionPlot),
 );
-export const HeatmapGrid = createDynamicWidget(
-  "Heatmap Grid",
-  () => loadObservablePlotModule().then((module) => module.HeatmapGrid),
+export const HeatmapGrid = createDynamicWidget("Heatmap Grid", () =>
+  loadObservablePlotModule().then((module) => module.HeatmapGrid),
 );
 /* ── Heavy interactive components (lazy + error-bounded) ── */
 

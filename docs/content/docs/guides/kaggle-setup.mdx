@@ -56,7 +56,7 @@ Use this route when you want direct control over download handling inside Python
 A default local layout looks like this:
 
 ```text
-nbadb/
+data/nbadb/
 ├── nba.sqlite
 ├── nba.duckdb
 ├── parquet/
@@ -87,7 +87,7 @@ nbadb/
 ```python
 import sqlite3
 
-conn = sqlite3.connect("nbadb/nba.sqlite")
+conn = sqlite3.connect("data/nbadb/nba.sqlite")
 rows = conn.execute("SELECT * FROM dim_player LIMIT 5").fetchall()
 ```
 
@@ -96,7 +96,7 @@ rows = conn.execute("SELECT * FROM dim_player LIMIT 5").fetchall()
 ```python
 import duckdb
 
-conn = duckdb.connect("nbadb/nba.duckdb")
+conn = duckdb.connect("data/nbadb/nba.duckdb")
 df = conn.sql("SELECT * FROM dim_player LIMIT 5").pl()
 ```
 
@@ -105,7 +105,7 @@ df = conn.sql("SELECT * FROM dim_player LIMIT 5").pl()
 ```python
 import polars as pl
 
-df = pl.read_parquet("nbadb/parquet/dim_player/dim_player.parquet")
+df = pl.read_parquet("data/nbadb/parquet/dim_player/dim_player.parquet")
 ```
 
 ### Parquet with Pandas
@@ -113,13 +113,13 @@ df = pl.read_parquet("nbadb/parquet/dim_player/dim_player.parquet")
 ```python
 import pandas as pd
 
-df = pd.read_parquet("nbadb/parquet/dim_player/dim_player.parquet")
+df = pd.read_parquet("data/nbadb/parquet/dim_player/dim_player.parquet")
 ```
 
 ## Upload your own build
 
 ```bash
-nbadb upload
+uv run nbadb upload --data-dir data/nbadb --message "Post-trade-deadline refresh"
 ```
 
 ### Preflight checklist
@@ -129,21 +129,44 @@ nbadb upload
 | Your target data directory already contains the dataset you want to publish        | `upload` publishes what is on disk      |
 | Kaggle credentials are available to the environment that `kagglehub` uses          | Upload cannot authenticate without them |
 | `NBADB_KAGGLE_DATASET` points at the correct slug if you are not using the default | Metadata and upload target must agree   |
+| CSV export headers match the generated table schemas                               | Kaggle resource schemas are order-bound |
+
+### Operator preflight
+
+```bash
+uv run nbadb export --data-dir data/nbadb
+uv run nbadb scan --data-dir data/nbadb --fail-on error
+uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
+uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json
+git diff --exit-code dataset-metadata.json
+uv run nbadb upload --data-dir data/nbadb --message "Describe this publish"
+```
+
+Use `uv run nbadb metadata --output dataset-metadata.json` without `--data-dir` only as a catalog preview. Use an existing `--data-dir` for publish validation so the rendered resource inventory reflects the bundle on disk.
 
 ## Version notes and metadata
 
 ```bash
-nbadb upload --message "Post-trade-deadline refresh"
+uv run nbadb upload --data-dir data/nbadb --message "Post-trade-deadline refresh"
 ```
 
 ```bash
-nbadb metadata --data-dir nbadb --output dataset-metadata.json
+uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json
 ```
 
 - The CLI default message is `"Automated update"`.
 - nbadb ensures `dataset-metadata.json` exists before upload.
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
 - Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
+- Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift.
+- The current `kagglehub` upload path uploads `dataset-metadata.json` as part of the bundle; the latest verified 1.0.1 source still does not expose a separate high-level dataset-page metadata update API.
+
+<Callout type="warn">
+  Treat `dataset-metadata.json` as the generated source of truth for the Kaggle
+  handoff. If Kaggle's page-level metadata needs manual reconciliation after an
+  upload, use the generated file as the copy source rather than editing a second
+  README by hand.
+</Callout>
 
 ## Related routes
 

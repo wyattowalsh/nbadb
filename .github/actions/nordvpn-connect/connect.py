@@ -68,16 +68,16 @@ def run_command(
         with suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGTERM)
         try:
-            process.wait(timeout=5)
+            stdout, stderr = process.communicate(timeout=5)
         except subprocess.TimeoutExpired:
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
-            process.wait(timeout=5)
+            stdout, stderr = process.communicate(timeout=5)
         raise subprocess.TimeoutExpired(
             cmd=cmd,
-            timeout=timeout,
-            output=exc.output,
-            stderr=exc.stderr,
+            timeout=timeout if timeout is not None else 0.0,
+            output=stdout or exc.output,
+            stderr=stderr or exc.stderr,
         ) from exc
 
     completed = subprocess.CompletedProcess(

@@ -274,6 +274,29 @@ class RawDraftCombineStatsSchema(BaseSchema):
             "description": "Bench press repetitions",
         },
     )
+    spot_fifteen_corner_left: str | None = pa.Field(nullable=True)
+    spot_fifteen_break_left: str | None = pa.Field(nullable=True)
+    spot_fifteen_top_key: str | None = pa.Field(nullable=True)
+    spot_fifteen_break_right: str | None = pa.Field(nullable=True)
+    spot_fifteen_corner_right: str | None = pa.Field(nullable=True)
+    spot_college_corner_left: str | None = pa.Field(nullable=True)
+    spot_college_break_left: str | None = pa.Field(nullable=True)
+    spot_college_top_key: str | None = pa.Field(nullable=True)
+    spot_college_break_right: str | None = pa.Field(nullable=True)
+    spot_college_corner_right: str | None = pa.Field(nullable=True)
+    spot_nba_corner_left: str | None = pa.Field(nullable=True)
+    spot_nba_break_left: str | None = pa.Field(nullable=True)
+    spot_nba_top_key: str | None = pa.Field(nullable=True)
+    spot_nba_break_right: str | None = pa.Field(nullable=True)
+    spot_nba_corner_right: str | None = pa.Field(nullable=True)
+    off_drib_fifteen_break_left: str | None = pa.Field(nullable=True)
+    off_drib_fifteen_top_key: str | None = pa.Field(nullable=True)
+    off_drib_fifteen_break_right: str | None = pa.Field(nullable=True)
+    off_drib_college_break_left: str | None = pa.Field(nullable=True)
+    off_drib_college_top_key: str | None = pa.Field(nullable=True)
+    off_drib_college_break_right: str | None = pa.Field(nullable=True)
+    on_move_fifteen: str | None = pa.Field(nullable=True)
+    on_move_college: str | None = pa.Field(nullable=True)
 
 
 class RawDraftCombineDrillResultsSchema(BaseSchema):
@@ -281,6 +304,13 @@ class RawDraftCombineDrillResultsSchema(BaseSchema):
         metadata={
             "source": ("DraftCombineDrillResults.Results.SEASON"),
             "description": "Combine season year",
+        },
+    )
+    temp_player_id: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("DraftCombineDrillResults.Results.TEMP_PLAYER_ID"),
+            "description": "Temporary combine player identifier",
         },
     )
     player_id: int = pa.Field(
@@ -367,6 +397,13 @@ class RawDraftCombinePlayerAnthroSchema(BaseSchema):
         metadata={
             "source": ("DraftCombinePlayerAnthro.Results.SEASON"),
             "description": "Combine season year",
+        },
+    )
+    temp_player_id: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("DraftCombinePlayerAnthro.Results.TEMP_PLAYER_ID"),
+            "description": "Temporary combine player identifier",
         },
     )
     player_id: int = pa.Field(
@@ -495,6 +532,13 @@ class RawDraftCombineSpotShootingSchema(BaseSchema):
         metadata={
             "source": ("DraftCombineSpotShooting.Results.SEASON"),
             "description": "Combine season year",
+        },
+    )
+    temp_player_id: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("DraftCombineSpotShooting.Results.TEMP_PLAYER_ID"),
+            "description": "Temporary combine player identifier",
         },
     )
     player_id: int = pa.Field(
@@ -858,6 +902,13 @@ class RawDraftCombineNonStationaryShootingSchema(
             "description": "Combine season year",
         },
     )
+    temp_player_id: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("DraftCombineNonStationaryShooting.Results.TEMP_PLAYER_ID"),
+            "description": "Temporary combine player identifier",
+        },
+    )
     player_id: int = pa.Field(
         gt=0,
         metadata={
@@ -941,6 +992,9 @@ class RawDraftCombineNonStationaryShootingSchema(
             "description": ("Off-dribble fifteen-foot top of key shooting percentage"),
         },
     )
+    off_drib_fifteen_break_right_made: int | None = pa.Field(nullable=True)
+    off_drib_fifteen_break_right_attempt: int | None = pa.Field(nullable=True)
+    off_drib_fifteen_break_right_pct: float | None = pa.Field(nullable=True)
     off_drib_college_break_left_made: int | None = pa.Field(
         nullable=True,
         metadata={
@@ -989,6 +1043,9 @@ class RawDraftCombineNonStationaryShootingSchema(
             "description": ("Off-dribble college top of key shooting percentage"),
         },
     )
+    off_drib_college_break_right_made: int | None = pa.Field(nullable=True)
+    off_drib_college_break_right_attempt: int | None = pa.Field(nullable=True)
+    off_drib_college_break_right_pct: float | None = pa.Field(nullable=True)
     on_move_fifteen_made: int | None = pa.Field(
         nullable=True,
         metadata={

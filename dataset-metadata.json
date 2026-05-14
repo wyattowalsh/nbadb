@@ -2,8 +2,8 @@
   "id": "wyattowalsh/basketball",
   "id_no": null,
   "title": "NBA Basketball Database",
-  "subtitle": "Comprehensive NBA database: 235-table star schema (1946-present) with DuckDB, SQLite, Parquet, and CSV exports",
-  "description": "# NBA Basketball Database\n\nThe most comprehensive open NBA database available \u2014 137 stats.nba.com endpoint classes extracted via [nba_api](https://github.com/swar/nba_api), normalized into a star schema covering every season from 1946-47 to present.\n\n## Source and Provenance\n\n- **Primary source**: `stats.nba.com` endpoints accessed via [`nba_api`](https://github.com/swar/nba_api).\n- **Dataset identifier**: `wyattowalsh/basketball` on Kaggle.\n- **Documentation**: https://nbadb.w4w.dev\n- **Repository**: https://github.com/wyattowalsh/nbadb\n- **Temporal coverage**: 1946-47 through the current NBA season, with daily in-season refreshes and monthly full rebuilds.\n\n## Schema Overview\n\n| Layer | Count | Description |\n|-------|------:|-------------|\n| Dimensions | 18 | Players, teams, games, arenas, seasons, coaches, and officials. |\n| Bridges | 5 | Explicit bridge tables for officials, game-team sides, lineup membership, and player/team-season links. |\n| Facts | 179 | Box scores, play-by-play, shot charts, tracking, standings, matchups, and dashboards. |\n| Aggregations | 19 | Season totals, career stats, all-time leaders, rolling windows, and rate-normalized rollups. |\n| Analytics Views | 14 | Pre-joined wide tables for ML, BI, and notebook workflows. |\n\n## Data Coverage\n\n- **Box Scores**: traditional, advanced, misc, hustle, four factors, tracking, scoring, usage, and starter/bench splits.\n- **Play-by-Play**: every event with clock, score, event codes, and involved players.\n- **Shot Charts**: every FGA with court coordinates, zone, distance, and make/miss outcome.\n- **Player Tracking**: speed, distance, touches, passes, contested shots, and rebounding breakdowns.\n- **Rotations**: check-in/check-out times with points and usage per stint.\n- **Win Probability**: real-time home and visitor win probability at each play.\n- **Lineups**: five-man unit performance from league-wide and team-specific lineup endpoints.\n- **Synergy Play Types**: PnR, isolation, transition, post-up, spot-up, cut, and off-screen efficiency.\n- **Draft**: picks plus combine measurements including height, weight, wingspan, vertical leap, sprint, and bench press.\n- **Awards and Standings**: MVP, All-Star, All-NBA, DPOY, ROY, conference/division rankings, streaks, and playoff context.\n\n## Available Formats\n\n| Format | Path | Best For |\n|--------|------|----------|\n| DuckDB | `nba.duckdb` | Fast analytical queries, joins across tables |\n| SQLite | `nba.sqlite` | Portable SQL access with broad tool support |\n| Parquet | `parquet/<table>/...` | Columnar analytics with pandas, polars, Arrow, and Spark |\n| CSV | `csv/<table>.csv` | Universal compatibility and spreadsheet workflows |\n\nDuckDB and Parquet exports use zstd compression for efficient storage.\n\n## Export Inventory\n\n- **Cataloged tables**: 235\n- **CSV exports available**: 235/235\n- **Parquet exports available**: 235/235\n- **Database bundles available**: DuckDB, and SQLite\n\n## Getting Started\n\n```python\nimport duckdb\ncon = duckdb.connect(\"nba.duckdb\", read_only=True)\n\n# Player season averages\ncon.sql(\"SELECT * FROM agg_player_season WHERE season_year = '2024-25' ORDER BY avg_pts DESC LIMIT 10\")\n\n# Shot chart for a player\ncon.sql(\"SELECT loc_x, loc_y, shot_made_flag FROM fact_shot_chart WHERE player_id = 201939\")\n\n# Team standings\ncon.sql(\"SELECT * FROM fact_standings WHERE season_year = '2024-25' ORDER BY conference_rank\")\n```\n\n## Key Relationships\n\nThe warehouse follows a star schema: dimensions provide lookup context, while facts record measurable events and aggregates.\n\n- **player_id** links facts to `dim_player` (use `is_current = TRUE` for the latest SCD2 attributes).\n- **team_id** links facts and bridges to `dim_team`.\n- **game_id** links event and box-score facts to `dim_game`, which provides season, date, and home/visitor context.\n- **season_year** is the common grain for seasonal facts and aggregate rollups.\n\nAnalytics views are pre-joined wide tables for common notebook and BI workflows.\n\n## Table Catalog\n\n### Dimensions (18)\n\n| Table | Description |\n|-------|-------------|\n| dim_all_players | Master player directory with player IDs, names, and active status for every NBA player in history. |\n| dim_arena | NBA arenas with name, city, state, country, and timezone. Surrogate key assigned. |\n| dim_coach | Coaching staff by team and season, including head coaches and assistants. |\n| dim_college | Lookup table of college/university names with surrogate IDs. |\n| dim_date | Calendar dimension from 1946 to present+1yr with NBA season mapping, day-of-week, and weekend flags. |\n| dim_defunct_team | Historical teams no longer active in the NBA, from FranchiseHistory. |\n| dim_game | Game dimension with date, season, home/visitor teams, matchup, and arena. One row per game. |\n| dim_official | NBA referees with official ID, name, and jersey number. |\n| dim_play_event_type | Reference lookup for play-by-play event types (made_shot, rebound, foul, etc.). |\n| dim_player | SCD Type 2 player dimension tracking team, position, and jersey changes across seasons. |\n| dim_schedule_int | International schedule dimension with game dates, arena details, and broadcast information. |\n| dim_season | NBA seasons with start and end dates, derived from game log. |\n| dim_season_phase | Reference lookup for season phases: Preseason, Regular, Play-In, Playoffs R1-R2, Conference Finals, Finals, All-Star. |\n| dim_season_week | Schedule week boundaries by season from the NBA schedule endpoint. |\n| dim_shot_zone | Distinct shot zone combinations (basic, area, range) with surrogate IDs. |\n| dim_team | Current NBA teams with abbreviation, city, state, arena, conference, and division. |\n| dim_team_extended | Extended team attributes joining team details, common info, and active years. |\n| dim_team_history | SCD Type 2 team history tracking city, nickname, and abbreviation changes over time. |\n\n### Bridges (5)\n\n| Table | Description |\n|-------|-------------|\n| bridge_game_official | Many-to-many bridge linking games to their assigned officials. |\n| bridge_game_team | Bridge linking each game to both participating teams with home/away side and win-loss outcome. |\n| bridge_lineup_player | Exploded bridge linking lineup group IDs to individual players and lineup slot order. |\n| bridge_play_player | Many-to-many bridge linking play-by-play events to involved players. |\n| bridge_player_team_season | Bridge linking players to teams by season with jersey number and listed position. |\n\n### Facts (179)\n\n| Table | Description |\n|-------|-------------|\n| fact_box_score_advanced_team | Team-level advanced box score stats per game: offensive/defensive rating, pace, eFG%, TS%, AST ratio. |\n| fact_box_score_defensive_team | Team-level defensive box score stats per game. |\n| fact_box_score_four_factors | Player-level Four Factors stats per game: eFG%, TOV%, OREB%, FT rate. |\n| fact_box_score_four_factors_team | Team-level Four Factors stats per game: eFG%, TOV%, OREB%, FT rate. |\n| fact_box_score_hustle_player | Player-level hustle stats per game: contested shots, deflections, loose balls, charges drawn, screen assists. |\n| fact_box_score_misc_team | Team-level miscellaneous box score stats per game: points off turnovers, second chance points, fast break points, points in the paint. |\n| fact_box_score_player_track_team | Team-level player tracking box score stats per game: distance, speed, touches, passes. |\n| fact_box_score_scoring_team | Team-level scoring breakdown per game: points by quarter, half, and overtime. |\n| fact_box_score_starter_bench | Starter vs. bench split box score stats per game per team. |\n| fact_box_score_summary_v3 | V3 box score summary with game-level totals for both teams. |\n| fact_box_score_summary_v3_available_video | V3 box score summary available-video passthrough by game. |\n| fact_box_score_summary_v3_game_info | V3 box score summary game-info passthrough with arena, attendance, and status context. |\n| fact_box_score_summary_v3_game_summary | V3 box score summary game-summary passthrough with game status, teams, and scores. |\n| fact_box_score_summary_v3_inactive_players | V3 box score summary inactive-player passthrough by game and team. |\n| fact_box_score_summary_v3_last_five_meetings | V3 box score summary last-five-meetings passthrough for recent matchup history. |\n| fact_box_score_summary_v3_line_score | V3 box score summary line-score passthrough by game, team, and period. |\n| fact_box_score_summary_v3_officials | V3 box score summary officials passthrough by game. |\n| fact_box_score_summary_v3_other_stats | V3 box score summary other-stats passthrough for game-level team context. |\n| fact_box_score_team | Team-level traditional box score stats per game: PTS, REB, AST, FG/FT/3PT shooting. |\n| fact_box_score_usage_team | Team-level usage and efficiency box score stats per game. |\n| fact_college_rollup | Aggregated stats by college/university \u2014 how many NBA players each school produced. |\n| fact_cumulative_stats | Cumulative (running total) player stats across the season. |\n| fact_cumulative_stats_detail | Detailed cumulative player stats with multiple time-window breakdowns. |\n| fact_defense_hub | Defensive matchup statistics: points allowed, FG% against, by player/team. |\n| fact_defense_hub_detail | Consolidated defensive leaderboard across 10 metrics (DREB, STL, BLK, def rating, plus-minus, DFG%) with rank per team. |\n| fact_draft | NBA draft picks with round, pick number, team, organization, and combine measurements (height, weight, wingspan, vertical leap, sprint, bench press). |\n| fact_draft_board | Draft board data with player rankings and projections. |\n| fact_draft_combine_drill_results | NBA Draft Combine drill results with vertical leap, agility, sprint, and bench press per player. |\n| fact_draft_combine_non_stationary_shooting | NBA Draft Combine non-stationary shooting results with off-dribble and movement shooting splits. |\n| fact_draft_combine_player_anthro | NBA Draft Combine anthropometric measurements: height, weight, wingspan, standing reach, body fat, hand size. |\n| fact_draft_combine_spot_shooting | NBA Draft Combine spot shooting results with NBA and college shooting splits by location. |\n| fact_draft_combine_detail | Detailed NBA Draft Combine measurements and athletic testing results. |\n| fact_draft_combine_stats | Core NBA Draft Combine stats by player and season, including height, weight, wingspan, reach, and sprint times. |\n| fact_draft_history | NBA draft history by player, season, round, pick, drafting team, and pre-draft organization. |\n| fact_assist_leaders | Assists leaderboard passthrough for the assist leaders endpoint. |\n| fact_assist_tracker | Assists tracker passthrough for the assist tracker endpoint. |\n| fact_dunk_score_leaders | Dunk score leaderboard passthrough for the dunk score leaders endpoint. |\n| fact_fantasy_widget | Fantasy widget passthrough with season snapshot stats and fantasy scoring. |\n| fact_gravity_leaders | Gravity leaderboard passthrough for the gravity leaders endpoint. |\n| fact_infographic_fanduel_player | FanDuel infographic per-player game snapshot with fantasy and box score metrics. |\n| fact_league_leaders | League leaders endpoint passthrough with rank, player, team, and points. |\n| fact_player_fantasy_profile_last_five_games_avg | Player fantasy profile passthrough for the last-five-games average endpoint. |\n| fact_player_fantasy_profile_season_avg | Player fantasy profile passthrough for the season-average endpoint. |\n| fact_fantasy | Fantasy basketball data from endpoint-specific fantasy sources: infographic FanDuel, fantasy widget, and player fantasy profiles. |\n| fact_franchise_detail | Franchise-level detail: championships, conference titles, division titles, and historical records. |\n| fact_franchise_leaders | Franchise leaders by team for points, assists, rebounds, blocks, and steals. |\n| fact_franchise_players | Franchise player career summaries by team and season type. |\n| fact_game_context | Contextual game information: national TV broadcast, attendance, lead changes, times tied. |\n| fact_game_leaders | Top performers per game with points, rebounds, and assists leaders. |\n| fact_game_result | Game outcomes with final scores, winner/loser, and point differential. |\n| fact_game_scoring | Scoring breakdown by period (quarter, overtime) for each game. |\n| fact_gl_alum_similarity | G League alumni similarity scores \u2014 comparing G League and NBA performance. |\n| fact_homepage | NBA homepage featured content and standings snapshot. |\n| fact_homepage_detail | Consolidated homepage stat leaders across 8 metrics (PTS, REB, AST, STL, FG%, FT%, 3PT%, BLK) with rank per team. |\n| fact_homepage_leaders | League leaders featured on the NBA homepage (top scorers, rebounders, assisters). |\n| fact_homepage_leaders_detail | Homepage scoring leaders with main, league average, and league max variants \u2014 PTS, FG%, eFG%, TS%, per48. |\n| fact_hustle_availability | Hustle stats data availability flags by season and stat type. |\n| fact_ist_standings | NBA In-Season Tournament (IST/NBA Cup) standings by group. |\n| fact_leaders_tiles | League leader tiles/cards with top performers across stat categories. |\n| fact_leaders_tiles_detail | Leader tile variants (all-time high, last season, main, low season) for scoring leaders with rank and team. |\n| fact_league_dash_player_stats | League-wide player dashboard stats per season: traditional stats with filters for clutch, shooting splits, etc. |\n| fact_league_dash_team_stats | League-wide team dashboard stats per season with traditional and advanced metrics. |\n| fact_league_game_finder | Game finder results matching search criteria across NBA history. |\n| fact_league_hustle | League-wide hustle stats leaders per season: deflections, contested shots, loose balls. |\n| fact_league_leaders_detail | Detailed league leaders across multiple statistical categories per season. |\n| fact_league_lineup_viz | Lineup visualization data showing five-man unit performance metrics. |\n| fact_league_opp_pt_shot | Opponent player-tracking shot passthrough for the league opponent shot endpoint. |\n| fact_league_player_pt_shot | Player tracking shot passthrough for the league player shot endpoint. |\n| fact_league_player_shot_locations | Player shot-location passthrough for league-wide shot locations. |\n| fact_league_pt_defend | League player-tracking defensive shot passthrough with closeout and contest data. |\n| fact_league_pt_stats | League player-tracking summary stats passthrough. |\n| fact_league_pt_team_defend | League team-defense player-tracking passthrough. |\n| fact_league_team_pt_shot | League team player-tracking shot passthrough. |\n| fact_league_team_shot_locations | Team shot-location passthrough for league-wide shot locations. |\n| fact_league_pt_shots | League-wide player tracking shot data: shot type, distance, and closest defender. |\n| fact_league_shot_locations | League-wide shooting by court location and distance. |\n| fact_league_team_clutch | Team-level clutch performance stats across the league per season. |\n| fact_lineup_stats | Five-man lineup combination stats from both league-wide and team-specific sources. |\n| fact_player_pt_pass | Player tracking passing passthrough. |\n| fact_player_pt_shot_defend | Player tracking shot-defense passthrough. |\n| fact_matchup | Head-to-head matchup statistics between teams across seasons. |\n| fact_on_off_detail | Detailed on/off court impact stats \u2014 team performance when a player is on vs. off the floor. |\n| fact_play_by_play | Every play-by-play event with game clock, score, event type (made_shot, rebound, foul, etc.), and up to 3 involved players. |\n| fact_play_by_play_video | Play-by-play video availability flags per game. |\n| fact_player_available_seasons | Seasons with available data for each player from CommonPlayerInfo. |\n| fact_player_awards | Player awards and honors (MVP, All-Star, All-NBA, etc.) by season. |\n| fact_player_career | Career-level player statistics and milestones. |\n| fact_player_clutch_detail | Player clutch stats across 11 time/score windows (last 5min/3min/1min/30sec/10sec with varying point margins). |\n| fact_player_dashboard_clutch_overall | Player dashboard clutch overview stats per season. |\n| fact_player_dashboard_game_splits_overall | Player dashboard game splits overview (home/road, wins/losses, by month). |\n| fact_player_dashboard_general_splits_overall | Player dashboard general splits overview per season. |\n| fact_player_dashboard_last_n_overall | Player dashboard last-N-games overview stats. |\n| fact_player_dashboard_shooting_overall | Player dashboard shooting overview with zone breakdowns. |\n| fact_player_dashboard_team_perf_overall | Player dashboard team performance overview \u2014 stats by game outcome. |\n| fact_player_dashboard_yoy_overall | Player dashboard year-over-year comparison overview. |\n| fact_player_estimated_metrics | Player-level estimated advanced metrics: OffRtg, DefRtg, NetRtg, pace, usage per season. |\n| fact_player_game_advanced | Player game-level advanced stats: offensive/defensive rating, net rating, eFG%, TS%, AST%, USG%, PIE. |\n| fact_player_game_hustle | Player game-level hustle stats: contested shots, deflections, loose balls, charges drawn, screen assists. |\n| fact_player_game_log | Player game log with traditional stats, result, and matchup per game. |\n| fact_player_game_misc | Player game-level miscellaneous stats: points off turnovers, second chance points, fast break points. |\n| fact_player_game_splits_detail | Detailed player game splits across multiple dimensions (location, outcome, etc.). |\n| fact_player_game_tracking | Player game-level tracking stats: distance, speed, touches, passes, contested/uncontested FG%. |\n| fact_player_game_traditional | Player game-level traditional box score: PTS, REB, AST, STL, BLK, TOV, FG/3PT/FT shooting, plus-minus. |\n| fact_player_general_splits_detail | Detailed player general splits (by conference, division, opponent, days rest, etc.). |\n| fact_player_headline_stats | Player headline/summary stats from CommonPlayerInfo (career PPG, RPG, APG). |\n| fact_player_last_n_detail | Detailed player stats over last-N-games windows (last 5, 10, 15, 20 games). |\n| fact_player_matchups | Player vs. player matchup stats from head-to-head and comparison endpoints. |\n| fact_player_matchups_detail | Detailed player-vs-player comparison stats from PlayerCompare and PlayerVsPlayer endpoints with on/off court splits. |\n| fact_player_matchups_shot_detail | Player-vs-player shooting splits by shot area and distance with on/off court scoping. |\n| fact_player_next_games | Upcoming scheduled games for each player. |\n| fact_player_profile | Player profile data including bio, career highlights, and current season stats. |\n| fact_player_pt_reb_detail | Detailed player tracking rebounding: contested/uncontested, by shot type and distance. |\n| fact_player_pt_shots_detail | Detailed player tracking shooting: by shot type, dribble count, closest defender distance. |\n| fact_player_pt_tracking | Consolidated player tracking data across 6 types: passing, receiving, rebounding, shooting, shot defense, and defense. |\n| fact_player_season_ranks | Player season statistical rankings across all major categories. |\n| fact_player_shooting_splits_detail | Detailed player shooting splits by zone, distance, and shot type. |\n| fact_player_splits | Player stat splits by various dimensions (home/road, wins/losses, opponent, month). |\n| fact_player_team_perf_detail | Detailed player stats segmented by team performance (blowout wins, close games, losses). |\n| fact_player_yoy_detail | Detailed player year-over-year stat comparisons across seasons. |\n| fact_playoff_picture | Current playoff picture with clinch scenarios, elimination status, and projected seedings. |\n| fact_playoff_series | Playoff series results with series winner, game count, and matchup details. |\n| fact_rotation | Player rotation data per game: check-in/out times, points scored, point differential, and usage during each stint. |\n| fact_scoreboard_detail | Detailed scoreboard data with live game status, scores, and broadcast info. |\n| fact_scoreboard_conference_standings | Scoreboard V2 conference-standings passthrough for live snapshot context. |\n| fact_scoreboard_game_header | Scoreboard V2 game-header passthrough with matchup and status context. |\n| fact_scoreboard_last_meeting | Scoreboard V2 last-meeting passthrough for prior matchup context. |\n| fact_scoreboard_line_score | Scoreboard V2 line-score passthrough by game, team, and period. |\n| fact_scoreboard_series_standings | Scoreboard V2 series-standings passthrough for playoff matchup context. |\n| fact_scoreboard_team_leaders | Scoreboard V2 team-leaders passthrough for live snapshot leaders. |\n| fact_scoreboard_ticket_links | Scoreboard V2 ticket-link passthrough for live game metadata. |\n| fact_scoreboard_v3 | V3 scoreboard with game summaries, scores, and current status. |\n| fact_scoreboard_v3_broadcaster | Scoreboard V3 broadcaster passthrough by game. |\n| fact_scoreboard_v3_game_summary | Scoreboard V3 game-summary passthrough with live game status and scores. |\n| fact_scoreboard_v3_line_score | Scoreboard V3 line-score passthrough by game, team, and period. |\n| fact_scoreboard_v3_metadata | Scoreboard V3 metadata passthrough for live snapshot payload details. |\n| fact_scoreboard_v3_team_leaders | Scoreboard V3 team-leaders passthrough for live snapshot leaders. |\n| fact_scoreboard_win_probability | Real-time win probability data from the scoreboard endpoint. |\n| fact_season_matchups | Season-level head-to-head matchup records between teams. |\n| fact_shot_chart | Every field goal attempt with court coordinates (x, y), shot zone, distance, action type, and make/miss flag. |\n| fact_shot_chart_league | League-wide shot chart aggregates by zone and area. |\n| fact_shot_chart_league_averages | League-wide average FG% by shot zone from both ShotChartDetail and ShotChartLineupDetail sources. |\n| fact_shot_chart_lineup | Shot chart data broken down by lineup combination on the floor. |\n| fact_standings | Team standings per season: W-L record, win%, conference/division rank, home/road record, streak. |\n| fact_static_players | Static player reference snapshot from the NBA static dataset with IDs, names, and active flags. |\n| fact_static_teams | Static team reference snapshot from the NBA static dataset with IDs, abbreviations, and franchise naming. |\n| fact_streak_finder | Historical streak finder results: longest winning/losing streaks matching criteria. |\n| fact_synergy | Synergy play type data: PPP, efficiency, frequency by play type (PnR, isolation, transition, post-up, etc.) per player/team. |\n| fact_team_available_seasons | Seasons with available data for each team. |\n| fact_team_awards_conf | Team conference award history (conference championships). |\n| fact_team_awards_div | Team division award history (division titles). |\n| fact_team_background | Team background information: ownership, management, and front office details. |\n| fact_team_dashboard_general_overall | Team dashboard general overview stats per season. |\n| fact_team_dashboard_shooting_overall | Team dashboard shooting overview with zone breakdowns. |\n| fact_team_estimated_metrics | Team-level estimated advanced metrics: OffRtg, DefRtg, NetRtg, pace per season. |\n| fact_team_game | Team game-level traditional stats: PTS, REB, AST, STL, BLK, FG/3PT/FT shooting. |\n| fact_team_game_hustle | Team game-level hustle stats: contested shots, deflections, loose balls, charges drawn. |\n| fact_team_game_log | Team game log with traditional stats, result, and matchup per game. |\n| fact_team_general_splits_detail | Detailed team general splits (by opponent, location, days rest, etc.). |\n| fact_team_historical | Historical team records and all-time statistics. |\n| fact_team_history_detail | Detailed team history from TeamDetails including seasons played and records. |\n| fact_team_hof | Team's Hall of Fame players. |\n| fact_team_lineups_detail | Detailed five-man lineup stats for each team. |\n| fact_team_lineups_overall | Team lineup overview with top performing five-man combinations. |\n| fact_team_matchups | Team vs. team matchup statistics across seasons. |\n| fact_team_matchups_detail | Detailed team-vs-player comparison stats from TeamVsPlayer and TeamAndPlayersVsPlayers endpoints with on/off court splits. |\n| fact_team_matchups_shot_detail | Team-vs-player shooting splits by shot area and distance with on/off court scoping. |\n| fact_team_player_dashboard | Team player dashboard showing each player's contribution to the team. |\n| fact_team_pt_reb_detail | Detailed team tracking rebounding: contested/uncontested, by shot type and distance. |\n| fact_team_pt_shots_detail | Detailed team tracking shooting: by shot type, dribble count, closest defender. |\n| fact_team_pt_tracking | Consolidated team tracking data across passing, receiving, rebounding, shooting, shot defense, and defense. |\n| fact_team_retired | Retired jersey numbers by team. |\n| fact_team_season_ranks | Team seasonal statistical rankings across major categories. |\n| fact_team_shooting_splits_detail | Detailed team shooting splits by zone, distance, and shot type. |\n| fact_team_social_sites | Team social media and website URLs. |\n| fact_team_splits | Team stat splits by various dimensions (home/road, wins/losses, opponent). |\n| fact_team_streak_finder | Historical team streak finder results: longest winning/losing streaks matching criteria. |\n| fact_tracking_defense | Defensive player tracking: matchup stats, contested shots, FG% allowed. |\n| fact_win_prob_pbp | Detailed win probability per play with home/visitor percentages and score margins. |\n| fact_win_probability | Win probability by event for each game: home/visitor percentages, score, and margin at each play. |\n\n### Aggregations (19)\n\n| Table | Description |\n|-------|-------------|\n| agg_all_time_leaders | All-time NBA leaders across 20 statistical categories (PTS, REB, AST, STL, BLK, FG%, 3PT%, etc.). |\n| agg_clutch_stats | Aggregated clutch performance stats across multiple time/score window definitions. |\n| agg_game_totals | Game-level aggregate with both teams' stats side-by-side: home/away points, rebounds, assists, and shooting percentages. |\n| agg_league_leaders | Current season league leaders across statistical categories. |\n| agg_lineup_efficiency | Lineup efficiency metrics: offensive/defensive rating, net rating by five-man unit. |\n| agg_on_off_splits | Aggregated on/off court splits showing team performance impact by player. |\n| agg_player_bio | Player biographical aggregates: height, weight, age, experience distributions. |\n| agg_player_career | Career totals and averages for every player: PTS, REB, AST, shooting splits. |\n| agg_player_rolling | Rolling averages (e.g., last 5, 10, 15 games) for player stats. |\n| agg_player_season | Player season aggregates: GP, totals, averages for traditional + advanced stats (OffRtg, DefRtg, TS%, USG%, PIE). |\n| agg_player_season_advanced | Per-season advanced stat aggregates for each player including efficiency metrics (TS%, eFG%, USG%), rebounding rates, and pace. |\n| agg_player_season_per36 | Player season stats normalized to per-36-minutes basis. |\n| agg_player_season_per48 | Player season stats normalized to per-48-minutes basis. |\n| agg_shot_location_season | Season-level shooting aggregates by court location for each player. |\n| agg_shot_zones | Shooting efficiency by zone per player per season: attempts, makes, FG%, average distance. |\n| agg_team_defense | Team defensive efficiency per season combining defensive rating, opponent shooting, and hustle metrics. |\n| agg_team_franchise | Franchise-level all-time aggregates: total wins, losses, championships, playoff appearances. |\n| agg_team_pace_and_efficiency | Team pace and efficiency metrics per season: possessions, offensive/defensive efficiency. |\n| agg_team_season | Team season aggregates: GP, averages for PTS/REB/AST, and shooting percentages (FG/3PT/FT). |\n\n### Analytics Views (14)\n\n| Table | Description |\n|-------|-------------|\n| analytics_clutch_performance | Wide analytics view joining clutch detail with player names and team abbreviations across all clutch windows. |\n| analytics_draft_value | Draft analytics joining pick position with player bio and career production for value comparisons. |\n| analytics_game_summary | Complete game-level summary joining scores, arena info, and team names for both home and away sides. |\n| analytics_head_to_head | Team head-to-head analytics with historical matchup records and stats. |\n| analytics_league_benchmarks | Season-level benchmark view with league-average player and team metrics for comparison workflows. |\n| analytics_player_general_splits | Player split analytics that join general split detail with player identity and season-overall baselines for delta analysis. |\n| analytics_player_game_complete | Denormalized player game view joining traditional, advanced, misc, hustle, and tracking stats with player/team/game dimensions. |\n| analytics_player_impact | Player impact analytics combining season averages with on/off splits and team context. |\n| analytics_player_matchup | Player matchup analytics comparing head-to-head performance between players. |\n| analytics_player_season_complete | Complete player season analytics combining all stat categories into a single wide table. |\n| analytics_shooting_efficiency | Shot-level analytics enriched with league average FG% by zone for relative efficiency analysis. |\n| analytics_team_game_complete | Denormalized team game view combining box score stats across all categories with game context. |\n| analytics_team_general_splits | Team split analytics that join general split detail with team identity and season-overall baselines for delta analysis. |\n| analytics_team_season_summary | Team season summary combining season aggregates, standings (W-L, win%, conference/division rank), and team info. |\n\n## Companion Notebooks\n\n10 Kaggle notebooks demonstrate MVP prediction, game-outcome modeling, player clustering, shot-chart visualization, and lineup analysis.\n\n## Update Schedule\n\nUpdated daily during the NBA season via the automated pipeline. Full rebuilds run on the first week of each month.",
+  "subtitle": "235-table star schema for NBA, 1946-present: DuckDB/SQLite/Parquet/CSV",
+  "description": "# NBA Basketball Database\n\nThe most comprehensive open NBA database available \u2014 a 235-table analytics warehouse extracted from the current `nba_api` runtime surface and normalized into a star schema covering every season from 1946-47 to present.\n\n## Start Here\n\nThis release includes DuckDB, SQLite, Parquet, and CSV. Choose the format that matches your workflow.\nThis release documents 235 cataloged outputs across DuckDB, SQLite, Parquet, and CSV.\n\n## Quick Queries\n\n```python\nimport duckdb\ncon = duckdb.connect(\"nba.duckdb\", read_only=True)\n\n# Player season averages\ncon.sql(\"SELECT * FROM agg_player_season WHERE season_year = '2024-25' ORDER BY avg_pts DESC LIMIT 10\")\n\n# Shot chart for a player\ncon.sql(\"SELECT loc_x, loc_y, shot_made_flag FROM fact_shot_chart WHERE player_id = 201939\")\n\n# Team standings\ncon.sql(\"SELECT * FROM fact_standings WHERE season_year = '2024-25' ORDER BY conference_rank\")\n```\n\n## What You Get\n\nA warehouse-style NBA dataset with normalized dimensions, event facts, aggregate rollups, and ready-to-query analytics views.\n\n| Layer | Count | Description |\n|-------|------:|-------------|\n| Dimensions | 18 | Players, teams, games, arenas, seasons, coaches, and officials. |\n| Bridges | 5 | Explicit bridge tables for officials, game-team sides, lineup membership, and player/team-season links. |\n| Facts | 179 | Box scores, play-by-play, shot charts, tracking, standings, matchups, and dashboards. |\n| Aggregations | 19 | Season totals, career stats, all-time leaders, rolling windows, and rate-normalized rollups. |\n| Analytics Views | 14 | Pre-joined wide tables for ML, BI, and notebook workflows. |\n\n## Source and Provenance\n\n- **Primary source**: `stats.nba.com` endpoints accessed via [`nba_api`](https://github.com/swar/nba_api).\n- **Dataset identifier**: `wyattowalsh/basketball` on Kaggle.\n- **Documentation**: https://nbadb.w4w.dev\n- **Repository**: https://github.com/wyattowalsh/nbadb\n- **Temporal coverage**: 1946-47 through the current NBA season, with daily in-season refreshes and monthly full rebuilds.\n\n## Coverage Notes\n\nnbadb preserves full-history coverage wherever `nba_api` exposes the upstream endpoint surface. Endpoint/year/season-type combinations that are upstream-unavailable or contract-blocked are classified explicitly in project audits instead of being silently dropped.\n\nThe dataset is built from public NBA API responses and normalized into analytics-ready outputs. It is not an official NBA records system; use the included provenance, schema, and refresh notes when citing or redistributing derived work.\n\n## Available Formats\n\n| Format | Path | Best For |\n|--------|------|----------|\n| DuckDB | `nba.duckdb` | Fast analytical queries, joins across tables |\n| SQLite | `nba.sqlite` | Portable SQL access with broad tool support |\n| Parquet | `parquet/<table>/...` | Columnar analytics with pandas, polars, Arrow, and Spark |\n| CSV | `csv/<table>.csv` | Universal compatibility and spreadsheet workflows |\n\nDuckDB and Parquet exports use zstd compression for efficient storage.\n\n## File Layout\n\n```text\nnba.duckdb\nnba.sqlite\nparquet/<table>/...\ncsv/<table>.csv\ndataset-metadata.json\n```\n\n## Export Inventory\n\n- **Cataloged tables**: 235\n- **CSV exports available**: 235/235\n- **Parquet exports available**: 235/235\n- **Database bundles available**: DuckDB, and SQLite\n\n## Data Coverage\n\n- **Box Scores**: traditional, advanced, misc, hustle, four factors, tracking, scoring, usage, and starter/bench splits.\n- **Play-by-Play**: every event with clock, score, event codes, and involved players.\n- **Shot Charts**: every FGA with court coordinates, zone, distance, and make/miss outcome.\n- **Player Tracking**: speed, distance, touches, passes, contested shots, and rebounding breakdowns.\n- **Rotations**: check-in/check-out times with points and usage per stint.\n- **Win Probability**: real-time home and visitor win probability at each play.\n- **Lineups**: five-man unit performance from league-wide and team-specific lineup endpoints.\n- **Synergy Play Types**: PnR, isolation, transition, post-up, spot-up, cut, and off-screen efficiency.\n- **Draft**: picks plus combine measurements including height, weight, wingspan, vertical leap, sprint, and bench press.\n- **Awards and Standings**: MVP, All-Star, All-NBA, DPOY, ROY, conference/division rankings, streaks, and playoff context.\n\n## Key Relationships\n\nThe warehouse follows a star schema: dimensions provide lookup context, while facts record measurable events and aggregates.\n\n- **player_id** links facts to `dim_player` (use `is_current = TRUE` for the latest SCD2 attributes).\n- **team_id** links facts and bridges to `dim_team`.\n- **game_id** links event and box-score facts to `dim_game`, which provides season, date, and home/visitor context.\n- **season_year** is the common grain for seasonal facts and aggregate rollups.\n\nAnalytics views are pre-joined wide tables for common notebook and BI workflows.\n\n## Intended Uses\n\n- Historical NBA analysis, BI dashboards, and reproducible notebooks.\n- Player, team, lineup, shot, and game modeling where public NBA API provenance is acceptable.\n- Teaching warehouse modeling, feature engineering, and sports analytics workflows.\n\n## Not Intended For\n\n- Official NBA records, legal, financial, betting, or personnel decision infrastructure.\n- Workflows that require guaranteed availability for every upstream endpoint/year/season-type combination.\n- Real-time production systems; live snapshot outputs are useful context, not a service-level feed.\n\n## Table Catalog\n\n### Dimensions (18)\n\n| Table | Description |\n|-------|-------------|\n| dim_all_players | Master player directory with player IDs, names, and active status for every NBA player in history. |\n| dim_arena | NBA arenas with name, city, state, country, and timezone. Surrogate key assigned. |\n| dim_coach | Coaching staff by team and season, including head coaches and assistants. |\n| dim_college | Lookup table of college/university names with surrogate IDs. |\n| dim_date | Calendar dimension from 1946 to present+1yr with NBA season mapping, day-of-week, and weekend flags. |\n| dim_defunct_team | Historical teams no longer active in the NBA, from FranchiseHistory. |\n| dim_game | Game dimension with date, season, home/visitor teams, matchup, and arena. One row per game. |\n| dim_official | NBA referees with official ID, name, and jersey number. |\n| dim_play_event_type | Reference lookup for play-by-play event types (made_shot, rebound, foul, etc.). |\n| dim_player | SCD Type 2 player dimension tracking team, position, and jersey changes across seasons. |\n| dim_schedule_int | International schedule dimension with game dates, arena details, and broadcast information. |\n| dim_season | NBA seasons with start and end dates, derived from game log. |\n| dim_season_phase | Reference lookup for season phases: Preseason, Regular, Play-In, Playoffs R1-R2, Conference Finals, Finals, All-Star. |\n| dim_season_week | Schedule week boundaries by season from the NBA schedule endpoint. |\n| dim_shot_zone | Distinct shot zone combinations (basic, area, range) with surrogate IDs. |\n| dim_team | Current NBA teams with abbreviation, city, state, arena, conference, and division. |\n| dim_team_extended | Extended team attributes joining team details, common info, and active years. |\n| dim_team_history | SCD Type 2 team history tracking city, nickname, and abbreviation changes over time. |\n\n### Bridges (5)\n\n| Table | Description |\n|-------|-------------|\n| bridge_game_official | Many-to-many bridge linking games to their assigned officials. |\n| bridge_game_team | Bridge linking each game to both participating teams with home/away side and win-loss outcome. |\n| bridge_lineup_player | Exploded bridge linking lineup group IDs to individual players and lineup slot order. |\n| bridge_play_player | Many-to-many bridge linking play-by-play events to involved players. |\n| bridge_player_team_season | Bridge linking players to teams by season with jersey number and listed position. |\n\n### Facts (179)\n\n| Table | Description |\n|-------|-------------|\n| fact_box_score_advanced_team | Team-level advanced box score stats per game: offensive/defensive rating, pace, eFG%, TS%, AST ratio. |\n| fact_box_score_defensive_team | Team-level defensive box score stats per game. |\n| fact_box_score_four_factors | Player-level Four Factors stats per game: eFG%, TOV%, OREB%, FT rate. |\n| fact_box_score_four_factors_team | Team-level Four Factors stats per game: eFG%, TOV%, OREB%, FT rate. |\n| fact_box_score_hustle_player | Player-level hustle stats per game: contested shots, deflections, loose balls, charges drawn, screen assists. |\n| fact_box_score_misc_team | Team-level miscellaneous box score stats per game: points off turnovers, second chance points, fast break points, points in the paint. |\n| fact_box_score_player_track_team | Team-level player tracking box score stats per game: distance, speed, touches, passes. |\n| fact_box_score_scoring_team | Team-level scoring breakdown per game: points by quarter, half, and overtime. |\n| fact_box_score_starter_bench | Starter vs. bench split box score stats per game per team. |\n| fact_box_score_summary_v3 | V3 box score summary with game-level totals for both teams. |\n| fact_box_score_summary_v3_available_video | V3 box score summary available-video passthrough by game. |\n| fact_box_score_summary_v3_game_info | V3 box score summary game-info passthrough with arena, attendance, and status context. |\n| fact_box_score_summary_v3_game_summary | V3 box score summary game-summary passthrough with game status, teams, and scores. |\n| fact_box_score_summary_v3_inactive_players | V3 box score summary inactive-player passthrough by game and team. |\n| fact_box_score_summary_v3_last_five_meetings | V3 box score summary last-five-meetings passthrough for recent matchup history. |\n| fact_box_score_summary_v3_line_score | V3 box score summary line-score passthrough by game, team, and period. |\n| fact_box_score_summary_v3_officials | V3 box score summary officials passthrough by game. |\n| fact_box_score_summary_v3_other_stats | V3 box score summary other-stats passthrough for game-level team context. |\n| fact_box_score_team | Team-level traditional box score stats per game: PTS, REB, AST, FG/FT/3PT shooting. |\n| fact_box_score_usage_team | Team-level usage and efficiency box score stats per game. |\n| fact_college_rollup | Aggregated stats by college/university \u2014 how many NBA players each school produced. |\n| fact_cumulative_stats | Cumulative (running total) player stats across the season. |\n| fact_cumulative_stats_detail | Detailed cumulative player stats with multiple time-window breakdowns. |\n| fact_defense_hub | Defensive matchup statistics: points allowed, FG% against, by player/team. |\n| fact_defense_hub_detail | Consolidated defensive leaderboard across 10 metrics (DREB, STL, BLK, def rating, plus-minus, DFG%) with rank per team. |\n| fact_draft | NBA draft picks with round, pick number, team, organization, and combine measurements (height, weight, wingspan, vertical leap, sprint, bench press). |\n| fact_draft_board | Draft board data with player rankings and projections. |\n| fact_draft_combine_drill_results | NBA Draft Combine drill results with vertical leap, agility, sprint, and bench press per player. |\n| fact_draft_combine_non_stationary_shooting | NBA Draft Combine non-stationary shooting results with off-dribble and movement shooting splits. |\n| fact_draft_combine_player_anthro | NBA Draft Combine anthropometric measurements: height, weight, wingspan, standing reach, body fat, hand size. |\n| fact_draft_combine_spot_shooting | NBA Draft Combine spot shooting results with NBA and college shooting splits by location. |\n| fact_draft_combine_detail | Detailed NBA Draft Combine measurements and athletic testing results. |\n| fact_draft_combine_stats | Core NBA Draft Combine stats by player and season, including height, weight, wingspan, reach, and sprint times. |\n| fact_draft_history | NBA draft history by player, season, round, pick, drafting team, and pre-draft organization. |\n| fact_assist_leaders | Assists leaderboard passthrough for the assist leaders endpoint. |\n| fact_assist_tracker | Assists tracker passthrough for the assist tracker endpoint. |\n| fact_dunk_score_leaders | Dunk score leaderboard passthrough for the dunk score leaders endpoint. |\n| fact_fantasy_widget | Fantasy widget passthrough with season snapshot stats and fantasy scoring. |\n| fact_gravity_leaders | Gravity leaderboard passthrough for the gravity leaders endpoint. |\n| fact_infographic_fanduel_player | FanDuel infographic per-player game snapshot with fantasy and box score metrics. |\n| fact_league_leaders | League leaders endpoint passthrough with rank, player, team, and points. |\n| fact_player_fantasy_profile_last_five_games_avg | Player fantasy profile passthrough for the last-five-games average endpoint. |\n| fact_player_fantasy_profile_season_avg | Player fantasy profile passthrough for the season-average endpoint. |\n| fact_fantasy | Fantasy basketball data from endpoint-specific fantasy sources: infographic FanDuel, fantasy widget, and player fantasy profiles. |\n| fact_franchise_detail | Franchise-level detail: championships, conference titles, division titles, and historical records. |\n| fact_franchise_leaders | Franchise leaders by team for points, assists, rebounds, blocks, and steals. |\n| fact_franchise_players | Franchise player career summaries by team and season type. |\n| fact_game_context | Contextual game information: national TV broadcast, attendance, lead changes, times tied. |\n| fact_game_leaders | Top performers per game with points, rebounds, and assists leaders. |\n| fact_game_result | Game outcomes with final scores, winner/loser, and point differential. |\n| fact_game_scoring | Scoring breakdown by period (quarter, overtime) for each game. |\n| fact_gl_alum_similarity | G League alumni similarity scores \u2014 comparing G League and NBA performance. |\n| fact_homepage | NBA homepage featured content and standings snapshot. |\n| fact_homepage_detail | Consolidated homepage stat leaders across 8 metrics (PTS, REB, AST, STL, FG%, FT%, 3PT%, BLK) with rank per team. |\n| fact_homepage_leaders | League leaders featured on the NBA homepage (top scorers, rebounders, assisters). |\n| fact_homepage_leaders_detail | Homepage scoring leaders with main, league average, and league max variants \u2014 PTS, FG%, eFG%, TS%, per48. |\n| fact_hustle_availability | Hustle stats data availability flags by season and stat type. |\n| fact_ist_standings | NBA In-Season Tournament (IST/NBA Cup) standings by group. |\n| fact_leaders_tiles | League leader tiles/cards with top performers across stat categories. |\n| fact_leaders_tiles_detail | Leader tile variants (all-time high, last season, main, low season) for scoring leaders with rank and team. |\n| fact_league_dash_player_stats | League-wide player dashboard stats per season: traditional stats with filters for clutch, shooting splits, etc. |\n| fact_league_dash_team_stats | League-wide team dashboard stats per season with traditional and advanced metrics. |\n| fact_league_game_finder | Game finder results matching search criteria across NBA history. |\n| fact_league_hustle | League-wide hustle stats leaders per season: deflections, contested shots, loose balls. |\n| fact_league_leaders_detail | Detailed league leaders across multiple statistical categories per season. |\n| fact_league_lineup_viz | Lineup visualization data showing five-man unit performance metrics. |\n| fact_league_opp_pt_shot | Opponent player-tracking shot passthrough for the league opponent shot endpoint. |\n| fact_league_player_pt_shot | Player tracking shot passthrough for the league player shot endpoint. |\n| fact_league_player_shot_locations | Player shot-location passthrough for league-wide shot locations. |\n| fact_league_pt_defend | League player-tracking defensive shot passthrough with closeout and contest data. |\n| fact_league_pt_stats | League player-tracking summary stats passthrough. |\n| fact_league_pt_team_defend | League team-defense player-tracking passthrough. |\n| fact_league_team_pt_shot | League team player-tracking shot passthrough. |\n| fact_league_team_shot_locations | Team shot-location passthrough for league-wide shot locations. |\n| fact_league_pt_shots | League-wide player tracking shot data: shot type, distance, and closest defender. |\n| fact_league_shot_locations | League-wide shooting by court location and distance. |\n| fact_league_team_clutch | Team-level clutch performance stats across the league per season. |\n| fact_lineup_stats | Five-man lineup combination stats from both league-wide and team-specific sources. |\n| fact_player_pt_pass | Player tracking passing passthrough. |\n| fact_player_pt_shot_defend | Player tracking shot-defense passthrough. |\n| fact_matchup | Head-to-head matchup statistics between teams across seasons. |\n| fact_on_off_detail | Detailed on/off court impact stats \u2014 team performance when a player is on vs. off the floor. |\n| fact_play_by_play | Every play-by-play event with game clock, score, event type (made_shot, rebound, foul, etc.), and up to 3 involved players. |\n| fact_play_by_play_video | Play-by-play video availability flags per game. |\n| fact_player_available_seasons | Seasons with available data for each player from CommonPlayerInfo. |\n| fact_player_awards | Player awards and honors (MVP, All-Star, All-NBA, etc.) by season. |\n| fact_player_career | Career-level player statistics and milestones. |\n| fact_player_clutch_detail | Player clutch stats across 11 time/score windows (last 5min/3min/1min/30sec/10sec with varying point margins). |\n| fact_player_dashboard_clutch_overall | Player dashboard clutch overview stats per season. |\n| fact_player_dashboard_game_splits_overall | Player dashboard game splits overview (home/road, wins/losses, by month). |\n| fact_player_dashboard_general_splits_overall | Player dashboard general splits overview per season. |\n| fact_player_dashboard_last_n_overall | Player dashboard last-N-games overview stats. |\n| fact_player_dashboard_shooting_overall | Player dashboard shooting overview with zone breakdowns. |\n| fact_player_dashboard_team_perf_overall | Player dashboard team performance overview \u2014 stats by game outcome. |\n| fact_player_dashboard_yoy_overall | Player dashboard year-over-year comparison overview. |\n| fact_player_estimated_metrics | Player-level estimated advanced metrics: OffRtg, DefRtg, NetRtg, pace, usage per season. |\n| fact_player_game_advanced | Player game-level advanced stats: offensive/defensive rating, net rating, eFG%, TS%, AST%, USG%, PIE. |\n| fact_player_game_hustle | Player game-level hustle stats: contested shots, deflections, loose balls, charges drawn, screen assists. |\n| fact_player_game_log | Player game log with traditional stats, result, and matchup per game. |\n| fact_player_game_misc | Player game-level miscellaneous stats: points off turnovers, second chance points, fast break points. |\n| fact_player_game_splits_detail | Detailed player game splits across multiple dimensions (location, outcome, etc.). |\n| fact_player_game_tracking | Player game-level tracking stats: distance, speed, touches, passes, contested/uncontested FG%. |\n| fact_player_game_traditional | Player game-level traditional box score: PTS, REB, AST, STL, BLK, TOV, FG/3PT/FT shooting, plus-minus. |\n| fact_player_general_splits_detail | Detailed player general splits (by conference, division, opponent, days rest, etc.). |\n| fact_player_headline_stats | Player headline/summary stats from CommonPlayerInfo (career PPG, RPG, APG). |\n| fact_player_last_n_detail | Detailed player stats over last-N-games windows (last 5, 10, 15, 20 games). |\n| fact_player_matchups | Player vs. player matchup stats from head-to-head and comparison endpoints. |\n| fact_player_matchups_detail | Detailed player-vs-player comparison stats from PlayerCompare and PlayerVsPlayer endpoints with on/off court splits. |\n| fact_player_matchups_shot_detail | Player-vs-player shooting splits by shot area and distance with on/off court scoping. |\n| fact_player_next_games | Upcoming scheduled games for each player. |\n| fact_player_profile | Player profile data including bio, career highlights, and current season stats. |\n| fact_player_pt_reb_detail | Detailed player tracking rebounding: contested/uncontested, by shot type and distance. |\n| fact_player_pt_shots_detail | Detailed player tracking shooting: by shot type, dribble count, closest defender distance. |\n| fact_player_pt_tracking | Consolidated player tracking data across 6 types: passing, receiving, rebounding, shooting, shot defense, and defense. |\n| fact_player_season_ranks | Player season statistical rankings across all major categories. |\n| fact_player_shooting_splits_detail | Detailed player shooting splits by zone, distance, and shot type. |\n| fact_player_splits | Player stat splits by various dimensions (home/road, wins/losses, opponent, month). |\n| fact_player_team_perf_detail | Detailed player stats segmented by team performance (blowout wins, close games, losses). |\n| fact_player_yoy_detail | Detailed player year-over-year stat comparisons across seasons. |\n| fact_playoff_picture | Current playoff picture with clinch scenarios, elimination status, and projected seedings. |\n| fact_playoff_series | Playoff series results with series winner, game count, and matchup details. |\n| fact_rotation | Player rotation data per game: check-in/out times, points scored, point differential, and usage during each stint. |\n| fact_scoreboard_detail | Detailed scoreboard data with live game status, scores, and broadcast info. |\n| fact_scoreboard_conference_standings | Scoreboard V2 conference-standings passthrough for live snapshot context. |\n| fact_scoreboard_game_header | Scoreboard V2 game-header passthrough with matchup and status context. |\n| fact_scoreboard_last_meeting | Scoreboard V2 last-meeting passthrough for prior matchup context. |\n| fact_scoreboard_line_score | Scoreboard V2 line-score passthrough by game, team, and period. |\n| fact_scoreboard_series_standings | Scoreboard V2 series-standings passthrough for playoff matchup context. |\n| fact_scoreboard_team_leaders | Scoreboard V2 team-leaders passthrough for live snapshot leaders. |\n| fact_scoreboard_ticket_links | Scoreboard V2 ticket-link passthrough for live game metadata. |\n| fact_scoreboard_v3 | V3 scoreboard with game summaries, scores, and current status. |\n| fact_scoreboard_v3_broadcaster | Scoreboard V3 broadcaster passthrough by game. |\n| fact_scoreboard_v3_game_summary | Scoreboard V3 game-summary passthrough with live game status and scores. |\n| fact_scoreboard_v3_line_score | Scoreboard V3 line-score passthrough by game, team, and period. |\n| fact_scoreboard_v3_metadata | Scoreboard V3 metadata passthrough for live snapshot payload details. |\n| fact_scoreboard_v3_team_leaders | Scoreboard V3 team-leaders passthrough for live snapshot leaders. |\n| fact_scoreboard_win_probability | Real-time win probability data from the scoreboard endpoint. |\n| fact_season_matchups | Season-level head-to-head matchup records between teams. |\n| fact_shot_chart | Every field goal attempt with court coordinates (x, y), shot zone, distance, action type, and make/miss flag. |\n| fact_shot_chart_league | League-wide shot chart aggregates by zone and area. |\n| fact_shot_chart_league_averages | League-wide average FG% by shot zone from both ShotChartDetail and ShotChartLineupDetail sources. |\n| fact_shot_chart_lineup | Shot chart data broken down by lineup combination on the floor. |\n| fact_standings | Team standings per season: W-L record, win%, conference/division rank, home/road record, streak. |\n| fact_static_players | Static player reference snapshot from the NBA static dataset with IDs, names, and active flags. |\n| fact_static_teams | Static team reference snapshot from the NBA static dataset with IDs, abbreviations, and franchise naming. |\n| fact_streak_finder | Historical streak finder results: longest winning/losing streaks matching criteria. |\n| fact_synergy | Synergy play type data: PPP, efficiency, frequency by play type (PnR, isolation, transition, post-up, etc.) per player/team. |\n| fact_team_available_seasons | Seasons with available data for each team. |\n| fact_team_awards_conf | Team conference award history (conference championships). |\n| fact_team_awards_div | Team division award history (division titles). |\n| fact_team_background | Team background information: ownership, management, and front office details. |\n| fact_team_dashboard_general_overall | Team dashboard general overview stats per season. |\n| fact_team_dashboard_shooting_overall | Team dashboard shooting overview with zone breakdowns. |\n| fact_team_estimated_metrics | Team-level estimated advanced metrics: OffRtg, DefRtg, NetRtg, pace per season. |\n| fact_team_game | Team game-level traditional stats: PTS, REB, AST, STL, BLK, FG/3PT/FT shooting. |\n| fact_team_game_hustle | Team game-level hustle stats: contested shots, deflections, loose balls, charges drawn. |\n| fact_team_game_log | Team game log with traditional stats, result, and matchup per game. |\n| fact_team_general_splits_detail | Detailed team general splits (by opponent, location, days rest, etc.). |\n| fact_team_historical | Historical team records and all-time statistics. |\n| fact_team_history_detail | Detailed team history from TeamDetails including seasons played and records. |\n| fact_team_hof | Team's Hall of Fame players. |\n| fact_team_lineups_detail | Detailed five-man lineup stats for each team. |\n| fact_team_lineups_overall | Team lineup overview with top performing five-man combinations. |\n| fact_team_matchups | Team vs. team matchup statistics across seasons. |\n| fact_team_matchups_detail | Detailed team-vs-player comparison stats from TeamVsPlayer and TeamAndPlayersVsPlayers endpoints with on/off court splits. |\n| fact_team_matchups_shot_detail | Team-vs-player shooting splits by shot area and distance with on/off court scoping. |\n| fact_team_player_dashboard | Team player dashboard showing each player's contribution to the team. |\n| fact_team_pt_reb_detail | Detailed team tracking rebounding: contested/uncontested, by shot type and distance. |\n| fact_team_pt_shots_detail | Detailed team tracking shooting: by shot type, dribble count, closest defender. |\n| fact_team_pt_tracking | Consolidated team tracking data across passing, receiving, rebounding, shooting, shot defense, and defense. |\n| fact_team_retired | Retired jersey numbers by team. |\n| fact_team_season_ranks | Team seasonal statistical rankings across major categories. |\n| fact_team_shooting_splits_detail | Detailed team shooting splits by zone, distance, and shot type. |\n| fact_team_social_sites | Team social media and website URLs. |\n| fact_team_splits | Team stat splits by various dimensions (home/road, wins/losses, opponent). |\n| fact_team_streak_finder | Historical team streak finder results: longest winning/losing streaks matching criteria. |\n| fact_tracking_defense | Defensive player tracking: matchup stats, contested shots, FG% allowed. |\n| fact_win_prob_pbp | Detailed win probability per play with home/visitor percentages and score margins. |\n| fact_win_probability | Win probability by event for each game: home/visitor percentages, score, and margin at each play. |\n\n### Aggregations (19)\n\n| Table | Description |\n|-------|-------------|\n| agg_all_time_leaders | All-time NBA leaders across 20 statistical categories (PTS, REB, AST, STL, BLK, FG%, 3PT%, etc.). |\n| agg_clutch_stats | Aggregated clutch performance stats across multiple time/score window definitions. |\n| agg_game_totals | Game-level aggregate with both teams' stats side-by-side: home/away points, rebounds, assists, and shooting percentages. |\n| agg_league_leaders | Current season league leaders across statistical categories. |\n| agg_lineup_efficiency | Lineup efficiency metrics: offensive/defensive rating, net rating by five-man unit. |\n| agg_on_off_splits | Aggregated on/off court splits showing team performance impact by player. |\n| agg_player_bio | Player biographical aggregates: height, weight, age, experience distributions. |\n| agg_player_career | Career totals and averages for every player: PTS, REB, AST, shooting splits. |\n| agg_player_rolling | Rolling averages (e.g., last 5, 10, 15 games) for player stats. |\n| agg_player_season | Player season aggregates: GP, totals, averages for traditional + advanced stats (OffRtg, DefRtg, TS%, USG%, PIE). |\n| agg_player_season_advanced | Per-season advanced stat aggregates for each player including efficiency metrics (TS%, eFG%, USG%), rebounding rates, and pace. |\n| agg_player_season_per36 | Player season stats normalized to per-36-minutes basis. |\n| agg_player_season_per48 | Player season stats normalized to per-48-minutes basis. |\n| agg_shot_location_season | Season-level shooting aggregates by court location for each player. |\n| agg_shot_zones | Shooting efficiency by zone per player per season: attempts, makes, FG%, average distance. |\n| agg_team_defense | Team defensive efficiency per season combining defensive rating, opponent shooting, and hustle metrics. |\n| agg_team_franchise | Franchise-level all-time aggregates: total wins, losses, championships, playoff appearances. |\n| agg_team_pace_and_efficiency | Team pace and efficiency metrics per season: possessions, offensive/defensive efficiency. |\n| agg_team_season | Team season aggregates: GP, averages for PTS/REB/AST, and shooting percentages (FG/3PT/FT). |\n\n### Analytics Views (14)\n\n| Table | Description |\n|-------|-------------|\n| analytics_clutch_performance | Wide analytics view joining clutch detail with player names and team abbreviations across all clutch windows. |\n| analytics_draft_value | Draft analytics joining pick position with player bio and career production for value comparisons. |\n| analytics_game_summary | Complete game-level summary joining scores, arena info, and team names for both home and away sides. |\n| analytics_head_to_head | Team head-to-head analytics with historical matchup records and stats. |\n| analytics_league_benchmarks | Season-level benchmark view with league-average player and team metrics for comparison workflows. |\n| analytics_player_general_splits | Player split analytics that join general split detail with player identity and season-overall baselines for delta analysis. |\n| analytics_player_game_complete | Denormalized player game view joining traditional, advanced, misc, hustle, and tracking stats with player/team/game dimensions. |\n| analytics_player_impact | Player impact analytics combining season averages with on/off splits and team context. |\n| analytics_player_matchup | Player matchup analytics comparing head-to-head performance between players. |\n| analytics_player_season_complete | Complete player season analytics combining all stat categories into a single wide table. |\n| analytics_shooting_efficiency | Shot-level analytics enriched with league average FG% by zone for relative efficiency analysis. |\n| analytics_team_game_complete | Denormalized team game view combining box score stats across all categories with game context. |\n| analytics_team_general_splits | Team split analytics that join general split detail with team identity and season-overall baselines for delta analysis. |\n| analytics_team_season_summary | Team season summary combining season aggregates, standings (W-L, win%, conference/division rank), and team info. |\n\n## Companion Notebooks\n\n10 Kaggle notebooks demonstrate MVP prediction, game-outcome modeling, player clustering, shot-chart visualization, and lineup analysis.\n\n## Refresh And Versioning\n\nUpdated daily during the NBA season via the automated pipeline. Full rebuilds run on the first week of each month, and Kaggle version notes summarize each publish event.\n\n## Citation And Attribution\n\nIf this dataset supports your work, cite the Kaggle dataset and link back to the project documentation or repository:\n\n```text\nWyatt Walsh. NBA Basketball Database. Kaggle: wyattowalsh/basketball.\nDocumentation: https://nbadb.w4w.dev\nSource: https://github.com/wyattowalsh/nbadb\n```\n\n## License\n\nPublished under CC-BY-SA-4.0. NBA data remains subject to the terms and availability of the upstream public sources.",
   "isPrivate": false,
   "licenses": [
     {
@@ -2630,6 +2630,10 @@
             "description": "Team city name"
           },
           {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
             "name": "min",
             "type": "string",
             "description": "Minutes played as string"
@@ -2782,6 +2786,10 @@
             "name": "team_city",
             "type": "string",
             "description": "Team city name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
           },
           {
             "name": "min",
@@ -2938,6 +2946,10 @@
             "description": "Team city name"
           },
           {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
             "name": "min",
             "type": "string",
             "description": "Minutes played as string"
@@ -2975,6 +2987,10 @@
             "name": "team_city",
             "type": "string",
             "description": "Team city name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
           },
           {
             "name": "min",
@@ -3139,6 +3155,18 @@
             "description": "Team abbreviation code"
           },
           {
+            "name": "team_city",
+            "type": "string"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
+            "name": "min",
+            "type": "string"
+          },
+          {
             "name": "effective_field_goal_percentage",
             "type": "number",
             "description": "Effective field goal percentage"
@@ -3208,6 +3236,18 @@
             "description": "Team abbreviation code"
           },
           {
+            "name": "team_city",
+            "type": "string"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
+            "name": "min",
+            "type": "string"
+          },
+          {
             "name": "effective_field_goal_percentage",
             "type": "number",
             "description": "Effective field goal percentage"
@@ -3267,6 +3307,26 @@
             "description": "Team identifier"
           },
           {
+            "name": "team_abbreviation",
+            "type": "string",
+            "description": "Team abbreviation code"
+          },
+          {
+            "name": "team_city",
+            "type": "string",
+            "description": "Team city"
+          },
+          {
+            "name": "team_name",
+            "type": "string",
+            "description": "Team name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string",
+            "description": "Team slug"
+          },
+          {
             "name": "player_id",
             "type": "integer",
             "description": "Unique player identifier"
@@ -3275,6 +3335,41 @@
             "name": "player_name",
             "type": "string",
             "description": "Player full name"
+          },
+          {
+            "name": "first_name",
+            "type": "string",
+            "description": "Player first name"
+          },
+          {
+            "name": "family_name",
+            "type": "string",
+            "description": "Player family name"
+          },
+          {
+            "name": "name_i",
+            "type": "string",
+            "description": "Player abbreviated name"
+          },
+          {
+            "name": "player_slug",
+            "type": "string",
+            "description": "Player slug"
+          },
+          {
+            "name": "position",
+            "type": "string",
+            "description": "Player position"
+          },
+          {
+            "name": "comment",
+            "type": "string",
+            "description": "Player status comment"
+          },
+          {
+            "name": "jersey_num",
+            "type": "string",
+            "description": "Player jersey number"
           },
           {
             "name": "min",
@@ -3325,6 +3420,34 @@
             "name": "box_outs",
             "type": "number",
             "description": "Box outs"
+          },
+          {
+            "name": "offensive_box_outs",
+            "type": "number"
+          },
+          {
+            "name": "defensive_box_outs",
+            "type": "number"
+          },
+          {
+            "name": "loose_balls_recovered_offensive",
+            "type": "number"
+          },
+          {
+            "name": "loose_balls_recovered_defensive",
+            "type": "number"
+          },
+          {
+            "name": "box_out_player_rebounds",
+            "type": "number"
+          },
+          {
+            "name": "box_out_player_team_rebounds",
+            "type": "number"
+          },
+          {
+            "name": "points",
+            "type": "number"
           }
         ]
       }
@@ -3346,6 +3469,26 @@
             "description": "Team identifier"
           },
           {
+            "name": "team_abbreviation",
+            "type": "string",
+            "description": "Team abbreviation code"
+          },
+          {
+            "name": "team_city",
+            "type": "string",
+            "description": "Team city"
+          },
+          {
+            "name": "team_name",
+            "type": "string",
+            "description": "Team name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string",
+            "description": "Team slug"
+          },
+          {
             "name": "player_id",
             "type": "integer",
             "description": "Unique player identifier"
@@ -3354,6 +3497,41 @@
             "name": "player_name",
             "type": "string",
             "description": "Player full name"
+          },
+          {
+            "name": "first_name",
+            "type": "string",
+            "description": "Player first name"
+          },
+          {
+            "name": "family_name",
+            "type": "string",
+            "description": "Player family name"
+          },
+          {
+            "name": "name_i",
+            "type": "string",
+            "description": "Player abbreviated name"
+          },
+          {
+            "name": "player_slug",
+            "type": "string",
+            "description": "Player slug"
+          },
+          {
+            "name": "position",
+            "type": "string",
+            "description": "Player position"
+          },
+          {
+            "name": "comment",
+            "type": "string",
+            "description": "Player status comment"
+          },
+          {
+            "name": "jersey_num",
+            "type": "string",
+            "description": "Player jersey number"
           },
           {
             "name": "min",
@@ -3404,6 +3582,34 @@
             "name": "box_outs",
             "type": "number",
             "description": "Box outs"
+          },
+          {
+            "name": "offensive_box_outs",
+            "type": "number"
+          },
+          {
+            "name": "defensive_box_outs",
+            "type": "number"
+          },
+          {
+            "name": "loose_balls_recovered_offensive",
+            "type": "number"
+          },
+          {
+            "name": "loose_balls_recovered_defensive",
+            "type": "number"
+          },
+          {
+            "name": "box_out_player_rebounds",
+            "type": "number"
+          },
+          {
+            "name": "box_out_player_team_rebounds",
+            "type": "number"
+          },
+          {
+            "name": "points",
+            "type": "number"
           }
         ]
       }
@@ -3438,6 +3644,10 @@
             "name": "team_city",
             "type": "string",
             "description": "Team city name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
           },
           {
             "name": "min",
@@ -3539,6 +3749,10 @@
             "description": "Team city name"
           },
           {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
             "name": "min",
             "type": "string",
             "description": "Minutes played as string"
@@ -3636,6 +3850,10 @@
             "name": "team_city",
             "type": "string",
             "description": "Team city name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
           },
           {
             "name": "min",
@@ -3772,6 +3990,10 @@
             "description": "Team city name"
           },
           {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
             "name": "min",
             "type": "string",
             "description": "Minutes played as string"
@@ -3906,6 +4128,10 @@
             "description": "Team city name"
           },
           {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
             "name": "min",
             "type": "string",
             "description": "Minutes played as string"
@@ -4020,6 +4246,10 @@
             "description": "Team city name"
           },
           {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
             "name": "min",
             "type": "string",
             "description": "Minutes played as string"
@@ -4132,6 +4362,10 @@
             "name": "team_city",
             "type": "string",
             "description": "Team city name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
           },
           {
             "name": "min",
@@ -4266,6 +4500,10 @@
             "name": "team_city",
             "type": "string",
             "description": "Team city name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
           },
           {
             "name": "min",
@@ -5744,6 +5982,10 @@
             "description": "Team city name"
           },
           {
+            "name": "team_slug",
+            "type": "string"
+          },
+          {
             "name": "min",
             "type": "number",
             "description": "Total team minutes played"
@@ -5876,6 +6118,10 @@
             "name": "team_city",
             "type": "string",
             "description": "Team city name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string"
           },
           {
             "name": "min",
@@ -6012,6 +6258,11 @@
             "description": "Team name"
           },
           {
+            "name": "team_slug",
+            "type": "string",
+            "description": "Team slug"
+          },
+          {
             "name": "min",
             "type": "string",
             "description": "Minutes played"
@@ -6139,6 +6390,11 @@
             "name": "team_name",
             "type": "string",
             "description": "Team name"
+          },
+          {
+            "name": "team_slug",
+            "type": "string",
+            "description": "Team slug"
           },
           {
             "name": "min",
@@ -8102,6 +8358,11 @@
             "description": "Combine season year"
           },
           {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
+          },
+          {
             "name": "player_id",
             "type": "integer",
             "description": "Unique player identifier"
@@ -8169,6 +8430,11 @@
             "name": "season",
             "type": "string",
             "description": "Combine season year"
+          },
+          {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
           },
           {
             "name": "player_id",
@@ -8240,6 +8506,11 @@
             "description": "Combine season year"
           },
           {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
+          },
+          {
             "name": "player_id",
             "type": "integer",
             "description": "Unique player identifier"
@@ -8295,6 +8566,18 @@
             "description": "Off-dribble fifteen-foot top of key shooting percentage"
           },
           {
+            "name": "off_drib_fifteen_break_right_made",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_fifteen_break_right_attempt",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_fifteen_break_right_pct",
+            "type": "number"
+          },
+          {
             "name": "off_drib_college_break_left_made",
             "type": "integer",
             "description": "Off-dribble college break left shots made"
@@ -8323,6 +8606,18 @@
             "name": "off_drib_college_top_key_pct",
             "type": "number",
             "description": "Off-dribble college top of key shooting percentage"
+          },
+          {
+            "name": "off_drib_college_break_right_made",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_college_break_right_attempt",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_college_break_right_pct",
+            "type": "number"
           },
           {
             "name": "on_move_fifteen_made",
@@ -8369,6 +8664,11 @@
             "description": "Combine season year"
           },
           {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
+          },
+          {
             "name": "player_id",
             "type": "integer",
             "description": "Unique player identifier"
@@ -8424,6 +8724,18 @@
             "description": "Off-dribble fifteen-foot top of key shooting percentage"
           },
           {
+            "name": "off_drib_fifteen_break_right_made",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_fifteen_break_right_attempt",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_fifteen_break_right_pct",
+            "type": "number"
+          },
+          {
             "name": "off_drib_college_break_left_made",
             "type": "integer",
             "description": "Off-dribble college break left shots made"
@@ -8452,6 +8764,18 @@
             "name": "off_drib_college_top_key_pct",
             "type": "number",
             "description": "Off-dribble college top of key shooting percentage"
+          },
+          {
+            "name": "off_drib_college_break_right_made",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_college_break_right_attempt",
+            "type": "integer"
+          },
+          {
+            "name": "off_drib_college_break_right_pct",
+            "type": "number"
           },
           {
             "name": "on_move_fifteen_made",
@@ -8496,6 +8820,11 @@
             "name": "season",
             "type": "string",
             "description": "Combine season year"
+          },
+          {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
           },
           {
             "name": "player_id",
@@ -8597,6 +8926,11 @@
             "description": "Combine season year"
           },
           {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
+          },
+          {
             "name": "player_id",
             "type": "integer",
             "description": "Unique player identifier"
@@ -8694,6 +9028,11 @@
             "name": "season",
             "type": "string",
             "description": "Combine season year"
+          },
+          {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
           },
           {
             "name": "player_id",
@@ -8958,6 +9297,11 @@
             "name": "season",
             "type": "string",
             "description": "Combine season year"
+          },
+          {
+            "name": "temp_player_id",
+            "type": "integer",
+            "description": "Temporary combine player identifier"
           },
           {
             "name": "player_id",
@@ -9405,6 +9749,98 @@
             "name": "bench_press",
             "type": "number",
             "description": "Bench press repetitions"
+          },
+          {
+            "name": "spot_fifteen_corner_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_break_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_top_key",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_break_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_corner_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_corner_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_break_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_top_key",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_break_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_corner_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_corner_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_break_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_top_key",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_break_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_corner_right",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_fifteen_break_left",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_fifteen_top_key",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_fifteen_break_right",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_college_break_left",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_college_top_key",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_college_break_right",
+            "type": "string"
+          },
+          {
+            "name": "on_move_fifteen",
+            "type": "string"
+          },
+          {
+            "name": "on_move_college",
+            "type": "string"
           }
         ]
       }
@@ -9534,6 +9970,98 @@
             "name": "bench_press",
             "type": "number",
             "description": "Bench press repetitions"
+          },
+          {
+            "name": "spot_fifteen_corner_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_break_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_top_key",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_break_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_fifteen_corner_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_corner_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_break_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_top_key",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_break_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_college_corner_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_corner_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_break_left",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_top_key",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_break_right",
+            "type": "string"
+          },
+          {
+            "name": "spot_nba_corner_right",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_fifteen_break_left",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_fifteen_top_key",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_fifteen_break_right",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_college_break_left",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_college_top_key",
+            "type": "string"
+          },
+          {
+            "name": "off_drib_college_break_right",
+            "type": "string"
+          },
+          {
+            "name": "on_move_fifteen",
+            "type": "string"
+          },
+          {
+            "name": "on_move_college",
+            "type": "string"
           }
         ]
       }
@@ -13185,9 +13713,24 @@
       "schema": {
         "fields": [
           {
+            "name": "league_id",
+            "type": "string",
+            "description": "League identifier"
+          },
+          {
+            "name": "season_year",
+            "type": "string",
+            "description": "Season year"
+          },
+          {
             "name": "team_id",
             "type": "integer",
             "description": "Team identifier"
+          },
+          {
+            "name": "team_city",
+            "type": "string",
+            "description": "Team city"
           },
           {
             "name": "team_name",
@@ -13195,9 +13738,49 @@
             "description": "Team name"
           },
           {
+            "name": "team_abbreviation",
+            "type": "string",
+            "description": "Team abbreviation"
+          },
+          {
+            "name": "team_slug",
+            "type": "string",
+            "description": "Team slug"
+          },
+          {
+            "name": "conference",
+            "type": "string",
+            "description": "Conference"
+          },
+          {
+            "name": "ist_group",
+            "type": "string",
+            "description": "Cup group"
+          },
+          {
             "name": "group_name",
             "type": "string",
             "description": "Cup group name"
+          },
+          {
+            "name": "clinch_indicator",
+            "type": "string",
+            "description": "Cup clinch status indicator"
+          },
+          {
+            "name": "clinched_ist_group",
+            "type": "integer",
+            "description": "Cup group clinch flag"
+          },
+          {
+            "name": "clinched_ist_knockout",
+            "type": "integer",
+            "description": "Cup knockout clinch flag"
+          },
+          {
+            "name": "clinched_ist_wildcard",
+            "type": "integer",
+            "description": "Cup wildcard clinch flag"
           },
           {
             "name": "wins",
@@ -13208,6 +13791,11 @@
             "name": "losses",
             "type": "integer",
             "description": "Cup losses"
+          },
+          {
+            "name": "pct",
+            "type": "number",
+            "description": "Cup win pct"
           },
           {
             "name": "win_pct",
@@ -13228,6 +13816,137 @@
             "name": "point_diff",
             "type": "number",
             "description": "Point differential in cup play"
+          },
+          {
+            "name": "pts",
+            "type": "number",
+            "description": "Points"
+          },
+          {
+            "name": "opp_pts",
+            "type": "number",
+            "description": "Opponent points"
+          },
+          {
+            "name": "diff",
+            "type": "number",
+            "description": "Point differential"
+          },
+          {
+            "name": "ist_group_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ist_group_gb",
+            "type": "number"
+          },
+          {
+            "name": "ist_wildcard_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ist_wildcard_gb",
+            "type": "number"
+          },
+          {
+            "name": "ist_knockout_rank",
+            "type": "integer"
+          },
+          {
+            "name": "game_id1",
+            "type": "string"
+          },
+          {
+            "name": "game_id2",
+            "type": "string"
+          },
+          {
+            "name": "game_id3",
+            "type": "string"
+          },
+          {
+            "name": "game_id4",
+            "type": "string"
+          },
+          {
+            "name": "game_status1",
+            "type": "integer"
+          },
+          {
+            "name": "game_status2",
+            "type": "integer"
+          },
+          {
+            "name": "game_status3",
+            "type": "integer"
+          },
+          {
+            "name": "game_status4",
+            "type": "integer"
+          },
+          {
+            "name": "game_status_text1",
+            "type": "string"
+          },
+          {
+            "name": "game_status_text2",
+            "type": "string"
+          },
+          {
+            "name": "game_status_text3",
+            "type": "string"
+          },
+          {
+            "name": "game_status_text4",
+            "type": "string"
+          },
+          {
+            "name": "location1",
+            "type": "string"
+          },
+          {
+            "name": "location2",
+            "type": "string"
+          },
+          {
+            "name": "location3",
+            "type": "string"
+          },
+          {
+            "name": "location4",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation1",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation2",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation3",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation4",
+            "type": "string"
+          },
+          {
+            "name": "outcome1",
+            "type": "string"
+          },
+          {
+            "name": "outcome2",
+            "type": "string"
+          },
+          {
+            "name": "outcome3",
+            "type": "string"
+          },
+          {
+            "name": "outcome4",
+            "type": "string"
           }
         ]
       }
@@ -13239,9 +13958,24 @@
       "schema": {
         "fields": [
           {
+            "name": "league_id",
+            "type": "string",
+            "description": "League identifier"
+          },
+          {
+            "name": "season_year",
+            "type": "string",
+            "description": "Season year"
+          },
+          {
             "name": "team_id",
             "type": "integer",
             "description": "Team identifier"
+          },
+          {
+            "name": "team_city",
+            "type": "string",
+            "description": "Team city"
           },
           {
             "name": "team_name",
@@ -13249,9 +13983,49 @@
             "description": "Team name"
           },
           {
+            "name": "team_abbreviation",
+            "type": "string",
+            "description": "Team abbreviation"
+          },
+          {
+            "name": "team_slug",
+            "type": "string",
+            "description": "Team slug"
+          },
+          {
+            "name": "conference",
+            "type": "string",
+            "description": "Conference"
+          },
+          {
+            "name": "ist_group",
+            "type": "string",
+            "description": "Cup group"
+          },
+          {
             "name": "group_name",
             "type": "string",
             "description": "Cup group name"
+          },
+          {
+            "name": "clinch_indicator",
+            "type": "string",
+            "description": "Cup clinch status indicator"
+          },
+          {
+            "name": "clinched_ist_group",
+            "type": "integer",
+            "description": "Cup group clinch flag"
+          },
+          {
+            "name": "clinched_ist_knockout",
+            "type": "integer",
+            "description": "Cup knockout clinch flag"
+          },
+          {
+            "name": "clinched_ist_wildcard",
+            "type": "integer",
+            "description": "Cup wildcard clinch flag"
           },
           {
             "name": "wins",
@@ -13262,6 +14036,11 @@
             "name": "losses",
             "type": "integer",
             "description": "Cup losses"
+          },
+          {
+            "name": "pct",
+            "type": "number",
+            "description": "Cup win pct"
           },
           {
             "name": "win_pct",
@@ -13282,6 +14061,137 @@
             "name": "point_diff",
             "type": "number",
             "description": "Point differential in cup play"
+          },
+          {
+            "name": "pts",
+            "type": "number",
+            "description": "Points"
+          },
+          {
+            "name": "opp_pts",
+            "type": "number",
+            "description": "Opponent points"
+          },
+          {
+            "name": "diff",
+            "type": "number",
+            "description": "Point differential"
+          },
+          {
+            "name": "ist_group_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ist_group_gb",
+            "type": "number"
+          },
+          {
+            "name": "ist_wildcard_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ist_wildcard_gb",
+            "type": "number"
+          },
+          {
+            "name": "ist_knockout_rank",
+            "type": "integer"
+          },
+          {
+            "name": "game_id1",
+            "type": "string"
+          },
+          {
+            "name": "game_id2",
+            "type": "string"
+          },
+          {
+            "name": "game_id3",
+            "type": "string"
+          },
+          {
+            "name": "game_id4",
+            "type": "string"
+          },
+          {
+            "name": "game_status1",
+            "type": "integer"
+          },
+          {
+            "name": "game_status2",
+            "type": "integer"
+          },
+          {
+            "name": "game_status3",
+            "type": "integer"
+          },
+          {
+            "name": "game_status4",
+            "type": "integer"
+          },
+          {
+            "name": "game_status_text1",
+            "type": "string"
+          },
+          {
+            "name": "game_status_text2",
+            "type": "string"
+          },
+          {
+            "name": "game_status_text3",
+            "type": "string"
+          },
+          {
+            "name": "game_status_text4",
+            "type": "string"
+          },
+          {
+            "name": "location1",
+            "type": "string"
+          },
+          {
+            "name": "location2",
+            "type": "string"
+          },
+          {
+            "name": "location3",
+            "type": "string"
+          },
+          {
+            "name": "location4",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation1",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation2",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation3",
+            "type": "string"
+          },
+          {
+            "name": "opponent_team_abbreviation4",
+            "type": "string"
+          },
+          {
+            "name": "outcome1",
+            "type": "string"
+          },
+          {
+            "name": "outcome2",
+            "type": "string"
+          },
+          {
+            "name": "outcome3",
+            "type": "string"
+          },
+          {
+            "name": "outcome4",
+            "type": "string"
           }
         ]
       }
@@ -15704,6 +16614,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -15722,6 +16637,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -15833,6 +16756,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -15851,6 +16779,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -15962,6 +16898,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -15980,6 +16921,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -16045,6 +16994,21 @@
             "name": "dfg_pct",
             "type": "number",
             "description": "Defended FG percentage"
+          },
+          {
+            "name": "age",
+            "type": "number",
+            "description": "Player age"
+          },
+          {
+            "name": "player_last_team_id",
+            "type": "integer",
+            "description": "Player last team identifier"
+          },
+          {
+            "name": "player_last_team_abbreviation",
+            "type": "string",
+            "description": "Player last team abbreviation"
           }
         ]
       }
@@ -16091,6 +17055,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -16109,6 +17078,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -16174,6 +17151,21 @@
             "name": "dfg_pct",
             "type": "number",
             "description": "Defended FG percentage"
+          },
+          {
+            "name": "age",
+            "type": "number",
+            "description": "Player age"
+          },
+          {
+            "name": "player_last_team_id",
+            "type": "integer",
+            "description": "Player last team identifier"
+          },
+          {
+            "name": "player_last_team_abbreviation",
+            "type": "string",
+            "description": "Player last team abbreviation"
           }
         ]
       }
@@ -16486,6 +17478,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -16504,6 +17501,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -16569,6 +17574,54 @@
             "name": "dfg_pct",
             "type": "number",
             "description": "Defended FG percentage"
+          },
+          {
+            "name": "w",
+            "type": "integer",
+            "description": "Wins"
+          },
+          {
+            "name": "l",
+            "type": "integer",
+            "description": "Losses"
+          },
+          {
+            "name": "w_pct",
+            "type": "number",
+            "description": "Win pct"
+          },
+          {
+            "name": "min",
+            "type": "number",
+            "description": "Minutes"
+          },
+          {
+            "name": "dist_feet",
+            "type": "number"
+          },
+          {
+            "name": "dist_miles",
+            "type": "number"
+          },
+          {
+            "name": "dist_miles_off",
+            "type": "number"
+          },
+          {
+            "name": "dist_miles_def",
+            "type": "number"
+          },
+          {
+            "name": "avg_speed",
+            "type": "number"
+          },
+          {
+            "name": "avg_speed_off",
+            "type": "number"
+          },
+          {
+            "name": "avg_speed_def",
+            "type": "number"
           }
         ]
       }
@@ -16615,6 +17668,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -16633,6 +17691,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -16698,6 +17764,54 @@
             "name": "dfg_pct",
             "type": "number",
             "description": "Defended FG percentage"
+          },
+          {
+            "name": "w",
+            "type": "integer",
+            "description": "Wins"
+          },
+          {
+            "name": "l",
+            "type": "integer",
+            "description": "Losses"
+          },
+          {
+            "name": "w_pct",
+            "type": "number",
+            "description": "Win pct"
+          },
+          {
+            "name": "min",
+            "type": "number",
+            "description": "Minutes"
+          },
+          {
+            "name": "dist_feet",
+            "type": "number"
+          },
+          {
+            "name": "dist_miles",
+            "type": "number"
+          },
+          {
+            "name": "dist_miles_off",
+            "type": "number"
+          },
+          {
+            "name": "dist_miles_def",
+            "type": "number"
+          },
+          {
+            "name": "avg_speed",
+            "type": "number"
+          },
+          {
+            "name": "avg_speed_off",
+            "type": "number"
+          },
+          {
+            "name": "avg_speed_def",
+            "type": "number"
           }
         ]
       }
@@ -16744,6 +17858,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -16762,6 +17881,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -16827,6 +17954,30 @@
             "name": "dfg_pct",
             "type": "number",
             "description": "Defended FG percentage"
+          },
+          {
+            "name": "freq",
+            "type": "number"
+          },
+          {
+            "name": "d_fgm",
+            "type": "number"
+          },
+          {
+            "name": "d_fga",
+            "type": "number"
+          },
+          {
+            "name": "d_fg_pct",
+            "type": "number"
+          },
+          {
+            "name": "normal_fg_pct",
+            "type": "number"
+          },
+          {
+            "name": "pct_plusminus",
+            "type": "number"
           }
         ]
       }
@@ -16873,6 +18024,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -16891,6 +18047,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -16956,6 +18120,30 @@
             "name": "dfg_pct",
             "type": "number",
             "description": "Defended FG percentage"
+          },
+          {
+            "name": "freq",
+            "type": "number"
+          },
+          {
+            "name": "d_fgm",
+            "type": "number"
+          },
+          {
+            "name": "d_fga",
+            "type": "number"
+          },
+          {
+            "name": "d_fg_pct",
+            "type": "number"
+          },
+          {
+            "name": "normal_fg_pct",
+            "type": "number"
+          },
+          {
+            "name": "pct_plusminus",
+            "type": "number"
           }
         ]
       }
@@ -17002,6 +18190,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -17020,6 +18213,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -17131,6 +18332,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -17149,6 +18355,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -17368,6 +18582,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -17386,6 +18605,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -17502,6 +18729,11 @@
             "description": "Season year"
           },
           {
+            "name": "gp",
+            "type": "integer",
+            "description": "Games played"
+          },
+          {
             "name": "g",
             "type": "integer",
             "description": "Games"
@@ -17520,6 +18752,14 @@
             "name": "fga_frequency",
             "type": "number",
             "description": "Shot-attempt frequency"
+          },
+          {
+            "name": "fg2a_frequency",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_frequency",
+            "type": "number"
           },
           {
             "name": "fgm",
@@ -17729,6 +18969,22 @@
             "description": "Games played"
           },
           {
+            "name": "gp_rank",
+            "type": "integer"
+          },
+          {
+            "name": "w_rank",
+            "type": "integer"
+          },
+          {
+            "name": "l_rank",
+            "type": "integer"
+          },
+          {
+            "name": "w_pct_rank",
+            "type": "integer"
+          },
+          {
             "name": "w",
             "type": "integer",
             "description": "Wins"
@@ -17739,9 +18995,18 @@
             "description": "Losses"
           },
           {
+            "name": "w_pct",
+            "type": "number",
+            "description": "Win pct"
+          },
+          {
             "name": "min",
             "type": "number",
             "description": "Minutes"
+          },
+          {
+            "name": "min_rank",
+            "type": "integer"
           },
           {
             "name": "pts",
@@ -17749,9 +19014,73 @@
             "description": "Points"
           },
           {
+            "name": "pts_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fgm",
+            "type": "number"
+          },
+          {
+            "name": "fgm_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fga",
+            "type": "number"
+          },
+          {
+            "name": "fga_rank",
+            "type": "integer"
+          },
+          {
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "fg_pct_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fg3m",
+            "type": "number"
+          },
+          {
+            "name": "fg3m_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fg3a",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fg3_pct",
+            "type": "number"
+          },
+          {
+            "name": "fg3_pct_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ftm",
+            "type": "number"
+          },
+          {
+            "name": "ftm_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fta",
+            "type": "number"
+          },
+          {
+            "name": "fta_rank",
+            "type": "integer"
           },
           {
             "name": "ft_pct",
@@ -17759,9 +19088,105 @@
             "description": "Free throw percentage"
           },
           {
+            "name": "ft_pct_rank",
+            "type": "integer"
+          },
+          {
+            "name": "oreb",
+            "type": "number"
+          },
+          {
+            "name": "oreb_rank",
+            "type": "integer"
+          },
+          {
+            "name": "dreb",
+            "type": "number"
+          },
+          {
+            "name": "dreb_rank",
+            "type": "integer"
+          },
+          {
+            "name": "reb",
+            "type": "number"
+          },
+          {
+            "name": "reb_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ast",
+            "type": "number"
+          },
+          {
+            "name": "ast_rank",
+            "type": "integer"
+          },
+          {
+            "name": "tov",
+            "type": "number"
+          },
+          {
+            "name": "tov_rank",
+            "type": "integer"
+          },
+          {
+            "name": "stl",
+            "type": "number"
+          },
+          {
+            "name": "stl_rank",
+            "type": "integer"
+          },
+          {
+            "name": "blk",
+            "type": "number"
+          },
+          {
+            "name": "blk_rank",
+            "type": "integer"
+          },
+          {
+            "name": "blka",
+            "type": "number"
+          },
+          {
+            "name": "blka_rank",
+            "type": "integer"
+          },
+          {
+            "name": "pf",
+            "type": "number"
+          },
+          {
+            "name": "pf_rank",
+            "type": "integer"
+          },
+          {
+            "name": "pfd",
+            "type": "number"
+          },
+          {
+            "name": "pfd_rank",
+            "type": "integer"
+          },
+          {
             "name": "plus_minus",
             "type": "number",
             "description": "Plus-minus"
+          },
+          {
+            "name": "plus_minus_rank",
+            "type": "integer"
+          },
+          {
+            "name": "cfid",
+            "type": "integer"
+          },
+          {
+            "name": "cfparams",
+            "type": "string"
           }
         ]
       }
@@ -17793,6 +19218,22 @@
             "description": "Games played"
           },
           {
+            "name": "gp_rank",
+            "type": "integer"
+          },
+          {
+            "name": "w_rank",
+            "type": "integer"
+          },
+          {
+            "name": "l_rank",
+            "type": "integer"
+          },
+          {
+            "name": "w_pct_rank",
+            "type": "integer"
+          },
+          {
             "name": "w",
             "type": "integer",
             "description": "Wins"
@@ -17803,9 +19244,18 @@
             "description": "Losses"
           },
           {
+            "name": "w_pct",
+            "type": "number",
+            "description": "Win pct"
+          },
+          {
             "name": "min",
             "type": "number",
             "description": "Minutes"
+          },
+          {
+            "name": "min_rank",
+            "type": "integer"
           },
           {
             "name": "pts",
@@ -17813,9 +19263,73 @@
             "description": "Points"
           },
           {
+            "name": "pts_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fgm",
+            "type": "number"
+          },
+          {
+            "name": "fgm_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fga",
+            "type": "number"
+          },
+          {
+            "name": "fga_rank",
+            "type": "integer"
+          },
+          {
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "fg_pct_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fg3m",
+            "type": "number"
+          },
+          {
+            "name": "fg3m_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fg3a",
+            "type": "number"
+          },
+          {
+            "name": "fg3a_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fg3_pct",
+            "type": "number"
+          },
+          {
+            "name": "fg3_pct_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ftm",
+            "type": "number"
+          },
+          {
+            "name": "ftm_rank",
+            "type": "integer"
+          },
+          {
+            "name": "fta",
+            "type": "number"
+          },
+          {
+            "name": "fta_rank",
+            "type": "integer"
           },
           {
             "name": "ft_pct",
@@ -17823,9 +19337,105 @@
             "description": "Free throw percentage"
           },
           {
+            "name": "ft_pct_rank",
+            "type": "integer"
+          },
+          {
+            "name": "oreb",
+            "type": "number"
+          },
+          {
+            "name": "oreb_rank",
+            "type": "integer"
+          },
+          {
+            "name": "dreb",
+            "type": "number"
+          },
+          {
+            "name": "dreb_rank",
+            "type": "integer"
+          },
+          {
+            "name": "reb",
+            "type": "number"
+          },
+          {
+            "name": "reb_rank",
+            "type": "integer"
+          },
+          {
+            "name": "ast",
+            "type": "number"
+          },
+          {
+            "name": "ast_rank",
+            "type": "integer"
+          },
+          {
+            "name": "tov",
+            "type": "number"
+          },
+          {
+            "name": "tov_rank",
+            "type": "integer"
+          },
+          {
+            "name": "stl",
+            "type": "number"
+          },
+          {
+            "name": "stl_rank",
+            "type": "integer"
+          },
+          {
+            "name": "blk",
+            "type": "number"
+          },
+          {
+            "name": "blk_rank",
+            "type": "integer"
+          },
+          {
+            "name": "blka",
+            "type": "number"
+          },
+          {
+            "name": "blka_rank",
+            "type": "integer"
+          },
+          {
+            "name": "pf",
+            "type": "number"
+          },
+          {
+            "name": "pf_rank",
+            "type": "integer"
+          },
+          {
+            "name": "pfd",
+            "type": "number"
+          },
+          {
+            "name": "pfd_rank",
+            "type": "integer"
+          },
+          {
             "name": "plus_minus",
             "type": "number",
             "description": "Plus-minus"
+          },
+          {
+            "name": "plus_minus_rank",
+            "type": "integer"
+          },
+          {
+            "name": "cfid",
+            "type": "integer"
+          },
+          {
+            "name": "cfparams",
+            "type": "string"
           }
         ]
       }

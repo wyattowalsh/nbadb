@@ -209,9 +209,12 @@ export function SqlPlayground({
     [runQuery],
   );
 
-  const loadExample = useCallback((example: SqlPlaygroundExample) => {
-    loadQueryState(example.sql, example.label);
-  }, [loadQueryState]);
+  const loadExample = useCallback(
+    (example: SqlPlaygroundExample) => {
+      loadQueryState(example.sql, example.label);
+    },
+    [loadQueryState],
+  );
 
   const resetQuery = useCallback(() => {
     loadQueryState(

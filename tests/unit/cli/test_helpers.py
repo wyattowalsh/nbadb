@@ -18,6 +18,27 @@ from nbadb.cli.commands._helpers import (
 from nbadb.core.config import NbaDbSettings
 from nbadb.orchestrate.orchestrator import PipelineResult
 
+
+def _asyncio_run_returning(result: object):
+    def _run(coro: object) -> object:
+        close = getattr(coro, "close", None)
+        if callable(close):
+            close()
+        return result
+
+    return _run
+
+
+def _asyncio_run_raising(exc: BaseException):
+    def _run(coro: object) -> object:
+        close = getattr(coro, "close", None)
+        if callable(close):
+            close()
+        raise exc
+
+    return _run
+
+
 # ---------------------------------------------------------------------------
 # _build_settings
 # ---------------------------------------------------------------------------
@@ -214,7 +235,10 @@ def test_run_pipeline_non_tty_success() -> None:
 
     with (
         patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
-        patch("nbadb.cli.commands._helpers.asyncio.run", return_value=fake_result),
+        patch(
+            "nbadb.cli.commands._helpers.asyncio.run",
+            side_effect=_asyncio_run_returning(fake_result),
+        ),
         patch("nbadb.cli.commands._helpers._print_result") as mock_print,
         patch("nbadb.cli.commands._helpers._setup_logging"),
     ):
@@ -247,7 +271,7 @@ def test_run_pipeline_non_tty_exception_raises_exit() -> None:
         patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
         patch(
             "nbadb.cli.commands._helpers.asyncio.run",
-            side_effect=RuntimeError("boom"),
+            side_effect=_asyncio_run_raising(RuntimeError("boom")),
         ),
         patch("nbadb.cli.commands._helpers._setup_logging"),
         patch("nbadb.cli.commands._helpers.typer.echo") as mock_echo,
@@ -281,7 +305,7 @@ def test_run_pipeline_non_tty_cancelled_error_raises_exit_0() -> None:
         patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
         patch(
             "nbadb.cli.commands._helpers.asyncio.run",
-            side_effect=_asyncio.CancelledError(),
+            side_effect=_asyncio_run_raising(_asyncio.CancelledError()),
         ),
         patch("nbadb.cli.commands._helpers._setup_logging"),
     ):
@@ -312,7 +336,7 @@ def test_run_pipeline_keyboard_interrupt_raises_exit_0() -> None:
         patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
         patch(
             "nbadb.cli.commands._helpers.asyncio.run",
-            side_effect=KeyboardInterrupt(),
+            side_effect=_asyncio_run_raising(KeyboardInterrupt()),
         ),
         patch("nbadb.cli.commands._helpers._setup_logging"),
     ):
@@ -344,7 +368,10 @@ def test_run_pipeline_lazy_import_orchestrator() -> None:
 
     with (
         patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
-        patch("nbadb.cli.commands._helpers.asyncio.run", return_value=fake_result),
+        patch(
+            "nbadb.cli.commands._helpers.asyncio.run",
+            side_effect=_asyncio_run_returning(fake_result),
+        ),
         patch("nbadb.cli.commands._helpers._print_result"),
         patch("nbadb.cli.commands._helpers._setup_logging"),
         patch("nbadb.orchestrate.Orchestrator") as mock_orch_cls,

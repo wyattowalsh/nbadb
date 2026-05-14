@@ -11,11 +11,19 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
+from nbadb.core.nba_api_contract import (
+    NbaApiEndpointContract,
+    contract_to_json,
+    discover_runtime_endpoint_contracts,
+)
+from nbadb.extract.base import _canonicalize_endpoint_column_name
 from nbadb.orchestrate.extraction_contract import FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
+from nbadb.orchestrate.seasons import season_range
 from nbadb.orchestrate.staging_map import STAGING_MAP, StagingEntry
 from nbadb.schemas.registry import _INPUT_SCHEMA_ALIASES
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from collections.abc import Set as AbstractSet
 
 _COVERAGE_KEYS = ("covered", "runtime_gap", "staging_only", "extractor_only", "source_only")
@@ -54,6 +62,22 @@ class _StagingStatusDetail(TypedDict):
     downstream_status: str
     downstream_reasons: list[str]
     transform_outputs: list[str]
+
+
+class _SchemaTableInfo(TypedDict):
+    columns: set[str]
+    behavior: str
+
+
+class _ModelOwnershipDecision(TypedDict):
+    status: str
+    reason: str
+
+
+class _TransformColumnUsage(TypedDict):
+    semantics: str
+    usage: str
+    columns: set[str]
 
 
 # Legacy/alternate extractor endpoint names mapped to canonical staging names.
@@ -129,141 +153,251 @@ _LIVE_SURFACE_ENDPOINT_NAMES: dict[str, str] = {
     value: key for key, value in _LIVE_SURFACE_ALIASES.items()
 }
 
-_MODEL_EXCLUDED_STATS_ENDPOINTS: dict[str, str] = {
-    "gl_alum_box_score_similarity_score": (
-        "Exploratory similarity feed is retained for extraction completeness but is not "
-        "promoted into the current analytical model."
-    ),
-    "play_by_play_v2": (
-        "Legacy play-by-play source is retained for compatibility; downstream facts and "
-        "bridges use the canonical play_by_play surface."
-    ),
-    "player_index": (
-        "Supplemental roster index feed is retained for reference; dim_player is modeled "
-        "from player_info."
-    ),
-    "video_details": (
-        "Auxiliary video metadata is retained as a source-complete landing surface and is "
-        "not promoted into the current analytical model."
-    ),
-    "video_details_asset": (
-        "Auxiliary video asset metadata is retained as a source-complete landing surface "
-        "and is not promoted into the current analytical model."
-    ),
-    "video_events": (
-        "Auxiliary video event metadata is retained as a source-complete landing surface "
-        "and is not promoted into the current analytical model."
-    ),
-    "video_status": (
-        "Auxiliary video status metadata is retained as a source-complete landing surface "
-        "and is not promoted into the current analytical model."
-    ),
+_MODEL_OWNERSHIP_STATS_ENDPOINTS: dict[str, _ModelOwnershipDecision] = {
+    "gl_alum_box_score_similarity_score": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Exploratory similarity feed is retained as a compatibility/reference surface "
+            "and is not promoted into the analytical model."
+        ),
+    },
+    "play_by_play_v2": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Legacy play-by-play source is retained for compatibility; the analytical "
+            "model uses the canonical play_by_play surface."
+        ),
+    },
+    "player_index": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Supplemental roster index feed is retained for reference; the analytical "
+            "model uses canonical player dimensions."
+        ),
+    },
+    "video_details": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Auxiliary video metadata is retained as a compatibility/reference surface "
+            "and is not promoted into the analytical model."
+        ),
+    },
+    "video_details_asset": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Auxiliary video asset metadata is retained as a compatibility/reference "
+            "surface and is not promoted into the analytical model."
+        ),
+    },
+    "video_events": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Auxiliary video event metadata is retained as a compatibility/reference "
+            "surface and is not promoted into the analytical model."
+        ),
+    },
+    "video_status": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Auxiliary video status metadata is retained as a compatibility/reference "
+            "surface and is not promoted into the analytical model."
+        ),
+    },
 }
 
-_COMPATIBILITY_REFERENCE_STATS_ENDPOINTS: dict[str, str] = {
-    "gl_alum_box_score_similarity_score": (
-        "Exploratory similarity feed is retained as a compatibility/reference surface and "
-        "is not promoted into the analytical model."
-    ),
-    "play_by_play_v2": (
-        "Legacy play-by-play source is retained for compatibility; the analytical model "
-        "uses the canonical play_by_play surface."
-    ),
-    "player_index": (
-        "Supplemental roster index feed is retained for reference; the analytical model "
-        "uses canonical player dimensions."
-    ),
-    "video_details": (
-        "Auxiliary video metadata is retained as a compatibility/reference surface and is "
-        "not promoted into the analytical model."
-    ),
-    "video_details_asset": (
-        "Auxiliary video asset metadata is retained as a compatibility/reference surface "
-        "and is not promoted into the analytical model."
-    ),
-    "video_events": (
-        "Auxiliary video event metadata is retained as a compatibility/reference surface "
-        "and is not promoted into the analytical model."
-    ),
-    "video_status": (
-        "Auxiliary video status metadata is retained as a compatibility/reference surface "
-        "and is not promoted into the analytical model."
-    ),
+_MODEL_OWNERSHIP_STAGING_KEYS: dict[str, _ModelOwnershipDecision] = {
+    "stg_hustle_stats_available": {
+        "status": "excluded",
+        "reason": (
+            "Availability-only hustle flag is retained for landing completeness; modeled "
+            "hustle facts use the actual box-score stat packets."
+        ),
+    },
+    "stg_play_by_play_video_available": {
+        "status": "excluded",
+        "reason": (
+            "Auxiliary play-by-play video flag is retained for landing completeness and is "
+            "not promoted beyond the canonical play-by-play/game-context model."
+        ),
+    },
+    "stg_schedule_int_broadcaster": {
+        "status": "excluded",
+        "reason": (
+            "ScheduleLeagueV2Int broadcaster directory is retained for packet completeness; "
+            "game-level schedule outputs already carry the modeled broadcast context."
+        ),
+    },
+    "stg_pvp_player_info": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Duplicate player bio packet is retained as a compatibility/reference surface; "
+            "the analytical model uses canonical player dimensions."
+        ),
+    },
+    "stg_pvp_vs_player_info": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Duplicate opposing-player bio packet is retained as a compatibility/reference "
+            "surface; the analytical model uses canonical player dimensions."
+        ),
+    },
+    "stg_scoreboard_win_probability": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Scoreboard win-probability snapshot is retained as a compatibility/reference "
+            "surface; the analytical model uses the canonical win_probability surface."
+        ),
+    },
+    "stg_team_available_seasons": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "Reference-only season-availability list is retained as a compatibility/reference "
+            "surface; modeled team history and season facts cover the analytical use cases."
+        ),
+    },
+    "stg_team_roster": {
+        "status": "compatibility_reference_only",
+        "reason": (
+            "CommonTeamRoster player roster rows are retained as a compatibility/reference "
+            "surface; team dimensions use static team, TeamDetails, and TeamInfoCommon metadata."
+        ),
+    },
 }
 
-_MODEL_EXCLUDED_STAGING_KEYS: dict[str, str] = {
-    "stg_hustle_stats_available": (
-        "Availability-only hustle flag is retained for landing completeness; modeled hustle "
-        "facts use the actual box-score stat packets."
-    ),
-    "stg_play_by_play_video_available": (
-        "Auxiliary play-by-play video flag is retained for landing completeness and is not "
-        "promoted beyond the canonical play-by-play/game-context model."
-    ),
-    "stg_schedule_int_broadcaster": (
-        "ScheduleLeagueV2Int broadcaster directory is retained for packet completeness; "
-        "game-level schedule outputs already carry the modeled broadcast context."
-    ),
-    "stg_pvp_player_info": (
-        "Duplicate player bio packet; the analytical model uses the canonical "
-        "player dimensions instead of matchup-scoped profile copies."
-    ),
-    "stg_pvp_vs_player_info": (
-        "Duplicate opposing-player bio packet; the analytical model uses the canonical "
-        "player dimensions instead of matchup-scoped profile copies."
-    ),
-    "stg_scoreboard_win_probability": (
-        "Scoreboard win-probability snapshot is retained for landing completeness; the "
-        "analytical model uses the canonical win_probability surface."
-    ),
-    "stg_team_available_seasons": (
-        "Reference-only season-availability list is retained for completeness; modeled team "
-        "history and season facts already cover the analytical use cases."
-    ),
+_FIELD_REFERENCE_ONLY_STAGING_KEYS = {
+    "stg_arena_info",
+    "stg_box_score_advanced",
+    "stg_box_score_defensive",
+    "stg_box_score_four_factors_player",
+    "stg_box_score_hustle",
+    "stg_box_score_misc",
+    "stg_box_score_player_track",
+    "stg_box_score_scoring",
+    "stg_box_score_usage",
+    "stg_coaches",
+    "stg_league_game_log",
+    "stg_matchup",
+    "stg_on_off",
+    "stg_play_by_play",
+    "stg_player_college",
+    "stg_player_on_details",
+    "stg_player_tracking",
+    "stg_schedule",
+    "stg_schedule_int",
+    "stg_schedule_int_weeks",
+    "stg_shot_chart",
+    "stg_standings",
+    "stg_synergy",
+    "stg_team_dashboard_estimated",
+    "stg_team_dashboard_on_off",
+    "stg_win_probability",
 }
 
-_COMPATIBILITY_REFERENCE_STAGING_KEYS: dict[str, str] = {
-    "stg_pvp_player_info": (
-        "Duplicate player bio packet is retained as a compatibility/reference surface; the "
-        "analytical model uses canonical player dimensions."
-    ),
-    "stg_pvp_vs_player_info": (
-        "Duplicate opposing-player bio packet is retained as a compatibility/reference "
-        "surface; the analytical model uses canonical player dimensions."
-    ),
-    "stg_scoreboard_win_probability": (
-        "Scoreboard win-probability snapshot is retained as a compatibility/reference "
-        "surface; the analytical model uses the canonical win_probability surface."
-    ),
-    "stg_team_available_seasons": (
-        "Reference-only season-availability list is retained as a compatibility/reference "
-        "surface; modeled team history and season facts cover the analytical use cases."
-    ),
+_CLASSIFIED_NONBLOCKING_CONTRACT_UNKNOWN_RESULT_SETS: dict[tuple[str, str, int], str] = {
+    (
+        "defense_hub",
+        "stg_defense_hub_stat10",
+        1,
+    ): "DefenseHubStat10 publishes an empty expected_data contract in nba_api.",
+    (
+        "league_dash_player_shot_locations",
+        "stg_shot_locations",
+        0,
+    ): "ShotLocations publishes an empty expected_data contract in nba_api.",
+    (
+        "league_dash_team_shot_locations",
+        "stg_league_team_shot_locations",
+        0,
+    ): "ShotLocations publishes an empty expected_data contract in nba_api.",
+    (
+        "scoreboard_v2",
+        "stg_scoreboard_win_probability",
+        9,
+    ): "ScoreboardV2 WinProbability publishes an empty expected_data contract in nba_api.",
+    (
+        "video_details",
+        "stg_video_details",
+        0,
+    ): "VideoDetails exposes no static expected_data contract and is reference-only.",
+    (
+        "video_details_asset",
+        "stg_video_details_asset",
+        0,
+    ): "VideoDetailsAsset exposes no static expected_data contract and is reference-only.",
+    (
+        "video_events",
+        "stg_video_events",
+        0,
+    ): "VideoEvents exposes no static expected_data contract and is reference-only.",
+    (
+        "video_events_asset",
+        "stg_video_events_asset",
+        0,
+    ): "VideoEventsAsset exposes no static expected_data contract and is reference-only.",
 }
+
+
+def _field_ownership_override(
+    staging_key: str,
+    field_name: str,
+) -> tuple[str | None, str | None]:
+    if staging_key not in _FIELD_REFERENCE_ONLY_STAGING_KEYS:
+        return None, None
+    return (
+        "compatibility_reference_only",
+        (
+            f"{field_name} is preserved in {staging_key} for endpoint fidelity; "
+            "the curated star output for this staging surface intentionally models "
+            "a narrower analytical grain."
+        ),
+    )
+
+
+def _contract_unknown_result_set_classification(
+    endpoint_name: str,
+    staging_key: str,
+    result_set_index: int,
+) -> tuple[str, str]:
+    reason = _CLASSIFIED_NONBLOCKING_CONTRACT_UNKNOWN_RESULT_SETS.get(
+        (endpoint_name, staging_key, result_set_index)
+    )
+    if reason is not None:
+        return "classified_non_blocking", reason
+    return (
+        "blocking",
+        "No explicit non-blocking classification is registered for this unknown result set.",
+    )
 
 
 def _ownership_override_for_endpoint(endpoint_name: str) -> tuple[str | None, str | None]:
-    reason = _COMPATIBILITY_REFERENCE_STATS_ENDPOINTS.get(endpoint_name)
-    if reason is not None:
-        return "compatibility_reference_only", reason
-    reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(endpoint_name)
-    if reason is not None:
-        return "excluded", reason
+    decision = _MODEL_OWNERSHIP_STATS_ENDPOINTS.get(endpoint_name)
+    if decision is not None:
+        return decision["status"], decision["reason"]
     return None, None
 
 
 def _ownership_override_for_staging_key(staging_key: str) -> tuple[str | None, str | None]:
-    reason = _COMPATIBILITY_REFERENCE_STAGING_KEYS.get(staging_key)
-    if reason is not None:
-        return "compatibility_reference_only", reason
-    reason = _MODEL_EXCLUDED_STAGING_KEYS.get(staging_key)
-    if reason is not None:
-        return "excluded", reason
+    decision = _MODEL_OWNERSHIP_STAGING_KEYS.get(staging_key)
+    if decision is not None:
+        return decision["status"], decision["reason"]
     return None, None
 
 
 def _to_snake_case(name: str) -> str:
     return _CAMEL_RE.sub(r"\1_\2", name).lower()
+
+
+def _normalize_contract_column(
+    name: str,
+    *,
+    runtime_class_name: str | None = None,
+    result_set_index: int | None = None,
+) -> str:
+    if runtime_class_name is not None and result_set_index is not None:
+        return _canonicalize_endpoint_column_name(runtime_class_name, result_set_index, name)
+    if name.upper() == name:
+        return name.lower()
+    return _to_snake_case(name)
 
 
 def _camel_to_snake(name: str) -> str:
@@ -308,7 +442,13 @@ class EndpointCoverageGenerator:
         return None
 
     @classmethod
-    def _constant_string_list(cls, value: ast.AST) -> list[str]:
+    def _constant_string_list(
+        cls,
+        value: ast.AST,
+        module_string_sequences: dict[str, list[str]] | None = None,
+    ) -> list[str]:
+        if isinstance(value, ast.ListComp) and module_string_sequences is not None:
+            return cls._strings_from_sequence_listcomp(value, module_string_sequences)
         if not isinstance(value, (ast.List, ast.Tuple)):
             return []
         values: list[str] = []
@@ -316,6 +456,68 @@ class EndpointCoverageGenerator:
             constant = cls._constant_string(element)
             if constant is not None:
                 values.append(constant)
+        return values
+
+    @classmethod
+    def _strings_from_sequence_listcomp(
+        cls,
+        value: ast.ListComp,
+        module_string_sequences: dict[str, list[str]],
+    ) -> list[str]:
+        if len(value.generators) != 1:
+            return []
+        generator = value.generators[0]
+        if not isinstance(generator.target, ast.Name):
+            return []
+        if not isinstance(generator.iter, ast.Name):
+            return []
+        if generator.ifs:
+            return []
+        if not isinstance(value.elt, ast.Attribute):
+            return []
+        if not isinstance(value.elt.value, ast.Name):
+            return []
+        if value.elt.value.id != generator.target.id or value.elt.attr != "staging_key":
+            return []
+        return list(module_string_sequences.get(generator.iter.id, []))
+
+    @classmethod
+    def _module_string_sequences(cls, tree: ast.Module) -> dict[str, list[str]]:
+        sequences: dict[str, list[str]] = {}
+        for node in tree.body:
+            target_name: str | None = None
+            value: ast.AST | None = None
+            if isinstance(node, ast.Assign):
+                if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+                    continue
+                target_name = node.targets[0].id
+                value = node.value
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                target_name = node.target.id
+                value = node.value
+            if target_name is None or value is None:
+                continue
+            sequence = cls._string_sequence_values(value)
+            if sequence:
+                sequences[target_name] = sequence
+        return sequences
+
+    @classmethod
+    def _string_sequence_values(cls, value: ast.AST) -> list[str]:
+        if not isinstance(value, (ast.List, ast.Tuple)):
+            return []
+        values: list[str] = []
+        for element in value.elts:
+            constant = cls._constant_string(element)
+            if constant is not None:
+                values.append(constant)
+                continue
+            if not isinstance(element, ast.Call) or not element.args:
+                return []
+            first_arg = cls._constant_string(element.args[0])
+            if first_arg is None:
+                return []
+            values.append(first_arg)
         return values
 
     @staticmethod
@@ -394,6 +596,290 @@ class EndpointCoverageGenerator:
         return "modeled"
 
     @staticmethod
+    def _unknown_column_usage(semantics: str) -> _TransformColumnUsage:
+        return {"semantics": semantics, "usage": "unknown", "columns": set()}
+
+    @staticmethod
+    def _all_column_usage(semantics: str) -> _TransformColumnUsage:
+        return {"semantics": semantics, "usage": "all", "columns": set()}
+
+    @classmethod
+    def _sql_column_usage_by_dependency(
+        cls,
+        *,
+        depends_on: list[str],
+        sql: str | None,
+        semantics: str,
+    ) -> dict[str, _TransformColumnUsage]:
+        if not depends_on:
+            return {}
+        if not sql:
+            return {dependency: cls._unknown_column_usage(semantics) for dependency in depends_on}
+        if semantics == "passthrough":
+            return {dependency: cls._all_column_usage(semantics) for dependency in depends_on}
+
+        try:
+            import sqlglot
+            from sqlglot import exp
+        except ImportError:
+            return {dependency: cls._unknown_column_usage(semantics) for dependency in depends_on}
+
+        try:
+            statements = sqlglot.parse(sql, read="duckdb")
+        except sqlglot.errors.SqlglotError:
+            analyzer_sql = re.sub(
+                r"\bUNION\s+ALL\s+BY\s+NAME\b",
+                "UNION ALL",
+                sql,
+                flags=re.IGNORECASE,
+            )
+            analyzer_sql = re.sub(
+                r"\bUNION\s+BY\s+NAME\b",
+                "UNION",
+                analyzer_sql,
+                flags=re.IGNORECASE,
+            )
+            try:
+                statements = sqlglot.parse(analyzer_sql, read="duckdb")
+            except sqlglot.errors.SqlglotError:
+                return {
+                    dependency: cls._unknown_column_usage(semantics) for dependency in depends_on
+                }
+
+        dependency_set = set(depends_on)
+        columns_by_dependency: dict[str, set[str]] = {
+            dependency: set() for dependency in depends_on
+        }
+        all_columns_by_dependency: set[str] = set()
+        ambiguous = False
+
+        def _table_aliases_for_scope(scope: Any) -> dict[str, str]:
+            aliases: dict[str, str] = {}
+            cte_names = {cte.alias for cte in scope.find_all(exp.CTE)}
+            for table in scope.find_all(exp.Table):
+                table_name = table.name
+                if not table_name or table_name in cte_names or table_name not in dependency_set:
+                    continue
+                aliases[table_name] = table_name
+                alias = table.alias
+                if alias:
+                    aliases[alias] = table_name
+            return aliases
+
+        def _record_scope_usage(scope: Any) -> None:
+            nonlocal ambiguous
+            table_aliases = _table_aliases_for_scope(scope)
+            scope_dependencies = set(table_aliases.values())
+
+            for star in scope.find_all(exp.Star):
+                table_name = getattr(star, "table", "")
+                if table_name:
+                    dependency = table_aliases.get(table_name)
+                    if dependency is not None:
+                        all_columns_by_dependency.add(dependency)
+                    continue
+                if scope_dependencies:
+                    all_columns_by_dependency.update(scope_dependencies)
+                elif not scope_dependencies and len(dependency_set) == 1:
+                    all_columns_by_dependency.add(depends_on[0])
+                else:
+                    ambiguous = True
+
+            for column in scope.find_all(exp.Column):
+                column_name = column.name
+                table_name = column.table
+                if not column_name:
+                    continue
+                if table_name:
+                    dependency = table_aliases.get(table_name)
+                    if dependency is not None:
+                        columns_by_dependency[dependency].add(column_name.lower())
+                    continue
+                if len(scope_dependencies) == 1:
+                    dependency = next(iter(scope_dependencies))
+                    columns_by_dependency[dependency].add(column_name.lower())
+                elif not scope_dependencies and len(dependency_set) == 1:
+                    columns_by_dependency[depends_on[0]].add(column_name.lower())
+                else:
+                    ambiguous = True
+
+        for statement in statements:
+            if statement is None:
+                continue
+            select_scopes = list(statement.find_all(exp.Select))
+            if select_scopes:
+                for select_scope in select_scopes:
+                    _record_scope_usage(select_scope)
+            else:
+                _record_scope_usage(statement)
+
+        usage_by_dependency: dict[str, _TransformColumnUsage] = {}
+        for dependency in depends_on:
+            if dependency in all_columns_by_dependency:
+                usage_by_dependency[dependency] = cls._all_column_usage(semantics)
+            elif ambiguous and not columns_by_dependency[dependency]:
+                usage_by_dependency[dependency] = cls._unknown_column_usage(semantics)
+            else:
+                usage_by_dependency[dependency] = {
+                    "semantics": semantics,
+                    "usage": "known",
+                    "columns": columns_by_dependency[dependency],
+                }
+        return usage_by_dependency
+
+    @staticmethod
+    def _staging_subscript_key(node: ast.AST) -> str | None:
+        if not isinstance(node, ast.Subscript):
+            return None
+        if not isinstance(node.value, ast.Name) or node.value.id != "staging":
+            return None
+        if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+            return node.slice.value
+        return None
+
+    @classmethod
+    def _constant_strings_from_node(cls, node: ast.AST) -> set[str]:
+        constant = cls._constant_string(node)
+        if constant is not None:
+            return {constant}
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            values: set[str] = set()
+            for element in node.elts:
+                values.update(cls._constant_strings_from_node(element))
+            return values
+        return set()
+
+    @classmethod
+    def _dependency_for_polars_expr(
+        cls,
+        node: ast.AST,
+        variable_dependencies: dict[str, set[str]],
+    ) -> set[str]:
+        staging_key = cls._staging_subscript_key(node)
+        if staging_key is not None:
+            return {staging_key}
+        if isinstance(node, ast.Name):
+            return set(variable_dependencies.get(node.id, set()))
+        if isinstance(node, ast.Attribute):
+            return cls._dependency_for_polars_expr(node.value, variable_dependencies)
+        if isinstance(node, ast.Call):
+            return cls._dependency_for_polars_expr(node.func, variable_dependencies)
+        return set()
+
+    @classmethod
+    def _columns_from_polars_call(cls, call: ast.Call, method_name: str) -> set[str]:
+        columns: set[str] = set()
+        if method_name in {"select", "group_by", "sort"}:
+            for arg in call.args:
+                columns.update(cls._constant_strings_from_node(arg))
+        elif method_name == "unique":
+            for keyword in call.keywords:
+                if keyword.arg == "subset":
+                    columns.update(cls._constant_strings_from_node(keyword.value))
+        elif method_name == "join":
+            for keyword in call.keywords:
+                if keyword.arg in {"on", "left_on", "right_on"}:
+                    columns.update(cls._constant_strings_from_node(keyword.value))
+
+        for descendant in ast.walk(call):
+            if not isinstance(descendant, ast.Call):
+                continue
+            call_name = cls._call_name(descendant.func)
+            if call_name in {"col", "concat_str"}:
+                for arg in descendant.args:
+                    columns.update(cls._constant_strings_from_node(arg))
+        return {column.lower() for column in columns}
+
+    @classmethod
+    def _polars_column_usage_by_dependency(
+        cls,
+        *,
+        depends_on: list[str],
+        class_node: ast.ClassDef,
+        semantics: str,
+    ) -> dict[str, _TransformColumnUsage]:
+        if not depends_on:
+            return {}
+
+        variable_dependencies: dict[str, set[str]] = {}
+        columns_by_dependency: dict[str, set[str]] = {
+            dependency: set() for dependency in depends_on
+        }
+        dependency_set = set(depends_on)
+
+        transform_nodes = [
+            stmt
+            for stmt in class_node.body
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and stmt.name == "transform"
+        ]
+        for transform_node in transform_nodes:
+            for node in ast.walk(transform_node):
+                if isinstance(node, ast.Assign):
+                    assigned_dependencies = cls._dependency_for_polars_expr(
+                        node.value,
+                        variable_dependencies,
+                    )
+                    if not assigned_dependencies:
+                        continue
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            variable_dependencies[target.id] = assigned_dependencies
+                elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                    if node.value is None:
+                        continue
+                    assigned_dependencies = cls._dependency_for_polars_expr(
+                        node.value,
+                        variable_dependencies,
+                    )
+                    if assigned_dependencies:
+                        variable_dependencies[node.target.id] = assigned_dependencies
+
+            for node in ast.walk(transform_node):
+                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    call_name = cls._call_name(node.func)
+                    if call_name != "consolidate_detail_family":
+                        continue
+                    dependencies = dependency_set
+                    columns = set()
+                    for keyword in node.keywords:
+                        if keyword.arg == "passthrough_columns":
+                            columns.update(cls._constant_strings_from_node(keyword.value))
+                    if not columns:
+                        continue
+                    columns = {column.lower() for column in columns}
+                    for dependency in dependencies:
+                        columns_by_dependency[dependency].update(columns)
+                    continue
+
+                method_name = node.func.attr
+                if method_name not in {"select", "group_by", "sort", "unique", "join", "agg"}:
+                    continue
+                dependencies = cls._dependency_for_polars_expr(
+                    node.func.value,
+                    variable_dependencies,
+                )
+                dependencies &= dependency_set
+                if not dependencies:
+                    continue
+                columns = cls._columns_from_polars_call(node, method_name)
+                for dependency in dependencies:
+                    columns_by_dependency[dependency].update(columns)
+
+        if not any(columns_by_dependency.values()):
+            return {dependency: cls._unknown_column_usage(semantics) for dependency in depends_on}
+        return {
+            dependency: {
+                "semantics": semantics,
+                "usage": "known",
+                "columns": columns_by_dependency[dependency],
+            }
+            for dependency in depends_on
+        }
+
+    @staticmethod
     def _table_name_from_schema_class_name(class_name: str) -> str:
         name = class_name.removesuffix("Schema").removesuffix("Model")
         return _camel_to_snake(name)
@@ -435,6 +921,12 @@ class EndpointCoverageGenerator:
             ):
                 refs.add(child.func.id)
                 continue
+            if imported_runtime_names is not None:
+                for arg in child.args:
+                    if isinstance(arg, ast.Name) and arg.id in imported_runtime_names:
+                        refs.add(arg.id)
+                    elif isinstance(arg, ast.Attribute) and arg.attr in imported_runtime_names:
+                        refs.add(arg.attr)
             if isinstance(child.func, ast.Attribute):
                 if child.func.attr not in {
                     "_call_nba_api",
@@ -555,10 +1047,18 @@ class EndpointCoverageGenerator:
             )
         return surfaces
 
-    def _transform_catalog(self) -> tuple[dict[str, set[str]], set[str], dict[str, str]]:
+    def _transform_catalog(
+        self,
+    ) -> tuple[
+        dict[str, set[str]],
+        set[str],
+        dict[str, str],
+        dict[str, dict[str, _TransformColumnUsage]],
+    ]:
         output_map: dict[str, set[str]] = defaultdict(set)
         output_tables: set[str] = set()
         output_semantics: dict[str, str] = {}
+        column_usage_by_staging: dict[str, dict[str, _TransformColumnUsage]] = defaultdict(dict)
         transform_root = self.project_root / "src" / "nbadb" / "transform"
         for subdir in ("dimensions", "facts", "derived", "views", "live"):
             current_dir = transform_root / subdir
@@ -572,6 +1072,7 @@ class EndpointCoverageGenerator:
                 except (OSError, SyntaxError):
                     continue
 
+                module_string_sequences = self._module_string_sequences(tree)
                 for node in tree.body:
                     if isinstance(node, ast.ClassDef):
                         output_table: str | None = None
@@ -584,7 +1085,10 @@ class EndpointCoverageGenerator:
                                     if isinstance(target, ast.Name) and target.id == "output_table":
                                         output_table = self._constant_string(stmt.value)
                                     elif isinstance(target, ast.Name) and target.id == "depends_on":
-                                        depends_on = self._constant_string_list(stmt.value)
+                                        depends_on = self._constant_string_list(
+                                            stmt.value,
+                                            module_string_sequences,
+                                        )
                                     elif isinstance(target, ast.Name) and target.id == "_SQL":
                                         sql_text = self._constant_string(stmt.value)
                             elif isinstance(stmt, ast.AnnAssign):
@@ -600,7 +1104,12 @@ class EndpointCoverageGenerator:
                                     and stmt.target.id == "depends_on"
                                 ):
                                     depends_on = (
-                                        self._constant_string_list(stmt.value) if stmt.value else []
+                                        self._constant_string_list(
+                                            stmt.value,
+                                            module_string_sequences,
+                                        )
+                                        if stmt.value
+                                        else []
                                     )
                                 elif isinstance(stmt.target, ast.Name) and stmt.target.id == "_SQL":
                                     sql_text = (
@@ -615,8 +1124,26 @@ class EndpointCoverageGenerator:
                             output_semantics.get(output_table),
                             semantics,
                         )
+                        if sql_text is None:
+                            usage_by_dependency = self._polars_column_usage_by_dependency(
+                                depends_on=depends_on,
+                                class_node=node,
+                                semantics=semantics,
+                            )
+                        else:
+                            usage_by_dependency = self._sql_column_usage_by_dependency(
+                                depends_on=depends_on,
+                                sql=sql_text,
+                                semantics=semantics,
+                            )
                         for dependency in depends_on:
                             output_map[dependency].add(output_table)
+                            column_usage_by_staging[dependency][output_table] = (
+                                usage_by_dependency.get(
+                                    dependency,
+                                    self._unknown_column_usage(semantics),
+                                )
+                            )
                         continue
 
                     if isinstance(node, ast.Assign):
@@ -631,7 +1158,10 @@ class EndpointCoverageGenerator:
                         )
                         for dependency in dependencies:
                             output_map[dependency].add(output_table)
-        return dict(output_map), output_tables, output_semantics
+                            column_usage_by_staging[dependency][output_table] = (
+                                self._all_column_usage(semantics)
+                            )
+        return dict(output_map), output_tables, output_semantics, dict(column_usage_by_staging)
 
     def _star_schema_tables(self) -> set[str]:
         schema_dir = self.project_root / "src" / "nbadb" / "schemas" / "star"
@@ -657,19 +1187,23 @@ class EndpointCoverageGenerator:
                 schema_tables.add(self._table_name_from_schema_class_name(node.name))
         return schema_tables
 
-    def _schema_tables(
+    def _schema_table_info(
         self,
         *,
         schema_subdir: str,
         class_prefix: str,
         table_prefix: str,
-    ) -> set[str]:
+    ) -> dict[str, _SchemaTableInfo]:
+        schemas_root = self.project_root / "src" / "nbadb" / "schemas"
         schema_dir = self.project_root / "src" / "nbadb" / "schemas" / schema_subdir
         if not schema_dir.exists():
-            return set()
+            return {}
 
-        schema_tables: set[str] = set()
-        for path in sorted(schema_dir.glob("*.py")):
+        table_info: dict[str, _SchemaTableInfo] = {}
+        class_nodes: dict[str, ast.ClassDef] = {}
+        class_is_target_schema: dict[str, bool] = {}
+        schema_paths = sorted(schemas_root.rglob("*.py"))
+        for path in schema_paths:
             if path.name == "__init__.py":
                 continue
             try:
@@ -678,33 +1212,92 @@ class EndpointCoverageGenerator:
                 continue
 
             for node in tree.body:
-                if not isinstance(node, ast.ClassDef):
-                    continue
-                if node.name.startswith("_"):
-                    continue
-                if not node.name.endswith(("Schema", "Model")):
-                    continue
-                if class_prefix and not node.name.startswith(class_prefix):
-                    continue
-                stem = node.name.removesuffix("Schema").removesuffix("Model")
-                if class_prefix:
-                    stem = stem.removeprefix(class_prefix)
-                schema_tables.add(f"{table_prefix}{_camel_to_snake(stem)}")
-        return schema_tables
+                if isinstance(node, ast.ClassDef):
+                    class_nodes[node.name] = node
+                    class_is_target_schema[node.name] = path.parent == schema_dir
 
-    def _staging_schema_tables(self) -> set[str]:
-        return self._schema_tables(
-            schema_subdir="staging",
-            class_prefix="Staging",
-            table_prefix="stg_",
-        )
+        def _schema_field_columns(child: ast.AnnAssign) -> set[str]:
+            if not isinstance(child.target, ast.Name):
+                return set()
+            columns = {child.target.id}
+            if isinstance(child.value, ast.Call):
+                for keyword in child.value.keywords:
+                    if keyword.arg != "alias":
+                        continue
+                    if isinstance(keyword.value, ast.Constant) and isinstance(
+                        keyword.value.value, str
+                    ):
+                        columns.add(keyword.value.value)
+            return columns
 
-    def _raw_schema_tables(self) -> set[str]:
-        return self._schema_tables(
-            schema_subdir="raw",
-            class_prefix="Raw",
-            table_prefix="raw_",
-        )
+        direct_columns = {
+            name: {
+                column
+                for child in node.body
+                if isinstance(child, ast.AnnAssign)
+                for column in _schema_field_columns(child)
+            }
+            for name, node in class_nodes.items()
+        }
+
+        def _resolve_columns(class_name: str, seen: set[str] | None = None) -> set[str]:
+            if class_name not in class_nodes:
+                return set()
+            seen = set(seen or set())
+            if class_name in seen:
+                return set()
+            seen.add(class_name)
+
+            columns = set(direct_columns[class_name])
+            for base in class_nodes[class_name].bases:
+                base_name: str | None = None
+                if isinstance(base, ast.Name):
+                    base_name = base.id
+                elif isinstance(base, ast.Attribute):
+                    base_name = base.attr
+                if base_name is not None:
+                    columns.update(_resolve_columns(base_name, seen))
+            return columns
+
+        def _is_passthrough_schema(class_name: str, seen: set[str] | None = None) -> bool:
+            if class_name in {"_OpenStagingSchema", "_OpenPassthroughSchema"}:
+                return True
+            if class_name not in class_nodes:
+                return False
+            seen = set(seen or set())
+            if class_name in seen:
+                return False
+            seen.add(class_name)
+
+            for base in class_nodes[class_name].bases:
+                base_name: str | None = None
+                if isinstance(base, ast.Name):
+                    base_name = base.id
+                elif isinstance(base, ast.Attribute):
+                    base_name = base.attr
+                if base_name is not None and _is_passthrough_schema(base_name, seen):
+                    return True
+            return False
+
+        for name, node in class_nodes.items():
+            if not class_is_target_schema.get(name, False):
+                continue
+            if name.startswith("_"):
+                continue
+            if not name.endswith(("Schema", "Model")):
+                continue
+            if class_prefix and not name.startswith(class_prefix):
+                continue
+            stem = name.removesuffix("Schema").removesuffix("Model")
+            if class_prefix:
+                stem = stem.removeprefix(class_prefix)
+            table_name = f"{table_prefix}{_camel_to_snake(stem)}"
+            behavior = "passthrough" if _is_passthrough_schema(node.name) else "closed"
+            table_info[table_name] = {
+                "columns": _resolve_columns(node.name),
+                "behavior": behavior,
+            }
+        return table_info
 
     @staticmethod
     def _input_schema_present(
@@ -786,6 +1379,482 @@ class EndpointCoverageGenerator:
             if isinstance(obj, type):
                 classes.add(_to_snake_case(name))
         return classes
+
+    @staticmethod
+    def _runtime_contract_payload(
+        contract: NbaApiEndpointContract | None,
+    ) -> dict[str, Any] | None:
+        return contract_to_json(contract) if contract is not None else None
+
+    @classmethod
+    def _runtime_contracts_by_endpoint(
+        cls,
+        runtime_contracts: Mapping[str, NbaApiEndpointContract],
+        known_surfaces: set[str],
+    ) -> dict[str, NbaApiEndpointContract]:
+        contracts_by_endpoint: dict[str, NbaApiEndpointContract] = {}
+        for class_name, contract in runtime_contracts.items():
+            endpoint_name = _runtime_class_to_surface_name(class_name, known_surfaces)
+            existing = contracts_by_endpoint.get(endpoint_name)
+            if existing is None:
+                contracts_by_endpoint[endpoint_name] = contract
+                continue
+            if (
+                _RUNTIME_CLASS_ALIASES.get(existing.runtime_class_name)
+                == contract.runtime_class_name
+            ):
+                contracts_by_endpoint[endpoint_name] = contract
+                continue
+            if (
+                _RUNTIME_CLASS_ALIASES.get(contract.runtime_class_name)
+                == existing.runtime_class_name
+            ):
+                continue
+        return contracts_by_endpoint
+
+    @classmethod
+    def _runtime_contract_payloads_by_endpoint(
+        cls,
+        contracts_by_endpoint: Mapping[str, NbaApiEndpointContract],
+    ) -> list[dict[str, Any]]:
+        payloads: list[dict[str, Any]] = []
+        for endpoint_name, contract in sorted(contracts_by_endpoint.items()):
+            payload = cls._runtime_contract_payload(contract)
+            if payload is None:
+                continue
+            payloads.append({"endpoint_name": endpoint_name, **payload})
+        return payloads
+
+    @classmethod
+    def _input_columns_for_staging_key(
+        cls,
+        staging_key: str,
+        input_schema_columns: Mapping[str, set[str]],
+    ) -> set[str] | None:
+        if staging_key in input_schema_columns:
+            return set(input_schema_columns[staging_key])
+        alias = _INPUT_SCHEMA_ALIASES.get(staging_key)
+        if alias is None:
+            return None
+        if alias in input_schema_columns:
+            return set(input_schema_columns[alias])
+        return None
+
+    @classmethod
+    def _input_behavior_for_staging_key(
+        cls,
+        staging_key: str,
+        input_schema_behaviors: Mapping[str, str],
+    ) -> str | None:
+        if staging_key in input_schema_behaviors:
+            return input_schema_behaviors[staging_key]
+        alias = _INPUT_SCHEMA_ALIASES.get(staging_key)
+        if alias is None:
+            return None
+        return input_schema_behaviors.get(alias)
+
+    @classmethod
+    def _build_upstream_contract_diff(
+        cls,
+        *,
+        contracts_by_endpoint: Mapping[str, NbaApiEndpointContract],
+        staging_entries_by_endpoint: Mapping[str, list[StagingEntry]],
+        input_schema_columns: Mapping[str, set[str]],
+        input_schema_behaviors: Mapping[str, str] | None = None,
+    ) -> dict[str, Any]:
+        rows: list[dict[str, Any]] = []
+        summary = {
+            "endpoint_contract_count": len(contracts_by_endpoint),
+            "staging_endpoint_count": len(staging_entries_by_endpoint),
+            "invalid_result_set_index_count": 0,
+            "missing_result_set_staging_count": 0,
+            "field_gap_count": 0,
+            "empty_expected_result_set_count": 0,
+            "contract_unknown_result_set_count": 0,
+            "classified_contract_unknown_result_set_count": 0,
+            "blocking_contract_unknown_result_set_count": 0,
+            "missing_input_schema_count": 0,
+        }
+
+        for endpoint_name, contract in sorted(contracts_by_endpoint.items()):
+            entries = list(staging_entries_by_endpoint.get(endpoint_name, []))
+            indexed_result_sets = {
+                result_set.result_set_index: result_set for result_set in contract.result_sets
+            }
+            staged_indexes = {entry.result_set_index if entry.use_multi else 0 for entry in entries}
+
+            for entry in entries:
+                declared_result_set_index = entry.result_set_index if entry.use_multi else 0
+                result_set = indexed_result_sets.get(declared_result_set_index)
+                status = "ok"
+                missing_columns: list[str] = []
+                expected_columns: list[str] = []
+                result_set_name: str | None = None
+                status_reason: str | None = None
+                contract_unknown_classification: str | None = None
+                contract_unknown_classification_reason: str | None = None
+                input_columns = cls._input_columns_for_staging_key(
+                    entry.staging_key,
+                    input_schema_columns,
+                )
+                schema_behavior = cls._input_behavior_for_staging_key(
+                    entry.staging_key,
+                    input_schema_behaviors or {},
+                )
+                if result_set is None:
+                    if contract.result_sets:
+                        status = "invalid_result_set_index"
+                        status_reason = (
+                            "Declared result_set_index is not present in the upstream contract."
+                        )
+                        summary["invalid_result_set_index_count"] += 1
+                    else:
+                        status = "contract_unknown_result_set"
+                        status_reason = (
+                            "Upstream endpoint exposes no static expected_data contract; "
+                            "runtime probing is required to classify columns."
+                        )
+                        summary["contract_unknown_result_set_count"] += 1
+                        (
+                            contract_unknown_classification,
+                            contract_unknown_classification_reason,
+                        ) = _contract_unknown_result_set_classification(
+                            endpoint_name,
+                            entry.staging_key,
+                            declared_result_set_index,
+                        )
+                        if contract_unknown_classification == "classified_non_blocking":
+                            summary["classified_contract_unknown_result_set_count"] += 1
+                        else:
+                            summary["blocking_contract_unknown_result_set_count"] += 1
+                else:
+                    result_set_name = result_set.result_set_name
+                    expected_columns = [
+                        _normalize_contract_column(
+                            column,
+                            runtime_class_name=contract.runtime_class_name,
+                            result_set_index=result_set.result_set_index,
+                        )
+                        for column in result_set.expected_columns
+                    ]
+                    if not expected_columns:
+                        status = "contract_unknown_result_set"
+                        status_reason = (
+                            "Upstream result set exists but has an empty expected_data column list."
+                        )
+                        summary["empty_expected_result_set_count"] += 1
+                        summary["contract_unknown_result_set_count"] += 1
+                        (
+                            contract_unknown_classification,
+                            contract_unknown_classification_reason,
+                        ) = _contract_unknown_result_set_classification(
+                            endpoint_name,
+                            entry.staging_key,
+                            declared_result_set_index,
+                        )
+                        if contract_unknown_classification == "classified_non_blocking":
+                            summary["classified_contract_unknown_result_set_count"] += 1
+                        else:
+                            summary["blocking_contract_unknown_result_set_count"] += 1
+                    elif input_columns is None:
+                        status = "missing_input_schema"
+                        status_reason = (
+                            "No raw or staging input schema is registered for this staging key."
+                        )
+                        summary["missing_input_schema_count"] += 1
+                    else:
+                        missing_columns = sorted(set(expected_columns) - input_columns)
+                        if missing_columns:
+                            if schema_behavior == "passthrough":
+                                missing_columns = []
+                            else:
+                                status = "field_gaps"
+                                status_reason = "Closed sink schema would strip upstream columns."
+                                summary["field_gap_count"] += 1
+
+                row = {
+                    "endpoint_name": endpoint_name,
+                    "runtime_class_name": contract.runtime_class_name,
+                    "staging_key": entry.staging_key,
+                    "declared_result_set_index": declared_result_set_index,
+                    "upstream_result_set_name": result_set_name,
+                    "status": status,
+                    "expected_columns": expected_columns,
+                    "missing_columns": missing_columns,
+                }
+                if status_reason is not None:
+                    row["status_reason"] = status_reason
+                if contract_unknown_classification is not None:
+                    row["contract_unknown_classification"] = contract_unknown_classification
+                    row["contract_unknown_classification_reason"] = (
+                        contract_unknown_classification_reason
+                    )
+                rows.append(row)
+
+            for result_set in contract.result_sets:
+                if result_set.result_set_index in staged_indexes:
+                    continue
+                if not result_set.expected_columns:
+                    continue
+                summary["missing_result_set_staging_count"] += 1
+                rows.append(
+                    {
+                        "endpoint_name": endpoint_name,
+                        "runtime_class_name": contract.runtime_class_name,
+                        "staging_key": None,
+                        "declared_result_set_index": None,
+                        "upstream_result_set_index": result_set.result_set_index,
+                        "upstream_result_set_name": result_set.result_set_name,
+                        "status": "missing_result_set_staging",
+                        "expected_columns": [
+                            _normalize_contract_column(
+                                column,
+                                runtime_class_name=contract.runtime_class_name,
+                                result_set_index=result_set.result_set_index,
+                            )
+                            for column in result_set.expected_columns
+                        ],
+                        "missing_columns": [],
+                    }
+                )
+
+        return {"matrix": rows, "summary": summary}
+
+    @classmethod
+    def _build_upstream_field_fate_matrix(
+        cls,
+        *,
+        contracts_by_endpoint: Mapping[str, NbaApiEndpointContract],
+        staging_entries_by_endpoint: Mapping[str, list[StagingEntry]],
+        input_schema_columns: Mapping[str, set[str]],
+        input_schema_behaviors: Mapping[str, str],
+        transform_outputs_by_staging: Mapping[str, set[str]],
+        transform_semantics_by_output: Mapping[str, str],
+        transform_column_usage_by_staging: Mapping[str, dict[str, _TransformColumnUsage]],
+    ) -> dict[str, Any]:
+        rows: list[dict[str, Any]] = []
+        fate_counts: Counter[str] = Counter()
+        invalid_result_set_count = 0
+        contract_unknown_result_set_count = 0
+        classified_contract_unknown_result_set_count = 0
+        blocking_contract_unknown_result_set_count = 0
+
+        for endpoint_name, contract in sorted(contracts_by_endpoint.items()):
+            entries = list(staging_entries_by_endpoint.get(endpoint_name, []))
+            indexed_result_sets = {
+                result_set.result_set_index: result_set for result_set in contract.result_sets
+            }
+
+            for entry in entries:
+                declared_result_set_index = entry.result_set_index if entry.use_multi else 0
+                result_set = indexed_result_sets.get(declared_result_set_index)
+                if result_set is None:
+                    if contract.result_sets:
+                        invalid_result_set_count += 1
+                    else:
+                        contract_unknown_result_set_count += 1
+                        classification, _ = _contract_unknown_result_set_classification(
+                            endpoint_name,
+                            entry.staging_key,
+                            declared_result_set_index,
+                        )
+                        if classification == "classified_non_blocking":
+                            classified_contract_unknown_result_set_count += 1
+                        else:
+                            blocking_contract_unknown_result_set_count += 1
+                    continue
+
+                expected_columns = [
+                    _normalize_contract_column(
+                        column,
+                        runtime_class_name=contract.runtime_class_name,
+                        result_set_index=result_set.result_set_index,
+                    )
+                    for column in result_set.expected_columns
+                ]
+                if not expected_columns:
+                    contract_unknown_result_set_count += 1
+                    classification, _ = _contract_unknown_result_set_classification(
+                        endpoint_name,
+                        entry.staging_key,
+                        declared_result_set_index,
+                    )
+                    if classification == "classified_non_blocking":
+                        classified_contract_unknown_result_set_count += 1
+                    else:
+                        blocking_contract_unknown_result_set_count += 1
+                    continue
+
+                input_columns = cls._input_columns_for_staging_key(
+                    entry.staging_key,
+                    input_schema_columns,
+                )
+                schema_behavior = (
+                    cls._input_behavior_for_staging_key(
+                        entry.staging_key,
+                        input_schema_behaviors,
+                    )
+                    or "missing"
+                )
+                transform_outputs = sorted(
+                    transform_outputs_by_staging.get(entry.staging_key, set())
+                )
+                downstream_status, _, downstream_reasons = cls._staging_downstream_status(
+                    endpoint_name=endpoint_name,
+                    staging_key=entry.staging_key,
+                    transform_outputs_by_staging=dict(transform_outputs_by_staging),
+                    transform_semantics_by_output=dict(transform_semantics_by_output),
+                )
+                usage_by_output = transform_column_usage_by_staging.get(entry.staging_key, {})
+
+                for field_name in expected_columns:
+                    if input_columns is None:
+                        field_fate = "missing_sink"
+                        reason = (
+                            "No raw or staging input schema is registered for this staging key."
+                        )
+                    elif field_name not in input_columns:
+                        if schema_behavior == "passthrough":
+                            field_fate = "sunk_passthrough"
+                            reason = (
+                                "Open staging schema preserves undeclared "
+                                "endpoint-specific columns."
+                            )
+                        else:
+                            field_fate = "missing_sink"
+                            reason = "Closed sink schema would strip this upstream field."
+                    elif downstream_status == "compatibility_reference_only":
+                        field_fate = "sink_declared_reference_only"
+                        reason = "; ".join(downstream_reasons) or (
+                            "Field is declared in a compatibility/reference sink."
+                        )
+                    elif downstream_status == "excluded":
+                        field_fate = "sink_declared_excluded"
+                        reason = "; ".join(downstream_reasons) or (
+                            "Field is declared in a sink with an explicit model exclusion."
+                        )
+                    elif not transform_outputs:
+                        field_fate = "sink_declared_staging_only"
+                        reason = (
+                            "Field is declared in the sink schema and retained as landing data."
+                        )
+                    elif schema_behavior == "passthrough":
+                        field_fate = "sunk_passthrough"
+                        reason = (
+                            "Open staging schema preserves undeclared endpoint-specific columns."
+                        )
+                    else:
+                        modeled_outputs = [
+                            output
+                            for output in transform_outputs
+                            if transform_semantics_by_output.get(output, "modeled") == "modeled"
+                        ]
+                        known_modeled = any(
+                            usage_by_output.get(output, cls._unknown_column_usage("modeled"))[
+                                "usage"
+                            ]
+                            == "known"
+                            and field_name
+                            in usage_by_output.get(
+                                output,
+                                cls._unknown_column_usage("modeled"),
+                            )["columns"]
+                            for output in modeled_outputs
+                        )
+                        passthrough_sunk = any(
+                            usage_by_output.get(output, cls._unknown_column_usage("modeled"))[
+                                "usage"
+                            ]
+                            == "all"
+                            for output in transform_outputs
+                        )
+                        unknown_usage = any(
+                            usage_by_output.get(output, cls._unknown_column_usage("modeled"))[
+                                "usage"
+                            ]
+                            == "unknown"
+                            for output in modeled_outputs
+                        )
+                        if known_modeled:
+                            field_fate = "modeled_column"
+                            reason = "A downstream modeled transform references this column."
+                        elif passthrough_sunk:
+                            field_fate = "sunk_passthrough"
+                            reason = (
+                                "A downstream transform preserves this field through wildcard "
+                                "passthrough rather than explicit semantic modeling."
+                            )
+                        elif unknown_usage:
+                            field_fate = "model_usage_unknown"
+                            reason = (
+                                "A downstream modeled transform exists, but its column usage could "
+                                "not be statically proven."
+                            )
+                        else:
+                            field_override, field_override_reason = _field_ownership_override(
+                                entry.staging_key,
+                                field_name,
+                            )
+                            if field_override == "compatibility_reference_only":
+                                field_fate = "sink_declared_reference_only"
+                                reason = field_override_reason or (
+                                    "Field is declared as reference-only landing data."
+                                )
+                            elif field_override == "excluded":
+                                field_fate = "sink_declared_excluded"
+                                reason = field_override_reason or (
+                                    "Field has an explicit model exclusion."
+                                )
+                            else:
+                                field_fate = "unmodeled_unclassified"
+                                reason = (
+                                    "Field is declared in the sink schema but no downstream "
+                                    "modeled transform references it or explicitly classifies it."
+                                )
+
+                    fate_counts[field_fate] += 1
+                    rows.append(
+                        {
+                            "endpoint_name": endpoint_name,
+                            "runtime_class_name": contract.runtime_class_name,
+                            "staging_key": entry.staging_key,
+                            "declared_result_set_index": declared_result_set_index,
+                            "upstream_result_set_name": result_set.result_set_name,
+                            "field_name": field_name,
+                            "field_fate": field_fate,
+                            "schema_behavior": schema_behavior,
+                            "downstream_status": downstream_status,
+                            "transform_outputs": transform_outputs,
+                            "reason": reason,
+                        }
+                    )
+
+        summary = {
+            "endpoint_contract_count": len(contracts_by_endpoint),
+            "upstream_field_count": len(rows),
+            "invalid_result_set_count": invalid_result_set_count,
+            "contract_unknown_result_set_count": contract_unknown_result_set_count,
+            "classified_contract_unknown_result_set_count": (
+                classified_contract_unknown_result_set_count
+            ),
+            "blocking_contract_unknown_result_set_count": (
+                blocking_contract_unknown_result_set_count
+            ),
+            "modeled_column_count": fate_counts.get("modeled_column", 0),
+            "modeled_count": fate_counts.get("modeled_column", 0),
+            "sink_declared_staging_only_count": fate_counts.get("sink_declared_staging_only", 0),
+            "staging_only_count": fate_counts.get("sink_declared_staging_only", 0),
+            "sink_declared_reference_only_count": fate_counts.get(
+                "sink_declared_reference_only", 0
+            ),
+            "sink_declared_excluded_count": fate_counts.get("sink_declared_excluded", 0),
+            "sunk_passthrough_count": fate_counts.get("sunk_passthrough", 0),
+            "missing_sink_count": fate_counts.get("missing_sink", 0),
+            "model_usage_unknown_count": fate_counts.get("model_usage_unknown", 0),
+            "unmodeled_unclassified_count": fate_counts.get("unmodeled_unclassified", 0),
+            "field_fate_breakdown": dict(sorted(fate_counts.items())),
+        }
+        return {"matrix": rows, "summary": summary}
 
     @staticmethod
     def _resolve_endpoint_source_kind(
@@ -966,8 +2035,7 @@ class EndpointCoverageGenerator:
                 for row in coverage_rows
                 if str(row["param_pattern"]) not in {"extractor_only", "live", "not_applicable"}
             }
-            if not param_patterns and entries:
-                param_patterns = {entry.param_pattern for entry in entries}
+            param_patterns.update(entry.param_pattern for entry in entries)
 
             execution_semantics = cls._execution_semantics(source_kind, param_patterns)
             season_type_contract_status = cls._season_type_contract_status(
@@ -1442,6 +2510,58 @@ class EndpointCoverageGenerator:
         return {"ledger": ledger, "summary": summary}
 
     @staticmethod
+    def _deprecated_after_end_year(deprecated_after: str | None) -> int | None:
+        if deprecated_after is None:
+            return None
+        try:
+            return int(deprecated_after[:4])
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _build_temporal_coverage_matrix(
+        cls,
+        temporal_support_ledger: dict[str, Any],
+    ) -> dict[str, Any]:
+        matrix: list[dict[str, Any]] = []
+        missing_count = 0
+
+        for row in temporal_support_ledger["ledger"]:
+            start_year = int(row["historical_start_season"])
+            end_year = cls._deprecated_after_end_year(row["deprecated_after"])
+            for season in season_range(start_year, end_year):
+                input_schema_present = bool(row["input_schema_present"])
+                actual_status = "staged" if input_schema_present else "missing_input_schema"
+                if actual_status != "staged":
+                    missing_count += 1
+                matrix.append(
+                    {
+                        "endpoint_name": row["endpoint_name"],
+                        "staging_key": row["staging_key"],
+                        "result_set_index": row["result_set_index"],
+                        "param_pattern": row["param_pattern"],
+                        "season": season,
+                        "season_type": row["season_type"],
+                        "expected_status": "required",
+                        "actual_status": actual_status,
+                        "reason": (
+                            "Input schema exists for this required support-window row."
+                            if input_schema_present
+                            else "Input schema is missing for this required support-window row."
+                        ),
+                    }
+                )
+
+        summary = {
+            "temporal_row_count": len(matrix),
+            "required_temporal_missing_count": missing_count,
+            "endpoint_count": len({row["endpoint_name"] for row in matrix}),
+            "season_count": len({row["season"] for row in matrix}),
+            "season_type_row_count": sum(1 for row in matrix if row["season_type"] is not None),
+        }
+        return {"matrix": matrix, "summary": summary}
+
+    @staticmethod
     def _downstream_ownership_status(row: dict[str, Any]) -> str:
         return str(row.get("downstream_status", "not_applicable"))
 
@@ -1553,9 +2673,21 @@ class EndpointCoverageGenerator:
             transform_outputs_by_staging,
             unique_outputs,
             transform_semantics_by_output,
+            transform_column_usage_by_staging,
         ) = self._transform_catalog()
-        staging_schema_tables = self._staging_schema_tables()
-        raw_schema_tables = self._raw_schema_tables()
+        staging_schema_metadata = self._schema_table_info(
+            schema_subdir="staging",
+            class_prefix="Staging",
+            table_prefix="stg_",
+        )
+        raw_schema_metadata = self._schema_table_info(
+            schema_subdir="raw",
+            class_prefix="Raw",
+            table_prefix="raw_",
+        )
+        input_schema_metadata = {**staging_schema_metadata, **raw_schema_metadata}
+        staging_schema_tables = set(staging_schema_metadata)
+        raw_schema_tables = set(raw_schema_metadata)
         star_schema_tables = self._star_schema_tables()
         staging_entries_by_endpoint: dict[str, list[StagingEntry]] = {}
         for entry in self.staging_entries:
@@ -1576,6 +2708,17 @@ class EndpointCoverageGenerator:
             _runtime_class_to_surface_name(class_name, known_stats_surfaces)
             for class_name in runtime_classes
         }
+        runtime_contracts = discover_runtime_endpoint_contracts()
+        contracts_by_endpoint = self._runtime_contracts_by_endpoint(
+            runtime_contracts,
+            known_stats_surfaces | runtime_stats_surfaces,
+        )
+        if runtime_endpoint_classes is not None:
+            contracts_by_endpoint = {
+                endpoint_name: contract
+                for endpoint_name, contract in contracts_by_endpoint.items()
+                if contract.runtime_class_name in normalized_runtime_classes
+            }
         static_runtime_surfaces = (
             set(runtime_static_surfaces)
             if runtime_static_surfaces is not None
@@ -1954,17 +3097,87 @@ class EndpointCoverageGenerator:
             support_matrix=support_contract["matrix"],
         )
         temporal_support_ledger = self._build_temporal_support_ledger(support_contract["matrix"])
+        temporal_coverage_matrix = self._build_temporal_coverage_matrix(temporal_support_ledger)
         endpoint_adequacy_scorecard = self._build_endpoint_adequacy_scorecard(
             support_contract["matrix"],
             support_contract["summary"],
             temporal_support_ledger,
         )
+        upstream_contracts = self._runtime_contract_payloads_by_endpoint(contracts_by_endpoint)
+        input_schema_columns = {
+            table_name: set(info["columns"]) for table_name, info in input_schema_metadata.items()
+        }
+        input_schema_behaviors = {
+            table_name: info["behavior"] for table_name, info in input_schema_metadata.items()
+        }
+        upstream_contract_diff = self._build_upstream_contract_diff(
+            contracts_by_endpoint=contracts_by_endpoint,
+            staging_entries_by_endpoint=staging_entries_by_endpoint,
+            input_schema_columns=input_schema_columns,
+            input_schema_behaviors=input_schema_behaviors,
+        )
+        upstream_field_fate = self._build_upstream_field_fate_matrix(
+            contracts_by_endpoint=contracts_by_endpoint,
+            staging_entries_by_endpoint=staging_entries_by_endpoint,
+            input_schema_columns=input_schema_columns,
+            input_schema_behaviors=input_schema_behaviors,
+            transform_outputs_by_staging=transform_outputs_by_staging,
+            transform_semantics_by_output=transform_semantics_by_output,
+            transform_column_usage_by_staging=transform_column_usage_by_staging,
+        )
         summary["support_contract"] = support_contract["summary"]
         summary["extraction_contract"] = extraction_contract["summary"]
+        summary["upstream_contract"] = upstream_contract_diff["summary"]
+        summary["upstream_field_fate"] = upstream_field_fate["summary"]
+        summary["temporal_coverage"] = temporal_coverage_matrix["summary"]
+        summary["coverage_truth"] = {
+            "in_scope_endpoint_count": extraction_contract["summary"].get(
+                "in_scope_endpoint_count", 0
+            ),
+            "routed_result_set_count": sum(
+                1 for row in upstream_contract_diff["matrix"] if row.get("staging_key")
+            ),
+            "upstream_field_count": upstream_field_fate["summary"].get("upstream_field_count", 0),
+            "fields_analytically_modeled": upstream_field_fate["summary"].get(
+                "modeled_column_count", 0
+            ),
+            "fields_reference_only": upstream_field_fate["summary"].get(
+                "sink_declared_reference_only_count", 0
+            ),
+            "fields_model_excluded": upstream_field_fate["summary"].get(
+                "sink_declared_excluded_count", 0
+            ),
+            "fields_preserved_passthrough": upstream_field_fate["summary"].get(
+                "sunk_passthrough_count", 0
+            ),
+            "fields_staged_only": upstream_field_fate["summary"].get(
+                "sink_declared_staging_only_count", 0
+            ),
+            "fields_missing_sink": upstream_field_fate["summary"].get("missing_sink_count", 0),
+            "fields_model_usage_unknown": upstream_field_fate["summary"].get(
+                "model_usage_unknown_count", 0
+            ),
+            "fields_unmodeled_unclassified": upstream_field_fate["summary"].get(
+                "unmodeled_unclassified_count", 0
+            ),
+            "required_temporal_missing_count": temporal_coverage_matrix["summary"].get(
+                "required_temporal_missing_count", 0
+            ),
+            "contract_unknown_result_set_count": upstream_contract_diff["summary"].get(
+                "contract_unknown_result_set_count", 0
+            ),
+            "classified_contract_unknown_result_set_count": upstream_contract_diff["summary"].get(
+                "classified_contract_unknown_result_set_count", 0
+            ),
+            "blocking_contract_unknown_result_set_count": upstream_contract_diff["summary"].get(
+                "blocking_contract_unknown_result_set_count", 0
+            ),
+        }
         full_extraction_definition = self._full_extraction_definition_of_done(
             extraction_contract["summary"]
         )
         summary["support_contract"]["temporal_support_ledger"] = temporal_support_ledger["summary"]
+        summary["support_contract"]["temporal_coverage"] = temporal_coverage_matrix["summary"]
 
         return {
             "matrix": matrix,
@@ -1975,7 +3188,11 @@ class EndpointCoverageGenerator:
             "extraction_summary": extraction_contract["summary"],
             "full_extraction_definition": full_extraction_definition,
             "temporal_support_ledger": temporal_support_ledger,
+            "temporal_coverage_matrix": temporal_coverage_matrix,
             "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard,
+            "upstream_contracts": upstream_contracts,
+            "upstream_contract_diff": upstream_contract_diff,
+            "upstream_field_fate": upstream_field_fate,
         }
 
     @staticmethod
@@ -2326,6 +3543,20 @@ class EndpointCoverageGenerator:
                         "season_type_capability_breakdown"
                     ].items():
                         lines.append(f"| {capability} | {count} |")
+
+        coverage_truth = summary.get("coverage_truth", {})
+        if coverage_truth:
+            lines.extend(
+                [
+                    "",
+                    "## Coverage Truth Summary",
+                    "",
+                    "| Metric | Count |",
+                    "|--------|-------|",
+                ]
+            )
+            for metric_name, count in coverage_truth.items():
+                lines.append(f"| {metric_name} | {count} |")
 
         lines.extend(
             [
@@ -2695,6 +3926,7 @@ class EndpointCoverageGenerator:
         support_matrix_path = destination / "endpoint-support-matrix.json"
         support_summary_path = destination / "endpoint-support-summary.json"
         temporal_support_ledger_path = destination / "endpoint-temporal-support-ledger.json"
+        temporal_coverage_matrix_path = destination / "endpoint-temporal-coverage-matrix.json"
         support_report_path = destination / "endpoint-support-report.md"
         extraction_matrix_path = destination / "endpoint-extraction-matrix.json"
         extraction_summary_path = destination / "endpoint-extraction-summary.json"
@@ -2702,6 +3934,9 @@ class EndpointCoverageGenerator:
         full_extraction_definition_path = destination / "full-extraction-definition.json"
         endpoint_adequacy_scorecard_path = destination / "endpoint-adequacy-scorecard.json"
         endpoint_adequacy_report_path = destination / "endpoint-adequacy-scorecard-report.md"
+        upstream_contracts_path = destination / "endpoint-upstream-contracts.json"
+        upstream_contract_diff_path = destination / "endpoint-upstream-contract-diff.json"
+        upstream_field_fate_path = destination / "endpoint-field-fate-matrix.json"
         written = {
             "matrix": matrix_path,
             "summary": summary_path,
@@ -2709,6 +3944,7 @@ class EndpointCoverageGenerator:
             "support_matrix": support_matrix_path,
             "support_summary": support_summary_path,
             "temporal_support_ledger": temporal_support_ledger_path,
+            "temporal_coverage_matrix": temporal_coverage_matrix_path,
             "support_report": support_report_path,
             "extraction_matrix": extraction_matrix_path,
             "extraction_summary": extraction_summary_path,
@@ -2716,6 +3952,9 @@ class EndpointCoverageGenerator:
             "full_extraction_definition": full_extraction_definition_path,
             "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard_path,
             "endpoint_adequacy_report": endpoint_adequacy_report_path,
+            "upstream_contracts": upstream_contracts_path,
+            "upstream_contract_diff": upstream_contract_diff_path,
+            "upstream_field_fate": upstream_field_fate_path,
         }
         selected_keys = artifact_keys or tuple(written)
 
@@ -2745,6 +3984,11 @@ class EndpointCoverageGenerator:
             elif key == "temporal_support_ledger":
                 temporal_support_ledger_path.write_text(
                     json.dumps(artifacts["temporal_support_ledger"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "temporal_coverage_matrix":
+                temporal_coverage_matrix_path.write_text(
+                    json.dumps(artifacts["temporal_coverage_matrix"], indent=2) + "\n",
                     encoding="utf-8",
                 )
             elif key == "support_report":
@@ -2785,6 +4029,21 @@ class EndpointCoverageGenerator:
                     self._endpoint_adequacy_scorecard_report_text(
                         artifacts["endpoint_adequacy_scorecard"]
                     ),
+                    encoding="utf-8",
+                )
+            elif key == "upstream_contracts":
+                upstream_contracts_path.write_text(
+                    json.dumps({"contracts": artifacts["upstream_contracts"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "upstream_contract_diff":
+                upstream_contract_diff_path.write_text(
+                    json.dumps(artifacts["upstream_contract_diff"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "upstream_field_fate":
+                upstream_field_fate_path.write_text(
+                    json.dumps(artifacts["upstream_field_fate"], indent=2) + "\n",
                     encoding="utf-8",
                 )
             else:

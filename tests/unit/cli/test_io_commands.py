@@ -23,6 +23,7 @@ _MULTI_LOADER = "nbadb.load.multi.create_multi_loader"
 _KAGGLE_CLIENT = "nbadb.kaggle.client.KaggleClient"
 _GET_SETTINGS = "nbadb.core.config.get_settings"
 _QUERY_AGENT = "nbadb.agent.query.QueryAgent"
+_GENERATE_METADATA = "nbadb.kaggle.metadata.generate_metadata"
 
 # ---------------------------------------------------------------------------
 # export
@@ -117,6 +118,42 @@ def test_upload_message_option() -> None:
         mock_cls.return_value.upload.return_value = None
         result = runner.invoke(app, ["upload", "--message", "test run"])
     assert result.exit_code == 0
+
+
+def test_upload_passes_data_dir_message_and_orders_metadata(tmp_path: Path) -> None:
+    """Upload validates metadata for the target directory before publishing it."""
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        client = mock_cls.return_value
+        result = runner.invoke(
+            app,
+            ["upload", "--data-dir", str(tmp_path), "--message", "test run"],
+        )
+
+    assert result.exit_code == 0, result.output
+    client.ensure_metadata.assert_called_once_with(tmp_path)
+    client.upload.assert_called_once_with(tmp_path, version_notes="test run")
+    assert client.method_calls[0].args == (tmp_path,)
+    assert client.method_calls[0][0] == "ensure_metadata"
+    assert client.method_calls[1][0] == "upload"
+
+
+# ---------------------------------------------------------------------------
+# metadata
+# ---------------------------------------------------------------------------
+
+
+def test_metadata_success(tmp_path: Path) -> None:
+    """metadata command forwards output and data_dir to the generator."""
+    output = tmp_path / "dataset-metadata.json"
+    with patch(_GENERATE_METADATA) as mock_generate:
+        result = runner.invoke(
+            app,
+            ["metadata", "--output", str(output), "--data-dir", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_generate.assert_called_once_with(output, data_dir=tmp_path)
+    assert f"Generated {output}" in result.output
 
 
 # ---------------------------------------------------------------------------

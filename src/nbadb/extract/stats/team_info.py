@@ -18,6 +18,7 @@ from nba_api.stats.endpoints import (
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.seasons import current_season
+from nbadb.schemas.raw.team_info import RawCommonTeamRosterCoachesSchema
 
 
 @registry.register
@@ -29,7 +30,10 @@ class CommonTeamRosterExtractor(BaseExtractor):
         team_id: int = params["team_id"]
         season: str = params["season"]
         logger.debug(f"Extracting team roster for {team_id} ({season})")
-        return self._from_nba_api(CommonTeamRoster, team_id=team_id, season=season)
+        dfs = self._from_nba_api_multi(CommonTeamRoster, team_id=team_id, season=season)
+        if len(dfs) > 1:
+            return self._validate(dfs[1])
+        return pl.DataFrame()
 
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
         team_id: int = params["team_id"]
@@ -41,8 +45,8 @@ class CommonTeamRosterExtractor(BaseExtractor):
         team_id: int = params["team_id"]
         season: str = params["season"]
         dfs = self._from_nba_api_multi(CommonTeamRoster, team_id=team_id, season=season)
-        if len(dfs) > 1:
-            return dfs[1]
+        if dfs:
+            return RawCommonTeamRosterCoachesSchema.validate(dfs[0])
         return pl.DataFrame()
 
 

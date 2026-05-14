@@ -226,7 +226,8 @@ class BackfillPlanner:
         gaps: list[GapReport] = []
 
         for season in target_seasons:
-            # Respect min_season
+            # Respect only documented upstream support floors. Production
+            # entries default to no floor so gap scans include seasons since 1946.
             try:
                 season_year = int(season[:4])
             except (ValueError, IndexError):

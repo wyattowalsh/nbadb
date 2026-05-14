@@ -67,3 +67,15 @@ def test_player_team_dashboard_family_support_matrix_chunk() -> None:
         assert row["contract_status"] == "complete", endpoint_name
         assert row["input_schema_missing_staging_keys"] == [], endpoint_name
         assert row["output_schema_missing_tables"] == [], endpoint_name
+
+    for endpoint_name in (
+        "player_dash_game_splits",
+        "player_dash_general_splits",
+        "player_dash_last_n_games",
+        "player_dash_team_perf",
+        "player_dash_yoy",
+        "player_dashboard_clutch",
+    ):
+        row = rows[endpoint_name]
+        assert row["param_patterns"] == ["player_season"], endpoint_name
+        assert row["earliest_supported_season"] == 1946, endpoint_name

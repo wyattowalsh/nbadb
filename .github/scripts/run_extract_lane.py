@@ -80,8 +80,40 @@ def build_command() -> list[str]:
     return cmd
 
 
+def env_timeout_seconds() -> int:
+    raw = os.environ.get("LANE_TIMEOUT_SECONDS", "").strip()
+    try:
+        timeout_seconds = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"LANE_TIMEOUT_SECONDS must be an integer, got {raw!r}") from exc
+    if timeout_seconds <= 0:
+        raise ValueError(f"LANE_TIMEOUT_SECONDS must be > 0, got {timeout_seconds}")
+    return timeout_seconds
+
+
+def effective_timeout_seconds(timeout_seconds: int) -> int:
+    patterns = os.environ.get("PATTERNS", "").strip()
+    endpoints = os.environ.get("BACKFILL_ENDPOINTS", "").strip()
+    is_singleton_player_lane = patterns == "player" and bool(endpoints) and "," not in endpoints
+    if is_singleton_player_lane and timeout_seconds > 3300:
+        print(
+            "::notice::Capping singleton player lane timeout to 3300s for resumable checkpointing"
+        )
+        return 3300
+    return timeout_seconds
+
+
+def status_for_exit_code(exit_code: int) -> str:
+    if exit_code == 0:
+        return "complete"
+    if exit_code in {124, 130, 137, -signal.SIGINT, -signal.SIGKILL}:
+        return "extract-timeout"
+    return "extract-error"
+
+
 def main() -> int:
-    timeout_seconds = int(os.environ["LANE_TIMEOUT_SECONDS"])
+    timeout_seconds = effective_timeout_seconds(env_timeout_seconds())
+    append_output("effective-timeout-seconds", str(timeout_seconds))
     cmd = build_command()
     print(f"::notice::Running: {' '.join(shlex.quote(part) for part in cmd)}")
 
@@ -97,13 +129,10 @@ def main() -> int:
         rc = child.poll()
         if rc is not None:
             exit_code = rc
-            status = "complete" if rc == 0 else "extract-error"
+            status = status_for_exit_code(rc)
             break
         if time.monotonic() >= deadline:
-            print(
-                f"::error::Extraction lane exceeded the allotted timeout "
-                f"({timeout_seconds}s)"
-            )
+            print(f"::error::Extraction lane exceeded the allotted timeout ({timeout_seconds}s)")
             terminate_tree(child.pid)
             exit_code = 124
             status = "extract-timeout"

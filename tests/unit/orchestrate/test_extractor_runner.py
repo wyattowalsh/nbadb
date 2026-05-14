@@ -285,6 +285,33 @@ class TestExtractMulti:
         assert result["stg_a"].shape[0] == 1
         assert result["stg_b"].is_empty()
 
+    @pytest.mark.asyncio
+    async def test_optional_out_of_range_index_returns_empty_df_without_warning(self):
+        df0 = pl.DataFrame({"x": [1]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings()
+        registry = _make_registry(_make_extractor(dfs=[df0]))
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entries = [
+            StagingEntry("ep_multi", "stg_a", "season", result_set_index=0, use_multi=True),
+            StagingEntry(
+                "ep_multi",
+                "stg_optional",
+                "season",
+                result_set_index=5,
+                use_multi=True,
+                allow_missing_result_set=True,
+            ),
+        ]
+        with patch("nbadb.orchestrate.extractor_runner.logger.warning") as warning:
+            result = await runner._extract_multi("ep_multi", entries, {})
+
+        assert result is not None
+        assert result["stg_a"].shape[0] == 1
+        assert result["stg_optional"].is_empty()
+        warning.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # run_pattern tests

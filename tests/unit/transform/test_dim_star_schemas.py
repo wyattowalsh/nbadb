@@ -540,9 +540,9 @@ class TestDimTeamSchema:
 
     def test_transform_output_validates_schema(self) -> None:
         staging = {
-            "stg_team_info": pl.DataFrame(
+            "stg_static_teams": pl.DataFrame(
                 {
-                    "team_id": [1, 1, 2],
+                    "id": [1, 1, 2],
                     "abbreviation": ["BOS", "BOS", "LAL"],
                     "full_name": [
                         "Boston Celtics",
@@ -551,12 +551,17 @@ class TestDimTeamSchema:
                     ],
                     "city": ["Boston", "Boston", None],
                     "state": ["MA", "MA", None],
-                    "arena": ["Old Garden", "TD Garden", None],
                     "year_founded": [1946, 1946, None],
-                    "conference": ["East", "East", None],
-                    "division": ["Atlantic", "Atlantic", None],
                 }
-            ).lazy()
+            ).lazy(),
+            "stg_team_details": pl.DataFrame({"team_id": [1], "arena": ["TD Garden"]}).lazy(),
+            "stg_team_info_common": pl.DataFrame(
+                {
+                    "team_id": [1],
+                    "team_conference": ["East"],
+                    "team_division": ["Atlantic"],
+                }
+            ).lazy(),
         }
 
         result = DimTeamTransformer().transform(staging)
@@ -565,6 +570,8 @@ class TestDimTeamSchema:
         assert result.shape == (2, 9)
         assert result["team_id"].to_list() == [1, 2]
         assert result.filter(pl.col("team_id") == 1)["arena"][0] == "TD Garden"
+        assert result.filter(pl.col("team_id") == 1)["conference"][0] == "East"
+        assert result.filter(pl.col("team_id") == 1)["division"][0] == "Atlantic"
         assert validated.shape == result.shape
 
 

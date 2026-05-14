@@ -15,6 +15,11 @@ class FactTeamAwardsDivSchema(BaseSchema):
     oppositeteam: str | None = pa.Field(nullable=True)
 
 
+class FactTeamAwardsChampionshipsSchema(BaseSchema):
+    yearawarded: str | None = pa.Field(nullable=True)
+    oppositeteam: str | None = pa.Field(nullable=True)
+
+
 class FactTeamBackgroundSchema(BaseSchema):
     team_id: int = pa.Field(gt=0)
     abbreviation: str = pa.Field(metadata={"description": "Team abbreviation code"})
@@ -69,6 +74,7 @@ class FactTeamSeasonRanksSchema(BaseSchema):
 
 derived_output_schema()(FactTeamAwardsConfSchema)
 derived_output_schema()(FactTeamAwardsDivSchema)
+derived_output_schema()(FactTeamAwardsChampionshipsSchema)
 derived_output_schema()(FactTeamBackgroundSchema)
 derived_output_schema()(FactTeamHofSchema)
 derived_output_schema()(FactTeamRetiredSchema)

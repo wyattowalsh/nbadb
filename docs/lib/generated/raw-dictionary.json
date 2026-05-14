@@ -1068,6 +1068,22 @@
         "fk_ref": ""
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1081,6 +1097,54 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreMiscV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -1494,6 +1558,22 @@
         "fk_ref": ""
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1507,6 +1587,54 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreScoringV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -1699,6 +1827,22 @@
         "fk_ref": ""
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.teamName",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1712,6 +1856,46 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreTraditionalV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.firstName",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.familyName",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.nameI",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.playerSlug",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.jerseyNum",
         "fk_ref": ""
       },
       {
@@ -1944,6 +2128,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
@@ -2141,6 +2333,22 @@
         "fk_ref": ""
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2154,6 +2362,54 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreUsageV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -2394,6 +2650,14 @@
         "fk_ref": ""
       },
       {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "URL-friendly player slug",
+        "source": "CommonAllPlayers.CommonAllPlayers.PLAYER_SLUG",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": true,
@@ -2434,11 +2698,27 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "URL-friendly team slug",
+        "source": "CommonAllPlayers.CommonAllPlayers.TEAM_SLUG",
+        "fk_ref": ""
+      },
+      {
         "name": "games_played_flag",
         "type": "String",
         "nullable": true,
         "description": "Flag indicating games played",
         "source": "CommonAllPlayers.CommonAllPlayers.GAMES_PLAYED_FLAG",
+        "fk_ref": ""
+      },
+      {
+        "name": "otherleague_experience_ch",
+        "type": "String",
+        "nullable": true,
+        "description": "Other league experience code",
+        "source": "CommonAllPlayers.CommonAllPlayers.OTHERLEAGUE_EXPERIENCE_CH",
         "fk_ref": ""
       }
     ]
@@ -2809,7 +3089,7 @@
     "table_name": "raw_common_team_roster",
     "fields": [
       {
-        "name": "teamid",
+        "name": "team_id",
         "type": "Int64",
         "nullable": false,
         "description": "Unique team identifier",
@@ -2825,7 +3105,7 @@
         "fk_ref": ""
       },
       {
-        "name": "leagueid",
+        "name": "league_id",
         "type": "String",
         "nullable": true,
         "description": "League identifier",
@@ -2995,6 +3275,14 @@
         "fk_ref": ""
       },
       {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombineDrillResults.Results.TEMP_PLAYER_ID",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -3096,6 +3384,14 @@
         "fk_ref": ""
       },
       {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombineNonStationaryShooting.Results.TEMP_PLAYER_ID",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -3184,6 +3480,30 @@
         "fk_ref": ""
       },
       {
+        "name": "off_drib_fifteen_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "off_drib_college_break_left_made",
         "type": "Int64",
         "nullable": true,
@@ -3229,6 +3549,30 @@
         "nullable": true,
         "description": "Off-dribble college top of key shooting percentage",
         "source": "DraftCombineNonStationaryShooting.Results.OFF_DRIB_COLLEGE_TOP_KEY_PCT",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -3290,6 +3634,14 @@
         "nullable": false,
         "description": "Combine season year",
         "source": "DraftCombinePlayerAnthro.Results.SEASON",
+        "fk_ref": ""
+      },
+      {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombinePlayerAnthro.Results.TEMP_PLAYER_ID",
         "fk_ref": ""
       },
       {
@@ -3439,6 +3791,14 @@
         "nullable": false,
         "description": "Combine season year",
         "source": "DraftCombineSpotShooting.Results.SEASON",
+        "fk_ref": ""
+      },
+      {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Temporary combine player identifier",
+        "source": "DraftCombineSpotShooting.Results.TEMP_PLAYER_ID",
         "fk_ref": ""
       },
       {
@@ -4036,6 +4396,190 @@
         "nullable": true,
         "description": "Bench press repetitions",
         "source": "DraftCombineStats.DraftCombineStats.BENCH_PRESS",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "on_move_fifteen",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "on_move_college",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
         "fk_ref": ""
       }
     ]
@@ -6708,6 +7252,14 @@
         "description": "Plus-minus differential",
         "source": "PlayerGameLog.PlayerGameLog.PLUS_MINUS",
         "fk_ref": ""
+      },
+      {
+        "name": "video_available",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Video availability flag",
+        "source": "PlayerGameLog.PlayerGameLog.VIDEO_AVAILABLE",
+        "fk_ref": ""
       }
     ]
   },
@@ -8554,6 +9106,70 @@
         "nullable": true,
         "description": "Flag indicating if score changed",
         "source": "WinProbabilityPBP.WinProbPBP.IS_SCORE_CHANGE",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": true,
+        "description": "Game date for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.GAME_DATE",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_abr",
+        "type": "String",
+        "nullable": true,
+        "description": "Home team abbreviation code",
+        "source": "WinProbabilityPBP.WinProbability.HOME_TEAM_ABR",
+        "fk_ref": ""
+      },
+      {
+        "name": "visitor_team_abr",
+        "type": "String",
+        "nullable": true,
+        "description": "Visitor team abbreviation code",
+        "source": "WinProbabilityPBP.WinProbability.VISITOR_TEAM_ABR",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home team points for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.HOME_TEAM_PTS",
+        "fk_ref": ""
+      },
+      {
+        "name": "visitor_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Visitor team points for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.VISITOR_TEAM_PTS",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_poss_ind",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home possession indicator",
+        "source": "WinProbabilityPBP.WinProbPBP.HOME_POSS_IND",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_g",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home team game count",
+        "source": "WinProbabilityPBP.WinProbPBP.HOME_G",
+        "fk_ref": ""
+      },
+      {
+        "name": "isvisible",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Whether the event is visible in play-by-play",
+        "source": "WinProbabilityPBP.WinProbPBP.ISVISIBLE",
         "fk_ref": ""
       }
     ]

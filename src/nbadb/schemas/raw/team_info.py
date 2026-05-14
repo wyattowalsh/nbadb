@@ -6,7 +6,7 @@ from nbadb.schemas.base import BaseSchema
 
 
 class RawCommonTeamRosterSchema(BaseSchema):
-    teamid: int = pa.Field(
+    team_id: int = pa.Field(
         gt=0,
         metadata={
             "source": ("CommonTeamRoster.CommonTeamRoster.TeamID"),
@@ -20,7 +20,7 @@ class RawCommonTeamRosterSchema(BaseSchema):
             "description": "Season string",
         },
     )
-    leagueid: str | None = pa.Field(
+    league_id: str | None = pa.Field(
         nullable=True,
         metadata={
             "source": ("CommonTeamRoster.CommonTeamRoster.LeagueID"),

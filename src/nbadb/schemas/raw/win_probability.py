@@ -123,3 +123,59 @@ class RawWinProbabilitySchema(BaseSchema):
             "description": ("Flag indicating if score changed"),
         },
     )
+    game_date: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.GAME_DATE"),
+            "description": "Game date for the win-probability snapshot",
+        },
+    )
+    home_team_abr: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.HOME_TEAM_ABR"),
+            "description": "Home team abbreviation code",
+        },
+    )
+    visitor_team_abr: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.VISITOR_TEAM_ABR"),
+            "description": "Visitor team abbreviation code",
+        },
+    )
+    home_team_pts: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.HOME_TEAM_PTS"),
+            "description": "Home team points for the win-probability snapshot",
+        },
+    )
+    visitor_team_pts: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.VISITOR_TEAM_PTS"),
+            "description": "Visitor team points for the win-probability snapshot",
+        },
+    )
+    home_poss_ind: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbPBP.HOME_POSS_IND"),
+            "description": "Home possession indicator",
+        },
+    )
+    home_g: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbPBP.HOME_G"),
+            "description": "Home team game count",
+        },
+    )
+    isvisible: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbPBP.ISVISIBLE"),
+            "description": "Whether the event is visible in play-by-play",
+        },
+    )

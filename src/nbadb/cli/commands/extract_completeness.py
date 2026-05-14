@@ -89,11 +89,54 @@ def extract_completeness(
             f"schema_missing={star_schema_coverage.get('schema_missing_transform_outputs', 0)} "
             f"schema_only={star_schema_coverage.get('schema_only_table_count', 0)}"
         )
+    upstream_contract = summary.get("upstream_contract", {})
+    upstream_field_fate = summary.get("upstream_field_fate", {})
+    temporal_coverage = summary.get("temporal_coverage", {})
+    if upstream_field_fate or temporal_coverage:
+        typer.echo(
+            "Contract field coverage: "
+            f"field_gaps={upstream_contract.get('field_gap_count', 0)} "
+            f"contract_unknown_result_sets="
+            f"{upstream_contract.get('contract_unknown_result_set_count', 0)} "
+            f"blocking_contract_unknown_result_sets="
+            f"{upstream_contract.get('blocking_contract_unknown_result_set_count', 0)} "
+            f"missing_sink={upstream_field_fate.get('missing_sink_count', 0)} "
+            f"model_usage_unknown="
+            f"{upstream_field_fate.get('model_usage_unknown_count', 0)} "
+            f"unmodeled_unclassified="
+            f"{upstream_field_fate.get('unmodeled_unclassified_count', 0)} "
+            f"required_temporal_missing="
+            f"{temporal_coverage.get('required_temporal_missing_count', 0)}"
+        )
     typer.echo(f"Artifacts dir: {written['summary'].parent}")
 
-    if require_full and (partial or blocked or season_type_open):
+    field_gaps = int(upstream_contract.get("field_gap_count", 0))
+    invalid_result_sets = int(upstream_contract.get("invalid_result_set_index_count", 0))
+    missing_result_sets = int(upstream_contract.get("missing_result_set_staging_count", 0))
+    missing_input_schemas = int(upstream_contract.get("missing_input_schema_count", 0))
+    blocking_contract_unknown_result_sets = int(
+        upstream_contract.get("blocking_contract_unknown_result_set_count", 0)
+    )
+    missing_sink = int(upstream_field_fate.get("missing_sink_count", 0))
+    model_usage_unknown = int(upstream_field_fate.get("model_usage_unknown_count", 0))
+    unmodeled_unclassified = int(upstream_field_fate.get("unmodeled_unclassified_count", 0))
+    required_temporal_missing = int(temporal_coverage.get("required_temporal_missing_count", 0))
+    if require_full and (
+        partial
+        or blocked
+        or season_type_open
+        or field_gaps
+        or invalid_result_sets
+        or missing_result_sets
+        or missing_input_schemas
+        or blocking_contract_unknown_result_sets
+        or missing_sink
+        or model_usage_unknown
+        or unmodeled_unclassified
+        or required_temporal_missing
+    ):
         typer.echo(
-            "require-full check failed: extraction contract gaps remain for in-scope endpoints",
+            "require-full check failed: extraction, field sink, or temporal contract gaps remain",
             err=True,
         )
         raise typer.Exit(1)

@@ -9,33 +9,33 @@ class DimTeamSchema(BaseSchema):
     team_id: int = pa.Field(
         gt=0,
         metadata={
-            "source": "CommonTeamYears.CommonTeamYears.TEAM_ID",
+            "source": "nba_api.stats.static.teams.get_teams.id",
             "description": "NBA team identifier",
         },
     )
     abbreviation: str = pa.Field(
         metadata={
-            "source": "CommonTeamYears.CommonTeamYears.ABBREVIATION",
+            "source": "nba_api.stats.static.teams.get_teams.abbreviation",
             "description": "Team abbreviation (e.g. LAL)",
         },
     )
     full_name: str = pa.Field(
         metadata={
-            "source": "derived.full_name",
+            "source": "nba_api.stats.static.teams.get_teams.full_name",
             "description": "Full team name",
         },
     )
     city: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "TeamDetails.TeamBackground.CITY",
+            "source": "nba_api.stats.static.teams.get_teams.city",
             "description": "Team city",
         },
     )
     state: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "TeamDetails.TeamBackground.STATE",
+            "source": "nba_api.stats.static.teams.get_teams.state",
             "description": "Team state",
         },
     )
@@ -50,21 +50,21 @@ class DimTeamSchema(BaseSchema):
         nullable=True,
         gt=1900,
         metadata={
-            "source": "CommonTeamYears.CommonTeamYears.MIN_YEAR",
+            "source": "nba_api.stats.static.teams.get_teams.year_founded",
             "description": "Year team was founded",
         },
     )
     conference: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "TeamDetails.TeamBackground.CONFERENCE",
+            "source": "TeamInfoCommon.TeamInfoCommon.TEAM_CONFERENCE",
             "description": "Conference (East/West)",
         },
     )
     division: str | None = pa.Field(
         nullable=True,
         metadata={
-            "source": "TeamDetails.TeamBackground.DIVISION",
+            "source": "TeamInfoCommon.TeamInfoCommon.TEAM_DIVISION",
             "description": "Division name",
         },
     )

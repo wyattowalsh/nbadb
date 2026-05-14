@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+import polars as pl
 from loguru import logger
 from nba_api.stats.endpoints import (
     BoxScoreMatchupsV3,
@@ -14,8 +15,30 @@ from nba_api.stats.endpoints import (
 from nbadb.extract.base import BaseExtractor
 from nbadb.extract.registry import registry
 
-if TYPE_CHECKING:
-    import polars as pl
+
+def _parse_matchup_minutes(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    parts = text.split(":")
+    try:
+        if len(parts) == 2:
+            minutes, seconds = parts
+            return float(minutes) + float(seconds) / 60
+        if len(parts) == 3:
+            hours, minutes, seconds = parts
+            return float(hours) * 60 + float(minutes) + float(seconds) / 60
+        return float(text)
+    except ValueError:
+        return None
 
 
 @registry.register
@@ -37,11 +60,23 @@ class LeagueSeasonMatchupsExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         season: str = params["season"]
         season_type: str = params.get("season_type", "Regular Season")
-        return self._from_nba_api(
+        converted = self._call_nba_api(
             LeagueSeasonMatchups,
             season=season,
             season_type_playoffs=season_type,
         )
+        if not converted:
+            logger.warning(f"{self.endpoint_name}: no data frames returned")
+            return pl.DataFrame()
+
+        df = converted[0]
+        if "matchup_min" in df.columns:
+            df = df.with_columns(
+                pl.col("matchup_min")
+                .map_elements(_parse_matchup_minutes, return_dtype=pl.Float64)
+                .alias("matchup_min")
+            )
+        return self._validate(df)
 
 
 @registry.register

@@ -38,6 +38,24 @@ def _is_unavailable_response(text: str) -> bool:
     )
 
 
+def _first_result_with_season(
+    extractor: BaseExtractor,
+    endpoint_cls: type,
+    *,
+    season: str,
+    season_year: int,
+) -> pl.DataFrame:
+    converted = extractor._call_nba_api(endpoint_cls, season_year=season_year)
+    if not converted:
+        logger.warning(f"{extractor.endpoint_name}: no data frames returned")
+        return pl.DataFrame()
+
+    df = converted[0]
+    if "season" not in df.columns:
+        df = df.with_columns(pl.lit(season).alias("season"))
+    return extractor._validate(df)
+
+
 @registry.register
 class DraftHistoryExtractor(BaseExtractor):
     endpoint_name = "draft_history"
@@ -108,18 +126,12 @@ class DraftCombineDrillResultsExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         season = str(params["season"])
-        converted = self._call_nba_api(
+        return _first_result_with_season(
+            self,
             DraftCombineDrillResults,
+            season=season,
             season_year=int(season[:4]),
         )
-        if not converted:
-            logger.warning(f"{self.endpoint_name}: no data frames returned")
-            return pl.DataFrame()
-
-        df = converted[0]
-        if "season" not in df.columns:
-            df = df.with_columns(pl.lit(season).alias("season"))
-        return self._validate(df)
 
 
 @registry.register
@@ -128,9 +140,12 @@ class DraftCombineNonStationaryShootingExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        return self._from_nba_api(
+        season = str(params["season"])
+        return _first_result_with_season(
+            self,
             DraftCombineNonStationaryShooting,
-            season_year=int(str(params["season"])[:4]),
+            season=season,
+            season_year=int(season[:4]),
         )
 
 
@@ -140,9 +155,12 @@ class DraftCombinePlayerAnthroExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        return self._from_nba_api(
+        season = str(params["season"])
+        return _first_result_with_season(
+            self,
             DraftCombinePlayerAnthro,
-            season_year=int(str(params["season"])[:4]),
+            season=season,
+            season_year=int(season[:4]),
         )
 
 
@@ -152,7 +170,10 @@ class DraftCombineSpotShootingExtractor(BaseExtractor):
     category = "draft"
 
     async def extract(self, **params: Any) -> pl.DataFrame:
-        return self._from_nba_api(
+        season = str(params["season"])
+        return _first_result_with_season(
+            self,
             DraftCombineSpotShooting,
-            season_year=int(str(params["season"])[:4]),
+            season=season,
+            season_year=int(season[:4]),
         )

@@ -55,6 +55,13 @@
         "description": "Season year"
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -81,6 +88,20 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Shot-attempt frequency"
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "fgm",
@@ -1459,6 +1480,34 @@
         "description": "Team identifier"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1471,6 +1520,55 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
       },
       {
         "name": "min",
@@ -1677,6 +1775,13 @@
         "description": "Team city name"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -1867,6 +1972,34 @@
         "description": "Team identifier"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1879,6 +2012,55 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
       },
       {
         "name": "min",
@@ -1916,6 +2098,41 @@
         "description": "Points allowed on defense"
       },
       {
+        "name": "defensive_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_assists",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_turnovers",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "steals",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blocks",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "def_fgm",
         "type": "Float64",
         "nullable": true,
@@ -1935,6 +2152,27 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Defended field goal percentage"
+      },
+      {
+        "name": "matchup_three_pointers_made",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_three_pointers_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_three_pointer_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -1980,6 +2218,13 @@
         "description": "Team city name"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -2009,6 +2254,34 @@
         "description": "Team identifier"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2021,6 +2294,55 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
       },
       {
         "name": "min",
@@ -2120,6 +2442,27 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "effective_field_goal_percentage",
@@ -2383,6 +2726,34 @@
         "description": "Team identifier"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2395,6 +2766,55 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
       },
       {
         "name": "min",
@@ -2465,6 +2885,55 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Box outs"
+      },
+      {
+        "name": "offensive_box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "defensive_box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "loose_balls_recovered_offensive",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "loose_balls_recovered_defensive",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "box_out_player_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "box_out_player_team_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -2838,6 +3307,314 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Switches onto player"
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "person_id_off",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "first_name_off",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "family_name_off",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "name_ioff",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "player_slug_off",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "jersey_num_off",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "person_id_def",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "first_name_def",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "family_name_def",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "name_idef",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "player_slug_def",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "position_def",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "comment_def",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "jersey_num_def",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_minutes",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_minutes_sort",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "partial_possessions",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "percentage_defender_total_time",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "percentage_offensive_total_time",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "percentage_total_time_both_on",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "player_points",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_points",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_assists",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_potential_assists",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_turnovers",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_blocks",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_field_goals_made",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_field_goals_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_field_goals_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_three_pointers_made",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_three_pointers_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_three_pointers_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "help_blocks",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "help_field_goals_made",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "help_field_goals_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "help_field_goals_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_free_throws_made",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "matchup_free_throws_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shooting_fouls",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -2881,6 +3658,13 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Team city name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "min",
@@ -2996,6 +3780,34 @@
         "description": "Team identifier"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation code"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city"
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -3008,6 +3820,55 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player status comment"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
       },
       {
         "name": "min",
@@ -3141,6 +4002,20 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Defended field goal percentage"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -3184,6 +4059,13 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Team city name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "min",
@@ -3369,6 +4251,13 @@
         "description": "Team city name"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -3517,6 +4406,20 @@
         "description": "Team city name"
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -3529,6 +4432,41 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "nickname",
@@ -3735,6 +4673,13 @@
         "description": "Team city name"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -3918,6 +4863,13 @@
         "description": "Team city name"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
@@ -4099,6 +5051,13 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
       },
       {
         "name": "min",
@@ -5023,6 +5982,13 @@
         "description": "Player code slug"
       },
       {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly player slug"
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": true,
@@ -5058,11 +6024,25 @@
         "description": "Team code slug"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly team slug"
+      },
+      {
         "name": "games_played_flag",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Flag indicating games played"
+      },
+      {
+        "name": "otherleague_experience_ch",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Other league experience code"
       }
     ]
   },
@@ -6183,6 +7163,167 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Bench press repetitions"
+      },
+      {
+        "name": "spot_fifteen_corner_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_corner_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_corner_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_corner_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_corner_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_corner_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "on_move_fifteen",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "on_move_college",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -8179,11 +9320,32 @@
     "strict": false,
     "columns": [
       {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "League identifier"
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Season year"
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
         "constraints": "gt=0, FK\u2192staging_team.team_id",
         "description": "Team identifier"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team city"
       },
       {
         "name": "team_name",
@@ -8193,11 +9355,67 @@
         "description": "Team name"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team abbreviation"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
+        "name": "conference",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Conference"
+      },
+      {
+        "name": "ist_group",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Cup group"
+      },
+      {
         "name": "group_name",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Cup group name"
+      },
+      {
+        "name": "clinch_indicator",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Cup clinch status indicator"
+      },
+      {
+        "name": "clinched_ist_group",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Cup group clinch flag"
+      },
+      {
+        "name": "clinched_ist_knockout",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Cup knockout clinch flag"
+      },
+      {
+        "name": "clinched_ist_wildcard",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Cup wildcard clinch flag"
       },
       {
         "name": "wins",
@@ -8212,6 +9430,13 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Cup losses"
+      },
+      {
+        "name": "pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Cup win pct"
       },
       {
         "name": "win_pct",
@@ -8240,6 +9465,230 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Point differential in cup play"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points"
+      },
+      {
+        "name": "opp_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Opponent points"
+      },
+      {
+        "name": "diff",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Point differential"
+      },
+      {
+        "name": "ist_group_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ist_group_gb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ist_wildcard_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ist_wildcard_gb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ist_knockout_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_id1",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_id2",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_id3",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_id4",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status1",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status2",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status3",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status4",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status_text1",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status_text2",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status_text3",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_status_text4",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "location1",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "location2",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "location3",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "location4",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "opponent_team_abbreviation1",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "opponent_team_abbreviation2",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "opponent_team_abbreviation3",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "opponent_team_abbreviation4",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "outcome1",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "outcome2",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "outcome3",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "outcome4",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -8617,6 +10066,118 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Country"
+      },
+      {
+        "name": "draft_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft year"
+      },
+      {
+        "name": "draft_round",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft round"
+      },
+      {
+        "name": "draft_number",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft number"
+      },
+      {
+        "name": "player_height",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player height"
+      },
+      {
+        "name": "player_height_inches",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player height in inches"
+      },
+      {
+        "name": "player_weight",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player weight"
+      },
+      {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "net_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Net rating"
+      },
+      {
+        "name": "oreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ts_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -9940,6 +11501,13 @@
         "description": "Player name"
       },
       {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player age"
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": true,
@@ -9961,6 +11529,13 @@
         "description": "Games played"
       },
       {
+        "name": "g",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games"
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
@@ -9968,11 +11543,151 @@
         "description": "Minutes"
       },
       {
+        "name": "contested_shots",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "contested_shots_2pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "contested_shots_3pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "deflections",
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Deflections"
+      },
+      {
+        "name": "charges_drawn",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "screen_assists",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "screen_ast_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "def_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_off",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_def",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "def_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "box_out_player_team_rebs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "box_out_player_rebs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_box_outs_off",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_box_outs_def",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_box_outs_team_reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_box_outs_reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -10004,11 +11719,130 @@
         "description": "Games played"
       },
       {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes"
+      },
+      {
+        "name": "contested_shots",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "contested_shots_2pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "contested_shots_3pt",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "deflections",
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Deflections"
+      },
+      {
+        "name": "charges_drawn",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "screen_assists",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "screen_ast_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "def_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_off",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_def",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "def_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_box_outs_off",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_box_outs_def",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -10287,6 +12121,13 @@
         "description": "Season year"
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -10313,6 +12154,20 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Shot-attempt frequency"
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "fgm",
@@ -10482,6 +12337,118 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Country"
+      },
+      {
+        "name": "draft_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft year"
+      },
+      {
+        "name": "draft_round",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft round"
+      },
+      {
+        "name": "draft_number",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Draft number"
+      },
+      {
+        "name": "player_height",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player height"
+      },
+      {
+        "name": "player_height_inches",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player height in inches"
+      },
+      {
+        "name": "player_weight",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player weight"
+      },
+      {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Points"
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Rebounds"
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Assists"
+      },
+      {
+        "name": "net_rating",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Net rating"
+      },
+      {
+        "name": "oreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ts_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -10520,6 +12487,20 @@
         "description": "Team abbreviation"
       },
       {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player age"
+      },
+      {
+        "name": "group_set",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Dashboard grouping set"
+      },
+      {
         "name": "season_year",
         "type": "String",
         "nullable": false,
@@ -10534,11 +12515,67 @@
         "description": "Games played"
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wins"
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Losses"
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win pct"
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Minutes"
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "pts",
@@ -10548,6 +12585,41 @@
         "description": "Points"
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "fg_pct",
         "type": "Float64",
         "nullable": true,
@@ -10555,11 +12627,305 @@
         "description": "Field goal percentage"
       },
       {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "ft_pct",
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Free throw percentage"
+      },
+      {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "nba_fantasy_pts",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "nba_fantasy_pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dd2",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dd2_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "td3",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "td3_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "cfid",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "cfparams",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -11082,6 +13448,13 @@
         "description": "Season year"
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -11108,6 +13481,20 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Shot-attempt frequency"
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "fgm",
@@ -11199,6 +13586,27 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Defended FG percentage"
+      },
+      {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player age"
+      },
+      {
+        "name": "player_last_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0, FK\u2192staging_team.team_id",
+        "description": "Player last team identifier"
+      },
+      {
+        "name": "player_last_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last team abbreviation"
       }
     ]
   },
@@ -11258,6 +13666,13 @@
         "description": "Season year"
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -11284,6 +13699,20 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Shot-attempt frequency"
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "fgm",
@@ -11375,6 +13804,83 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Defended FG percentage"
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Wins"
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Losses"
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win pct"
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Minutes"
+      },
+      {
+        "name": "dist_feet",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dist_miles",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dist_miles_off",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dist_miles_def",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "avg_speed",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "avg_speed_off",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "avg_speed_def",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -11434,6 +13940,13 @@
         "description": "Season year"
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -11460,6 +13973,20 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Shot-attempt frequency"
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "fgm",
@@ -11551,6 +14078,48 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Defended FG percentage"
+      },
+      {
+        "name": "freq",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "d_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "d_fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "d_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "normal_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pct_plusminus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -11811,6 +14380,601 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Point differential per game"
+      },
+      {
+        "name": "last10_home",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "last10_road",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ot",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "three_ptsor_less",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ten_ptsor_more",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "long_home_streak",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "str_long_home_streak",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "long_road_streak",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "str_long_road_streak",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "current_home_streak",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "str_current_home_streak",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "current_road_streak",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "str_current_road_streak",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "str_current_streak",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "eliminated_division",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ahead_at_half",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "behind_at_half",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tied_at_half",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ahead_at_third",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "behind_at_third",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tied_at_third",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "score100_pts",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "opp_score100_pts",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "opp_over500",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "lead_in_fgpct",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "lead_in_reb",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fewer_turnovers",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_pg",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "opp_points_pg",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "diff_points_pg",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_east",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_atlantic",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_central",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_southeast",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_west",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_northwest",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_pacific",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "vs_southwest",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "jan",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "feb",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "mar",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "apr",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "may",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "jun",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "jul",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "aug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "sep",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oct",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "nov",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dec",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "return_to_play_east_pi_flag",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "return_to_play_west_pi_flag",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "return_to_play_already_eliminated",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_1_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_2_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_3_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_4_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_5_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_6_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_7_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_8_outcome",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_1_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_2_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_3_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_4_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_5_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_6_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_7_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_8_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_1_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_2_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_3_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_4_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_5_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_6_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_7_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_8_opponent",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_1_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_2_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_3_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_4_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_5_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_6_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_7_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "seeding_game_8_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -11849,6 +15013,34 @@
         "description": "Games played"
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "w",
         "type": "Int64",
         "nullable": true,
@@ -11863,11 +15055,25 @@
         "description": "Losses"
       },
       {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Win pct"
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Minutes"
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "pts",
@@ -11877,11 +15083,123 @@
         "description": "Points"
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "fg_pct",
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Field goal percentage"
+      },
+      {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "ft_pct",
@@ -11891,11 +15209,179 @@
         "description": "Free throw percentage"
       },
       {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "plus_minus",
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Plus-minus"
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "cfid",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "cfparams",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -11955,6 +15441,13 @@
         "description": "Season year"
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Games played"
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -11981,6 +15474,20 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Shot-attempt frequency"
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "fgm",
@@ -14907,10 +18414,38 @@
     "strict": false,
     "columns": [
       {
+        "name": "group_set",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
         "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
         "description": ""
       },
       {
@@ -14942,8 +18477,64 @@
         "description": ""
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
         "nullable": true,
         "constraints": "\u2014",
         "description": ""
@@ -14956,6 +18547,167 @@
         "description": ""
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb",
         "type": "Float64",
         "nullable": true,
@@ -14963,8 +18715,120 @@
         "description": ""
       },
       {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "ast",
         "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
         "nullable": true,
         "constraints": "\u2014",
         "description": ""
@@ -22632,6 +26496,13 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Plus-minus differential"
+      },
+      {
+        "name": "video_available",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Video availability flag"
       }
     ]
   },
@@ -36916,6 +40787,713 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": ""
+      },
+      {
+        "name": "game_time_est",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "branch_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "month_num",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "series_game_number",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_sub_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_time",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_time",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_points",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -37240,6 +41818,790 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Game number in playoff series"
+      },
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_time",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_time",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "day",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "month_num",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "week_number",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "week_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "game_sub_label",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "is_neutral",
+        "type": "Boolean",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_last_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_city",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "points_leaders_points",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -37290,6 +42652,28 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Week end date"
+      }
+    ]
+  },
+  {
+    "table_name": "staging_scoreboard_available",
+    "class_name": "StagingScoreboardAvailableSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "constraints": "\u2014",
+        "description": "Unique game identifier"
+      },
+      {
+        "name": "pt_available",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player-tracking availability flag"
       }
     ]
   },
@@ -44210,6 +49594,28 @@
     ]
   },
   {
+    "table_name": "staging_team_awards_championships",
+    "class_name": "StagingTeamAwardsChampionshipsSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "yearawarded",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oppositeteam",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      }
+    ]
+  },
+  {
     "table_name": "staging_team_awards_conf",
     "class_name": "StagingTeamAwardsConfSchema",
     "coerce": true,
@@ -44749,6 +50155,13 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Season type (Regular Season, Playoffs, etc.)"
+      },
+      {
+        "name": "team_days_rest_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -44988,6 +50401,20 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Season type (Regular Season, Playoffs, etc.)"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -45230,10 +50657,38 @@
     "strict": false,
     "columns": [
       {
+        "name": "group_set",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
         "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
         "description": ""
       },
       {
@@ -45265,8 +50720,64 @@
         "description": ""
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
         "nullable": true,
         "constraints": "\u2014",
         "description": ""
@@ -45279,6 +50790,167 @@
         "description": ""
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb",
         "type": "Float64",
         "nullable": true,
@@ -45286,8 +50958,120 @@
         "description": ""
       },
       {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "ast",
         "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
         "nullable": true,
         "constraints": "\u2014",
         "description": ""
@@ -46820,6 +52604,20 @@
         "description": ""
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "season_type",
         "type": "String",
         "nullable": false,
@@ -47237,6 +53035,20 @@
         "name": "season_year",
         "type": "String",
         "nullable": false,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
         "constraints": "\u2014",
         "description": ""
       },
@@ -48864,7 +54676,35 @@
         "description": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -48998,7 +54838,35 @@
         "description": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -49132,7 +55000,35 @@
         "description": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -49266,7 +55162,35 @@
         "description": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -49400,7 +55324,35 @@
         "description": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -49535,6 +55487,34 @@
       },
       {
         "name": "close_def_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "touch_time_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -49682,6 +55662,34 @@
         "description": ""
       },
       {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "touch_time_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "fga_frequency",
         "type": "Float64",
         "nullable": true,
@@ -49817,6 +55825,34 @@
       },
       {
         "name": "close_def_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "touch_time_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -49964,6 +56000,34 @@
         "description": ""
       },
       {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "touch_time_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "fga_frequency",
         "type": "Float64",
         "nullable": true,
@@ -50105,6 +56169,34 @@
         "description": ""
       },
       {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "touch_time_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "fga_frequency",
         "type": "Float64",
         "nullable": true,
@@ -50240,6 +56332,34 @@
       },
       {
         "name": "close_def_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "touch_time_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -50723,6 +56843,20 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Season type (Regular Season, Playoffs, etc.)"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -50962,6 +57096,20 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Season type (Regular Season, Playoffs, etc.)"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -51201,6 +57349,20 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Season type (Regular Season, Playoffs, etc.)"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -51925,6 +58087,20 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Season type (Regular Season, Playoffs, etc.)"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -52164,6 +58340,20 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Season type (Regular Season, Playoffs, etc.)"
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -55776,6 +61966,41 @@
         "description": "Defender name"
       },
       {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player age"
+      },
+      {
+        "name": "player_position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
+      },
+      {
+        "name": "close_def_person_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0",
+        "description": "Closest defender identifier"
+      },
+      {
+        "name": "player_last_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "gt=0, FK\u2192staging_team.team_id",
+        "description": "Player last team identifier"
+      },
+      {
+        "name": "player_last_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player last team abbreviation"
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
@@ -58333,6 +64558,62 @@
         "nullable": true,
         "constraints": "in=[0, 1]",
         "description": "Flag indicating if score changed"
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game date for the win-probability snapshot"
+      },
+      {
+        "name": "home_team_abr",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team abbreviation code"
+      },
+      {
+        "name": "visitor_team_abr",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team abbreviation code"
+      },
+      {
+        "name": "home_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team points for the win-probability snapshot"
+      },
+      {
+        "name": "visitor_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team points for the win-probability snapshot"
+      },
+      {
+        "name": "home_poss_ind",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home possession indicator"
+      },
+      {
+        "name": "home_g",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team game count"
+      },
+      {
+        "name": "isvisible",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether the event is visible in play-by-play"
       }
     ]
   },
@@ -58460,6 +64741,62 @@
         "nullable": true,
         "constraints": "in=[0, 1]",
         "description": "Flag indicating if score changed"
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game date for the win-probability snapshot"
+      },
+      {
+        "name": "home_team_abr",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team abbreviation code"
+      },
+      {
+        "name": "visitor_team_abr",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team abbreviation code"
+      },
+      {
+        "name": "home_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team points for the win-probability snapshot"
+      },
+      {
+        "name": "visitor_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team points for the win-probability snapshot"
+      },
+      {
+        "name": "home_poss_ind",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home possession indicator"
+      },
+      {
+        "name": "home_g",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team game count"
+      },
+      {
+        "name": "isvisible",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether the event is visible in play-by-play"
       }
     ]
   },
@@ -63695,7 +70032,35 @@
         "description": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -63830,6 +70195,34 @@
       },
       {
         "name": "close_def_dist_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "touch_time_range",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",

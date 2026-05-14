@@ -253,3 +253,72 @@
 - Risks / rollback: KB-only prose/index batch; rollback is a straight revert of the touched `kb/` files
 - Follow-up:
   - [ ] Keep future note additions narrow and continue updating `coverage`, `source-map`, `source_count`, and `activity/log.md` in the same batch
+
+### [2026-05-07 15:15] Runbook Registry Repair
+- Mode: improve
+- Summary: Integrated the runbook registry into maintained KB navigation and repaired stale local and docs-path references found by Nerdbot lint.
+- `raw`: unchanged
+- `wiki`: updated `wiki/operations/runbooks.md` and `wiki/index.md`
+- `indexes`: updated `indexes/coverage.md` and `indexes/source-map.md`
+- `schema`: unchanged
+- `config`: unchanged
+- `canonical material`: unchanged; docs and repo command paths remain authoritative
+- `provenance`: replaced dead governance references with existing KB config surfaces and refreshed public docs guide paths
+- `derived output`: none
+- `vault`: updated frontmatter `updated` values only; no aliases, embeds, or shared `.obsidian/` surfaces changed
+- `path map`: none
+- `link/backlink impact`: `wiki/operations/runbooks.md` now has an inbound link from `wiki/index.md`; broken related-index wikilinks were replaced with existing maintained indexes
+- Risks / rollback: low-risk KB-only repair; rollback is a straight revert of the touched KB files
+- Follow-up:
+  - [ ] Refresh the already-modified Kaggle KB pages, coverage timestamps, and activity entry once the current Kaggle code/docs changes are finalized
+  - [ ] Consider broad docs-path synthesis refresh as a separate batch if old `docs/content/docs/start/` or `ops/` references still matter
+
+### [2026-05-07 15:35] Kaggle Lane Follow-through
+- Mode: improve
+- Summary: Integrated the already-modified Kaggle distribution and publishing notes into the maintained coverage ledger without changing their article bodies.
+- `raw`: unchanged
+- `wiki`: unchanged in this batch; pre-existing edits remain in `wiki/operations/kaggle-distribution.md` and `wiki/topics/kaggle-publishing-lane.md`
+- `indexes`: refreshed `indexes/coverage.md` review dates and backing-material summaries for the two Kaggle pages
+- `schema`: unchanged
+- `config`: unchanged
+- `canonical material`: unchanged; Kaggle CLI/docs/code remain authoritative
+- `provenance`: coverage now records metadata/client implementation and published-example linkage as backing material for the updated notes
+- `derived output`: none
+- `vault`: unchanged
+- `path map`: none
+- `link/backlink impact`: no new note links; this is ledger follow-through for existing maintained pages
+- Risks / rollback: low-risk index/log batch; rollback is a straight revert of `coverage.md` and this log entry
+
+### [2026-05-07 15:40] Docs Topology Refresh
+- Mode: improve
+- Summary: Refreshed the central docs-surface map, docs-source summary, raw docs inventory, canonical-material ledger, ingest queue, KB home provenance, and route coverage rows to match the live docs tree under root pages, reference sections, endpoints, lineage, and guides.
+- `raw`: updated `raw/extracts/internal/docs-surface-inventory.md`
+- `wiki`: updated `wiki/topics/docs-site-source-summary.md` and `wiki/index.md`
+- `indexes`: updated `indexes/docs-surface-map.md`, `indexes/ingest-queue.md`, `indexes/canonical-material.md`, and route rows in `indexes/coverage.md`
+- `schema`: unchanged
+- `config`: unchanged
+- `canonical material`: unchanged; `docs/content/docs/meta.json` and the current docs tree remain authoritative
+- `provenance`: replaced central stale `start`, `ops`, `model`, and `sources` topology claims with current root/reference/guides/endpoints paths
+- `derived output`: none
+- `vault`: updated frontmatter `updated` values only on docs-source notes
+- `path map`: central docs path synthesis now points to `schema/`, `data-dictionary/`, `diagrams/`, `endpoints/`, `lineage/`, `guides/`, and root getting-started pages
+- `link/backlink impact`: no new wiki pages; central evidence pages now reduce future stale-path propagation
+- Risks / rollback: KB-only synthesis refresh; rollback is a straight revert of the touched KB files
+- Follow-up:
+  - [ ] Refresh older per-topic route/model docs-path mentions in smaller future batches rather than broad-replacing every stale path at once
+
+### [2026-05-07 15:45] Vault Ignore Hygiene
+- Mode: improve
+- Summary: Expanded the KB-local ignore rules so nested macOS `.DS_Store` files stay out of the vault regardless of where Finder creates them.
+- `raw`: unchanged
+- `wiki`: unchanged
+- `indexes`: unchanged
+- `schema`: unchanged
+- `config`: unchanged
+- `canonical material`: unchanged
+- `provenance`: unchanged
+- `derived output`: none
+- `vault`: updated `kb/.gitignore`; existing local `.DS_Store` files were not deleted in this batch
+- `path map`: none
+- `link/backlink impact`: none
+- Risks / rollback: low-risk ignore-only change; rollback is a straight revert of `kb/.gitignore` and this log entry

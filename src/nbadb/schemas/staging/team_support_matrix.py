@@ -16,6 +16,8 @@ from nbadb.schemas.star.fact_team_dashboard import (
 
 
 class StagingTeamLineupsSchema(StagingLineupSchema):
+    team_name: str | None = pa.Field(nullable=True)
+    group_value: str | None = pa.Field(nullable=True)
     season_type: str = pa.Field(nullable=False)
 
 
@@ -59,7 +61,11 @@ class _TeamPtRebSchema(BaseSchema):
     team_name: str | None = pa.Field(nullable=True)
     sort_order: int | None = pa.Field(nullable=True, ge=0)
     g: int | None = pa.Field(nullable=True, ge=0)
+    overall: str | None = pa.Field(nullable=True)
     reb_num_contesting_range: str | None = pa.Field(nullable=True)
+    reb_dist_range: str | None = pa.Field(nullable=True)
+    shot_dist_range: str | None = pa.Field(nullable=True)
+    shot_type_range: str | None = pa.Field(nullable=True)
     reb_frequency: float | None = pa.Field(nullable=True, ge=0.0)
     oreb: int | None = pa.Field(nullable=True, ge=0)
     dreb: int | None = pa.Field(nullable=True, ge=0)
@@ -101,6 +107,10 @@ class _TeamPtShotsSchema(BaseSchema):
     sort_order: int | None = pa.Field(nullable=True, ge=0)
     g: int | None = pa.Field(nullable=True, ge=0)
     close_def_dist_range: str | None = pa.Field(nullable=True)
+    dribble_range: str | None = pa.Field(nullable=True)
+    shot_type: str | None = pa.Field(nullable=True)
+    shot_clock_range: str | None = pa.Field(nullable=True)
+    touch_time_range: str | None = pa.Field(nullable=True)
     fga_frequency: float | None = pa.Field(nullable=True, ge=0.0)
     fgm: int | None = pa.Field(nullable=True, ge=0)
     fga: int | None = pa.Field(nullable=True, ge=0)

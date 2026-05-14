@@ -28,12 +28,15 @@ def _staging_common_all_players_row(**overrides: object) -> dict:
         "from_year": "2003",
         "to_year": "2024",
         "playercode": "lebron_james",
+        "player_slug": "lebron-james",
         "team_id": 1610612747,
         "team_city": "Los Angeles",
         "team_name": "Lakers",
         "team_abbreviation": "LAL",
         "team_code": "lakers",
+        "team_slug": "lakers",
         "games_played_flag": "Y",
+        "otherleague_experience_ch": None,
     }
     base.update(overrides)
     return base

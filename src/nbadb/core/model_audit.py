@@ -23,8 +23,6 @@ from nbadb.core.config import NbaDbSettings, get_settings
 from nbadb.core.endpoint_coverage import (
     _ENDPOINT_ALIASES,
     _LIVE_SURFACE_ALIASES,
-    _MODEL_EXCLUDED_STAGING_KEYS,
-    _MODEL_EXCLUDED_STATS_ENDPOINTS,
     _STATIC_SURFACE_ALIASES,
     EndpointCoverageGenerator,
     _ownership_override_for_endpoint,
@@ -524,7 +522,7 @@ class ModelAuditEngine:
                 )
             }
         )
-        exclusion_reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(canonical_surface)
+        ownership_override, ownership_reason = _ownership_override_for_endpoint(canonical_surface)
         issues: list[str] = []
 
         if not runtime_present and extractor_present:
@@ -539,9 +537,9 @@ class ModelAuditEngine:
             decision = AuditDecision.SOURCE_GAP.value
             reason = "Staged stats surface is missing an extractor implementation."
             issues.append("extractor_missing")
-        elif exclusion_reason is not None:
+        elif ownership_override in {"compatibility_reference_only", "excluded"}:
             decision = AuditDecision.EXCLUDED.value
-            reason = exclusion_reason
+            reason = ownership_reason or f"Model ownership override: {ownership_override}."
         elif transform_outputs:
             decision = AuditDecision.MODELED.value
             reason = "Stats surface reaches at least one runtime-discovered model output."
@@ -769,9 +767,13 @@ class ModelAuditEngine:
                 inventory.transforms.transform_outputs_by_staging.get(entry.staging_key, set())
             )
             input_schema = get_input_schema(entry.staging_key)
-            exclusion_reason = _MODEL_EXCLUDED_STAGING_KEYS.get(entry.staging_key)
-            if exclusion_reason is None:
-                exclusion_reason = _MODEL_EXCLUDED_STATS_ENDPOINTS.get(canonical_endpoint)
+            ownership_override, ownership_reason = _ownership_override_for_staging_key(
+                entry.staging_key
+            )
+            if ownership_override is None:
+                ownership_override, ownership_reason = _ownership_override_for_endpoint(
+                    canonical_endpoint
+                )
 
             issues: list[str] = []
             is_deprecated = (
@@ -795,9 +797,9 @@ class ModelAuditEngine:
                     " absent from installed nba_api."
                 )
                 issues.append("runtime_surface_missing")
-            elif exclusion_reason is not None:
+            elif ownership_override in {"compatibility_reference_only", "excluded"}:
                 decision = AuditDecision.EXCLUDED.value
-                reason = exclusion_reason
+                reason = ownership_reason or f"Model ownership override: {ownership_override}."
             elif transform_outputs and input_schema is not None:
                 decision = AuditDecision.MODELED.value
                 reason = (

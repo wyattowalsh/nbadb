@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import subprocess
 import sys
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -13,13 +13,13 @@ import pytest
 MODULE_PATH = (
     Path(__file__).resolve().parents[3] / ".github" / "actions" / "nordvpn-connect" / "connect.py"
 )
+MODULE_CODE = compile(MODULE_PATH.read_text(encoding="utf-8"), str(MODULE_PATH), "exec")
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("nordvpn_connect_action", MODULE_PATH)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
+    module = types.ModuleType("nordvpn_connect_action")
+    module.__file__ = str(MODULE_PATH)
+    exec(MODULE_CODE, module.__dict__)
     return module
 
 
@@ -134,24 +134,26 @@ def test_cleanup_openvpn_terminates_foreground_process_group(
 
 def test_run_command_kills_timed_out_process_groups(
     runner_env: Path,
+    tmp_path: Path,
 ) -> None:
     module = _load_module()
+    child_pid_path = tmp_path / "child.pid"
     script = """
 import subprocess
 import sys
 import time
 
 child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
-print(child.pid, flush=True)
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    handle.write(str(child.pid))
 time.sleep(60)
 """
 
     with pytest.raises(subprocess.TimeoutExpired) as excinfo:
-        module.run_command([sys.executable, "-c", script], timeout=0.2)
+        module.run_command([sys.executable, "-c", script, str(child_pid_path)], timeout=2)
 
-    output = (excinfo.value.output or "").strip()
-    assert output
-    child_pid = int(output.splitlines()[0])
+    assert excinfo.value.cmd
+    child_pid = int(child_pid_path.read_text(encoding="utf-8"))
 
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:

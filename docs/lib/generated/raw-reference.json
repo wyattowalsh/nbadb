@@ -956,6 +956,20 @@
         "description": "Team city name"
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -968,6 +982,48 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
       },
       {
         "name": "nickname",
@@ -1336,6 +1392,20 @@
         "description": "Team city name"
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1348,6 +1418,48 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
       },
       {
         "name": "nickname",
@@ -1519,6 +1631,20 @@
         "description": "Team city name"
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1531,6 +1657,41 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "nickname",
@@ -1737,6 +1898,13 @@
         "description": "Team city name"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
@@ -1913,6 +2081,20 @@
         "description": "Team city name"
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team name"
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Team slug"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1925,6 +2107,48 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Player full name"
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player first name"
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player family name"
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player abbreviated name"
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player slug"
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player jersey number"
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Player position"
       },
       {
         "name": "nickname",
@@ -2138,6 +2362,13 @@
         "description": "Player code slug"
       },
       {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly player slug"
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": true,
@@ -2173,11 +2404,25 @@
         "description": "Team code slug"
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "URL-friendly team slug"
+      },
+      {
         "name": "games_played_flag",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
         "description": "Flag indicating games played"
+      },
+      {
+        "name": "otherleague_experience_ch",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Other league experience code"
       }
     ]
   },
@@ -2512,7 +2757,7 @@
     "strict": false,
     "columns": [
       {
-        "name": "teamid",
+        "name": "team_id",
         "type": "Int64",
         "nullable": false,
         "constraints": "gt=0",
@@ -2526,7 +2771,7 @@
         "description": "Season string"
       },
       {
-        "name": "leagueid",
+        "name": "league_id",
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
@@ -2682,6 +2927,13 @@
         "description": "Combine season year"
       },
       {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Temporary combine player identifier"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2774,6 +3026,13 @@
         "description": "Combine season year"
       },
       {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Temporary combine player identifier"
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2851,6 +3110,27 @@
         "description": "Off-dribble fifteen-foot top of key shooting percentage"
       },
       {
+        "name": "off_drib_fifteen_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
         "name": "off_drib_college_break_left_made",
         "type": "Int64",
         "nullable": true,
@@ -2891,6 +3171,27 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Off-dribble college top of key shooting percentage"
+      },
+      {
+        "name": "off_drib_college_break_right_made",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_break_right_attempt",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_break_right_pct",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       },
       {
         "name": "on_move_fifteen_made",
@@ -2948,6 +3249,13 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Combine season year"
+      },
+      {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Temporary combine player identifier"
       },
       {
         "name": "player_id",
@@ -3082,6 +3390,13 @@
         "nullable": false,
         "constraints": "\u2014",
         "description": "Combine season year"
+      },
+      {
+        "name": "temp_player_id",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Temporary combine player identifier"
       },
       {
         "name": "player_id",
@@ -3608,6 +3923,167 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Bench press repetitions"
+      },
+      {
+        "name": "spot_fifteen_corner_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_fifteen_corner_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_corner_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_college_corner_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_corner_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "spot_nba_corner_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "off_drib_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "on_move_fifteen",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
+      },
+      {
+        "name": "on_move_college",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": ""
       }
     ]
   },
@@ -6014,6 +6490,13 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Plus-minus differential"
+      },
+      {
+        "name": "video_available",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Video availability flag"
       }
     ]
   },
@@ -7670,6 +8153,62 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Flag indicating if score changed"
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Game date for the win-probability snapshot"
+      },
+      {
+        "name": "home_team_abr",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team abbreviation code"
+      },
+      {
+        "name": "visitor_team_abr",
+        "type": "String",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team abbreviation code"
+      },
+      {
+        "name": "home_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team points for the win-probability snapshot"
+      },
+      {
+        "name": "visitor_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Visitor team points for the win-probability snapshot"
+      },
+      {
+        "name": "home_poss_ind",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home possession indicator"
+      },
+      {
+        "name": "home_g",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Home team game count"
+      },
+      {
+        "name": "isvisible",
+        "type": "Int64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Whether the event is visible in play-by-play"
       }
     ]
   },

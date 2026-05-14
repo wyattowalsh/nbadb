@@ -1,4 +1,6 @@
 .DS_Store
+.DS_Store?
+**/.DS_Store
 .obsidian/.DS_Store
 .obsidian/app.json
 .obsidian/graph.json

@@ -469,6 +469,14 @@ class StagingPlayerGameLogSchema(BaseSchema):
             "description": ("Plus-minus differential"),
         },
     )
+    video_available: int | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("PlayerGameLog.PlayerGameLog.VIDEO_AVAILABLE"),
+            "description": "Video availability flag",
+        },
+    )
 
 
 class StagingTeamGameLogSchema(BaseSchema):

@@ -4,6 +4,7 @@ import pandera.polars as pa
 
 from nbadb.schemas.base import derived_output_schema
 from nbadb.schemas.staging.schedule import (
+    StagingScoreboardAvailableSchema,
     StagingScoreboardEastConfSchema,
     StagingScoreboardLastMeetingSchema,
     StagingScoreboardLineScoreSchema,
@@ -74,6 +75,11 @@ class FactScoreboardV3LineScoreSchema(StagingScoreboardV3LineScoreSchema):
 
 @derived_output_schema()
 class FactScoreboardV3TeamLeadersSchema(StagingScoreboardV3TeamStatsSchema):
+    pass
+
+
+@derived_output_schema()
+class FactScoreboardAvailableSchema(StagingScoreboardAvailableSchema):
     pass
 
 

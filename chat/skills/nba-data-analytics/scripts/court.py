@@ -31,6 +31,13 @@ HOOP_RADIUS = 7.5
 
 _BG_COLOR = "#141a2e"
 
+
+def _show_if_interactive() -> None:
+    """Display figures only when matplotlib has an interactive backend."""
+    if "agg" not in plt.get_backend().lower():
+        plt.show()
+
+
 # Zone centroid lookup for zone_chart ---------------------------------
 
 _ZONE_CENTROIDS: dict[tuple[str, str], tuple[float, float]] = {
@@ -300,7 +307,7 @@ def shot_chart(
             labelcolor="white",
         )
 
-    plt.show()
+    _show_if_interactive()
     return fig
 
 
@@ -344,7 +351,7 @@ def shot_heatmap(
     if title:
         ax.set_title(title, fontsize=16, color="white", pad=10)
 
-    plt.show()
+    _show_if_interactive()
     return fig
 
 
@@ -415,7 +422,7 @@ def zone_chart(
     if title:
         ax.set_title(title, fontsize=16, color="white", pad=10)
 
-    plt.show()
+    _show_if_interactive()
     return fig
 
 
@@ -464,5 +471,5 @@ def compare_shots(
     if title:
         fig.suptitle(title, fontsize=18, color="white", y=0.98)
 
-    plt.show()
+    _show_if_interactive()
     return fig

@@ -59,6 +59,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -87,6 +95,22 @@
         "type": "Float64",
         "nullable": true,
         "description": "Shot-attempt frequency",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -1560,6 +1584,38 @@
         "fk_ref": "staging_team.team_id"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation code",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -1573,6 +1629,62 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreAdvancedV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "description": "Player status comment",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -1805,6 +1917,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreAdvancedV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -2018,6 +2138,38 @@
         "fk_ref": "staging_team.team_id"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation code",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2031,6 +2183,62 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreDefensiveV2.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "description": "Player status comment",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -2074,6 +2282,46 @@
         "fk_ref": ""
       },
       {
+        "name": "defensive_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_assists",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_turnovers",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "steals",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blocks",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "def_fgm",
         "type": "Float64",
         "nullable": true,
@@ -2095,6 +2343,30 @@
         "nullable": true,
         "description": "Defended field goal percentage",
         "source": "BoxScoreDefensiveV2.PlayerStats.DEF_FG_PCT",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_three_pointers_made",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_three_pointers_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_three_pointer_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
         "fk_ref": ""
       }
     ]
@@ -2143,6 +2415,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreDefensiveV2.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -2172,6 +2452,38 @@
         "fk_ref": "staging_team.team_id"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation code",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2185,6 +2497,62 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreFourFactorsV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "description": "Player status comment",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -2294,6 +2662,30 @@
         "nullable": true,
         "description": "Team abbreviation code",
         "source": "BoxScoreFourFactorsV3.TeamStats.TEAM_ABBREVIATION",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreFourFactorsV3.TeamStats.teamCity",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreFourFactorsV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
+        "name": "min",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreFourFactorsV3.TeamStats.MIN",
         "fk_ref": ""
       },
       {
@@ -2587,6 +2979,38 @@
         "fk_ref": "staging_team.team_id"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation code",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -2600,6 +3024,62 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreHustleV2.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "description": "Player status comment",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -2680,6 +3160,62 @@
         "nullable": true,
         "description": "Box outs",
         "source": "BoxScoreHustleV2.PlayerStats.BOX_OUTS",
+        "fk_ref": ""
+      },
+      {
+        "name": "offensive_box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "defensive_box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "loose_balls_recovered_offensive",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "loose_balls_recovered_defensive",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_out_player_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_out_player_team_rebounds",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
         "fk_ref": ""
       }
     ]
@@ -3099,6 +3635,358 @@
         "description": "Switches onto player",
         "source": "BoxScoreMatchupsV3.PlayerStats.SWITCHES_ON",
         "fk_ref": ""
+      },
+      {
+        "name": "team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_tricode",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "person_id_off",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name_off",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name_off",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_ioff",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug_off",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num_off",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "person_id_def",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name_def",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name_def",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_idef",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug_def",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position_def",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment_def",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num_def",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_minutes",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_minutes_sort",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "partial_possessions",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "percentage_defender_total_time",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "percentage_offensive_total_time",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "percentage_total_time_both_on",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_points",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_points",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_assists",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_potential_assists",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_turnovers",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_blocks",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_field_goals_made",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_field_goals_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_field_goals_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_three_pointers_made",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_three_pointers_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_three_pointers_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "help_blocks",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "help_field_goals_made",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "help_field_goals_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "help_field_goals_percentage",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_free_throws_made",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "matchup_free_throws_attempted",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shooting_fouls",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -3143,6 +4031,14 @@
         "nullable": true,
         "description": "Team city name",
         "source": "BoxScoreMiscV3.TeamStats.TEAM_CITY",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreMiscV3.TeamStats.teamSlug",
         "fk_ref": ""
       },
       {
@@ -3271,6 +4167,38 @@
         "fk_ref": "staging_team.team_id"
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation code",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -3284,6 +4212,62 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScorePlayerTrackV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player first name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "Player family name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "Player abbreviated name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Player slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment",
+        "type": "String",
+        "nullable": true,
+        "description": "Player status comment",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "Player jersey number",
+        "source": "",
         "fk_ref": ""
       },
       {
@@ -3437,6 +4421,22 @@
         "description": "Defended field goal percentage",
         "source": "BoxScorePlayerTrackV3.PlayerStats.DFG_PCT",
         "fk_ref": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -3481,6 +4481,14 @@
         "nullable": true,
         "description": "Team city name",
         "source": "BoxScorePlayerTrackV3.TeamStats.TEAM_CITY",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScorePlayerTrackV3.TeamStats.teamSlug",
         "fk_ref": ""
       },
       {
@@ -3689,6 +4697,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreScoringV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -3854,6 +4870,22 @@
         "fk_ref": ""
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.teamName",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "player_id",
         "type": "Int64",
         "nullable": false,
@@ -3867,6 +4899,46 @@
         "nullable": true,
         "description": "Player full name",
         "source": "BoxScoreTraditionalV3.PlayerStats.PLAYER_NAME",
+        "fk_ref": ""
+      },
+      {
+        "name": "first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.firstName",
+        "fk_ref": ""
+      },
+      {
+        "name": "family_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.familyName",
+        "fk_ref": ""
+      },
+      {
+        "name": "name_i",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.nameI",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.playerSlug",
+        "fk_ref": ""
+      },
+      {
+        "name": "jersey_num",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.PlayerStats.jerseyNum",
         "fk_ref": ""
       },
       {
@@ -4099,6 +5171,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.TeamStarterBenchStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "String",
         "nullable": true,
@@ -4304,6 +5384,14 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "BoxScoreTraditionalV3.TeamStats.teamSlug",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
@@ -4505,6 +5593,14 @@
         "type": "String",
         "nullable": true,
         "description": "Team name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
         "source": "",
         "fk_ref": ""
       },
@@ -5542,6 +6638,14 @@
         "fk_ref": ""
       },
       {
+        "name": "player_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "URL-friendly player slug",
+        "source": "CommonAllPlayers.CommonAllPlayers.PLAYER_SLUG",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": true,
@@ -5582,11 +6686,27 @@
         "fk_ref": ""
       },
       {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "URL-friendly team slug",
+        "source": "CommonAllPlayers.CommonAllPlayers.TEAM_SLUG",
+        "fk_ref": ""
+      },
+      {
         "name": "games_played_flag",
         "type": "String",
         "nullable": true,
         "description": "Flag indicating games played",
         "source": "CommonAllPlayers.CommonAllPlayers.GAMES_PLAYED_FLAG",
+        "fk_ref": ""
+      },
+      {
+        "name": "otherleague_experience_ch",
+        "type": "String",
+        "nullable": true,
+        "description": "Other league experience code",
+        "source": "CommonAllPlayers.CommonAllPlayers.OTHERLEAGUE_EXPERIENCE_CH",
         "fk_ref": ""
       }
     ]
@@ -6780,6 +7900,190 @@
         "nullable": true,
         "description": "Bench press repetitions",
         "source": "DraftCombineStats.DraftCombineStats.BENCH_PRESS",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_fifteen_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_college_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_corner_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "spot_nba_corner_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_fifteen_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_left",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_top_key",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_drib_college_break_right",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "on_move_fifteen",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "on_move_college",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
         "fk_ref": ""
       }
     ]
@@ -8950,12 +10254,36 @@
     "table_name": "staging_ist_standings",
     "fields": [
       {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "description": "League identifier",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "description": "Season year",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
         "description": "Team identifier",
         "source": "",
         "fk_ref": "staging_team.team_id"
+      },
+      {
+        "name": "team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "Team city",
+        "source": "",
+        "fk_ref": ""
       },
       {
         "name": "team_name",
@@ -8966,10 +10294,74 @@
         "fk_ref": ""
       },
       {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Team abbreviation",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "Team slug",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "conference",
+        "type": "String",
+        "nullable": true,
+        "description": "Conference",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_group",
+        "type": "String",
+        "nullable": true,
+        "description": "Cup group",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "group_name",
         "type": "String",
         "nullable": true,
         "description": "Cup group name",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinch_indicator",
+        "type": "String",
+        "nullable": true,
+        "description": "Cup clinch status indicator",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinched_ist_group",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Cup group clinch flag",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinched_ist_knockout",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Cup knockout clinch flag",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "clinched_ist_wildcard",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Cup wildcard clinch flag",
         "source": "",
         "fk_ref": ""
       },
@@ -8986,6 +10378,14 @@
         "type": "Int64",
         "nullable": true,
         "description": "Cup losses",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Cup win pct",
         "source": "",
         "fk_ref": ""
       },
@@ -9018,6 +10418,262 @@
         "type": "Float64",
         "nullable": true,
         "description": "Point differential in cup play",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Points",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opp_pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Opponent points",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "diff",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Point differential",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_group_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_group_gb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_wildcard_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_wildcard_gb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ist_knockout_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_id4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status1",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status2",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status3",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status4",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_status_text4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "location1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "location2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "location3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "location4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opponent_team_abbreviation4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome1",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome2",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome3",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "outcome4",
+        "type": "String",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -9424,6 +11080,134 @@
         "type": "String",
         "nullable": true,
         "description": "Country",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "draft_year",
+        "type": "String",
+        "nullable": true,
+        "description": "Draft year",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "draft_round",
+        "type": "String",
+        "nullable": true,
+        "description": "Draft round",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "draft_number",
+        "type": "String",
+        "nullable": true,
+        "description": "Draft number",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_height",
+        "type": "String",
+        "nullable": true,
+        "description": "Player height",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_height_inches",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player height in inches",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_weight",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player weight",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Points",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Rebounds",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Assists",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "net_rating",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Net rating",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ts_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -10917,6 +12701,14 @@
         "fk_ref": ""
       },
       {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player age",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": true,
@@ -10941,6 +12733,14 @@
         "fk_ref": ""
       },
       {
+        "name": "g",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
@@ -10949,10 +12749,170 @@
         "fk_ref": ""
       },
       {
+        "name": "contested_shots",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "contested_shots_2pt",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "contested_shots_3pt",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "deflections",
         "type": "Float64",
         "nullable": true,
         "description": "Deflections",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "charges_drawn",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "screen_assists",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "screen_ast_pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "def_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "def_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_out_player_team_rebs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_out_player_rebs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_box_outs_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_box_outs_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_box_outs_team_reb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_box_outs_reb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -10986,10 +12946,146 @@
         "fk_ref": ""
       },
       {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Minutes",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "contested_shots",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "contested_shots_2pt",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "contested_shots_3pt",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "deflections",
         "type": "Float64",
         "nullable": true,
         "description": "Deflections",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "charges_drawn",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "screen_assists",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "screen_ast_pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "def_loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "loose_balls_recovered",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_loose_balls_recovered_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "off_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "def_boxouts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "box_outs",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_box_outs_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_box_outs_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -11297,6 +13393,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -11325,6 +13429,22 @@
         "type": "Float64",
         "nullable": true,
         "description": "Shot-attempt frequency",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -11516,6 +13636,134 @@
         "description": "Country",
         "source": "",
         "fk_ref": ""
+      },
+      {
+        "name": "draft_year",
+        "type": "String",
+        "nullable": true,
+        "description": "Draft year",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "draft_round",
+        "type": "String",
+        "nullable": true,
+        "description": "Draft round",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "draft_number",
+        "type": "String",
+        "nullable": true,
+        "description": "Draft number",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_height",
+        "type": "String",
+        "nullable": true,
+        "description": "Player height",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_height_inches",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player height in inches",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_weight",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player weight",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Points",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Rebounds",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Assists",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "net_rating",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Net rating",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "usg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ts_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -11555,6 +13803,22 @@
         "fk_ref": ""
       },
       {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player age",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "group_set",
+        "type": "String",
+        "nullable": true,
+        "description": "Dashboard grouping set",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "season_year",
         "type": "String",
         "nullable": false,
@@ -11571,10 +13835,74 @@
         "fk_ref": ""
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Wins",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Losses",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Win pct",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
         "description": "Minutes",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -11587,6 +13915,46 @@
         "fk_ref": ""
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "fg_pct",
         "type": "Float64",
         "nullable": true,
@@ -11595,10 +13963,346 @@
         "fk_ref": ""
       },
       {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "ft_pct",
         "type": "Float64",
         "nullable": true,
         "description": "Free throw percentage",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "nba_fantasy_pts",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "nba_fantasy_pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dd2",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dd2_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "td3",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "td3_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "cfid",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "cfparams",
+        "type": "String",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -12189,6 +14893,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -12217,6 +14929,22 @@
         "type": "Float64",
         "nullable": true,
         "description": "Shot-attempt frequency",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -12321,6 +15049,30 @@
         "type": "Float64",
         "nullable": true,
         "description": "Defended FG percentage",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player age",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_last_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Player last team identifier",
+        "source": "",
+        "fk_ref": "staging_team.team_id"
+      },
+      {
+        "name": "player_last_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Player last team abbreviation",
         "source": "",
         "fk_ref": ""
       }
@@ -12386,6 +15138,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -12414,6 +15174,22 @@
         "type": "Float64",
         "nullable": true,
         "description": "Shot-attempt frequency",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -12518,6 +15294,94 @@
         "type": "Float64",
         "nullable": true,
         "description": "Defended FG percentage",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Wins",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Losses",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Win pct",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "min",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Minutes",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_feet",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_miles",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_miles_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dist_miles_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "avg_speed",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "avg_speed_off",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "avg_speed_def",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -12583,6 +15447,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -12611,6 +15483,22 @@
         "type": "Float64",
         "nullable": true,
         "description": "Shot-attempt frequency",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -12715,6 +15603,54 @@
         "type": "Float64",
         "nullable": true,
         "description": "Defended FG percentage",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "freq",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "d_fgm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "d_fga",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "d_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "normal_fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pct_plusminus",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -13010,6 +15946,686 @@
         "description": "Point differential per game",
         "source": "LeagueStandingsV3.Standings.DiffPointsPG",
         "fk_ref": ""
+      },
+      {
+        "name": "last10_home",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "last10_road",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ot",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "three_ptsor_less",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ten_ptsor_more",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "long_home_streak",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "str_long_home_streak",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "long_road_streak",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "str_long_road_streak",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "current_home_streak",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "str_current_home_streak",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "current_road_streak",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "str_current_road_streak",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "str_current_streak",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "eliminated_division",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ahead_at_half",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "behind_at_half",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tied_at_half",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ahead_at_third",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "behind_at_third",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tied_at_third",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "score100_pts",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opp_score100_pts",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opp_over500",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lead_in_fgpct",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "lead_in_reb",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fewer_turnovers",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_pg",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "opp_points_pg",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "diff_points_pg",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_east",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_atlantic",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_central",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_southeast",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_west",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_northwest",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_pacific",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "vs_southwest",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jan",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "feb",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "mar",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "apr",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "may",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jun",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "jul",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "aug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "sep",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oct",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "nov",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dec",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "return_to_play_east_pi_flag",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "return_to_play_west_pi_flag",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "return_to_play_already_eliminated",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_1_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_2_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_3_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_4_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_5_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_6_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_7_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_8_outcome",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_1_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_2_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_3_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_4_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_5_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_6_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_7_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_8_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_1_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_2_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_3_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_4_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_5_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_6_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_7_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_8_opponent",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_1_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_2_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_3_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_4_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_5_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_6_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_7_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "seeding_game_8_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -13049,6 +16665,38 @@
         "fk_ref": ""
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "w",
         "type": "Int64",
         "nullable": true,
@@ -13065,10 +16713,26 @@
         "fk_ref": ""
       },
       {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Win pct",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
         "nullable": true,
         "description": "Minutes",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -13081,10 +16745,138 @@
         "fk_ref": ""
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "fg_pct",
         "type": "Float64",
         "nullable": true,
         "description": "Field goal percentage",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -13097,10 +16889,202 @@
         "fk_ref": ""
       },
       {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "plus_minus",
         "type": "Float64",
         "nullable": true,
         "description": "Plus-minus",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "cfid",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "cfparams",
+        "type": "String",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -13166,6 +17150,14 @@
         "fk_ref": ""
       },
       {
+        "name": "gp",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Games played",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "g",
         "type": "Int64",
         "nullable": true,
@@ -13194,6 +17186,22 @@
         "type": "Float64",
         "nullable": true,
         "description": "Shot-attempt frequency",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg2a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_frequency",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       },
@@ -16461,9 +20469,41 @@
     "table_name": "staging_on_off",
     "fields": [
       {
+        "name": "group_set",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
         "description": "",
         "source": "",
         "fk_ref": ""
@@ -16501,8 +20541,72 @@
         "fk_ref": ""
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
         "nullable": true,
         "description": "",
         "source": "",
@@ -16517,6 +20621,190 @@
         "fk_ref": ""
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "reb",
         "type": "Float64",
         "nullable": true,
@@ -16525,8 +20813,136 @@
         "fk_ref": ""
       },
       {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "ast",
         "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
         "nullable": true,
         "description": "",
         "source": "",
@@ -25148,6 +29564,14 @@
         "nullable": true,
         "description": "Plus-minus differential",
         "source": "PlayerGameLog.PlayerGameLog.PLUS_MINUS",
+        "fk_ref": ""
+      },
+      {
+        "name": "video_available",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Video availability flag",
+        "source": "PlayerGameLog.PlayerGameLog.VIDEO_AVAILABLE",
         "fk_ref": ""
       }
     ]
@@ -41196,6 +45620,814 @@
         "description": "",
         "source": "",
         "fk_ref": ""
+      },
+      {
+        "name": "game_time_est",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "branch_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "month_num",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "series_game_number",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_sub_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_time",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_time",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_person_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_last_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_points",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -41558,6 +46790,902 @@
         "description": "Game number in playoff series",
         "source": "ScheduleLeagueV2.ScheduleLeagueV2.SERIES_GAME_NUMBER",
         "fk_ref": ""
+      },
+      {
+        "name": "league_id",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "season_year",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_time",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_time",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "day",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "month_num",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "week_number",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "week_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_sub_label",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "is_neutral",
+        "type": "Boolean",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_team_slug",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_team_seed",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_person_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_first_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_last_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_city",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_team_tricode",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "points_leaders_points",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "national_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_tv_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_radio_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_scope",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_media",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_display",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_tape_delay_comments",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_video_link",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_description",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "away_ott_broadcasters_broadcaster_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -41610,6 +47738,27 @@
         "nullable": true,
         "description": "Week end date",
         "source": "ScheduleLeagueV2.SeasonWeeks.endDate",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
+    "table_name": "staging_scoreboard_available",
+    "fields": [
+      {
+        "name": "game_id",
+        "type": "String",
+        "nullable": false,
+        "description": "Unique game identifier",
+        "source": "ScoreboardV2.Available.GAME_ID",
+        "fk_ref": ""
+      },
+      {
+        "name": "pt_available",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Player-tracking availability flag",
+        "source": "ScoreboardV2.Available.PT_AVAILABLE",
         "fk_ref": ""
       }
     ]
@@ -49345,6 +55494,27 @@
     ]
   },
   {
+    "table_name": "staging_team_awards_championships",
+    "fields": [
+      {
+        "name": "yearawarded",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_team_awards_conf.yearawarded",
+        "fk_ref": ""
+      },
+      {
+        "name": "oppositeteam",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "derived.fact_team_awards_conf.oppositeteam",
+        "fk_ref": ""
+      }
+    ]
+  },
+  {
     "table_name": "staging_team_awards_conf",
     "fields": [
       {
@@ -49945,6 +56115,14 @@
         "description": "Season type (Regular Season, Playoffs, etc.)",
         "source": "",
         "fk_ref": ""
+      },
+      {
+        "name": "team_days_rest_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -50212,6 +56390,22 @@
         "type": "String",
         "nullable": false,
         "description": "Season type (Regular Season, Playoffs, etc.)",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -50482,9 +56676,41 @@
     "table_name": "staging_team_dashboard_on_off",
     "fields": [
       {
+        "name": "group_set",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
         "description": "",
         "source": "",
         "fk_ref": ""
@@ -50522,8 +56748,72 @@
         "fk_ref": ""
       },
       {
+        "name": "gp_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "l_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "w_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "min",
         "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "min_rank",
+        "type": "Int64",
         "nullable": true,
         "description": "",
         "source": "",
@@ -50538,6 +56828,190 @@
         "fk_ref": ""
       },
       {
+        "name": "pts_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fgm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fga_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3m_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3a_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fg3_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ftm_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "fta_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ft_pct",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ft_pct_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "oreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dreb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "reb",
         "type": "Float64",
         "nullable": true,
@@ -50546,8 +57020,136 @@
         "fk_ref": ""
       },
       {
+        "name": "reb_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "ast",
         "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "ast_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "tov_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "stl_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blk_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "blka_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pf_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "pfd_rank",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus",
+        "type": "Float64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "plus_minus_rank",
+        "type": "Int64",
         "nullable": true,
         "description": "",
         "source": "",
@@ -52266,6 +58868,22 @@
         "fk_ref": ""
       },
       {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "season_type",
         "type": "String",
         "nullable": false,
@@ -52738,6 +59356,22 @@
         "name": "season_year",
         "type": "String",
         "nullable": false,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "team_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "group_value",
+        "type": "String",
+        "nullable": true,
         "description": "",
         "source": "",
         "fk_ref": ""
@@ -54573,7 +61207,39 @@
         "fk_ref": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -54722,7 +61388,39 @@
         "fk_ref": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -54871,7 +61569,39 @@
         "fk_ref": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -55020,7 +61750,39 @@
         "fk_ref": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -55169,7 +61931,39 @@
         "fk_ref": ""
       },
       {
+        "name": "overall",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "reb_num_contesting_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "reb_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -55319,6 +62113,38 @@
       },
       {
         "name": "close_def_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "touch_time_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -55483,6 +62309,38 @@
         "fk_ref": ""
       },
       {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "touch_time_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "fga_frequency",
         "type": "Float64",
         "nullable": true,
@@ -55633,6 +62491,38 @@
       },
       {
         "name": "close_def_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "touch_time_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -55797,6 +62687,38 @@
         "fk_ref": ""
       },
       {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "touch_time_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "fga_frequency",
         "type": "Float64",
         "nullable": true,
@@ -55954,6 +62876,38 @@
         "fk_ref": ""
       },
       {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "touch_time_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "fga_frequency",
         "type": "Float64",
         "nullable": true,
@@ -56104,6 +63058,38 @@
       },
       {
         "name": "close_def_dist_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "dribble_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_type",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "shot_clock_range",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "touch_time_range",
         "type": "String",
         "nullable": true,
         "description": "",
@@ -56644,6 +63630,22 @@
         "description": "Season type (Regular Season, Playoffs, etc.)",
         "source": "",
         "fk_ref": ""
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -56913,6 +63915,22 @@
         "description": "Season type (Regular Season, Playoffs, etc.)",
         "source": "",
         "fk_ref": ""
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -57180,6 +64198,22 @@
         "type": "String",
         "nullable": false,
         "description": "Season type (Regular Season, Playoffs, etc.)",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -57997,6 +65031,22 @@
         "description": "Season type (Regular Season, Playoffs, etc.)",
         "source": "",
         "fk_ref": ""
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
       }
     ]
   },
@@ -58264,6 +65314,22 @@
         "type": "String",
         "nullable": false,
         "description": "Season type (Regular Season, Playoffs, etc.)",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_name",
+        "type": "String",
+        "nullable": true,
+        "description": "",
         "source": "",
         "fk_ref": ""
       }
@@ -62344,6 +69410,46 @@
         "fk_ref": ""
       },
       {
+        "name": "age",
+        "type": "Float64",
+        "nullable": true,
+        "description": "Player age",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_position",
+        "type": "String",
+        "nullable": true,
+        "description": "Player position",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "close_def_person_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Closest defender identifier",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
+        "name": "player_last_team_id",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Player last team identifier",
+        "source": "",
+        "fk_ref": "staging_team.team_id"
+      },
+      {
+        "name": "player_last_team_abbreviation",
+        "type": "String",
+        "nullable": true,
+        "description": "Player last team abbreviation",
+        "source": "",
+        "fk_ref": ""
+      },
+      {
         "name": "team_id",
         "type": "Int64",
         "nullable": false,
@@ -65205,6 +72311,70 @@
         "description": "Flag indicating if score changed",
         "source": "WinProbabilityPBP.WinProbPBP.IS_SCORE_CHANGE",
         "fk_ref": ""
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": true,
+        "description": "Game date for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.GAME_DATE",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_abr",
+        "type": "String",
+        "nullable": true,
+        "description": "Home team abbreviation code",
+        "source": "WinProbabilityPBP.WinProbability.HOME_TEAM_ABR",
+        "fk_ref": ""
+      },
+      {
+        "name": "visitor_team_abr",
+        "type": "String",
+        "nullable": true,
+        "description": "Visitor team abbreviation code",
+        "source": "WinProbabilityPBP.WinProbability.VISITOR_TEAM_ABR",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home team points for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.HOME_TEAM_PTS",
+        "fk_ref": ""
+      },
+      {
+        "name": "visitor_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Visitor team points for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.VISITOR_TEAM_PTS",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_poss_ind",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home possession indicator",
+        "source": "WinProbabilityPBP.WinProbPBP.HOME_POSS_IND",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_g",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home team game count",
+        "source": "WinProbabilityPBP.WinProbPBP.HOME_G",
+        "fk_ref": ""
+      },
+      {
+        "name": "isvisible",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Whether the event is visible in play-by-play",
+        "source": "WinProbabilityPBP.WinProbPBP.ISVISIBLE",
+        "fk_ref": ""
       }
     ]
   },
@@ -65345,6 +72515,70 @@
         "nullable": true,
         "description": "Flag indicating if score changed",
         "source": "WinProbabilityPBP.WinProbPBP.IS_SCORE_CHANGE",
+        "fk_ref": ""
+      },
+      {
+        "name": "game_date",
+        "type": "String",
+        "nullable": true,
+        "description": "Game date for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.GAME_DATE",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_abr",
+        "type": "String",
+        "nullable": true,
+        "description": "Home team abbreviation code",
+        "source": "WinProbabilityPBP.WinProbability.HOME_TEAM_ABR",
+        "fk_ref": ""
+      },
+      {
+        "name": "visitor_team_abr",
+        "type": "String",
+        "nullable": true,
+        "description": "Visitor team abbreviation code",
+        "source": "WinProbabilityPBP.WinProbability.VISITOR_TEAM_ABR",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home team points for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.HOME_TEAM_PTS",
+        "fk_ref": ""
+      },
+      {
+        "name": "visitor_team_pts",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Visitor team points for the win-probability snapshot",
+        "source": "WinProbabilityPBP.WinProbability.VISITOR_TEAM_PTS",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_poss_ind",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home possession indicator",
+        "source": "WinProbabilityPBP.WinProbPBP.HOME_POSS_IND",
+        "fk_ref": ""
+      },
+      {
+        "name": "home_g",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Home team game count",
+        "source": "WinProbabilityPBP.WinProbPBP.HOME_G",
+        "fk_ref": ""
+      },
+      {
+        "name": "isvisible",
+        "type": "Int64",
+        "nullable": true,
+        "description": "Whether the event is visible in play-by-play",
+        "source": "WinProbabilityPBP.WinProbPBP.ISVISIBLE",
         "fk_ref": ""
       }
     ]

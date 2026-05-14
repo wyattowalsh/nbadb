@@ -396,7 +396,7 @@ The command prints `updated:` or `unchanged:` for each artifact, then a final su
 
 These notes apply to `nbadb init`, `daily`, and `monthly`.
 
-- `--data-dir` overrides the default data directory (`nbadb/`) and the `NBADB_DATA_DIR` setting.
+- `--data-dir` overrides the default data directory (`data/nbadb`) and the `NBADB_DATA_DIR` setting.
 - `--quality-check` runs post-pipeline quality checks against the DuckDB file, but those checks are informational today: empty-table warnings are reported without failing the command.
 - If stdout is an interactive terminal and `--verbose` is **not** set, the CLI uses the Textual TUI.
 - Use `--verbose` to force plain log output and DEBUG-level logging.
@@ -411,7 +411,7 @@ daily: 12 tables, 245,901 rows, 38.4s
 
 | Flag or default      | Applies to                                  | What to remember                                                                                  |
 | -------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `--data-dir/-d`      | Most commands that read or write local data | Overrides the default `nbadb/` directory and the `NBADB_DATA_DIR` setting                         |
+| `--data-dir/-d`      | Most commands that read or write local data | Overrides the default `data/nbadb` directory and the `NBADB_DATA_DIR` setting                     |
 | `--format/-f`        | `init` and `export`                         | Repeatable; defaults come from `NBADB_FORMATS` when omitted                                       |
 | `--verbose/-v`       | Pipeline commands and `ask`                 | On pipeline commands, it forces plain logs and DEBUG-level output instead of the TUI              |
 | `--quality-check`    | `init`, `daily`, `monthly`                  | Runs informational post-pipeline quality checks without currently failing on empty-table warnings |

@@ -203,19 +203,9 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
     rows = [
         _support_row("common_player_info", ["player"], None),
         _support_row("player_profile_v2", ["player"], None),
-        _support_row("player_streak_finder", ["player"], None),
-        _support_row("player_dashboard_clutch", ["player"], None),
         _support_row("player_awards", ["player"], None),
         _support_row("player_career_stats", ["player"], None),
         _support_row("player_compare", ["player"], None),
-        _support_row("player_dash_game_splits", ["player"], None),
-        _support_row("player_dash_general_splits", ["player"], None),
-        _support_row("player_dash_last_n_games", ["player"], None),
-        _support_row("player_dash_shooting_splits", ["player"], None),
-        _support_row("player_dash_team_perf", ["player"], None),
-        _support_row("player_dash_yoy", ["player"], None),
-        _support_row("player_next_games", ["player"], None),
-        _support_row("shot_chart_detail", ["player"], None),
     ]
 
     lanes = build_default_manifest(support_matrix_rows=rows)
@@ -227,35 +217,62 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         "reference-player-03",
         "reference-player-04",
         "reference-player-05",
-        "reference-player-06",
-        "reference-player-07",
-        "reference-player-08",
-        "reference-player-09",
-        "reference-player-10",
-        "reference-player-11",
-        "reference-player-12",
-        "reference-player-13",
-        "reference-player-14",
-        "reference-player-15",
     ]
     assert {(lane.endpoints, lane.timeout_seconds) for lane in reference_lanes} == {
         (("common_player_info",), 4200),
         (("player_profile_v2",), 5400),
-        (("player_streak_finder",), 5400),
-        (("player_dashboard_clutch",), 4800),
         (("player_awards",), 4200),
         (("player_career_stats",), 4800),
         (("player_compare",), 4800),
-        (("player_dash_game_splits",), 4800),
-        (("player_dash_general_splits",), 4800),
-        (("player_dash_last_n_games",), 4800),
-        (("player_dash_shooting_splits",), 4800),
-        (("player_dash_team_perf",), 4800),
-        (("player_dash_yoy",), 4800),
-        (("player_next_games",), 4200),
-        (("shot_chart_detail",), 7200),
     }
     assert all(lane.use_vpn is True for lane in reference_lanes)
+
+
+def test_build_default_manifest_routes_player_dashboard_family_to_historical_lanes() -> None:
+    rows = [
+        _support_row(
+            "player_dashboard_clutch",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+            declared_supported_season_types=["Regular Season", "Playoffs"],
+        ),
+        _support_row(
+            "player_dash_game_splits",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+            declared_supported_season_types=["Regular Season", "Playoffs"],
+        ),
+        _support_row(
+            "player_game_logs_v2",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+        ),
+        _support_row("player_streak_finder", ["player_season"], None),
+        _support_row(
+            "shot_chart_detail",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+        ),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+
+    assert {lane.lane_kind for lane in lanes} == {"historical"}
+    assert {lane.patterns for lane in lanes} == {("player_season",)}
+    assert min(lane.season_start for lane in lanes if lane.season_start is not None) == 1946
+    assert all((lane.season_end - lane.season_start + 1) <= 16 for lane in lanes)
+    historical_endpoints = {endpoint for lane in lanes for endpoint in lane.endpoints}
+    assert historical_endpoints == {
+        "player_dashboard_clutch",
+        "player_dash_game_splits",
+        "player_game_logs_v2",
+        "player_streak_finder",
+        "shot_chart_detail",
+    }
 
 
 def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:
@@ -271,20 +288,66 @@ def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> No
     assert reference_lanes[0].endpoints == ("common_team_years",)
 
 
-def test_build_default_manifest_skips_full_extraction_excluded_player_tracking_endpoints() -> None:
+def test_build_default_manifest_routes_player_tracking_to_historical_player_season() -> None:
     rows = [
         _support_row("player_dash_game_splits", ["player"], None),
-        _support_row("player_dash_pt_pass", ["player"], None),
-        _support_row("player_dash_pt_reb", ["player"], None),
-        _support_row("player_dash_pt_shot_defend", ["player"], None),
-        _support_row("player_dash_pt_shots", ["player"], None),
+        _support_row(
+            "player_dash_pt_pass",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+        ),
+        _support_row(
+            "player_dash_pt_reb",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+        ),
+        _support_row(
+            "player_dash_pt_shot_defend",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+        ),
+        _support_row(
+            "player_dash_pt_shots",
+            ["player_season"],
+            None,
+            season_type_contract_status="supported",
+        ),
     ]
 
     lanes = build_default_manifest(support_matrix_rows=rows)
     reference_lanes = [lane for lane in lanes if lane.lane_kind == "reference"]
+    historical_lanes = [
+        lane
+        for lane in lanes
+        if lane.lane_kind == "historical" and lane.patterns == ("player_season",)
+    ]
 
     assert [lane.lane_id for lane in reference_lanes] == ["reference-player"]
     assert reference_lanes[0].endpoints == ("player_dash_game_splits",)
+    assert len(historical_lanes) == 5
+    assert min(lane.season_start for lane in historical_lanes) == 1946
+    assert max(lane.season_end for lane in historical_lanes if lane.season_end is not None) >= 2025
+    assert {endpoint for lane in historical_lanes for endpoint in lane.endpoints} == {
+        "player_dash_pt_pass",
+        "player_dash_pt_reb",
+        "player_dash_pt_shot_defend",
+        "player_dash_pt_shots",
+    }
+    assert historical_lanes[0].season_types == (
+        "Regular Season",
+        "Playoffs",
+        "Pre Season",
+        "All Star",
+    )
+    assert historical_lanes[0].endpoints == (
+        "player_dash_pt_pass",
+        "player_dash_pt_reb",
+        "player_dash_pt_shot_defend",
+        "player_dash_pt_shots",
+    )
 
 
 def test_build_default_manifest_isolates_timeout_prone_reference_team_endpoints() -> None:

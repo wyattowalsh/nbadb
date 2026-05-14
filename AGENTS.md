@@ -110,7 +110,7 @@ uv run nbadb backfill run                          # Targeted gap backfill
 uv run nbadb full                                 # Fill gaps (deprecated — use backfill)
 uv run nbadb status --output-format json          # Machine-readable pipeline status
 uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
-uv run nbadb export --format sqlite --format parquet
+uv run nbadb export --data-dir data/nbadb       # Export sqlite/duckdb/csv/parquet by default
 uv run nbadb extract-completeness --require-full  # CI coverage gate
 uv run nbadb migrate                              # Create/migrate pipeline tables
 uv run nbadb scan                                 # Detect missing data and gaps
@@ -119,10 +119,10 @@ uv run nbadb ask "Who scored the most in 1996?"   # Natural-language query
 uv run nbadb chat                                 # AI chat UI when chat/chainlit_app.py and chat/pyproject.toml are present
 uv run nbadb audit-models                          # nba_api endpoint coverage audit
 uv run nbadb lint-sql                              # SQLFluff lint on transformer SQL
-uv run nbadb metadata                              # Generate Kaggle metadata JSON
+uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json  # Generate Kaggle metadata JSON
 uv run nbadb journal-summary                       # Pipeline telemetry for docs admin
 uv run nbadb download                             # Pull latest Kaggle dataset
-uv run nbadb upload -m "Automated update"         # Push dataset to Kaggle
+uv run nbadb upload --data-dir data/nbadb -m "Automated update"  # Push dataset to Kaggle
 
 # Docs
 uv run nbadb docs-autogen --docs-root docs/content/docs   # Regenerate docs artifacts

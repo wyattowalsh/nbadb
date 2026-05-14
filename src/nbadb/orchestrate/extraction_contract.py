@@ -33,58 +33,6 @@ class ExtractionExclusion:
 
 FULL_EXTRACTION_EXCLUSIONS: tuple[ExtractionExclusion, ...] = (
     ExtractionExclusion(
-        endpoint_name="player_dash_pt_pass",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "The live PlayerDashPtPass endpoint requires player/team context that the "
-            "current full-extraction player lanes do not model explicitly."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Add player/team-context discovery and bounded player tracking shards for "
-            "reference-player full extraction."
-        ),
-    ),
-    ExtractionExclusion(
-        endpoint_name="player_dash_pt_reb",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "The live PlayerDashPtReb endpoint requires player/team context that the "
-            "current full-extraction player lanes do not model explicitly."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Add player/team-context discovery and bounded player tracking shards for "
-            "reference-player full extraction."
-        ),
-    ),
-    ExtractionExclusion(
-        endpoint_name="player_dash_pt_shot_defend",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "The live PlayerDashPtShotDefend endpoint requires player/team context that the "
-            "current full-extraction player lanes do not model explicitly."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Add player/team-context discovery and bounded player tracking shards for "
-            "reference-player full extraction."
-        ),
-    ),
-    ExtractionExclusion(
-        endpoint_name="player_dash_pt_shots",
-        classification="contract_not_modeled_yet",
-        reason=(
-            "The live PlayerDashPtShots endpoint requires player/team context that the "
-            "current full-extraction player lanes do not model explicitly."
-        ),
-        owner="orchestrate",
-        revalidation_path=(
-            "Add player/team-context discovery and bounded player tracking shards for "
-            "reference-player full extraction."
-        ),
-    ),
-    ExtractionExclusion(
         endpoint_name="team_historical_leaders",
         classification="upstream_bug_blocked",
         reason=(

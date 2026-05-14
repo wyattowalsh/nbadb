@@ -418,7 +418,7 @@ class StagingTeamDashGeneralSplitsSchema(
     _TeamDashboardReferenceMixin,
     BaseSchema,
 ):
-    pass
+    team_days_rest_range: str | None = pa.Field(nullable=True)
 
 
 class StagingTeamSplitDaysRestSchema(
@@ -503,7 +503,8 @@ class StagingTeamDashShootingSplitsSchema(
     _TeamDashboardReferenceMixin,
     BaseSchema,
 ):
-    pass
+    player_id: int | None = pa.Field(nullable=True, gt=0)
+    player_name: str | None = pa.Field(nullable=True)
 
 
 class StagingTeamShootAssistedBySchema(

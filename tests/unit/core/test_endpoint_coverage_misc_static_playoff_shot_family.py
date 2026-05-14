@@ -37,3 +37,14 @@ def test_misc_static_playoff_shot_support_matrix_gaps_are_closed() -> None:
         assert row["input_schema_missing_staging_keys"] == [], endpoint_name
         assert row["output_schema_missing_tables"] == [], endpoint_name
         assert row["contract_gaps"] == [], endpoint_name
+
+    shot_chart = rows["shot_chart_detail"]
+    assert shot_chart["param_patterns"] == ["player_season"]
+    assert shot_chart["earliest_supported_season"] == 1946
+    assert shot_chart["season_type_contract_status"] == "supported"
+    assert shot_chart["declared_supported_season_types"] == [
+        "Regular Season",
+        "Playoffs",
+        "Pre Season",
+        "All Star",
+    ]

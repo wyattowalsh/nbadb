@@ -361,9 +361,8 @@ class ExtractorRunner:
                     if on_progress is not None:
                         on_progress.advance_pattern(success=True)
                     continue
-                # HR-A-014: skip entries whose min_season exceeds
-                # the requested season — avoids fruitless API calls
-                # for pre-tracking-era historical runs.
+                # Honor only explicit upstream support floors. Production
+                # entries default to no floor so historical runs begin at 1946.
                 sy = self._season_year(params)
                 if entry.min_season is not None and sy is not None and sy < entry.min_season:
                     self.skipped += 1
@@ -386,8 +385,8 @@ class ExtractorRunner:
 
         for ep_name, ep_entries in multi_by_ep.items():
             for params in chunk:
-                # For multi-endpoint groups, filter entries down to those
-                # eligible for this season and not deprecated.
+                # For multi-endpoint groups, keep only entries still eligible
+                # under documented upstream support/deprecation windows.
                 today = date.today()
                 sy = self._season_year(params)
                 eligible = [
@@ -1053,6 +1052,14 @@ class ExtractorRunner:
             idx = entry.result_set_index
             if idx < len(all_dfs):
                 output[entry.staging_key] = all_dfs[idx]
+            elif entry.allow_missing_result_set:
+                logger.debug(
+                    "{}: optional result_set_index {} not returned (got {} sets)",
+                    entry.staging_key,
+                    idx,
+                    len(all_dfs),
+                )
+                output[entry.staging_key] = pl.DataFrame()
             else:
                 logger.warning(
                     "{}: result_set_index {} out of range (got {} sets)",

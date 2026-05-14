@@ -140,6 +140,23 @@ class LineageGenerator:
             result.append(ch.lower())
         return "".join(result)
 
+    @staticmethod
+    def _parse_source_metadata(source: str) -> dict[str, str]:
+        parts = source.split(".")
+        if len(parts) < 2:
+            return {"raw_source": source}
+        if source.startswith("nba_api.") and len(parts) > 2:
+            return {
+                "endpoint": ".".join(parts[:-1]),
+                "result_set": "",
+                "field": parts[-1],
+            }
+        return {
+            "endpoint": parts[0],
+            "result_set": parts[1] if len(parts) > 2 else "",
+            "field": parts[-1],
+        }
+
     def build_lineage_graph(self) -> dict[str, Any]:
         """Build full lineage graph: star column → source endpoint.field."""
         if self._lineage_graph is not None:
@@ -159,13 +176,7 @@ class LineageGenerator:
 
                 entry: dict[str, str] = {}
                 if source:
-                    parts = source.split(".")
-                    if len(parts) >= 2:
-                        entry["endpoint"] = parts[0]
-                        entry["result_set"] = parts[1] if len(parts) > 2 else ""
-                        entry["field"] = parts[-1]
-                    else:
-                        entry["raw_source"] = source
+                    entry.update(self._parse_source_metadata(source))
                 if fk_ref:
                     entry["fk_ref"] = fk_ref
                 if entry:

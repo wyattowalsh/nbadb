@@ -8,7 +8,7 @@ aliases:
   - nbadb Docs Surface Map
 kind: index
 status: active
-updated: 2026-04-22
+updated: 2026-05-07
 source_count: 8
 ---
 
@@ -28,13 +28,11 @@ This index maps the committed docs `canonical material`, the docs implementation
 ## Public docs navigation
 | Group | Paths |
 |------|-------|
-| Home | `docs/content/docs/index.mdx` and `playground.mdx` |
-| Start | `docs/content/docs/start/` |
-| Ops | `docs/content/docs/ops/` |
-| Model overview | `docs/content/docs/model/index.mdx` |
-| Model schema and dictionary | `docs/content/docs/model/schema/`, `docs/content/docs/model/dictionary/` |
-| Model diagrams and lineage | `docs/content/docs/model/diagrams/`, `docs/content/docs/model/lineage/` |
-| Sources | `docs/content/docs/sources/` |
+| Getting Started | `docs/content/docs/index.mdx`, `docs/content/docs/installation.mdx`, `docs/content/docs/architecture.mdx`, `docs/content/docs/cli-reference.mdx` |
+| Reference schema and dictionary | `docs/content/docs/schema/`, `docs/content/docs/data-dictionary/` |
+| Reference diagrams and lineage | `docs/content/docs/diagrams/`, `docs/content/docs/lineage/` |
+| Endpoint reference | `docs/content/docs/endpoints/` |
+| Guides and playground | `docs/content/docs/playground.mdx`, `docs/content/docs/guides/` |
 
 ## Generator-owned docs surfaces
 | Output surface | Generator source |
@@ -53,6 +51,7 @@ This index maps the committed docs `canonical material`, the docs implementation
 - `docs/AGENTS.md`
 - `docs/package.json`
 - `docs/content/docs/meta.json`
+- docs section `meta.json` files under `docs/content/docs/{schema,data-dictionary,diagrams,endpoints,lineage,guides}/`
 - `src/nbadb/docs_gen/autogen.py`
 - `src/nbadb/docs_gen/schema_docs.py`
 - `src/nbadb/docs_gen/data_dictionary.py`

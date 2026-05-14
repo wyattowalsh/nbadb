@@ -35,6 +35,14 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
             "description": "Team city name",
         },
     )
+    team_name: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.teamName"},
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.teamSlug"},
+    )
     player_id: int = pa.Field(
         gt=0,
         nullable=False,
@@ -50,6 +58,26 @@ class StagingBoxScoreTraditionalPlayerSchema(BaseSchema):
             "source": ("BoxScoreTraditionalV3.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
+    )
+    first_name: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.firstName"},
+    )
+    family_name: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.familyName"},
+    )
+    name_i: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.nameI"},
+    )
+    player_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.playerSlug"},
+    )
+    jersey_num: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.PlayerStats.jerseyNum"},
     )
     nickname: str | None = pa.Field(
         nullable=True,
@@ -272,6 +300,10 @@ class StagingBoxScoreTraditionalTeamSchema(BaseSchema):
             "description": "Team city name",
         },
     )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.TeamStats.teamSlug"},
+    )
     min: float | None = pa.Field(
         nullable=True,
         ge=0,
@@ -452,6 +484,13 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
             "fk_ref": "staging_team.team_id",
         },
     )
+    team_abbreviation: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Team abbreviation code"},
+    )
+    team_city: str | None = pa.Field(nullable=True, metadata={"description": "Team city"})
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         nullable=False,
@@ -467,6 +506,19 @@ class StagingBoxScoreAdvancedPlayerSchema(BaseSchema):
             "source": ("BoxScoreAdvancedV3.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
+    )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
+    comment: str | None = pa.Field(nullable=True, metadata={"description": "Player status comment"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -671,6 +723,13 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
             "fk_ref": "staging_team.team_id",
         },
     )
+    team_abbreviation: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Team abbreviation code"},
+    )
+    team_city: str | None = pa.Field(nullable=True, metadata={"description": "Team city"})
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         nullable=False,
@@ -686,6 +745,19 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
             "source": ("BoxScoreHustleV2.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
+    )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
+    comment: str | None = pa.Field(nullable=True, metadata={"description": "Player status comment"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -766,6 +838,13 @@ class StagingBoxScoreHustlePlayerSchema(BaseSchema):
             "description": "Box outs",
         },
     )
+    offensive_box_outs: float | None = pa.Field(nullable=True, ge=0)
+    defensive_box_outs: float | None = pa.Field(nullable=True, ge=0)
+    loose_balls_recovered_offensive: float | None = pa.Field(nullable=True, ge=0)
+    loose_balls_recovered_defensive: float | None = pa.Field(nullable=True, ge=0)
+    box_out_player_rebounds: float | None = pa.Field(nullable=True, ge=0)
+    box_out_player_team_rebounds: float | None = pa.Field(nullable=True, ge=0)
+    points: float | None = pa.Field(nullable=True, ge=0)
 
 
 class StagingBoxScorePlayerTrackSchema(BaseSchema):
@@ -784,6 +863,13 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
             "fk_ref": "staging_team.team_id",
         },
     )
+    team_abbreviation: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Team abbreviation code"},
+    )
+    team_city: str | None = pa.Field(nullable=True, metadata={"description": "Team city"})
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         nullable=False,
@@ -799,6 +885,19 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
             "source": ("BoxScorePlayerTrackV3.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
+    )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
+    comment: str | None = pa.Field(nullable=True, metadata={"description": "Player status comment"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -955,6 +1054,8 @@ class StagingBoxScorePlayerTrackSchema(BaseSchema):
             "description": ("Defended field goal percentage"),
         },
     )
+    ast: float | None = pa.Field(nullable=True, ge=0)
+    fg_pct: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
 
 
 class StagingBoxScoreDefensivePlayerSchema(
@@ -975,6 +1076,13 @@ class StagingBoxScoreDefensivePlayerSchema(
             "fk_ref": "staging_team.team_id",
         },
     )
+    team_abbreviation: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Team abbreviation code"},
+    )
+    team_city: str | None = pa.Field(nullable=True, metadata={"description": "Team city"})
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         nullable=False,
@@ -990,6 +1098,19 @@ class StagingBoxScoreDefensivePlayerSchema(
             "source": ("BoxScoreDefensiveV2.PlayerStats.PLAYER_NAME"),
             "description": "Player full name",
         },
+    )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
+    comment: str | None = pa.Field(nullable=True, metadata={"description": "Player status comment"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -1030,6 +1151,11 @@ class StagingBoxScoreDefensivePlayerSchema(
             "description": ("Points allowed on defense"),
         },
     )
+    defensive_rebounds: float | None = pa.Field(nullable=True, ge=0)
+    matchup_assists: float | None = pa.Field(nullable=True, ge=0)
+    matchup_turnovers: float | None = pa.Field(nullable=True, ge=0)
+    steals: float | None = pa.Field(nullable=True, ge=0)
+    blocks: float | None = pa.Field(nullable=True, ge=0)
     def_fgm: float | None = pa.Field(
         nullable=True,
         ge=0,
@@ -1055,6 +1181,9 @@ class StagingBoxScoreDefensivePlayerSchema(
             "description": ("Defended field goal percentage"),
         },
     )
+    matchup_three_pointers_made: float | None = pa.Field(nullable=True, ge=0)
+    matchup_three_pointers_attempted: float | None = pa.Field(nullable=True, ge=0)
+    matchup_three_pointer_percentage: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
 
 
 class StagingBoxScoreFourFactorsPlayerSchema(BaseSchema):
@@ -1073,6 +1202,13 @@ class StagingBoxScoreFourFactorsPlayerSchema(BaseSchema):
             "fk_ref": "staging_team.team_id",
         },
     )
+    team_abbreviation: str | None = pa.Field(
+        nullable=True,
+        metadata={"description": "Team abbreviation code"},
+    )
+    team_city: str | None = pa.Field(nullable=True, metadata={"description": "Team city"})
+    team_name: str | None = pa.Field(nullable=True, metadata={"description": "Team name"})
+    team_slug: str | None = pa.Field(nullable=True, metadata={"description": "Team slug"})
     player_id: int = pa.Field(
         gt=0,
         nullable=False,
@@ -1088,6 +1224,19 @@ class StagingBoxScoreFourFactorsPlayerSchema(BaseSchema):
             "source": "BoxScoreFourFactorsV3.PlayerStats.PLAYER_NAME",
             "description": "Player full name",
         },
+    )
+    first_name: str | None = pa.Field(nullable=True, metadata={"description": "Player first name"})
+    family_name: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player family name"}
+    )
+    name_i: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player abbreviated name"}
+    )
+    player_slug: str | None = pa.Field(nullable=True, metadata={"description": "Player slug"})
+    position: str | None = pa.Field(nullable=True, metadata={"description": "Player position"})
+    comment: str | None = pa.Field(nullable=True, metadata={"description": "Player status comment"})
+    jersey_num: str | None = pa.Field(
+        nullable=True, metadata={"description": "Player jersey number"}
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -1198,6 +1347,18 @@ class StagingBoxScoreFourFactorsTeamSchema(BaseSchema):
             "description": "Team abbreviation code",
         },
     )
+    team_city: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreFourFactorsV3.TeamStats.teamCity"},
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreFourFactorsV3.TeamStats.teamSlug"},
+    )
+    min: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreFourFactorsV3.TeamStats.MIN"},
+    )
     effective_field_goal_percentage: float | None = pa.Field(
         nullable=True,
         ge=0.0,
@@ -1306,6 +1467,10 @@ class StagingBoxScoreTraditionalStarterBenchSchema(BaseSchema):
             "source": "BoxScoreTraditionalV3.TeamStarterBenchStats.TEAM_CITY",
             "description": "Team city name",
         },
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreTraditionalV3.TeamStarterBenchStats.teamSlug"},
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -1482,6 +1647,10 @@ class StagingBoxScoreAdvancedTeamSchema(BaseSchema):
             "source": "BoxScoreAdvancedV3.TeamStats.TEAM_CITY",
             "description": "Team city name",
         },
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreAdvancedV3.TeamStats.teamSlug"},
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -1672,6 +1841,10 @@ class StagingBoxScoreMiscTeamSchema(BaseSchema):
         nullable=True,
         metadata={"source": "BoxScoreMiscV3.TeamStats.TEAM_CITY", "description": "Team city name"},
     )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreMiscV3.TeamStats.teamSlug"},
+    )
     min: str | None = pa.Field(
         nullable=True,
         metadata={
@@ -1782,6 +1955,10 @@ class StagingBoxScoreScoringTeamSchema(BaseSchema):
             "source": "BoxScoreScoringV3.TeamStats.TEAM_CITY",
             "description": "Team city name",
         },
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreScoringV3.TeamStats.teamSlug"},
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -1933,6 +2110,10 @@ class StagingBoxScorePlayerTrackTeamSchema(BaseSchema):
             "source": "BoxScorePlayerTrackV3.TeamStats.TEAM_CITY",
             "description": "Team city name",
         },
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScorePlayerTrackV3.TeamStats.teamSlug"},
     )
     min: str | None = pa.Field(
         nullable=True,
@@ -2100,6 +2281,10 @@ class StagingBoxScoreDefensiveTeamSchema(BaseSchema):
             "source": "BoxScoreDefensiveV2.TeamStats.TEAM_CITY",
             "description": "Team city name",
         },
+    )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={"source": "BoxScoreDefensiveV2.TeamStats.teamSlug"},
     )
     min: str | None = pa.Field(
         nullable=True,

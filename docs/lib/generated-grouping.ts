@@ -87,9 +87,9 @@ export function sortGeneratedSourceGroups<
   });
 }
 
-export function sortGeneratedStarGroups<T extends { key: string; label: string }>(
-  groups: T[],
-): T[] {
+export function sortGeneratedStarGroups<
+  T extends { key: string; label: string },
+>(groups: T[]): T[] {
   const rank = new Map<string, number>(
     GENERATED_STAR_GROUP_ORDER.map((groupKey, index) => [groupKey, index]),
   );

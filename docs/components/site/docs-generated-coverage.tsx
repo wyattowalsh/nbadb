@@ -17,7 +17,8 @@ const schemaCoverageSurfaceMeta: Record<string, SchemaCoverageSurfaceMeta> = {
   },
   "schema/star-reference": {
     eyebrow: "Coverage boundary",
-    title: "This contract page covers only outputs with generated schema entries",
+    title:
+      "This contract page covers only outputs with generated schema entries",
     description:
       "The star reference is the exact contract layer for outputs that currently have generated schema metadata. Some lineage-tracked outputs still sit outside this reference layer, so absence here is a coverage limit, not proof that an output does not exist.",
   },

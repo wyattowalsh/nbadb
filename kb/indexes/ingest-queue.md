@@ -8,7 +8,7 @@ aliases:
   - KB Ingest Queue
 kind: index
 status: active
-updated: 2026-04-22
+updated: 2026-05-07
 source_count: 26
 ---
 
@@ -22,7 +22,7 @@ Related: [[external-sources]] · [[internal-source-catalog]] · [[source-map]] �
 | Priority | Collection | Source batch | Planned raw capture path(s) | Capture form | Planned note(s) | Status |
 |----------|------------|--------------|-----------------------------|--------------|-----------------|--------|
 | P0 | Repo anchors | `README.md`, `AGENTS.md` | `raw/extracts/internal/repo-canon-inventory.md` | extract | `wiki/index.md`, route pages | seeded |
-| P0 | Public contract | `docs/content/docs/start/architecture.mdx`, `docs/content/docs/model/schema/index.mdx`, `docs/content/docs/model/dictionary/index.mdx`, `docs/content/docs/model/lineage/index.mdx` | `raw/extracts/internal/docs-surface-inventory.md` | extract | `wiki/model/*`, `wiki/operations/*` | seeded |
+| P0 | Public contract | `docs/content/docs/architecture.mdx`, `docs/content/docs/schema/index.mdx`, `docs/content/docs/data-dictionary/index.mdx`, `docs/content/docs/lineage/index.mdx`, `docs/content/docs/endpoints/index.mdx`, `docs/content/docs/guides/` | `raw/extracts/internal/docs-surface-inventory.md` | extract | `wiki/model/*`, `wiki/operations/*`, `wiki/routes/*` | seeded |
 | P0 | Upstream NBA source | `nba_api`, `stats.nba.com`, NBA live JSON | `raw/sources/external/upstream-nba/` | source capture | `wiki/topics/nba-api-source-summary.md` | captured |
 | P0 | Extractor surface | `src/nbadb/extract/registry.py`, `src/nbadb/extract/**/*`, `src/nbadb/orchestrate/staging_map.py` | `raw/extracts/internal/extractor-and-staging-inventory.md` | extract | `wiki/model/endpoint-coverage.md` | seeded |
 | P1 | Coverage + audit | `artifacts/endpoint-coverage/*`, `src/nbadb/core/endpoint_coverage.py`, `src/nbadb/core/model_audit.py`, `src/nbadb/cli/commands/endpoint_support_matrix.py` | `raw/extracts/internal/endpoint-coverage-and-audit-manifest.md` | extract + source-summary bridge | `wiki/topics/endpoint-coverage-source-summary.md`, `wiki/topics/model-audit.md`, `wiki/topics/full-extraction-control-plane.md` | captured |

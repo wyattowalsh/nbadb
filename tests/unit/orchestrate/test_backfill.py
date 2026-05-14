@@ -325,19 +325,19 @@ class TestBackfillPlannerGaps:
         assert "season" in report.summary
         assert report.summary["season"] >= 1
 
-    def test_min_season_respected(
+    def test_production_staging_entries_do_not_suppress_pre_modern_gaps(
         self,
         planner: BackfillPlanner,
     ) -> None:
-        """Endpoints with min_season should not report gaps for earlier seasons."""
+        """Production staging entries should report gaps back to 1946."""
         report = planner.detect_gaps(
             endpoints=["league_dash_pt_defend"],
             patterns=["season"],
             seasons=["2010-11"],
         )
-        # league_dash_pt_defend has min_season=2013, so 2010-11 should be excluded
         gaps = [g for g in report.gaps if g.endpoint == "league_dash_pt_defend"]
-        assert len(gaps) == 0
+        assert len(gaps) == 1
+        assert gaps[0].min_season is None
 
 
 # ── BackfillPlanner plan building ────────────────────────────────

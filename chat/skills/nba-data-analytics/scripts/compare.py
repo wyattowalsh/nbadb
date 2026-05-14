@@ -21,6 +21,14 @@ if TYPE_CHECKING:
     import matplotlib.figure
 
 
+def _show_if_interactive() -> None:
+    """Display figures only when matplotlib has an interactive backend."""
+    import matplotlib.pyplot as plt
+
+    if "agg" not in plt.get_backend().lower():
+        plt.show()
+
+
 def compare_players(
     df: pd.DataFrame,
     player_col: str = "full_name",
@@ -95,7 +103,7 @@ def radar_chart(
     if not stats_dict:
         fig, ax = plt.subplots()
         ax.text(0.5, 0.5, "No data", ha="center", va="center")
-        plt.show()
+        _show_if_interactive()
         return fig
 
     if categories is None:
@@ -106,7 +114,7 @@ def radar_chart(
     if n < 3:
         fig, ax = plt.subplots()
         ax.text(0.5, 0.5, "Need at least 3 categories", ha="center", va="center")
-        plt.show()
+        _show_if_interactive()
         return fig
 
     angles = [i / n * 2 * math.pi for i in range(n)]
@@ -140,7 +148,7 @@ def radar_chart(
     ax.set_title(title or "Player Comparison", color="white", size=14, pad=20)
     ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1), framealpha=0.3)
 
-    plt.show()
+    _show_if_interactive()
     return fig
 
 

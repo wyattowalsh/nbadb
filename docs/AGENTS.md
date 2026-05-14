@@ -297,11 +297,11 @@ type GeneratedPageFrameMeta = {
 
 Helper functions:
 
-| Function                        | Returns                          | Description                                            |
-| ------------------------------- | -------------------------------- | ------------------------------------------------------ |
-| `getSectionMeta(slug?)`         | `SectionMeta`                    | Resolves the current section from a docs slug          |
-| `getGeneratedPageConfig(slug?)` | `GeneratedPageConfig \| null`    | Unified generated-page config accessor                 |
-| `getGeneratedPageFrame(slug?)`  | `GeneratedPageFrameMeta \| null` | Frame config for auto-generated pages                  |
+| Function                        | Returns                          | Description                                              |
+| ------------------------------- | -------------------------------- | -------------------------------------------------------- |
+| `getSectionMeta(slug?)`         | `SectionMeta`                    | Resolves the current section from a docs slug            |
+| `getGeneratedPageConfig(slug?)` | `GeneratedPageConfig \| null`    | Unified generated-page config accessor                   |
+| `getGeneratedPageFrame(slug?)`  | `GeneratedPageFrameMeta \| null` | Frame config for auto-generated pages                    |
 | `getDocsContextRail(slug?)`     | `DocsContextRailMeta`            | Related links and prompts for the generated context rail |
 
 Exported data objects: `heroSignals`, `searchPrompts`, `docsSections`.

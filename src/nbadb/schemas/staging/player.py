@@ -57,6 +57,13 @@ class StagingCommonAllPlayersSchema(BaseSchema):
             "description": "Player code slug",
         },
     )
+    player_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("CommonAllPlayers.CommonAllPlayers.PLAYER_SLUG"),
+            "description": "URL-friendly player slug",
+        },
+    )
     team_id: int | None = pa.Field(
         nullable=True,
         metadata={
@@ -93,11 +100,25 @@ class StagingCommonAllPlayersSchema(BaseSchema):
             "description": "Team code slug",
         },
     )
+    team_slug: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("CommonAllPlayers.CommonAllPlayers.TEAM_SLUG"),
+            "description": "URL-friendly team slug",
+        },
+    )
     games_played_flag: str | None = pa.Field(
         nullable=True,
         metadata={
             "source": ("CommonAllPlayers.CommonAllPlayers.GAMES_PLAYED_FLAG"),
             "description": ("Flag indicating games played"),
+        },
+    )
+    otherleague_experience_ch: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("CommonAllPlayers.CommonAllPlayers.OTHERLEAGUE_EXPERIENCE_CH"),
+            "description": "Other league experience code",
         },
     )
 

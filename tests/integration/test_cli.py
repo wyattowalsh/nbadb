@@ -14,6 +14,7 @@ ALL_COMMANDS = [
     "full",
     "docs-autogen",
     "export",
+    "metadata",
     "upload",
     "download",
     "schema",

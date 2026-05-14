@@ -4,6 +4,7 @@ import json
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from nbadb.cli.app import app
@@ -163,6 +164,142 @@ def test_extract_completeness_require_full_exits_when_noncovered(tmp_path: Path)
 
     assert result.exit_code == 1
     assert "require-full check failed" in result.output
+
+
+@pytest.mark.parametrize(
+    ("summary_section", "counter_name"),
+    [
+        ("upstream_contract", "field_gap_count"),
+        ("upstream_contract", "invalid_result_set_index_count"),
+        ("upstream_contract", "missing_result_set_staging_count"),
+        ("upstream_contract", "missing_input_schema_count"),
+        ("upstream_contract", "blocking_contract_unknown_result_set_count"),
+        ("upstream_field_fate", "missing_sink_count"),
+        ("upstream_field_fate", "model_usage_unknown_count"),
+        ("upstream_field_fate", "unmodeled_unclassified_count"),
+        ("temporal_coverage", "required_temporal_missing_count"),
+    ],
+)
+def test_extract_completeness_require_full_exits_for_contract_gap_counters(
+    tmp_path: Path,
+    summary_section: str,
+    counter_name: str,
+) -> None:
+    written = _artifact_paths(
+        tmp_path,
+        {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+    )
+    summary_payload = {
+        "coverage": {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 5,
+            "extractable_endpoint_count": 5,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
+        "upstream_contract": {
+            "field_gap_count": 0,
+            "invalid_result_set_index_count": 0,
+            "missing_result_set_staging_count": 0,
+            "missing_input_schema_count": 0,
+            "contract_unknown_result_set_count": 0,
+            "classified_contract_unknown_result_set_count": 0,
+            "blocking_contract_unknown_result_set_count": 0,
+        },
+        "upstream_field_fate": {
+            "missing_sink_count": 0,
+            "model_usage_unknown_count": 0,
+            "unmodeled_unclassified_count": 0,
+        },
+        "temporal_coverage": {"required_temporal_missing_count": 0},
+    }
+    summary_payload[summary_section][counter_name] = 1
+    if counter_name == "blocking_contract_unknown_result_set_count":
+        summary_payload["upstream_contract"]["contract_unknown_result_set_count"] = 1
+
+    with patch(_GENERATOR_PATH) as mock_generator:
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert "require-full check failed" in result.output
+
+
+def test_extract_completeness_require_full_allows_classified_contract_unknowns(
+    tmp_path: Path,
+) -> None:
+    written = _artifact_paths(
+        tmp_path,
+        {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+    )
+    summary_payload = {
+        "coverage": {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 5,
+            "extractable_endpoint_count": 5,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
+        "upstream_contract": {
+            "field_gap_count": 0,
+            "invalid_result_set_index_count": 0,
+            "missing_result_set_staging_count": 0,
+            "missing_input_schema_count": 0,
+            "contract_unknown_result_set_count": 1,
+            "classified_contract_unknown_result_set_count": 1,
+            "blocking_contract_unknown_result_set_count": 0,
+        },
+        "upstream_field_fate": {
+            "missing_sink_count": 0,
+            "model_usage_unknown_count": 0,
+            "unmodeled_unclassified_count": 0,
+        },
+        "temporal_coverage": {"required_temporal_missing_count": 0},
+    }
+
+    with patch(_GENERATOR_PATH) as mock_generator:
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 0, result.output
+    assert "contract_unknown_result_sets=1" in result.output
+    assert "blocking_contract_unknown_result_sets=0" in result.output
 
 
 def test_extract_completeness_require_model_contract_exits_when_unowned(tmp_path: Path) -> None:

@@ -91,6 +91,20 @@ _OVERALL_ONLY_MULTI_ENDPOINTS = {
     "player_dashboard_year_over_year",
 }
 
+_RESULT_SET_ORDER_REGRESSION_ROWS = {
+    "stg_play_by_play": 1,
+    "stg_play_by_play_video_available": 0,
+    "stg_play_by_play_v2": 1,
+    "stg_play_by_play_v2_video_available": 0,
+    "stg_scoreboard": 2,
+    "stg_scoreboard_v2_series_standings": 5,
+    "stg_shot_chart": 1,
+    "stg_shot_chart_league_averages": 0,
+    "stg_coaches": 0,
+    "stg_team_roster": 1,
+    "stg_team_details": 3,
+}
+
 
 def _extractor_endpoint_names() -> set[str]:
     return set(_extractor_endpoint_metadata())
@@ -138,7 +152,7 @@ def _extractor_endpoint_metadata() -> dict[str, tuple[str, bool]]:
 
 class TestStagingMap:
     def test_map_has_expected_entry_count(self) -> None:
-        assert len(STAGING_MAP) == 414
+        assert len(STAGING_MAP) == 416
 
     def test_all_staging_keys_unique(self) -> None:
         keys = get_all_staging_keys()
@@ -165,16 +179,18 @@ class TestStagingMap:
         }
 
     def test_get_by_pattern_player(self) -> None:
-        assert len(get_by_pattern("player")) == 108
+        entries = get_by_pattern("player")
+        assert len(entries) == 32
+        assert all(not entry.staging_key.startswith("stg_player_pt_") for entry in entries)
 
     def test_get_by_pattern_team(self) -> None:
-        assert len(get_by_pattern("team")) == 16
+        assert len(get_by_pattern("team")) == 17
 
     def test_get_by_pattern_player_season(self) -> None:
         entries = get_by_pattern("player_season")
-        assert len(entries) == 8
+        assert len(entries) == 84
         staging_keys = {entry.staging_key for entry in entries}
-        assert staging_keys == {
+        expected_core_keys = {
             "stg_cume_player",
             "stg_cume_player_game_by_game",
             "stg_cume_player_games",
@@ -183,7 +199,42 @@ class TestStagingMap:
             "stg_player_game_log",
             "stg_player_fantasy_profile_last_five_games_avg",
             "stg_player_fantasy_profile_season_avg",
+            "stg_player_clutch_overall",
+            "stg_player_dash_game_splits",
+            "stg_player_dash_general_splits",
+            "stg_player_dash_last_n_games",
+            "stg_player_dash_shooting_splits",
+            "stg_player_dash_team_perf",
+            "stg_player_dash_yoy",
+            "stg_player_dashboard_clutch",
+            "stg_player_dashboard_game_splits",
+            "stg_player_dashboard_general_splits",
+            "stg_player_dashboard_last_n_games",
+            "stg_player_dashboard_shooting_splits",
+            "stg_player_dashboard_team_performance",
+            "stg_player_dashboard_year_over_year",
+            "stg_player_game_logs_v2",
+            "stg_player_next_games",
+            "stg_player_streak_finder",
+            "stg_player_pt_pass",
+            "stg_player_pt_pass_received",
+            "stg_player_pt_reb",
+            "stg_player_pt_reb_distance",
+            "stg_player_pt_reb_overall",
+            "stg_player_pt_reb_shot_dist",
+            "stg_player_pt_reb_shot_type",
+            "stg_player_pt_shot_defend",
+            "stg_player_pt_shots",
+            "stg_player_pt_shots_closest_def",
+            "stg_player_pt_shots_dribble",
+            "stg_player_pt_shots_general",
+            "stg_player_pt_shots_overall",
+            "stg_player_pt_shots_shot_clock",
+            "stg_player_pt_shots_touch_time",
+            "stg_shot_chart",
+            "stg_shot_chart_league_averages",
         }
+        assert expected_core_keys <= staging_keys
 
     def test_get_by_pattern_player_team_season(self) -> None:
         entries = get_by_pattern("player_team_season")
@@ -220,7 +271,7 @@ class TestStagingMap:
         assert len(get_by_pattern("static")) == 33
 
     def test_get_by_pattern_date(self) -> None:
-        assert len(get_by_pattern("date")) == 17
+        assert len(get_by_pattern("date")) == 18
 
     @pytest.mark.parametrize(
         ("param_pattern", "expected_capability"),
@@ -321,7 +372,7 @@ class TestStagingMap:
             "stg_player_game_streak_finder": "season",
             "stg_team_streak_finder": "season",
             "stg_coaches": "team_season",
-            "stg_team_info": "team_season",
+            "stg_team_roster": "team_season",
             "stg_team_dash_general_splits": "team_season",
             "stg_team_dash_shooting_splits": "team_season",
             "stg_team_lineups": "team_season",
@@ -337,6 +388,32 @@ class TestStagingMap:
             "stg_team_vs_player": "player_team_season",
             "stg_team_and_players_vs": "player_team_season",
             "stg_team_and_players_vs_players": "player_team_season",
+            "stg_player_pt_pass": "player_season",
+            "stg_player_pt_pass_received": "player_season",
+            "stg_player_pt_reb": "player_season",
+            "stg_player_pt_reb_distance": "player_season",
+            "stg_player_pt_reb_overall": "player_season",
+            "stg_player_pt_reb_shot_dist": "player_season",
+            "stg_player_pt_reb_shot_type": "player_season",
+            "stg_player_pt_shot_defend": "player_season",
+            "stg_player_pt_shots": "player_season",
+            "stg_player_pt_shots_closest_def": "player_season",
+            "stg_player_pt_shots_dribble": "player_season",
+            "stg_player_pt_shots_general": "player_season",
+            "stg_player_pt_shots_overall": "player_season",
+            "stg_player_pt_shots_shot_clock": "player_season",
+            "stg_player_pt_shots_touch_time": "player_season",
+            "stg_player_dashboard_clutch": "player_season",
+            "stg_player_dash_game_splits": "player_season",
+            "stg_player_dash_general_splits": "player_season",
+            "stg_player_dash_last_n_games": "player_season",
+            "stg_player_dash_shooting_splits": "player_season",
+            "stg_player_dash_team_perf": "player_season",
+            "stg_player_dash_yoy": "player_season",
+            "stg_player_game_logs_v2": "player_season",
+            "stg_player_next_games": "player_season",
+            "stg_player_streak_finder": "player_season",
+            "stg_shot_chart": "player_season",
         }
 
         for staging_key, expected_pattern in expected_patterns.items():
@@ -344,20 +421,16 @@ class TestStagingMap:
             assert entry is not None
             assert entry.param_pattern == expected_pattern
 
-    def test_staging_map_player_game_logs_v2_overrides_player_pattern_default(self) -> None:
+    def test_staging_map_player_game_logs_v2_uses_player_season_supported_contract(self) -> None:
         entry = get_by_staging_key("stg_player_game_logs_v2")
 
         assert entry is not None
+        assert entry.param_pattern == "player_season"
         assert entry.season_type_capability == "supported"
 
     def test_staging_map_non_historical_patterns_are_not_applicable(self) -> None:
         non_historical_patterns = {"game", "live", "player", "team", "static", "date"}
-        entries = [
-            entry
-            for entry in STAGING_MAP
-            if entry.param_pattern in non_historical_patterns
-            and entry.staging_key != "stg_player_game_logs_v2"
-        ]
+        entries = [entry for entry in STAGING_MAP if entry.param_pattern in non_historical_patterns]
 
         assert entries
         assert {entry.season_type_capability for entry in entries} == {"not_applicable"}
@@ -367,29 +440,9 @@ class TestStagingMap:
         assert entry is not None
         assert entry.endpoint_name == "league_game_log"
 
-    def test_play_by_play_v2_has_min_season_guard(self) -> None:
-        for staging_key in (
-            "stg_play_by_play_v2",
-            "stg_play_by_play_v2_video_available",
-        ):
-            entry = get_by_staging_key(staging_key)
-            assert entry is not None
-            assert entry.min_season == 1996
-
-    def test_box_score_v3_game_packet_has_1996_min_season_guards(self) -> None:
-        for staging_key in (
-            "stg_box_score_advanced",
-            "stg_box_score_scoring",
-            "stg_box_score_usage",
-            "stg_box_score_four_factors_player",
-            "stg_box_score_advanced_team",
-            "stg_box_score_scoring_team",
-            "stg_box_score_usage_team",
-            "stg_box_score_four_factors_team",
-        ):
-            entry = get_by_staging_key(staging_key)
-            assert entry is not None
-            assert entry.min_season == 1996
+    def test_staging_map_has_no_production_season_cutoffs(self) -> None:
+        assert [entry for entry in STAGING_MAP if entry.min_season not in (None, 1946)] == []
+        assert [entry for entry in STAGING_MAP if entry.deprecated_after is not None] == []
 
     def test_get_by_staging_key_not_found(self) -> None:
         assert get_by_staging_key("stg_nonexistent") is None
@@ -418,6 +471,15 @@ class TestStagingMap:
             assert entry is not None, f"{staging_key} missing from STAGING_MAP"
             assert entry.endpoint_name == endpoint_name
             assert entry.result_set_index == _MULTI_ROUTE_NONZERO_INDICES.get(staging_key, 0)
+            assert entry.use_multi is True
+
+    def test_contract_result_set_order_regression_rows_use_expected_index(self) -> None:
+        assert len(_RESULT_SET_ORDER_REGRESSION_ROWS) == 11
+
+        for staging_key, result_set_index in _RESULT_SET_ORDER_REGRESSION_ROWS.items():
+            entry = get_by_staging_key(staging_key)
+            assert entry is not None, f"{staging_key} missing from STAGING_MAP"
+            assert entry.result_set_index == result_set_index
             assert entry.use_multi is True
 
     def test_multi_result_endpoints_do_not_mix_use_multi_flags(self) -> None:

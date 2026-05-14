@@ -69,7 +69,8 @@ function buildGroupMeta(key: string, surface: SurfaceKind) {
           fact: "Analyst-facing event and measurement tables.",
           bridge: "Connector tables for many-to-many join lanes.",
           agg: "Pre-aggregated outputs for repeated reporting paths.",
-          analytics: "Convenience surfaces for fast notebook and dashboard reads.",
+          analytics:
+            "Convenience surfaces for fast notebook and dashboard reads.",
         }[key] ?? "Generated warehouse surfaces grouped by family.",
     };
   }

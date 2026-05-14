@@ -278,6 +278,91 @@ class StagingLeagueStandingsV3Schema(BaseSchema):
             "description": ("Point differential per game"),
         },
     )
+    last10_home: str | None = pa.Field(nullable=True)
+    last10_road: str | None = pa.Field(nullable=True)
+    ot: str | None = pa.Field(nullable=True)
+    three_ptsor_less: str | None = pa.Field(nullable=True)
+    ten_ptsor_more: str | None = pa.Field(nullable=True)
+    long_home_streak: int | None = pa.Field(nullable=True)
+    str_long_home_streak: str | None = pa.Field(nullable=True)
+    long_road_streak: int | None = pa.Field(nullable=True)
+    str_long_road_streak: str | None = pa.Field(nullable=True)
+    current_home_streak: int | None = pa.Field(nullable=True)
+    str_current_home_streak: str | None = pa.Field(nullable=True)
+    current_road_streak: int | None = pa.Field(nullable=True)
+    str_current_road_streak: str | None = pa.Field(nullable=True)
+    str_current_streak: str | None = pa.Field(nullable=True)
+    eliminated_division: int | None = pa.Field(nullable=True)
+    ahead_at_half: str | None = pa.Field(nullable=True)
+    behind_at_half: str | None = pa.Field(nullable=True)
+    tied_at_half: str | None = pa.Field(nullable=True)
+    ahead_at_third: str | None = pa.Field(nullable=True)
+    behind_at_third: str | None = pa.Field(nullable=True)
+    tied_at_third: str | None = pa.Field(nullable=True)
+    score100_pts: str | None = pa.Field(nullable=True)
+    opp_score100_pts: str | None = pa.Field(nullable=True)
+    opp_over500: str | None = pa.Field(nullable=True)
+    lead_in_fgpct: str | None = pa.Field(nullable=True)
+    lead_in_reb: str | None = pa.Field(nullable=True)
+    fewer_turnovers: str | None = pa.Field(nullable=True)
+    points_pg: float | None = pa.Field(nullable=True)
+    opp_points_pg: float | None = pa.Field(nullable=True)
+    diff_points_pg: float | None = pa.Field(nullable=True)
+    vs_east: str | None = pa.Field(nullable=True)
+    vs_atlantic: str | None = pa.Field(nullable=True)
+    vs_central: str | None = pa.Field(nullable=True)
+    vs_southeast: str | None = pa.Field(nullable=True)
+    vs_west: str | None = pa.Field(nullable=True)
+    vs_northwest: str | None = pa.Field(nullable=True)
+    vs_pacific: str | None = pa.Field(nullable=True)
+    vs_southwest: str | None = pa.Field(nullable=True)
+    jan: str | None = pa.Field(nullable=True)
+    feb: str | None = pa.Field(nullable=True)
+    mar: str | None = pa.Field(nullable=True)
+    apr: str | None = pa.Field(nullable=True)
+    may: str | None = pa.Field(nullable=True)
+    jun: str | None = pa.Field(nullable=True)
+    jul: str | None = pa.Field(nullable=True)
+    aug: str | None = pa.Field(nullable=True)
+    sep: str | None = pa.Field(nullable=True)
+    oct: str | None = pa.Field(nullable=True)
+    nov: str | None = pa.Field(nullable=True)
+    dec: str | None = pa.Field(nullable=True)
+    return_to_play_east_pi_flag: int | None = pa.Field(nullable=True)
+    return_to_play_west_pi_flag: int | None = pa.Field(nullable=True)
+    return_to_play_already_eliminated: int | None = pa.Field(nullable=True)
+    seeding_game_1_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_2_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_3_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_4_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_5_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_6_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_7_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_8_outcome: str | None = pa.Field(nullable=True)
+    seeding_game_1_id: str | None = pa.Field(nullable=True)
+    seeding_game_2_id: str | None = pa.Field(nullable=True)
+    seeding_game_3_id: str | None = pa.Field(nullable=True)
+    seeding_game_4_id: str | None = pa.Field(nullable=True)
+    seeding_game_5_id: str | None = pa.Field(nullable=True)
+    seeding_game_6_id: str | None = pa.Field(nullable=True)
+    seeding_game_7_id: str | None = pa.Field(nullable=True)
+    seeding_game_8_id: str | None = pa.Field(nullable=True)
+    seeding_game_1_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_2_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_3_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_4_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_5_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_6_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_7_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_8_opponent: str | None = pa.Field(nullable=True)
+    seeding_game_1_label: str | None = pa.Field(nullable=True)
+    seeding_game_2_label: str | None = pa.Field(nullable=True)
+    seeding_game_3_label: str | None = pa.Field(nullable=True)
+    seeding_game_4_label: str | None = pa.Field(nullable=True)
+    seeding_game_5_label: str | None = pa.Field(nullable=True)
+    seeding_game_6_label: str | None = pa.Field(nullable=True)
+    seeding_game_7_label: str | None = pa.Field(nullable=True)
+    seeding_game_8_label: str | None = pa.Field(nullable=True)
 
 
 class StagingShotChartDetailSchema(BaseSchema):
@@ -590,6 +675,64 @@ class StagingWinProbabilitySchema(BaseSchema):
         metadata={
             "source": ("WinProbabilityPBP.WinProbPBP.IS_SCORE_CHANGE"),
             "description": ("Flag indicating if score changed"),
+        },
+    )
+    game_date: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.GAME_DATE"),
+            "description": "Game date for the win-probability snapshot",
+        },
+    )
+    home_team_abr: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.HOME_TEAM_ABR"),
+            "description": "Home team abbreviation code",
+        },
+    )
+    visitor_team_abr: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.VISITOR_TEAM_ABR"),
+            "description": "Visitor team abbreviation code",
+        },
+    )
+    home_team_pts: int | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.HOME_TEAM_PTS"),
+            "description": "Home team points for the win-probability snapshot",
+        },
+    )
+    visitor_team_pts: int | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbability.VISITOR_TEAM_PTS"),
+            "description": "Visitor team points for the win-probability snapshot",
+        },
+    )
+    home_poss_ind: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbPBP.HOME_POSS_IND"),
+            "description": "Home possession indicator",
+        },
+    )
+    home_g: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbPBP.HOME_G"),
+            "description": "Home team game count",
+        },
+    )
+    isvisible: int | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("WinProbabilityPBP.WinProbPBP.ISVISIBLE"),
+            "description": "Whether the event is visible in play-by-play",
         },
     )
 
@@ -1124,6 +1267,50 @@ class StagingBoxScoreMatchupsSchema(BaseSchema):
             "description": ("Switches onto player"),
         },
     )
+    team_id: int | None = pa.Field(nullable=True, gt=0)
+    team_city: str | None = pa.Field(nullable=True)
+    team_name: str | None = pa.Field(nullable=True)
+    team_tricode: str | None = pa.Field(nullable=True)
+    team_slug: str | None = pa.Field(nullable=True)
+    person_id_off: int | None = pa.Field(nullable=True, gt=0)
+    first_name_off: str | None = pa.Field(nullable=True)
+    family_name_off: str | None = pa.Field(nullable=True)
+    name_ioff: str | None = pa.Field(nullable=True)
+    player_slug_off: str | None = pa.Field(nullable=True)
+    jersey_num_off: str | None = pa.Field(nullable=True)
+    person_id_def: int | None = pa.Field(nullable=True, gt=0)
+    first_name_def: str | None = pa.Field(nullable=True)
+    family_name_def: str | None = pa.Field(nullable=True)
+    name_idef: str | None = pa.Field(nullable=True)
+    player_slug_def: str | None = pa.Field(nullable=True)
+    position_def: str | None = pa.Field(nullable=True)
+    comment_def: str | None = pa.Field(nullable=True)
+    jersey_num_def: str | None = pa.Field(nullable=True)
+    matchup_minutes: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_minutes_sort: float | None = pa.Field(nullable=True, ge=0.0)
+    partial_possessions: float | None = pa.Field(nullable=True, ge=0.0)
+    percentage_defender_total_time: float | None = pa.Field(nullable=True, ge=0.0)
+    percentage_offensive_total_time: float | None = pa.Field(nullable=True, ge=0.0)
+    percentage_total_time_both_on: float | None = pa.Field(nullable=True, ge=0.0)
+    player_points: float | None = pa.Field(nullable=True, ge=0.0)
+    team_points: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_assists: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_potential_assists: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_turnovers: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_blocks: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_field_goals_made: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_field_goals_attempted: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_field_goals_percentage: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    matchup_three_pointers_made: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_three_pointers_attempted: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_three_pointers_percentage: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    help_blocks: float | None = pa.Field(nullable=True, ge=0.0)
+    help_field_goals_made: float | None = pa.Field(nullable=True, ge=0.0)
+    help_field_goals_attempted: float | None = pa.Field(nullable=True, ge=0.0)
+    help_field_goals_percentage: float | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    matchup_free_throws_made: float | None = pa.Field(nullable=True, ge=0.0)
+    matchup_free_throws_attempted: float | None = pa.Field(nullable=True, ge=0.0)
+    shooting_fouls: float | None = pa.Field(nullable=True, ge=0.0)
 
 
 class StagingArenaInfoSchema(BaseSchema):

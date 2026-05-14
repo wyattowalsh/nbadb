@@ -500,6 +500,85 @@ class TestCategoryGroupings:
 
 
 class TestCrossProductParameterHandling:
+    @staticmethod
+    def _common_team_roster_df() -> pl.DataFrame:
+        return pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "season": ["2024-25"],
+                "league_id": ["00"],
+                "player": ["Roster Player"],
+                "nickname": ["Roster"],
+                "player_slug": ["roster-player"],
+                "num": ["0"],
+                "position": ["G"],
+                "height": ["6-0"],
+                "weight": ["180"],
+                "birth_date": ["2000-01-01"],
+                "age": [24.0],
+                "exp": ["1"],
+                "school": ["Example"],
+                "player_id": [1],
+                "how_acquired": ["Draft"],
+            }
+        )
+
+    @staticmethod
+    def _common_team_roster_coaches_df() -> pl.DataFrame:
+        return pl.DataFrame(
+            {
+                "team_id": [1610612738],
+                "season": ["2024-25"],
+                "coach_id": [2],
+                "first_name": ["Head"],
+                "last_name": ["Coach"],
+                "coach_name": ["Head Coach"],
+                "is_assistant": [0],
+                "coach_type": ["Head Coach"],
+                "sort_sequence": [1],
+                "sub_sort_sequence": [1],
+                "school": ["Example"],
+            }
+        )
+
+    @pytest.mark.asyncio
+    async def test_common_team_roster_extract_returns_roster_result_set(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonTeamRosterExtractor()
+        coaches = self._common_team_roster_coaches_df()
+        roster = self._common_team_roster_df()
+        trailing = pl.DataFrame({"unexpected": ["trailing packet"]})
+
+        monkeypatch.setattr(
+            ext, "_from_nba_api_multi", lambda endpoint_cls, **kwargs: [coaches, roster, trailing]
+        )
+
+        result = await ext.extract(team_id=1610612738, season="2024-25")
+
+        assert result.columns == roster.columns
+        assert result["player"][0] == "Roster Player"
+
+    @pytest.mark.asyncio
+    async def test_common_team_roster_extract_coaches_returns_coaches_result_set(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonTeamRosterExtractor()
+        coaches = self._common_team_roster_coaches_df()
+        roster = self._common_team_roster_df()
+        trailing = pl.DataFrame({"unexpected": ["trailing packet"]})
+
+        monkeypatch.setattr(
+            ext, "_from_nba_api_multi", lambda endpoint_cls, **kwargs: [coaches, roster, trailing]
+        )
+
+        result = await ext.extract_coaches(team_id=1610612738, season="2024-25")
+
+        assert result.columns == coaches.columns
+        assert result["coach_name"][0] == "Head Coach"
+
     @pytest.mark.asyncio
     async def test_player_compare_accepts_single_player_id(
         self,
@@ -1674,7 +1753,20 @@ class TestExtractMethodCoverage:
             monkeypatch.setattr(
                 ext, "_from_nba_api_multi", lambda endpoint_cls, **kwargs: [dummy_df]
             )
-        elif cls is DraftCombineDrillResultsExtractor:
+        elif cls is CommonTeamRosterExtractor:
+            monkeypatch.setattr(
+                ext,
+                "_from_nba_api_multi",
+                lambda endpoint_cls, **kwargs: [pl.DataFrame(), dummy_df],
+            )
+            monkeypatch.setattr(ext, "_validate", lambda df: df)
+        elif cls in {
+            DraftCombineDrillResultsExtractor,
+            DraftCombineNonStationaryShootingExtractor,
+            DraftCombinePlayerAnthroExtractor,
+            DraftCombineSpotShootingExtractor,
+            LeagueSeasonMatchupsExtractor,
+        }:
             monkeypatch.setattr(ext, "_call_nba_api", lambda endpoint_cls, **kwargs: [dummy_df])
             monkeypatch.setattr(ext, "_validate", lambda df: df)
         elif cls is DunkScoreLeadersExtractor:
@@ -1862,6 +1954,71 @@ class TestDraftCombineExtractors:
         assert isinstance(result, pl.DataFrame)
         assert captured_call["season_year"] == 2024
         assert captured_validate["df"]["season"].to_list() == ["2024-25"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            DraftCombineNonStationaryShootingExtractor,
+            DraftCombinePlayerAnthroExtractor,
+            DraftCombineSpotShootingExtractor,
+        ],
+        ids=["non_stationary", "anthro", "spot"],
+    )
+    async def test_draft_combine_result_extractors_inject_season_before_validation(
+        self,
+        cls: type,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = cls()
+        captured_call: dict[str, object] = {}
+        captured_validate: dict[str, pl.DataFrame] = {}
+
+        def _fake_call(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
+            captured_call.update(kw)
+            return [pl.DataFrame({"player_id": [1]})]
+
+        def _fake_validate(df: pl.DataFrame) -> pl.DataFrame:
+            captured_validate["df"] = df
+            return df
+
+        monkeypatch.setattr(ext, "_call_nba_api", _fake_call)
+        monkeypatch.setattr(ext, "_validate", _fake_validate)
+
+        result = await ext.extract(season="2024-25")
+
+        assert isinstance(result, pl.DataFrame)
+        assert captured_call["season_year"] == 2024
+        assert captured_validate["df"]["season"].to_list() == ["2024-25"]
+
+
+class TestMatchupExtractors:
+    @pytest.mark.asyncio
+    async def test_league_season_matchups_coerces_clock_minutes_before_validation(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = LeagueSeasonMatchupsExtractor()
+        captured_call: dict[str, object] = {}
+        captured_validate: dict[str, pl.DataFrame] = {}
+
+        def _fake_call(endpoint_cls: type, **kw: object) -> list[pl.DataFrame]:
+            captured_call.update(kw)
+            return [pl.DataFrame({"matchup_min": ["5:30", "2", None]})]
+
+        def _fake_validate(df: pl.DataFrame) -> pl.DataFrame:
+            captured_validate["df"] = df
+            return df
+
+        monkeypatch.setattr(ext, "_call_nba_api", _fake_call)
+        monkeypatch.setattr(ext, "_validate", _fake_validate)
+
+        result = await ext.extract(season="2024-25", season_type="Regular Season")
+
+        assert isinstance(result, pl.DataFrame)
+        assert captured_call["season"] == "2024-25"
+        assert captured_call["season_type_playoffs"] == "Regular Season"
+        assert captured_validate["df"]["matchup_min"].to_list() == [5.5, 2.0, None]
 
 
 # player_college: PlayerCareerByCollegeExtractor extract()
