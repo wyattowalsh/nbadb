@@ -202,8 +202,15 @@ class NordVpnConnectAction:
             values.append(value)
 
     def make_workdir_readable(self) -> None:
-        if self.work_dir.is_dir():
-            run_quiet(["sudo", "chmod", "-R", "a+rX", str(self.work_dir)], timeout=10)
+        if not self.work_dir.is_dir():
+            return
+        run_quiet(["sudo", "chmod", "a+rx", str(self.work_dir)], timeout=10)
+        private_paths = {self.auth_file, self.creds_file}
+        for path in self.work_dir.iterdir():
+            if path in private_paths:
+                run_quiet(["sudo", "chmod", "600", str(path)], timeout=10)
+            else:
+                run_quiet(["sudo", "chmod", "a+rX", str(path)], timeout=10)
 
     def cleanup_sensitive(self) -> None:
         for path in (
@@ -211,10 +218,12 @@ class NordVpnConnectAction:
             self.servers_file,
             self.verify_file,
             self.baseline_file,
-            self.auth_file,
         ):
             with suppress(FileNotFoundError):
                 path.unlink()
+        if self.status != "connected":
+            with suppress(FileNotFoundError):
+                self.auth_file.unlink()
 
     def cleanup_openvpn(self) -> None:
         if self.openvpn_process is not None:

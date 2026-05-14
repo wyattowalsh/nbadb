@@ -817,7 +817,12 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
-          path: ${{ runner.temp }}/nordvpn/
+          path: |
+            ${{ runner.temp }}/nordvpn/openvpn.log
+            ${{ runner.temp }}/nordvpn/openvpn.pid
+            ${{ runner.temp }}/nordvpn/vpn-exit-ip.json
+            ${{ runner.temp }}/nordvpn/baseline-ip.json
+            ${{ runner.temp }}/nordvpn/*.ovpn
           if-no-files-found: ignore
           retention-days: 7
           compression-level: 6

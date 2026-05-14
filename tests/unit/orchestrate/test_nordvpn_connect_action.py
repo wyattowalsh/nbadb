@@ -135,6 +135,68 @@ def test_cleanup_openvpn_terminates_foreground_process_group(
     assert action.openvpn_process is None
 
 
+def test_make_workdir_readable_keeps_auth_material_private(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_file.write_text("user\npassword\n", encoding="utf-8")
+    action.creds_file.write_text("{}", encoding="utf-8")
+    action.log_file.write_text("log\n", encoding="utf-8")
+    config_path = action.work_dir / "us1001.nordvpn.com.ovpn"
+    config_path.write_text("client\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(module, "run_quiet", lambda cmd, **kwargs: calls.append(cmd))
+
+    action.make_workdir_readable()
+
+    assert ["sudo", "chmod", "-R", "a+rX", str(action.work_dir)] not in calls
+    assert ["sudo", "chmod", "a+rx", str(action.work_dir)] in calls
+    assert ["sudo", "chmod", "600", str(action.auth_file)] in calls
+    assert ["sudo", "chmod", "600", str(action.creds_file)] in calls
+    assert ["sudo", "chmod", "a+rX", str(action.log_file)] in calls
+    assert ["sudo", "chmod", "a+rX", str(config_path)] in calls
+
+
+def test_finalize_preserves_auth_file_for_connected_tunnel(runner_env: Path) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.status = "connected"
+
+    for path in (
+        action.auth_file,
+        action.creds_file,
+        action.servers_file,
+        action.verify_file,
+        action.baseline_file,
+    ):
+        path.write_text("secret\n", encoding="utf-8")
+
+    action.finalize()
+
+    assert action.auth_file.exists()
+    assert not action.creds_file.exists()
+    assert not action.servers_file.exists()
+    assert not action.verify_file.exists()
+    assert not action.baseline_file.exists()
+
+
+def test_finalize_removes_auth_file_when_tunnel_not_connected(runner_env: Path) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.status = "vpn_network_error"
+    action.auth_file.write_text("user\npassword\n", encoding="utf-8")
+
+    action.finalize()
+
+    assert not action.auth_file.exists()
+
+
 def test_run_command_kills_timed_out_process_groups(
     runner_env: Path,
     tmp_path: Path,
