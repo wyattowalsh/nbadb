@@ -1766,6 +1766,7 @@ class TestExtractMethodCoverage:
             DraftCombinePlayerAnthroExtractor,
             DraftCombineSpotShootingExtractor,
             LeagueSeasonMatchupsExtractor,
+            PlayerAwardsExtractor,
         }:
             monkeypatch.setattr(ext, "_call_nba_api", lambda endpoint_cls, **kwargs: [dummy_df])
             monkeypatch.setattr(ext, "_validate", lambda df: df)
