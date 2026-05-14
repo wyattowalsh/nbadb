@@ -308,11 +308,11 @@ def _open_db_readonly(db_path: Path) -> _duckdb_type.DuckDBPyConnection:
 
 def _run_pipeline(
     mode: str,
-    run_fn: Callable[[object], Coroutine[Any, Any, Any]],
+    run_fn: Callable[[Any], Coroutine[Any, Any, Any]],
     settings: NbaDbSettings,
     verbose: bool,
     quality_check: bool = False,
-    orchestrator_cls: type | None = None,
+    orchestrator_cls: type[Any] | None = None,
 ) -> None:
     """Run a pipeline mode end-to-end: log → orchestrate → print → (optionally) quality.
 

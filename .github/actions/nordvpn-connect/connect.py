@@ -24,7 +24,9 @@ INIT_COMPLETE_PATTERN: Final[str] = "Initialization Sequence Completed"
 
 
 def env_int(name: str, default: int, *, minimum: int | None = None) -> int:
-    raw = os.environ.get(name, str(default)).strip()
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        raw = str(default)
     try:
         value = int(raw)
     except ValueError as exc:

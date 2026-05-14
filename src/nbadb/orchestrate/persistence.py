@@ -28,7 +28,10 @@ def atomic_write_path(path: Path, writer: Callable[[Path], None]) -> None:
 
 
 def atomic_write_text(path: Path, content: str) -> None:
-    atomic_write_path(path, lambda temp_path: temp_path.write_text(content, encoding="utf-8"))
+    def _write(temp_path: Path) -> None:
+        temp_path.write_text(content, encoding="utf-8")
+
+    atomic_write_path(path, _write)
 
 
 def read_json_object(path: Path, *, metadata_label: str = "JSON metadata") -> dict[str, object]:

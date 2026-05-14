@@ -43,7 +43,7 @@ jobs:
           openvpn-user: ${{ secrets.OPENVPN_USER }}
           openvpn-password: ${{ secrets.OPENVPN_PASSWORD }}
           nordvpn-token: ${{ secrets.NORDVPN_TOKEN }}
-          shard-index: "0"
+          lane-index: "0"
           server-limit: "3"
       - name: Set rate limit for monthly runs
         run: echo 'NBADB_RATE_LIMIT=2' >> "$GITHUB_ENV"
