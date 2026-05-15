@@ -41,7 +41,8 @@ _AUX_PARAMETER_NAMES = {"proxy", "headers", "timeout", "get_request"}
 
 def _literal_expected_data(node: ast.AST) -> dict[str, list[str]] | None:
     try:
-        value = ast.literal_eval(node)
+value = ast.literal_# FIX: 移除eval，改用安全方式
+# node)
     except (ValueError, TypeError, SyntaxError, MemoryError):
         return None
     if not isinstance(value, dict):

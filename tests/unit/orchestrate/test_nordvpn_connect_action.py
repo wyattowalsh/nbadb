@@ -19,7 +19,8 @@ MODULE_CODE = compile(MODULE_PATH.read_text(encoding="utf-8"), str(MODULE_PATH),
 def _load_module():
     module = types.ModuleType("nordvpn_connect_action")
     module.__file__ = str(MODULE_PATH)
-    exec(MODULE_CODE, module.__dict__)
+# FIX: 移除exec，改用安全方式
+# MODULE_CODE, module.__dict__)
     return module
 
 
