@@ -22,5 +22,6 @@ from nbadb.cli.commands import (  # noqa: F401
     scan,
     schema,
     status,
+    table_year_coverage,
     upload,
 )
