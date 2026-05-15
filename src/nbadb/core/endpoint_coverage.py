@@ -5,6 +5,7 @@ import ast
 import importlib
 import inspect
 import json
+import os
 import pkgutil
 import re
 from collections import Counter, defaultdict
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from nbadb.core.nba_api_contract import (
     NbaApiEndpointContract,
     contract_to_json,
+    discover_endpoint_analysis_doc_contracts,
     discover_runtime_endpoint_contracts,
 )
 from nbadb.extract.base import _canonicalize_endpoint_column_name
@@ -426,10 +428,19 @@ class EndpointCoverageGenerator:
         self,
         project_root: Path | None = None,
         staging_entries: list[StagingEntry] | None = None,
+        endpoint_analysis_docs_root: Path | None = None,
     ) -> None:
         self.project_root = Path(project_root) if project_root is not None else Path.cwd()
         self.staging_entries = (
             list(staging_entries) if staging_entries is not None else list(STAGING_MAP)
+        )
+        env_docs_root = os.getenv("NBADB_NBA_API_DOCS_ROOT")
+        self.endpoint_analysis_docs_root = (
+            Path(endpoint_analysis_docs_root)
+            if endpoint_analysis_docs_root is not None
+            else Path(env_docs_root)
+            if env_docs_root
+            else None
         )
         self.extract_stats_dir = self.project_root / "src" / "nbadb" / "extract" / "stats"
         self.extract_static_dir = self.project_root / "src" / "nbadb" / "extract" / "static"
@@ -1424,6 +1435,158 @@ class EndpointCoverageGenerator:
                 continue
             payloads.append({"endpoint_name": endpoint_name, **payload})
         return payloads
+
+    @staticmethod
+    def _result_sets_by_name(
+        contract: NbaApiEndpointContract,
+    ) -> dict[str, tuple[int, set[str]]]:
+        result_sets: dict[str, tuple[int, set[str]]] = {}
+        for result_set in contract.result_sets:
+            if result_set.result_set_name is None:
+                continue
+            result_sets[result_set.result_set_name] = (
+                result_set.result_set_index,
+                set(result_set.expected_columns),
+            )
+        return result_sets
+
+    @classmethod
+    def _build_endpoint_analysis_doc_diff(
+        cls,
+        *,
+        runtime_contracts_by_endpoint: Mapping[str, NbaApiEndpointContract],
+        docs_contracts_by_endpoint: Mapping[str, NbaApiEndpointContract],
+        docs_root: Path | None,
+    ) -> dict[str, Any]:
+        rows: list[dict[str, Any]] = []
+        summary = {
+            "enabled": docs_root is not None,
+            "docs_root": str(docs_root) if docs_root is not None else None,
+            "runtime_contract_count": len(runtime_contracts_by_endpoint),
+            "docs_contract_count": len(docs_contracts_by_endpoint),
+            "docs_endpoint_missing_runtime_count": 0,
+            "runtime_endpoint_missing_docs_count": 0,
+            "docs_only_result_set_count": 0,
+            "runtime_only_result_set_count": 0,
+            "docs_field_missing_in_runtime_count": 0,
+            "runtime_field_missing_in_docs_count": 0,
+            "blocking_docs_contract_gap_count": 0,
+        }
+        if docs_root is None:
+            return {"matrix": rows, "summary": summary}
+
+        runtime_endpoints = set(runtime_contracts_by_endpoint)
+        docs_endpoints = set(docs_contracts_by_endpoint)
+        for endpoint_name in sorted(docs_endpoints - runtime_endpoints):
+            summary["docs_endpoint_missing_runtime_count"] += 1
+            summary["blocking_docs_contract_gap_count"] += 1
+            rows.append(
+                {
+                    "endpoint_name": endpoint_name,
+                    "status": "docs_endpoint_missing_runtime",
+                    "reason": (
+                        "Endpoint-analysis docs publish this endpoint, but the installed "
+                        "nba_api runtime did not expose a matching endpoint contract."
+                    ),
+                }
+            )
+        for endpoint_name in sorted(runtime_endpoints - docs_endpoints):
+            summary["runtime_endpoint_missing_docs_count"] += 1
+            rows.append(
+                {
+                    "endpoint_name": endpoint_name,
+                    "status": "runtime_endpoint_missing_docs",
+                    "reason": (
+                        "Installed nba_api runtime exposes this endpoint, but the provided "
+                        "endpoint-analysis docs root did not include a matching document."
+                    ),
+                }
+            )
+
+        for endpoint_name in sorted(runtime_endpoints & docs_endpoints):
+            runtime_contract = runtime_contracts_by_endpoint[endpoint_name]
+            docs_contract = docs_contracts_by_endpoint[endpoint_name]
+            runtime_sets = cls._result_sets_by_name(runtime_contract)
+            docs_sets = cls._result_sets_by_name(docs_contract)
+
+            for result_set_name in sorted(set(docs_sets) - set(runtime_sets)):
+                summary["docs_only_result_set_count"] += 1
+                summary["blocking_docs_contract_gap_count"] += 1
+                rows.append(
+                    {
+                        "endpoint_name": endpoint_name,
+                        "runtime_class_name": runtime_contract.runtime_class_name,
+                        "docs_endpoint_name": docs_contract.runtime_class_name,
+                        "result_set_name": result_set_name,
+                        "status": "docs_only_result_set",
+                        "docs_result_set_index": docs_sets[result_set_name][0],
+                        "reason": (
+                            "Endpoint-analysis docs publish this result set, but the installed "
+                            "nba_api runtime contract did not expose it."
+                        ),
+                    }
+                )
+            for result_set_name in sorted(set(runtime_sets) - set(docs_sets)):
+                summary["runtime_only_result_set_count"] += 1
+                rows.append(
+                    {
+                        "endpoint_name": endpoint_name,
+                        "runtime_class_name": runtime_contract.runtime_class_name,
+                        "docs_endpoint_name": docs_contract.runtime_class_name,
+                        "result_set_name": result_set_name,
+                        "status": "runtime_only_result_set",
+                        "runtime_result_set_index": runtime_sets[result_set_name][0],
+                        "reason": (
+                            "Installed nba_api runtime exposes this result set, but the "
+                            "endpoint-analysis docs root did not include it."
+                        ),
+                    }
+                )
+
+            for result_set_name in sorted(set(runtime_sets) & set(docs_sets)):
+                runtime_index, runtime_columns = runtime_sets[result_set_name]
+                docs_index, docs_columns = docs_sets[result_set_name]
+                docs_missing_in_runtime = sorted(docs_columns - runtime_columns)
+                runtime_missing_in_docs = sorted(runtime_columns - docs_columns)
+                if docs_missing_in_runtime:
+                    summary["docs_field_missing_in_runtime_count"] += len(docs_missing_in_runtime)
+                    rows.append(
+                        {
+                            "endpoint_name": endpoint_name,
+                            "runtime_class_name": runtime_contract.runtime_class_name,
+                            "docs_endpoint_name": docs_contract.runtime_class_name,
+                            "result_set_name": result_set_name,
+                            "runtime_result_set_index": runtime_index,
+                            "docs_result_set_index": docs_index,
+                            "status": "docs_fields_missing_in_runtime",
+                            "missing_columns": docs_missing_in_runtime,
+                            "reason": (
+                                "Endpoint-analysis docs publish fields that are absent from "
+                                "the installed nba_api runtime contract."
+                            ),
+                        }
+                    )
+                if runtime_missing_in_docs:
+                    summary["runtime_field_missing_in_docs_count"] += len(runtime_missing_in_docs)
+                    rows.append(
+                        {
+                            "endpoint_name": endpoint_name,
+                            "runtime_class_name": runtime_contract.runtime_class_name,
+                            "docs_endpoint_name": docs_contract.runtime_class_name,
+                            "result_set_name": result_set_name,
+                            "runtime_result_set_index": runtime_index,
+                            "docs_result_set_index": docs_index,
+                            "status": "runtime_fields_missing_in_docs",
+                            "missing_columns": runtime_missing_in_docs,
+                            "reason": (
+                                "Installed nba_api runtime publishes fields not present in "
+                                "the endpoint-analysis docs root; runtime coverage is treated "
+                                "as the fresher contract."
+                            ),
+                        }
+                    )
+
+        return {"matrix": rows, "summary": summary}
 
     @classmethod
     def _input_columns_for_staging_key(
@@ -2713,6 +2876,13 @@ class EndpointCoverageGenerator:
             runtime_contracts,
             known_stats_surfaces | runtime_stats_surfaces,
         )
+        docs_runtime_contracts = discover_endpoint_analysis_doc_contracts(
+            self.endpoint_analysis_docs_root
+        )
+        docs_contracts_by_endpoint = self._runtime_contracts_by_endpoint(
+            docs_runtime_contracts,
+            known_stats_surfaces | runtime_stats_surfaces,
+        )
         if runtime_endpoint_classes is not None:
             contracts_by_endpoint = {
                 endpoint_name: contract
@@ -3104,12 +3274,26 @@ class EndpointCoverageGenerator:
             temporal_support_ledger,
         )
         upstream_contracts = self._runtime_contract_payloads_by_endpoint(contracts_by_endpoint)
+        endpoint_analysis_doc_contracts = self._runtime_contract_payloads_by_endpoint(
+            docs_contracts_by_endpoint
+        )
+        endpoint_analysis_doc_diff = self._build_endpoint_analysis_doc_diff(
+            runtime_contracts_by_endpoint=contracts_by_endpoint,
+            docs_contracts_by_endpoint=docs_contracts_by_endpoint,
+            docs_root=self.endpoint_analysis_docs_root,
+        )
         input_schema_columns = {
             table_name: set(info["columns"]) for table_name, info in input_schema_metadata.items()
         }
         input_schema_behaviors = {
             table_name: info["behavior"] for table_name, info in input_schema_metadata.items()
         }
+        endpoint_analysis_doc_upstream_contract_diff = self._build_upstream_contract_diff(
+            contracts_by_endpoint=docs_contracts_by_endpoint,
+            staging_entries_by_endpoint=staging_entries_by_endpoint,
+            input_schema_columns=input_schema_columns,
+            input_schema_behaviors=input_schema_behaviors,
+        )
         upstream_contract_diff = self._build_upstream_contract_diff(
             contracts_by_endpoint=contracts_by_endpoint,
             staging_entries_by_endpoint=staging_entries_by_endpoint,
@@ -3129,6 +3313,25 @@ class EndpointCoverageGenerator:
         summary["extraction_contract"] = extraction_contract["summary"]
         summary["upstream_contract"] = upstream_contract_diff["summary"]
         summary["upstream_field_fate"] = upstream_field_fate["summary"]
+        summary["endpoint_analysis_docs"] = endpoint_analysis_doc_diff["summary"]
+        summary["endpoint_analysis_docs"]["docs_field_gap_count"] = (
+            endpoint_analysis_doc_upstream_contract_diff["summary"].get("field_gap_count", 0)
+        )
+        summary["endpoint_analysis_docs"]["docs_invalid_result_set_index_count"] = (
+            endpoint_analysis_doc_upstream_contract_diff["summary"].get(
+                "invalid_result_set_index_count", 0
+            )
+        )
+        summary["endpoint_analysis_docs"]["docs_missing_result_set_staging_count"] = (
+            endpoint_analysis_doc_upstream_contract_diff["summary"].get(
+                "missing_result_set_staging_count", 0
+            )
+        )
+        summary["endpoint_analysis_docs"]["docs_missing_input_schema_count"] = (
+            endpoint_analysis_doc_upstream_contract_diff["summary"].get(
+                "missing_input_schema_count", 0
+            )
+        )
         summary["temporal_coverage"] = temporal_coverage_matrix["summary"]
         summary["coverage_truth"] = {
             "in_scope_endpoint_count": extraction_contract["summary"].get(
@@ -3172,6 +3375,9 @@ class EndpointCoverageGenerator:
             "blocking_contract_unknown_result_set_count": upstream_contract_diff["summary"].get(
                 "blocking_contract_unknown_result_set_count", 0
             ),
+            "docs_contract_blocking_gap_count": endpoint_analysis_doc_diff["summary"].get(
+                "blocking_docs_contract_gap_count", 0
+            ),
         }
         full_extraction_definition = self._full_extraction_definition_of_done(
             extraction_contract["summary"]
@@ -3191,6 +3397,11 @@ class EndpointCoverageGenerator:
             "temporal_coverage_matrix": temporal_coverage_matrix,
             "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard,
             "upstream_contracts": upstream_contracts,
+            "endpoint_analysis_doc_contracts": endpoint_analysis_doc_contracts,
+            "endpoint_analysis_doc_diff": endpoint_analysis_doc_diff,
+            "endpoint_analysis_doc_upstream_contract_diff": (
+                endpoint_analysis_doc_upstream_contract_diff
+            ),
             "upstream_contract_diff": upstream_contract_diff,
             "upstream_field_fate": upstream_field_fate,
         }
@@ -3935,6 +4146,11 @@ class EndpointCoverageGenerator:
         endpoint_adequacy_scorecard_path = destination / "endpoint-adequacy-scorecard.json"
         endpoint_adequacy_report_path = destination / "endpoint-adequacy-scorecard-report.md"
         upstream_contracts_path = destination / "endpoint-upstream-contracts.json"
+        endpoint_analysis_doc_contracts_path = destination / "endpoint-analysis-doc-contracts.json"
+        endpoint_analysis_doc_diff_path = destination / "endpoint-analysis-doc-diff.json"
+        endpoint_analysis_doc_upstream_contract_diff_path = (
+            destination / "endpoint-analysis-doc-upstream-contract-diff.json"
+        )
         upstream_contract_diff_path = destination / "endpoint-upstream-contract-diff.json"
         upstream_field_fate_path = destination / "endpoint-field-fate-matrix.json"
         written = {
@@ -3953,6 +4169,11 @@ class EndpointCoverageGenerator:
             "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard_path,
             "endpoint_adequacy_report": endpoint_adequacy_report_path,
             "upstream_contracts": upstream_contracts_path,
+            "endpoint_analysis_doc_contracts": endpoint_analysis_doc_contracts_path,
+            "endpoint_analysis_doc_diff": endpoint_analysis_doc_diff_path,
+            "endpoint_analysis_doc_upstream_contract_diff": (
+                endpoint_analysis_doc_upstream_contract_diff_path
+            ),
             "upstream_contract_diff": upstream_contract_diff_path,
             "upstream_field_fate": upstream_field_fate_path,
         }
@@ -4034,6 +4255,29 @@ class EndpointCoverageGenerator:
             elif key == "upstream_contracts":
                 upstream_contracts_path.write_text(
                     json.dumps({"contracts": artifacts["upstream_contracts"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "endpoint_analysis_doc_contracts":
+                endpoint_analysis_doc_contracts_path.write_text(
+                    json.dumps(
+                        {"contracts": artifacts["endpoint_analysis_doc_contracts"]},
+                        indent=2,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "endpoint_analysis_doc_diff":
+                endpoint_analysis_doc_diff_path.write_text(
+                    json.dumps(artifacts["endpoint_analysis_doc_diff"], indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "endpoint_analysis_doc_upstream_contract_diff":
+                endpoint_analysis_doc_upstream_contract_diff_path.write_text(
+                    json.dumps(
+                        artifacts["endpoint_analysis_doc_upstream_contract_diff"],
+                        indent=2,
+                    )
+                    + "\n",
                     encoding="utf-8",
                 )
             elif key == "upstream_contract_diff":

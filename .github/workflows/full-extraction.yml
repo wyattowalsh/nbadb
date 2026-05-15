@@ -102,11 +102,19 @@ jobs:
 
       - run: uv sync
 
+      - name: Fetch nba_api endpoint-analysis docs
+        if: ${{ inputs.lane_manifest_json == '' }}
+        run: |
+          git clone --depth=1 --filter=blob:none \
+            https://github.com/swar/nba_api.git "$RUNNER_TEMP/nba_api-upstream"
+
       - name: Generate support bundle artifacts
         if: ${{ inputs.lane_manifest_json == '' }}
         run: |
           mkdir -p artifacts/endpoint-coverage
-          uv run nbadb endpoint-support-matrix \
+          uv run nbadb extract-completeness \
+            --require-full \
+            --endpoint-analysis-docs-root "$RUNNER_TEMP/nba_api-upstream" \
             --output-dir artifacts/endpoint-coverage
 
           python - <<'PY'

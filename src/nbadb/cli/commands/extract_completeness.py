@@ -32,6 +32,16 @@ RequireModelContractOption = Annotated[
         ),
     ),
 ]
+EndpointAnalysisDocsRootOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--endpoint-analysis-docs-root",
+        help=(
+            "Optional local nba_api checkout/docs root. When provided, compare installed "
+            "runtime expected_data with endpoint-analysis docs JSON blocks."
+        ),
+    ),
+]
 
 
 @app.command("extract-completeness")
@@ -39,9 +49,10 @@ def extract_completeness(
     output_dir: OutputDirOption = None,
     require_full: RequireFullOption = False,
     require_model_contract: RequireModelContractOption = False,
+    endpoint_analysis_docs_root: EndpointAnalysisDocsRootOption = None,
 ) -> None:
     """Generate endpoint coverage artifacts and report coverage counts."""
-    generator = EndpointCoverageGenerator()
+    generator = EndpointCoverageGenerator(endpoint_analysis_docs_root=endpoint_analysis_docs_root)
     artifacts = generator.build_artifacts()
     written = generator.write_artifacts(artifacts, output_dir=output_dir)
     summary = artifacts["summary"]
@@ -91,6 +102,7 @@ def extract_completeness(
         )
     upstream_contract = summary.get("upstream_contract", {})
     upstream_field_fate = summary.get("upstream_field_fate", {})
+    endpoint_analysis_docs = summary.get("endpoint_analysis_docs", {})
     temporal_coverage = summary.get("temporal_coverage", {})
     if upstream_field_fate or temporal_coverage:
         typer.echo(
@@ -108,6 +120,26 @@ def extract_completeness(
             f"required_temporal_missing="
             f"{temporal_coverage.get('required_temporal_missing_count', 0)}"
         )
+    if endpoint_analysis_docs.get("enabled"):
+        typer.echo(
+            "Endpoint-analysis docs: "
+            f"docs_contracts={endpoint_analysis_docs.get('docs_contract_count', 0)} "
+            f"runtime_missing_docs="
+            f"{endpoint_analysis_docs.get('runtime_endpoint_missing_docs_count', 0)} "
+            f"docs_missing_runtime="
+            f"{endpoint_analysis_docs.get('docs_endpoint_missing_runtime_count', 0)} "
+            f"docs_only_result_sets="
+            f"{endpoint_analysis_docs.get('docs_only_result_set_count', 0)} "
+            f"docs_fields_missing_in_runtime="
+            f"{endpoint_analysis_docs.get('docs_field_missing_in_runtime_count', 0)} "
+            f"runtime_fields_missing_in_docs="
+            f"{endpoint_analysis_docs.get('runtime_field_missing_in_docs_count', 0)} "
+            f"docs_field_gaps={endpoint_analysis_docs.get('docs_field_gap_count', 0)} "
+            f"docs_missing_result_sets="
+            f"{endpoint_analysis_docs.get('docs_missing_result_set_staging_count', 0)} "
+            f"blocking_docs_contract_gaps="
+            f"{endpoint_analysis_docs.get('blocking_docs_contract_gap_count', 0)}"
+        )
     typer.echo(f"Artifacts dir: {written['summary'].parent}")
 
     field_gaps = int(upstream_contract.get("field_gap_count", 0))
@@ -121,6 +153,19 @@ def extract_completeness(
     model_usage_unknown = int(upstream_field_fate.get("model_usage_unknown_count", 0))
     unmodeled_unclassified = int(upstream_field_fate.get("unmodeled_unclassified_count", 0))
     required_temporal_missing = int(temporal_coverage.get("required_temporal_missing_count", 0))
+    blocking_docs_contract_gaps = int(
+        endpoint_analysis_docs.get("blocking_docs_contract_gap_count", 0)
+    )
+    docs_field_gaps = int(endpoint_analysis_docs.get("docs_field_gap_count", 0))
+    docs_invalid_result_sets = int(
+        endpoint_analysis_docs.get("docs_invalid_result_set_index_count", 0)
+    )
+    docs_missing_result_sets = int(
+        endpoint_analysis_docs.get("docs_missing_result_set_staging_count", 0)
+    )
+    docs_missing_input_schemas = int(
+        endpoint_analysis_docs.get("docs_missing_input_schema_count", 0)
+    )
     if require_full and (
         partial
         or blocked
@@ -134,9 +179,17 @@ def extract_completeness(
         or model_usage_unknown
         or unmodeled_unclassified
         or required_temporal_missing
+        or blocking_docs_contract_gaps
+        or docs_field_gaps
+        or docs_invalid_result_sets
+        or docs_missing_result_sets
+        or docs_missing_input_schemas
     ):
         typer.echo(
-            "require-full check failed: extraction, field sink, or temporal contract gaps remain",
+            (
+                "require-full check failed: extraction, field sink, endpoint-analysis docs, "
+                "or temporal contract gaps remain"
+            ),
             err=True,
         )
         raise typer.Exit(1)

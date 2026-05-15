@@ -1,6 +1,15 @@
 from __future__ import annotations
 
-from nbadb.core.nba_api_contract import build_endpoint_contract, contract_to_json
+from typing import TYPE_CHECKING
+
+from nbadb.core.nba_api_contract import (
+    build_endpoint_contract,
+    contract_to_json,
+    discover_endpoint_analysis_doc_contracts,
+)
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class SyntheticRuntimeEndpoint:
@@ -71,3 +80,38 @@ def test_contract_to_json_preserves_result_set_order_and_columns() -> None:
             "confidence": "high",
         },
     ]
+
+
+def test_discover_endpoint_analysis_doc_contracts_reads_json_blocks(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs" / "nba_api" / "stats" / "endpoints"
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "playerawards.md").write_text(
+        """# PlayerAwards
+
+## JSON
+```json
+{
+  "data_sets": {
+    "PlayerAwards": ["PERSON_ID", "SEASON"]
+  },
+  "endpoint": "PlayerAwards",
+  "nullable_parameters": [],
+  "parameters": ["PlayerID"],
+  "required_parameters": ["PlayerID"],
+  "status": "success"
+}
+```
+""",
+        encoding="utf-8",
+    )
+
+    contracts = discover_endpoint_analysis_doc_contracts(tmp_path)
+
+    contract = contracts["PlayerAwards"]
+    assert contract.runtime_class_name == "PlayerAwards"
+    assert contract.endpoint_slug == "playerawards"
+    assert contract.parameters == ("PlayerID",)
+    assert contract.required_parameters == ("PlayerID",)
+    assert contract.result_sets[0].result_set_name == "PlayerAwards"
+    assert contract.result_sets[0].expected_columns == ("PERSON_ID", "SEASON")
+    assert contract.result_sets[0].source == "endpoint_analysis_docs"

@@ -3,13 +3,21 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
+import json
 import pkgutil
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
-ContractSource = Literal["expected_data", "source_ast", "load_response", "manual_override"]
+ContractSource = Literal[
+    "expected_data",
+    "source_ast",
+    "load_response",
+    "manual_override",
+    "endpoint_analysis_docs",
+]
 Confidence = Literal["high", "medium", "low"]
 
 
@@ -177,6 +185,94 @@ def build_endpoint_contract(runtime_cls: type) -> NbaApiEndpointContract:
         deprecated="deprecated" in doc.lower(),
         warnings=tuple(warnings),
     )
+
+
+_JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+
+
+def _endpoint_docs_dir(root: Path) -> Path:
+    if (root / "docs" / "nba_api" / "stats" / "endpoints").is_dir():
+        return root / "docs" / "nba_api" / "stats" / "endpoints"
+    if (root / "nba_api" / "stats" / "endpoints").is_dir():
+        return root / "nba_api" / "stats" / "endpoints"
+    return root
+
+
+def _endpoint_analysis_payload(markdown: str) -> dict[str, Any] | None:
+    for match in _JSON_BLOCK_RE.finditer(markdown):
+        try:
+            payload = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and isinstance(payload.get("data_sets"), dict):
+            return payload
+    return None
+
+
+def _contract_from_endpoint_analysis_doc(
+    path: Path,
+    payload: dict[str, Any],
+) -> NbaApiEndpointContract | None:
+    endpoint = payload.get("endpoint")
+    data_sets = payload.get("data_sets")
+    if not isinstance(endpoint, str) or not isinstance(data_sets, dict):
+        return None
+
+    result_sets: list[NbaApiResultSetContract] = []
+    for index, (name, columns) in enumerate(data_sets.items()):
+        if not isinstance(name, str) or not isinstance(columns, list):
+            continue
+        result_sets.append(
+            NbaApiResultSetContract(
+                runtime_class_name=endpoint,
+                result_set_index=index,
+                result_set_name=name,
+                expected_columns=tuple(column for column in columns if isinstance(column, str)),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            )
+        )
+
+    return NbaApiEndpointContract(
+        runtime_class_name=endpoint,
+        module_name=f"nba_api.docs.nba_api.stats.endpoints.{path.stem}",
+        endpoint_slug=path.stem,
+        parameters=tuple(str(value) for value in payload.get("parameters", []) if str(value)),
+        required_parameters=tuple(
+            str(value) for value in payload.get("required_parameters", []) if str(value)
+        ),
+        nullable_parameters=tuple(
+            str(value) for value in payload.get("nullable_parameters", []) if str(value)
+        ),
+        result_sets=tuple(result_sets),
+        deprecated=str(payload.get("status", "")).lower() == "deprecated",
+        warnings=(),
+    )
+
+
+def discover_endpoint_analysis_doc_contracts(
+    docs_root: Path | str | None,
+) -> dict[str, NbaApiEndpointContract]:
+    if docs_root is None:
+        return {}
+
+    root = Path(docs_root)
+    docs_dir = _endpoint_docs_dir(root)
+    if not docs_dir.is_dir():
+        return {}
+
+    contracts: dict[str, NbaApiEndpointContract] = {}
+    for path in sorted(docs_dir.glob("*.md")):
+        try:
+            payload = _endpoint_analysis_payload(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if payload is None:
+            continue
+        contract = _contract_from_endpoint_analysis_doc(path, payload)
+        if contract is not None:
+            contracts[contract.runtime_class_name] = contract
+    return contracts
 
 
 @lru_cache(maxsize=1)

@@ -1661,6 +1661,100 @@ def test_upstream_contract_diff_uses_ingested_column_names_and_schema_aliases(
     ]
 
 
+def test_build_artifacts_compares_endpoint_analysis_docs_to_runtime_contracts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import nbadb.core.endpoint_coverage as endpoint_coverage
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    runtime_contract = NbaApiEndpointContract(
+        runtime_class_name="FooEndpoint",
+        module_name="nba_api.stats.endpoints.fooendpoint",
+        endpoint_slug="fooendpoint",
+        parameters=("season",),
+        required_parameters=("season",),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="FooEndpoint",
+                result_set_index=0,
+                result_set_name="PrimarySet",
+                expected_columns=("FOO_ID", "RUNTIME_ONLY"),
+                source="expected_data",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+    docs_contract = NbaApiEndpointContract(
+        runtime_class_name="FooEndpoint",
+        module_name="nba_api.docs.nba_api.stats.endpoints.fooendpoint",
+        endpoint_slug="fooendpoint",
+        parameters=("Season",),
+        required_parameters=("Season",),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="FooEndpoint",
+                result_set_index=0,
+                result_set_name="PrimarySet",
+                expected_columns=("FOO_ID", "DOC_ONLY"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+            NbaApiResultSetContract(
+                runtime_class_name="FooEndpoint",
+                result_set_index=1,
+                result_set_name="DocOnlySet",
+                expected_columns=("DOC_ID",),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        endpoint_coverage,
+        "discover_runtime_endpoint_contracts",
+        lambda: {"FooEndpoint": runtime_contract},
+    )
+    monkeypatch.setattr(
+        endpoint_coverage,
+        "discover_endpoint_analysis_doc_contracts",
+        lambda _root: {"FooEndpoint": docs_contract},
+    )
+
+    generator = EndpointCoverageGenerator(
+        project_root=project_root,
+        endpoint_analysis_docs_root=tmp_path / "nba_api",
+        staging_entries=[StagingEntry("foo_endpoint", "stg_foo", "season")],
+    )
+    artifacts = generator.build_artifacts(
+        runtime_endpoint_classes={"FooEndpoint"},
+        runtime_version="contract-runtime",
+    )
+
+    docs_summary = artifacts["summary"]["endpoint_analysis_docs"]
+    assert docs_summary["enabled"] is True
+    assert docs_summary["docs_contract_count"] == 1
+    assert docs_summary["docs_only_result_set_count"] == 1
+    assert docs_summary["docs_field_missing_in_runtime_count"] == 1
+    assert docs_summary["runtime_field_missing_in_docs_count"] == 1
+    assert docs_summary["blocking_docs_contract_gap_count"] == 1
+    statuses = [row["status"] for row in artifacts["endpoint_analysis_doc_diff"]["matrix"]]
+    assert statuses == [
+        "docs_only_result_set",
+        "docs_fields_missing_in_runtime",
+        "runtime_fields_missing_in_docs",
+    ]
+
+
 def test_upstream_contract_diff_uses_box_score_traditional_canonical_columns(
     tmp_path: Path,
     monkeypatch,
@@ -2538,14 +2632,25 @@ def test_build_artifacts_writes_upstream_contract_artifacts(
     )
 
     assert "upstream_contracts" in paths
+    assert "endpoint_analysis_doc_contracts" in paths
+    assert "endpoint_analysis_doc_diff" in paths
+    assert "endpoint_analysis_doc_upstream_contract_diff" in paths
     assert "upstream_contract_diff" in paths
     assert "upstream_field_fate" in paths
     assert "temporal_coverage_matrix" in paths
     contracts_payload = json.loads(paths["upstream_contracts"].read_text(encoding="utf-8"))
+    docs_payload = json.loads(paths["endpoint_analysis_doc_contracts"].read_text(encoding="utf-8"))
+    docs_diff_payload = json.loads(paths["endpoint_analysis_doc_diff"].read_text(encoding="utf-8"))
+    docs_upstream_diff_payload = json.loads(
+        paths["endpoint_analysis_doc_upstream_contract_diff"].read_text(encoding="utf-8")
+    )
     diff_payload = json.loads(paths["upstream_contract_diff"].read_text(encoding="utf-8"))
     fate_payload = json.loads(paths["upstream_field_fate"].read_text(encoding="utf-8"))
     temporal_payload = json.loads(paths["temporal_coverage_matrix"].read_text(encoding="utf-8"))
     assert contracts_payload["contracts"][0]["endpoint_name"] == "foo_endpoint"
+    assert docs_payload["contracts"] == []
+    assert docs_diff_payload["summary"]["enabled"] is False
+    assert docs_upstream_diff_payload["summary"]["endpoint_contract_count"] == 0
     assert diff_payload["summary"]["endpoint_contract_count"] == 1
     assert fate_payload["summary"]["endpoint_contract_count"] == 1
     assert "matrix" in temporal_payload

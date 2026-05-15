@@ -178,6 +178,11 @@ def test_extract_completeness_require_full_exits_when_noncovered(tmp_path: Path)
         ("upstream_field_fate", "model_usage_unknown_count"),
         ("upstream_field_fate", "unmodeled_unclassified_count"),
         ("temporal_coverage", "required_temporal_missing_count"),
+        ("endpoint_analysis_docs", "blocking_docs_contract_gap_count"),
+        ("endpoint_analysis_docs", "docs_field_gap_count"),
+        ("endpoint_analysis_docs", "docs_invalid_result_set_index_count"),
+        ("endpoint_analysis_docs", "docs_missing_result_set_staging_count"),
+        ("endpoint_analysis_docs", "docs_missing_input_schema_count"),
     ],
 )
 def test_extract_completeness_require_full_exits_for_contract_gap_counters(
@@ -227,6 +232,20 @@ def test_extract_completeness_require_full_exits_for_contract_gap_counters(
             "unmodeled_unclassified_count": 0,
         },
         "temporal_coverage": {"required_temporal_missing_count": 0},
+        "endpoint_analysis_docs": {
+            "enabled": True,
+            "docs_contract_count": 1,
+            "runtime_endpoint_missing_docs_count": 0,
+            "docs_endpoint_missing_runtime_count": 0,
+            "docs_only_result_set_count": 0,
+            "docs_field_missing_in_runtime_count": 0,
+            "runtime_field_missing_in_docs_count": 0,
+            "blocking_docs_contract_gap_count": 0,
+            "docs_field_gap_count": 0,
+            "docs_invalid_result_set_index_count": 0,
+            "docs_missing_result_set_staging_count": 0,
+            "docs_missing_input_schema_count": 0,
+        },
     }
     summary_payload[summary_section][counter_name] = 1
     if counter_name == "blocking_contract_unknown_result_set_count":
