@@ -115,11 +115,12 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
     ]
     assert [lane.lane_id for lane in game_lanes] == [
-        "historical-game-no-season-type-1996-2007",
-        "historical-game-no-season-type-2008-2019",
-        "historical-game-no-season-type-2020-2025",
+        "historical-game-box-score-traditional-no-season-type-1996-2007",
+        "historical-game-box-score-traditional-no-season-type-2008-2019",
+        "historical-game-box-score-traditional-no-season-type-2020-2025",
     ]
     assert all((lane.season_end - lane.season_start + 1) <= 12 for lane in game_lanes)
+    assert {lane.endpoints for lane in game_lanes} == {("box_score_traditional",)}
 
     season_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("season",)
@@ -226,6 +227,34 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
         (("player_compare",), 9000),
     }
     assert all(lane.use_vpn is True for lane in reference_lanes)
+
+
+def test_build_default_manifest_isolates_high_volume_historical_endpoints() -> None:
+    rows = [
+        _support_row("scoreboard_v2", ["date"], None),
+        _support_row("video_status", ["date"], None),
+        _support_row("box_score_summary", ["game"], 1946),
+        _support_row("play_by_play", ["game"], 1996),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+
+    date_lanes = [
+        lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("date",)
+    ]
+    assert date_lanes[0].lane_id == "historical-date-scoreboard-v2-no-season-type-1946-1957"
+    assert date_lanes[0].endpoints == ("scoreboard_v2",)
+    assert date_lanes[7].lane_id == "historical-date-video-status-no-season-type-1946-1957"
+    assert date_lanes[7].endpoints == ("video_status",)
+
+    game_lanes = [
+        lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
+    ]
+    assert game_lanes[0].lane_id == "historical-game-box-score-summary-no-season-type-1946-1957"
+    assert game_lanes[0].endpoints == ("box_score_summary",)
+    assert game_lanes[7].lane_id == "historical-game-play-by-play-no-season-type-1996-2007"
+    assert game_lanes[7].endpoints == ("play_by_play",)
+    assert all(len(lane.endpoints) == 1 for lane in date_lanes + game_lanes)
 
 
 def test_build_default_manifest_routes_player_dashboard_family_to_historical_lanes() -> None:
@@ -731,7 +760,7 @@ def test_redispatch_manifest_payload_round_trips() -> None:
         FullExtractionLane(
             lane_id="reference-player",
             lane_index=0,
-            lane_name="Reference Player 3/15",
+            lane_name="reference-player",
             lane_kind="reference",
             season_start=None,
             season_end=None,
@@ -792,6 +821,7 @@ def test_redispatch_manifest_payload_is_smaller_than_full_manifest() -> None:
     redispatch_payload = redispatch_manifest_payload(lanes)
 
     assert "github_matrix" not in redispatch_payload
+    assert "lane_name" not in redispatch_payload["lanes"][0]
     assert len(json.dumps(redispatch_payload, separators=(",", ":"))) < len(
         json.dumps(full_payload, separators=(",", ":"))
     )

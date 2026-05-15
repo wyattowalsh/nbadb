@@ -35,6 +35,13 @@ HISTORICAL_MAX_SPAN_BY_PATTERN: dict[str, int] = {
     "player_season": 16,
     "team_season": 16,
 }
+HISTORICAL_ENDPOINT_ISOLATION_PATTERNS = frozenset({"date", "game"})
+"""High-volume historical patterns that must be planned per endpoint.
+
+The support matrix is endpoint/table-oriented, but date/game extraction can be
+much slower than the broad season sweeps. Isolating these lanes keeps a slow or
+rate-limited endpoint from blocking unrelated endpoint/time-period coverage.
+"""
 CROSS_PRODUCT_MAX_SPAN = 8
 REFERENCE_MAX_ENDPOINTS_BY_PATTERN: dict[str, int] = {
     "static": 64,
@@ -256,6 +263,10 @@ def _season_type_slug(season_types: tuple[str, ...]) -> str:
     return "-".join(value.lower().replace(" ", "-") for value in season_types)
 
 
+def _lane_slug(value: str) -> str:
+    return value.strip().lower().replace("_", "-").replace(" ", "-")
+
+
 def _historical_rows_for_pattern(
     rows: list[dict[str, Any]],
     pattern: str,
@@ -294,6 +305,26 @@ def _endpoint_names(rows: list[dict[str, Any]]) -> tuple[str, ...]:
     return tuple(
         sorted({str(row.get("endpoint_name", "")) for row in rows if row.get("endpoint_name")})
     )
+
+
+def _historical_endpoint_row_groups(
+    rows: list[dict[str, Any]],
+    *,
+    pattern: str,
+) -> list[tuple[str | None, list[dict[str, Any]]]]:
+    if pattern not in HISTORICAL_ENDPOINT_ISOLATION_PATTERNS:
+        return [(None, rows)]
+
+    rows_by_endpoint: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        endpoint_name = str(row.get("endpoint_name", "")).strip()
+        if not endpoint_name:
+            continue
+        rows_by_endpoint.setdefault(endpoint_name, []).append(row)
+    return [
+        (_lane_slug(endpoint_name), rows_by_endpoint[endpoint_name])
+        for endpoint_name in sorted(rows_by_endpoint)
+    ]
 
 
 def _chunked_endpoint_names(
@@ -609,65 +640,74 @@ def build_default_manifest(
                 pattern_rows,
                 pattern=pattern,
             ):
-                endpoints = _endpoint_names(grouped_rows)
-                adaptive_max_span = (
-                    preferred_max_span(planning_snapshot.endpoint_profiles, endpoints)
-                    if planning_snapshot is not None
-                    else None
-                )
-                season_cost = endpoint_cost(
-                    planning_snapshot.endpoint_profiles if planning_snapshot is not None else None,
-                    endpoints,
-                )
-                target_cost = max(float(_max_span_for_pattern(pattern)), season_cost * 3.0)
-                for start, end in _season_bands(grouped_rows, {pattern}):
-                    season_costs = {year: season_cost for year in range(start, end + 1)}
-                    for band_start, band_end in (
-                        _adaptive_split_season_band(
-                            start,
-                            end,
-                            max_span=min(
-                                _max_span_for_pattern(pattern),
-                                adaptive_max_span or _max_span_for_pattern(pattern),
-                            ),
-                            target_cost=target_cost,
-                            season_costs=season_costs,
-                        )
+                for endpoint_slug, endpoint_rows in _historical_endpoint_row_groups(
+                    grouped_rows,
+                    pattern=pattern,
+                ):
+                    endpoints = _endpoint_names(endpoint_rows)
+                    adaptive_max_span = (
+                        preferred_max_span(planning_snapshot.endpoint_profiles, endpoints)
                         if planning_snapshot is not None
-                        else _split_season_band(
-                            start,
-                            end,
-                            max_span=_max_span_for_pattern(pattern),
-                        )
-                    ):
-                        lane_id = (
-                            f"historical-{pattern}-{_season_type_slug(season_types)}-"
-                            f"{band_start}-{band_end}"
-                        )
-                        lane_name = f"Historical {pattern} {band_start}-{band_end}"
-                        if season_types:
-                            lane_name = f"{lane_name} ({', '.join(season_types)})"
-                        lanes.append(
-                            FullExtractionLane(
-                                lane_id=lane_id,
-                                lane_index=lane_index,
-                                lane_name=lane_name,
-                                lane_kind="historical",
-                                season_start=band_start,
-                                season_end=band_end,
-                                patterns=(pattern,),
-                                season_types=season_types,
-                                endpoints=endpoints,
-                                use_vpn=True,
-                                resume_only=False,
-                                timeout_seconds=_historical_timeout_seconds(
-                                    pattern,
-                                    band_start,
-                                    band_end,
+                        else None
+                    )
+                    season_cost = endpoint_cost(
+                        planning_snapshot.endpoint_profiles
+                        if planning_snapshot is not None
+                        else None,
+                        endpoints,
+                    )
+                    target_cost = max(float(_max_span_for_pattern(pattern)), season_cost * 3.0)
+                    for start, end in _season_bands(endpoint_rows, {pattern}):
+                        season_costs = {year: season_cost for year in range(start, end + 1)}
+                        for band_start, band_end in (
+                            _adaptive_split_season_band(
+                                start,
+                                end,
+                                max_span=min(
+                                    _max_span_for_pattern(pattern),
+                                    adaptive_max_span or _max_span_for_pattern(pattern),
                                 ),
+                                target_cost=target_cost,
+                                season_costs=season_costs,
                             )
-                        )
-                        lane_index += 1
+                            if planning_snapshot is not None
+                            else _split_season_band(
+                                start,
+                                end,
+                                max_span=_max_span_for_pattern(pattern),
+                            )
+                        ):
+                            endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
+                            lane_id = (
+                                f"historical-{pattern}{endpoint_component}-"
+                                f"{_season_type_slug(season_types)}-{band_start}-{band_end}"
+                            )
+                            lane_name = f"Historical {pattern} {band_start}-{band_end}"
+                            if endpoints and endpoint_slug:
+                                lane_name = f"{lane_name} ({', '.join(endpoints)})"
+                            if season_types:
+                                lane_name = f"{lane_name} ({', '.join(season_types)})"
+                            lanes.append(
+                                FullExtractionLane(
+                                    lane_id=lane_id,
+                                    lane_index=lane_index,
+                                    lane_name=lane_name,
+                                    lane_kind="historical",
+                                    season_start=band_start,
+                                    season_end=band_end,
+                                    patterns=(pattern,),
+                                    season_types=season_types,
+                                    endpoints=endpoints,
+                                    use_vpn=True,
+                                    resume_only=False,
+                                    timeout_seconds=_historical_timeout_seconds(
+                                        pattern,
+                                        band_start,
+                                        band_end,
+                                    ),
+                                )
+                            )
+                            lane_index += 1
 
     cross_product_rows = [
         row
@@ -788,9 +828,16 @@ def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[st
         # Redispatch payloads only need enough state to reconstruct lanes on the
         # next workflow iteration. Drop derived/default fields so chained
         # workflow_dispatch inputs stay under GitHub's size limits.
+        payload.pop("lane_name", None)
         payload.pop("lane_index", None)
+        if not lane.season_types:
+            payload.pop("season_types", None)
+        if not lane.endpoints:
+            payload.pop("endpoints", None)
         if lane.use_vpn is True:
             payload.pop("use_vpn", None)
+        if lane.resume_only is False:
+            payload.pop("resume_only", None)
         if not lane.failure_streak:
             payload.pop("failure_streak", None)
         if not lane.last_failure_reason:
