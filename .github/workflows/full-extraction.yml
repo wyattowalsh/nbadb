@@ -331,12 +331,22 @@ jobs:
             exit 1
           fi
 
+      - name: Download lane manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: plan-artifact/
+
       - name: Validate planned lanes
-        env:
-          LANE_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
         run: |
           mkdir -p artifacts/full-extraction
-          printf '%s' "$LANE_MANIFEST_JSON" > artifacts/full-extraction/preflight-manifest.json
+          manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
+          if [ -z "$manifest_path" ]; then
+            echo "::error::Plan artifact did not contain manifest.json"
+            find plan-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+          cp "$manifest_path" artifacts/full-extraction/preflight-manifest.json
           uv run python - <<'PY'
           import json
           from pathlib import Path
@@ -997,6 +1007,12 @@ jobs:
           pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
           path: lane-metadata/
 
+      - name: Download lane manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: plan-artifact/
+
       - name: Chain next iteration
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1009,7 +1025,6 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
-          CURRENT_MANIFEST_JSON: ${{ needs.plan.outputs.lane-manifest-json }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -1023,7 +1038,13 @@ jobs:
           fi
 
           mkdir -p artifacts/full-extraction
-          printf '%s' "$CURRENT_MANIFEST_JSON" > artifacts/full-extraction/current-manifest.json
+          manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
+          if [ -z "$manifest_path" ]; then
+            echo "::error::Plan artifact did not contain manifest.json"
+            find plan-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+          cp "$manifest_path" artifacts/full-extraction/current-manifest.json
           uv run python -m nbadb.orchestrate.full_extraction_control resume \
             --lane-manifest-path artifacts/full-extraction/current-manifest.json \
             --metadata-dir lane-metadata \
