@@ -458,15 +458,11 @@ jobs:
           QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
         run: |
           set +e
-          timeout --kill-after=15s 180s python3 .github/actions/nordvpn-connect/supervise.py
+          bash .github/scripts/run_with_deadline.sh \
+            180 \
+            15 \
+            python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
-          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ] || [ "$rc" -eq 143 ]; then
-            {
-              echo "status=vpn_connect_timeout"
-              echo "attempted-servers-json=[]"
-              echo "failed-servers-json=[]"
-            } >> "$GITHUB_OUTPUT"
-          fi
           exit "$rc"
 
       - name: Summarize preflight VPN validation
@@ -639,15 +635,11 @@ jobs:
           QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
         run: |
           set +e
-          timeout --kill-after=15s 360s python3 .github/actions/nordvpn-connect/supervise.py
+          bash .github/scripts/run_with_deadline.sh \
+            360 \
+            15 \
+            python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
-          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ] || [ "$rc" -eq 143 ]; then
-            {
-              echo "status=vpn_connect_timeout"
-              echo "attempted-servers-json=[]"
-              echo "failed-servers-json=[]"
-            } >> "$GITHUB_OUTPUT"
-          fi
           exit "$rc"
 
       # ── Configure environment ──
