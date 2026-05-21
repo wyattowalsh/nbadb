@@ -542,7 +542,7 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: active lanes must require VPN")
         max_span = _max_span_for_lane(lane)
         span = _season_span(lane.season_start, lane.season_end)
-        if max_span is not None and span > max_span:
+        if not lane.resume_only and max_span is not None and span > max_span:
             errors.append(f"{lane.lane_id}: span {span} exceeds lane policy max {max_span}")
     if errors:
         msg = "Invalid full extraction manifest:\n- " + "\n- ".join(errors)
@@ -958,10 +958,31 @@ def _timeout_split_bands(lane: FullExtractionLane) -> list[tuple[int, int]]:
     return _split_season_band(lane.season_start, lane.season_end, max_span=child_span)
 
 
-def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullExtractionLane]:
+def _lane_exceeds_policy(lane: FullExtractionLane) -> bool:
+    if lane.season_start is None or lane.season_end is None:
+        return False
+    max_span = _max_span_for_lane(lane)
+    return max_span is not None and _season_span(lane.season_start, lane.season_end) > max_span
+
+
+def _policy_split_bands(lane: FullExtractionLane) -> list[tuple[int, int]]:
+    if lane.season_start is None or lane.season_end is None:
+        return []
+    max_span = _max_span_for_lane(lane)
+    if max_span is None:
+        return []
+    return _split_season_band(lane.season_start, lane.season_end, max_span=max_span)
+
+
+def _split_lane_by_bands(
+    lane: FullExtractionLane,
+    *,
+    bands: list[tuple[int, int]],
+    reason: str,
+) -> list[FullExtractionLane]:
     parent_lane_id = lane.parent_lane_id or lane.lane_id
     children: list[FullExtractionLane] = []
-    for start, end in _timeout_split_bands(lane):
+    for start, end in bands:
         child_lane_id = f"{_lane_slug(parent_lane_id)}-split-{start}-{end}"
         children.append(
             replace(
@@ -978,6 +999,20 @@ def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullEx
             )
         )
     return children
+
+
+def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullExtractionLane]:
+    return _split_lane_by_bands(lane, bands=_timeout_split_bands(lane), reason=reason)
+
+
+def _split_legacy_oversized_lane(
+    lane: FullExtractionLane, *, reason: str
+) -> list[FullExtractionLane]:
+    return _split_lane_by_bands(lane, bands=_policy_split_bands(lane), reason=reason)
+
+
+def _status_allows_legacy_split(status: str) -> bool:
+    return status not in {"cancelled", "cancellation_no_metadata"}
 
 
 def _reindex_lanes(lanes: list[FullExtractionLane]) -> list[FullExtractionLane]:
@@ -1015,6 +1050,12 @@ def build_resume_manifest(
             resumed += 1
             continue
         failure_reason_counts[status] = failure_reason_counts.get(status, 0) + 1
+        if _status_allows_legacy_split(status) and _lane_exceeds_policy(lane):
+            child_lanes = _split_legacy_oversized_lane(lane, reason=f"legacy-oversized-{status}")
+            next_lanes.extend(child_lanes)
+            split_lane_count += len(child_lanes)
+            active += len(child_lanes)
+            continue
         if status in SPLITTABLE_TIMEOUT_STATUSES and _timeout_lane_can_split(lane):
             child_lanes = _split_timeout_lane(lane, reason=status)
             next_lanes.extend(child_lanes)

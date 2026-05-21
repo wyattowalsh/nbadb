@@ -618,12 +618,12 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
 
 def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) -> None:
     lane = FullExtractionLane(
-        lane_id="historical-game-no-season-type-1996-2007",
+        lane_id="historical-game-no-season-type-1996-1999",
         lane_index=0,
-        lane_name="Historical game 1996-2007",
+        lane_name="Historical game 1996-1999",
         lane_kind="historical",
         season_start=1996,
-        season_end=2007,
+        season_end=1999,
         patterns=("game",),
         timeout_seconds=7200,
         failure_streak=2,
@@ -634,7 +634,7 @@ def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) 
     metadata_dir.mkdir()
     _write_metadata(
         metadata_dir / "historical.json",
-        lane_id="historical-game-no-season-type-1996-2007",
+        lane_id="historical-game-no-season-type-1996-1999",
         status="extract-error",
     )
 
@@ -670,6 +670,67 @@ def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
     assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
     assert all(child.split_generation == 1 for child in next_lanes)
     assert all(child.failure_streak == 0 for child in next_lanes)
+    assert summary["active_lane_count"] == 3
+    assert summary["split_lane_count"] == 3
+
+
+def test_resume_manifest_allows_legacy_completed_lane_spans(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v3-no-season-type-1946-1957",
+        lane_index=0,
+        lane_name="Historical date 1946-1957",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1957,
+        patterns=("date",),
+        endpoints=("scoreboard_v3",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id="historical-date-scoreboard-v3-no-season-type-1946-1957",
+        status="complete",
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    validate_manifest(next_lanes)
+    assert len(next_lanes) == 1
+    assert next_lanes[0].resume_only is True
+    assert summary["resume_only_lane_count"] == 1
+
+
+def test_resume_manifest_reshards_legacy_oversized_failed_lanes(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-season-no-season-type-1946-1963",
+        lane_index=0,
+        lane_name="Historical season 1946-1963",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1963,
+        patterns=("season",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id="historical-season-no-season-type-1946-1963",
+        status="extract-error",
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    validate_manifest(next_lanes)
+    assert [child.season_start for child in next_lanes] == [1946, 1954, 1962]
+    assert [child.season_end for child in next_lanes] == [1953, 1961, 1963]
+    assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
+    assert all(
+        child.last_failure_reason == "split-from-legacy-oversized-extract-error"
+        for child in next_lanes
+    )
     assert summary["active_lane_count"] == 3
     assert summary["split_lane_count"] == 3
 
