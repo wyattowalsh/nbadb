@@ -22,6 +22,7 @@ from nbadb.orchestrate.workload_profile import (
 DEFAULT_HISTORICAL_START = 1946
 MAX_CONSECUTIVE_FAILURES = 3
 MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
+MAX_GITHUB_MATRIX_LANES = 220
 SPLITTABLE_TIMEOUT_STATUSES = frozenset({"extract-timeout", "timeout_with_persisted_progress"})
 TIMEOUT_SPLIT_PATTERNS = frozenset(
     {
@@ -139,15 +140,20 @@ class FullExtractionLane:
 @dataclass(frozen=True, slots=True)
 class FullExtractionChainState:
     vpn_quarantined_servers: tuple[str, ...] = ()
+    artifact_run_ids: tuple[str, ...] = ()
 
     def to_payload(self) -> dict[str, Any]:
-        return {"vpn_quarantined_servers": list(self.vpn_quarantined_servers)}
+        return {
+            "vpn_quarantined_servers": list(self.vpn_quarantined_servers),
+            "artifact_run_ids": list(self.artifact_run_ids),
+        }
 
 
 @dataclass(frozen=True, slots=True)
 class FullExtractionManifest:
     lanes: tuple[FullExtractionLane, ...]
     chain_state: FullExtractionChainState = field(default_factory=FullExtractionChainState)
+    matrix_lane_ids: frozenset[str] = field(default_factory=frozenset)
 
 
 def _normalize_server_list(raw: Any) -> tuple[str, ...]:
@@ -177,7 +183,8 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
     return FullExtractionChainState(
         vpn_quarantined_servers=_normalize_server_list(
             raw_chain_state.get("vpn_quarantined_servers", [])
-        )
+        ),
+        artifact_run_ids=_normalize_server_list(raw_chain_state.get("artifact_run_ids", [])),
     )
 
 
@@ -825,21 +832,40 @@ def normalize_manifest(
     lanes = tuple(
         _normalize_lane(dict(raw_lane), lane_index) for lane_index, raw_lane in enumerate(raw_lanes)
     )
-    return FullExtractionManifest(lanes=lanes, chain_state=chain_state)
+    raw_matrix = raw_manifest.get("github_matrix", {}) if isinstance(raw_manifest, dict) else {}
+    raw_matrix_include = raw_matrix.get("include", []) if isinstance(raw_matrix, dict) else []
+    matrix_lane_ids = frozenset(
+        str(row.get("lane_id", "")).strip()
+        for row in raw_matrix_include
+        if isinstance(row, dict) and str(row.get("lane_id", "")).strip()
+    )
+    return FullExtractionManifest(
+        lanes=lanes,
+        chain_state=chain_state,
+        matrix_lane_ids=matrix_lane_ids,
+    )
 
 
 def manifest_payload(
     lanes: list[FullExtractionLane],
     *,
     chain_state: FullExtractionChainState | None = None,
+    max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
 ) -> dict[str, Any]:
     lane_dicts = [_lane_payload(lane) for lane in lanes]
+    active_lanes = [lane for lane in lanes if not lane.resume_only]
+    matrix_lanes = active_lanes[:max_matrix_lanes]
+    deferred_lane_count = max(0, len(active_lanes) - len(matrix_lanes))
     return {
         "manifest_version": 2,
         "lane_count": len(lanes),
+        "active_lane_count": len(active_lanes),
+        "resume_only_lane_count": len(lanes) - len(active_lanes),
+        "matrix_lane_count": len(matrix_lanes),
+        "deferred_lane_count": deferred_lane_count,
         "lanes": lane_dicts,
         "chain_state": (chain_state or FullExtractionChainState()).to_payload(),
-        "github_matrix": {"include": [lane.to_workflow_dict() for lane in lanes]},
+        "github_matrix": {"include": [lane.to_workflow_dict() for lane in matrix_lanes]},
     }
 
 
@@ -1024,11 +1050,14 @@ def build_resume_manifest(
     metadata_dir: Path,
     *,
     chain_state: FullExtractionChainState | None = None,
+    attempted_lane_ids: frozenset[str] | None = None,
+    completed_artifact_run_id: str | None = None,
 ) -> tuple[list[FullExtractionLane], FullExtractionChainState, dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
     next_lanes: list[FullExtractionLane] = []
     resumed = 0
     active = 0
+    deferred = 0
     failure_reason_counts: dict[str, int] = {}
     split_lane_count = 0
     blocked_lanes: list[FullExtractionLane] = []
@@ -1036,6 +1065,18 @@ def build_resume_manifest(
     for lane in lanes:
         payload = metadata.get(lane.lane_id)
         status = str(payload.get("status", "")) if payload else ""
+        if not status and lane.resume_only:
+            next_lanes.append(lane)
+            resumed += 1
+            continue
+        if not status and attempted_lane_ids is not None and lane.lane_id not in attempted_lane_ids:
+            next_lanes.append(lane)
+            if lane.resume_only:
+                resumed += 1
+            else:
+                active += 1
+                deferred += 1
+            continue
         if not status:
             status = "missing-metadata"
         if status == "complete":
@@ -1091,8 +1132,15 @@ def build_resume_manifest(
             *_metadata_quarantined_servers(metadata),
         ]
     )
+    merged_artifact_run_ids = _normalize_server_list(
+        [
+            *(chain_state.artifact_run_ids if chain_state is not None else ()),
+            *([completed_artifact_run_id] if completed_artifact_run_id else []),
+        ]
+    )
     next_chain_state = FullExtractionChainState(
-        vpn_quarantined_servers=tuple(sorted(merged_quarantined_servers))
+        vpn_quarantined_servers=tuple(sorted(merged_quarantined_servers)),
+        artifact_run_ids=tuple(merged_artifact_run_ids),
     )
     next_lanes = _reindex_lanes(next_lanes)
 
@@ -1103,6 +1151,7 @@ def build_resume_manifest(
             "vpn_quarantined_server_count": len(next_chain_state.vpn_quarantined_servers),
             "active_lane_count": active,
             "resume_only_lane_count": resumed,
+            "deferred_lane_count": deferred,
             "blocked_lane_count": 0,
             "split_lane_count": split_lane_count,
             "failure_reason_counts": failure_reason_counts,
@@ -1442,6 +1491,8 @@ def _command_resume(args: argparse.Namespace) -> int:
         list(manifest.lanes),
         args.metadata_dir,
         chain_state=manifest.chain_state,
+        attempted_lane_ids=manifest.matrix_lane_ids or None,
+        completed_artifact_run_id=args.completed_artifact_run_id,
     )
     validate_manifest(next_lanes)
     payload = manifest_payload(next_lanes, chain_state=next_chain_state)
@@ -1484,6 +1535,7 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--lane-manifest-json", type=str, default=None)
     resume.add_argument("--lane-manifest-path", type=Path, default=None)
     resume.add_argument("--metadata-dir", type=Path, required=True)
+    resume.add_argument("--completed-artifact-run-id", type=str, default=None)
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)
 

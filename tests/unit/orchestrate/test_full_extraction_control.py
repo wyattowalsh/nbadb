@@ -610,6 +610,7 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
         "vpn_quarantined_server_count": 0,
         "active_lane_count": 10,
         "resume_only_lane_count": 1,
+        "deferred_lane_count": 0,
         "blocked_lane_count": 0,
         "split_lane_count": 0,
         "failure_reason_counts": {"incomplete": 1, "missing-metadata": 9},
@@ -672,6 +673,51 @@ def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
     assert all(child.failure_streak == 0 for child in next_lanes)
     assert summary["active_lane_count"] == 3
     assert summary["split_lane_count"] == 3
+
+
+def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Path) -> None:
+    attempted_lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-1994-1997",
+        lane_index=0,
+        lane_name="Historical game 1994-1997",
+        lane_kind="historical",
+        season_start=1994,
+        season_end=1997,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    deferred_lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-1998-2001",
+        lane_index=1,
+        lane_name="Historical game 1998-2001",
+        lane_kind="historical",
+        season_start=1998,
+        season_end=2001,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "attempted.json",
+        lane_id=attempted_lane.lane_id,
+        status="extract-timeout",
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [attempted_lane, deferred_lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({attempted_lane.lane_id}),
+    )
+
+    by_id = {lane.lane_id: lane for lane in next_lanes}
+    assert by_id[deferred_lane.lane_id].last_failure_reason == ""
+    assert by_id[deferred_lane.lane_id].failure_streak == 0
+    assert summary["active_lane_count"] == 3
+    assert summary["deferred_lane_count"] == 1
+    assert summary["failure_reason_counts"] == {"extract-timeout": 1}
 
 
 def test_resume_manifest_allows_legacy_completed_lane_spans(tmp_path: Path) -> None:
@@ -821,16 +867,66 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
             )
         ],
         chain_state=FullExtractionChainState(
-            vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
+            vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com"),
+            artifact_run_ids=("12345",),
         ),
     )
 
     manifest = normalize_manifest(payload)
 
     assert manifest.chain_state == FullExtractionChainState(
-        vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
+        vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com"),
+        artifact_run_ids=("12345",),
     )
     assert manifest.lanes[0].lane_id == "reference-static"
+    assert manifest.matrix_lane_ids == frozenset({"reference-static"})
+
+
+def test_manifest_payload_caps_github_matrix_to_active_wave() -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id="reference-static",
+            lane_index=0,
+            lane_name="Reference Static",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("static",),
+            resume_only=True,
+            timeout_seconds=1800,
+        ),
+        FullExtractionLane(
+            lane_id="reference-player-01",
+            lane_index=1,
+            lane_name="Reference Player 1",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("player",),
+            timeout_seconds=3600,
+        ),
+        FullExtractionLane(
+            lane_id="reference-player-02",
+            lane_index=2,
+            lane_name="Reference Player 2",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("player",),
+            timeout_seconds=3600,
+        ),
+    ]
+
+    payload = manifest_payload(lanes, max_matrix_lanes=1)
+
+    assert payload["lane_count"] == 3
+    assert payload["active_lane_count"] == 2
+    assert payload["resume_only_lane_count"] == 1
+    assert payload["matrix_lane_count"] == 1
+    assert payload["deferred_lane_count"] == 1
+    assert [row["lane_id"] for row in payload["github_matrix"]["include"]] == [
+        "reference-player-01"
+    ]
 
 
 def test_redispatch_manifest_payload_round_trips() -> None:
@@ -851,7 +947,8 @@ def test_redispatch_manifest_payload_round_trips() -> None:
         )
     ]
     chain_state = FullExtractionChainState(
-        vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com")
+        vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com"),
+        artifact_run_ids=("12345", "23456"),
     )
 
     redispatch_payload = redispatch_manifest_payload(lanes, chain_state=chain_state)

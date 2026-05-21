@@ -98,6 +98,9 @@ jobs:
     outputs:
       extract-matrix: ${{ steps.manifest.outputs.extract-matrix }}
       lane-count: ${{ steps.manifest.outputs.lane-count }}
+      active-lane-count: ${{ steps.manifest.outputs.active-lane-count }}
+      matrix-lane-count: ${{ steps.manifest.outputs.matrix-lane-count }}
+      deferred-lane-count: ${{ steps.manifest.outputs.deferred-lane-count }}
       vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -295,6 +298,7 @@ jobs:
             uv run python -m nbadb.orchestrate.full_extraction_control resume \
               --lane-manifest-path "$source_manifest" \
               --metadata-dir "$RUNNER_TEMP/resume-source/metadata" \
+              --completed-artifact-run-id "$RESUME_SOURCE_RUN_ID" \
               --output-path artifacts/full-extraction/resume-source-manifest.json \
               > artifacts/full-extraction/resume-source-manifest.stdout.json
             args+=(--lane-manifest-path artifacts/full-extraction/resume-source-manifest.json)
@@ -321,6 +325,9 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"extract-matrix={compact_matrix}\n")
               handle.write(f"lane-count={manifest['lane_count']}\n")
+              handle.write(f"active-lane-count={manifest.get('active_lane_count', 0)}\n")
+              handle.write(f"matrix-lane-count={manifest.get('matrix_lane_count', 0)}\n")
+              handle.write(f"deferred-lane-count={manifest.get('deferred_lane_count', 0)}\n")
               handle.write(f"vpn-quarantined-servers-json={compact_quarantined_servers}\n")
           PY
 
@@ -336,6 +343,9 @@ jobs:
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
               handle.write("## Lane Plan\n")
               handle.write(f"**Lane count:** {manifest.get('lane_count', 0)}\n")
+              handle.write(f"**Active lanes:** {manifest.get('active_lane_count', 0)}\n")
+              handle.write(f"**This wave:** {manifest.get('matrix_lane_count', 0)}\n")
+              handle.write(f"**Deferred lanes:** {manifest.get('deferred_lane_count', 0)}\n")
               for lane in lanes:
                   season_range = "n/a"
                   if lane.get("season_start") is not None and lane.get("season_end") is not None:
@@ -483,7 +493,7 @@ jobs:
 
   extract:
     needs: [plan, preflight]
-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.lane-count != '0' }}
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -1006,7 +1016,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   merge:
     needs: [plan, preflight, extract]
-    if: ${{ !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.extract.result == 'success' }}
+    if: ${{ !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && (needs.plan.outputs.active-lane-count == '0' || (needs.plan.outputs.deferred-lane-count == '0' && needs.extract.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:
@@ -1028,16 +1038,67 @@ jobs:
 
       - run: uv sync
 
-      # Download all lane artifacts from this successful iteration.
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+      - name: Download lane manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
-          pattern: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-*
-          path: lanes/
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: plan-artifact/
+
+      - name: Download chained lane artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIVE_CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+        run: |
+          mkdir -p lanes artifacts/full-extraction
+          manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
+          if [ -z "$manifest_path" ]; then
+            echo "::error::Plan artifact did not contain manifest.json"
+            find plan-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+          cp "$manifest_path" artifacts/full-extraction/merge-manifest.json
+
+          run_ids="$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("artifacts/full-extraction/merge-manifest.json").read_text(encoding="utf-8"))
+          seen = set()
+          ordered = []
+          for value in manifest.get("chain_state", {}).get("artifact_run_ids", []):
+              run_id = str(value).strip()
+              if run_id and run_id not in seen:
+                  seen.add(run_id)
+                  ordered.append(run_id)
+          current = os.environ["GITHUB_RUN_ID"]
+          if current not in seen:
+              ordered.append(current)
+          print(" ".join(ordered))
+          PY
+          )"
+
+          for run_id in $run_ids; do
+            echo "Downloading lane artifacts from run $run_id"
+            if ! gh run download "$run_id" \
+              --repo "${{ github.repository }}" \
+              --pattern "extraction-lane-${ACTIVE_CHAIN_ID}-*" \
+              --dir "lanes/run-${run_id}"; then
+              echo "::warning::No lane artifacts downloaded from run $run_id"
+            fi
+          done
+
+          lane_count="$(find lanes -path '*extraction-lane-*' -type d | wc -l | tr -d ' ')"
+          if [ "$lane_count" -eq 0 ]; then
+            echo "::error::No extraction lane artifacts were available to merge"
+            exit 1
+          fi
+          echo "Downloaded $lane_count lane artifact directories"
 
       - name: List downloaded lanes
         run: |
           echo "Downloaded lanes:"
-          for d in lanes/extraction-lane-*; do
+          for d in lanes/run-*/extraction-lane-*; do
             echo "  $d:"
             ls -lh "$d/" 2>/dev/null || echo "    (empty)"
           done
@@ -1115,7 +1176,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   chain:
     needs: [plan, preflight, extract]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.extract.result != 'success' }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' && (needs.plan.outputs.deferred-lane-count != '0' || needs.extract.result != 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -1176,6 +1237,7 @@ jobs:
           uv run python -m nbadb.orchestrate.full_extraction_control resume \
             --lane-manifest-path artifacts/full-extraction/current-manifest.json \
             --metadata-dir lane-metadata \
+            --completed-artifact-run-id "${{ github.run_id }}" \
             --output-path artifacts/full-extraction/next-manifest.json \
             > artifacts/full-extraction/next-manifest.stdout.json
 
