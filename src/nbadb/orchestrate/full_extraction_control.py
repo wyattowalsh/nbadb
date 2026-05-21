@@ -21,6 +21,18 @@ from nbadb.orchestrate.workload_profile import (
 
 DEFAULT_HISTORICAL_START = 1946
 MAX_CONSECUTIVE_FAILURES = 3
+MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
+SPLITTABLE_TIMEOUT_STATUSES = frozenset({"extract-timeout", "timeout_with_persisted_progress"})
+TIMEOUT_SPLIT_PATTERNS = frozenset(
+    {
+        "game",
+        "date",
+        "season",
+        "player_season",
+        "team_season",
+        "player_team_season",
+    }
+)
 SEASON_TYPE_PATTERNS = frozenset({"season", "player_season", "team_season"})
 HISTORICAL_PATTERNS = frozenset({"season", "game", "date", "player_season", "team_season"})
 REFERENCE_PATTERNS = frozenset({"static", "player", "team"})
@@ -29,11 +41,11 @@ CROSS_PRODUCT_PATTERNS = frozenset({"player_team_season"})
 SEASON_TYPE_GROUPABLE_PATTERNS = SEASON_TYPE_PATTERNS | CROSS_PRODUCT_PATTERNS
 DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
 HISTORICAL_MAX_SPAN_BY_PATTERN: dict[str, int] = {
-    "game": 12,
-    "date": 12,
-    "season": 18,
-    "player_season": 16,
-    "team_season": 16,
+    "game": 4,
+    "date": 4,
+    "season": 8,
+    "player_season": 6,
+    "team_season": 8,
 }
 HISTORICAL_ENDPOINT_ISOLATION_PATTERNS = frozenset({"date", "game"})
 """High-volume historical patterns that must be planned per endpoint.
@@ -42,7 +54,7 @@ The support matrix is endpoint/table-oriented, but date/game extraction can be
 much slower than the broad season sweeps. Isolating these lanes keeps a slow or
 rate-limited endpoint from blocking unrelated endpoint/time-period coverage.
 """
-CROSS_PRODUCT_MAX_SPAN = 8
+CROSS_PRODUCT_MAX_SPAN = 4
 REFERENCE_MAX_ENDPOINTS_BY_PATTERN: dict[str, int] = {
     "static": 64,
     "team": 12,
@@ -102,6 +114,8 @@ class FullExtractionLane:
     timeout_seconds: int = 0
     failure_streak: int = 0
     last_failure_reason: str = ""
+    parent_lane_id: str = ""
+    split_generation: int = 0
 
     def to_workflow_dict(self) -> dict[str, Any]:
         return {
@@ -117,6 +131,8 @@ class FullExtractionLane:
             "use_vpn": self.use_vpn,
             "resume_only": self.resume_only,
             "timeout_seconds": self.timeout_seconds,
+            "parent_lane_id": self.parent_lane_id,
+            "split_generation": self.split_generation,
         }
 
 
@@ -264,7 +280,8 @@ def _season_type_slug(season_types: tuple[str, ...]) -> str:
 
 
 def _lane_slug(value: str) -> str:
-    return value.strip().lower().replace("_", "-").replace(" ", "-")
+    slug = value.strip().lower().replace("_", "-").replace(" ", "-")
+    return "".join(char for char in slug if char.isalnum() or char == "-").strip("-")
 
 
 def _historical_rows_for_pattern(
@@ -519,6 +536,8 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: timeout_seconds must be > 0")
         if lane.failure_streak < 0:
             errors.append(f"{lane.lane_id}: failure_streak must be >= 0")
+        if lane.split_generation < 0:
+            errors.append(f"{lane.lane_id}: split_generation must be >= 0")
         if not lane.resume_only and not lane.use_vpn:
             errors.append(f"{lane.lane_id}: active lanes must require VPN")
         max_span = _max_span_for_lane(lane)
@@ -552,6 +571,8 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         timeout_seconds=int(raw.get("timeout_seconds") or 7_200),
         failure_streak=int(raw.get("failure_streak") or 0),
         last_failure_reason=str(raw.get("last_failure_reason") or ""),
+        parent_lane_id=str(raw.get("parent_lane_id") or ""),
+        split_generation=int(raw.get("split_generation") or 0),
     )
 
 
@@ -842,6 +863,10 @@ def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[st
             payload.pop("failure_streak", None)
         if not lane.last_failure_reason:
             payload.pop("last_failure_reason", None)
+        if not lane.parent_lane_id:
+            payload.pop("parent_lane_id", None)
+        if not lane.split_generation:
+            payload.pop("split_generation", None)
     return payload
 
 
@@ -856,10 +881,31 @@ def redispatch_manifest_payload(
     }
 
 
+def validate_workflow_dispatch_manifest_json(
+    raw_json: str,
+    *,
+    max_chars: int = MAX_WORKFLOW_DISPATCH_JSON_CHARS,
+) -> None:
+    """Reject manual JSON manifests that are too large for workflow_dispatch.
+
+    GitHub currently caps the combined workflow_dispatch input payload at
+    65,535 characters.  Keep a conservative buffer because scalar inputs share
+    the same budget.
+    """
+    if len(raw_json) > max_chars:
+        msg = (
+            "lane_manifest_json is too large for workflow_dispatch "
+            f"({len(raw_json)} chars > {max_chars}); upload the manifest as an "
+            "artifact and pass lane_manifest_run_id/lane_manifest_artifact_name instead"
+        )
+        raise ValueError(msg)
+
+
 def _load_manifest_argument(
     raw_json: str | None, path: Path | None
 ) -> FullExtractionManifest | None:
     if raw_json:
+        validate_workflow_dispatch_manifest_json(raw_json)
         return normalize_manifest(json.loads(raw_json))
     if path is not None:
         return normalize_manifest(json.loads(path.read_text(encoding="utf-8")))
@@ -891,6 +937,53 @@ def _metadata_quarantined_servers(metadata: dict[str, dict[str, Any]]) -> tuple[
     return tuple(quarantined)
 
 
+def _timeout_lane_can_split(lane: FullExtractionLane) -> bool:
+    if lane.season_start is None or lane.season_end is None:
+        return False
+    if _season_span(lane.season_start, lane.season_end) <= 1:
+        return False
+    if not lane.patterns:
+        return False
+    return bool(set(lane.patterns) & TIMEOUT_SPLIT_PATTERNS)
+
+
+def _timeout_split_bands(lane: FullExtractionLane) -> list[tuple[int, int]]:
+    if lane.season_start is None or lane.season_end is None:
+        return []
+    span = _season_span(lane.season_start, lane.season_end)
+    policy_max_span = _max_span_for_lane(lane) or span
+    child_span = max(1, min(policy_max_span, span // 2))
+    if child_span >= span:
+        child_span = span - 1
+    return _split_season_band(lane.season_start, lane.season_end, max_span=child_span)
+
+
+def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullExtractionLane]:
+    parent_lane_id = lane.parent_lane_id or lane.lane_id
+    children: list[FullExtractionLane] = []
+    for start, end in _timeout_split_bands(lane):
+        child_lane_id = f"{_lane_slug(parent_lane_id)}-split-{start}-{end}"
+        children.append(
+            replace(
+                lane,
+                lane_id=child_lane_id,
+                lane_name=f"{lane.lane_name} {start}-{end}",
+                season_start=start,
+                season_end=end,
+                resume_only=False,
+                failure_streak=0,
+                last_failure_reason=f"split-from-{reason}",
+                parent_lane_id=parent_lane_id,
+                split_generation=lane.split_generation + 1,
+            )
+        )
+    return children
+
+
+def _reindex_lanes(lanes: list[FullExtractionLane]) -> list[FullExtractionLane]:
+    return [replace(lane, lane_index=index) for index, lane in enumerate(lanes)]
+
+
 def build_resume_manifest(
     lanes: list[FullExtractionLane],
     metadata_dir: Path,
@@ -902,6 +995,7 @@ def build_resume_manifest(
     resumed = 0
     active = 0
     failure_reason_counts: dict[str, int] = {}
+    split_lane_count = 0
     blocked_lanes: list[FullExtractionLane] = []
 
     for lane in lanes:
@@ -921,6 +1015,12 @@ def build_resume_manifest(
             resumed += 1
             continue
         failure_reason_counts[status] = failure_reason_counts.get(status, 0) + 1
+        if status in SPLITTABLE_TIMEOUT_STATUSES and _timeout_lane_can_split(lane):
+            child_lanes = _split_timeout_lane(lane, reason=status)
+            next_lanes.extend(child_lanes)
+            split_lane_count += len(child_lanes)
+            active += len(child_lanes)
+            continue
         failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
         next_lane = replace(
             lane,
@@ -953,6 +1053,7 @@ def build_resume_manifest(
     next_chain_state = FullExtractionChainState(
         vpn_quarantined_servers=tuple(sorted(merged_quarantined_servers))
     )
+    next_lanes = _reindex_lanes(next_lanes)
 
     return (
         next_lanes,
@@ -962,9 +1063,83 @@ def build_resume_manifest(
             "active_lane_count": active,
             "resume_only_lane_count": resumed,
             "blocked_lane_count": 0,
+            "split_lane_count": split_lane_count,
             "failure_reason_counts": failure_reason_counts,
         },
     )
+
+
+def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
+    metadata = _metadata_by_lane(metadata_dir)
+    status_counts: dict[str, int] = {}
+    kind_counts: dict[str, dict[str, int]] = {}
+    endpoint_counts: dict[str, dict[str, int]] = {}
+    vpn_status_counts: dict[str, int] = {}
+    zero_row_lanes: list[dict[str, Any]] = []
+    blockers: list[dict[str, Any]] = []
+    total_rows = 0
+    total_failed_calls = 0
+    total_journal_skips = 0
+
+    for lane_id, payload in sorted(metadata.items()):
+        status = str(payload.get("status") or "unknown")
+        kind = str(payload.get("lane_kind") or "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        kind_bucket = kind_counts.setdefault(kind, {})
+        kind_bucket[status] = kind_bucket.get(status, 0) + 1
+        vpn_status = str(payload.get("vpn_status") or "unknown")
+        vpn_status_counts[vpn_status] = vpn_status_counts.get(vpn_status, 0) + 1
+
+        endpoints = payload.get("endpoints", [])
+        if not isinstance(endpoints, list):
+            endpoints = []
+        telemetry = payload.get("telemetry", {})
+        if not isinstance(telemetry, dict):
+            telemetry = {}
+        rows = int(telemetry.get("rows_persisted") or 0)
+        failed_calls = int(telemetry.get("failed_calls") or 0)
+        journal_skips = int(telemetry.get("journal_skips") or 0)
+        total_rows += rows
+        total_failed_calls += failed_calls
+        total_journal_skips += journal_skips
+
+        for endpoint in endpoints:
+            endpoint_name = str(endpoint)
+            endpoint_bucket = endpoint_counts.setdefault(endpoint_name, {})
+            endpoint_bucket[status] = endpoint_bucket.get(status, 0) + 1
+
+        if rows == 0 and status != "complete":
+            zero_row_lanes.append(
+                {
+                    "lane_id": lane_id,
+                    "status": status,
+                    "reason": str(telemetry.get("zero_row_reason") or "unknown"),
+                    "endpoints": endpoints,
+                }
+            )
+        if status not in {"complete"}:
+            blockers.append(
+                {
+                    "lane_id": lane_id,
+                    "status": status,
+                    "kind": kind,
+                    "rows_persisted": rows,
+                    "failed_calls": failed_calls,
+                }
+            )
+
+    return {
+        "lane_count": len(metadata),
+        "status_counts": status_counts,
+        "kind_status_counts": kind_counts,
+        "endpoint_status_counts": endpoint_counts,
+        "vpn_status_counts": vpn_status_counts,
+        "rows_persisted": total_rows,
+        "failed_calls": total_failed_calls,
+        "journal_skips": total_journal_skips,
+        "zero_row_lanes": zero_row_lanes,
+        "blockers": blockers,
+    }
 
 
 def merge_lane_databases(
@@ -1242,6 +1417,14 @@ def _command_merge(args: argparse.Namespace) -> int:
     return 0
 
 
+def _command_audit(args: argparse.Namespace) -> int:
+    summary = build_metadata_audit(args.metadata_dir)
+    args.output_path.parent.mkdir(parents=True, exist_ok=True)
+    args.output_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(summary))
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Full extraction control-plane helpers.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1267,6 +1450,11 @@ def _build_parser() -> argparse.ArgumentParser:
     merge.add_argument("--artifacts-dir", type=Path, required=True)
     merge.add_argument("--output-dir", type=Path, required=True)
     merge.set_defaults(func=_command_merge)
+
+    audit = subparsers.add_parser("audit", help="Summarize lane metadata for extraction audit.")
+    audit.add_argument("--metadata-dir", type=Path, required=True)
+    audit.add_argument("--output-path", type=Path, required=True)
+    audit.set_defaults(func=_command_audit)
     return parser
 
 

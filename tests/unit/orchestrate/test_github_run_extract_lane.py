@@ -24,6 +24,7 @@ def test_build_command_includes_lane_filters(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("SEASON_TYPES", "Regular Season,Playoffs")
     monkeypatch.setenv("BACKFILL_ENDPOINTS", "league_dash_player_stats")
     monkeypatch.setenv("FORCE_REEXTRACT", "true")
+    monkeypatch.setenv("EXTRACT_SUMMARY_PATH", "artifacts/extraction/extract-summary.json")
 
     assert module.build_command() == [
         "uv",
@@ -41,6 +42,8 @@ def test_build_command_includes_lane_filters(monkeypatch: pytest.MonkeyPatch) ->
         "Regular Season,Playoffs",
         "--endpoint",
         "league_dash_player_stats",
+        "--summary-path",
+        "artifacts/extraction/extract-summary.json",
         "--force",
     ]
 

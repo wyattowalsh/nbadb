@@ -55,7 +55,19 @@ on:
         type: string
         default: ""
       lane_manifest_json:
-        description: "Internal lane manifest override used by chained reruns"
+        description: "Small debug/manual lane manifest JSON override; large chains must use artifact handoff"
+        type: string
+        default: ""
+      lane_manifest_run_id:
+        description: "Run ID containing a lane manifest artifact for chained or manual resume runs"
+        type: string
+        default: ""
+      lane_manifest_artifact_name:
+        description: "Lane manifest artifact name to download from lane_manifest_run_id"
+        type: string
+        default: ""
+      resume_source_run_id:
+        description: "Completed or failed source run ID to resume from metadata and its original manifest"
         type: string
         default: ""
 
@@ -82,10 +94,10 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+      actions: read
     outputs:
       extract-matrix: ${{ steps.manifest.outputs.extract-matrix }}
       lane-count: ${{ steps.manifest.outputs.lane-count }}
-      lane-manifest-json: ${{ steps.manifest.outputs.lane-manifest-json }}
       vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -103,13 +115,13 @@ jobs:
       - run: uv sync
 
       - name: Fetch nba_api endpoint-analysis docs
-        if: ${{ inputs.lane_manifest_json == '' }}
+        if: ${{ inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         run: |
           git clone --depth=1 --filter=blob:none \
             https://github.com/swar/nba_api.git "$RUNNER_TEMP/nba_api-upstream"
 
       - name: Generate support bundle artifacts
-        if: ${{ inputs.lane_manifest_json == '' }}
+        if: ${{ inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         run: |
           mkdir -p artifacts/endpoint-coverage
           uv run nbadb extract-completeness \
@@ -166,7 +178,7 @@ jobs:
           PY
 
       - name: Validate adequacy scorecard artifacts
-        if: ${{ inputs.lane_manifest_json == '' }}
+        if: ${{ inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         run: |
           python - <<'PY'
           import json
@@ -205,7 +217,7 @@ jobs:
           PY
 
       - name: Validate result-table contract artifacts
-        if: ${{ inputs.lane_manifest_json == '' }}
+        if: ${{ inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         run: |
           uv run nbadb audit-models \
             --mode inventory \
@@ -217,6 +229,12 @@ jobs:
         id: manifest
         env:
           INPUT_LANE_MANIFEST_JSON: ${{ inputs.lane_manifest_json }}
+          LANE_MANIFEST_RUN_ID: ${{ inputs.lane_manifest_run_id }}
+          LANE_MANIFEST_ARTIFACT_NAME: ${{ inputs.lane_manifest_artifact_name }}
+          RESUME_SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+          REQUESTED_CHAIN_ID: ${{ inputs.chain_id }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
         run: |
@@ -226,7 +244,60 @@ jobs:
             --output-path artifacts/full-extraction/manifest.json
           )
           if [ -n "$INPUT_LANE_MANIFEST_JSON" ]; then
+            manifest_chars="$(python - <<'PY'
+          import os
+          print(len(os.environ.get("INPUT_LANE_MANIFEST_JSON", "")))
+          PY
+          )"
+            if [ "$manifest_chars" -gt 60000 ]; then
+              echo "::error::lane_manifest_json is ${manifest_chars} chars; use lane_manifest_run_id/lane_manifest_artifact_name artifact handoff"
+              exit 1
+            fi
             args+=(--lane-manifest-json "$INPUT_LANE_MANIFEST_JSON")
+          elif [ -n "$LANE_MANIFEST_RUN_ID" ] || [ -n "$LANE_MANIFEST_ARTIFACT_NAME" ]; then
+            if [ -z "$LANE_MANIFEST_RUN_ID" ] || [ -z "$LANE_MANIFEST_ARTIFACT_NAME" ]; then
+              echo "::error::lane_manifest_run_id and lane_manifest_artifact_name must be provided together"
+              exit 1
+            fi
+            mkdir -p "$RUNNER_TEMP/lane-manifest-input"
+            gh run download "$LANE_MANIFEST_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --name "$LANE_MANIFEST_ARTIFACT_NAME" \
+              --dir "$RUNNER_TEMP/lane-manifest-input"
+            manifest_path="$(find "$RUNNER_TEMP/lane-manifest-input" \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
+            if [ -z "$manifest_path" ]; then
+              echo "::error::Manifest artifact $LANE_MANIFEST_ARTIFACT_NAME from run $LANE_MANIFEST_RUN_ID did not contain next-manifest.json or manifest.json"
+              find "$RUNNER_TEMP/lane-manifest-input" -maxdepth 4 -type f -print || true
+              exit 1
+            fi
+            cp "$manifest_path" artifacts/full-extraction/input-manifest.json
+            args+=(--lane-manifest-path artifacts/full-extraction/input-manifest.json)
+          elif [ -n "$RESUME_SOURCE_RUN_ID" ]; then
+            if [ -z "$REQUESTED_CHAIN_ID" ]; then
+              echo "::error::resume_source_run_id requires chain_id so source artifacts can be resolved; use the original chain id, usually the source run id"
+              exit 1
+            fi
+            mkdir -p "$RUNNER_TEMP/resume-source/manifest" "$RUNNER_TEMP/resume-source/metadata"
+            gh run download "$RESUME_SOURCE_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --name "full-extraction-manifest-${CHAIN_ID}" \
+              --dir "$RUNNER_TEMP/resume-source/manifest"
+            gh run download "$RESUME_SOURCE_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --pattern "extraction-lane-metadata-${CHAIN_ID}-*" \
+              --dir "$RUNNER_TEMP/resume-source/metadata"
+            source_manifest="$(find "$RUNNER_TEMP/resume-source/manifest" -name manifest.json -type f -print -quit)"
+            if [ -z "$source_manifest" ]; then
+              echo "::error::Resume source run $RESUME_SOURCE_RUN_ID did not provide full-extraction-manifest-${CHAIN_ID}/manifest.json"
+              find "$RUNNER_TEMP/resume-source/manifest" -maxdepth 4 -type f -print || true
+              exit 1
+            fi
+            uv run python -m nbadb.orchestrate.full_extraction_control resume \
+              --lane-manifest-path "$source_manifest" \
+              --metadata-dir "$RUNNER_TEMP/resume-source/metadata" \
+              --output-path artifacts/full-extraction/resume-source-manifest.json \
+              > artifacts/full-extraction/resume-source-manifest.stdout.json
+            args+=(--lane-manifest-path artifacts/full-extraction/resume-source-manifest.json)
           else
             args+=(--support-matrix-path artifacts/endpoint-coverage/endpoint-support-matrix.json)
           fi
@@ -241,7 +312,6 @@ jobs:
           from pathlib import Path
 
           manifest = json.loads(Path("artifacts/full-extraction/manifest.json").read_text(encoding="utf-8"))
-          compact_manifest = json.dumps(manifest, separators=(",", ":"))
           compact_matrix = json.dumps(manifest["github_matrix"], separators=(",", ":"))
           compact_quarantined_servers = json.dumps(
               manifest.get("chain_state", {}).get("vpn_quarantined_servers", []),
@@ -251,7 +321,6 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"extract-matrix={compact_matrix}\n")
               handle.write(f"lane-count={manifest['lane_count']}\n")
-              handle.write(f"lane-manifest-json={compact_manifest}\n")
               handle.write(f"vpn-quarantined-servers-json={compact_quarantined_servers}\n")
           PY
 
@@ -286,6 +355,9 @@ jobs:
           path: |
             artifacts/full-extraction/manifest.json
             artifacts/full-extraction/manifest.stdout.json
+            artifacts/full-extraction/input-manifest.json
+            artifacts/full-extraction/resume-source-manifest.json
+            artifacts/full-extraction/resume-source-manifest.stdout.json
             artifacts/endpoint-coverage/
           if-no-files-found: ignore
           retention-days: 7
@@ -447,6 +519,7 @@ jobs:
           key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-iter-${{ inputs.iteration }}
           restore-keys: |
             ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-
+            ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.parent_lane_id }}-
 
       - name: Assess restored state
         id: restore_state
@@ -511,6 +584,8 @@ jobs:
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
           RESUME_ONLY: ${{ matrix.resume_only }}
+          PARENT_LANE_ID: ${{ matrix.parent_lane_id }}
+          SPLIT_GENERATION: ${{ matrix.split_generation }}
           ITERATION: ${{ inputs.iteration }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
@@ -524,6 +599,7 @@ jobs:
           echo "::notice::Restore source: ${RESTORE_SOURCE:-none}"
           echo "::notice::Restore usable: ${RESTORE_USABLE:-false}"
           echo "::notice::Restart mode: ${RESTART_MODE:-clean-restart}"
+          [ -n "$PARENT_LANE_ID" ] && echo "::notice::Parent lane: $PARENT_LANE_ID (split generation ${SPLIT_GENERATION:-0})"
           [ -n "$PATTERNS" ] && echo "::notice::Patterns: $PATTERNS" || echo "::notice::Patterns: all"
           [ -n "$SEASON_TYPES" ] && echo "::notice::Season types: $SEASON_TYPES" || echo "::notice::Season types: none"
           echo "::notice::Resume only: $RESUME_ONLY"
@@ -633,7 +709,9 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints || matrix.endpoints }}
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           LANE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
+          EXTRACT_SUMMARY_PATH: artifacts/extraction/extract-summary.json
         run: |
+          mkdir -p artifacts/extraction
           python .github/scripts/run_extract_lane.py
 
       - name: Finalize lane status
@@ -728,8 +806,11 @@ jobs:
           EFFECTIVE_TIMEOUT_SECONDS: ${{ steps.extract.outputs.effective-timeout-seconds || matrix.timeout_seconds }}
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
+          ENDPOINTS: ${{ matrix.endpoints }}
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
+          PARENT_LANE_ID: ${{ matrix.parent_lane_id }}
+          SPLIT_GENERATION: ${{ matrix.split_generation }}
           STARTED_AT: ${{ steps.extract.outputs.started-at }}
           FINISHED_AT: ${{ steps.extract.outputs.finished-at }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
@@ -740,6 +821,7 @@ jobs:
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
           VPN_ATTEMPTED_SERVERS_JSON: ${{ steps.vpn.outputs.attempted-servers-json || '[]' }}
           VPN_FAILED_SERVERS_JSON: ${{ steps.vpn.outputs.failed-servers-json || '[]' }}
+          EXTRACT_SUMMARY_PATH: artifacts/extraction/extract-summary.json
         run: |
           mkdir -p artifacts/extraction
           python - <<'PY'
@@ -751,6 +833,38 @@ jobs:
           vpn_status = os.environ.get("VPN_STATUS", "").strip()
           if not vpn_status:
               vpn_status = "resume-only" if resume_only else "unknown"
+
+          summary_path = Path(os.environ["EXTRACT_SUMMARY_PATH"])
+          extract_summary = {}
+          extract_summary_parse_error = ""
+          if summary_path.exists():
+              try:
+                  extract_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+              except json.JSONDecodeError as exc:
+                  extract_summary_parse_error = str(exc)
+
+          result_summary = extract_summary.get("result", {})
+          progress_summary = extract_summary.get("progress", {})
+          totals = progress_summary.get("totals", {}) if isinstance(progress_summary, dict) else {}
+          rows_persisted = int(result_summary.get("rows_total") or totals.get("rows_extracted") or 0)
+          failed_calls = int(result_summary.get("failed_extractions") or totals.get("failed") or 0)
+          journal_skips = int(result_summary.get("skipped_extractions") or totals.get("skipped") or 0)
+          tables_persisted = int(result_summary.get("tables_updated") or 0)
+          planned_calls = sum(
+              int(pattern.get("total") or 0)
+              for pattern in progress_summary.get("patterns", [])
+              if isinstance(pattern, dict)
+          ) if isinstance(progress_summary, dict) else 0
+          zero_row_reason = ""
+          if rows_persisted == 0:
+              if os.environ["STATUS"] == "complete":
+                  zero_row_reason = "expected_empty"
+              elif journal_skips > 0:
+                  zero_row_reason = "zero_row_progress"
+              elif failed_calls > 0:
+                  zero_row_reason = "contract_gap"
+              else:
+                  zero_row_reason = "unknown"
 
           payload = {
               "chain_id": os.environ["CHAIN_ID"],
@@ -778,8 +892,27 @@ jobs:
               "season_types": [
                   value for value in os.environ.get("SEASON_TYPES", "").split(",") if value
               ],
+              "endpoints": [value for value in os.environ.get("ENDPOINTS", "").split(",") if value],
               "season_start": os.environ.get("SEASON_START", ""),
               "season_end": os.environ.get("SEASON_END", ""),
+              "parent_lane_id": os.environ.get("PARENT_LANE_ID", ""),
+              "split_generation": int(os.environ.get("SPLIT_GENERATION") or 0),
+              "telemetry": {
+                  "planned_calls": planned_calls,
+                  "journal_skips": journal_skips,
+                  "failed_calls": failed_calls,
+                  "tables_persisted": tables_persisted,
+                  "rows_persisted": rows_persisted,
+                  "zero_row_reason": zero_row_reason,
+                  "circuit_breaker_endpoints": extract_summary.get(
+                      "circuit_breaker_endpoints", []
+                  ),
+                  "rate_degradation_events": extract_summary.get(
+                      "rate_degradation_events", []
+                  ),
+                  "extract_summary_parse_error": extract_summary_parse_error,
+              },
+              "extract_summary": extract_summary,
               "vpn": {
                   "server": os.environ.get("VPN_SERVER", ""),
                   "interface": os.environ.get("VPN_INTERFACE", ""),
@@ -826,7 +959,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
-          path: artifacts/extraction/lane-metadata.json
+          path: |
+            artifacts/extraction/lane-metadata.json
+            artifacts/extraction/extract-summary.json
           retention-days: 7
           compression-level: 6
 
@@ -1013,28 +1148,21 @@ jobs:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
 
-      - name: Chain next iteration
+      - name: Build next manifest
+        id: next_manifest
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
-          WORKFLOW_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
-          CONCURRENCY: ${{ inputs.concurrency }}
-          VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
-          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
-          BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
           next=$((current + 1))
-          next_concurrency="$CONCURRENCY"
 
           if [ "$next" -gt "$max" ]; then
             echo "::error::Reached max iterations ($max) with incomplete extraction."
             echo "::error::Re-trigger manually after fixing the underlying shard failures."
-            exit 1
+            # Keep building/uploading resume artifacts so a manual resume can start from here.
           fi
 
           mkdir -p artifacts/full-extraction
@@ -1051,8 +1179,14 @@ jobs:
             --output-path artifacts/full-extraction/next-manifest.json \
             > artifacts/full-extraction/next-manifest.stdout.json
 
-          uv run python - <<'PY' > artifacts/full-extraction/next-manifest.inspect.txt
+          uv run python -m nbadb.orchestrate.full_extraction_control audit \
+            --metadata-dir lane-metadata \
+            --output-path artifacts/full-extraction/extraction-audit.json \
+            > artifacts/full-extraction/extraction-audit.stdout.json
+
+          uv run python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           from nbadb.orchestrate.full_extraction_control import (
@@ -1071,17 +1205,87 @@ jobs:
               list(manifest.lanes),
               chain_state=manifest.chain_state,
           )
-          print(int(summary.get("active_lane_count", 0)))
-          print(int(summary.get("resume_only_lane_count", 0)))
-          print(json.dumps(summary.get("failure_reason_counts", {}), sort_keys=True))
-          print(json.dumps(redispatch_payload, separators=(",", ":")))
+          redispatch_json = json.dumps(redispatch_payload, separators=(",", ":"))
+          artifact_name = (
+              f"full-extraction-next-manifest-{os.environ['CHAIN_ID']}-iter-"
+              f"{int(os.environ['ITERATION']) + 1}"
+          )
+          report = {
+              "artifact_name": artifact_name,
+              "active_lane_count": int(summary.get("active_lane_count", 0)),
+              "resume_only_lane_count": int(summary.get("resume_only_lane_count", 0)),
+              "split_lane_count": int(summary.get("split_lane_count", 0)),
+              "failure_reason_counts": summary.get("failure_reason_counts", {}),
+              "redispatch_payload_bytes": len(redispatch_json.encode("utf-8")),
+              "next_iteration": int(os.environ["ITERATION"]) + 1,
+          }
+          Path("artifacts/full-extraction/chain-dispatch.json").write_text(
+              json.dumps(report, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          Path("artifacts/full-extraction/resume-summary.json").write_text(
+              json.dumps(summary, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          Path("artifacts/full-extraction/next-manifest.inspect.txt").write_text(
+              "\n".join(
+                  [
+                      f"active_lane_count={report['active_lane_count']}",
+                      f"resume_only_lane_count={report['resume_only_lane_count']}",
+                      f"split_lane_count={report['split_lane_count']}",
+                      "failure_reason_counts="
+                      + json.dumps(report["failure_reason_counts"], sort_keys=True),
+                      f"redispatch_payload_bytes={report['redispatch_payload_bytes']}",
+                      f"artifact_name={artifact_name}",
+                  ]
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              for key, value in report.items():
+                  if isinstance(value, dict):
+                      value = json.dumps(value, sort_keys=True)
+                  handle.write(f"{key}={value}\n")
           PY
 
-          mapfile -t next_manifest_info < artifacts/full-extraction/next-manifest.inspect.txt
-          active_lane_count="${next_manifest_info[0]:-0}"
-          resume_only_lane_count="${next_manifest_info[1]:-0}"
-          failure_reasons_json="${next_manifest_info[2]:-\{\}}"
-          redispatch_manifest_json="${next_manifest_info[3]:-}"
+          active_lane_count="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["active_lane_count"])
+          PY
+          )"
+          resume_only_lane_count="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["resume_only_lane_count"])
+          PY
+          )"
+          split_lane_count="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["split_lane_count"])
+          PY
+          )"
+          redispatch_payload_bytes="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["redispatch_payload_bytes"])
+          PY
+          )"
+          artifact_name="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["artifact_name"])
+          PY
+          )"
+          failure_reason_counts="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.dumps(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["failure_reason_counts"], sort_keys=True))
+          PY
+          )"
 
           python - <<'PY'
           import json
@@ -1103,14 +1307,68 @@ jobs:
           )
           PY
 
-          if [ "${active_lane_count:-0}" -le 0 ]; then
-            echo "::error::No active lanes remain for the next iteration; refusing to redispatch an empty chain."
+          {
+            echo "## Chain Status"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|---|---:|"
+            echo "| Active lanes | $active_lane_count |"
+            echo "| Resume-only lanes | $resume_only_lane_count |"
+            echo "| Split child lanes | $split_lane_count |"
+            echo "| Dispatch payload bytes | $redispatch_payload_bytes |"
+            echo ""
+            echo "**Next manifest artifact:** \`$artifact_name\`"
+            echo ""
+            echo "**Unresolved reasons:** \`$failure_reason_counts\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload next manifest artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: ${{ steps.next_manifest.outputs.artifact_name || format('full-extraction-next-manifest-{0}-iter-{1}', env.ACTIVE_CHAIN_ID, inputs.iteration) }}
+          path: |
+            artifacts/full-extraction/current-manifest.json
+            artifacts/full-extraction/next-manifest.json
+            artifacts/full-extraction/next-manifest.stdout.json
+            artifacts/full-extraction/next-manifest.inspect.txt
+            artifacts/full-extraction/resume-summary.json
+            artifacts/full-extraction/extraction-audit.json
+            artifacts/full-extraction/extraction-audit.stdout.json
+            artifacts/full-extraction/chain-dispatch.json
+            artifacts/full-extraction/vpn-quarantine.json
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 6
+
+      - name: Dispatch next iteration
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
+          WORKFLOW_SHA: ${{ env.WORKFLOW_SOURCE_SHA }}
+          ITERATION: ${{ inputs.iteration }}
+          MAX_ITERATIONS: ${{ inputs.max_iterations }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+          VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
+          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
+          BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          ACTIVE_LANE_COUNT: ${{ steps.next_manifest.outputs.active_lane_count }}
+          ARTIFACT_NAME: ${{ steps.next_manifest.outputs.artifact_name }}
+        run: |
+          current=$ITERATION
+          max=$MAX_ITERATIONS
+          next=$((current + 1))
+          next_concurrency="$CONCURRENCY"
+
+          if [ "$next" -gt "$max" ]; then
+            echo "::error::Reached max iterations ($max) with incomplete extraction; next-manifest artifacts were uploaded for manual resume."
             exit 1
           fi
 
-          echo "::notice::Next iteration lanes: $active_lane_count active, $resume_only_lane_count resume-only"
-          if [ "$failure_reasons_json" != "{}" ]; then
-            echo "::notice::Unresolved lane reasons: $failure_reasons_json"
+          if [ "${ACTIVE_LANE_COUNT:-0}" -le 0 ]; then
+            echo "::error::No active lanes remain for the next iteration; refusing to redispatch an empty chain."
+            exit 1
           fi
 
           echo "::notice::Some lanes incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
@@ -1127,7 +1385,8 @@ jobs:
             -f chain_id="$CHAIN_ID" \
             -f workflow_ref="$WORKFLOW_REF" \
             -f workflow_sha="$WORKFLOW_SHA" \
-            -f lane_manifest_json="$redispatch_manifest_json"
+            -f lane_manifest_run_id="${{ github.run_id }}" \
+            -f lane_manifest_artifact_name="$ARTIFACT_NAME"
 
       - name: Upload VPN quarantine artifact
         if: always()

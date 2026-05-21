@@ -126,7 +126,7 @@ def _print_result(
     """Display a human-readable summary of a pipeline run."""
     duration = fmt_time(result.duration_seconds)
     typer.echo(
-        f"\n🏀 {mode} complete in {duration}\n"
+        f"\n{mode} complete in {duration}\n"
         f"  {result.tables_updated} tables | {result.rows_total:,} rows"
     )
 
@@ -137,11 +137,7 @@ def _print_result(
         skip = _summary_metric(summary.totals, "skip", "skipped")
         total = ok + fail + skip
         if total > 0:
-            fg_pct = ok / total * 100
-            typer.echo(
-                f"  {total:,} extractions: {ok:,} ok, {fail:,} failed, "
-                f"{skip:,} skipped (FG% {fg_pct:.1f})"
-            )
+            typer.echo(f"  {total:,} extractions: {ok:,} ok, {fail:,} failed, {skip:,} skipped")
 
         # Top 3 slowest patterns
         if summary.patterns:
@@ -205,47 +201,69 @@ def _write_gh_step_summary(
     from datetime import datetime
 
     lines: list[str] = []
-    lines.append(f"## 🏀 {mode.title()} Extraction — {datetime.now().strftime('%Y-%m-%d')}")
+    lines.append(f"## {mode.title()} Extraction Health — {datetime.now().strftime('%Y-%m-%d')}")
     lines.append("")
 
     duration = fmt_time(result.duration_seconds)
-    lines.append(
-        f"**{result.tables_updated} tables** | **{result.rows_total:,} rows** | **{duration}**"
-    )
+    ok = _summary_metric(summary.totals, "ok", "succeeded") if summary else 0
+    fail = _summary_metric(summary.totals, "fail", "failed") if summary else 0
+    skip = _summary_metric(summary.totals, "skip", "skipped") if summary else 0
+    rows = _summary_metric(summary.totals, "rows", "rows_extracted") if summary else 0
+    total_calls = ok + fail + skip
+    throughput = total_calls / result.duration_seconds if result.duration_seconds > 0 else 0.0
+    state = "blocked" if result.failed_extractions or result.failed_loads else "complete"
+    lines.append(f"**Run state:** `{state}`")
+    lines.append("")
+    lines.append("| Metric | Value |")
+    lines.append("|---|---:|")
+    lines.append(f"| Duration | {duration} |")
+    lines.append(f"| Tables updated | {result.tables_updated:,} |")
+    lines.append(f"| Rows persisted | {result.rows_total:,} |")
+    lines.append(f"| Extraction calls | {total_calls:,} |")
+    lines.append(f"| Successful calls | {ok:,} |")
+    lines.append(f"| Failed calls | {fail:,} |")
+    lines.append(f"| Journal skips | {skip:,} |")
+    lines.append(f"| Throughput | {throughput:.2f} calls/sec |")
     lines.append("")
 
     if summary and summary.patterns:
-        lines.append("| Pattern | Total | OK | Fail | Skip | Rows | Time | FG% |")
-        lines.append("|---------|------:|---:|-----:|-----:|-----:|------|----:|")
+        lines.append("### Endpoint Groups")
+        lines.append("")
+        lines.append(
+            "| Group | Status | Total | Complete | Failed | Skipped | Rows | Time | Rate |"
+        )
+        lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|")
         for pattern in summary.patterns:
             total = _summary_metric(pattern, "total")
-            ok = _summary_metric(pattern, "ok", "succeeded")
-            fail = _summary_metric(pattern, "fail", "failed")
-            skip = _summary_metric(pattern, "skip", "skipped")
-            rows = _summary_metric(pattern, "rows", "rows_extracted")
+            pattern_ok = _summary_metric(pattern, "ok", "succeeded")
+            pattern_fail = _summary_metric(pattern, "fail", "failed")
+            pattern_skip = _summary_metric(pattern, "skip", "skipped")
+            pattern_rows = _summary_metric(pattern, "rows", "rows_extracted")
             dur = fmt_time(_pattern_duration(pattern))
-            fg = f"{ok / total * 100:.1f}%" if total > 0 else "-"
+            pattern_rate = (
+                total / _pattern_duration(pattern) if _pattern_duration(pattern) > 0 else 0.0
+            )
+            pattern_status = "blocked" if pattern_fail else "complete"
             lines.append(
-                f"| {_summary_label(pattern)} | {total:,} | {ok:,} | {fail:,} | {skip:,} "
-                f"| {fmt_rows(rows)} | {dur} | {fg} |"
+                f"| {_summary_label(pattern)} | {pattern_status} | {total:,} | "
+                f"{pattern_ok:,} | {pattern_fail:,} | {pattern_skip:,} | "
+                f"{fmt_rows(pattern_rows)} | {dur} | {pattern_rate:.2f}/s |"
             )
 
         # Totals row
-        t = summary.totals
-        total_ok = _summary_metric(t, "ok", "succeeded")
-        total_fail = _summary_metric(t, "fail", "failed")
-        total_skip = _summary_metric(t, "skip", "skipped")
-        total_rows = _summary_metric(t, "rows", "rows_extracted")
-        total_all = total_ok + total_fail + total_skip
-        fg_all = f"{total_ok / total_all * 100:.1f}%" if total_all > 0 else "-"
         lines.append(
-            f"| **Total** | **{total_all:,}** | **{total_ok:,}** | "
-            f"**{total_fail:,}** | **{total_skip:,}** | "
-            f"**{fmt_rows(total_rows)}** | **{duration}** | **{fg_all}** |"
+            f"| **Total** | **{state}** | **{total_calls:,}** | **{ok:,}** | "
+            f"**{fail:,}** | **{skip:,}** | **{fmt_rows(rows)}** | "
+            f"**{duration}** | **{throughput:.2f}/s** |"
         )
         lines.append("")
 
     if result.errors:
+        lines.append("### Top Blockers")
+        lines.append("")
+        for e in result.errors[:5]:
+            lines.append(f"- `{e}`")
+        lines.append("")
         lines.append(f"<details><summary>Errors ({len(result.errors)})</summary>")
         lines.append("")
         for e in result.errors[:20]:
@@ -255,6 +273,16 @@ def _write_gh_step_summary(
         lines.append("")
         lines.append("</details>")
         lines.append("")
+
+    next_action = (
+        "Review failed lanes, preserve artifacts, and resume from the latest chain manifest."
+        if result.failed_extractions or result.failed_loads
+        else "Proceed to merge, transform, export, and upload."
+    )
+    lines.append("### What Happens Next")
+    lines.append("")
+    lines.append(next_action)
+    lines.append("")
 
     try:
         with open(summary_path, "a", encoding="utf-8") as fh:
@@ -313,6 +341,7 @@ def _run_pipeline(
     verbose: bool,
     quality_check: bool = False,
     orchestrator_cls: type[Any] | None = None,
+    summary_path: Path | None = None,
 ) -> None:
     """Run a pipeline mode end-to-end: log → orchestrate → print → (optionally) quality.
 
@@ -405,6 +434,22 @@ def _run_pipeline(
                 logger.debug("Failed to export progress summary: {}", exc)
 
     _print_result(mode, result, summary=summary, settings=settings)
+    if summary_path is not None:
+        try:
+            import dataclasses
+
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "mode": mode,
+                "result": dataclasses.asdict(result),
+                "progress": dataclasses.asdict(summary) if summary is not None else {},
+            }
+            summary_path.write_text(
+                json.dumps(payload, indent=2, default=str) + "\n",
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            logger.debug("Failed to write requested summary JSON: {}", exc)
     if result.failed_extractions and result.tables_updated == 0 and result.rows_total == 0:
         raise typer.Exit(1)  # Complete failure — nothing extracted
     # Partial failure — data was extracted, continue with warnings already printed

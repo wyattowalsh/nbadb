@@ -10,12 +10,14 @@ from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
     build_default_manifest,
+    build_metadata_audit,
     build_resume_manifest,
     manifest_payload,
     merge_lane_databases,
     normalize_manifest,
     redispatch_manifest_payload,
     validate_manifest,
+    validate_workflow_dispatch_manifest_json,
 )
 from nbadb.orchestrate.workload_profile import EndpointWorkloadProfile, WorkloadPlanningSnapshot
 
@@ -114,41 +116,41 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
     game_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
     ]
-    assert [lane.lane_id for lane in game_lanes] == [
-        "historical-game-box-score-traditional-no-season-type-1996-2007",
-        "historical-game-box-score-traditional-no-season-type-2008-2019",
-        "historical-game-box-score-traditional-no-season-type-2020-2025",
-    ]
-    assert all((lane.season_end - lane.season_start + 1) <= 12 for lane in game_lanes)
+    assert game_lanes[0].lane_id == (
+        "historical-game-box-score-traditional-no-season-type-1996-1999"
+    )
+    assert game_lanes[-1].lane_id == (
+        "historical-game-box-score-traditional-no-season-type-2024-2025"
+    )
+    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in game_lanes)
     assert {lane.endpoints for lane in game_lanes} == {("box_score_traditional",)}
 
     season_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("season",)
     ]
-    assert [lane.lane_id for lane in season_lanes] == [
-        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1963",
-        "historical-season-regular-season-playoffs-pre-season-all-star-1964-1981",
-        "historical-season-regular-season-playoffs-pre-season-all-star-1982-1999",
-        "historical-season-regular-season-playoffs-pre-season-all-star-2000-2012",
-        "historical-season-regular-season-playoffs-pre-season-all-star-2013-2025",
-    ]
+    assert season_lanes[0].lane_id == (
+        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1953"
+    )
+    assert season_lanes[-1].lane_id == (
+        "historical-season-regular-season-playoffs-pre-season-all-star-2021-2025"
+    )
     assert season_lanes[0].season_types == (
         "Regular Season",
         "Playoffs",
         "Pre Season",
         "All Star",
     )
-    assert all((lane.season_end - lane.season_start + 1) <= 18 for lane in season_lanes)
+    assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in season_lanes)
 
     cross_product_lanes = [lane for lane in lanes if lane.lane_kind == "cross_product"]
     assert cross_product_lanes[0].lane_id == (
-        "cross-product-regular-season-playoffs-pre-season-all-star-1946-1953"
+        "cross-product-regular-season-playoffs-pre-season-all-star-1946-1949"
     )
     assert cross_product_lanes[-1].lane_id == (
-        "cross-product-regular-season-playoffs-pre-season-all-star-2018-2025"
+        "cross-product-regular-season-playoffs-pre-season-all-star-2022-2025"
     )
-    assert len(cross_product_lanes) == 10
-    assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in cross_product_lanes)
+    assert len(cross_product_lanes) == 20
+    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in cross_product_lanes)
     assert all(lane.lane_kind != "cross_product_blocked" for lane in lanes)
 
 
@@ -242,18 +244,22 @@ def test_build_default_manifest_isolates_high_volume_historical_endpoints() -> N
     date_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("date",)
     ]
-    assert date_lanes[0].lane_id == "historical-date-scoreboard-v2-no-season-type-1946-1957"
+    assert date_lanes[0].lane_id == "historical-date-scoreboard-v2-no-season-type-1946-1949"
     assert date_lanes[0].endpoints == ("scoreboard_v2",)
-    assert date_lanes[7].lane_id == "historical-date-video-status-no-season-type-1946-1957"
-    assert date_lanes[7].endpoints == ("video_status",)
+    assert {lane.endpoints for lane in date_lanes} == {("scoreboard_v2",), ("video_status",)}
+    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in date_lanes)
 
     game_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("game",)
     ]
-    assert game_lanes[0].lane_id == "historical-game-box-score-summary-no-season-type-1946-1957"
+    assert game_lanes[0].lane_id == "historical-game-box-score-summary-no-season-type-1946-1949"
     assert game_lanes[0].endpoints == ("box_score_summary",)
-    assert game_lanes[7].lane_id == "historical-game-play-by-play-no-season-type-1996-2007"
-    assert game_lanes[7].endpoints == ("play_by_play",)
+    assert any(
+        lane.lane_id == "historical-game-play-by-play-no-season-type-1996-1999"
+        for lane in game_lanes
+    )
+    assert {lane.endpoints for lane in game_lanes} == {("box_score_summary",), ("play_by_play",)}
+    assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in game_lanes)
     assert all(len(lane.endpoints) == 1 for lane in date_lanes + game_lanes)
 
 
@@ -356,9 +362,10 @@ def test_build_default_manifest_routes_player_tracking_to_historical_player_seas
 
     assert [lane.lane_id for lane in reference_lanes] == ["reference-player"]
     assert reference_lanes[0].endpoints == ("player_dash_game_splits",)
-    assert len(historical_lanes) == 5
+    assert len(historical_lanes) == 14
     assert min(lane.season_start for lane in historical_lanes) == 1946
     assert max(lane.season_end for lane in historical_lanes if lane.season_end is not None) >= 2025
+    assert all((lane.season_end - lane.season_start + 1) <= 6 for lane in historical_lanes)
     assert {endpoint for lane in historical_lanes for endpoint in lane.endpoints} == {
         "player_dash_pt_pass",
         "player_dash_pt_reb",
@@ -466,13 +473,14 @@ def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
         selected_endpoints=["league_game_log"],
     )
 
-    assert [lane.lane_id for lane in lanes] == [
-        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1963",
-        "historical-season-regular-season-playoffs-pre-season-all-star-1964-1981",
-        "historical-season-regular-season-playoffs-pre-season-all-star-1982-1999",
-        "historical-season-regular-season-playoffs-pre-season-all-star-2000-2017",
-        "historical-season-regular-season-playoffs-pre-season-all-star-2018-2025",
-    ]
+    assert lanes[0].lane_id == (
+        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1953"
+    )
+    assert lanes[-1].lane_id == (
+        "historical-season-regular-season-playoffs-pre-season-all-star-2018-2025"
+    )
+    assert len(lanes) == 10
+    assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in lanes)
 
 
 def test_build_default_manifest_uses_density_to_shrink_cross_product_bands() -> None:
@@ -585,7 +593,7 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
     _write_metadata(metadata_dir / "reference.json", lane_id="reference-static", status="complete")
     _write_metadata(
         metadata_dir / "historical.json",
-        lane_id="historical-season-no-season-type-1946-1963",
+        lane_id="historical-season-no-season-type-1946-1953",
         status="incomplete",
     )
 
@@ -593,17 +601,18 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
 
     by_id = {lane.lane_id: lane for lane in next_lanes}
     assert by_id["reference-static"].resume_only is True
-    active_lane = by_id["historical-season-no-season-type-1946-1963"]
+    active_lane = by_id["historical-season-no-season-type-1946-1953"]
     assert active_lane.resume_only is False
     assert active_lane.failure_streak == 1
     assert active_lane.last_failure_reason == "incomplete"
     assert next_chain_state == FullExtractionChainState()
     assert summary == {
         "vpn_quarantined_server_count": 0,
-        "active_lane_count": 5,
+        "active_lane_count": 10,
         "resume_only_lane_count": 1,
         "blocked_lane_count": 0,
-        "failure_reason_counts": {"incomplete": 1, "missing-metadata": 4},
+        "split_lane_count": 0,
+        "failure_reason_counts": {"incomplete": 1, "missing-metadata": 9},
     }
 
 
@@ -618,7 +627,7 @@ def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) 
         patterns=("game",),
         timeout_seconds=7200,
         failure_streak=2,
-        last_failure_reason="extract-timeout",
+        last_failure_reason="extract-error",
     )
 
     metadata_dir = tmp_path / "metadata"
@@ -626,11 +635,43 @@ def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) 
     _write_metadata(
         metadata_dir / "historical.json",
         lane_id="historical-game-no-season-type-1996-2007",
-        status="extract-timeout",
+        status="extract-error",
     )
 
     with pytest.raises(ValueError, match="chain safety cap"):
         build_resume_manifest([lane], metadata_dir)
+
+
+def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-1994-2005",
+        lane_index=0,
+        lane_name="Historical game 1994-2005",
+        lane_kind="historical",
+        season_start=1994,
+        season_end=2005,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id="historical-game-box-score-summary-no-season-type-1994-2005",
+        status="extract-timeout",
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    validate_manifest(next_lanes)
+    assert [child.season_start for child in next_lanes] == [1994, 1998, 2002]
+    assert [child.season_end for child in next_lanes] == [1997, 2001, 2005]
+    assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
+    assert all(child.split_generation == 1 for child in next_lanes)
+    assert all(child.failure_streak == 0 for child in next_lanes)
+    assert summary["active_lane_count"] == 3
+    assert summary["split_lane_count"] == 3
 
 
 def test_validate_manifest_rejects_active_lane_without_vpn() -> None:
@@ -825,6 +866,66 @@ def test_redispatch_manifest_payload_is_smaller_than_full_manifest() -> None:
     assert len(json.dumps(redispatch_payload, separators=(",", ":"))) < len(
         json.dumps(full_payload, separators=(",", ":"))
     )
+
+
+def test_workflow_dispatch_manifest_json_guard_rejects_oversized_payload() -> None:
+    with pytest.raises(ValueError, match="too large for workflow_dispatch"):
+        validate_workflow_dispatch_manifest_json("x" * 61_000)
+
+
+def test_metadata_audit_summarizes_status_and_zero_row_lanes(tmp_path: Path) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "complete.json").write_text(
+        json.dumps(
+            {
+                "lane_id": "reference-static",
+                "lane_kind": "reference",
+                "status": "complete",
+                "vpn_status": "connected",
+                "endpoints": ["common_team_years"],
+                "telemetry": {
+                    "rows_persisted": 12,
+                    "failed_calls": 0,
+                    "journal_skips": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (metadata_dir / "timeout.json").write_text(
+        json.dumps(
+            {
+                "lane_id": "historical-game-box-score-summary-no-season-type-1994-2005",
+                "lane_kind": "historical",
+                "status": "extract-timeout",
+                "vpn_status": "connected",
+                "endpoints": ["box_score_summary"],
+                "telemetry": {
+                    "rows_persisted": 0,
+                    "failed_calls": 4,
+                    "zero_row_reason": "contract_gap",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    audit = build_metadata_audit(metadata_dir)
+
+    assert audit["status_counts"] == {"complete": 1, "extract-timeout": 1}
+    assert audit["vpn_status_counts"] == {"connected": 2}
+    assert audit["rows_persisted"] == 12
+    assert audit["failed_calls"] == 4
+    assert audit["journal_skips"] == 1
+    assert audit["zero_row_lanes"] == [
+        {
+            "lane_id": "historical-game-box-score-summary-no-season-type-1994-2005",
+            "status": "extract-timeout",
+            "reason": "contract_gap",
+            "endpoints": ["box_score_summary"],
+        }
+    ]
 
 
 def test_validate_manifest_rejects_oversize_lane() -> None:

@@ -20,10 +20,14 @@ from nbadb.cli._progress_common import (
     fmt_eta,
     fmt_rows,
 )
+from nbadb.cli.commands._helpers import _write_gh_step_summary
 from nbadb.cli.progress import CIProgress, NoopProgress, PipelineProgress
 from nbadb.orchestrate.journal import PipelineJournal
+from nbadb.orchestrate.orchestrator import PipelineResult
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import pytest
 
 
@@ -298,6 +302,45 @@ class TestCIProgress:
         assert summary.totals["succeeded"] == 7
         assert summary.totals["failed"] == 3
         assert summary.totals["rows_extracted"] == 350
+
+
+def test_gh_step_summary_uses_pipeline_health_language(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    summary_path = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+    result = PipelineResult(
+        tables_updated=2,
+        rows_total=1200,
+        duration_seconds=60.0,
+        failed_extractions=1,
+        errors=["box_score_summary[game]: timeout"],
+    )
+    run_summary = RunSummary(
+        mode="backfill",
+        patterns=[
+            {
+                "label": "game",
+                "total": 10,
+                "succeeded": 8,
+                "failed": 2,
+                "skipped": 0,
+                "rows_extracted": 1200,
+                "duration": 60.0,
+            }
+        ],
+        totals={"succeeded": 8, "failed": 2, "skipped": 0, "rows_extracted": 1200},
+    )
+
+    _write_gh_step_summary("backfill", result, run_summary)
+
+    rendered = summary_path.read_text(encoding="utf-8")
+    assert "Backfill Extraction Health" in rendered
+    assert "Run state" in rendered
+    assert "Endpoint Groups" in rendered
+    assert "Top Blockers" in rendered
+    assert "What Happens Next" in rendered
 
 
 # ---------------------------------------------------------------------------

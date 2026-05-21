@@ -1,4 +1,4 @@
-"""Rich TUI dashboard for nbadb pipeline runs — basketball themed."""
+"""Rich TUI dashboard for nbadb pipeline runs."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from nbadb.cli._progress_common import (
 
 
 class PipelineProgress:
-    """Live basketball-themed TUI dashboard for nbadb extraction pipelines."""
+    """Live TUI dashboard for nbadb extraction pipelines."""
 
     def __init__(self, mode: str = "init", console: Console | None = None) -> None:
         self._console = console or Console()
@@ -81,14 +81,11 @@ class PipelineProgress:
         ok = sum(p.succeeded for p in self._patterns)
         fail = sum(p.failed for p in self._patterns)
 
-        # ── scoreboard header ──
-        ball = "\U0001f3c0" if (self._tick // 3) % 2 == 0 or final else "  "
         rate = ""
         if elapsed > 1 and (ok + fail) > 0:
             rate = f"  {(ok + fail) / elapsed:.1f} req/s"
 
         header = Text()
-        header.append(f" {ball} ", style="")
         header.append(" NBADB ", style="bold bright_white on dark_orange3")
         header.append(f" {self._mode.upper()} ", style="bold white on orange4")
         header.append(f"  {fmt_time(elapsed)}", style="bold")
@@ -96,7 +93,7 @@ class PipelineProgress:
         parts.append(header)
         parts.append(Text(""))
 
-        # ── discovery scoreboard ──
+        # ── discovery summary ──
         if self._discoveries:
             parts.append(self._render_discovery())
             parts.append(Text(""))
@@ -113,7 +110,7 @@ class PipelineProgress:
             )
             parts.append(Text(""))
 
-        # ── extraction court ──
+        # ── extraction lanes ──
         if self._patterns:
             parts.append(self._render_extraction(final))
             parts.append(Text(""))
@@ -125,7 +122,7 @@ class PipelineProgress:
         return Group(*parts)
 
     def _render_discovery(self) -> Panel:
-        """Scoreboard-style entity discovery display."""
+        """Entity discovery display."""
         table = Table(show_header=False, box=None, padding=(0, 2), expand=True)
         for _ in self._discoveries:
             table.add_column(justify="center")
@@ -141,13 +138,13 @@ class PipelineProgress:
 
         return Panel(
             table,
-            title="[bold dark_orange3]SCOUTING REPORT[/]",
+            title="[bold dark_orange3]DISCOVERY[/]",
             border_style="dark_orange3",
             padding=(0, 1),
         )
 
     def _render_extraction(self, final: bool = False) -> Panel:
-        """Court-style extraction progress table."""
+        """Extraction progress table."""
         table = Table(
             show_header=True,
             header_style="bold dark_orange3",
@@ -156,14 +153,14 @@ class PipelineProgress:
             expand=True,
         )
         table.add_column("", width=2)
-        table.add_column("PLAY", min_width=14)
+        table.add_column("LANE", min_width=14)
         table.add_column("PROGRESS", ratio=1, min_width=30)
         table.add_column("%", justify="right", width=5)
-        table.add_column("SCORE", justify="right", width=13)
-        table.add_column("FG", justify="right", width=7, style="green")
-        table.add_column("TO", justify="right", width=7)
-        table.add_column("DNP", justify="right", width=7)
-        table.add_column("MIN", justify="right", width=7)
+        table.add_column("DONE", justify="right", width=13)
+        table.add_column("OK", justify="right", width=7, style="green")
+        table.add_column("FAIL", justify="right", width=7)
+        table.add_column("SKIP", justify="right", width=7)
+        table.add_column("TIME", justify="right", width=7)
 
         for p in self._patterns:
             pct = p.completed / p.total if p.total else 0
@@ -216,7 +213,7 @@ class PipelineProgress:
         overall_pct = total_done / total_all if total_all else 0
         subtitle = f"[dim]{total_done:,}/{total_all:,}  {overall_pct:.0%}[/]"
 
-        title_text = "[bold green]FINAL SCORE[/]" if final else "[bold dark_orange3]GAME CLOCK[/]"
+        title_text = "[bold green]FINAL STATUS[/]" if final else "[bold dark_orange3]EXTRACTION[/]"
 
         return Panel(
             table,
@@ -247,21 +244,19 @@ class PipelineProgress:
             t.append(DONE_CHAR * skip_w, style="yellow")
         t.append("  ")
         t.append(f"{ok:,}", style="bold green")
-        t.append(" FGM", style="dim")
+        t.append(" complete", style="dim")
         if fail:
             t.append(f"  {fail:,}", style="bold red")
-            t.append(" TO", style="dim")
+            t.append(" blocked", style="dim")
         if skip:
             t.append(f"  {skip:,}", style="yellow")
-            t.append(" DNP", style="dim")
+            t.append(" skipped", style="dim")
 
         if final:
             if fail:
-                t.append("  \U0001f3c0 run ", style="")
-                t.append("nbadb full", style="bold")
-                t.append(" to retry", style="dim")
+                t.append("  Resume from the latest manifest", style="dim")
             else:
-                t.append("  \U0001f3c6 PERFECT GAME", style="bold green")
+                t.append("  Complete", style="bold green")
 
         return t
 
@@ -415,7 +410,7 @@ class CIProgress:
 
     def __enter__(self) -> CIProgress:
         self._start_time = time.monotonic()
-        self._emit(f"\U0001f3c0 NBADB {self._mode.upper()} starting")
+        self._emit(f"NBADB {self._mode.upper()} starting")
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -425,7 +420,7 @@ class CIProgress:
         skip = sum(p.skipped for p in self._patterns)
         rows = sum(p.rows_extracted for p in self._patterns)
         self._emit(
-            f"\U0001f3c0 NBADB {self._mode.upper()} finished in {fmt_time(elapsed)}"
+            f"NBADB {self._mode.upper()} finished in {fmt_time(elapsed)}"
             f" | {ok:,} ok, {fail:,} fail, {skip:,} skip | {fmt_rows(rows)} rows"
         )
 
@@ -461,7 +456,7 @@ class CIProgress:
         if self._is_gha:
             self._emit(f"::group::{name}")
         else:
-            self._emit(f"\U0001f3c0 {name}")
+            self._emit(name)
 
     def update_phase_info(self, info: str) -> None:
         self._emit(f"  {info}")
@@ -513,7 +508,7 @@ class CIProgress:
         self._patterns.append(state)
         self._current_pattern = state
         self._last_progress_time = time.monotonic()
-        self._emit(f"\U0001f3c0 {pattern}: {total:,} tasks")
+        self._emit(f"{pattern}: {total:,} tasks")
 
     def advance_pattern(self, *, success: bool = True, rows: int = 0) -> None:
         if self._current_pattern is None:

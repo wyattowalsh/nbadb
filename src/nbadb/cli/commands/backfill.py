@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Annotated
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -62,6 +60,13 @@ SeasonTypesOption = Annotated[
 OutputFormatOption = Annotated[
     str,
     typer.Option("--output-format", "-f", help="Output format: text or json"),
+]
+SummaryPathOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--summary-path",
+        help="Write machine-readable extraction/run summary JSON to this path",
+    ),
 ]
 
 
@@ -138,6 +143,7 @@ def run(
     quality_check: bool = typer.Option(
         False, "--quality-check", help="Run quality checks after pipeline"
     ),
+    summary_path: SummaryPathOption = None,
 ) -> None:
     """Execute targeted backfill extraction."""
     parsed_seasons = _parse_seasons(seasons)
@@ -175,6 +181,7 @@ def run(
         verbose,
         quality_check,
         orchestrator_cls=Orchestrator,
+        summary_path=summary_path,
     )
 
 
