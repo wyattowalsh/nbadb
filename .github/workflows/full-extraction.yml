@@ -299,6 +299,7 @@ jobs:
               --lane-manifest-path "$source_manifest" \
               --metadata-dir "$RUNNER_TEMP/resume-source/metadata" \
               --completed-artifact-run-id "$RESUME_SOURCE_RUN_ID" \
+              --allow-missing-attempted-metadata \
               --output-path artifacts/full-extraction/resume-source-manifest.json \
               > artifacts/full-extraction/resume-source-manifest.stdout.json
             args+=(--lane-manifest-path artifacts/full-extraction/resume-source-manifest.json)

@@ -112,6 +112,69 @@ def test_build_payload_uses_duckdb_fallback_when_timeout_summary_is_missing(
     assert payload["vpn"]["attempted_servers"] == ["us11547.nordvpn.com"]
 
 
+def test_build_payload_marks_zero_row_timeout_resumable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 0,
+                    "failed_extractions": 0,
+                    "skipped_extractions": 0,
+                    "tables_updated": 0,
+                },
+                "progress": {"patterns": [{"total": 1}], "totals": {}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "extract-timeout")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "needs_resume"
+    assert payload["telemetry"]["zero_row_reason"] == "unknown"
+
+
+def test_build_payload_marks_partial_extract_error_resumable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 8242,
+                    "failed_extractions": 3,
+                    "skipped_extractions": 0,
+                    "tables_updated": 1,
+                },
+                "progress": {"patterns": [{"total": 5126}], "totals": {}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "needs_resume"
+    assert payload["telemetry"]["rows_persisted"] == 8242
+    assert payload["telemetry"]["failed_calls"] == 3
+
+
 def test_main_writes_lane_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     module = _load_module()
     summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"

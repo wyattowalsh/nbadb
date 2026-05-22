@@ -158,11 +158,11 @@ def _final_outcome(
         return raw_status
     if rows_persisted == 0 and failed_calls > 0 and support_rules:
         return "contract_blocked"
-    if raw_status in {
-        "extract-timeout",
-        "timeout_with_persisted_progress",
-        "cancelled",
-    } and (rows_persisted > 0 or journal_skips > 0 or running_calls > 0):
+    if raw_status == "extract-error" and (rows_persisted > 0 or journal_skips > 0):
+        return "needs_resume"
+    if raw_status in {"extract-timeout", "timeout_with_persisted_progress"}:
+        return "needs_resume"
+    if raw_status == "cancelled" and (rows_persisted > 0 or journal_skips > 0 or running_calls > 0):
         return "needs_resume"
     return "pipeline_failure"
 

@@ -708,6 +708,96 @@ def test_build_resume_manifest_fails_on_pipeline_failure(tmp_path: Path) -> None
         build_resume_manifest([lane], metadata_dir)
 
 
+def test_build_resume_manifest_treats_partial_extract_error_as_resumable(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-player-02",
+        lane_index=0,
+        lane_name="Reference Player 2/5",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("player",),
+        endpoints=("player_awards",),
+        timeout_seconds=9000,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "player.json",
+        lane_id=lane.lane_id,
+        status="extract-error",
+        rows_persisted=8242,
+        failed_calls=3,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes[0].resume_only is False
+    assert next_lanes[0].last_failure_reason == "needs_resume"
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+
+
+def test_build_resume_manifest_splits_zero_row_timeout_lanes(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v2-no-season-type-1962-1965",
+        lane_index=0,
+        lane_name="Historical date 1962-1965",
+        lane_kind="historical",
+        season_start=1962,
+        season_end=1965,
+        patterns=("date",),
+        endpoints=("scoreboard_v2",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "date.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert [child.season_start for child in next_lanes] == [1962, 1963, 1964, 1965]
+    assert summary["split_lane_count"] == 4
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+
+
+def test_build_resume_manifest_allows_missing_attempted_metadata_for_manual_resume(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-defensive-no-season-type-1946-1949",
+        lane_index=0,
+        lane_name="Historical game 1946-1949",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1949,
+        patterns=("game",),
+        endpoints=("box_score_defensive",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        allow_missing_attempted_metadata=True,
+    )
+
+    assert next_lanes[0].lane_id == lane.lane_id
+    assert next_lanes[0].resume_only is False
+    assert next_lanes[0].last_failure_reason == "missing-metadata"
+    assert summary["active_lane_count"] == 1
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+    assert summary["failure_reason_counts"] == {"missing-metadata": 1}
+
+
 def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
     lane = FullExtractionLane(
         lane_id="historical-game-box-score-summary-no-season-type-1994-2005",
@@ -740,6 +830,40 @@ def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
     assert summary["active_lane_count"] == 3
     assert summary["split_lane_count"] == 3
     assert summary["outcome_counts"] == {"needs_resume": 1}
+
+
+def test_build_resume_manifest_blocks_pre_1996_box_score_advanced_contract_gap(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-advanced-no-season-type-1946-1949",
+        lane_index=0,
+        lane_name="Historical game 1946-1949",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1949,
+        patterns=("game",),
+        endpoints=("box_score_advanced",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="extract-error",
+        failed_calls=1538,
+        endpoints=["box_score_advanced"],
+        patterns=["game"],
+        season_start=1946,
+        season_end=1949,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
 
 
 def test_build_resume_manifest_splits_repeated_game_date_timeout_to_one_season(

@@ -104,7 +104,24 @@ FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT: dict[str, ExtractionExclusion] = {
     exclusion.endpoint_name: exclusion for exclusion in FULL_EXTRACTION_EXCLUSIONS
 }
 
-FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = ()
+FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
+    EndpointSupportRule(
+        endpoint_name="box_score_advanced",
+        pattern="game",
+        classification="contract_blocked",
+        reason=(
+            "NBA advanced box score stats are unavailable before the 1996-97 "
+            "season; legacy game ids return no usable advanced result sets."
+        ),
+        evidence="https://www.nba.com/stats/players/boxscores-advanced",
+        revalidation_command=(
+            "uv run nbadb extract --patterns game --endpoints box_score_advanced "
+            "--season-start 1995 --season-end 1996 --dry-run"
+        ),
+        season_start=1946,
+        season_end=1995,
+    ),
+)
 
 
 def matching_support_rules(

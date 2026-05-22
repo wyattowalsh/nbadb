@@ -1148,11 +1148,13 @@ def lane_outcome_from_metadata(
 
     if rows_persisted == 0 and failed_calls > 0 and lane_contract_rules:
         return "contract_blocked"
-    if raw_status in SPLITTABLE_TIMEOUT_STATUSES and (
+    if raw_status == "extract-error" and (
         rows_persisted > 0 or journal_skips > 0 or running_calls > 0
     ):
         return "needs_resume"
-    if raw_status in {"cancelled", "extract-timeout"} and rows_persisted > 0:
+    if raw_status in SPLITTABLE_TIMEOUT_STATUSES:
+        return "needs_resume"
+    if raw_status == "cancelled" and (rows_persisted > 0 or journal_skips > 0 or running_calls > 0):
         return "needs_resume"
     return "pipeline_failure"
 
@@ -1163,6 +1165,7 @@ def build_resume_manifest(
     *,
     chain_state: FullExtractionChainState | None = None,
     attempted_lane_ids: frozenset[str] | None = None,
+    allow_missing_attempted_metadata: bool = False,
     completed_artifact_run_id: str | None = None,
 ) -> tuple[list[FullExtractionLane], FullExtractionChainState, dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
@@ -1195,6 +1198,20 @@ def build_resume_manifest(
             else:
                 active += 1
                 deferred += 1
+            continue
+        if payload is None and allow_missing_attempted_metadata:
+            next_lanes.append(
+                replace(
+                    lane,
+                    resume_only=False,
+                    last_failure_reason="missing-metadata",
+                )
+            )
+            active += 1
+            failure_reason_counts["missing-metadata"] = (
+                failure_reason_counts.get("missing-metadata", 0) + 1
+            )
+            outcome_counts["needs_resume"] = outcome_counts.get("needs_resume", 0) + 1
             continue
         if payload is None:
             payload = {"lane_id": lane.lane_id, "status": "missing-metadata", "vpn": {}}
@@ -1640,6 +1657,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         args.metadata_dir,
         chain_state=manifest.chain_state,
         attempted_lane_ids=manifest.matrix_lane_ids or None,
+        allow_missing_attempted_metadata=args.allow_missing_attempted_metadata,
         completed_artifact_run_id=args.completed_artifact_run_id,
     )
     validate_manifest(next_lanes)
@@ -1684,6 +1702,7 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--lane-manifest-path", type=Path, default=None)
     resume.add_argument("--metadata-dir", type=Path, required=True)
     resume.add_argument("--completed-artifact-run-id", type=str, default=None)
+    resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)
 
