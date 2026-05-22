@@ -11,7 +11,7 @@ aliases:
   - Manifest-Driven Full Extraction
 kind: concept
 status: active
-updated: 2026-04-22
+updated: 2026-05-21
 source_count: 8
 ---
 
@@ -30,7 +30,7 @@ The current control flow is:
 6. merge successful lane databases
 7. run transform-only backfill on the merged staging state
 8. append a live snapshot
-9. build the next chained manifest when incomplete or blocked work remains
+9. build the next chained manifest when resumable or blocked work remains
 
 ## 1. Plan from the support matrix
 The workflow starts by regenerating `artifacts/endpoint-coverage/endpoint-support-matrix.json` with `uv run nbadb endpoint-support-matrix`.
@@ -69,7 +69,16 @@ Operationally important lane behavior:
 - lane metadata is written as a per-lane workflow artifact
 - lane DuckDB files are cached and uploaded as artifacts keyed by chain id, lane id, and iteration
 
-That lane metadata is what later lets the controller decide whether a failed lane should be replayed, resumed, or quarantined.
+That lane metadata is what later lets the controller decide whether a non-complete lane should be resumed, skipped as a documented contract block, or failed as a pipeline problem.
+
+The lane metadata status is one of four final outcomes:
+
+| Outcome | Contract |
+|---------|----------|
+| `complete` | Extraction finished successfully. |
+| `needs_resume` | The lane timed out or stopped after persisted DuckDB/journal progress and remains active in the next manifest. |
+| `contract_blocked` | The endpoint/range is backed by support-rule evidence and is included in `extraction-audit.json`, but not retried. |
+| `pipeline_failure` | Missing artifacts, VPN/auth failure, manifest/control-plane failure, unclassified extract error, or secret leakage; the workflow must fail red. |
 
 ## 4. Merge, transform, and append
 Once all planned lanes for an iteration succeed, the workflow merges the lane databases with:
@@ -96,17 +105,23 @@ The workflow does not reason only from shell exit codes. It also builds a follow
 
 `build_resume_manifest(...)` can:
 - mark specific lanes `resume_only`
+- keep `needs_resume` lanes active
+- skip `contract_blocked` lanes while counting them in the summary
 - carry failure streaks forward
 - quarantine VPN servers in `chain_state.vpn_quarantined_servers`
-- emit summary counts such as active-lane count and resume-only-lane count
+- emit summary counts such as active-lane, resume-only-lane, contract-blocked-lane, split-lane, and outcome counts
 
 The result is a chain-aware workflow instead of a fixed one-shot shard list.
+
+For repeated game/date timeouts, the controller splits resumable children down to one-season lanes so the next chain iteration narrows the retry surface without discarding parent lane cache/journal state.
 
 ## Practical maintainer rules
 - Treat the support matrix as the planning input, not as docs-only reporting.
 - Treat `FullExtractionLane` as the atomic execution unit.
 - Treat merge plus transform-only backfill as the point where staged lane work becomes one coherent warehouse state.
 - Treat chained manifests as the source of truth for what the next iteration should do.
+- Add support rules in `src/nbadb/orchestrate/extraction_contract.py`, not as scattered workflow or script exceptions.
+- Add `box_score_advanced` historical rules only after a local probe plus endpoint analysis confirms the unsupported floor or range.
 
 ## Related notes
 - [[wiki/topics/strict-source-complete-roadmap|Strict Source-Complete Roadmap]]

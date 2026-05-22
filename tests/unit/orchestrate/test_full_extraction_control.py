@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import duckdb
 import pytest
 
+from nbadb.orchestrate.extraction_contract import EndpointSupportRule
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
@@ -54,8 +55,34 @@ def _support_row(
     }
 
 
-def _write_metadata(path: Path, *, lane_id: str, status: str) -> None:
-    path.write_text(json.dumps({"lane_id": lane_id, "status": status}) + "\n", encoding="utf-8")
+def _write_metadata(
+    path: Path,
+    *,
+    lane_id: str,
+    status: str,
+    rows_persisted: int = 0,
+    failed_calls: int = 0,
+    endpoints: list[str] | None = None,
+    patterns: list[str] | None = None,
+    season_start: int | None = None,
+    season_end: int | None = None,
+) -> None:
+    payload: dict[str, object] = {
+        "lane_id": lane_id,
+        "status": status,
+        "vpn": {},
+        "endpoints": endpoints or [],
+        "patterns": patterns or [],
+        "season_start": "" if season_start is None else str(season_start),
+        "season_end": "" if season_end is None else str(season_end),
+        "telemetry": {
+            "rows_persisted": rows_persisted,
+            "failed_calls": failed_calls,
+            "journal_skips": 0,
+            "db_telemetry": {"running_calls": 0},
+        },
+    }
+    path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
 
 def _write_lane_db(
@@ -581,10 +608,42 @@ def test_build_default_manifest_rejects_full_extraction_excluded_only_selection(
         build_default_manifest(support_matrix_rows=rows)
 
 
+def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import nbadb.orchestrate.extraction_contract as extraction_contract
+
+    monkeypatch.setattr(
+        extraction_contract,
+        "FULL_EXTRACTION_SUPPORT_RULES",
+        (
+            EndpointSupportRule(
+                endpoint_name="documented_zero_row",
+                pattern="game",
+                classification="contract_blocked",
+                reason="Upstream returns no rows for this historical range.",
+                evidence="docs/endpoint-analysis/documented_zero_row.md",
+                revalidation_command="uv run nbadb endpoint-probe documented_zero_row",
+                season_start=1946,
+                season_end=2025,
+            ),
+        ),
+    )
+    rows = [
+        _support_row("documented_zero_row", ["game"], 1946),
+        _support_row("box_score_summary", ["game"], 1946),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+
+    assert all("documented_zero_row" not in lane.endpoints for lane in lanes)
+    assert any("box_score_summary" in lane.endpoints for lane in lanes)
+
+
 def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path) -> None:
     rows = [
         _support_row("franchise_history", ["static"], None),
-        _support_row("league_game_log", ["season"], None),
+        _support_row("common_player_info", ["player"], None),
     ]
     lanes = build_default_manifest(support_matrix_rows=rows)
 
@@ -592,32 +651,38 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
     metadata_dir.mkdir()
     _write_metadata(metadata_dir / "reference.json", lane_id="reference-static", status="complete")
     _write_metadata(
-        metadata_dir / "historical.json",
-        lane_id="historical-season-no-season-type-1946-1953",
-        status="incomplete",
+        metadata_dir / "player.json",
+        lane_id="reference-player",
+        status="needs_resume",
     )
 
-    next_lanes, next_chain_state, summary = build_resume_manifest(lanes, metadata_dir)
+    next_lanes, next_chain_state, summary = build_resume_manifest(
+        lanes,
+        metadata_dir,
+        attempted_lane_ids=frozenset({"reference-static", "reference-player"}),
+    )
 
     by_id = {lane.lane_id: lane for lane in next_lanes}
     assert by_id["reference-static"].resume_only is True
-    active_lane = by_id["historical-season-no-season-type-1946-1953"]
+    active_lane = by_id["reference-player"]
     assert active_lane.resume_only is False
     assert active_lane.failure_streak == 1
-    assert active_lane.last_failure_reason == "incomplete"
+    assert active_lane.last_failure_reason == "needs_resume"
     assert next_chain_state == FullExtractionChainState()
     assert summary == {
         "vpn_quarantined_server_count": 0,
-        "active_lane_count": 10,
+        "active_lane_count": 1,
         "resume_only_lane_count": 1,
         "deferred_lane_count": 0,
         "blocked_lane_count": 0,
         "split_lane_count": 0,
-        "failure_reason_counts": {"incomplete": 1, "missing-metadata": 9},
+        "contract_blocked_lane_count": 0,
+        "outcome_counts": {"complete": 1, "needs_resume": 1},
+        "failure_reason_counts": {"needs_resume": 1},
     }
 
 
-def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) -> None:
+def test_build_resume_manifest_fails_on_pipeline_failure(tmp_path: Path) -> None:
     lane = FullExtractionLane(
         lane_id="historical-game-no-season-type-1996-1999",
         lane_index=0,
@@ -639,7 +704,7 @@ def test_build_resume_manifest_stops_after_repeated_failure_cap(tmp_path: Path) 
         status="extract-error",
     )
 
-    with pytest.raises(ValueError, match="chain safety cap"):
+    with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
         build_resume_manifest([lane], metadata_dir)
 
 
@@ -661,6 +726,7 @@ def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
         metadata_dir / "historical.json",
         lane_id="historical-game-box-score-summary-no-season-type-1994-2005",
         status="extract-timeout",
+        rows_persisted=12,
     )
 
     next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
@@ -673,6 +739,100 @@ def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
     assert all(child.failure_streak == 0 for child in next_lanes)
     assert summary["active_lane_count"] == 3
     assert summary["split_lane_count"] == 3
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+
+
+def test_build_resume_manifest_splits_repeated_game_date_timeout_to_one_season(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v2-no-season-type-1962-1965",
+        lane_index=0,
+        lane_name="Historical date 1962-1965",
+        lane_kind="historical",
+        season_start=1962,
+        season_end=1965,
+        patterns=("date",),
+        endpoints=("scoreboard_v2",),
+        timeout_seconds=7200,
+        failure_streak=1,
+        last_failure_reason="needs_resume",
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        rows_persisted=18,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    validate_manifest(next_lanes)
+    assert [(child.season_start, child.season_end) for child in next_lanes] == [
+        (1962, 1962),
+        (1963, 1963),
+        (1964, 1964),
+        (1965, 1965),
+    ]
+    assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
+    assert summary["active_lane_count"] == 4
+    assert summary["split_lane_count"] == 4
+
+
+def test_build_resume_manifest_skips_contract_blocked_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import nbadb.orchestrate.extraction_contract as extraction_contract
+
+    monkeypatch.setattr(
+        extraction_contract,
+        "FULL_EXTRACTION_SUPPORT_RULES",
+        (
+            EndpointSupportRule(
+                endpoint_name="documented_zero_row",
+                pattern="game",
+                classification="contract_blocked",
+                reason="Upstream returns no rows for this historical range.",
+                evidence="docs/endpoint-analysis/documented_zero_row.md",
+                revalidation_command="uv run nbadb endpoint-probe documented_zero_row",
+                season_start=1946,
+                season_end=1950,
+            ),
+        ),
+    )
+    lane = FullExtractionLane(
+        lane_id="historical-game-documented-zero-row-no-season-type-1946-1950",
+        lane_index=0,
+        lane_name="Historical game 1946-1950",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1950,
+        patterns=("game",),
+        endpoints=("documented_zero_row",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "contract.json",
+        lane_id=lane.lane_id,
+        status="extract-error",
+        failed_calls=5,
+        endpoints=["documented_zero_row"],
+        patterns=["game"],
+        season_start=1946,
+        season_end=1950,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["active_lane_count"] == 0
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
 
 
 def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Path) -> None:
@@ -704,6 +864,7 @@ def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Pa
         metadata_dir / "attempted.json",
         lane_id=attempted_lane.lane_id,
         status="extract-timeout",
+        rows_persisted=4,
     )
 
     next_lanes, _next_chain_state, summary = build_resume_manifest(
@@ -715,7 +876,7 @@ def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Pa
     by_id = {lane.lane_id: lane for lane in next_lanes}
     assert by_id[deferred_lane.lane_id].last_failure_reason == ""
     assert by_id[deferred_lane.lane_id].failure_streak == 0
-    assert summary["active_lane_count"] == 3
+    assert summary["active_lane_count"] == 5
     assert summary["deferred_lane_count"] == 1
     assert summary["failure_reason_counts"] == {"extract-timeout": 1}
 
@@ -767,18 +928,8 @@ def test_resume_manifest_reshards_legacy_oversized_failed_lanes(tmp_path: Path) 
         status="extract-error",
     )
 
-    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
-
-    validate_manifest(next_lanes)
-    assert [child.season_start for child in next_lanes] == [1946, 1954, 1962]
-    assert [child.season_end for child in next_lanes] == [1953, 1961, 1963]
-    assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
-    assert all(
-        child.last_failure_reason == "split-from-legacy-oversized-extract-error"
-        for child in next_lanes
-    )
-    assert summary["active_lane_count"] == 3
-    assert summary["split_lane_count"] == 3
+    with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
+        build_resume_manifest([lane], metadata_dir)
 
 
 def test_validate_manifest_rejects_active_lane_without_vpn() -> None:
@@ -814,14 +965,15 @@ def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: 
         json.dumps(
             {
                 "lane_id": "reference-static",
-                "status": "vpn_connect_timeout",
+                "status": "extract-timeout",
                 "vpn": {
                     "failed_servers": [
                         "us123.nordvpn.com",
                         "us456.nordvpn.com",
                         "us123.nordvpn.com",
-                    ]
+                    ],
                 },
+                "telemetry": {"rows_persisted": 3, "failed_calls": 0},
             }
         )
         + "\n",
@@ -849,7 +1001,7 @@ def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: 
     assert summary["vpn_quarantined_server_count"] == 3
     by_id = {lane.lane_id: lane for lane in next_lanes}
     assert by_id["reference-player"].resume_only is True
-    assert by_id["reference-static"].last_failure_reason == "vpn_connect_timeout"
+    assert by_id["reference-static"].last_failure_reason == "needs_resume"
 
 
 def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
@@ -1041,6 +1193,7 @@ def test_metadata_audit_summarizes_status_and_zero_row_lanes(tmp_path: Path) -> 
                 "lane_kind": "reference",
                 "status": "complete",
                 "vpn_status": "connected",
+                "vpn": {},
                 "endpoints": ["common_team_years"],
                 "telemetry": {
                     "rows_persisted": 12,
@@ -1056,13 +1209,27 @@ def test_metadata_audit_summarizes_status_and_zero_row_lanes(tmp_path: Path) -> 
             {
                 "lane_id": "historical-game-box-score-summary-no-season-type-1994-2005",
                 "lane_kind": "historical",
-                "status": "extract-timeout",
+                "status": "contract_blocked",
+                "raw_status": "extract-error",
                 "vpn_status": "connected",
+                "vpn": {},
                 "endpoints": ["box_score_summary"],
+                "support_rules": [
+                    {
+                        "endpoint_name": "box_score_summary",
+                        "pattern": "game",
+                        "classification": "contract_blocked",
+                        "reason": "test rule",
+                        "evidence": "tests",
+                        "revalidation_command": "pytest",
+                        "season_start": 1994,
+                        "season_end": 2005,
+                    }
+                ],
                 "telemetry": {
                     "rows_persisted": 0,
                     "failed_calls": 4,
-                    "zero_row_reason": "contract_gap",
+                    "zero_row_reason": "contract_blocked",
                 },
             }
         ),
@@ -1071,7 +1238,8 @@ def test_metadata_audit_summarizes_status_and_zero_row_lanes(tmp_path: Path) -> 
 
     audit = build_metadata_audit(metadata_dir)
 
-    assert audit["status_counts"] == {"complete": 1, "extract-timeout": 1}
+    assert audit["status_counts"] == {"complete": 1, "contract_blocked": 1}
+    assert audit["outcome_counts"] == {"complete": 1, "contract_blocked": 1}
     assert audit["vpn_status_counts"] == {"connected": 2}
     assert audit["rows_persisted"] == 12
     assert audit["failed_calls"] == 4
@@ -1079,11 +1247,16 @@ def test_metadata_audit_summarizes_status_and_zero_row_lanes(tmp_path: Path) -> 
     assert audit["zero_row_lanes"] == [
         {
             "lane_id": "historical-game-box-score-summary-no-season-type-1994-2005",
-            "status": "extract-timeout",
-            "reason": "contract_gap",
+            "status": "contract_blocked",
+            "raw_status": "extract-error",
+            "reason": "contract_blocked",
             "endpoints": ["box_score_summary"],
         }
     ]
+    assert [row["lane_id"] for row in audit["contract_blocked_lanes"]] == [
+        "historical-game-box-score-summary-no-season-type-1994-2005"
+    ]
+    assert audit["pipeline_failure_lanes"] == []
 
 
 def test_validate_manifest_rejects_oversize_lane() -> None:

@@ -3,12 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+type FinalLaneOutcome = Literal[
+    "complete",
+    "needs_resume",
+    "contract_blocked",
+    "pipeline_failure",
+]
+
 type ExtractionExclusionClass = Literal[
     "permanently_unsupported",
     "upstream_bug_blocked",
     "contract_not_modeled_yet",
     "intentionally_deferred",
 ]
+
+type EndpointSupportRuleClassification = Literal["contract_blocked"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +40,50 @@ class ExtractionExclusion:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class EndpointSupportRule:
+    endpoint_name: str
+    pattern: str | None
+    classification: EndpointSupportRuleClassification
+    reason: str
+    evidence: str
+    revalidation_command: str
+    season_start: int | None = None
+    season_end: int | None = None
+
+    def matches(
+        self,
+        *,
+        endpoint_name: str,
+        patterns: tuple[str, ...],
+        season_start: int | None,
+        season_end: int | None,
+    ) -> bool:
+        if endpoint_name != self.endpoint_name:
+            return False
+        if self.pattern is not None and self.pattern not in patterns:
+            return False
+        if self.season_start is None and self.season_end is None:
+            return True
+        if season_start is None or season_end is None:
+            return False
+        rule_start = self.season_start if self.season_start is not None else season_start
+        rule_end = self.season_end if self.season_end is not None else season_end
+        return rule_start <= season_start and season_end <= rule_end
+
+    def to_dict(self) -> dict[str, str | int | None]:
+        return {
+            "endpoint_name": self.endpoint_name,
+            "pattern": self.pattern,
+            "classification": self.classification,
+            "reason": self.reason,
+            "evidence": self.evidence,
+            "revalidation_command": self.revalidation_command,
+            "season_start": self.season_start,
+            "season_end": self.season_end,
+        }
+
+
 FULL_EXTRACTION_EXCLUSIONS: tuple[ExtractionExclusion, ...] = (
     ExtractionExclusion(
         endpoint_name="team_historical_leaders",
@@ -50,3 +103,56 @@ FULL_EXTRACTION_EXCLUSIONS: tuple[ExtractionExclusion, ...] = (
 FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT: dict[str, ExtractionExclusion] = {
     exclusion.endpoint_name: exclusion for exclusion in FULL_EXTRACTION_EXCLUSIONS
 }
+
+FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = ()
+
+
+def matching_support_rules(
+    *,
+    endpoint_name: str,
+    patterns: tuple[str, ...],
+    season_start: int | None,
+    season_end: int | None,
+    rules: tuple[EndpointSupportRule, ...] | None = None,
+) -> tuple[EndpointSupportRule, ...]:
+    support_rules = FULL_EXTRACTION_SUPPORT_RULES if rules is None else rules
+    return tuple(
+        rule
+        for rule in support_rules
+        if rule.matches(
+            endpoint_name=endpoint_name,
+            patterns=patterns,
+            season_start=season_start,
+            season_end=season_end,
+        )
+    )
+
+
+def contract_blocking_rules_for_lane(
+    *,
+    endpoints: tuple[str, ...],
+    patterns: tuple[str, ...],
+    season_start: int | None,
+    season_end: int | None,
+    rules: tuple[EndpointSupportRule, ...] | None = None,
+) -> tuple[EndpointSupportRule, ...]:
+    if not endpoints:
+        return ()
+    support_rules = FULL_EXTRACTION_SUPPORT_RULES if rules is None else rules
+    matches: list[EndpointSupportRule] = []
+    for endpoint_name in endpoints:
+        endpoint_matches = tuple(
+            rule
+            for rule in matching_support_rules(
+                endpoint_name=endpoint_name,
+                patterns=patterns,
+                season_start=season_start,
+                season_end=season_end,
+                rules=support_rules,
+            )
+            if rule.classification == "contract_blocked"
+        )
+        if not endpoint_matches:
+            return ()
+        matches.extend(endpoint_matches)
+    return tuple(matches)

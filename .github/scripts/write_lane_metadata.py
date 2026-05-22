@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from nbadb.orchestrate.extraction_contract import contract_blocking_rules_for_lane
+
 
 def _int_value(value: object, default: int = 0) -> int:
     if value in (None, ""):
@@ -23,6 +25,14 @@ def _json_list_env(name: str) -> list[Any]:
     raw = os.environ.get(name, "[]") or "[]"
     parsed = json.loads(raw)
     return parsed if isinstance(parsed, list) else []
+
+
+def append_output(key: str, value: str) -> None:
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if not output_path:
+        return
+    with open(output_path, "a", encoding="utf-8") as handle:
+        handle.write(f"{key}={value}\n")
 
 
 def _has_table(con: Any, table_name: str) -> bool:
@@ -133,6 +143,30 @@ def _load_extract_summary(summary_path: Path) -> tuple[dict[str, Any], str]:
     return summary if isinstance(summary, dict) else {}, ""
 
 
+def _final_outcome(
+    *,
+    raw_status: str,
+    rows_persisted: int,
+    failed_calls: int,
+    journal_skips: int,
+    running_calls: int,
+    support_rules: list[dict[str, Any]],
+) -> str:
+    if raw_status == "complete":
+        return "complete"
+    if raw_status in {"complete", "needs_resume", "contract_blocked", "pipeline_failure"}:
+        return raw_status
+    if rows_persisted == 0 and failed_calls > 0 and support_rules:
+        return "contract_blocked"
+    if raw_status in {
+        "extract-timeout",
+        "timeout_with_persisted_progress",
+        "cancelled",
+    } and (rows_persisted > 0 or journal_skips > 0 or running_calls > 0):
+        return "needs_resume"
+    return "pipeline_failure"
+
+
 def build_payload() -> dict[str, Any]:
     resume_only = os.environ["RESUME_ONLY"].lower() == "true"
     vpn_status = os.environ.get("VPN_STATUS", "").strip()
@@ -178,10 +212,39 @@ def build_payload() -> dict[str, Any]:
     if not journal_skips:
         journal_skips = _int_value(db_telemetry.get("journal_skips"))
 
+    raw_status = os.environ["STATUS"]
+    endpoints = _csv_values(os.environ.get("ENDPOINTS", ""))
+    patterns = _csv_values(os.environ.get("PATTERNS", ""))
+    season_start_raw = os.environ.get("SEASON_START", "")
+    season_end_raw = os.environ.get("SEASON_END", "")
+    season_start = _int_value(season_start_raw, default=0) or None
+    season_end = _int_value(season_end_raw, default=0) or None
+
+    support_rules = [
+        rule.to_dict()
+        for rule in contract_blocking_rules_for_lane(
+            endpoints=tuple(endpoints),
+            patterns=tuple(patterns),
+            season_start=season_start,
+            season_end=season_end,
+        )
+    ]
+    running_calls = _int_value(db_telemetry.get("running_calls"))
+    final_outcome = _final_outcome(
+        raw_status=raw_status,
+        rows_persisted=rows_persisted,
+        failed_calls=failed_calls,
+        journal_skips=journal_skips,
+        running_calls=running_calls,
+        support_rules=support_rules,
+    )
+
     zero_row_reason = ""
     if rows_persisted == 0:
-        if os.environ["STATUS"] == "complete":
+        if final_outcome == "complete":
             zero_row_reason = "expected_empty"
+        elif final_outcome == "contract_blocked":
+            zero_row_reason = "contract_blocked"
         elif journal_skips > 0 or _int_value(db_telemetry.get("running_calls")) > 0:
             zero_row_reason = "zero_row_progress"
         elif failed_calls > 0:
@@ -198,7 +261,8 @@ def build_payload() -> dict[str, Any]:
         "lane_kind": os.environ["KIND"],
         "source_ref": os.environ["SOURCE_REF"],
         "source_sha": os.environ["SOURCE_SHA"],
-        "status": os.environ["STATUS"],
+        "status": final_outcome,
+        "raw_status": raw_status,
         "cache_hit": os.environ["CACHE_HIT"],
         "restore_source": os.environ["RESTORE_SOURCE"],
         "restore_usable": os.environ["RESTORE_USABLE"].lower() == "true",
@@ -211,13 +275,18 @@ def build_payload() -> dict[str, Any]:
         "extract_status": os.environ.get("EXTRACT_STATUS", ""),
         "extract_exit_code": os.environ.get("EXTRACT_EXIT_CODE", ""),
         "vpn_status": vpn_status,
-        "patterns": _csv_values(os.environ.get("PATTERNS", "")),
+        "patterns": patterns,
         "season_types": _csv_values(os.environ.get("SEASON_TYPES", "")),
-        "endpoints": _csv_values(os.environ.get("ENDPOINTS", "")),
-        "season_start": os.environ.get("SEASON_START", ""),
-        "season_end": os.environ.get("SEASON_END", ""),
+        "endpoints": endpoints,
+        "season_start": season_start_raw,
+        "season_end": season_end_raw,
         "parent_lane_id": os.environ.get("PARENT_LANE_ID", ""),
         "split_generation": int(os.environ.get("SPLIT_GENERATION") or 0),
+        "support_rules": support_rules,
+        "artifact_requirements": {
+            "lane_metadata": final_outcome != "complete",
+            "vpn_diagnostics": final_outcome != "complete" and not resume_only,
+        },
         "telemetry": {
             "planned_calls": planned_calls,
             "journal_skips": journal_skips,
@@ -248,6 +317,7 @@ def main() -> int:
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
+    append_output("final-outcome", str(payload["status"]))
     return 0
 
 

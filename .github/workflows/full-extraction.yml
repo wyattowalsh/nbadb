@@ -103,15 +103,15 @@ jobs:
       deferred-lane-count: ${{ steps.manifest.outputs.deferred-lane-count }}
       vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
           enable-cache: true
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
 
@@ -359,7 +359,7 @@ jobs:
           PY
 
       - name: Upload lane manifest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: |
@@ -381,15 +381,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
           enable-cache: true
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
 
@@ -414,7 +414,7 @@ jobs:
           fi
 
       - name: Download lane manifest
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
@@ -501,16 +501,16 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
           enable-cache: true
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
 
@@ -519,7 +519,7 @@ jobs:
       # ── Restore state from previous iteration ──
       - name: Restore extraction state
         id: restore
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: data/nbadb/
           key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-iter-${{ inputs.iteration }}
@@ -788,6 +788,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write lane metadata
+        id: lane_metadata
         if: always()
         env:
           LANE_ID: ${{ matrix.lane_id }}
@@ -831,7 +832,7 @@ jobs:
       # ── Save state ──
       - name: Save extraction state
         if: always()
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: |
             data/nbadb/*.duckdb
@@ -841,7 +842,7 @@ jobs:
       # ── Upload lane artifact ──
       - name: Upload lane artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
@@ -853,7 +854,7 @@ jobs:
 
       - name: Upload lane metadata
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
@@ -864,7 +865,7 @@ jobs:
 
       - name: Upload VPN diagnostics
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
@@ -887,46 +888,47 @@ jobs:
           work-dir: ${{ steps.vpn.outputs.work-dir }}
 
       - name: Fail incomplete lane after artifacts
-        if: ${{ always() && steps.lane_status.outputs.status != 'complete' }}
+        if: ${{ always() && steps.lane_metadata.outputs.final-outcome == 'pipeline_failure' }}
         env:
           LANE_ID: ${{ matrix.lane_id }}
-          STATUS: ${{ steps.lane_status.outputs.status }}
+          STATUS: ${{ steps.lane_metadata.outputs.final-outcome }}
+          RAW_STATUS: ${{ steps.lane_status.outputs.status }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
           EXTRACT_EXIT_CODE: ${{ steps.extract.outputs.exit-code || '' }}
           VPN_STATUS: ${{ steps.vpn.outputs.status || 'unknown' }}
         run: |
-          echo "::error::Lane $LANE_ID did not complete: status=$STATUS extract_status=$EXTRACT_STATUS exit_code=${EXTRACT_EXIT_CODE:-n/a} vpn_status=$VPN_STATUS"
+          echo "::error::Lane $LANE_ID ended in pipeline_failure: status=$STATUS raw_status=$RAW_STATUS extract_status=$EXTRACT_STATUS exit_code=${EXTRACT_EXIT_CODE:-n/a} vpn_status=$VPN_STATUS"
           exit 1
 
   # ─────────────────────────────────────────────────────────────
   #  Merge all lane artifacts once all lanes are complete
   # ─────────────────────────────────────────────────────────────
   merge:
-    needs: [plan, preflight, extract]
-    if: ${{ !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && (needs.plan.outputs.active-lane-count == '0' || (needs.plan.outputs.deferred-lane-count == '0' && needs.extract.result == 'success')) }}
+    needs: [plan, preflight, extract, chain]
+    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && (needs.plan.outputs.active-lane-count == '0' || (needs.chain.result == 'success' && needs.chain.outputs.active-lane-count == '0')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:
       actions: write
       contents: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
           enable-cache: true
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
 
       - run: uv sync
 
       - name: Download lane manifest
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
@@ -1047,7 +1049,7 @@ jobs:
 
       - name: Upload final database
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: nbadb-full-extraction-${{ env.ACTIVE_CHAIN_ID }}
           path: |
@@ -1063,35 +1065,40 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   chain:
     needs: [plan, preflight, extract]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' && (needs.plan.outputs.deferred-lane-count != '0' || needs.extract.result != 'success') }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       actions: write
       contents: read
+    outputs:
+      active-lane-count: ${{ steps.next_manifest.outputs.active_lane_count }}
+      resume-only-lane-count: ${{ steps.next_manifest.outputs.resume_only_lane_count }}
+      contract-blocked-lane-count: ${{ steps.next_manifest.outputs.contract_blocked_lane_count }}
+      split-lane-count: ${{ steps.next_manifest.outputs.split_lane_count }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
           enable-cache: true
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
 
       - run: uv sync
 
       - name: Download lane metadata
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
           path: lane-metadata/
 
       - name: Download lane manifest
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
@@ -1163,7 +1170,9 @@ jobs:
               "artifact_name": artifact_name,
               "active_lane_count": int(summary.get("active_lane_count", 0)),
               "resume_only_lane_count": int(summary.get("resume_only_lane_count", 0)),
+              "contract_blocked_lane_count": int(summary.get("contract_blocked_lane_count", 0)),
               "split_lane_count": int(summary.get("split_lane_count", 0)),
+              "outcome_counts": summary.get("outcome_counts", {}),
               "failure_reason_counts": summary.get("failure_reason_counts", {}),
               "redispatch_payload_bytes": len(redispatch_json.encode("utf-8")),
               "next_iteration": int(os.environ["ITERATION"]) + 1,
@@ -1181,7 +1190,10 @@ jobs:
                   [
                       f"active_lane_count={report['active_lane_count']}",
                       f"resume_only_lane_count={report['resume_only_lane_count']}",
+                      f"contract_blocked_lane_count={report['contract_blocked_lane_count']}",
                       f"split_lane_count={report['split_lane_count']}",
+                      "outcome_counts="
+                      + json.dumps(report["outcome_counts"], sort_keys=True),
                       "failure_reason_counts="
                       + json.dumps(report["failure_reason_counts"], sort_keys=True),
                       f"redispatch_payload_bytes={report['redispatch_payload_bytes']}",
@@ -1211,16 +1223,16 @@ jobs:
           print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["resume_only_lane_count"])
           PY
           )"
+          contract_blocked_lane_count="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["contract_blocked_lane_count"])
+          PY
+          )"
           split_lane_count="$(python - <<'PY'
           import json
           from pathlib import Path
           print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["split_lane_count"])
-          PY
-          )"
-          redispatch_payload_bytes="$(python - <<'PY'
-          import json
-          from pathlib import Path
-          print(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["redispatch_payload_bytes"])
           PY
           )"
           artifact_name="$(python - <<'PY'
@@ -1233,6 +1245,36 @@ jobs:
           import json
           from pathlib import Path
           print(json.dumps(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["failure_reason_counts"], sort_keys=True))
+          PY
+          )"
+          outcome_counts="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.dumps(json.loads(Path("artifacts/full-extraction/chain-dispatch.json").read_text())["outcome_counts"], sort_keys=True))
+          PY
+          )"
+          rows_persisted="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          audit = json.loads(Path("artifacts/full-extraction/extraction-audit.json").read_text())
+          print(audit.get("rows_persisted", 0))
+          PY
+          )"
+          top_endpoint_blockers="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          audit = json.loads(Path("artifacts/full-extraction/extraction-audit.json").read_text())
+          endpoint_counts = audit.get("endpoint_status_counts", {})
+          blockers = []
+          for endpoint, counts in endpoint_counts.items():
+              blocked = int(counts.get("contract_blocked", 0))
+              failed = int(counts.get("pipeline_failure", 0))
+              waiting = int(counts.get("needs_resume", 0))
+              total = blocked + failed + waiting
+              if total:
+                  blockers.append((total, endpoint, counts))
+          blockers.sort(reverse=True)
+          print(", ".join(f"{endpoint}:{total}" for total, endpoint, _counts in blockers[:5]) or "none")
           PY
           )"
 
@@ -1257,23 +1299,30 @@ jobs:
           PY
 
           {
-            echo "## Chain Status"
+            echo "## Full Extraction Control Plane"
             echo ""
             echo "| Metric | Value |"
             echo "|---|---:|"
+            echo "| Control-plane health | OK |"
+            echo "| Lane outcomes | \`$outcome_counts\` |"
+            echo "| Top endpoint blockers | \`$top_endpoint_blockers\` |"
+            echo "| Rows persisted | $rows_persisted |"
             echo "| Active lanes | $active_lane_count |"
             echo "| Resume-only lanes | $resume_only_lane_count |"
+            echo "| Contract-blocked lanes | $contract_blocked_lane_count |"
             echo "| Split child lanes | $split_lane_count |"
-            echo "| Dispatch payload bytes | $redispatch_payload_bytes |"
-            echo ""
-            echo "**Next manifest artifact:** \`$artifact_name\`"
+            if [ "$active_lane_count" -gt 0 ]; then
+              echo "| Next action | Redispatch iteration $((ITERATION + 1)) via \`$artifact_name\` |"
+            else
+              echo "| Next action | Merge terminal lane artifacts |"
+            fi
             echo ""
             echo "**Unresolved reasons:** \`$failure_reason_counts\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload next manifest artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ steps.next_manifest.outputs.artifact_name || format('full-extraction-next-manifest-{0}-iter-{1}', env.ACTIVE_CHAIN_ID, inputs.iteration) }}
           path: |
@@ -1316,8 +1365,8 @@ jobs:
           fi
 
           if [ "${ACTIVE_LANE_COUNT:-0}" -le 0 ]; then
-            echo "::error::No active lanes remain for the next iteration; refusing to redispatch an empty chain."
-            exit 1
+            echo "::notice::No active lanes remain; merge job will consume terminal lane artifacts."
+            exit 0
           fi
 
           echo "::notice::Some lanes incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
@@ -1339,7 +1388,7 @@ jobs:
 
       - name: Upload VPN quarantine artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: full-extraction-vpn-quarantine-${{ env.ACTIVE_CHAIN_ID }}
           path: artifacts/full-extraction/vpn-quarantine.json

@@ -10,7 +10,11 @@ from typing import Any
 import duckdb
 
 from nbadb.core.types import SeasonType
-from nbadb.orchestrate.extraction_contract import FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
+from nbadb.orchestrate.extraction_contract import (
+    FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
+    FinalLaneOutcome,
+    contract_blocking_rules_for_lane,
+)
 from nbadb.orchestrate.seasons import season_range
 from nbadb.orchestrate.workload_profile import (
     WorkloadPlanningSnapshot,
@@ -23,7 +27,13 @@ DEFAULT_HISTORICAL_START = 1946
 MAX_CONSECUTIVE_FAILURES = 3
 MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
 MAX_GITHUB_MATRIX_LANES = 220
-SPLITTABLE_TIMEOUT_STATUSES = frozenset({"extract-timeout", "timeout_with_persisted_progress"})
+SPLITTABLE_TIMEOUT_STATUSES = frozenset(
+    {"needs_resume", "extract-timeout", "timeout_with_persisted_progress"}
+)
+FINAL_LANE_OUTCOMES: frozenset[str] = frozenset(
+    {"complete", "needs_resume", "contract_blocked", "pipeline_failure"}
+)
+MERGE_TERMINAL_OUTCOMES: frozenset[str] = frozenset({"complete", "contract_blocked"})
 TIMEOUT_SPLIT_PATTERNS = frozenset(
     {
         "game",
@@ -135,6 +145,29 @@ class FullExtractionLane:
             "parent_lane_id": self.parent_lane_id,
             "split_generation": self.split_generation,
         }
+
+
+def _lane_contract_blocking_rules(lane: FullExtractionLane) -> tuple[dict[str, Any], ...]:
+    return tuple(
+        rule.to_dict()
+        for rule in contract_blocking_rules_for_lane(
+            endpoints=lane.endpoints,
+            patterns=lane.patterns,
+            season_start=lane.season_start,
+            season_end=lane.season_end,
+        )
+    )
+
+
+def _lane_is_contract_blocked(lane: FullExtractionLane) -> bool:
+    return bool(_lane_contract_blocking_rules(lane))
+
+
+def _append_lane_if_supported(lanes: list[FullExtractionLane], lane: FullExtractionLane) -> bool:
+    if _lane_is_contract_blocked(lane):
+        return False
+    lanes.append(lane)
+    return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -641,7 +674,8 @@ def build_default_manifest(
                 lane_name = f"Reference {pattern.replace('_', ' ').title()}"
                 if len(endpoint_groups) > 1:
                     lane_name = f"{lane_name} {group_index}/{len(endpoint_groups)}"
-                lanes.append(
+                appended = _append_lane_if_supported(
+                    lanes,
                     FullExtractionLane(
                         lane_id=f"reference-{pattern}{chunk_suffix}",
                         lane_index=lane_index,
@@ -654,9 +688,10 @@ def build_default_manifest(
                         use_vpn=True,
                         resume_only=False,
                         timeout_seconds=_reference_lane_timeout_seconds(pattern, endpoint_group),
-                    )
+                    ),
                 )
-                lane_index += 1
+                if appended:
+                    lane_index += 1
 
     historical_patterns = requested_patterns & HISTORICAL_PATTERNS
     if historical_patterns:
@@ -715,7 +750,8 @@ def build_default_manifest(
                                 lane_name = f"{lane_name} ({', '.join(endpoints)})"
                             if season_types:
                                 lane_name = f"{lane_name} ({', '.join(season_types)})"
-                            lanes.append(
+                            appended = _append_lane_if_supported(
+                                lanes,
                                 FullExtractionLane(
                                     lane_id=lane_id,
                                     lane_index=lane_index,
@@ -733,9 +769,10 @@ def build_default_manifest(
                                         band_start,
                                         band_end,
                                     ),
-                                )
+                                ),
                             )
-                            lane_index += 1
+                            if appended:
+                                lane_index += 1
 
     cross_product_rows = [
         row
@@ -795,7 +832,8 @@ def build_default_manifest(
                     max_span=CROSS_PRODUCT_MAX_SPAN,
                 )
             ):
-                lanes.append(
+                appended = _append_lane_if_supported(
+                    lanes,
                     FullExtractionLane(
                         lane_id=f"cross-product-{_season_type_slug(season_types)}-{band_start}-{band_end}",
                         lane_index=lane_index,
@@ -809,9 +847,10 @@ def build_default_manifest(
                         use_vpn=True,
                         resume_only=False,
                         timeout_seconds=_cross_product_timeout_seconds(band_start, band_end),
-                    )
+                    ),
                 )
-                lane_index += 1
+                if appended:
+                    lane_index += 1
 
     if not lanes:
         msg = "Selected full-extraction filters produced no runnable lanes"
@@ -977,6 +1016,8 @@ def _timeout_split_bands(lane: FullExtractionLane) -> list[tuple[int, int]]:
     if lane.season_start is None or lane.season_end is None:
         return []
     span = _season_span(lane.season_start, lane.season_end)
+    if set(lane.patterns) & {"game", "date"} and span <= 4:
+        return _split_season_band(lane.season_start, lane.season_end, max_span=1)
     policy_max_span = _max_span_for_lane(lane) or span
     child_span = max(1, min(policy_max_span, span // 2))
     if child_span >= span:
@@ -1045,6 +1086,77 @@ def _reindex_lanes(lanes: list[FullExtractionLane]) -> list[FullExtractionLane]:
     return [replace(lane, lane_index=index) for index, lane in enumerate(lanes)]
 
 
+def _int_metadata_value(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _metadata_has_required_noncomplete_artifacts(payload: dict[str, Any]) -> bool:
+    if not payload:
+        return False
+    vpn_payload = payload.get("vpn")
+    return isinstance(vpn_payload, dict)
+
+
+def lane_outcome_from_metadata(
+    payload: dict[str, Any] | None,
+    lane: FullExtractionLane | None = None,
+) -> FinalLaneOutcome | str:
+    if not payload:
+        return "pipeline_failure"
+
+    raw_status = str(payload.get("status") or "").strip()
+    if raw_status == "complete":
+        return "complete"
+    if raw_status in {"needs_resume", "contract_blocked", "pipeline_failure"}:
+        if raw_status != "complete" and not _metadata_has_required_noncomplete_artifacts(payload):
+            return "pipeline_failure"
+        return raw_status
+    if not _metadata_has_required_noncomplete_artifacts(payload):
+        return "pipeline_failure"
+
+    telemetry = payload.get("telemetry", {})
+    if not isinstance(telemetry, dict):
+        telemetry = {}
+    rows_persisted = _int_metadata_value(telemetry.get("rows_persisted"))
+    journal_skips = _int_metadata_value(telemetry.get("journal_skips"))
+    running_calls = _int_metadata_value(
+        (telemetry.get("db_telemetry") or {}).get("running_calls")
+        if isinstance(telemetry.get("db_telemetry"), dict)
+        else 0
+    )
+    failed_calls = _int_metadata_value(telemetry.get("failed_calls"))
+    endpoints = tuple(str(value) for value in payload.get("endpoints", []) if str(value))
+    patterns = tuple(str(value) for value in payload.get("patterns", []) if str(value))
+    season_start = payload.get("season_start")
+    season_end = payload.get("season_end")
+    lane_contract_rules = (
+        _lane_contract_blocking_rules(lane)
+        if lane is not None
+        else tuple(
+            rule.to_dict()
+            for rule in contract_blocking_rules_for_lane(
+                endpoints=endpoints,
+                patterns=patterns,
+                season_start=None if season_start in {None, ""} else int(season_start),
+                season_end=None if season_end in {None, ""} else int(season_end),
+            )
+        )
+    )
+
+    if rows_persisted == 0 and failed_calls > 0 and lane_contract_rules:
+        return "contract_blocked"
+    if raw_status in SPLITTABLE_TIMEOUT_STATUSES and (
+        rows_persisted > 0 or journal_skips > 0 or running_calls > 0
+    ):
+        return "needs_resume"
+    if raw_status in {"cancelled", "extract-timeout"} and rows_persisted > 0:
+        return "needs_resume"
+    return "pipeline_failure"
+
+
 def build_resume_manifest(
     lanes: list[FullExtractionLane],
     metadata_dir: Path,
@@ -1058,18 +1170,25 @@ def build_resume_manifest(
     resumed = 0
     active = 0
     deferred = 0
+    outcome_counts: dict[str, int] = {}
     failure_reason_counts: dict[str, int] = {}
     split_lane_count = 0
+    contract_blocked = 0
     blocked_lanes: list[FullExtractionLane] = []
+    pipeline_failures: list[str] = []
 
     for lane in lanes:
         payload = metadata.get(lane.lane_id)
-        status = str(payload.get("status", "")) if payload else ""
-        if not status and lane.resume_only:
+        raw_status = str(payload.get("status", "")) if payload else ""
+        if not raw_status and lane.resume_only:
             next_lanes.append(lane)
             resumed += 1
             continue
-        if not status and attempted_lane_ids is not None and lane.lane_id not in attempted_lane_ids:
+        if (
+            not raw_status
+            and attempted_lane_ids is not None
+            and lane.lane_id not in attempted_lane_ids
+        ):
             next_lanes.append(lane)
             if lane.resume_only:
                 resumed += 1
@@ -1077,8 +1196,10 @@ def build_resume_manifest(
                 active += 1
                 deferred += 1
             continue
-        if not status:
-            status = "missing-metadata"
+        if payload is None:
+            payload = {"lane_id": lane.lane_id, "status": "missing-metadata", "vpn": {}}
+        status = str(lane_outcome_from_metadata(payload, lane))
+        outcome_counts[status] = outcome_counts.get(status, 0) + 1
         if status == "complete":
             next_lanes.append(
                 replace(
@@ -1090,7 +1211,14 @@ def build_resume_manifest(
             )
             resumed += 1
             continue
-        failure_reason_counts[status] = failure_reason_counts.get(status, 0) + 1
+        if status == "contract_blocked":
+            contract_blocked += 1
+            continue
+        failure_reason = str(payload.get("raw_status") or raw_status or status)
+        failure_reason_counts[failure_reason] = failure_reason_counts.get(failure_reason, 0) + 1
+        if status == "pipeline_failure":
+            pipeline_failures.append(f"{lane.lane_id} ({failure_reason})")
+            continue
         if _status_allows_legacy_split(status) and _lane_exceeds_policy(lane):
             child_lanes = _split_legacy_oversized_lane(lane, reason=f"legacy-oversized-{status}")
             next_lanes.extend(child_lanes)
@@ -1110,10 +1238,16 @@ def build_resume_manifest(
             failure_streak=failure_streak,
             last_failure_reason=status,
         )
-        if failure_streak >= MAX_CONSECUTIVE_FAILURES:
+        if status != "needs_resume" and failure_streak >= MAX_CONSECUTIVE_FAILURES:
             blocked_lanes.append(next_lane)
         next_lanes.append(next_lane)
         active += 1
+
+    if pipeline_failures:
+        msg = "Pipeline-failure lane outcomes prevent safe redispatch: " + ", ".join(
+            pipeline_failures
+        )
+        raise ValueError(msg)
 
     if blocked_lanes:
         blocked = ", ".join(
@@ -1152,8 +1286,10 @@ def build_resume_manifest(
             "active_lane_count": active,
             "resume_only_lane_count": resumed,
             "deferred_lane_count": deferred,
+            "contract_blocked_lane_count": contract_blocked,
             "blocked_lane_count": 0,
             "split_lane_count": split_lane_count,
+            "outcome_counts": outcome_counts,
             "failure_reason_counts": failure_reason_counts,
         },
     )
@@ -1167,12 +1303,14 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
     vpn_status_counts: dict[str, int] = {}
     zero_row_lanes: list[dict[str, Any]] = []
     blockers: list[dict[str, Any]] = []
+    contract_blocked_lanes: list[dict[str, Any]] = []
+    pipeline_failure_lanes: list[dict[str, Any]] = []
     total_rows = 0
     total_failed_calls = 0
     total_journal_skips = 0
 
     for lane_id, payload in sorted(metadata.items()):
-        status = str(payload.get("status") or "unknown")
+        status = str(lane_outcome_from_metadata(payload))
         kind = str(payload.get("lane_kind") or "unknown")
         status_counts[status] = status_counts.get(status, 0) + 1
         kind_bucket = kind_counts.setdefault(kind, {})
@@ -1203,24 +1341,32 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
                 {
                     "lane_id": lane_id,
                     "status": status,
+                    "raw_status": str(payload.get("raw_status") or ""),
                     "reason": str(telemetry.get("zero_row_reason") or "unknown"),
                     "endpoints": endpoints,
                 }
             )
-        if status not in {"complete"}:
-            blockers.append(
-                {
-                    "lane_id": lane_id,
-                    "status": status,
-                    "kind": kind,
-                    "rows_persisted": rows,
-                    "failed_calls": failed_calls,
-                }
-            )
+        blocker = {
+            "lane_id": lane_id,
+            "status": status,
+            "raw_status": str(payload.get("raw_status") or ""),
+            "kind": kind,
+            "rows_persisted": rows,
+            "failed_calls": failed_calls,
+        }
+        if status == "contract_blocked":
+            blocker["support_rules"] = payload.get("support_rules", [])
+            contract_blocked_lanes.append(blocker)
+        elif status == "pipeline_failure":
+            pipeline_failure_lanes.append(blocker)
+            blockers.append(blocker)
+        elif status not in MERGE_TERMINAL_OUTCOMES:
+            blockers.append(blocker)
 
     return {
         "lane_count": len(metadata),
         "status_counts": status_counts,
+        "outcome_counts": status_counts,
         "kind_status_counts": kind_counts,
         "endpoint_status_counts": endpoint_counts,
         "vpn_status_counts": vpn_status_counts,
@@ -1228,6 +1374,8 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
         "failed_calls": total_failed_calls,
         "journal_skips": total_journal_skips,
         "zero_row_lanes": zero_row_lanes,
+        "contract_blocked_lanes": contract_blocked_lanes,
+        "pipeline_failure_lanes": pipeline_failure_lanes,
         "blockers": blockers,
     }
 

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 import duckdb
 
+from nbadb.orchestrate.extraction_contract import EndpointSupportRule
+
 if TYPE_CHECKING:
     import pytest
 
@@ -100,7 +102,8 @@ def test_build_payload_uses_duckdb_fallback_when_timeout_summary_is_missing(
 
     payload = module.build_payload()
 
-    assert payload["status"] == "extract-timeout"
+    assert payload["status"] == "needs_resume"
+    assert payload["raw_status"] == "extract-timeout"
     assert payload["telemetry"]["planned_calls"] == 3
     assert payload["telemetry"]["rows_persisted"] == 27
     assert payload["telemetry"]["tables_persisted"] == 2
@@ -141,3 +144,96 @@ def test_main_writes_lane_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     assert payload["telemetry"]["planned_calls"] == 5
     assert payload["telemetry"]["rows_persisted"] == 4
     assert payload["telemetry"]["failed_calls"] == 1
+    assert payload["status"] == "needs_resume"
+    assert payload["artifact_requirements"] == {
+        "lane_metadata": True,
+        "vpn_diagnostics": True,
+    }
+
+
+def test_build_payload_classifies_documented_zero_row_as_contract_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import nbadb.orchestrate.extraction_contract as extraction_contract
+
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 0,
+                    "failed_extractions": 2,
+                    "skipped_extractions": 0,
+                    "tables_updated": 0,
+                },
+                "progress": {
+                    "patterns": [{"total": 2}],
+                    "totals": {"rows_extracted": 0, "failed": 2},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("ENDPOINTS", "scoreboard_v2")
+    monkeypatch.setenv("PATTERNS", "date")
+    monkeypatch.setenv("SEASON_START", "1962")
+    monkeypatch.setenv("SEASON_END", "1965")
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.setattr(
+        extraction_contract,
+        "FULL_EXTRACTION_SUPPORT_RULES",
+        (
+            EndpointSupportRule(
+                endpoint_name="scoreboard_v2",
+                pattern="date",
+                classification="contract_blocked",
+                reason="Upstream date endpoint is unavailable for this range.",
+                evidence="docs/endpoint-analysis/scoreboard_v2.md",
+                revalidation_command="uv run nbadb endpoint-probe scoreboard_v2",
+                season_start=1962,
+                season_end=1965,
+            ),
+        ),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "contract_blocked"
+    assert payload["telemetry"]["zero_row_reason"] == "contract_blocked"
+    assert payload["support_rules"][0]["endpoint_name"] == "scoreboard_v2"
+
+
+def test_build_payload_keeps_undocumented_zero_row_error_as_pipeline_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 0,
+                    "failed_extractions": 1,
+                    "skipped_extractions": 0,
+                    "tables_updated": 0,
+                },
+                "progress": {"patterns": [{"total": 1}], "totals": {"failed": 1}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["telemetry"]["zero_row_reason"] == "contract_gap"

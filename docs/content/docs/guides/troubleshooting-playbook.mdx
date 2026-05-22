@@ -16,6 +16,7 @@ Use this page as the **film room after a broken possession**. Start with the art
 | Missing environment, lockfile, or package surface | Dependency inventory              |
 | Empty tables or failing checks                    | Data quality                      |
 | Endpoint coverage drift                           | Extract completeness              |
+| Full Extraction lane failures                     | Full Extraction control plane     |
 | Generated docs or docs build drift                | Docs-autogen artifacts            |
 | Download/upload or publish misses                 | Kaggle and common CLI/CI failures |
 
@@ -137,6 +138,40 @@ PY
 - If `runtime_gap` is high, validate runtime references in `src/nbadb/extract/stats/*.py` and endpoint names in `src/nbadb/orchestrate/staging_map.py`.
 - If `extractor_only` rows appear, either add the endpoint to the staging map or normalize the coverage aliasing.
 - If `schema_missing_transform_outputs` is non-zero, the pipeline is producing transform outputs without a matching `nbadb.schemas.star` contract. Treat that as a data-modeling gap, not an extractor/staging gap.
+
+## Full Extraction control plane
+
+**Best for:** GitHub Actions lane recovery, chained manifests, and distinguishing resumable work from real pipeline failures.
+
+### 1) Read the lane outcomes
+
+The full extraction workflow reduces each lane to one final outcome in `lane-metadata.json`:
+
+| Outcome            | Meaning                                                                                            | Next action                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `complete`         | The lane extracted successfully.                                                                   | Preserve it as `resume_only` in the next manifest. |
+| `needs_resume`     | The lane timed out or stopped after persisted DuckDB or journal progress.                          | Keep it active and reuse its cache/journal state.  |
+| `contract_blocked` | The endpoint scope is documented as unsupported by upstream/runtime evidence.                      | Skip retry, keep it in `extraction-audit.json`.    |
+| `pipeline_failure` | Artifacts, VPN/auth, manifest/control-plane, unclassified extract, or secret-safety checks failed. | Fail red and fix before redispatch.                |
+
+### 2) Inspect the chain artifact
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+
+root = Path("artifacts/full-extraction")
+print(json.load(open(root / "resume-summary.json")))
+print(json.load(open(root / "extraction-audit.json"))["outcome_counts"])
+PY
+```
+
+### 3) Remediate
+
+- Retry only `needs_resume` lanes. For repeated game/date timeouts, the controller splits children down to one-season lanes.
+- Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
+- Treat any `pipeline_failure` as a control-plane failure. Check for missing metadata, missing VPN diagnostics, auth/VPN failures, manifest errors, and unclassified zero-row extract errors before relaunch.
 
 ## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)
 
