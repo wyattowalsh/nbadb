@@ -1107,13 +1107,20 @@ def lane_outcome_from_metadata(
     if not payload:
         return "pipeline_failure"
 
-    raw_status = str(payload.get("status") or "").strip()
-    if raw_status == "complete":
+    metadata_status = str(payload.get("status") or "").strip()
+    raw_status = str(
+        payload.get("raw_status") or payload.get("extract_status") or metadata_status
+    ).strip()
+    if metadata_status == "complete":
         return "complete"
-    if raw_status in {"needs_resume", "contract_blocked", "pipeline_failure"}:
-        if raw_status != "complete" and not _metadata_has_required_noncomplete_artifacts(payload):
+    if metadata_status in {"needs_resume", "contract_blocked"}:
+        if not _metadata_has_required_noncomplete_artifacts(payload):
             return "pipeline_failure"
-        return raw_status
+        return metadata_status
+    if metadata_status == "pipeline_failure" and raw_status == "pipeline_failure":
+        if not _metadata_has_required_noncomplete_artifacts(payload):
+            return "pipeline_failure"
+        return "pipeline_failure"
     if not _metadata_has_required_noncomplete_artifacts(payload):
         return "pipeline_failure"
 

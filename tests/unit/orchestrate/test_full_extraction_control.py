@@ -60,6 +60,7 @@ def _write_metadata(
     *,
     lane_id: str,
     status: str,
+    raw_status: str | None = None,
     rows_persisted: int = 0,
     failed_calls: int = 0,
     endpoints: list[str] | None = None,
@@ -70,6 +71,7 @@ def _write_metadata(
     payload: dict[str, object] = {
         "lane_id": lane_id,
         "status": status,
+        "raw_status": raw_status or status,
         "vpn": {},
         "endpoints": endpoints or [],
         "patterns": patterns or [],
@@ -864,6 +866,134 @@ def test_build_resume_manifest_blocks_pre_1996_box_score_advanced_contract_gap(
     assert next_lanes == []
     assert summary["contract_blocked_lane_count"] == 1
     assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+
+@pytest.mark.parametrize(
+    ("endpoint_name", "blocked_end", "supported_start"),
+    [
+        ("box_score_defensive", 2013, 2014),
+        ("box_score_four_factors", 1993, 1994),
+        ("box_score_matchups", 2013, 2014),
+        ("box_score_misc", 1993, 1994),
+        ("box_score_player_track", 1993, 1994),
+        ("box_score_scoring", 1993, 1994),
+    ],
+)
+def test_build_resume_manifest_blocks_historical_box_score_contract_gaps(
+    tmp_path: Path,
+    endpoint_name: str,
+    blocked_end: int,
+    supported_start: int,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id=f"historical-game-{endpoint_name}-no-season-type-1946-{blocked_end}",
+        lane_index=0,
+        lane_name=f"Historical game {endpoint_name} 1946-{blocked_end}",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=blocked_end,
+        patterns=("game",),
+        endpoints=(endpoint_name,),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="extract-error",
+        failed_calls=1538,
+        endpoints=[endpoint_name],
+        patterns=["game"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+    final_failure_metadata_dir = tmp_path / f"metadata-final-{endpoint_name}"
+    final_failure_metadata_dir.mkdir()
+    _write_metadata(
+        final_failure_metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        failed_calls=1538,
+        endpoints=[endpoint_name],
+        patterns=["game"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane], final_failure_metadata_dir
+    )
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+    supported_lane = FullExtractionLane(
+        lane_id=f"historical-game-{endpoint_name}-no-season-type-{supported_start}-{supported_start}",
+        lane_index=1,
+        lane_name=f"Historical game {endpoint_name} {supported_start}",
+        lane_kind="historical",
+        season_start=supported_start,
+        season_end=supported_start,
+        patterns=("game",),
+        endpoints=(endpoint_name,),
+        timeout_seconds=7200,
+    )
+    supported_metadata_dir = tmp_path / f"metadata-{endpoint_name}"
+    supported_metadata_dir.mkdir()
+    _write_metadata(
+        supported_metadata_dir / "historical.json",
+        lane_id=supported_lane.lane_id,
+        status="extract-error",
+        failed_calls=100,
+        endpoints=[endpoint_name],
+        patterns=["game"],
+        season_start=supported_lane.season_start,
+        season_end=supported_lane.season_end,
+    )
+
+    with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
+        build_resume_manifest([supported_lane], supported_metadata_dir)
+
+
+def test_build_resume_manifest_requires_all_lane_endpoints_to_be_contract_blocked(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-mixed-contract-gap-1990",
+        lane_index=0,
+        lane_name="Historical game mixed contract gap 1990",
+        lane_kind="historical",
+        season_start=1990,
+        season_end=1990,
+        patterns=("game",),
+        endpoints=("box_score_misc", "box_score_traditional"),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="extract-error",
+        failed_calls=100,
+        endpoints=list(lane.endpoints),
+        patterns=["game"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
+        build_resume_manifest([lane], metadata_dir)
 
 
 def test_build_resume_manifest_splits_repeated_game_date_timeout_to_one_season(
