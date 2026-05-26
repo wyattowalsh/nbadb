@@ -124,7 +124,7 @@ For repeated game/date timeouts, the controller splits resumable children down t
 - Add historical box-score support rules only after lane metadata or a targeted probe confirms a zero-row, all-call failure floor or range. Runs `26276583988` and `26385964741` established these contract gaps:
   - `box_score_advanced`: 1946-1995
   - `box_score_defensive`: 1946-2015
-  - `box_score_four_factors`: 1946-1993
+  - `box_score_four_factors`: 1946-1994
   - `box_score_matchups`: 1946-2013
   - `box_score_misc`: 1946-1993
   - `box_score_player_track`: 1946-1993
