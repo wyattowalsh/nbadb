@@ -121,9 +121,9 @@ For repeated game/date timeouts, the controller splits resumable children down t
 - Treat merge plus transform-only backfill as the point where staged lane work becomes one coherent warehouse state.
 - Treat chained manifests as the source of truth for what the next iteration should do.
 - Add support rules in `src/nbadb/orchestrate/extraction_contract.py`, not as scattered workflow or script exceptions.
-- Add historical box-score support rules only after lane metadata or a targeted probe confirms a zero-row, all-call failure floor or range. Run `26276583988` established these contract gaps:
+- Add historical box-score support rules only after lane metadata or a targeted probe confirms a zero-row, all-call failure floor or range. Runs `26276583988` and `26385964741` established these contract gaps:
   - `box_score_advanced`: 1946-1995
-  - `box_score_defensive`: 1946-2013
+  - `box_score_defensive`: 1946-2015
   - `box_score_four_factors`: 1946-1993
   - `box_score_matchups`: 1946-2013
   - `box_score_misc`: 1946-1993

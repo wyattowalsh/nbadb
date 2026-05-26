@@ -127,15 +127,19 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         classification="contract_blocked",
         reason=(
             "NBA defensive box score result sets are unavailable for legacy "
-            "game ids before the 2014-15 season."
+            "game ids before the 2016-17 season."
         ),
-        evidence="GitHub Actions full-extraction run 26276583988 lane metadata",
+        evidence=(
+            "GitHub Actions full-extraction run 26276583988 lane metadata; "
+            "run 26385964741 lanes historical-game-box-score-defensive-no-season-type-"
+            "2006-2017-split-2014-2014 and split-2015-2015"
+        ),
         revalidation_command=(
             "uv run nbadb extract --patterns game --endpoints box_score_defensive "
-            "--season-start 2013 --season-end 2014 --dry-run"
+            "--season-start 2015 --season-end 2016 --dry-run"
         ),
         season_start=1946,
-        season_end=2013,
+        season_end=2015,
     ),
     EndpointSupportRule(
         endpoint_name="box_score_four_factors",

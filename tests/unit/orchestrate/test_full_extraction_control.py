@@ -871,7 +871,7 @@ def test_build_resume_manifest_blocks_pre_1996_box_score_advanced_contract_gap(
 @pytest.mark.parametrize(
     ("endpoint_name", "blocked_end", "supported_start"),
     [
-        ("box_score_defensive", 2013, 2014),
+        ("box_score_defensive", 2015, 2016),
         ("box_score_four_factors", 1993, 1994),
         ("box_score_matchups", 2013, 2014),
         ("box_score_misc", 1993, 1994),
