@@ -1135,6 +1135,38 @@ def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Pa
     assert summary["failure_reason_counts"] == {"extract-timeout": 1}
 
 
+def test_build_resume_manifest_treats_corrupt_metadata_as_missing(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-1994-1997",
+        lane_index=0,
+        lane_name="Historical game 1994-1997",
+        lane_kind="historical",
+        season_start=1994,
+        season_end=1997,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "lane-metadata.json").write_text("", encoding="utf-8")
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset({lane.lane_id}),
+        allow_missing_attempted_metadata=True,
+    )
+
+    assert next_lanes[0].lane_id == lane.lane_id
+    assert next_lanes[0].last_failure_reason == "missing-metadata"
+    assert summary["active_lane_count"] == 1
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+    assert summary["failure_reason_counts"] == {"missing-metadata": 1}
+
+
 def test_resume_manifest_allows_legacy_completed_lane_spans(tmp_path: Path) -> None:
     lane = FullExtractionLane(
         lane_id="historical-date-scoreboard-v3-no-season-type-1946-1957",

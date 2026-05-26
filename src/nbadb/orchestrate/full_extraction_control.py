@@ -980,7 +980,12 @@ def _load_manifest_argument(
 def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
     payloads: dict[str, dict[str, Any]] = {}
     for candidate in sorted(metadata_dir.rglob("*.json")):
-        payload = json.loads(candidate.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(candidate.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            # Checkout/setup failures can leave zero-byte metadata artifacts; treat
+            # those as missing metadata so resume policy can decide whether to retry.
+            continue
         lane_id = str(payload.get("lane_id", "")).strip()
         if lane_id:
             payloads[lane_id] = payload
