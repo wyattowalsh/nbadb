@@ -147,19 +147,19 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         classification="contract_blocked",
         reason=(
             "NBA four-factors box score result sets are unavailable for legacy "
-            "game ids before the 1995-96 season."
+            "game ids before the 1996-97 season."
         ),
         evidence=(
             "GitHub Actions full-extraction run 26276583988 lane metadata; "
-            "run 26385964741 lane historical-game-box-score-four-factors-no-season-type-"
-            "1994-2005-split-1994-1994"
+            "run 26385964741 lanes historical-game-box-score-four-factors-no-season-type-"
+            "1994-2005-split-1994-1994 and split-1995-1995"
         ),
         revalidation_command=(
             "uv run nbadb extract --patterns game --endpoints box_score_four_factors "
-            "--season-start 1994 --season-end 1995 --dry-run"
+            "--season-start 1995 --season-end 1996 --dry-run"
         ),
         season_start=1946,
-        season_end=1994,
+        season_end=1995,
     ),
     EndpointSupportRule(
         endpoint_name="box_score_matchups",
