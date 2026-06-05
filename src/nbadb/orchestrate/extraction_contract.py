@@ -167,15 +167,19 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         classification="contract_blocked",
         reason=(
             "NBA matchup box score result sets are unavailable for legacy game "
-            "ids before the 2014-15 season."
+            "ids before the 2016-17 season."
         ),
-        evidence="GitHub Actions full-extraction run 26276583988 lane metadata",
+        evidence=(
+            "GitHub Actions full-extraction run 26276583988 lane metadata; "
+            "run 26480824507 lanes historical-game-box-score-matchups-no-season-type-"
+            "2006-2017-split-2014-2014 and split-2015-2015"
+        ),
         revalidation_command=(
             "uv run nbadb extract --patterns game --endpoints box_score_matchups "
-            "--season-start 2013 --season-end 2014 --dry-run"
+            "--season-start 2015 --season-end 2016 --dry-run"
         ),
         season_start=1946,
-        season_end=2013,
+        season_end=2015,
     ),
     EndpointSupportRule(
         endpoint_name="box_score_misc",
@@ -183,15 +187,19 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         classification="contract_blocked",
         reason=(
             "NBA miscellaneous box score result sets are unavailable for legacy "
-            "game ids before the 1994-95 season."
+            "game ids before the 1996-97 season."
         ),
-        evidence="GitHub Actions full-extraction run 26276583988 lane metadata",
+        evidence=(
+            "GitHub Actions full-extraction run 26276583988 lane metadata; "
+            "run 26480824507 lanes historical-game-box-score-misc-no-season-type-"
+            "1994-2005-split-1994-1994 and split-1995-1995"
+        ),
         revalidation_command=(
             "uv run nbadb extract --patterns game --endpoints box_score_misc "
-            "--season-start 1993 --season-end 1994 --dry-run"
+            "--season-start 1995 --season-end 1996 --dry-run"
         ),
         season_start=1946,
-        season_end=1993,
+        season_end=1995,
     ),
     EndpointSupportRule(
         endpoint_name="box_score_player_track",
@@ -199,15 +207,19 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         classification="contract_blocked",
         reason=(
             "NBA player-tracking box score result sets are unavailable for legacy "
-            "game ids before the 1994-95 season."
+            "game ids before the 1996-97 season."
         ),
-        evidence="GitHub Actions full-extraction run 26276583988 lane metadata",
+        evidence=(
+            "GitHub Actions full-extraction run 26276583988 lane metadata; "
+            "run 26480824507 lanes historical-game-box-score-player-track-no-season-type-"
+            "1994-2005-split-1994-1994 and split-1995-1995"
+        ),
         revalidation_command=(
             "uv run nbadb extract --patterns game --endpoints box_score_player_track "
-            "--season-start 1993 --season-end 1994 --dry-run"
+            "--season-start 1995 --season-end 1996 --dry-run"
         ),
         season_start=1946,
-        season_end=1993,
+        season_end=1995,
     ),
     EndpointSupportRule(
         endpoint_name="box_score_scoring",
@@ -215,15 +227,19 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         classification="contract_blocked",
         reason=(
             "NBA scoring box score result sets are unavailable for legacy game "
-            "ids before the 1994-95 season."
+            "ids before the 1996-97 season."
         ),
-        evidence="GitHub Actions full-extraction run 26276583988 lane metadata",
+        evidence=(
+            "GitHub Actions full-extraction run 26276583988 lane metadata; "
+            "run 26480824507 lanes historical-game-box-score-scoring-no-season-type-"
+            "1994-2005-split-1994-1994 and split-1995-1995"
+        ),
         revalidation_command=(
             "uv run nbadb extract --patterns game --endpoints box_score_scoring "
-            "--season-start 1993 --season-end 1994 --dry-run"
+            "--season-start 1995 --season-end 1996 --dry-run"
         ),
         season_start=1946,
-        season_end=1993,
+        season_end=1995,
     ),
 )
 

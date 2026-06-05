@@ -20,6 +20,9 @@ from nbadb.orchestrate.full_extraction_control import (
     validate_manifest,
     validate_workflow_dispatch_manifest_json,
 )
+from nbadb.orchestrate.full_extraction_control import (
+    main as full_extraction_main,
+)
 from nbadb.orchestrate.workload_profile import EndpointWorkloadProfile, WorkloadPlanningSnapshot
 
 if TYPE_CHECKING:
@@ -642,6 +645,39 @@ def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
     assert any("box_score_summary" in lane.endpoints for lane in lanes)
 
 
+@pytest.mark.parametrize(
+    ("endpoint_name", "earliest_supported_season", "expected_first_supported_season"),
+    [
+        ("box_score_matchups", 2006, 2016),
+        ("box_score_misc", 1994, 1996),
+        ("box_score_player_track", 1994, 1996),
+        ("box_score_scoring", 1994, 1996),
+    ],
+)
+def test_build_default_manifest_excludes_known_box_score_contract_gaps_from_initial_plan(
+    endpoint_name: str,
+    earliest_supported_season: int,
+    expected_first_supported_season: int,
+) -> None:
+    rows = [_support_row(endpoint_name, ["game"], earliest_supported_season)]
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        selected_endpoints=[endpoint_name],
+    )
+
+    assert lanes
+    assert min(lane.season_start for lane in lanes if lane.season_start is not None) == (
+        expected_first_supported_season
+    )
+    assert all(
+        lane.season_start >= expected_first_supported_season
+        for lane in lanes
+        if lane.season_start is not None
+    )
+    assert all(endpoint_name in lane.endpoints for lane in lanes)
+
+
 def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path) -> None:
     rows = [
         _support_row("franchise_history", ["static"], None),
@@ -873,10 +909,10 @@ def test_build_resume_manifest_blocks_pre_1996_box_score_advanced_contract_gap(
     [
         ("box_score_defensive", 2015, 2016),
         ("box_score_four_factors", 1995, 1996),
-        ("box_score_matchups", 2013, 2014),
-        ("box_score_misc", 1993, 1994),
-        ("box_score_player_track", 1993, 1994),
-        ("box_score_scoring", 1993, 1994),
+        ("box_score_matchups", 2015, 2016),
+        ("box_score_misc", 1995, 1996),
+        ("box_score_player_track", 1995, 1996),
+        ("box_score_scoring", 1995, 1996),
     ],
 )
 def test_build_resume_manifest_blocks_historical_box_score_contract_gaps(
@@ -1087,6 +1123,105 @@ def test_build_resume_manifest_skips_contract_blocked_lanes(
     assert summary["active_lane_count"] == 0
     assert summary["contract_blocked_lane_count"] == 1
     assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+
+def test_build_resume_manifest_reclassifies_known_historical_box_score_gaps(
+    tmp_path: Path,
+) -> None:
+    cases = [
+        (
+            "historical-game-box-score-matchups-no-season-type-2006-2017-split-2014-2014",
+            "box_score_matchups",
+            2014,
+            2014,
+            1430,
+        ),
+        (
+            "historical-game-box-score-matchups-no-season-type-2006-2017-split-2015-2015",
+            "box_score_matchups",
+            2015,
+            2015,
+            1426,
+        ),
+        (
+            "historical-game-box-score-misc-no-season-type-1994-2005-split-1994-1994",
+            "box_score_misc",
+            1994,
+            1994,
+            1181,
+        ),
+        (
+            "historical-game-box-score-misc-no-season-type-1994-2005-split-1995-1995",
+            "box_score_misc",
+            1995,
+            1995,
+            1258,
+        ),
+        (
+            "historical-game-box-score-player-track-no-season-type-1994-2005-split-1994-1994",
+            "box_score_player_track",
+            1994,
+            1994,
+            1181,
+        ),
+        (
+            "historical-game-box-score-player-track-no-season-type-1994-2005-split-1995-1995",
+            "box_score_player_track",
+            1995,
+            1995,
+            1258,
+        ),
+        (
+            "historical-game-box-score-scoring-no-season-type-1994-2005-split-1994-1994",
+            "box_score_scoring",
+            1994,
+            1994,
+            1181,
+        ),
+        (
+            "historical-game-box-score-scoring-no-season-type-1994-2005-split-1995-1995",
+            "box_score_scoring",
+            1995,
+            1995,
+            1258,
+        ),
+    ]
+    lanes = [
+        FullExtractionLane(
+            lane_id=lane_id,
+            lane_index=index,
+            lane_name=f"Historical game {endpoint} {season_start}-{season_end}",
+            lane_kind="historical",
+            season_start=season_start,
+            season_end=season_end,
+            patterns=("game",),
+            endpoints=(endpoint,),
+            timeout_seconds=7200,
+        )
+        for index, (lane_id, endpoint, season_start, season_end, _failed_calls) in enumerate(cases)
+    ]
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    for lane_id, endpoint, season_start, season_end, failed_calls in cases:
+        _write_metadata(
+            metadata_dir / f"{lane_id}.json",
+            lane_id=lane_id,
+            status="pipeline_failure",
+            raw_status="extract-error",
+            rows_persisted=0,
+            failed_calls=failed_calls,
+            endpoints=[endpoint],
+            patterns=["game"],
+            season_start=season_start,
+            season_end=season_end,
+        )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(lanes, metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == len(cases)
+    assert summary["active_lane_count"] == 0
+    assert summary["outcome_counts"] == {"contract_blocked": len(cases)}
 
 
 def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Path) -> None:
@@ -1656,3 +1791,388 @@ def test_merge_lane_databases_rejects_schema_mismatch_and_cleans_target(
         merge_lane_databases(artifacts_dir=tmp_path, output_dir=output_dir)
 
     assert not (output_dir / "nba.duckdb").exists()
+
+
+def test_full_extraction_terminal_control_plane_handoff_e2e(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    completed_reference = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        timeout_seconds=1800,
+    )
+    completed_historical = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2016-2016",
+        lane_index=1,
+        lane_name="Historical game 2016",
+        lane_kind="historical",
+        season_start=2016,
+        season_end=2016,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=5400,
+    )
+    contract_gap = FullExtractionLane(
+        lane_id="historical-game-box-score-misc-no-season-type-1994-2005-split-1995-1995",
+        lane_index=2,
+        lane_name="Historical game box_score_misc 1995",
+        lane_kind="historical",
+        season_start=1995,
+        season_end=1995,
+        patterns=("game",),
+        endpoints=("box_score_misc",),
+        timeout_seconds=5400,
+    )
+    lanes = [completed_reference, completed_historical, contract_gap]
+    artifacts_dir = tmp_path / "artifacts" / "full-extraction"
+    artifacts_dir.mkdir(parents=True)
+    manifest_path = artifacts_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            manifest_payload(
+                lanes,
+                chain_state=FullExtractionChainState(
+                    vpn_quarantined_servers=("us111.nordvpn.com",),
+                    artifact_run_ids=("26385964741",),
+                ),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    metadata_dir = tmp_path / "lane-metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "reference-static.json").write_text(
+        json.dumps(
+            {
+                "lane_id": completed_reference.lane_id,
+                "lane_kind": "reference",
+                "status": "complete",
+                "raw_status": "complete",
+                "vpn": {},
+                "vpn_status": "connected",
+                "endpoints": list(completed_reference.endpoints),
+                "patterns": list(completed_reference.patterns),
+                "telemetry": {
+                    "rows_persisted": 5,
+                    "failed_calls": 0,
+                    "journal_skips": 0,
+                    "db_telemetry": {"running_calls": 0},
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (metadata_dir / "historical-complete.json").write_text(
+        json.dumps(
+            {
+                "lane_id": completed_historical.lane_id,
+                "lane_kind": "historical",
+                "status": "complete",
+                "raw_status": "complete",
+                "vpn": {},
+                "vpn_status": "connected",
+                "endpoints": list(completed_historical.endpoints),
+                "patterns": list(completed_historical.patterns),
+                "season_start": "2016",
+                "season_end": "2016",
+                "telemetry": {
+                    "rows_persisted": 7,
+                    "failed_calls": 0,
+                    "journal_skips": 0,
+                    "db_telemetry": {"running_calls": 0},
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (metadata_dir / "contract-gap.json").write_text(
+        json.dumps(
+            {
+                "lane_id": contract_gap.lane_id,
+                "lane_kind": "historical",
+                "status": "pipeline_failure",
+                "raw_status": "extract-error",
+                "vpn": {},
+                "vpn_status": "connected",
+                "endpoints": list(contract_gap.endpoints),
+                "patterns": list(contract_gap.patterns),
+                "season_start": "1995",
+                "season_end": "1995",
+                "telemetry": {
+                    "rows_persisted": 0,
+                    "failed_calls": 1258,
+                    "journal_skips": 0,
+                    "zero_row_reason": "contract_gap",
+                    "db_telemetry": {"running_calls": 0},
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    next_manifest_path = artifacts_dir / "next-manifest.json"
+    assert (
+        full_extraction_main(
+            [
+                "resume",
+                "--lane-manifest-path",
+                str(manifest_path),
+                "--metadata-dir",
+                str(metadata_dir),
+                "--completed-artifact-run-id",
+                "26480824507",
+                "--output-path",
+                str(next_manifest_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    next_payload = json.loads(next_manifest_path.read_text(encoding="utf-8"))
+    next_manifest = normalize_manifest(next_payload)
+    validate_manifest(list(next_manifest.lanes))
+    assert next_payload["active_lane_count"] == 0
+    assert next_payload["matrix_lane_count"] == 0
+    assert next_payload["resume_only_lane_count"] == 2
+    assert next_payload["resume_summary"]["contract_blocked_lane_count"] == 1
+    assert next_payload["resume_summary"]["outcome_counts"] == {
+        "complete": 2,
+        "contract_blocked": 1,
+    }
+    assert next_manifest.chain_state == FullExtractionChainState(
+        vpn_quarantined_servers=("us111.nordvpn.com",),
+        artifact_run_ids=("26385964741", "26480824507"),
+    )
+    assert [lane.lane_id for lane in next_manifest.lanes] == [
+        completed_reference.lane_id,
+        completed_historical.lane_id,
+    ]
+    assert all(lane.resume_only for lane in next_manifest.lanes)
+
+    redispatch_json = json.dumps(
+        redispatch_manifest_payload(
+            list(next_manifest.lanes), chain_state=next_manifest.chain_state
+        ),
+        separators=(",", ":"),
+    )
+    validate_workflow_dispatch_manifest_json(redispatch_json)
+    assert normalize_manifest(json.loads(redispatch_json)).chain_state == next_manifest.chain_state
+
+    audit_path = artifacts_dir / "extraction-audit.json"
+    assert (
+        full_extraction_main(
+            [
+                "audit",
+                "--metadata-dir",
+                str(metadata_dir),
+                "--output-path",
+                str(audit_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert audit["blockers"] == []
+    assert audit["rows_persisted"] == 12
+    assert audit["failed_calls"] == 1258
+    assert [row["lane_id"] for row in audit["contract_blocked_lanes"]] == [contract_gap.lane_id]
+
+    lane_artifacts_dir = tmp_path / "lanes"
+    reference_artifact = (
+        lane_artifacts_dir
+        / "run-26480824507"
+        / (f"extraction-lane-chain-{completed_reference.lane_id}")
+    )
+    historical_artifact = (
+        lane_artifacts_dir
+        / "run-26480824507"
+        / (f"extraction-lane-chain-{completed_historical.lane_id}")
+    )
+    reference_artifact.mkdir(parents=True)
+    historical_artifact.mkdir(parents=True)
+    _write_lane_db(
+        reference_artifact / "nba.duckdb",
+        alpha_rows=[1, 2],
+        beta_rows=[],
+        journal_rows=[("franchise_history", "{}")],
+    )
+    _write_lane_db(
+        historical_artifact / "nba.duckdb",
+        alpha_rows=[2, 3],
+        beta_rows=[9],
+        journal_rows=[
+            ("franchise_history", "{}"),
+            ("box_score_summary", '{"season": "2016-17"}'),
+        ],
+    )
+    output_dir = tmp_path / "merged"
+    assert (
+        full_extraction_main(
+            [
+                "merge",
+                "--artifacts-dir",
+                str(lane_artifacts_dir),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+    merge_summary = json.loads(capsys.readouterr().out)
+    assert merge_summary["merged_database_count"] == 2
+    assert merge_summary["table_reports"]["stg_alpha"]["inserted_rows"] == 3
+    assert merge_summary["journal_report"]["inserted_rows"] == 2
+
+    conn = duckdb.connect(str(output_dir / "nba.duckdb"))
+    try:
+        alpha_values = [
+            row[0] for row in conn.execute("SELECT value FROM stg_alpha ORDER BY value").fetchall()
+        ]
+        beta_values = [
+            row[0] for row in conn.execute("SELECT value FROM stg_beta ORDER BY value").fetchall()
+        ]
+        journal_rows = conn.execute(
+            "SELECT endpoint, params FROM _extraction_journal ORDER BY endpoint, params"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert alpha_values == [1, 2, 3]
+    assert beta_values == [9]
+    assert journal_rows == [
+        ("box_score_summary", '{"season": "2016-17"}'),
+        ("franchise_history", "{}"),
+    ]
+
+
+def test_full_extraction_nonterminal_redispatch_handoff_e2e(tmp_path: Path) -> None:
+    completed_lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        timeout_seconds=1800,
+    )
+    timeout_lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v2-no-season-type-1962-1965",
+        lane_index=1,
+        lane_name="Historical date 1962-1965",
+        lane_kind="historical",
+        season_start=1962,
+        season_end=1965,
+        patterns=("date",),
+        endpoints=("scoreboard_v2",),
+        timeout_seconds=7200,
+    )
+    deferred_lane = FullExtractionLane(
+        lane_id="historical-game-box-score-summary-no-season-type-2020-2023",
+        lane_index=2,
+        lane_name="Historical game 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+    )
+    payload = manifest_payload(
+        [completed_lane, timeout_lane, deferred_lane],
+        chain_state=FullExtractionChainState(vpn_quarantined_servers=("us001.nordvpn.com",)),
+        max_matrix_lanes=2,
+    )
+    manifest = normalize_manifest(payload)
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "complete.json",
+        lane_id=completed_lane.lane_id,
+        status="complete",
+        rows_persisted=4,
+        endpoints=list(completed_lane.endpoints),
+        patterns=list(completed_lane.patterns),
+    )
+    (metadata_dir / "timeout.json").write_text(
+        json.dumps(
+            {
+                "lane_id": timeout_lane.lane_id,
+                "status": "extract-timeout",
+                "raw_status": "extract-timeout",
+                "vpn": {"failed_servers": ["us002.nordvpn.com", "us002.nordvpn.com"]},
+                "endpoints": list(timeout_lane.endpoints),
+                "patterns": list(timeout_lane.patterns),
+                "season_start": "1962",
+                "season_end": "1965",
+                "telemetry": {
+                    "rows_persisted": 8,
+                    "failed_calls": 0,
+                    "journal_skips": 0,
+                    "db_telemetry": {"running_calls": 0},
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    next_lanes, next_chain_state, summary = build_resume_manifest(
+        list(manifest.lanes),
+        metadata_dir,
+        chain_state=manifest.chain_state,
+        attempted_lane_ids=manifest.matrix_lane_ids,
+        completed_artifact_run_id="26480824507",
+    )
+
+    validate_manifest(next_lanes)
+    assert summary["outcome_counts"] == {"complete": 1, "needs_resume": 1}
+    assert summary["failure_reason_counts"] == {"extract-timeout": 1}
+    assert summary["resume_only_lane_count"] == 1
+    assert summary["active_lane_count"] == 5
+    assert summary["deferred_lane_count"] == 1
+    assert summary["split_lane_count"] == 4
+    assert next_chain_state == FullExtractionChainState(
+        vpn_quarantined_servers=("us001.nordvpn.com", "us002.nordvpn.com"),
+        artifact_run_ids=("26480824507",),
+    )
+
+    child_lanes = [lane for lane in next_lanes if lane.parent_lane_id == timeout_lane.lane_id]
+    assert [(lane.season_start, lane.season_end) for lane in child_lanes] == [
+        (1962, 1962),
+        (1963, 1963),
+        (1964, 1964),
+        (1965, 1965),
+    ]
+    by_id = {lane.lane_id: lane for lane in next_lanes}
+    assert by_id[completed_lane.lane_id].resume_only is True
+    assert by_id[deferred_lane.lane_id].last_failure_reason == ""
+    assert by_id[deferred_lane.lane_id].failure_streak == 0
+
+    next_payload = manifest_payload(next_lanes, chain_state=next_chain_state)
+    redispatch_json = json.dumps(
+        redispatch_manifest_payload(next_lanes, chain_state=next_chain_state),
+        separators=(",", ":"),
+    )
+    validate_workflow_dispatch_manifest_json(redispatch_json)
+    round_tripped = normalize_manifest(json.loads(redispatch_json))
+    validate_manifest(list(round_tripped.lanes))
+    assert next_payload["active_lane_count"] == 5
+    assert next_payload["resume_only_lane_count"] == 1
+    assert next_payload["matrix_lane_count"] == 5
+    assert round_tripped.chain_state == next_chain_state

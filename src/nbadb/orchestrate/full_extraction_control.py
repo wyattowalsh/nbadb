@@ -170,6 +170,37 @@ def _append_lane_if_supported(lanes: list[FullExtractionLane], lane: FullExtract
     return True
 
 
+def _contract_supported_season_bands(
+    *,
+    endpoints: tuple[str, ...],
+    patterns: tuple[str, ...],
+    start: int,
+    end: int,
+) -> list[tuple[int, int]]:
+    """Return sub-bands that are not fully covered by support-contract blocks."""
+    bands: list[tuple[int, int]] = []
+    band_start: int | None = None
+    for year in range(start, end + 1):
+        is_blocked = bool(
+            contract_blocking_rules_for_lane(
+                endpoints=endpoints,
+                patterns=patterns,
+                season_start=year,
+                season_end=year,
+            )
+        )
+        if is_blocked:
+            if band_start is not None:
+                bands.append((band_start, year - 1))
+                band_start = None
+            continue
+        if band_start is None:
+            band_start = year
+    if band_start is not None:
+        bands.append((band_start, end))
+    return bands
+
+
 @dataclass(frozen=True, slots=True)
 class FullExtractionChainState:
     vpn_quarantined_servers: tuple[str, ...] = ()
@@ -721,58 +752,68 @@ def build_default_manifest(
                     )
                     target_cost = max(float(_max_span_for_pattern(pattern)), season_cost * 3.0)
                     for start, end in _season_bands(endpoint_rows, {pattern}):
-                        season_costs = {year: season_cost for year in range(start, end + 1)}
-                        for band_start, band_end in (
-                            _adaptive_split_season_band(
-                                start,
-                                end,
-                                max_span=min(
-                                    _max_span_for_pattern(pattern),
-                                    adaptive_max_span or _max_span_for_pattern(pattern),
-                                ),
-                                target_cost=target_cost,
-                                season_costs=season_costs,
-                            )
-                            if planning_snapshot is not None
-                            else _split_season_band(
-                                start,
-                                end,
-                                max_span=_max_span_for_pattern(pattern),
-                            )
-                        ):
-                            endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
-                            lane_id = (
-                                f"historical-{pattern}{endpoint_component}-"
-                                f"{_season_type_slug(season_types)}-{band_start}-{band_end}"
-                            )
-                            lane_name = f"Historical {pattern} {band_start}-{band_end}"
-                            if endpoints and endpoint_slug:
-                                lane_name = f"{lane_name} ({', '.join(endpoints)})"
-                            if season_types:
-                                lane_name = f"{lane_name} ({', '.join(season_types)})"
-                            appended = _append_lane_if_supported(
-                                lanes,
-                                FullExtractionLane(
-                                    lane_id=lane_id,
-                                    lane_index=lane_index,
-                                    lane_name=lane_name,
-                                    lane_kind="historical",
-                                    season_start=band_start,
-                                    season_end=band_end,
-                                    patterns=(pattern,),
-                                    season_types=season_types,
-                                    endpoints=endpoints,
-                                    use_vpn=True,
-                                    resume_only=False,
-                                    timeout_seconds=_historical_timeout_seconds(
-                                        pattern,
-                                        band_start,
-                                        band_end,
+                        supported_bands = _contract_supported_season_bands(
+                            endpoints=endpoints,
+                            patterns=(pattern,),
+                            start=start,
+                            end=end,
+                        )
+                        for supported_start, supported_end in supported_bands:
+                            season_costs = {
+                                year: season_cost
+                                for year in range(supported_start, supported_end + 1)
+                            }
+                            for band_start, band_end in (
+                                _adaptive_split_season_band(
+                                    supported_start,
+                                    supported_end,
+                                    max_span=min(
+                                        _max_span_for_pattern(pattern),
+                                        adaptive_max_span or _max_span_for_pattern(pattern),
                                     ),
-                                ),
-                            )
-                            if appended:
-                                lane_index += 1
+                                    target_cost=target_cost,
+                                    season_costs=season_costs,
+                                )
+                                if planning_snapshot is not None
+                                else _split_season_band(
+                                    supported_start,
+                                    supported_end,
+                                    max_span=_max_span_for_pattern(pattern),
+                                )
+                            ):
+                                endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
+                                lane_id = (
+                                    f"historical-{pattern}{endpoint_component}-"
+                                    f"{_season_type_slug(season_types)}-{band_start}-{band_end}"
+                                )
+                                lane_name = f"Historical {pattern} {band_start}-{band_end}"
+                                if endpoints and endpoint_slug:
+                                    lane_name = f"{lane_name} ({', '.join(endpoints)})"
+                                if season_types:
+                                    lane_name = f"{lane_name} ({', '.join(season_types)})"
+                                appended = _append_lane_if_supported(
+                                    lanes,
+                                    FullExtractionLane(
+                                        lane_id=lane_id,
+                                        lane_index=lane_index,
+                                        lane_name=lane_name,
+                                        lane_kind="historical",
+                                        season_start=band_start,
+                                        season_end=band_end,
+                                        patterns=(pattern,),
+                                        season_types=season_types,
+                                        endpoints=endpoints,
+                                        use_vpn=True,
+                                        resume_only=False,
+                                        timeout_seconds=_historical_timeout_seconds(
+                                            pattern,
+                                            band_start,
+                                            band_end,
+                                        ),
+                                    ),
+                                )
+                                if appended:
+                                    lane_index += 1
 
     cross_product_rows = [
         row
@@ -817,40 +858,57 @@ def build_default_manifest(
                 )
                 for year in range(DEFAULT_HISTORICAL_START, end_year + 1)
             }
-            for band_start, band_end in (
-                _adaptive_split_season_band(
-                    DEFAULT_HISTORICAL_START,
-                    end_year,
-                    max_span=CROSS_PRODUCT_MAX_SPAN,
-                    target_cost=max(6.0, CROSS_PRODUCT_MAX_SPAN * 1.5),
-                    season_costs=cross_product_costs,
-                )
-                if planning_snapshot is not None
-                else _split_season_band(
-                    DEFAULT_HISTORICAL_START,
-                    end_year,
-                    max_span=CROSS_PRODUCT_MAX_SPAN,
-                )
-            ):
-                appended = _append_lane_if_supported(
-                    lanes,
-                    FullExtractionLane(
-                        lane_id=f"cross-product-{_season_type_slug(season_types)}-{band_start}-{band_end}",
-                        lane_index=lane_index,
-                        lane_name=f"Cross Product Historical {band_start}-{band_end}",
-                        lane_kind="cross_product",
-                        season_start=band_start,
-                        season_end=band_end,
-                        patterns=patterns,
-                        season_types=season_types,
-                        endpoints=endpoints,
-                        use_vpn=True,
-                        resume_only=False,
-                        timeout_seconds=_cross_product_timeout_seconds(band_start, band_end),
-                    ),
-                )
-                if appended:
-                    lane_index += 1
+            supported_bands = _contract_supported_season_bands(
+                endpoints=endpoints,
+                patterns=patterns,
+                start=DEFAULT_HISTORICAL_START,
+                end=end_year,
+            )
+            for supported_start, supported_end in supported_bands:
+                supported_costs = {
+                    year: cross_product_costs[year]
+                    for year in range(supported_start, supported_end + 1)
+                }
+                for band_start, band_end in (
+                    _adaptive_split_season_band(
+                        supported_start,
+                        supported_end,
+                        max_span=CROSS_PRODUCT_MAX_SPAN,
+                        target_cost=max(6.0, CROSS_PRODUCT_MAX_SPAN * 1.5),
+                        season_costs=supported_costs,
+                    )
+                    if planning_snapshot is not None
+                    else _split_season_band(
+                        supported_start,
+                        supported_end,
+                        max_span=CROSS_PRODUCT_MAX_SPAN,
+                    )
+                ):
+                    appended = _append_lane_if_supported(
+                        lanes,
+                        FullExtractionLane(
+                            lane_id=(
+                                f"cross-product-{_season_type_slug(season_types)}-"
+                                f"{band_start}-{band_end}"
+                            ),
+                            lane_index=lane_index,
+                            lane_name=f"Cross Product Historical {band_start}-{band_end}",
+                            lane_kind="cross_product",
+                            season_start=band_start,
+                            season_end=band_end,
+                            patterns=patterns,
+                            season_types=season_types,
+                            endpoints=endpoints,
+                            use_vpn=True,
+                            resume_only=False,
+                            timeout_seconds=_cross_product_timeout_seconds(
+                                band_start,
+                                band_end,
+                            ),
+                        ),
+                    )
+                    if appended:
+                        lane_index += 1
 
     if not lanes:
         msg = "Selected full-extraction filters produced no runnable lanes"
