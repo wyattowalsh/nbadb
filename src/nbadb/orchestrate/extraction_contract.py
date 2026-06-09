@@ -241,6 +241,26 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         season_start=1946,
         season_end=1995,
     ),
+    EndpointSupportRule(
+        endpoint_name="box_score_usage",
+        pattern="game",
+        classification="contract_blocked",
+        reason=(
+            "NBA usage box score result sets are unavailable for legacy game "
+            "ids before the 1994-95 season."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 27026599535 lanes "
+            "historical-game-box-score-usage-no-season-type-1946-1949 "
+            "through historical-game-box-score-usage-no-season-type-1990-1993"
+        ),
+        revalidation_command=(
+            "uv run nbadb extract --patterns game --endpoints box_score_usage "
+            "--season-start 1993 --season-end 1994 --dry-run"
+        ),
+        season_start=1946,
+        season_end=1993,
+    ),
 )
 
 

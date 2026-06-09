@@ -652,6 +652,7 @@ def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
         ("box_score_misc", 1994, 1996),
         ("box_score_player_track", 1994, 1996),
         ("box_score_scoring", 1994, 1996),
+        ("box_score_usage", 1946, 1994),
     ],
 )
 def test_build_default_manifest_excludes_known_box_score_contract_gaps_from_initial_plan(
@@ -913,6 +914,7 @@ def test_build_resume_manifest_blocks_pre_1996_box_score_advanced_contract_gap(
         ("box_score_misc", 1995, 1996),
         ("box_score_player_track", 1995, 1996),
         ("box_score_scoring", 1995, 1996),
+        ("box_score_usage", 1993, 1994),
     ],
 )
 def test_build_resume_manifest_blocks_historical_box_score_contract_gaps(
@@ -1184,6 +1186,20 @@ def test_build_resume_manifest_reclassifies_known_historical_box_score_gaps(
             1995,
             1995,
             1258,
+        ),
+        (
+            "historical-game-box-score-usage-no-season-type-1946-1949",
+            "box_score_usage",
+            1946,
+            1949,
+            1538,
+        ),
+        (
+            "historical-game-box-score-usage-no-season-type-1990-1993",
+            "box_score_usage",
+            1990,
+            1993,
+            4726,
         ),
     ]
     lanes = [
