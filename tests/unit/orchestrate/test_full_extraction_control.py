@@ -648,6 +648,7 @@ def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
 @pytest.mark.parametrize(
     ("endpoint_name", "earliest_supported_season", "expected_first_supported_season"),
     [
+        ("box_score_defensive", 2006, 2017),
         ("box_score_matchups", 2006, 2016),
         ("box_score_misc", 1994, 1996),
         ("box_score_player_track", 1994, 1996),
@@ -908,7 +909,7 @@ def test_build_resume_manifest_blocks_pre_1996_box_score_advanced_contract_gap(
 @pytest.mark.parametrize(
     ("endpoint_name", "blocked_end", "supported_start"),
     [
-        ("box_score_defensive", 2015, 2016),
+        ("box_score_defensive", 2016, 2017),
         ("box_score_four_factors", 1995, 1996),
         ("box_score_matchups", 2015, 2016),
         ("box_score_misc", 1995, 1996),
@@ -995,6 +996,68 @@ def test_build_resume_manifest_blocks_historical_box_score_contract_gaps(
         failed_calls=100,
         endpoints=[endpoint_name],
         patterns=["game"],
+        season_start=supported_lane.season_start,
+        season_end=supported_lane.season_end,
+    )
+
+    with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
+        build_resume_manifest([supported_lane], supported_metadata_dir)
+
+
+def test_build_resume_manifest_blocks_1950_scoreboard_v2_contract_gap(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v2-no-season-type-1950-1953-split-1950-1950",
+        lane_index=0,
+        lane_name="Historical date 1950-1953 (scoreboard_v2) 1950-1950",
+        lane_kind="historical",
+        season_start=1950,
+        season_end=1950,
+        patterns=("date",),
+        endpoints=("scoreboard_v2",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        failed_calls=132,
+        endpoints=["scoreboard_v2"],
+        patterns=["date"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+    supported_lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v2-no-season-type-1951-1951",
+        lane_index=1,
+        lane_name="Historical date 1951 (scoreboard_v2)",
+        lane_kind="historical",
+        season_start=1951,
+        season_end=1951,
+        patterns=("date",),
+        endpoints=("scoreboard_v2",),
+        timeout_seconds=7200,
+    )
+    supported_metadata_dir = tmp_path / "metadata-supported"
+    supported_metadata_dir.mkdir()
+    _write_metadata(
+        supported_metadata_dir / "historical.json",
+        lane_id=supported_lane.lane_id,
+        status="extract-error",
+        failed_calls=100,
+        endpoints=["scoreboard_v2"],
+        patterns=["date"],
         season_start=supported_lane.season_start,
         season_end=supported_lane.season_end,
     )

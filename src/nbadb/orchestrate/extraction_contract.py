@@ -127,19 +127,21 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         classification="contract_blocked",
         reason=(
             "NBA defensive box score result sets are unavailable for legacy "
-            "game ids before the 2016-17 season."
+            "game ids before the 2017-18 season."
         ),
         evidence=(
             "GitHub Actions full-extraction run 26276583988 lane metadata; "
             "run 26385964741 lanes historical-game-box-score-defensive-no-season-type-"
-            "2006-2017-split-2014-2014 and split-2015-2015"
+            "2006-2017-split-2014-2014 and split-2015-2015; run 27196379034 "
+            "lane historical-game-box-score-defensive-no-season-type-2016-2019-"
+            "split-2016-2016"
         ),
         revalidation_command=(
             "uv run nbadb extract --patterns game --endpoints box_score_defensive "
-            "--season-start 2015 --season-end 2016 --dry-run"
+            "--season-start 2016 --season-end 2017 --dry-run"
         ),
         season_start=1946,
-        season_end=2015,
+        season_end=2016,
     ),
     EndpointSupportRule(
         endpoint_name="box_score_four_factors",
@@ -260,6 +262,26 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         ),
         season_start=1946,
         season_end=1993,
+    ),
+    EndpointSupportRule(
+        endpoint_name="scoreboard_v2",
+        pattern="date",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats scoreboard_v2 date extraction returns no usable result "
+            "sets for the 1950-51 historical season; every planned date call in "
+            "the isolated lane failed with zero rows persisted."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 27196379034 lane "
+            "historical-date-scoreboard-v2-no-season-type-1950-1953-split-1950-1950"
+        ),
+        revalidation_command=(
+            "uv run nbadb extract --patterns date --endpoints scoreboard_v2 "
+            "--season-start 1950 --season-end 1951 --dry-run"
+        ),
+        season_start=1950,
+        season_end=1950,
     ),
 )
 
