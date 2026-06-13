@@ -86,22 +86,6 @@ class EndpointSupportRule:
 
 FULL_EXTRACTION_EXCLUSIONS: tuple[ExtractionExclusion, ...] = (
     ExtractionExclusion(
-        endpoint_name="scoreboard_v2",
-        classification="upstream_bug_blocked",
-        reason=(
-            "ScoreboardV2 is not a reliable full-history date backfill source: "
-            "nba_api warns to use ScoreboardV3, and full-extraction evidence "
-            "shows season-specific historical date lanes with zero usable "
-            "result sets. Use scoreboard_v3 for canonical date coverage."
-        ),
-        owner="extract",
-        revalidation_path=(
-            "Revalidate only if nba_api and live NBA Stats evidence show "
-            "ScoreboardV2 is again preferable to ScoreboardV3 for full-history "
-            "date extraction."
-        ),
-    ),
-    ExtractionExclusion(
         endpoint_name="team_historical_leaders",
         classification="upstream_bug_blocked",
         reason=(
@@ -121,26 +105,6 @@ FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT: dict[str, ExtractionExclusion] = {
 }
 
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
-    EndpointSupportRule(
-        endpoint_name="scoreboard_v2",
-        pattern="date",
-        classification="contract_blocked",
-        reason=(
-            "ScoreboardV2 is superseded for full-history date extraction; "
-            "ScoreboardV3 is the canonical nba_api date scoreboard surface and "
-            "legacy ScoreboardV2 lanes have proven season-specific zero-row "
-            "contract gaps."
-        ),
-        evidence=(
-            "nba_api ScoreboardV2 runtime warning recommends ScoreboardV3; "
-            "GitHub Actions full-extraction chain 27026599535 found "
-            "ScoreboardV2 zero-row/circuit-breaker gaps in 1950, 1954, and 1956."
-        ),
-        revalidation_command=(
-            "uv run nbadb extract --patterns date --endpoints scoreboard_v3 "
-            "--season-start 1946 --season-end 1947 --dry-run"
-        ),
-    ),
     EndpointSupportRule(
         endpoint_name="box_score_advanced",
         pattern="game",

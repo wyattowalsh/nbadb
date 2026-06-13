@@ -277,10 +277,19 @@ def test_build_default_manifest_isolates_high_volume_historical_endpoints() -> N
     date_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("date",)
     ]
-    assert date_lanes[0].lane_id == "historical-date-scoreboard-v3-no-season-type-1946-1949"
-    assert date_lanes[0].endpoints == ("scoreboard_v3",)
-    assert {lane.endpoints for lane in date_lanes} == {("scoreboard_v3",), ("video_status",)}
-    assert all("scoreboard_v2" not in lane.endpoints for lane in date_lanes)
+    assert date_lanes[0].lane_id == "historical-date-scoreboard-v2-no-season-type-1946-1949"
+    assert date_lanes[0].endpoints == ("scoreboard_v2",)
+    assert {lane.endpoints for lane in date_lanes} == {
+        ("scoreboard_v2",),
+        ("scoreboard_v3",),
+        ("video_status",),
+    }
+    scoreboard_v2_lanes = [lane for lane in date_lanes if lane.endpoints == ("scoreboard_v2",)]
+    assert scoreboard_v2_lanes
+    assert all(
+        not any(lane.season_start <= blocked <= lane.season_end for blocked in (1950, 1954, 1956))
+        for lane in scoreboard_v2_lanes
+    )
     assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in date_lanes)
 
     game_lanes = [
@@ -615,14 +624,25 @@ def test_build_default_manifest_rejects_full_extraction_excluded_only_selection(
         build_default_manifest(support_matrix_rows=rows)
 
 
-def test_build_default_manifest_rejects_scoreboard_v2_only_selection() -> None:
+def test_build_default_manifest_allows_scoreboard_v2_with_documented_gaps() -> None:
     rows = [_support_row("scoreboard_v2", ["date"], 1946)]
 
-    with pytest.raises(ValueError, match="produced no runnable lanes"):
-        build_default_manifest(
-            support_matrix_rows=rows,
-            selected_endpoints=["scoreboard_v2"],
-        )
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        selected_endpoints=["scoreboard_v2"],
+    )
+
+    assert lanes
+    assert {lane.endpoints for lane in lanes} == {("scoreboard_v2",)}
+    assert [lane.lane_id for lane in lanes[:3]] == [
+        "historical-date-scoreboard-v2-no-season-type-1946-1949",
+        "historical-date-scoreboard-v2-no-season-type-1951-1953",
+        "historical-date-scoreboard-v2-no-season-type-1955-1955",
+    ]
+    assert all(
+        not any(lane.season_start <= blocked <= lane.season_end for blocked in (1950, 1954, 1956))
+        for lane in lanes
+    )
 
 
 def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
