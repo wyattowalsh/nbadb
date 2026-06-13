@@ -305,6 +305,28 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         season_start=1954,
         season_end=1954,
     ),
+    EndpointSupportRule(
+        endpoint_name="scoreboard_v2",
+        pattern="date",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats scoreboard_v2 date extraction returns no usable result "
+            "sets for the 1956-57 historical season; every discovered date call "
+            "in the isolated lane timed out with zero rows persisted."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 27449870904 job 81142844815 "
+            "lane historical-date-scoreboard-v2-no-season-type-1954-1957-"
+            "split-1956-1956; metadata artifact 7607238570 reported 124 "
+            "_CircuitBreakerTimeoutError failures and zero rows persisted."
+        ),
+        revalidation_command=(
+            "uv run nbadb extract --patterns date --endpoints scoreboard_v2 "
+            "--season-start 1956 --season-end 1957 --dry-run"
+        ),
+        season_start=1956,
+        season_end=1956,
+    ),
 )
 
 
