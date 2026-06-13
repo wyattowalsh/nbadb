@@ -266,6 +266,7 @@ def test_build_default_manifest_isolates_slow_reference_player_endpoints() -> No
 def test_build_default_manifest_isolates_high_volume_historical_endpoints() -> None:
     rows = [
         _support_row("scoreboard_v2", ["date"], None),
+        _support_row("scoreboard_v3", ["date"], None),
         _support_row("video_status", ["date"], None),
         _support_row("box_score_summary", ["game"], 1946),
         _support_row("play_by_play", ["game"], 1996),
@@ -276,9 +277,10 @@ def test_build_default_manifest_isolates_high_volume_historical_endpoints() -> N
     date_lanes = [
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("date",)
     ]
-    assert date_lanes[0].lane_id == "historical-date-scoreboard-v2-no-season-type-1946-1949"
-    assert date_lanes[0].endpoints == ("scoreboard_v2",)
-    assert {lane.endpoints for lane in date_lanes} == {("scoreboard_v2",), ("video_status",)}
+    assert date_lanes[0].lane_id == "historical-date-scoreboard-v3-no-season-type-1946-1949"
+    assert date_lanes[0].endpoints == ("scoreboard_v3",)
+    assert {lane.endpoints for lane in date_lanes} == {("scoreboard_v3",), ("video_status",)}
+    assert all("scoreboard_v2" not in lane.endpoints for lane in date_lanes)
     assert all((lane.season_end - lane.season_start + 1) <= 4 for lane in date_lanes)
 
     game_lanes = [
@@ -613,6 +615,16 @@ def test_build_default_manifest_rejects_full_extraction_excluded_only_selection(
         build_default_manifest(support_matrix_rows=rows)
 
 
+def test_build_default_manifest_rejects_scoreboard_v2_only_selection() -> None:
+    rows = [_support_row("scoreboard_v2", ["date"], 1946)]
+
+    with pytest.raises(ValueError, match="produced no runnable lanes"):
+        build_default_manifest(
+            support_matrix_rows=rows,
+            selected_endpoints=["scoreboard_v2"],
+        )
+
+
 def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -781,14 +793,14 @@ def test_build_resume_manifest_treats_partial_extract_error_as_resumable(
 
 def test_build_resume_manifest_splits_zero_row_timeout_lanes(tmp_path: Path) -> None:
     lane = FullExtractionLane(
-        lane_id="historical-date-scoreboard-v2-no-season-type-1962-1965",
+        lane_id="historical-date-scoreboard-v3-no-season-type-1962-1965",
         lane_index=0,
         lane_name="Historical date 1962-1965",
         lane_kind="historical",
         season_start=1962,
         season_end=1965,
         patterns=("date",),
-        endpoints=("scoreboard_v2",),
+        endpoints=("scoreboard_v3",),
         timeout_seconds=7200,
     )
     metadata_dir = tmp_path / "metadata"
@@ -1038,32 +1050,32 @@ def test_build_resume_manifest_blocks_1950_scoreboard_v2_contract_gap(
     assert summary["contract_blocked_lane_count"] == 1
     assert summary["outcome_counts"] == {"contract_blocked": 1}
 
-    supported_lane = FullExtractionLane(
-        lane_id="historical-date-scoreboard-v2-no-season-type-1951-1951",
+    unclassified_lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v3-no-season-type-1951-1951",
         lane_index=1,
-        lane_name="Historical date 1951 (scoreboard_v2)",
+        lane_name="Historical date 1951 (scoreboard_v3)",
         lane_kind="historical",
         season_start=1951,
         season_end=1951,
         patterns=("date",),
-        endpoints=("scoreboard_v2",),
+        endpoints=("scoreboard_v3",),
         timeout_seconds=7200,
     )
-    supported_metadata_dir = tmp_path / "metadata-supported"
-    supported_metadata_dir.mkdir()
+    unclassified_metadata_dir = tmp_path / "metadata-unclassified"
+    unclassified_metadata_dir.mkdir()
     _write_metadata(
-        supported_metadata_dir / "historical.json",
-        lane_id=supported_lane.lane_id,
+        unclassified_metadata_dir / "historical.json",
+        lane_id=unclassified_lane.lane_id,
         status="extract-error",
         failed_calls=100,
-        endpoints=["scoreboard_v2"],
+        endpoints=["scoreboard_v3"],
         patterns=["date"],
-        season_start=supported_lane.season_start,
-        season_end=supported_lane.season_end,
+        season_start=unclassified_lane.season_start,
+        season_end=unclassified_lane.season_end,
     )
 
     with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
-        build_resume_manifest([supported_lane], supported_metadata_dir)
+        build_resume_manifest([unclassified_lane], unclassified_metadata_dir)
 
 
 def test_build_resume_manifest_blocks_1954_scoreboard_v2_contract_gap(
@@ -1171,14 +1183,14 @@ def test_build_resume_manifest_splits_repeated_game_date_timeout_to_one_season(
     tmp_path: Path,
 ) -> None:
     lane = FullExtractionLane(
-        lane_id="historical-date-scoreboard-v2-no-season-type-1962-1965",
+        lane_id="historical-date-scoreboard-v3-no-season-type-1962-1965",
         lane_index=0,
         lane_name="Historical date 1962-1965",
         lane_kind="historical",
         season_start=1962,
         season_end=1965,
         patterns=("date",),
-        endpoints=("scoreboard_v2",),
+        endpoints=("scoreboard_v3",),
         timeout_seconds=7200,
         failure_streak=1,
         last_failure_reason="needs_resume",
@@ -2221,14 +2233,14 @@ def test_full_extraction_nonterminal_redispatch_handoff_e2e(tmp_path: Path) -> N
         timeout_seconds=1800,
     )
     timeout_lane = FullExtractionLane(
-        lane_id="historical-date-scoreboard-v2-no-season-type-1962-1965",
+        lane_id="historical-date-scoreboard-v3-no-season-type-1962-1965",
         lane_index=1,
         lane_name="Historical date 1962-1965",
         lane_kind="historical",
         season_start=1962,
         season_end=1965,
         patterns=("date",),
-        endpoints=("scoreboard_v2",),
+        endpoints=("scoreboard_v3",),
         timeout_seconds=7200,
     )
     deferred_lane = FullExtractionLane(
