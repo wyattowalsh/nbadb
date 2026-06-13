@@ -23,7 +23,10 @@ def _csv_values(value: str) -> list[str]:
 
 def _json_list_env(name: str) -> list[Any]:
     raw = os.environ.get(name, "[]") or "[]"
-    parsed = json.loads(raw)
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
     return parsed if isinstance(parsed, list) else []
 
 
@@ -71,6 +74,7 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
         "staging_tables": {},
         "error": "",
     }
+    con: Any | None = None
     try:
         con = duckdb.connect(str(db_path), read_only=True)
         if _has_table(con, "_extraction_journal"):
@@ -130,6 +134,9 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
         )
     except Exception as exc:
         telemetry["error"] = str(exc)
+    finally:
+        if con is not None:
+            con.close()
     return telemetry
 
 
@@ -158,7 +165,9 @@ def _final_outcome(
         return raw_status
     if rows_persisted == 0 and failed_calls > 0 and support_rules:
         return "contract_blocked"
-    if raw_status == "extract-error" and (rows_persisted > 0 or journal_skips > 0):
+    if raw_status == "extract-error" and (
+        rows_persisted > 0 or journal_skips > 0 or running_calls > 0
+    ):
         return "needs_resume"
     if raw_status in {"extract-timeout", "timeout_with_persisted_progress"}:
         return "needs_resume"

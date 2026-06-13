@@ -175,6 +175,63 @@ def test_build_payload_marks_partial_extract_error_resumable(
     assert payload["telemetry"]["failed_calls"] == 3
 
 
+def test_build_payload_marks_running_extract_error_resumable_from_duckdb(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.chdir(tmp_path)
+
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    con = duckdb.connect(str(db_path))
+    con.execute(
+        """
+        create table _extraction_journal (
+            endpoint varchar,
+            params varchar,
+            status varchar,
+            rows_extracted bigint
+        )
+        """
+    )
+    con.execute(
+        """
+        insert into _extraction_journal values
+            ('scoreboard_v2', '{}', 'running', 0)
+        """
+    )
+    con.close()
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "needs_resume"
+    assert payload["raw_status"] == "extract-error"
+    assert payload["telemetry"]["rows_persisted"] == 0
+    assert payload["telemetry"]["zero_row_reason"] == "zero_row_progress"
+    assert payload["telemetry"]["db_telemetry"]["running_calls"] == 1
+
+
+def test_build_payload_ignores_malformed_vpn_json(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("VPN_ATTEMPTED_SERVERS_JSON", "not json")
+    monkeypatch.setenv("VPN_FAILED_SERVERS_JSON", "{}")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["vpn"]["attempted_servers"] == []
+    assert payload["vpn"]["failed_servers"] == []
+
+
 def test_main_writes_lane_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     module = _load_module()
     summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"

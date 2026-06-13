@@ -1066,6 +1066,41 @@ def test_build_resume_manifest_blocks_1950_scoreboard_v2_contract_gap(
         build_resume_manifest([supported_lane], supported_metadata_dir)
 
 
+def test_build_resume_manifest_blocks_1954_scoreboard_v2_contract_gap(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v2-no-season-type-1954-1957-split-1954-1954",
+        lane_index=17,
+        lane_name="Historical date 1954-1957 (scoreboard_v2) 1954-1954",
+        lane_kind="historical",
+        season_start=1954,
+        season_end=1954,
+        patterns=("date",),
+        endpoints=("scoreboard_v2",),
+        timeout_seconds=5400,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        failed_calls=126,
+        endpoints=["scoreboard_v2"],
+        patterns=["date"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+
 def test_build_resume_manifest_requires_all_lane_endpoints_to_be_contract_blocked(
     tmp_path: Path,
 ) -> None:
