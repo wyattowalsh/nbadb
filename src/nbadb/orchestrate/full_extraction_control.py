@@ -30,6 +30,7 @@ MAX_GITHUB_MATRIX_LANES = 220
 SPLITTABLE_TIMEOUT_STATUSES = frozenset(
     {"needs_resume", "extract-timeout", "timeout_with_persisted_progress"}
 )
+RETRYABLE_PIPELINE_FAILURE_STATUSES = frozenset({"vpn_connect_timeout"})
 FINAL_LANE_OUTCOMES: frozenset[str] = frozenset(
     {"complete", "needs_resume", "contract_blocked", "pipeline_failure"}
 )
@@ -1186,6 +1187,17 @@ def lane_outcome_from_metadata(
         return "pipeline_failure"
     if not _metadata_has_required_noncomplete_artifacts(payload):
         return "pipeline_failure"
+
+    vpn_payload = payload.get("vpn")
+    vpn_status = (
+        str(vpn_payload.get("status") or "").strip() if isinstance(vpn_payload, dict) else ""
+    )
+    if metadata_status == "pipeline_failure" and (
+        raw_status in RETRYABLE_PIPELINE_FAILURE_STATUSES
+        or str(payload.get("vpn_status") or "").strip() in RETRYABLE_PIPELINE_FAILURE_STATUSES
+        or vpn_status in RETRYABLE_PIPELINE_FAILURE_STATUSES
+    ):
+        return "needs_resume"
 
     telemetry = payload.get("telemetry", {})
     if not isinstance(telemetry, dict):

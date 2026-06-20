@@ -780,6 +780,44 @@ def test_build_resume_manifest_fails_on_pipeline_failure(tmp_path: Path) -> None
         build_resume_manifest([lane], metadata_dir)
 
 
+def test_build_resume_manifest_retries_vpn_connect_timeout_pipeline_failure(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-date-video-status-no-season-type-1970-1973-split-1972-1972",
+        lane_index=0,
+        lane_name="Historical date 1970-1973 (video_status) 1972-1972",
+        lane_kind="historical",
+        season_start=1972,
+        season_end=1972,
+        patterns=("date",),
+        endpoints=("video_status",),
+        timeout_seconds=5400,
+    )
+
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="vpn_connect_timeout",
+        endpoints=["video_status"],
+        patterns=["date"],
+        season_start=1972,
+        season_end=1972,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert len(next_lanes) == 1
+    assert next_lanes[0].resume_only is False
+    assert next_lanes[0].last_failure_reason == "needs_resume"
+    assert summary["active_lane_count"] == 1
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+    assert summary["failure_reason_counts"] == {"vpn_connect_timeout": 1}
+
+
 def test_build_resume_manifest_treats_partial_extract_error_as_resumable(
     tmp_path: Path,
 ) -> None:
