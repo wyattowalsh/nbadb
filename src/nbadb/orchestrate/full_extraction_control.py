@@ -30,7 +30,9 @@ MAX_GITHUB_MATRIX_LANES = 220
 SPLITTABLE_TIMEOUT_STATUSES = frozenset(
     {"needs_resume", "extract-timeout", "timeout_with_persisted_progress"}
 )
-RETRYABLE_PIPELINE_FAILURE_STATUSES = frozenset({"vpn_auth_failure", "vpn_connect_timeout"})
+RETRYABLE_PIPELINE_FAILURE_STATUSES = frozenset(
+    {"cancelled", "vpn_auth_failure", "vpn_connect_timeout"}
+)
 FINAL_LANE_OUTCOMES: frozenset[str] = frozenset(
     {"complete", "needs_resume", "contract_blocked", "pipeline_failure"}
 )

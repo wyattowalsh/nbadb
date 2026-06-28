@@ -782,7 +782,7 @@ def test_build_resume_manifest_fails_on_pipeline_failure(tmp_path: Path) -> None
 
 @pytest.mark.parametrize(
     "vpn_failure_status",
-    ["vpn_auth_failure", "vpn_connect_timeout"],
+    ["cancelled", "vpn_auth_failure", "vpn_connect_timeout"],
 )
 def test_build_resume_manifest_retries_vpn_pipeline_failure(
     tmp_path: Path,
