@@ -22,6 +22,15 @@ on:
           - "4"
           - "5"
           - "6"
+      direct_parallelism:
+        description: "Max simultaneous direct/no-VPN extract lanes"
+        type: choice
+        default: "2"
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
       network_mode:
         description: "Network path for extraction lanes"
         type: choice
@@ -569,7 +578,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && '1' || inputs.vpn_parallelism) }}
+      max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && inputs.direct_parallelism || inputs.vpn_parallelism) }}
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
@@ -1675,6 +1684,7 @@ jobs:
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CONCURRENCY: ${{ inputs.concurrency }}
           VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
+          DIRECT_PARALLELISM: ${{ inputs.direct_parallelism }}
           NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode == 'direct' && 'direct' || inputs.network_mode }}
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
@@ -1699,6 +1709,7 @@ jobs:
             --ref "$WORKFLOW_REF" \
             -f concurrency="$next_concurrency" \
             -f vpn_parallelism="$VPN_PARALLELISM" \
+            -f direct_parallelism="$DIRECT_PARALLELISM" \
             -f network_mode="$NETWORK_MODE" \
             -f chunk_profile="$CHUNK_PROFILE" \
             -f iteration="$next" \

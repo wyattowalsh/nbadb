@@ -257,6 +257,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "chunk_profile:" in workflow
     assert 'default: "balanced-small"' in workflow
     assert "network_mode:" in workflow
+    assert "direct_parallelism:" in workflow
     assert "effective-network-mode:" in workflow
     assert "Resolve effective network mode" in workflow
     assert "direct-no-vpn" in workflow
@@ -283,10 +284,11 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     direct_parallel_expr = (
         "max-parallel: ${{ fromJSON("
         "needs.preflight.outputs.effective-network-mode == 'direct' "
-        "&& '1' || inputs.vpn_parallelism) }}"
+        "&& inputs.direct_parallelism || inputs.vpn_parallelism) }}"
     )
     assert direct_parallel_expr in workflow
     assert '-f network_mode="$NETWORK_MODE"' in workflow
+    assert '-f direct_parallelism="$DIRECT_PARALLELISM"' in workflow
     assert '-f chunk_profile="$CHUNK_PROFILE"' in workflow
 
 
