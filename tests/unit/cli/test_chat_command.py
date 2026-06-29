@@ -13,6 +13,14 @@ from nbadb.cli.app import app
 runner = CliRunner()
 
 
+def test_canonical_chat_surface_is_shipped() -> None:
+    """The checked-out repo should include the files required by nbadb chat."""
+    chat_dir = nbadb.cli.commands.chat.CHAT_APP
+    assert (chat_dir / "chainlit_app.py").exists()
+    assert (chat_dir / "pyproject.toml").exists()
+    assert (chat_dir / "chainlit.md").exists()
+
+
 # ---------------------------------------------------------------------------
 # Tests — missing app file
 # ---------------------------------------------------------------------------

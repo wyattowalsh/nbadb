@@ -6,6 +6,13 @@ from nbadb.schemas.base import BaseSchema
 
 
 class DimPlayerSchema(BaseSchema):
+    __consumer_metadata__ = {
+        "grain": "player-scd2",
+        "agent_intents": ["player_lookup"],
+        "scd2_notes": "Use is_current = TRUE for present-day player identity.",
+        "join_hints": {"dim_all_players": "Use dim_player for SCD2-aware joins."},
+    }
+
     player_sk: int = pa.Field(
         gt=0,
         unique=True,

@@ -6,6 +6,12 @@ from nbadb.schemas.base import BaseSchema
 
 
 class FactStandingsSchema(BaseSchema):
+    __consumer_metadata__ = {
+        "grain": "team-season-standings",
+        "agent_intents": ["standings", "team_standings", "win_loss"],
+        "join_hints": {"dim_team": "team_id"},
+    }
+
     team_id: int = pa.Field(
         gt=0,
         metadata={

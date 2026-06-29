@@ -6,6 +6,7 @@ from pathlib import Path
 from nbadb.docs_gen.data_dictionary import DataDictionaryGenerator
 from nbadb.docs_gen.er_diagram import ERDiagramGenerator
 from nbadb.docs_gen.lineage import LineageGenerator
+from nbadb.docs_gen.schema_agent_export import export_schema_agent_metadata
 from nbadb.docs_gen.schema_docs import SchemaDocsGenerator
 from nbadb.docs_gen.site_metrics import (
     generate_site_metrics_module,
@@ -173,6 +174,12 @@ def generate_docs_artifacts(
     _write_artifact(
         gen_data_dir / "schema-coverage.json",
         json.dumps(schema_coverage, indent=2, sort_keys=True),
+        updated_paths,
+        unchanged_paths,
+    )
+    _write_artifact(
+        gen_data_dir / "agent-catalog.json",
+        json.dumps(export_schema_agent_metadata(), indent=2, sort_keys=True),
         updated_paths,
         unchanged_paths,
     )

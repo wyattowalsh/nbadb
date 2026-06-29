@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 
 from nbadb.transform.base import BaseTransformer
 
@@ -21,10 +21,7 @@ class DimCollegeTransformer(BaseTransformer):
             (pl.col("college_name").hash() % 2_147_483_647 + 1).cast(pl.Int32).alias("college_id")
         )
 
-        return cast(
-            "pl.DataFrame",
-            colleges.select(
-                pl.col("college_id").cast(pl.Int32),
-                "college_name",
-            ).collect(),
-        )
+        return colleges.select(
+            pl.col("college_id").cast(pl.Int32),
+            "college_name",
+        ).collect()

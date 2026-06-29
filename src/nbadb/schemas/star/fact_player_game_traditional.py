@@ -6,6 +6,12 @@ from nbadb.schemas.base import BaseSchema
 
 
 class FactPlayerGameTraditionalSchema(BaseSchema):
+    __consumer_metadata__ = {
+        "grain": "player-game",
+        "agent_intents": ["player_box_score", "game_box_score"],
+        "join_hints": {"dim_player": "player_id + is_current = TRUE"},
+    }
+
     game_id: str = pa.Field(
         metadata={
             "source": ("BoxScoreTraditionalV3.PlayerStats.GAME_ID"),

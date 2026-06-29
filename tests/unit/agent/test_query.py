@@ -11,7 +11,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from nbadb.agent.query import _PATTERNS, QueryAgent
+from nbadb.agent.query import _PATTERNS, QueryAgent, QueryPlan
 from nbadb.agent.safety import MAX_RESULT_ROWS
 
 # ---------------------------------------------------------------------------
@@ -91,9 +91,9 @@ class TestQueryAgentPatternMatching:
     def test_pattern_matches_trigger_phrase(
         self, agent: QueryAgent, question: str, expected_fragment: str
     ) -> None:
-        sql = agent._match_pattern(question)
-        assert sql is not None, f"No pattern matched for: {question!r}"
-        assert expected_fragment in sql
+        plan = agent._match_pattern(question)
+        assert plan is not None, f"No pattern matched for: {question!r}"
+        assert expected_fragment in plan.sql
 
     def test_unmatched_input_returns_schema_context(self, agent: QueryAgent) -> None:
         result = agent.ask("what is the meaning of life?")
@@ -112,8 +112,37 @@ class TestQueryAgentPatternMatching:
             )
 
     def test_pattern_count(self) -> None:
-        """Sanity check: we expect 6 patterns."""
+        """Fast-path regex count stays stable while catalog supplies additional routes."""
         assert len(_PATTERNS) == 6
+
+    def test_catalog_route_count(self) -> None:
+        from nbadb.chat.catalog import default_catalog
+
+        catalog = default_catalog()
+        routed = [entry for entry in catalog.entries if entry.route and entry.sql_template]
+        assert len(routed) >= 25
+
+    @pytest.mark.parametrize(
+        "question,route_fragment",
+        [
+            ("who had the fastest pace?", "team_pace"),
+            ("show shot chart zones", "shot_chart"),
+            ("draft picks by value", "draft_value"),
+            ("head to head records", "head_to_head"),
+            ("team season stats", "team_season"),
+            ("player season profile", "player_season_complete"),
+            ("show game log", "player_game_log"),
+            ("clutch performance leaders", "clutch_performance"),
+            ("player matchup stats", "player_matchups"),
+            ("franchise history titles", "franchise_history"),
+        ],
+    )
+    def test_catalog_routes_match_extended_intents(
+        self, agent: QueryAgent, question: str, route_fragment: str
+    ) -> None:
+        plan = agent._match_pattern(question)
+        assert plan is not None, f"No route matched for: {question!r}"
+        assert route_fragment in plan.route
 
 
 # ---------------------------------------------------------------------------
@@ -123,13 +152,14 @@ class TestQueryAgentPatternMatching:
 
 class TestQueryAgentExecution:
     def test_execute_returns_formatted_table(self, agent: QueryAgent) -> None:
+        mock_explain = MagicMock()
         mock_result = MagicMock()
         mock_result.description = [("player_id",), ("full_name",), ("total_pts",)]
         mock_result.fetchall.return_value = [(1, "Test Player", 2500)]
 
         mock_conn = MagicMock()
-        # Calls: enable_external_access, statement_timeout, actual query
-        mock_conn.execute.side_effect = [None, None, mock_result]
+        # Calls: enable_external_access, statement_timeout, EXPLAIN, actual query
+        mock_conn.execute.side_effect = [None, None, mock_explain, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -141,12 +171,13 @@ class TestQueryAgentExecution:
         assert " | " in result  # column separator
 
     def test_execute_no_results(self, agent: QueryAgent) -> None:
+        mock_explain = MagicMock()
         mock_result = MagicMock()
         mock_result.description = [("player_id",), ("full_name",), ("total_pts",)]
         mock_result.fetchall.return_value = []
 
         mock_conn = MagicMock()
-        mock_conn.execute.side_effect = [None, None, mock_result]
+        mock_conn.execute.side_effect = [None, None, mock_explain, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -156,12 +187,13 @@ class TestQueryAgentExecution:
         assert result == "No results found."
 
     def test_execute_formats_separator_correctly(self, agent: QueryAgent) -> None:
+        mock_explain = MagicMock()
         mock_result = MagicMock()
         mock_result.description = [("col_a",), ("col_b",)]
         mock_result.fetchall.return_value = [("x", "y"), ("a", "b")]
 
         mock_conn = MagicMock()
-        mock_conn.execute.side_effect = [None, None, mock_result]
+        mock_conn.execute.side_effect = [None, None, mock_explain, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -224,7 +256,8 @@ class TestQueryAgentSafety:
 
     def test_guard_blocks_write_query(self, agent: QueryAgent) -> None:
         """If a pattern somehow produced a write query, the guard should block it."""
-        with patch.object(agent, "_match_pattern", return_value="DROP TABLE dim_player"):
+        bad_plan = QueryPlan(sql="DROP TABLE dim_player", route="bad", tables=("dim_player",))
+        with patch.object(agent, "_match_pattern", return_value=bad_plan):
             result = agent.ask("anything")
             assert "blocked" in result.lower()
 
@@ -241,14 +274,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, None, mock_result]
+            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=3)
 
-            sql = mock_conn.execute.call_args_list[2].args[0]
+            sql = mock_conn.execute.call_args_list[3].args[0]
             assert "LIMIT 3" in sql.upper()
 
     @pytest.mark.parametrize("limit", [0, -5])
@@ -260,14 +293,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, None, mock_result]
+            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=limit)
 
-            sql = mock_conn.execute.call_args_list[2].args[0]
+            sql = mock_conn.execute.call_args_list[3].args[0]
             assert "LIMIT 1" in sql.upper()
 
     def test_ask_clamps_very_large_limit(self, tmp_db: Path) -> None:
@@ -278,15 +311,38 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, None, mock_result]
+            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=MAX_RESULT_ROWS + 1)
 
-            sql = mock_conn.execute.call_args_list[2].args[0]
+            sql = mock_conn.execute.call_args_list[3].args[0]
             assert f"LIMIT {MAX_RESULT_ROWS}" in sql.upper()
+
+    def test_ask_result_exposes_query_provenance(self, tmp_db: Path) -> None:
+        agent = QueryAgent(tmp_db)
+        with patch("nbadb.agent.query.duckdb.connect") as mock_connect:
+            mock_conn = MagicMock()
+            mock_result = MagicMock()
+            mock_result.description = [("c",)]
+            mock_result.fetchall.return_value = [("v",)]
+            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
+            mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+            mock_conn.__exit__ = MagicMock(return_value=False)
+            mock_connect.return_value = mock_conn
+
+            result = agent.ask_result("who led scoring?", limit=3)
+
+        assert result.route == "player_season_scoring"
+        assert result.sql is not None
+        assert "agg_player_season" in result.sql
+        assert result.tables == ("agg_player_season", "dim_player")
+        assert result.max_rows == 3
+        assert result.metadata["catalog_entry"] == "player season scoring"
+        assert result.metadata["sql_hash"]
+        assert result.metadata["scd2_notes"]
 
     def test_timeout_is_set(self, tmp_db: Path) -> None:
         """Verify statement_timeout is configured during execution."""

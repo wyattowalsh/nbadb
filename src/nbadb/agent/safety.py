@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import duckdb
 
 _WRITE_KEYWORDS: set[str] = {
     "INSERT",
@@ -37,9 +41,9 @@ _WRITE_PATTERN: re.Pattern[str] = re.compile(
 
 _DANGEROUS_FUNCTIONS: re.Pattern[str] = re.compile(
     r"\b(read_csv|read_parquet|read_json|read_json_auto|read_text|read_blob|"
-    r"read_xlsx|glob|read_csv_auto|read_ndjson|http_get|"
+    r"read_xlsx|glob|read_csv_auto|read_ndjson|http_get|http_post|"
     r"scan_csv|scan_csv_auto|scan_parquet|scan_json|"
-    r"getenv|current_setting|query_table)\s*\(",
+    r"getenv|current_setting|query_table|sqlite_scan|postgres_scan)\s*\(",
     re.IGNORECASE,
 )
 
@@ -117,3 +121,11 @@ class ReadOnlyGuard:
         if _statement_prefix(stripped) in _PASSTHROUGH_PREFIXES:
             return stripped
         return _enforce_limit(stripped, max_rows)
+
+    def dry_run(self, conn: duckdb.DuckDBPyConnection, sql: str) -> str | None:
+        """Validate that DuckDB can plan the query without executing it."""
+        try:
+            conn.execute(f"EXPLAIN {sql}")
+        except Exception:
+            return "Query could not be planned safely. Please try a different question."
+        return None

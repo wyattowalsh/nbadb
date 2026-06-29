@@ -127,6 +127,11 @@ class _TrackingStatsMixin(BaseSchema):
 class AnalyticsClutchPerformanceSchema(_MinutesStatMixin, _TraditionalStatsMixin):
     """Clutch performance stats joined with player and team dimensions."""
 
+    __consumer_metadata__ = {
+        "grain": "player-season-clutch",
+        "agent_intents": ["clutch", "clutch_performance"],
+    }
+
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
@@ -147,6 +152,11 @@ class AnalyticsClutchPerformanceSchema(_MinutesStatMixin, _TraditionalStatsMixin
 
 class AnalyticsDraftValueSchema(BaseSchema):
     """Draft picks enriched with career stats from agg_player_career."""
+
+    __consumer_metadata__ = {
+        "grain": "draft-pick",
+        "agent_intents": ["draft", "draft_value"],
+    }
 
     person_id: int = pa.Field(gt=0, metadata={"description": "Drafted player identifier"})
     season: str = pa.Field(metadata={"description": "Draft season"})
@@ -201,6 +211,11 @@ class AnalyticsDraftValueSchema(BaseSchema):
 
 class AnalyticsGameSummarySchema(BaseSchema):
     """Game summary combining dim_game, fact_game_result, and team info."""
+
+    __consumer_metadata__ = {
+        "grain": "game",
+        "agent_intents": ["game_summary", "box_score_summary"],
+    }
 
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
     game_date: str = pa.Field(metadata={"description": "Game date"})
@@ -281,6 +296,11 @@ class AnalyticsGameSummarySchema(BaseSchema):
 class AnalyticsHeadToHeadSchema(BaseSchema):
     """Team head-to-head matchup aggregates per season."""
 
+    __consumer_metadata__ = {
+        "grain": "team-opponent-season",
+        "agent_intents": ["head_to_head", "h2h"],
+    }
+
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     opponent_team_id: int = pa.Field(gt=0, metadata={"description": "Opponent team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
@@ -304,6 +324,11 @@ class AnalyticsHeadToHeadSchema(BaseSchema):
 
 class AnalyticsLeagueBenchmarksSchema(BaseSchema):
     """League-wide season benchmarks from player and team aggregates."""
+
+    __consumer_metadata__ = {
+        "grain": "league-season",
+        "agent_intents": ["league_benchmarks", "league_averages"],
+    }
 
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     season_type: str = pa.Field(metadata={"description": "Season type"})
@@ -362,6 +387,11 @@ class AnalyticsLeagueBenchmarksSchema(BaseSchema):
 
 class AnalyticsPlayerGeneralSplitsSchema(BaseSchema):
     """Player general splits with season-overall baselines and deltas."""
+
+    __consumer_metadata__ = {
+        "grain": "player-split",
+        "agent_intents": ["player_splits", "splits"],
+    }
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Player identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
@@ -470,6 +500,11 @@ class AnalyticsPlayerGameCompleteSchema(
 ):
     """Complete player-game stats joining traditional, advanced, misc, hustle, tracking."""
 
+    __consumer_metadata__ = {
+        "grain": "player-game",
+        "agent_intents": ["player_game_log", "game_log", "recent_games"],
+    }
+
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
@@ -492,6 +527,11 @@ class AnalyticsPlayerGameCompleteSchema(
 
 class AnalyticsPlayerImpactSchema(BaseSchema):
     """Player impact combining season stats with on/off court splits."""
+
+    __consumer_metadata__ = {
+        "grain": "player-season",
+        "agent_intents": ["player_impact", "on_off", "net_rating"],
+    }
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
@@ -579,6 +619,11 @@ class AnalyticsPlayerImpactSchema(BaseSchema):
 class AnalyticsPlayerMatchupSchema(BaseSchema):
     """Player-vs-player matchup stats enriched with dimension names."""
 
+    __consumer_metadata__ = {
+        "grain": "player-vs-player-season",
+        "agent_intents": ["matchups", "player_matchups"],
+    }
+
     player_id: int = pa.Field(gt=0, metadata={"description": "Player identifier"})
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     vs_player_id: int = pa.Field(gt=0, metadata={"description": "Opposing player identifier"})
@@ -623,6 +668,12 @@ class AnalyticsPlayerMatchupSchema(BaseSchema):
 
 class AnalyticsPlayerSeasonCompleteSchema(BaseSchema):
     """Complete player-season stats with totals, per-36, and per-48 rates."""
+
+    __consumer_metadata__ = {
+        "grain": "player-season",
+        "agent_intents": ["player_season", "player_season_complete"],
+        "scd2_notes": "Names are denormalized; prefer dim_player joins for historical accuracy.",
+    }
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
@@ -719,6 +770,11 @@ class AnalyticsPlayerSeasonCompleteSchema(BaseSchema):
 class AnalyticsShootingEfficiencySchema(BaseSchema):
     """Shot chart data enriched with league averages by zone."""
 
+    __consumer_metadata__ = {
+        "grain": "player-season-shot-profile",
+        "agent_intents": ["shot_chart", "shooting_efficiency", "shot_zones"],
+    }
+
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
@@ -772,6 +828,11 @@ class AnalyticsTeamGameCompleteSchema(
 ):
     """Complete team-game stats joining traditional, advanced, misc, hustle, tracking."""
 
+    __consumer_metadata__ = {
+        "grain": "team-game",
+        "agent_intents": ["team_game_log", "team_recent_games"],
+    }
+
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     game_id: str = pa.Field(metadata={"description": "Unique game identifier"})
     season_year: str | None = pa.Field(
@@ -786,6 +847,11 @@ class AnalyticsTeamGameCompleteSchema(
 
 class AnalyticsTeamGeneralSplitsSchema(BaseSchema):
     """Team general splits with season-overall baselines and deltas."""
+
+    __consumer_metadata__ = {
+        "grain": "team-split",
+        "agent_intents": ["team_splits"],
+    }
 
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
@@ -887,6 +953,12 @@ class AnalyticsTeamGeneralSplitsSchema(BaseSchema):
 
 class AnalyticsTeamSeasonSummarySchema(BaseSchema):
     """Team season summary combining aggregates with standings."""
+
+    __consumer_metadata__ = {
+        "grain": "team-season",
+        "agent_intents": ["team_season", "team_season_summary"],
+        "join_hints": {"dim_team": "team_id"},
+    }
 
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})

@@ -6,6 +6,15 @@ from nbadb.schemas.base import BaseSchema
 
 
 class BridgePlayerTeamSeasonSchema(BaseSchema):
+    __consumer_metadata__ = {
+        "grain": "player-team-season",
+        "agent_intents": ["roster", "player_team_season"],
+        "join_hints": {
+            "dim_player": "player_id + is_current = TRUE",
+            "dim_team": "team_id",
+        },
+    }
+
     player_id: int = pa.Field(
         gt=0,
         metadata={

@@ -1,0 +1,94 @@
+{
+  "entries": [
+    {
+      "name": "team pace leaders",
+      "description": "Team-season pace and efficiency leaders from advanced aggregates.",
+      "tables": ["agg_team_pace_and_efficiency", "dim_team"],
+      "aliases": ["pace", "fastest pace", "slowest pace", "team pace"],
+      "metrics": ["avg_pace", "avg_ortg", "avg_drtg"],
+      "route": "team_pace",
+      "patterns": ["team\\s+pace", "fastest\\s+pace", "slowest\\s+pace", "pace\\s+leaders?"]
+    },
+    {
+      "name": "shot chart",
+      "description": "Player shot locations and zones from fact_shot_chart.",
+      "tables": ["fact_shot_chart", "dim_player"],
+      "aliases": ["shot chart", "shot locations", "shooting zones"],
+      "metrics": ["shot_made_flag", "shot_zone_basic"],
+      "route": "shot_chart",
+      "patterns": ["shot\\s+chart", "shot\\s+locations?", "shooting\\s+zones?"]
+    },
+    {
+      "name": "draft value",
+      "description": "Draft picks enriched with career outcomes.",
+      "tables": ["analytics_draft_value", "dim_player"],
+      "aliases": ["draft", "draft picks", "draft value"],
+      "metrics": ["overall_pick", "career_pts"],
+      "route": "draft_value",
+      "patterns": ["draft\\s+picks?", "draft\\s+value", "draft\\s+class"]
+    },
+    {
+      "name": "head to head",
+      "description": "Team head-to-head records by season.",
+      "tables": ["analytics_head_to_head", "dim_team"],
+      "aliases": ["head to head", "h2h", "matchup record"],
+      "metrics": ["wins", "losses", "avg_margin"],
+      "route": "head_to_head",
+      "patterns": ["head[\\s-]to[\\s-]head", "\\bh2h\\b", "matchup\\s+record"]
+    },
+    {
+      "name": "team season stats",
+      "description": "Team season traditional stat aggregates.",
+      "tables": ["agg_team_season", "dim_team"],
+      "aliases": ["team season", "team stats", "team averages"],
+      "metrics": ["avg_pts", "avg_reb", "avg_ast"],
+      "route": "team_season",
+      "patterns": ["team\\s+season", "team\\s+stats", "team\\s+averages?"]
+    },
+    {
+      "name": "player season complete",
+      "description": "Complete player-season profile from analytics_player_season_complete.",
+      "tables": ["analytics_player_season_complete", "dim_player"],
+      "aliases": ["player season", "season stats", "player profile"],
+      "metrics": ["total_pts", "avg_pts", "pace"],
+      "route": "player_season_complete",
+      "patterns": ["player\\s+season", "season\\s+stats", "player\\s+profile"]
+    },
+    {
+      "name": "player game log",
+      "description": "Per-game player box scores from analytics_player_game_complete.",
+      "tables": ["analytics_player_game_complete", "dim_player", "dim_game"],
+      "aliases": ["game log", "recent games", "last game"],
+      "metrics": ["pts", "reb", "ast", "game_date"],
+      "route": "player_game_log",
+      "patterns": ["game\\s+log", "recent\\s+games?", "last\\s+game"]
+    },
+    {
+      "name": "clutch performance",
+      "description": "Clutch-time player performance from analytics_clutch_performance.",
+      "tables": ["analytics_clutch_performance", "dim_player"],
+      "aliases": ["clutch", "clutch stats", "clutch performance"],
+      "metrics": ["pts", "fg_pct", "clutch_window"],
+      "route": "clutch_performance",
+      "patterns": ["clutch\\s+stats?", "clutch\\s+performance", "\\bclutch\\b"]
+    },
+    {
+      "name": "player matchups",
+      "description": "Player-vs-player matchup stats.",
+      "tables": ["analytics_player_matchup", "dim_player"],
+      "aliases": ["matchups", "player matchup", "vs player"],
+      "metrics": ["matchup_min", "pts", "fg_pct"],
+      "route": "player_matchups",
+      "patterns": ["player\\s+matchups?", "vs\\s+player", "matchup\\s+stats?"]
+    },
+    {
+      "name": "franchise history",
+      "description": "Franchise win totals and titles from agg_team_franchise.",
+      "tables": ["agg_team_franchise", "dim_team"],
+      "aliases": ["franchise", "franchise history", "championships"],
+      "metrics": ["wins", "losses", "league_titles"],
+      "route": "franchise_history",
+      "patterns": ["franchise\\s+history", "\\bfranchise\\b", "championships?"]
+    }
+  ]
+}

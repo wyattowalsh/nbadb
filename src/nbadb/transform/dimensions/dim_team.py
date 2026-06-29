@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar, cast
+from typing import ClassVar
 
 import polars as pl
 
@@ -30,8 +30,7 @@ class DimTeamTransformer(BaseTransformer):
             pl.col("team_conference").alias("conference"),
             pl.col("team_division").alias("division"),
         )
-        return cast(
-            "pl.DataFrame",
+        return (
             teams.join(
                 details.unique(subset=["team_id"], keep="last"),
                 on="team_id",
@@ -55,5 +54,5 @@ class DimTeamTransformer(BaseTransformer):
             )
             .unique(subset=["team_id"], keep="last")
             .sort("team_id")
-            .collect(),
+            .collect()
         )

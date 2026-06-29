@@ -27,6 +27,11 @@ class AggAllTimeLeadersSchema(BaseSchema):
 class AggClutchStatsSchema(BaseSchema):
     """Clutch-time statistics merged from dashboard and league clutch sources."""
 
+    __consumer_metadata__ = {
+        "grain": "player-season-clutch",
+        "agent_intents": ["clutch", "clutch_performance"],
+    }
+
     player_id: int | None = pa.Field(
         nullable=True, gt=0, metadata={"description": "Player identifier"}
     )
@@ -351,6 +356,13 @@ class AggPlayerSeasonAdvancedSchema(BaseSchema):
 class AggPlayerSeasonSchema(BaseSchema):
     """Player season aggregates joining traditional and advanced game logs."""
 
+    __consumer_metadata__ = {
+        "grain": "player-season",
+        "agent_intents": ["scoring", "assists", "rebounds", "player_season"],
+        "scd2_notes": "Join dim_player with is_current = TRUE for current player names.",
+        "join_hints": {"dim_player": "player_id + is_current = TRUE"},
+    }
+
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
     team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
     team_abbreviation: str | None = pa.Field(
@@ -602,6 +614,11 @@ class AggTeamDefenseSchema(BaseSchema):
 class AggTeamFranchiseSchema(BaseSchema):
     """Franchise history with derived age and win-percentage columns."""
 
+    __consumer_metadata__ = {
+        "grain": "franchise",
+        "agent_intents": ["franchise_history", "championships"],
+    }
+
     team_id: int = pa.Field(gt=0, metadata={"description": "Unique team identifier"})
     team_city: str | None = pa.Field(nullable=True, metadata={"description": "Franchise city"})
     team_name: str | None = pa.Field(nullable=True, metadata={"description": "Franchise name"})
@@ -643,6 +660,11 @@ class AggTeamFranchiseSchema(BaseSchema):
 class AggTeamPaceAndEfficiencySchema(BaseSchema):
     """Team-season pace and four-factor efficiency from advanced game logs."""
 
+    __consumer_metadata__ = {
+        "grain": "team-season",
+        "agent_intents": ["pace", "team_pace", "efficiency"],
+    }
+
     team_id: int = pa.Field(gt=0, metadata={"description": "Unique team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     season_type: str = pa.Field(
@@ -665,6 +687,12 @@ class AggTeamPaceAndEfficiencySchema(BaseSchema):
 
 class AggTeamSeasonSchema(BaseSchema):
     """Team season aggregates from fact_team_game joined with dim_game."""
+
+    __consumer_metadata__ = {
+        "grain": "team-season",
+        "agent_intents": ["team_season", "team_stats", "team_averages"],
+        "join_hints": {"dim_team": "team_id"},
+    }
 
     team_id: int = pa.Field(gt=0, metadata={"description": "Unique team identifier"})
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})

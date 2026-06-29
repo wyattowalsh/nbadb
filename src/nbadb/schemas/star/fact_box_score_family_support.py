@@ -18,7 +18,11 @@ from nbadb.schemas.staging.schedule import StagingScoreboardWinProbabilitySchema
 
 
 class FactBoxScoreTeamSchema(StagingBoxScoreTraditionalTeamSchema):
-    pass
+    __consumer_metadata__ = {
+        "grain": "team-game",
+        "agent_intents": ["team_box_score", "box_score_team"],
+        "join_hints": {"dim_team": "team_id"},
+    }
 
 
 class FactBoxScoreStarterBenchSchema(StagingBoxScoreTraditionalStarterBenchSchema):

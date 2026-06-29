@@ -21,7 +21,7 @@ def ask(
         typer.echo("Error: duckdb_path not configured")
         raise typer.Exit(1)
     agent = QueryAgent(duckdb_path=duckdb_path)
-    result = agent.ask(question, limit=limit)
+    result = agent.ask_result(question, limit=limit).render_text(verbose=verbose)
     if not result:
         typer.echo("(no results)")
     else:

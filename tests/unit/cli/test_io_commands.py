@@ -170,7 +170,9 @@ def test_ask_success() -> None:
         patch(_GET_SETTINGS, return_value=mock_settings),
         patch(_QUERY_AGENT) as mock_agent_cls,
     ):
-        mock_agent_cls.return_value.ask.return_value = "LeBron scored 30"
+        mock_agent_cls.return_value.ask_result.return_value.render_text.return_value = (
+            "LeBron scored 30"
+        )
         result = runner.invoke(app, ["ask", "How many points did LeBron score?"])
 
     assert result.exit_code == 0, result.output
@@ -197,7 +199,7 @@ def test_ask_handles_empty_result() -> None:
         patch(_GET_SETTINGS, return_value=mock_settings),
         patch(_QUERY_AGENT) as mock_agent_cls,
     ):
-        mock_agent_cls.return_value.ask.return_value = ""
+        mock_agent_cls.return_value.ask_result.return_value.render_text.return_value = ""
         result = runner.invoke(app, ["ask", "Who scored the most?"])
 
     assert result.exit_code == 0, result.output
@@ -213,11 +215,29 @@ def test_ask_passes_limit_flag() -> None:
         patch(_GET_SETTINGS, return_value=mock_settings),
         patch(_QUERY_AGENT) as mock_agent_cls,
     ):
-        mock_agent_cls.return_value.ask.return_value = "some result"
+        mock_agent_cls.return_value.ask_result.return_value.render_text.return_value = "some result"
         result = runner.invoke(app, ["ask", "--limit", "20", "Who scored the most?"])
 
     assert result.exit_code == 0, result.output
-    mock_agent_cls.return_value.ask.assert_called_once_with("Who scored the most?", limit=20)
+    mock_agent_cls.return_value.ask_result.assert_called_once_with("Who scored the most?", limit=20)
+
+
+def test_ask_verbose_renders_query_details() -> None:
+    """--verbose is forwarded to QueryResponse.render_text."""
+    mock_settings = MagicMock()
+    mock_settings.duckdb_path = Path("/tmp/test.duckdb")
+
+    with (
+        patch(_GET_SETTINGS, return_value=mock_settings),
+        patch(_QUERY_AGENT) as mock_agent_cls,
+    ):
+        mock_response = mock_agent_cls.return_value.ask_result.return_value
+        mock_response.render_text.return_value = "answer\n\nQuery details:"
+        result = runner.invoke(app, ["ask", "--verbose", "Who scored the most?"])
+
+    assert result.exit_code == 0, result.output
+    mock_response.render_text.assert_called_once_with(verbose=True)
+    assert "Query details" in result.output
 
 
 def test_ask_with_results_prints_output() -> None:
@@ -229,7 +249,9 @@ def test_ask_with_results_prints_output() -> None:
         patch(_GET_SETTINGS, return_value=mock_settings),
         patch(_QUERY_AGENT) as mock_agent_cls,
     ):
-        mock_agent_cls.return_value.ask.return_value = "player_id | full_name\n1 | LeBron"
+        mock_agent_cls.return_value.ask_result.return_value.render_text.return_value = (
+            "player_id | full_name\n1 | LeBron"
+        )
         result = runner.invoke(app, ["ask", "Most points?"])
 
     assert result.exit_code == 0, result.output

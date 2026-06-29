@@ -61,6 +61,8 @@ docs/docs/
 # Extraction data directories (local runs)
 .nbadb-data-*/
 artifacts/
+!src/nbadb/chat/artifacts/
+!src/nbadb/chat/artifacts/*.py
 
 # Coverage artifacts
 coverage.json
@@ -97,3 +99,4 @@ sesh*.txt
 scripts/
 !chat/skills/**/scripts/
 !chat/skills/**/scripts/*.py
+.opencode/

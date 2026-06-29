@@ -6,6 +6,13 @@ from nbadb.schemas.base import BaseSchema
 
 
 class DimTeamHistorySchema(BaseSchema):
+    __consumer_metadata__ = {
+        "grain": "dimension-scd2",
+        "agent_intents": ["team-history", "dimension_lookup"],
+        "scd2_notes": "Filter is_current = TRUE when joining for present-day team identity.",
+        "join_hints": {"dim_team": "Use team_id with is_current = TRUE for current team rows."},
+    }
+
     team_history_sk: int = pa.Field(
         gt=0,
         unique=True,

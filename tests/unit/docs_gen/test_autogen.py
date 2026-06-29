@@ -29,13 +29,14 @@ def _expected_paths(docs_root: Path) -> list[Path]:
         docs_root / "lineage" / "lineage-auto.mdx",
         generated_dir / "lineage.json",
         generated_dir / "schema-coverage.json",
+        generated_dir / "agent-catalog.json",
         resolve_site_metrics_output_path(docs_root),
     ]
 
 
 # Table profile is conditional on the DB file existing, so the base count
 # excludes it.  These tests run without a DuckDB file.
-_BASE_ARTIFACT_COUNT = 18
+_BASE_ARTIFACT_COUNT = 19
 
 
 def test_generate_docs_artifacts_creates_expected_files(tmp_path: Path) -> None:
