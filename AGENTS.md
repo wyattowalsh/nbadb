@@ -3,8 +3,8 @@
 ## Project Overview
 
 nbadb is a comprehensive NBA database built around the current `nba_api` runtime surface
-with 152 registered extractors, 416 staging entries, and 254 transform outputs
-(246 historical/star outputs plus 8 live snapshot outputs).
+with 152 registered extractors, 416 staging entries, 254 transform outputs,
+and 255 schema-backed public tables.
 It follows an ELT pipeline: extract from NBA API → stage in DuckDB → transform into the
 analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 

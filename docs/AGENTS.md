@@ -464,7 +464,7 @@ pnpm lint        # ESLint
 pnpm format      # Prettier auto-fix
 ```
 
-Node 22 is required (`engines.node` in `package.json`).
+Node 26 is required (`engines.node` in `package.json`).
 
 ### Asset policy
 

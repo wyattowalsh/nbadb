@@ -198,7 +198,7 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 | CLI             | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
 | Type Checking   | [ty](https://github.com/astral-sh/ty)                                                                                   |
 | Linting         | [Ruff](https://docs.astral.sh/ruff/)                                                                                    |
-| Docs            | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) + [pnpm](https://pnpm.io/) 9+                 |
+| Docs            | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) + [pnpm](https://pnpm.io/) 11.x               |
 | CI              | GitHub Actions (SHA-pinned)                                                                                             |
 
 ## 📖 Documentation
