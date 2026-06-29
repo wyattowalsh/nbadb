@@ -225,8 +225,14 @@ Destructive actions require at least one filter (`--endpoint`, `--seasons`, or `
     `--report-path/-r`, `--output-format/-f`, and `--ci`.
   </ScoutCard>
   <ScoutCard title="`nbadb ask QUESTION`" label="Local query agent">
-    Sends a natural-language question to the local query agent with `--limit/-l`
-    and an accepted-but-currently-nonfunctional `--verbose/-v` flag.
+    Sends a natural-language question to the local query agent with
+    `--limit/-l`. Use `--verbose/-v` to include SQL provenance, matched route,
+    row cap, and table hints in the output.
+  </ScoutCard>
+  <ScoutCard title="`nbadb chat`" label="Chainlit UI">
+    Launches the canonical Chainlit app from `chat/chainlit_app.py` using the
+    isolated `chat/pyproject.toml` environment. The app reuses the same guarded
+    query runtime as `nbadb ask`.
   </ScoutCard>
 </DataColumns>
 
@@ -387,8 +393,11 @@ It regenerates:
 - `data-dictionary/{raw,staging,star}.mdx`
 - `diagrams/er-auto.mdx`
 - `lineage/lineage-auto.mdx`
-- `docs/lib/generated/{schema,lineage,schema-coverage}.json`
+- `docs/lib/generated/{raw,staging,star}-reference.json`
+- `docs/lib/generated/{raw,staging,star}-dictionary.json`
+- `docs/lib/generated/{schema,lineage,schema-coverage,agent-catalog}.json`
 - `docs/lib/site-metrics.generated.ts`
+- `docs/table-profile.generated.json` when `data/nba.duckdb` exists
 
 The same generator is also available via:
 

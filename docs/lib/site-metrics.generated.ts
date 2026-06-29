@@ -2,11 +2,29 @@
 // Do not edit by hand.
 import type { SiteMetric } from "@/lib/site-config";
 
-export const siteInventory = {"modelCount": "255", "extractorCount": "152", "docsPageCount": "51", "publicOutputCount": "255", "derivedOutputCount": "33", "tableFamilyCounts": {"dimensions": "18", "facts": "198", "bridges": "6", "aggregates": "19", "analytics": "14"}, "scdType2Dimensions": ["dim_player", "dim_team_history"]} as const;
+export const siteInventory = {
+  modelCount: "255",
+  extractorCount: "152",
+  docsPageCount: "51",
+  publicOutputCount: "255",
+  derivedOutputCount: "33",
+  tableFamilyCounts: {
+    dimensions: "18",
+    facts: "198",
+    bridges: "6",
+    aggregates: "19",
+    analytics: "14",
+  },
+  scdType2Dimensions: ["dim_player", "dim_team_history"],
+} as const;
 
 export const siteMetrics: SiteMetric[] = [
-  {"label": "Models", "value": "255", "note": "discovered star-schema models"},
-  {"label": "Extractors", "value": "152", "note": "registered extractor wrappers"},
-  {"label": "Docs Pages", "value": "51", "note": "authored + generated MDX routes"},
-  {"label": "Derived Models", "value": "33", "note": "agg_* and analytics_* outputs"}
+  { label: "Models", value: "255", note: "discovered star-schema models" },
+  { label: "Extractors", value: "152", note: "registered extractor wrappers" },
+  { label: "Docs Pages", value: "51", note: "authored + generated MDX routes" },
+  {
+    label: "Derived Models",
+    value: "33",
+    note: "agg_* and analytics_* outputs",
+  },
 ];

@@ -15,21 +15,21 @@
 [![Kaggle](https://img.shields.io/badge/Kaggle-Dataset-blue?logo=kaggle&style=for-the-badge)](https://www.kaggle.com/datasets/wyattowalsh/basketball)
 [![Data Coverage](https://img.shields.io/badge/1946–present-data_coverage-orange?style=for-the-badge)](https://nbadb.w4w.dev/docs/schema)
 
-| Extractor coverage | Public model | Derived outputs | Docs site |
-| ------------------ | ------------ | --------------- | --------- |
+| Extractor coverage                | Public model                  | Derived outputs                              | Docs site                                       |
+| --------------------------------- | ----------------------------- | -------------------------------------------- | ----------------------------------------------- |
 | Current `nba_api` runtime surface | Generated star-schema outputs | Generated `agg_*` and `analytics_*` surfaces | Guides, references, diagrams, and lineage pages |
 
 ## 📊 What's Inside
 
 nbadb exposes an analytics-first warehouse surface rather than a thin mirror of raw upstream payloads.
 
-| Surface | What it covers |
-| ------- | -------------- |
-| **`dim_*`** | Stable identity and lookup context for players, teams, games, seasons, arenas, officials, and other conformed dimensions |
-| **`fact_*`** | Event and measurement tables across box scores, tracking, shot charts, play-by-play, standings, matchups, and specialty feeds |
-| **`bridge_*`** | Many-to-many connectors where public entities legitimately fan out |
-| **`agg_*`** | Reusable rollups for season, career, pace, efficiency, and other repeated reporting needs |
-| **`analytics_*`** | Convenience outputs for notebooks, dashboards, and quick exploratory analysis |
+| Surface           | What it covers                                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **`dim_*`**       | Stable identity and lookup context for players, teams, games, seasons, arenas, officials, and other conformed dimensions      |
+| **`fact_*`**      | Event and measurement tables across box scores, tracking, shot charts, play-by-play, standings, matchups, and specialty feeds |
+| **`bridge_*`**    | Many-to-many connectors where public entities legitimately fan out                                                            |
+| **`agg_*`**       | Reusable rollups for season, career, pace, efficiency, and other repeated reporting needs                                     |
+| **`analytics_*`** | Convenience outputs for notebooks, dashboards, and quick exploratory analysis                                                 |
 
 For the current public contract, use the generated docs surfaces: **[Schema Reference](https://nbadb.w4w.dev/docs/schema)**, **[Data Dictionary](https://nbadb.w4w.dev/docs/data-dictionary)**, and **[Lineage](https://nbadb.w4w.dev/docs/lineage)**.
 
@@ -46,12 +46,12 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 
 ## 📦 Output Formats
 
-| Format | Path | Description |
-| ------ | ---- | ----------- |
-| DuckDB | `nba.duckdb` | Primary analytics engine — columnar storage and fast SQL queries |
-| SQLite | `nba.sqlite` | Portable single-file relational database |
-| Parquet | `parquet/` | Zstd-compressed columnar files, partitioned by season |
-| CSV | `csv/` | Universal flat files for any tool |
+| Format  | Path         | Description                                                      |
+| ------- | ------------ | ---------------------------------------------------------------- |
+| DuckDB  | `nba.duckdb` | Primary analytics engine — columnar storage and fast SQL queries |
+| SQLite  | `nba.sqlite` | Portable single-file relational database                         |
+| Parquet | `parquet/`   | Zstd-compressed columnar files, partitioned by season            |
+| CSV     | `csv/`       | Universal flat files for any tool                                |
 
 ## 🚀 Quick Start
 
@@ -97,7 +97,7 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 | `nbadb schema [TABLE]`          | Show schema for a table or list all star tables                                  |
 | `nbadb status`                  | Pipeline status, row counts, and watermarks                                      |
 | `nbadb ask QUESTION`            | Natural-language query interface (read-only)                                     |
-| `nbadb chat`                    | AI-powered chat interface when the canonical `chat/` launcher files are present  |
+| `nbadb chat`                    | AI-powered Chainlit chat interface backed by the local DuckDB warehouse          |
 | `nbadb full`                    | Fill gaps and retry failed extractions (deprecated—use `backfill` instead)       |
 | `nbadb lint-sql`                | Lint SQL in transformers against SQLFluff rules                                  |
 | `nbadb metadata`                | Generate Kaggle metadata JSON                                                    |
@@ -117,7 +117,7 @@ ER/lineage auto pages, `docs/lib/generated/*`, and `docs/lib/site-metrics.genera
 
 This repository now carries two repo-owned companion surfaces alongside the warehouse code:
 
-- `chat/` — the canonical Chainlit chat application surface; `nbadb chat` uses it when `chat/chainlit_app.py` and `chat/pyproject.toml` are present in your checkout
+- `chat/` — the canonical Chainlit chat application surface used by `nbadb chat`
 - `src/nbadb/chat/` — shared launcher, notebook, runtime, tracing, SQL, catalog, and memory helpers that back the chat UX
 - `kb/` — an intentional Obsidian-native companion knowledge base for maintainers and agents; it supplements repo canon and public docs, but does not replace them
 
@@ -133,24 +133,32 @@ nbadb ask "which teams had the best home record in 2023-24"
 nbadb ask "LeBron James career averages by season"
 ```
 
-Queries run against the star schema with safety guards (read-only mode, query limits, SQL injection protection).
+Queries run against the star schema with safety guards: read-only DuckDB connections, external access disabled, static SQL validation, DuckDB planning checks, row limits, and optional `--verbose` SQL provenance.
+
+Launch the browser-based chat UI with:
+
+```bash
+nbadb chat
+```
+
+The Chainlit app lives in `chat/`, while shared runtime, catalog, and SQL result helpers live in `src/nbadb/chat/`.
 
 ## 📓 Kaggle Notebooks
 
 Ten analysis notebooks are published on Kaggle, all powered by this dataset:
 
-| Notebook | Description |
-| -------- | ----------- |
-| [NBA Aging Curves](https://www.kaggle.com/code/wyattowalsh/nba-aging-curves) | Peak, prime, and decline — career trajectory modeling |
-| [Defense Decoded](https://www.kaggle.com/code/wyattowalsh/nba-defense-decoded) | Tracking + hustle + synergy PCA to quantify defense |
-| [Draft Combine Analysis](https://www.kaggle.com/code/wyattowalsh/nba-draft-combine-analysis) | What pre-draft measurements actually predict |
-| [Game Prediction](https://www.kaggle.com/code/wyattowalsh/nba-game-prediction) | Stacking ensemble model for game outcomes |
-| [MVP Predictor](https://www.kaggle.com/code/wyattowalsh/nba-mvp-predictor) | Explainable ML for MVP voting prediction |
-| [Play-by-Play Insights](https://www.kaggle.com/code/wyattowalsh/nba-play-by-play-insights) | Win probability, scoring runs, and clutch analysis |
-| [Player Archetypes](https://www.kaggle.com/code/wyattowalsh/nba-player-archetypes) | UMAP + GMM clustering — 8 data-driven player types |
-| [Player Dashboard](https://www.kaggle.com/code/wyattowalsh/nba-player-dashboard) | Interactive explorer with 50+ metrics |
-| [Player Similarity](https://www.kaggle.com/code/wyattowalsh/nba-player-similarity) | Find any player's statistical twin |
-| [Shot Chart Analysis](https://www.kaggle.com/code/wyattowalsh/nba-shot-chart-analysis) | The geography of scoring and the 3-point revolution |
+| Notebook                                                                                     | Description                                           |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [NBA Aging Curves](https://www.kaggle.com/code/wyattowalsh/nba-aging-curves)                 | Peak, prime, and decline — career trajectory modeling |
+| [Defense Decoded](https://www.kaggle.com/code/wyattowalsh/nba-defense-decoded)               | Tracking + hustle + synergy PCA to quantify defense   |
+| [Draft Combine Analysis](https://www.kaggle.com/code/wyattowalsh/nba-draft-combine-analysis) | What pre-draft measurements actually predict          |
+| [Game Prediction](https://www.kaggle.com/code/wyattowalsh/nba-game-prediction)               | Stacking ensemble model for game outcomes             |
+| [MVP Predictor](https://www.kaggle.com/code/wyattowalsh/nba-mvp-predictor)                   | Explainable ML for MVP voting prediction              |
+| [Play-by-Play Insights](https://www.kaggle.com/code/wyattowalsh/nba-play-by-play-insights)   | Win probability, scoring runs, and clutch analysis    |
+| [Player Archetypes](https://www.kaggle.com/code/wyattowalsh/nba-player-archetypes)           | UMAP + GMM clustering — 8 data-driven player types    |
+| [Player Dashboard](https://www.kaggle.com/code/wyattowalsh/nba-player-dashboard)             | Interactive explorer with 50+ metrics                 |
+| [Player Similarity](https://www.kaggle.com/code/wyattowalsh/nba-player-similarity)           | Find any player's statistical twin                    |
+| [Shot Chart Analysis](https://www.kaggle.com/code/wyattowalsh/nba-shot-chart-analysis)       | The geography of scoring and the 3-point revolution   |
 
 ## 🏗️ Architecture
 
@@ -180,7 +188,7 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 
 | Component       | Technology                                                                                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Language        | Python ≥3.12                                                                                                           |
+| Language        | Python ≥3.12                                                                                                            |
 | Package Manager | [uv](https://docs.astral.sh/uv/)                                                                                        |
 | DataFrames      | [Polars](https://pola.rs/) 1.38                                                                                         |
 | Validation      | [Pandera](https://pandera.readthedocs.io/) (Polars backend)                                                             |
@@ -190,7 +198,7 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 | CLI             | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
 | Type Checking   | [ty](https://github.com/astral-sh/ty)                                                                                   |
 | Linting         | [Ruff](https://docs.astral.sh/ruff/)                                                                                    |
-| Docs            | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) + [pnpm](https://pnpm.io/) 9+                |
+| Docs            | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) + [pnpm](https://pnpm.io/) 9+                 |
 | CI              | GitHub Actions (SHA-pinned)                                                                                             |
 
 ## 📖 Documentation

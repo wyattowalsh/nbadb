@@ -15,13 +15,7 @@ type LineageEntry = {
 type LineageData = Record<string, LineageEntry>;
 
 type LayerKey =
-  | "stg"
-  | "dim"
-  | "fact"
-  | "bridge"
-  | "agg"
-  | "analytics"
-  | "other";
+  "stg" | "dim" | "fact" | "bridge" | "agg" | "analytics" | "other";
 
 type DepthOption = 1 | 2 | typeof Infinity;
 

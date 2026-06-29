@@ -186,7 +186,11 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 ```
 
 <Callout>
-That command owns `schema/{raw,staging,star}-reference.mdx`, `data-dictionary/{raw,staging,star}.mdx`, `diagrams/er-auto.mdx`, `lineage/lineage-auto.mdx`, `docs/lib/generated/{schema,lineage,schema-coverage}.json`, and `docs/lib/site-metrics.generated.ts`. Regenerate those outputs when code changes; do not hand-edit them.
+  That command owns the schema reference, data dictionary, ER, and lineage MDX
+  outputs; the matching `docs/lib/generated/*` JSON files including
+  `agent-catalog.json`; `docs/lib/site-metrics.generated.ts`; and
+  `docs/table-profile.generated.json` when `data/nba.duckdb` exists. Regenerate
+  those outputs when code changes; do not hand-edit them.
 </Callout>
 
 ## Jump to the rest of the arena

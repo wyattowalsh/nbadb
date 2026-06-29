@@ -123,6 +123,28 @@ The current source-backed inventory is **{siteInventory.tableFamilyCounts.dimens
 
 <CourtDivider label="Call the stages" />
 
+## Full Extraction control plane
+
+Long-running GitHub Actions full extraction uses the same ELT stages, but wraps
+extraction in smaller temporal lanes and durable checkpoint aggregation. The
+checkpoint is the recovery boundary: each redispatch only needs the previous
+checkpoint plus newly completed lane databases, and terminal merge consumes the
+checkpoint before falling back to raw lane artifacts.
+
+```mermaid
+flowchart TD
+    Plan["Plan lanes\nchunk_profile"] --> ExtractMatrix["Extract lane matrix"]
+    ExtractMatrix --> LaneMetadata["Lane metadata\noutcomes + rows"]
+    LaneMetadata --> LaneControl["Lane control\nnext manifest"]
+    LaneControl --> Checkpoint["Checkpoint aggregate\nnba.duckdb"]
+    Checkpoint --> Decision{"Active lanes remain?"}
+    Decision -->|yes| Dispatch["Dispatch next iteration\nmanifest handoff"]
+    Dispatch --> Plan
+    Decision -->|no| Merge["Terminal merge\ncheckpoint first"]
+    Merge --> TransformOnly["Transform-only load"]
+    TransformOnly --> ExportAll["Export + publish"]
+```
+
 ## Read the possession left to right
 
 | Stage                      | What to look for                                           | Why it matters                                                                 |

@@ -231,10 +231,11 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 - `data-dictionary/{raw,staging,star}.mdx`
 - `diagrams/er-auto.mdx`
 - `lineage/lineage-auto.mdx`
-- `docs/lib/generated/schema.json`
-- `docs/lib/generated/lineage.json`
-- `docs/lib/generated/schema-coverage.json`
+- `docs/lib/generated/{raw,staging,star}-reference.json`
+- `docs/lib/generated/{raw,staging,star}-dictionary.json`
+- `docs/lib/generated/{schema,lineage,schema-coverage,agent-catalog}.json`
 - `docs/lib/site-metrics.generated.ts`
+- `docs/table-profile.generated.json` when `data/nba.duckdb` exists
 
 ### 3) Diagnose + remediate
 

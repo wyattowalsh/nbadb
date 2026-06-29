@@ -3,8 +3,8 @@
 ## Project Overview
 
 nbadb is a comprehensive NBA database built around the current `nba_api` runtime surface
-with 152 registered extractors, 414 staging entries, and 252 transform outputs
-(244 historical/star outputs plus 8 live snapshot outputs).
+with 152 registered extractors, 416 staging entries, and 254 transform outputs
+(246 historical/star outputs plus 8 live snapshot outputs).
 It follows an ELT pipeline: extract from NBA API → stage in DuckDB → transform into the
 analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 
@@ -30,7 +30,7 @@ src/nbadb/
 │   ├── raw/          # Raw extraction schemas
 │   ├── staging/      # Staging schemas + STAGING_MAP-backed staging keys
 │   └── star/         # Output table schemas for final analytics model
-├── transform/        # 252 transform outputs (244 historical + 8 live snapshot outputs)
+├── transform/        # 254 transform outputs (246 historical + 8 live snapshot outputs)
 │   ├── dimensions/   # 18 dimension builders (dim_*)
 │   ├── facts/        # 133 fact builders + 5 bridge builders
 │   ├── derived/      # 19 aggregate builders (agg_* outputs live here)
@@ -140,7 +140,11 @@ cd docs && pnpm format:check     # Docs formatting check
   - `docs/content/docs/data-dictionary/{raw,staging,star}.mdx`
   - `docs/content/docs/diagrams/er-auto.mdx`
   - `docs/content/docs/lineage/lineage-auto.mdx`
-  - `docs/lib/generated/lineage.json`
+  - `docs/lib/generated/{raw,staging,star}-reference.json`
+  - `docs/lib/generated/{raw,staging,star}-dictionary.json`
+  - `docs/lib/generated/{schema,lineage,schema-coverage,agent-catalog}.json`
+  - `docs/lib/site-metrics.generated.ts`
+  - `docs/table-profile.generated.json` when `data/nba.duckdb` exists
 - `nbadb docs-autogen` prints `updated:` / `unchanged:` lines for each generated artifact.
 - The docs site lives in `docs/` and uses Fumadocs 16 + Next.js 16 via pnpm.
 
@@ -152,18 +156,20 @@ cd docs && pnpm format:check     # Docs formatting check
 - The KB is companion material: additive-first, Obsidian-native, and subordinate to repo canon such as `README.md`, `AGENTS.md`, `docs/`, and `src/nbadb/`.
 - Keep project-safe shared vault surfaces tracked under `kb/.obsidian/templates/` and `kb/.obsidian/snippets/`, but do not commit volatile editor-local workspace state if it appears later.
 
-## Internal Pipeline Tables (8)
+## Internal Pipeline Tables (10)
 
 These DuckDB tables track pipeline state — do not modify directly:
 
-- `_pipeline_watermarks` — Incremental extraction high-water marks
+- `_pipeline_watermarks` — Load high-water marks (`last_load` on output tables after transform+load)
 - `_extraction_journal` — Extraction run history
-- `_pipeline_metadata` — Pipeline configuration state
-- `_pipeline_metrics` — Per-transformer timing and row counts
+- `_pipeline_metadata` — Per-table row counts, schema hashes, and last-updated timestamps
+- `_pipeline_metrics` — Per-extraction-endpoint timing and row counts
 - `_transform_checkpoints` — Resume support for interrupted transforms
 - `_transform_metrics` — Transform execution metrics
 - `_schema_versions` — Column hash snapshots for drift detection
 - `_schema_version_history` — Schema change history
+- `_lane_metrics` — Full-extraction lane timing and success/failure totals
+- `_staging_chunk_journal` — Durable staging-batch chunk hashes for resume-safe extraction persistence
 
 ## Gotchas
 

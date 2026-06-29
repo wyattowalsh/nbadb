@@ -1,10 +1,5 @@
 export type ChartType =
-  | "bar"
-  | "line"
-  | "scatter"
-  | "grouped-bar"
-  | "multi-line"
-  | "none";
+  "bar" | "line" | "scatter" | "grouped-bar" | "multi-line" | "none";
 
 export interface ChartInference {
   type: ChartType;

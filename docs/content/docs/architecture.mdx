@@ -276,16 +276,18 @@ Most transforms are SQL-first and run in dependency order, which keeps the model
 
 ### Internal tables to recognize quickly
 
-| Table                     | Why it exists                                  |
-| ------------------------- | ---------------------------------------------- |
-| `_pipeline_watermarks`    | Tracks incremental extraction high-water marks |
-| `_extraction_journal`     | Records extraction run history                 |
-| `_pipeline_metadata`      | Stores pipeline configuration state            |
-| `_pipeline_metrics`       | Captures per-transformer timing and row counts |
-| `_transform_checkpoints`  | Supports resume-safe interrupted transforms    |
-| `_transform_metrics`      | Stores transform execution metrics             |
-| `_schema_versions`        | Snapshots column hashes for drift detection    |
-| `_schema_version_history` | Keeps schema change history                    |
+| Table                     | Why it exists                                                        |
+| ------------------------- | -------------------------------------------------------------------- |
+| `_pipeline_watermarks`    | Tracks incremental extraction high-water marks                       |
+| `_extraction_journal`     | Records extraction run history                                       |
+| `_pipeline_metadata`      | Per-table row counts, schema hashes, and last-updated timestamps     |
+| `_pipeline_metrics`       | Captures per-extraction-endpoint timing and row counts               |
+| `_lane_metrics`           | Full-extraction lane timing, task counts, and success/failure totals |
+| `_transform_checkpoints`  | Supports resume-safe interrupted transforms                          |
+| `_transform_metrics`      | Stores transform execution metrics                                   |
+| `_schema_versions`        | Snapshots column hashes for drift detection                          |
+| `_schema_version_history` | Keeps schema change history                                          |
+| `_staging_chunk_journal`  | Tracks durable staging-batch chunk hashes for resume-safe extraction |
 
 ## Directory map by responsibility
 
@@ -346,9 +348,11 @@ That command owns these outputs:
 - `data-dictionary/star.mdx`
 - `diagrams/er-auto.mdx`
 - `lineage/lineage-auto.mdx`
-- `docs/lib/generated/schema.json`
-- `docs/lib/generated/lineage.json`
-- `docs/lib/generated/schema-coverage.json`
+- `docs/lib/generated/{raw,staging,star}-reference.json`
+- `docs/lib/generated/{raw,staging,star}-dictionary.json`
+- `docs/lib/generated/{schema,lineage,schema-coverage,agent-catalog}.json`
+- `docs/lib/site-metrics.generated.ts`
+- `docs/table-profile.generated.json` when `data/nba.duckdb` exists
 
 | If the page is…                                                                               | Treat it as…                                        |
 | --------------------------------------------------------------------------------------------- | --------------------------------------------------- |
