@@ -1,0 +1,16 @@
+packages:
+  - "."
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+
+allowBuilds:
+  esbuild: true
+  msw: false
+  sharp: true
+  unrs-resolver: false
+
+minimumReleaseAgeExclude:
+  - lucide-react@1.22.0
+  - prettier@3.9.3

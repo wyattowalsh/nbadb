@@ -123,6 +123,7 @@ include = ["**/models/**", "**/schemas/**"]
 unresolved-attribute = "warn"
 invalid-assignment = "warn"
 possibly-missing-attribute = "ignore"
+unsupported-base = "ignore"
 
 [[tool.ty.overrides]]
 include = ["tests/**"]
