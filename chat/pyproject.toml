@@ -3,7 +3,7 @@ name = "nbadb-chat"
 version = "0.1.0"
 description = "Chainlit chat-with-data surface for nbadb"
 requires-python = ">=3.12"
-dependencies = ["chainlit>=2.9", "nbadb"]
+dependencies = ["chainlit>=2.9", "mcp>=1.28.1", "nbadb"]
 
 [tool.uv.sources]
 nbadb = { path = "..", editable = true }

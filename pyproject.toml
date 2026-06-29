@@ -41,6 +41,7 @@ dev = [
     "pytest-cov>=5.0",
     "respx>=0.22",
     "hypothesis>=6.100",
+    "mcp>=1.28.1",
     "ruff>=0.9",
     "ty>=0.0.19",
 ]
