@@ -27,7 +27,9 @@ def tmp_db(tmp_path: Path) -> Path:
         conn.execute(
             "CREATE TABLE dim_player (  player_id INTEGER, full_name VARCHAR, is_current BOOLEAN)"
         )
+        conn.execute("CREATE TABLE agg_player_season (player_id INTEGER, total_pts INTEGER)")
         conn.execute("INSERT INTO dim_player VALUES (1, 'Test Player', TRUE)")
+        conn.execute("INSERT INTO agg_player_season VALUES (1, 2500)")
     return db_path
 
 
@@ -158,8 +160,8 @@ class TestQueryAgentExecution:
         mock_result.fetchall.return_value = [(1, "Test Player", 2500)]
 
         mock_conn = MagicMock()
-        # Calls: enable_external_access, statement_timeout, EXPLAIN, actual query
-        mock_conn.execute.side_effect = [None, None, mock_explain, mock_result]
+        # Calls: enable_external_access, EXPLAIN, actual query
+        mock_conn.execute.side_effect = [None, mock_explain, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -177,7 +179,7 @@ class TestQueryAgentExecution:
         mock_result.fetchall.return_value = []
 
         mock_conn = MagicMock()
-        mock_conn.execute.side_effect = [None, None, mock_explain, mock_result]
+        mock_conn.execute.side_effect = [None, mock_explain, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -193,7 +195,7 @@ class TestQueryAgentExecution:
         mock_result.fetchall.return_value = [("x", "y"), ("a", "b")]
 
         mock_conn = MagicMock()
-        mock_conn.execute.side_effect = [None, None, mock_explain, mock_result]
+        mock_conn.execute.side_effect = [None, mock_explain, mock_result]
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
 
@@ -203,6 +205,16 @@ class TestQueryAgentExecution:
         lines = result.split("\n")
         assert len(lines) == 4  # header + separator + 2 data rows
         assert "-+-" in lines[1]  # separator line
+
+    def test_execute_live_duckdb_query_returns_rows(self, tmp_db: Path) -> None:
+        agent = QueryAgent(tmp_db)
+
+        result = agent.ask_result("who led scoring?")
+
+        assert result.ok is True
+        assert result.route == "player_season_scoring"
+        assert result.columns == ("player_id", "full_name", "total_pts")
+        assert result.rows == ((1, "Test Player", 2500),)
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +232,7 @@ class TestQueryAgentSafety:
 
         agent = QueryAgent(db_path)
         result = agent.ask("who led scoring?")
-        assert result == "Query execution failed. Please try a different question."
+        assert result == "Query could not be planned safely. Please try a different question."
         # Should NOT leak SQL or table names
         assert "agg_player_season" not in result
         assert "Traceback" not in result
@@ -235,7 +247,7 @@ class TestQueryAgentSafety:
         result = agent.ask("most points?")
         # The user-facing message should be generic
         assert "CatalogException" not in result
-        assert "failed" in result.lower()
+        assert "could not be planned" in result.lower()
 
     def test_readonly_connection_used(self, tmp_db: Path) -> None:
         """Verify the agent opens DuckDB in read_only mode."""
@@ -274,14 +286,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
+            mock_conn.execute.side_effect = [None, MagicMock(), mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=3)
 
-            sql = mock_conn.execute.call_args_list[3].args[0]
+            sql = mock_conn.execute.call_args_list[2].args[0]
             assert "LIMIT 3" in sql.upper()
 
     @pytest.mark.parametrize("limit", [0, -5])
@@ -293,14 +305,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
+            mock_conn.execute.side_effect = [None, MagicMock(), mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=limit)
 
-            sql = mock_conn.execute.call_args_list[3].args[0]
+            sql = mock_conn.execute.call_args_list[2].args[0]
             assert "LIMIT 1" in sql.upper()
 
     def test_ask_clamps_very_large_limit(self, tmp_db: Path) -> None:
@@ -311,14 +323,14 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
+            mock_conn.execute.side_effect = [None, MagicMock(), mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
 
             agent.ask("who led scoring?", limit=MAX_RESULT_ROWS + 1)
 
-            sql = mock_conn.execute.call_args_list[3].args[0]
+            sql = mock_conn.execute.call_args_list[2].args[0]
             assert f"LIMIT {MAX_RESULT_ROWS}" in sql.upper()
 
     def test_ask_result_exposes_query_provenance(self, tmp_db: Path) -> None:
@@ -328,7 +340,7 @@ class TestQueryAgentSafety:
             mock_result = MagicMock()
             mock_result.description = [("c",)]
             mock_result.fetchall.return_value = [("v",)]
-            mock_conn.execute.side_effect = [None, None, MagicMock(), mock_result]
+            mock_conn.execute.side_effect = [None, MagicMock(), mock_result]
             mock_conn.__enter__ = MagicMock(return_value=mock_conn)
             mock_conn.__exit__ = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
@@ -344,8 +356,8 @@ class TestQueryAgentSafety:
         assert result.metadata["sql_hash"]
         assert result.metadata["scd2_notes"]
 
-    def test_timeout_is_set(self, tmp_db: Path) -> None:
-        """Verify statement_timeout is configured during execution."""
+    def test_unsupported_duckdb_timeout_is_not_set(self, tmp_db: Path) -> None:
+        """DuckDB 1.5 does not support statement_timeout."""
         agent = QueryAgent(tmp_db)
         with patch("nbadb.agent.query.duckdb.connect") as mock_connect:
             mock_conn = MagicMock()
@@ -361,4 +373,4 @@ class TestQueryAgentSafety:
 
             calls = [str(c) for c in mock_conn.execute.call_args_list]
             timeout_calls = [c for c in calls if "statement_timeout" in c]
-            assert len(timeout_calls) == 1
+            assert timeout_calls == []

@@ -54,7 +54,6 @@ _WRAPPED_PREFIXES: tuple[str, ...] = ("SELECT", "WITH")
 _PASSTHROUGH_PREFIXES: tuple[str, ...] = ("EXPLAIN", "SHOW", "DESCRIBE")
 
 MAX_RESULT_ROWS: int = 10_000
-QUERY_TIMEOUT_SECONDS: float = 30.0
 
 
 def _strip_comments(sql: str) -> str:

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import duckdb
 
 from nbadb.agent.context import SchemaContext
-from nbadb.agent.safety import MAX_RESULT_ROWS, QUERY_TIMEOUT_SECONDS, ReadOnlyGuard
+from nbadb.agent.safety import MAX_RESULT_ROWS, ReadOnlyGuard
 from nbadb.chat.catalog import CatalogEntry, SemanticCatalog, default_catalog
 from nbadb.chat.sql import QueryResponse
 
@@ -179,7 +179,6 @@ class QueryAgent:
         try:
             with duckdb.connect(str(self._path), read_only=True) as conn:
                 conn.execute("SET enable_external_access = false")
-                conn.execute(f"SET statement_timeout='{int(QUERY_TIMEOUT_SECONDS)}s'")
                 dry_run_error = self._guard.dry_run(conn, sql)
                 if dry_run_error:
                     return QueryResponse(
