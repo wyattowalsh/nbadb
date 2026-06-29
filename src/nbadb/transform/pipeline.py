@@ -8,7 +8,7 @@ import traceback
 import uuid
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol
 
 import pandera.polars as pa
 import polars as pl
@@ -16,6 +16,7 @@ from loguru import logger
 
 from nbadb.transform.base import SqlTransformer
 from nbadb.transform.metrics import PipelineMetrics
+from nbadb.transform.schema_version import SchemaVersionTracker
 
 if TYPE_CHECKING:
     import duckdb
@@ -233,7 +234,7 @@ class TransformPipeline:
         failed: set[str] = set()
         for key, val in staging.items():
             try:
-                data = cast("pl.DataFrame", val.collect())
+                data = val.collect()
                 if validate_input_schemas:
                     data = self._validate_input_schema(key, data)
                 prepared[key] = data.lazy()
@@ -250,8 +251,6 @@ class TransformPipeline:
 
     @staticmethod
     def _validate_output_schema(table: str, df: pl.DataFrame) -> pl.DataFrame:
-        # NOTE: ~99 transforms have no star schema definition; validation is
-        # silently skipped for those tables. See audit issue #10.
         schema_cls = _star_schema_map().get(table)
         if schema_cls is None:
             return df
@@ -263,6 +262,20 @@ class TransformPipeline:
             )
         logger.debug("Validated '{}' against {}", table, schema_cls.__name__)
         return validated
+
+    def _record_output_schema_versions(self) -> None:
+        if not self._outputs:
+            return
+        tracker = SchemaVersionTracker(self._conn)
+        columns_by_table = {
+            table: list(df.columns) for table, df in self._outputs.items() if not df.is_empty()
+        }
+        dtypes_by_table = {
+            table: [str(dtype) for dtype in df.dtypes]
+            for table, df in self._outputs.items()
+            if not df.is_empty()
+        }
+        tracker.record_schemas(columns_by_table, table_dtypes=dtypes_by_table)
 
     def run(
         self,
@@ -389,6 +402,8 @@ class TransformPipeline:
             self._metrics.log_summary()
             with contextlib.suppress(Exception):
                 self._metrics.persist(self._conn)
+            with contextlib.suppress(Exception):
+                self._record_output_schema_versions()
 
             # Clean run completed — clear checkpoint data
             if not result.failed:

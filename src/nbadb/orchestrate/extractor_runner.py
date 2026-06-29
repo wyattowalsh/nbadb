@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
-from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, Protocol, cast
 
 from aiolimiter import AsyncLimiter
 from loguru import logger
@@ -112,6 +113,7 @@ class _DeferredExtraction:
     params: dict[str, object]
     wait_seconds: float
     staging_key: str | None = None
+    eligible_staging_keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +133,61 @@ class _JournaledExtraction:
 class _ExtractionTaskResult:
     frames: dict[str, pl.DataFrame]
     pending_success: _PendingJournalSuccess | None = None
+    source_endpoint_name: str | None = None
+    source_params_json: str | None = None
+    expected_staging_keys: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _SkippedTaskResult:
+    status: Literal["journal_skip", "retry_skip"]
+    endpoint_name: str
+    params_json: str
+
+
+@dataclass(frozen=True, slots=True)
+class _FailedExtraction:
+    endpoint_name: str
+    params_json: str
+    error: str
+    status: Literal["failure", "deferred_failure", "unexpected"] = "failure"
+
+
+@dataclass(frozen=True, slots=True)
+class _ChunkTaskBatch:
+    tasks: list[
+        asyncio.Task[
+            dict[str, pl.DataFrame]
+            | _ExtractionTaskResult
+            | _DeferredExtraction
+            | _SkippedTaskResult
+            | _FailedExtraction
+            | None
+        ]
+    ]
+    eligible_calls: int = 0
+    support_skip_count: int = 0
+
+
+@dataclass(slots=True)
+class PatternExtractionResult:
+    frames: dict[str, pl.DataFrame]
+    eligible_calls: int = 0
+    support_skip_count: int = 0
+    journal_skip_count: int = 0
+    retry_skip_count: int = 0
+    success_count: int = 0
+    failure_count: int = 0
+    deferred_failure_count: int = 0
+    row_count: int = 0
+    errors: list[str] = field(default_factory=list)
+
+    @property
+    def is_complete(self) -> bool:
+        if self.failure_count or self.deferred_failure_count:
+            return False
+        completed = self.success_count + self.journal_skip_count + self.retry_skip_count
+        return completed == self.eligible_calls
 
 
 class _CircuitBreakerTimeoutError(RuntimeError):
@@ -233,7 +290,7 @@ class ExtractorRunner:
         on_progress: _ProgressReporter | None = None,
         *,
         skip_items: set[tuple[str, str]] | None = None,
-        persist_chunk_results: Callable[[dict[str, pl.DataFrame]], None] | None = None,
+        persist_chunk_results: Callable[..., None] | None = None,
     ) -> dict[str, pl.DataFrame]:
         """Extract all *entries* across every *param_set*.
 
@@ -241,24 +298,47 @@ class ExtractorRunner:
         that produced data.  Also increments ``self.skipped`` for
         each param set that was already recorded in the journal.
         """
+        result = await self.run_pattern_result(
+            pattern,
+            param_sets,
+            entries,
+            on_progress=on_progress,
+            skip_items=skip_items,
+            persist_chunk_results=persist_chunk_results,
+        )
+        return result.frames
+
+    async def run_pattern_result(
+        self,
+        pattern: str,
+        param_sets: list[dict],
+        entries: list[StagingEntry],
+        on_progress: _ProgressReporter | None = None,
+        *,
+        skip_items: set[tuple[str, str]] | None = None,
+        persist_chunk_results: Callable[..., None] | None = None,
+    ) -> PatternExtractionResult:
+        """Extract a pattern and return frames plus call-local accounting."""
 
         multi_entries, single_entries, multi_by_ep = self._classify_entries(entries)
         accum: dict[str, list[pl.DataFrame]] = {e.staging_key: [] for e in entries}
         single_by_key = {
             (entry.endpoint_name, entry.staging_key): entry for entry in single_entries
         }
+        pattern_result = PatternExtractionResult(frames={})
 
         chunk_size = self._chunk_size_for_entries(pattern, entries)
-        for chunk_start in range(0, max(len(param_sets), 1), chunk_size):
+        for chunk_index, chunk_start in enumerate(range(0, max(len(param_sets), 1), chunk_size)):
             chunk = param_sets[chunk_start : chunk_start + chunk_size]
             if not chunk:
                 break
             chunk_accum: dict[str, list[pl.DataFrame]] = {e.staging_key: [] for e in entries}
             pending_successes: list[_PendingJournalSuccess] = []
+            source_results: list[dict[str, object]] = []
             defer_journal_success = persist_chunk_results is not None
 
             already_done = self._prefetch_done(single_entries, multi_by_ep, chunk)
-            tasks = self._build_chunk_tasks(
+            chunk_batch = self._build_chunk_tasks(
                 single_entries,
                 multi_by_ep,
                 chunk,
@@ -267,11 +347,22 @@ class ExtractorRunner:
                 skip_items=skip_items,
                 defer_journal_success=defer_journal_success,
             )
+            pattern_result.eligible_calls += chunk_batch.eligible_calls
+            pattern_result.support_skip_count += chunk_batch.support_skip_count
 
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            results = (
+                await asyncio.gather(*chunk_batch.tasks, return_exceptions=True)
+                if chunk_batch.tasks
+                else []
+            )
             delayed = [r for r in results if isinstance(r, _DeferredExtraction)]
             immediate = [r for r in results if not isinstance(r, _DeferredExtraction)]
-            pending_successes.extend(self._collect_results(immediate, chunk_accum, on_progress))
+            chunk_expected_staging_keys = set(self._successful_staging_keys(immediate))
+            pending_successes.extend(
+                self._collect_results(immediate, chunk_accum, on_progress, pattern_result)
+            )
+            if persist_chunk_results is not None:
+                source_results.extend(self._source_results_for_persistence(immediate))
             if delayed:
                 replay_results = await self._replay_deferred_chunk(
                     delayed,
@@ -286,17 +377,44 @@ class ExtractorRunner:
                         "late recovery replay returned deferred extractions unexpectedly: {}",
                         len(replay_deferred),
                     )
+                    pattern_result.deferred_failure_count += len(replay_deferred)
+                    for item in replay_deferred:
+                        pattern_result.errors.append(
+                            f"{item.endpoint_name}[{json.dumps(item.params, sort_keys=True)}]: "
+                            "deferred recovery did not complete"
+                        )
                 pending_successes.extend(
                     self._collect_results(
                         [r for r in replay_results if not isinstance(r, _DeferredExtraction)],
                         chunk_accum,
                         on_progress,
+                        pattern_result,
                     )
                 )
+                chunk_expected_staging_keys.update(
+                    self._successful_staging_keys(
+                        [r for r in replay_results if not isinstance(r, _DeferredExtraction)]
+                    )
+                )
+                if persist_chunk_results is not None:
+                    source_results.extend(
+                        self._source_results_for_persistence(
+                            [r for r in replay_results if not isinstance(r, _DeferredExtraction)]
+                        )
+                    )
 
             chunk_output = self._concat_accum(chunk_accum)
-            if persist_chunk_results is not None and chunk_output:
-                persist_chunk_results(chunk_output)
+            if persist_chunk_results is not None and (chunk_output or chunk_expected_staging_keys):
+                self._persist_chunk_results(
+                    persist_chunk_results,
+                    chunk_output,
+                    pattern=pattern,
+                    chunk_index=chunk_index,
+                    chunk_params=chunk,
+                    entries=entries,
+                    expected_staging_keys=sorted(chunk_expected_staging_keys),
+                    source_results=source_results,
+                )
             for success in pending_successes:
                 self._journal.record_success(
                     success.endpoint_name,
@@ -311,7 +429,8 @@ class ExtractorRunner:
             # prevent unbounded memory growth on large historical runs.
             self._multi_cache.clear()
 
-        return self._concat_accum(accum)
+        pattern_result.frames = self._concat_accum(accum)
+        return pattern_result
 
     # ── run_pattern decomposition ──────────────────────────────
 
@@ -387,15 +506,20 @@ class ExtractorRunner:
         on_progress: _ProgressReporter | None = None,
         skip_items: set[tuple[str, str]] | None = None,
         defer_journal_success: bool = False,
-    ) -> list[
-        asyncio.Task[dict[str, pl.DataFrame] | _ExtractionTaskResult | _DeferredExtraction | None]
-    ]:
+    ) -> _ChunkTaskBatch:
         """Create asyncio tasks for all entries in a chunk."""
         tasks: list[
             asyncio.Task[
-                dict[str, pl.DataFrame] | _ExtractionTaskResult | _DeferredExtraction | None
+                dict[str, pl.DataFrame]
+                | _ExtractionTaskResult
+                | _DeferredExtraction
+                | _SkippedTaskResult
+                | _FailedExtraction
+                | None
             ]
         ] = []
+        support_skip_count = 0
+        eligible_calls = 0
         today = date.today()
 
         for entry in single_entries:
@@ -405,6 +529,7 @@ class ExtractorRunner:
                     entry.deprecated_after
                 ):
                     self.skipped += 1
+                    support_skip_count += 1
                     if on_progress is not None:
                         on_progress.advance_pattern(success=True)
                     continue
@@ -413,13 +538,15 @@ class ExtractorRunner:
                 sy = self._season_year(params)
                 if entry.min_season is not None and sy is not None and sy < entry.min_season:
                     self.skipped += 1
+                    support_skip_count += 1
                     if on_progress is not None:
                         on_progress.advance_pattern(success=True)
                     continue
                 self.planned_calls += 1
+                eligible_calls += 1
                 tasks.append(
                     asyncio.create_task(
-                        self._extract_single(
+                        self._extract_single_result(
                             entry,
                             params,
                             already_done=already_done,
@@ -448,14 +575,16 @@ class ExtractorRunner:
                 ]
                 if not eligible:
                     self.skipped += len(ep_entries)
+                    support_skip_count += 1
                     if on_progress is not None:
                         for _ in ep_entries:
                             on_progress.advance_pattern(success=True)
                     continue
                 self.planned_calls += 1
+                eligible_calls += 1
                 tasks.append(
                     asyncio.create_task(
-                        self._extract_multi(
+                        self._extract_multi_result(
                             ep_name,
                             eligible,
                             params,
@@ -468,7 +597,11 @@ class ExtractorRunner:
                     )
                 )
 
-        return tasks
+        return _ChunkTaskBatch(
+            tasks=tasks,
+            eligible_calls=eligible_calls,
+            support_skip_count=support_skip_count,
+        )
 
     async def _replay_deferred_chunk(
         self,
@@ -479,7 +612,13 @@ class ExtractorRunner:
         on_progress: _ProgressReporter | None,
         defer_journal_success: bool = False,
     ) -> list[
-        dict[str, pl.DataFrame] | _ExtractionTaskResult | BaseException | _DeferredExtraction | None
+        dict[str, pl.DataFrame]
+        | _ExtractionTaskResult
+        | _SkippedTaskResult
+        | _FailedExtraction
+        | BaseException
+        | _DeferredExtraction
+        | None
     ]:
         deduped: dict[tuple[str, str, str | None], _DeferredExtraction] = {}
         for item in deferred:
@@ -500,7 +639,12 @@ class ExtractorRunner:
 
         tasks: list[
             asyncio.Task[
-                dict[str, pl.DataFrame] | _ExtractionTaskResult | _DeferredExtraction | None
+                dict[str, pl.DataFrame]
+                | _ExtractionTaskResult
+                | _SkippedTaskResult
+                | _FailedExtraction
+                | _DeferredExtraction
+                | None
             ]
         ] = []
         for item in replay_items:
@@ -512,9 +656,12 @@ class ExtractorRunner:
                         item.endpoint_name,
                     )
                     continue
+                if item.eligible_staging_keys:
+                    eligible_keys = set(item.eligible_staging_keys)
+                    entries = [entry for entry in entries if entry.staging_key in eligible_keys]
                 tasks.append(
                     asyncio.create_task(
-                        self._extract_multi(
+                        self._extract_multi_result(
                             item.endpoint_name,
                             entries,
                             item.params,
@@ -537,7 +684,7 @@ class ExtractorRunner:
                 continue
             tasks.append(
                 asyncio.create_task(
-                    self._extract_single(
+                    self._extract_single_result(
                         entry,
                         item.params,
                         on_progress=on_progress,
@@ -553,12 +700,121 @@ class ExtractorRunner:
         return await asyncio.gather(*tasks, return_exceptions=True)
 
     @staticmethod
+    def _persist_chunk_results(
+        callback: Callable[..., None],
+        frames: dict[str, pl.DataFrame],
+        *,
+        pattern: str,
+        chunk_index: int,
+        chunk_params: list[dict],
+        entries: list[StagingEntry],
+        expected_staging_keys: list[str],
+        source_results: list[dict[str, object]],
+    ) -> None:
+        """Call a chunk persistence callback with metadata when it accepts it."""
+        signature = inspect.signature(callback)
+        params = signature.parameters
+        accepts_kwargs = any(
+            param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
+        )
+        metadata = {
+            "pattern": pattern,
+            "chunk_index": chunk_index,
+            "chunk_params": chunk_params,
+            "entries": entries,
+            "expected_staging_keys": expected_staging_keys,
+            "source_results": source_results,
+        }
+        if accepts_kwargs:
+            callback(frames, **metadata)
+            return
+        accepted_metadata = {
+            key: value
+            for key, value in metadata.items()
+            if key in params
+            and params[key].kind
+            in {
+                inspect.Parameter.KEYWORD_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            }
+        }
+        if accepted_metadata:
+            callback(frames, **accepted_metadata)
+            return
+        callback(frames)
+
+    @staticmethod
+    def _successful_staging_keys(
+        results: list[
+            dict[str, pl.DataFrame]
+            | _ExtractionTaskResult
+            | _SkippedTaskResult
+            | _FailedExtraction
+            | BaseException
+            | None
+        ],
+    ) -> set[str]:
+        keys: set[str] = set()
+        for result in results:
+            frames: dict[str, pl.DataFrame] | None = None
+            if isinstance(result, _ExtractionTaskResult):
+                frames = result.frames
+            elif isinstance(result, dict):
+                frames = result
+            if frames is not None:
+                keys.update(frames)
+        return keys
+
+    @staticmethod
+    def _source_results_for_persistence(
+        results: list[
+            dict[str, pl.DataFrame]
+            | _ExtractionTaskResult
+            | _SkippedTaskResult
+            | _FailedExtraction
+            | BaseException
+            | None
+        ],
+    ) -> list[dict[str, object]]:
+        source_results: list[dict[str, object]] = []
+        for result in results:
+            if not isinstance(result, _ExtractionTaskResult):
+                continue
+            if result.pending_success is None:
+                continue
+            if result.source_endpoint_name is None or result.source_params_json is None:
+                msg = (
+                    "journal-backed extraction result missing source identity for "
+                    f"{result.pending_success.endpoint_name}"
+                )
+                raise RuntimeError(msg)
+            source_results.append(
+                {
+                    "frames": result.frames,
+                    "source_endpoint_name": result.source_endpoint_name,
+                    "source_params_json": result.source_params_json,
+                    "expected_staging_keys": result.expected_staging_keys,
+                }
+            )
+        return source_results
+
+    @staticmethod
     def _collect_results(
-        results: list[dict[str, pl.DataFrame] | _ExtractionTaskResult | BaseException | None],
+        results: list[
+            dict[str, pl.DataFrame]
+            | _ExtractionTaskResult
+            | _SkippedTaskResult
+            | _FailedExtraction
+            | BaseException
+            | None
+        ],
         accum: dict[str, list[pl.DataFrame]],
         on_progress: _ProgressReporter | None,
+        pattern_result: PatternExtractionResult | None = None,
     ) -> list[_PendingJournalSuccess]:
         """Merge task results into the accumulator."""
+        if pattern_result is None:
+            pattern_result = PatternExtractionResult(frames={})
         pending_successes: list[_PendingJournalSuccess] = []
         for result in results:
             if isinstance(result, BaseException):
@@ -568,8 +824,27 @@ class ExtractorRunner:
                     "extraction task failed: {}",
                     type(result).__name__,
                 )
+                pattern_result.failure_count += 1
+                pattern_result.errors.append(f"task_exception:{type(result).__name__}")
                 continue
             if result is None:
+                pattern_result.failure_count += 1
+                pattern_result.errors.append("task_returned_none")
+                continue
+            if isinstance(result, _SkippedTaskResult):
+                if result.status == "journal_skip":
+                    pattern_result.journal_skip_count += 1
+                else:
+                    pattern_result.retry_skip_count += 1
+                continue
+            if isinstance(result, _FailedExtraction):
+                if result.status == "deferred_failure":
+                    pattern_result.deferred_failure_count += 1
+                else:
+                    pattern_result.failure_count += 1
+                pattern_result.errors.append(
+                    f"{result.endpoint_name}[{result.params_json}]: {result.error}"
+                )
                 continue
             if isinstance(result, _ExtractionTaskResult):
                 frames = result.frames
@@ -584,9 +859,13 @@ class ExtractorRunner:
                     "unexpected extraction task result type: {}",
                     type(frames).__name__,
                 )
+                pattern_result.failure_count += 1
+                pattern_result.errors.append(f"unexpected_result_type:{type(frames).__name__}")
                 continue
             # Compute rows for progress reporting
             rows = sum(df.shape[0] for key, df in frames.items() if not df.is_empty())
+            pattern_result.success_count += 1
+            pattern_result.row_count += rows
             if on_progress is not None:
                 on_progress.advance_pattern(success=True, rows=rows)
             for key, df in frames.items():
@@ -814,7 +1093,15 @@ class ExtractorRunner:
         allow_late_recovery: bool = True,
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
-    ) -> pl.DataFrame | list[pl.DataFrame] | _JournaledExtraction | _DeferredExtraction | None:
+        return_failures: bool = False,
+    ) -> (
+        pl.DataFrame
+        | list[pl.DataFrame]
+        | _JournaledExtraction
+        | _DeferredExtraction
+        | _FailedExtraction
+        | None
+    ):
         """Execute an extraction call with full journal tracking and retries.
 
         *fn* is a one-arg async-compatible callable ``fn(extractor)``
@@ -827,6 +1114,8 @@ class ExtractorRunner:
             extractor_cls = self._registry.get(endpoint_name)
         except KeyError:
             logger.warning("no extractor for endpoint: {}", endpoint_name)
+            if return_failures:
+                return _FailedExtraction(endpoint_name, params_json, "MissingExtractor")
             return None
 
         max_retries = self._settings.extract_max_retries
@@ -969,6 +1258,13 @@ class ExtractorRunner:
             params_json,
             exc_name,
         )
+        if return_failures:
+            return _FailedExtraction(
+                endpoint_name,
+                params_json,
+                exc_name,
+                status="deferred_failure" if late_recovery_replay else "failure",
+            )
         return None
 
     async def _extract_single(
@@ -983,6 +1279,41 @@ class ExtractorRunner:
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
     ) -> dict[str, pl.DataFrame] | _ExtractionTaskResult | _DeferredExtraction | None:
+        result = await self._extract_single_result(
+            entry,
+            params,
+            already_done=already_done,
+            skip_items=skip_items,
+            on_progress=on_progress,
+            allow_late_recovery=allow_late_recovery,
+            late_recovery_replay=late_recovery_replay,
+            defer_journal_success=defer_journal_success,
+        )
+        if isinstance(result, (_ExtractionTaskResult, _DeferredExtraction)):
+            return result
+        if isinstance(result, dict):
+            return result
+        return None
+
+    async def _extract_single_result(
+        self,
+        entry: StagingEntry,
+        params: dict,
+        *,
+        already_done: set[tuple[str, str]] | None = None,
+        skip_items: set[tuple[str, str]] | None = None,
+        on_progress: _ProgressReporter | None = None,
+        allow_late_recovery: bool = True,
+        late_recovery_replay: bool = False,
+        defer_journal_success: bool = False,
+    ) -> (
+        dict[str, pl.DataFrame]
+        | _ExtractionTaskResult
+        | _DeferredExtraction
+        | _SkippedTaskResult
+        | _FailedExtraction
+        | None
+    ):
         """Extract a single (non-multi) entry for one param set."""
         params_json = json.dumps(params, sort_keys=True)
 
@@ -1007,7 +1338,11 @@ class ExtractorRunner:
                 entry.endpoint_name,
                 params_json,
             )
-            return None
+            return _SkippedTaskResult(
+                "journal_skip" if journal_done else "retry_skip",
+                entry.endpoint_name,
+                params_json,
+            )
 
         pool = self._thread_pool
 
@@ -1023,15 +1358,19 @@ class ExtractorRunner:
             allow_late_recovery=allow_late_recovery,
             late_recovery_replay=late_recovery_replay,
             defer_journal_success=defer_journal_success,
+            return_failures=True,
         )
         if df is None:
-            return None
+            return _FailedExtraction(entry.endpoint_name, params_json, "UnknownFailure")
+        if isinstance(df, _FailedExtraction):
+            return df
         if isinstance(df, _DeferredExtraction):
             return _DeferredExtraction(
                 endpoint_name=df.endpoint_name,
                 params=df.params,
                 wait_seconds=df.wait_seconds,
                 staging_key=entry.staging_key,
+                eligible_staging_keys=(entry.staging_key,),
             )
         pending_success: _PendingJournalSuccess | None = None
         if isinstance(df, _JournaledExtraction):
@@ -1039,10 +1378,21 @@ class ExtractorRunner:
             df = df.data
         if isinstance(df, list):
             logger.error("unexpected list result for single extraction: {}", entry.endpoint_name)
-            return None
+            return _FailedExtraction(
+                entry.endpoint_name,
+                params_json,
+                "UnexpectedListResult",
+                status="unexpected",
+            )
         frames = {entry.staging_key: df}
         if pending_success is not None:
-            return _ExtractionTaskResult(frames=frames, pending_success=pending_success)
+            return _ExtractionTaskResult(
+                frames=frames,
+                pending_success=pending_success,
+                source_endpoint_name=entry.endpoint_name,
+                source_params_json=params_json,
+                expected_staging_keys=(entry.staging_key,),
+            )
         return frames
 
     async def _extract_multi(
@@ -1058,6 +1408,43 @@ class ExtractorRunner:
         late_recovery_replay: bool = False,
         defer_journal_success: bool = False,
     ) -> dict[str, pl.DataFrame] | _ExtractionTaskResult | _DeferredExtraction | None:
+        result = await self._extract_multi_result(
+            endpoint_name,
+            entries,
+            params,
+            already_done=already_done,
+            skip_items=skip_items,
+            on_progress=on_progress,
+            allow_late_recovery=allow_late_recovery,
+            late_recovery_replay=late_recovery_replay,
+            defer_journal_success=defer_journal_success,
+        )
+        if isinstance(result, (_ExtractionTaskResult, _DeferredExtraction)):
+            return result
+        if isinstance(result, dict):
+            return result
+        return None
+
+    async def _extract_multi_result(
+        self,
+        endpoint_name: str,
+        entries: list[StagingEntry],
+        params: dict,
+        *,
+        already_done: set[tuple[str, str]] | None = None,
+        skip_items: set[tuple[str, str]] | None = None,
+        on_progress: _ProgressReporter | None = None,
+        allow_late_recovery: bool = True,
+        late_recovery_replay: bool = False,
+        defer_journal_success: bool = False,
+    ) -> (
+        dict[str, pl.DataFrame]
+        | _ExtractionTaskResult
+        | _DeferredExtraction
+        | _SkippedTaskResult
+        | _FailedExtraction
+        | None
+    ):
         """Extract a multi-result endpoint once and fan out by
         ``result_set_index``.
 
@@ -1089,7 +1476,11 @@ class ExtractorRunner:
                 endpoint_name,
                 params_json,
             )
-            return None
+            return _SkippedTaskResult(
+                "journal_skip" if journal_done else "retry_skip",
+                endpoint_name,
+                params_json,
+            )
 
         # Check cache first
         if cache_key not in self._multi_cache:
@@ -1107,18 +1498,31 @@ class ExtractorRunner:
                 allow_late_recovery=allow_late_recovery,
                 late_recovery_replay=late_recovery_replay,
                 defer_journal_success=defer_journal_success,
+                return_failures=True,
             )
             if all_dfs is None:
-                return None
-            if isinstance(all_dfs, _DeferredExtraction):
+                return _FailedExtraction(endpoint_name, params_json, "UnknownFailure")
+            if isinstance(all_dfs, _FailedExtraction):
                 return all_dfs
+            if isinstance(all_dfs, _DeferredExtraction):
+                return _DeferredExtraction(
+                    endpoint_name=all_dfs.endpoint_name,
+                    params=all_dfs.params,
+                    wait_seconds=all_dfs.wait_seconds,
+                    eligible_staging_keys=tuple(entry.staging_key for entry in entries),
+                )
             pending_success: _PendingJournalSuccess | None = None
             if isinstance(all_dfs, _JournaledExtraction):
                 pending_success = all_dfs.success
                 all_dfs = all_dfs.data
             if not isinstance(all_dfs, list):
                 logger.error("unexpected non-list result for multi extraction: {}", endpoint_name)
-                return None
+                return _FailedExtraction(
+                    endpoint_name,
+                    params_json,
+                    "UnexpectedNonListResult",
+                    status="unexpected",
+                )
             validated_dfs: list[pl.DataFrame] = []
             for df in all_dfs:
                 if not isinstance(df, pl.DataFrame):
@@ -1127,7 +1531,12 @@ class ExtractorRunner:
                         endpoint_name,
                         type(df).__name__,
                     )
-                    return None
+                    return _FailedExtraction(
+                        endpoint_name,
+                        params_json,
+                        f"UnexpectedElementType:{type(df).__name__}",
+                        status="unexpected",
+                    )
                 validated_dfs.append(df)
             self._multi_cache[cache_key] = validated_dfs
         else:
@@ -1158,5 +1567,11 @@ class ExtractorRunner:
                 output[entry.staging_key] = pl.DataFrame()
 
         if pending_success is not None:
-            return _ExtractionTaskResult(frames=output, pending_success=pending_success)
+            return _ExtractionTaskResult(
+                frames=output,
+                pending_success=pending_success,
+                source_endpoint_name=endpoint_name,
+                source_params_json=params_json,
+                expected_staging_keys=tuple(output),
+            )
         return output

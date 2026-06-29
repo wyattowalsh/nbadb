@@ -158,6 +158,10 @@ class DBManager:
             )
         """)
         self._duckdb_conn.execute("""
+            ALTER TABLE _pipeline_metadata
+            ADD COLUMN IF NOT EXISTS quality_score DOUBLE
+        """)
+        self._duckdb_conn.execute("""
             CREATE TABLE IF NOT EXISTS _pipeline_metrics (
                 endpoint VARCHAR NOT NULL,
                 run_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -226,6 +230,17 @@ class DBManager:
                 retry_inflation FLOAT DEFAULT 0,
                 queue_wait_seconds FLOAT DEFAULT 0,
                 PRIMARY KEY (lane_id)
+            )
+        """)
+        self._duckdb_conn.execute("""
+            CREATE TABLE IF NOT EXISTS _staging_chunk_journal (
+                chunk_id VARCHAR NOT NULL,
+                staging_key VARCHAR NOT NULL,
+                row_count BIGINT NOT NULL,
+                content_hash VARCHAR NOT NULL,
+                source_label VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (chunk_id, staging_key)
             )
         """)
 

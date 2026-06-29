@@ -29,6 +29,8 @@ class ExtractionSliceKey:
 
 
 class ExtractionProgressStore:
+    SCHEMA_VERSION = 2
+
     def __init__(self, root_dir: Path | None) -> None:
         self._root_dir = root_dir
 
@@ -62,7 +64,20 @@ class ExtractionProgressStore:
 
     def is_complete(self, key: ExtractionSliceKey) -> bool:
         payload = self.load(key)
-        return bool(payload) and str(payload.get("status", "")) == "complete"
+        if not payload or str(payload.get("status", "")) != "complete":
+            return False
+        if int(payload.get("schema_version", 0) or 0) != self.SCHEMA_VERSION:
+            return False
+        failure_count = int(payload.get("failure_count", 0) or 0)
+        retry_skip_count = int(payload.get("retry_skip_count", 0) or 0)
+        deferred_failure_count = int(payload.get("deferred_failure_count", 0) or 0)
+        if failure_count or deferred_failure_count:
+            return False
+        eligible_calls = int(payload.get("eligible_calls", -1) or 0)
+        success_count = int(payload.get("success_count", -1) or 0)
+        journal_skip_count = int(payload.get("journal_skip_count", 0) or 0)
+        completed = success_count + journal_skip_count + retry_skip_count
+        return eligible_calls >= 0 and completed == eligible_calls
 
     def load(self, key: ExtractionSliceKey) -> dict[str, Any]:
         if not self.is_available():
@@ -77,6 +92,7 @@ class ExtractionProgressStore:
         self._write(
             key,
             {
+                "schema_version": self.SCHEMA_VERSION,
                 "status": "running",
                 "task_count": task_count,
                 "started_at": datetime.now(UTC).isoformat(),
@@ -92,12 +108,29 @@ class ExtractionProgressStore:
         wall_time_seconds: float,
         staging_keys: list[str],
         endpoint_families: list[str],
+        eligible_calls: int | None = None,
+        success_count: int | None = None,
+        journal_skip_count: int = 0,
+        retry_skip_count: int = 0,
+        support_skip_count: int = 0,
+        failure_count: int = 0,
+        deferred_failure_count: int = 0,
     ) -> None:
+        resolved_eligible_calls = task_count if eligible_calls is None else eligible_calls
+        resolved_success_count = resolved_eligible_calls if success_count is None else success_count
         self._write(
             key,
             {
+                "schema_version": self.SCHEMA_VERSION,
                 "status": "complete",
                 "task_count": task_count,
+                "eligible_calls": resolved_eligible_calls,
+                "success_count": resolved_success_count,
+                "journal_skip_count": journal_skip_count,
+                "retry_skip_count": retry_skip_count,
+                "support_skip_count": support_skip_count,
+                "failure_count": failure_count,
+                "deferred_failure_count": deferred_failure_count,
                 "row_count": row_count,
                 "wall_time_seconds": wall_time_seconds,
                 "staging_keys": staging_keys,
@@ -112,12 +145,27 @@ class ExtractionProgressStore:
         *,
         task_count: int,
         error: str,
+        eligible_calls: int = 0,
+        success_count: int = 0,
+        journal_skip_count: int = 0,
+        retry_skip_count: int = 0,
+        support_skip_count: int = 0,
+        failure_count: int = 0,
+        deferred_failure_count: int = 0,
     ) -> None:
         self._write(
             key,
             {
+                "schema_version": self.SCHEMA_VERSION,
                 "status": "failed",
                 "task_count": task_count,
+                "eligible_calls": eligible_calls,
+                "success_count": success_count,
+                "journal_skip_count": journal_skip_count,
+                "retry_skip_count": retry_skip_count,
+                "support_skip_count": support_skip_count,
+                "failure_count": failure_count,
+                "deferred_failure_count": deferred_failure_count,
                 "error": error,
                 "updated_at": datetime.now(UTC).isoformat(),
             },

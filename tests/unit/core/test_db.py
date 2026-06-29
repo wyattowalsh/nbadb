@@ -87,6 +87,7 @@ class TestPipelineTables:
         "_pipeline_metadata",
         "_pipeline_metrics",
         "_lane_metrics",
+        "_staging_chunk_journal",
         "_transform_checkpoints",
         "_transform_metrics",
         "_schema_versions",

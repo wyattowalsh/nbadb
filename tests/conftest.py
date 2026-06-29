@@ -169,6 +169,35 @@ def duckdb_memory_with_pipeline_tables() -> duckdb.DuckDBPyConnection:
             PRIMARY KEY (endpoint, run_timestamp)
         )
     """)
+    conn.execute("""
+        CREATE TABLE _pipeline_metadata (
+            table_name VARCHAR PRIMARY KEY,
+            last_updated TIMESTAMP,
+            row_count BIGINT,
+            schema_hash VARCHAR,
+            quality_score DOUBLE
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE _schema_versions (
+            table_name VARCHAR NOT NULL,
+            version INT NOT NULL DEFAULT 1,
+            column_hash VARCHAR NOT NULL,
+            columns_json VARCHAR NOT NULL,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (table_name)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE _schema_version_history (
+            table_name VARCHAR NOT NULL,
+            version INT NOT NULL,
+            column_hash VARCHAR NOT NULL,
+            columns_json VARCHAR NOT NULL,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (table_name, version)
+        )
+    """)
     yield conn
     conn.close()
 

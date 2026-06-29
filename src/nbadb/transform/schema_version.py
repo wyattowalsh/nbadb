@@ -10,12 +10,33 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 from loguru import logger
 
 if TYPE_CHECKING:
     import duckdb
+
+
+class _ColumnFrame(Protocol):
+    @property
+    def columns(self) -> tuple[str, ...]: ...
+
+    @property
+    def dtypes(self) -> tuple[Any, ...]: ...
+
+
+def schema_hash_for_columns(columns: list[str], dtypes: list[str] | None = None) -> str:
+    """Return the canonical column-layout hash used by ``SchemaVersionTracker``."""
+    if dtypes and len(dtypes) == len(columns):
+        typed_cols = [f"{c}:{t}" for c, t in zip(columns, dtypes, strict=True)]
+        return SchemaVersionTracker._hash_columns(typed_cols)
+    return SchemaVersionTracker._hash_columns(columns)
+
+
+def schema_hash_for_frame(df: _ColumnFrame) -> str:
+    """Hash a Polars frame's column names and dtypes for metadata/versioning."""
+    return schema_hash_for_columns(list(df.columns), [str(dt) for dt in df.dtypes])
 
 
 @dataclass

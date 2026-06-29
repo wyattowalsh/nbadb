@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from nbadb.orchestrate.journal import PipelineJournal
+from nbadb.transform.schema_version import schema_hash_for_columns
 
 if TYPE_CHECKING:
     import duckdb
@@ -343,3 +344,26 @@ class TestJournalStaleRunning:
         ).fetchone()
         assert count == 0
         assert row[0] == "done"
+
+
+class TestJournalTableMetadata:
+    def test_get_table_metadata_empty(self, journal: PipelineJournal) -> None:
+        assert journal.get_table_metadata("agg_player_season") is None
+
+    def test_record_and_get_table_metadata(self, journal: PipelineJournal) -> None:
+        schema_hash = schema_hash_for_columns(["player_id", "pts"], ["Int64", "Int64"])
+        journal.record_table_metadata("agg_player_season", 1200, schema_hash, quality_score=0.95)
+        metadata = journal.get_table_metadata("agg_player_season")
+        assert metadata is not None
+        assert metadata[0] == 1200
+        assert metadata[1] == schema_hash
+        assert metadata[2]
+        assert metadata[3] == 0.95
+
+    def test_upsert_table_metadata(self, journal: PipelineJournal) -> None:
+        journal.record_table_metadata("fact_team_game", 50, "hash_v1")
+        journal.record_table_metadata("fact_team_game", 75, "hash_v2")
+        metadata = journal.get_table_metadata("fact_team_game")
+        assert metadata is not None
+        assert metadata[0] == 75
+        assert metadata[1] == "hash_v2"

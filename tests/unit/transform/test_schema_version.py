@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import duckdb
+import polars as pl
 import pytest
 
-from nbadb.transform.schema_version import SchemaChange, SchemaEvolutionError, SchemaVersionTracker
+from nbadb.transform.schema_version import (
+    SchemaChange,
+    SchemaEvolutionError,
+    SchemaVersionTracker,
+    schema_hash_for_columns,
+    schema_hash_for_frame,
+)
 
 
 def _make_conn() -> duckdb.DuckDBPyConnection:
@@ -310,6 +317,23 @@ class TestGetHistory:
         history = tracker.get_history("nonexistent")
         assert history == []
         conn.close()
+
+
+class TestSchemaHashHelpers:
+    def test_schema_hash_for_columns_stable(self) -> None:
+        assert schema_hash_for_columns(["a", "b"]) == schema_hash_for_columns(["a", "b"])
+
+    def test_schema_hash_for_columns_includes_dtypes(self) -> None:
+        without_types = schema_hash_for_columns(["a", "b"])
+        with_types = schema_hash_for_columns(["a", "b"], ["Int64", "Utf8"])
+        assert without_types != with_types
+
+    def test_schema_hash_for_frame(self) -> None:
+        df = pl.DataFrame({"player_id": [1], "pts": [30]})
+        assert schema_hash_for_frame(df) == schema_hash_for_columns(
+            ["player_id", "pts"],
+            [str(dt) for dt in df.dtypes],
+        )
 
 
 class TestSchemaEvolutionError:

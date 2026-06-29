@@ -25,7 +25,8 @@ from nbadb.orchestrate.discovery import (
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, DiscoveryArtifactStore
 from nbadb.orchestrate.execution_policy import endpoint_family
 from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
-from nbadb.orchestrate.extractor_runner import ExtractorRunner
+from nbadb.orchestrate.extractor_runner import ExtractorRunner, PatternExtractionResult
+from nbadb.orchestrate.init_coverage import InitDiscoveryCoverageError
 from nbadb.orchestrate.journal import PipelineJournal
 from nbadb.orchestrate.live_snapshot import LiveSnapshotWarehouse
 from nbadb.orchestrate.planning import ExtractionPlanItem, build_extraction_plan
@@ -34,12 +35,21 @@ from nbadb.orchestrate.seasons import (
     recent_seasons,
     season_range,
 )
+from nbadb.orchestrate.staging_batches import (
+    StagingBatchStore,
+    StagingChunkMetadata,
+    StagingFrameBatch,
+    digest_jsonable,
+    frame_content_hash,
+)
 from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.transformers import (
     discover_all_transformers,
 )
 from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 from nbadb.transform.pipeline import TransformPipeline
+from nbadb.transform.quality import DataQualityMonitor
+from nbadb.transform.schema_version import schema_hash_for_frame
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -98,6 +108,8 @@ class ExtractionOutcome:
 
     raw: dict[str, pl.DataFrame]
     pattern_failures: int = 0
+    failed_calls: int = 0
+    errors: list[str] = field(default_factory=list)
 
 
 class _ProgressReporter(Protocol):
@@ -130,6 +142,8 @@ class _BoundLogger(Protocol):
     def info(self, message: str, *args: object) -> None: ...
 
     def warning(self, message: str, *args: object) -> None: ...
+
+    def error(self, message: str, *args: object) -> None: ...
 
 
 class _DiscoveryService(Protocol):
@@ -242,6 +256,7 @@ class Orchestrator:
         errors = [f"{ep}[{p}]: {err}" for ep, p, err in failed]
         if extra_errors:
             errors.extend(extra_errors)
+        errors = list(dict.fromkeys(errors))
         result = PipelineResult()
         result.tables_updated = tables
         result.rows_total = rows
@@ -250,6 +265,22 @@ class Orchestrator:
         result.duration_seconds = time.perf_counter() - start_time
         result.errors = errors
         return result
+
+    def _apply_extraction_outcome(
+        self,
+        result: PipelineResult,
+        extraction: ExtractionOutcome,
+    ) -> None:
+        current_failures = extraction.failed_calls or extraction.pattern_failures
+        if current_failures:
+            result.failed_extractions = max(result.failed_extractions, current_failures)
+        if extraction.errors:
+            existing_errors = set(result.errors)
+            for error in extraction.errors:
+                if error in existing_errors:
+                    continue
+                result.errors.append(error)
+                existing_errors.add(error)
 
     def _player_team_season_workloads(self) -> PlayerTeamSeasonWorkloadStore:
         duckdb_path = self._settings.duckdb_path
@@ -404,6 +435,33 @@ class Orchestrator:
                     type(wm_exc).__name__,
                 )
 
+            try:
+                quality_score: float | None = None
+                try:
+                    monitor = DataQualityMonitor(db.duckdb)
+                    quality_score = monitor.record_table_quality_checks(
+                        table,
+                        row_count=rows,
+                    )
+                except Exception as dq_exc:
+                    logger.debug(
+                        "quality score skipped for {}: {}",
+                        table,
+                        type(dq_exc).__name__,
+                    )
+                journal.record_table_metadata(
+                    table,
+                    rows,
+                    schema_hash_for_frame(df),
+                    quality_score=quality_score,
+                )
+            except Exception as meta_exc:
+                logger.warning(
+                    "metadata write failed for {}: {}",
+                    table,
+                    type(meta_exc).__name__,
+                )
+
             logger.info(
                 "loaded {}: {} rows ({})",
                 table,
@@ -417,6 +475,17 @@ class Orchestrator:
         self,
         db: DBManager,
         raw: dict[str, pl.DataFrame],
+        *,
+        run_mode: str = "unknown",
+        lane_id: str = "manual",
+        pattern: str = "unknown",
+        chunk_index: int = 0,
+        chunk_params: list[dict] | None = None,
+        entries: list[object] | None = None,
+        expected_staging_keys: list[str] | None = None,
+        source_results: list[dict[str, object]] | None = None,
+        dedupe_materialized: bool | None = None,
+        materialize: bool = True,
     ) -> None:
         """Persist in-memory staging DataFrames to DuckDB tables.
 
@@ -424,25 +493,120 @@ class Orchestrator:
         and transform phases without dropping prior persisted rows from
         earlier iterations or resumed shards.
         """
-        from nbadb.core.types import validate_sql_identifier
+        params_digest = digest_jsonable(chunk_params or [])
+        metadata_less_call = chunk_params is None and entries is None
+        if metadata_less_call:
+            params_digest = digest_jsonable(
+                [(key, frame_content_hash(df)) for key, df in sorted(raw.items())]
+            )
+        entries_digest = digest_jsonable(
+            [getattr(entry, "endpoint_name", str(entry)) for entry in entries or []]
+        )
+        metadata = StagingChunkMetadata(
+            run_mode=run_mode,
+            lane_id=lane_id,
+            pattern=pattern,
+            chunk_index=chunk_index,
+            params_digest=params_digest,
+            entries_digest=entries_digest,
+        )
+        store = StagingBatchStore(db.duckdb)
+        if source_results:
+            source_batches: list[StagingFrameBatch] = []
+            for source_result in source_results:
+                source_frames = cast("dict[str, pl.DataFrame]", source_result["frames"])
+                source_endpoint_name = str(source_result["source_endpoint_name"])
+                source_params_json = str(source_result["source_params_json"])
+                source_expected_keys = tuple(
+                    str(key)
+                    for key in cast(
+                        "tuple[object, ...]",
+                        source_result.get("expected_staging_keys", ()),
+                    )
+                )
+                source_batches.append(
+                    StagingFrameBatch(
+                        frames=source_frames,
+                        metadata=StagingChunkMetadata(
+                            run_mode=run_mode,
+                            lane_id=lane_id,
+                            pattern=pattern,
+                            chunk_index=chunk_index,
+                            params_digest=params_digest,
+                            entries_digest=entries_digest,
+                            source_endpoint_name=source_endpoint_name,
+                            source_params_digest=digest_jsonable(source_params_json),
+                        ),
+                        expected_staging_keys=source_expected_keys,
+                        dedupe_materialized=False
+                        if dedupe_materialized is None
+                        else dedupe_materialized,
+                    )
+                )
+            result = store.persist_frame_batches(source_batches, materialize=materialize)
+        else:
+            result = store.persist_frames(
+                raw,
+                metadata=metadata,
+                expected_staging_keys=expected_staging_keys,
+                materialize=materialize,
+                dedupe_materialized=metadata_less_call
+                if dedupe_materialized is None
+                else dedupe_materialized,
+            )
+        logger.info(
+            "persisted {} staging chunk tables to DuckDB ({} rows)",
+            result.staging_tables,
+            result.rows_persisted,
+        )
 
-        count = 0
-        for key, df in raw.items():
-            if not df.is_empty():
-                safe_key = validate_sql_identifier(key)
-                db.duckdb.register("_staging_tmp", df)
-                try:
-                    try:
-                        db.duckdb.execute(
-                            f"INSERT INTO {safe_key} "
-                            f"SELECT * FROM _staging_tmp EXCEPT ALL SELECT * FROM {safe_key}"
-                        )
-                    except duckdb.CatalogException:
-                        db.duckdb.execute(f"CREATE TABLE {safe_key} AS SELECT * FROM _staging_tmp")
-                    count += 1
-                finally:
-                    db.duckdb.unregister("_staging_tmp")
-        logger.info("persisted {} staging tables to DuckDB", count)
+    def _persist_discovery_game_log(
+        self,
+        db: DBManager,
+        game_log_df: pl.DataFrame,
+        *,
+        run_mode: str,
+        materialize: bool = False,
+    ) -> None:
+        if game_log_df.is_empty():
+            return
+        self._persist_staging_to_duckdb(
+            db,
+            {"stg_league_game_log": game_log_df},
+            run_mode=run_mode,
+            lane_id=f"{run_mode}.discovery.stg_league_game_log",
+            pattern="discovery",
+            chunk_index=0,
+            chunk_params=[
+                {
+                    "staging_key": "stg_league_game_log",
+                    "content_hash": frame_content_hash(game_log_df),
+                }
+            ],
+            entries=[],
+            expected_staging_keys=["stg_league_game_log"],
+            dedupe_materialized=True,
+            materialize=materialize,
+        )
+
+    def _materialize_staging_batches(
+        self,
+        db: DBManager,
+        *,
+        endpoints: list[str] | None = None,
+        patterns: list[str] | None = None,
+    ) -> int:
+        keys: list[str] | None = None
+        if endpoints is not None or patterns is not None:
+            ep_set = set(endpoints) if endpoints else None
+            pat_set = set(patterns) if patterns else None
+            keys = [
+                entry.staging_key
+                for entry in STAGING_MAP
+                if (ep_set is None or entry.endpoint_name in ep_set)
+                and (pat_set is None or entry.param_pattern in pat_set)
+            ]
+        return StagingBatchStore(db.duckdb).materialize(keys)
 
     def _should_reload_persisted_staging(
         self,
@@ -493,6 +657,7 @@ class Orchestrator:
         include_players: bool = True,
         include_teams: bool = True,
         include_dates: bool = True,
+        require_complete: bool = False,
     ) -> tuple[list[str], list[int], list[int], list[str], pl.DataFrame]:
         """Discover game/player/team IDs and game dates in parallel.
 
@@ -606,6 +771,10 @@ class Orchestrator:
 
         if isinstance(_game_result, Exception):
             bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)
+            if require_complete and include_games:
+                raise InitDiscoveryCoverageError(
+                    [f"discover_game_ids failed: {type(_game_result).__name__}"]
+                )
             game_ids = []
             game_log_df = pl.DataFrame()
         elif _game_result is None:
@@ -615,6 +784,13 @@ class Orchestrator:
         else:
             game_discovery_result = _game_result
             assert isinstance(game_discovery_result, GameDiscoveryResult)
+            if require_complete and not game_discovery_result.is_complete:
+                missing = sorted(
+                    game_discovery_result.requested_combos - game_discovery_result.covered_combos
+                )
+                raise InitDiscoveryCoverageError(
+                    [f"incomplete game discovery; missing season/season_type combos: {missing}"]
+                )
             game_ids = game_discovery_result.game_ids
             game_log_df = game_discovery_result.raw
             if game_discovery_result.is_complete:
@@ -649,6 +825,10 @@ class Orchestrator:
 
         if isinstance(_player_result, Exception):
             bound_log.warning("discover_player_ids failed: {}", type(_player_result).__name__)
+            if require_complete and include_players:
+                raise InitDiscoveryCoverageError(
+                    [f"discover_player_ids failed: {type(_player_result).__name__}"]
+                )
             player_ids = []
         elif _player_result is None:
             if not include_players:
@@ -666,11 +846,17 @@ class Orchestrator:
                 provenance="discovery",
             )
             player_ids = _apply_player_shard(player_ids)
+            if require_complete and include_players and not player_ids:
+                raise InitDiscoveryCoverageError(["player discovery returned no ids"])
             if pp is not None:
                 pp.log_discovery("players", len(player_ids))
 
         if isinstance(_team_result, Exception):
             bound_log.warning("discover_team_ids failed: {}", type(_team_result).__name__)
+            if require_complete and include_teams:
+                raise InitDiscoveryCoverageError(
+                    [f"discover_team_ids failed: {type(_team_result).__name__}"]
+                )
             team_ids = []
         elif _team_result is None:
             if not include_teams:
@@ -682,6 +868,8 @@ class Orchestrator:
                 team_ids,
                 provenance="discovery",
             )
+            if require_complete and include_teams and not team_ids:
+                raise InitDiscoveryCoverageError(["team discovery returned no ids"])
             if pp is not None:
                 pp.log_discovery("teams", len(team_ids))
 
@@ -713,7 +901,7 @@ class Orchestrator:
         run_mode: str | None = None,
         journal: PipelineJournal | None = None,
         progress_store: ExtractionProgressStore | None = None,
-        persist_results: Callable[[dict[str, pl.DataFrame]], None] | None = None,
+        persist_results: Callable[..., None] | None = None,
         retain_in_memory: bool = True,
     ) -> ExtractionOutcome:
         """Run all extraction patterns concurrently and return combined
@@ -727,6 +915,24 @@ class Orchestrator:
         raw: dict[str, pl.DataFrame] = {}
         if not game_log_df.is_empty():
             raw["stg_league_game_log"] = game_log_df
+            if persist_results is not None:
+                persist_results(
+                    {"stg_league_game_log": game_log_df},
+                    run_mode=run_mode or "unknown",  # type: ignore[call-arg]
+                    lane_id=f"{run_mode or 'unknown'}.discovery.stg_league_game_log",  # type: ignore[call-arg]
+                    pattern="discovery",  # type: ignore[call-arg]
+                    chunk_index=0,  # type: ignore[call-arg]
+                    chunk_params=[
+                        {
+                            "staging_key": "stg_league_game_log",
+                            "content_hash": frame_content_hash(game_log_df),
+                        }
+                    ],  # type: ignore[call-arg]
+                    entries=[],  # type: ignore[call-arg]
+                    expected_staging_keys=["stg_league_game_log"],  # type: ignore[call-arg]
+                    dedupe_materialized=True,  # type: ignore[call-arg]
+                    materialize=False,  # type: ignore[call-arg]
+                )
 
         if plan is None:
             plan = build_extraction_plan(
@@ -744,6 +950,8 @@ class Orchestrator:
         # Compute total extraction tasks for the progress bar
         total_tasks = sum(item.task_count for item in plan)
         pattern_failures = 0
+        failed_calls = 0
+        extraction_errors: list[str] = []
         if pp is not None:
             pp.start_phase("Extraction", total=total_tasks)
 
@@ -751,7 +959,7 @@ class Orchestrator:
         async def _run_one(
             idx: int,
             item: ExtractionPlanItem,
-        ) -> dict[str, pl.DataFrame]:
+        ) -> PatternExtractionResult:
             label = item.label
             pattern = item.pattern
             entries = item.entries
@@ -769,7 +977,7 @@ class Orchestrator:
                 and progress_store_local.is_complete(lane_key)
             ):
                 logger.info("skipping completed extraction slice: {}", label)
-                return {}
+                return PatternExtractionResult(frames={}, eligible_calls=0)
             logger.info("Step {}/{}: {} ({} tasks)", idx, len(plan), label, n_tasks)
             if pp is not None:
                 pp.start_pattern(f"{label} ({n_tasks:,})", total=n_tasks)
@@ -777,18 +985,50 @@ class Orchestrator:
             if lane_key is not None and progress_store_local is not None:
                 progress_store_local.mark_started(lane_key, task_count=n_tasks)
             result_raw: dict[str, pl.DataFrame]
+            result: PatternExtractionResult
             chunk_persist_results = persist_results
+            lane_id = lane_key.slug if lane_key is not None else label
+
+            def _persist_with_lane_metadata(
+                frames: dict[str, pl.DataFrame],
+                **metadata: object,
+            ) -> None:
+                if chunk_persist_results is None:
+                    return
+                raw_chunk_index = metadata.get("chunk_index")
+                chunk_index = raw_chunk_index if isinstance(raw_chunk_index, int) else 0
+                persist_metadata: dict[str, object] = {
+                    "run_mode": run_mode or "unknown",
+                    "lane_id": lane_id,
+                    "pattern": pattern,
+                    "chunk_index": chunk_index,
+                    "chunk_params": cast("list[dict] | None", metadata.get("chunk_params")),
+                    "entries": entries,
+                    "expected_staging_keys": cast(
+                        "list[str] | None",
+                        metadata.get("expected_staging_keys"),
+                    ),
+                    "materialize": False,
+                }
+                source_results = cast(
+                    "list[dict[str, object]] | None",
+                    metadata.get("source_results"),
+                )
+                if source_results is not None:
+                    persist_metadata["source_results"] = source_results
+                chunk_persist_results(frames, **persist_metadata)
+
             if skip_items and chunk_persist_results is not None:
-                result_raw = await runner.run_pattern(
+                result = await runner.run_pattern_result(
                     pattern,
                     params,
                     entries,
                     on_progress=pp,
                     skip_items=skip_items,
-                    persist_chunk_results=chunk_persist_results,
+                    persist_chunk_results=_persist_with_lane_metadata,
                 )
             elif skip_items:
-                result_raw = await runner.run_pattern(
+                result = await runner.run_pattern_result(
                     pattern,
                     params,
                     entries,
@@ -796,23 +1036,24 @@ class Orchestrator:
                     skip_items=skip_items,
                 )
             elif chunk_persist_results is not None:
-                result_raw = await runner.run_pattern(
+                result = await runner.run_pattern_result(
                     pattern,
                     params,
                     entries,
                     on_progress=pp,
-                    persist_chunk_results=chunk_persist_results,
+                    persist_chunk_results=_persist_with_lane_metadata,
                 )
             else:
-                result_raw = await runner.run_pattern(
+                result = await runner.run_pattern_result(
                     pattern,
                     params,
                     entries,
                     on_progress=pp,
                 )
+            result_raw = result.frames
 
             completed_at = datetime.now(UTC)
-            row_count = sum(df.height for df in result_raw.values() if not df.is_empty())
+            row_count = result.row_count
             endpoint_families = sorted(
                 {
                     endpoint_family(entry.endpoint_name, getattr(entry, "param_pattern", pattern))
@@ -820,14 +1061,35 @@ class Orchestrator:
                 }
             )
             if lane_key is not None and progress_store_local is not None:
-                progress_store_local.mark_complete(
-                    lane_key,
-                    task_count=n_tasks,
-                    row_count=row_count,
-                    wall_time_seconds=(completed_at - started_at).total_seconds(),
-                    staging_keys=sorted(result_raw),
-                    endpoint_families=endpoint_families,
-                )
+                if result.is_complete:
+                    progress_store_local.mark_complete(
+                        lane_key,
+                        task_count=n_tasks,
+                        eligible_calls=result.eligible_calls,
+                        success_count=result.success_count,
+                        journal_skip_count=result.journal_skip_count,
+                        retry_skip_count=result.retry_skip_count,
+                        support_skip_count=result.support_skip_count,
+                        failure_count=result.failure_count,
+                        deferred_failure_count=result.deferred_failure_count,
+                        row_count=row_count,
+                        wall_time_seconds=(completed_at - started_at).total_seconds(),
+                        staging_keys=sorted(result_raw),
+                        endpoint_families=endpoint_families,
+                    )
+                else:
+                    progress_store_local.mark_failed(
+                        lane_key,
+                        task_count=n_tasks,
+                        eligible_calls=result.eligible_calls,
+                        success_count=result.success_count,
+                        journal_skip_count=result.journal_skip_count,
+                        retry_skip_count=result.retry_skip_count,
+                        support_skip_count=result.support_skip_count,
+                        failure_count=result.failure_count,
+                        deferred_failure_count=result.deferred_failure_count,
+                        error="; ".join(result.errors) or "incomplete extraction slice",
+                    )
             if journal is not None and lane_key is not None:
                 journal.record_lane_metric(
                     lane_id=lane_key.slug,
@@ -837,12 +1099,12 @@ class Orchestrator:
                     started_at=started_at,
                     completed_at=completed_at,
                     wall_time_seconds=(completed_at - started_at).total_seconds(),
-                    task_count=n_tasks,
+                    task_count=result.eligible_calls,
                     row_count=row_count,
-                    success_count=n_tasks,
-                    failure_count=0,
+                    success_count=result.success_count + result.journal_skip_count,
+                    failure_count=result.failure_count + result.deferred_failure_count,
                 )
-            return result_raw
+            return result
 
         # Group plan items by priority tier and run tiers sequentially.
         # Within each tier, patterns run concurrently.  This ensures
@@ -864,21 +1126,29 @@ class Orchestrator:
 
             for j, result in enumerate(tier_results):
                 if isinstance(result, BaseException):
-                    failed_label = tier_items[j][1].label
+                    failed_item = tier_items[j][1]
+                    failed_label = failed_item.label
+                    failed_task_count = failed_item.task_count
                     pattern_failures += 1
+                    failed_calls += failed_task_count
+                    extraction_errors.append(
+                        f"{failed_label}[{failed_item.pattern}]: "
+                        f"{type(result).__name__}: {result} "
+                        f"(task_count={failed_task_count})"
+                    )
                     if progress_store is not None and run_mode is not None:
-                        lane_key = progress_store.slice_key(run_mode, tier_items[j][1])
+                        lane_key = progress_store.slice_key(run_mode, failed_item)
                         progress_store.mark_failed(
                             lane_key,
-                            task_count=tier_items[j][1].task_count,
-                            error=type(result).__name__,
+                            task_count=failed_task_count,
+                            error=f"{type(result).__name__}: {result}",
                         )
                         if journal is not None:
                             failed_at = datetime.now(UTC)
                             journal.record_lane_metric(
                                 lane_id=lane_key.slug,
                                 run_mode=run_mode,
-                                pattern=tier_items[j][1].pattern,
+                                pattern=failed_item.pattern,
                                 endpoint_families=sorted(
                                     {
                                         endpoint_family(
@@ -886,19 +1156,19 @@ class Orchestrator:
                                             getattr(
                                                 entry,
                                                 "param_pattern",
-                                                tier_items[j][1].pattern,
+                                                failed_item.pattern,
                                             ),
                                         )
-                                        for entry in tier_items[j][1].entries
+                                        for entry in failed_item.entries
                                     }
                                 ),
                                 started_at=failed_at,
                                 completed_at=failed_at,
                                 wall_time_seconds=0.0,
-                                task_count=tier_items[j][1].task_count,
+                                task_count=failed_task_count,
                                 row_count=0,
                                 success_count=0,
-                                failure_count=tier_items[j][1].task_count,
+                                failure_count=failed_task_count,
                             )
                     logger.error(
                         "pattern {} failed: {}",
@@ -906,13 +1176,22 @@ class Orchestrator:
                         type(result).__name__,
                     )
                     continue
+                if not result.is_complete:
+                    pattern_failures += 1
+                    failed_calls += result.failure_count + result.deferred_failure_count
+                    extraction_errors.extend(result.errors)
                 if retain_in_memory:
-                    raw.update(result)
+                    raw.update(result.frames)
 
         if pp is not None:
             pp.complete_phase()
 
-        return ExtractionOutcome(raw=raw, pattern_failures=pattern_failures)
+        return ExtractionOutcome(
+            raw=raw,
+            pattern_failures=pattern_failures,
+            failed_calls=failed_calls,
+            errors=extraction_errors,
+        )
 
     # ── run modes ──────────────────────────────────────────────
 
@@ -965,19 +1244,40 @@ class Orchestrator:
                 pp.start_phase("Discovery")
                 pp.update_phase_info(f"scanning {len(seasons)} seasons...")
 
-            game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-                discovery,
-                seasons,
-                bound_log,
-                season_types=season_types,
-                include_historical_players=True,
+            entity_task = asyncio.create_task(
+                self._discover_entities(
+                    discovery,
+                    seasons,
+                    bound_log,
+                    season_types=season_types,
+                    include_historical_players=True,
+                    require_complete=True,
+                )
             )
-            current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
-            player_team_result = await self._discover_player_team_season_result(
-                discovery,
-                seasons=seasons,
-                season_types=season_types,
+            current_team_task = asyncio.create_task(
+                self._discover_current_team_ids(discovery, seasons=seasons)
             )
+            player_team_task = asyncio.create_task(
+                self._discover_player_team_season_result(
+                    discovery,
+                    seasons=seasons,
+                    season_types=season_types,
+                )
+            )
+            (
+                (game_ids, player_ids, team_ids, game_dates, game_log_df),
+                current_team_ids,
+                player_team_result,
+            ) = await asyncio.gather(entity_task, current_team_task, player_team_task)
+            if not current_team_ids:
+                raise InitDiscoveryCoverageError(["current-team discovery returned no ids"])
+            if not player_team_result.is_complete:
+                missing_pairs = sorted(
+                    player_team_result.requested_pairs - player_team_result.covered_pairs
+                )
+                raise InitDiscoveryCoverageError(
+                    [f"incomplete player-team-season discovery; missing pairs: {missing_pairs}"]
+                )
             player_team_season_params = self._persist_player_team_season_workloads(
                 player_team_result.params,
                 seasons=seasons,
@@ -1012,10 +1312,38 @@ class Orchestrator:
                 run_mode="init",
                 journal=journal,
                 progress_store=self._extraction_progress(),
-                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                persist_results=lambda frames, **metadata: self._persist_staging_to_duckdb(
+                    db, frames, **metadata
+                ),
                 retain_in_memory=False,
             )
             raw = extraction.raw
+
+            if extraction.pattern_failures or extraction.failed_calls or journal.get_failed():
+                bound_log.error(
+                    "init extraction incomplete: {} pattern failures, {} failed calls",
+                    extraction.pattern_failures,
+                    extraction.failed_calls,
+                )
+                result = self._build_result(
+                    t0,
+                    0,
+                    0,
+                    0,
+                    journal=journal,
+                    extra_errors=extraction.errors,
+                    include_exhausted=True,
+                    include_abandoned=True,
+                )
+                result.failed_extractions = max(
+                    result.failed_extractions,
+                    extraction.failed_calls or extraction.pattern_failures,
+                )
+                result.skipped_extractions = runner.skipped
+                runner.log_latency_summary()
+                return result
+
+            self._materialize_staging_batches(db)
 
             # -- 2b. Phase-B warehouse load from durable staged batches ----
             bound_log.info("loading durable staged extraction batches from DuckDB")
@@ -1046,6 +1374,7 @@ class Orchestrator:
                 failed_loads,
                 journal=journal,
             )
+            self._apply_extraction_outcome(result, extraction)
             result.skipped_extractions = runner.skipped
             runner.log_latency_summary()
 
@@ -1147,13 +1476,15 @@ class Orchestrator:
                 current_team_ids=current_team_ids,
                 game_dates=game_dates,
                 player_team_season_params=player_team_season_params,
-                game_log_df=pl.DataFrame(),  # already seeded above
+                game_log_df=game_log_df,
                 include_static=False,
                 season_types=daily_season_types,
                 run_mode="daily",
                 journal=journal,
                 progress_store=self._extraction_progress(),
-                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                persist_results=lambda frames, **metadata: self._persist_staging_to_duckdb(
+                    db, frames, **metadata
+                ),
                 retain_in_memory=False,
             )
             raw.update(extraction.raw)
@@ -1161,6 +1492,7 @@ class Orchestrator:
             if not game_log_df.is_empty():
                 raw.setdefault("stg_league_game_log", game_log_df)
 
+            self._materialize_staging_batches(db)
             raw = self._load_staging_from_duckdb(db)
             bound_log.info("daily loaded {} staged tables from DuckDB", len(raw))
 
@@ -1180,6 +1512,7 @@ class Orchestrator:
                 failed_loads,
                 journal=journal,
             )
+            self._apply_extraction_outcome(result, extraction)
             result.skipped_extractions = runner.skipped
             runner.log_latency_summary()
 
@@ -1243,11 +1576,14 @@ class Orchestrator:
                 run_mode="monthly",
                 journal=journal,
                 progress_store=self._extraction_progress(),
-                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                persist_results=lambda frames, **metadata: self._persist_staging_to_duckdb(
+                    db, frames, **metadata
+                ),
                 retain_in_memory=False,
             )
             raw = extraction.raw
 
+            self._materialize_staging_batches(db)
             raw = self._load_staging_from_duckdb(db)
             bound_log.info("monthly loaded {} staged tables from DuckDB", len(raw))
 
@@ -1269,6 +1605,7 @@ class Orchestrator:
                 failed_loads,
                 journal=journal,
             )
+            self._apply_extraction_outcome(result, extraction)
             result.skipped_extractions = runner.skipped
             runner.log_latency_summary()
 
@@ -1333,8 +1670,6 @@ class Orchestrator:
                         quarantine_error,
                     )
                     continue
-                normalized_params_json = json.dumps(params, sort_keys=True)
-                attempted_retry_items.add((endpoint, normalized_params_json))
                 failed_by_entry.setdefault(endpoint, []).append(params)
 
             # Build a lookup from endpoint_name -> StagingEntry(s)
@@ -1353,8 +1688,66 @@ class Orchestrator:
                     )
                     continue
                 pattern = ep_entries[0].param_pattern
-                retry_raw = await runner.run_pattern(pattern, param_list, ep_entries)
-                raw.update(retry_raw)
+
+                def _persist_retry_chunk(
+                    frames: dict[str, pl.DataFrame],
+                    *,
+                    _endpoint=endpoint,
+                    _pattern=pattern,
+                    _entries=ep_entries,
+                    **metadata: object,
+                ) -> None:
+                    source_results = cast(
+                        "list[dict[str, object]] | None",
+                        metadata.get("source_results"),
+                    )
+                    if source_results is not None:
+                        self._persist_staging_to_duckdb(
+                            db,
+                            frames,
+                            run_mode="retry-direct",
+                            lane_id=f"retry.direct.{_endpoint}",
+                            pattern=_pattern,
+                            chunk_index=cast("int", metadata.get("chunk_index") or 0),
+                            chunk_params=cast(
+                                "list[dict] | None",
+                                metadata.get("chunk_params"),
+                            ),
+                            entries=_entries,
+                            expected_staging_keys=cast(
+                                "list[str] | None",
+                                metadata.get("expected_staging_keys"),
+                            ),
+                            source_results=source_results,
+                            materialize=False,
+                        )
+                        return
+                    self._persist_staging_to_duckdb(
+                        db,
+                        frames,
+                        run_mode="retry-direct",
+                        lane_id=f"retry.direct.{_endpoint}",
+                        pattern=_pattern,
+                        chunk_index=cast("int", metadata.get("chunk_index") or 0),
+                        chunk_params=cast("list[dict] | None", metadata.get("chunk_params")),
+                        entries=_entries,
+                        expected_staging_keys=cast(
+                            "list[str] | None",
+                            metadata.get("expected_staging_keys"),
+                        ),
+                        materialize=False,
+                    )
+
+                retry_result = await runner.run_pattern_result(
+                    pattern,
+                    param_list,
+                    ep_entries,
+                    persist_chunk_results=_persist_retry_chunk,
+                )
+                raw.update(retry_result.frames)
+                if retry_result.is_complete:
+                    for params in param_list:
+                        attempted_retry_items.add((endpoint, json.dumps(params, sort_keys=True)))
 
             # -- 2. Gap-fill ALL patterns (not just season+game) ------
             _full_st = list(DEFAULT_SEASON_TYPES)
@@ -1395,11 +1788,14 @@ class Orchestrator:
                 run_mode="retry",
                 journal=journal,
                 progress_store=self._extraction_progress(),
-                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                persist_results=lambda frames, **metadata: self._persist_staging_to_duckdb(
+                    db, frames, **metadata
+                ),
                 retain_in_memory=False,
             )
             raw.update(extraction.raw)
 
+            self._materialize_staging_batches(db)
             raw = self._load_staging_from_duckdb(db)
             bound_log.info("retry loaded {} staged tables from DuckDB", len(raw))
 
@@ -1421,6 +1817,7 @@ class Orchestrator:
                 include_exhausted=True,
                 include_abandoned=True,
             )
+            self._apply_extraction_outcome(result, extraction)
             result.skipped_extractions = runner.skipped
             runner.log_latency_summary()
 
@@ -1486,6 +1883,7 @@ class Orchestrator:
             if pp is not None:
                 pp.start_phase("Transform (from staging)")
             bound_log.info("backfill: transform-only — loading staging from DuckDB")
+            self._materialize_staging_batches(db, endpoints=endpoints, patterns=patterns)
             raw = self._load_staging_from_duckdb(db, endpoints=endpoints, patterns=patterns)
             bound_log.info("backfill: loaded {} staging tables", len(raw))
             if pp is not None:
@@ -1639,7 +2037,9 @@ class Orchestrator:
                 run_mode="backfill",
                 journal=journal,
                 progress_store=self._extraction_progress(),
-                persist_results=lambda frames: self._persist_staging_to_duckdb(db, frames),
+                persist_results=lambda frames, **metadata: self._persist_staging_to_duckdb(
+                    db, frames, **metadata
+                ),
                 retain_in_memory=False,
             )
             raw.update(extraction.raw)
@@ -1652,6 +2052,7 @@ class Orchestrator:
             if extract_only:
                 bound_log.info("extract-only: staged extraction slices persisted incrementally")
             else:
+                self._materialize_staging_batches(db, endpoints=endpoints, patterns=patterns)
                 raw = self._load_staging_from_duckdb(db, endpoints=endpoints, patterns=patterns)
                 if raw and pp is not None:
                     pp.start_phase("Transform & Load")
@@ -1668,6 +2069,7 @@ class Orchestrator:
             result = self._build_result(
                 t0, tables_updated, rows_total, failed_loads, journal=journal
             )
+            self._apply_extraction_outcome(result, extraction)
             result.skipped_extractions = runner.skipped
             runner.log_latency_summary()
 

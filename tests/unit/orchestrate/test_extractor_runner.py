@@ -19,6 +19,9 @@ from nbadb.extract.base import BaseExtractor
 from nbadb.orchestrate.extractor_runner import (
     ExtractorRunner,
     _AdaptiveThrottle,
+    _DeferredExtraction,
+    _ExtractionTaskResult,
+    _PendingJournalSuccess,
     _sync_extract,
 )
 from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
@@ -391,6 +394,26 @@ class TestRunPattern:
         assert runner.skipped_due_to_journal == 0
 
     @pytest.mark.asyncio
+    async def test_run_pattern_result_treats_explicit_retry_skip_as_complete(self):
+        df = pl.DataFrame({"col": [10, 20]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings()
+        registry = _make_registry(_make_extractor(df=df))
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner.run_pattern_result(
+            "season",
+            [{"season": "2024-25"}],
+            [entry],
+            skip_items={("ep1", '{"season": "2024-25"}')},
+        )
+
+        assert result.is_complete
+        assert result.retry_skip_count == 1
+        assert result.failure_count == 0
+
+    @pytest.mark.asyncio
     async def test_run_pattern_persists_chunk_before_journal_success(self):
         class _SeasonEchoExtractor:
             category = "default"
@@ -421,6 +444,100 @@ class TestRunPattern:
         assert journal.record_success.call_count == 2
 
     @pytest.mark.asyncio
+    async def test_run_pattern_passes_source_results_for_single_entries(self):
+        df = pl.DataFrame({"season": ["2024-25"]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(default_chunk_size=1)
+        registry = _make_registry(_make_extractor(df=df))
+        runner = ExtractorRunner(registry, settings, journal)
+        captured_sources: list[list[dict[str, object]]] = []
+
+        def persist_chunk(
+            frames: dict[str, pl.DataFrame],
+            *,
+            expected_staging_keys: list[str],
+            source_results: list[dict[str, object]],
+        ) -> None:
+            captured_sources.append(source_results)
+            assert expected_staging_keys == ["stg_ep1"]
+            source_frames = source_results[0]["frames"]
+            assert isinstance(source_frames, dict)
+            assert source_frames["stg_ep1"].equals(frames["stg_ep1"])
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        await runner.run_pattern(
+            "season",
+            [{"season": "2024-25"}],
+            [entry],
+            persist_chunk_results=persist_chunk,
+        )
+
+        assert len(captured_sources) == 1
+        assert captured_sources[0][0]["source_endpoint_name"] == "ep1"
+        assert captured_sources[0][0]["source_params_json"] == '{"season": "2024-25"}'
+        assert captured_sources[0][0]["expected_staging_keys"] == ("stg_ep1",)
+        source_frames = captured_sources[0][0]["frames"]
+        assert isinstance(source_frames, dict)
+        assert source_frames["stg_ep1"].equals(df)
+        journal.record_success.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_pattern_passes_source_results_for_multi_endpoint(self):
+        df0 = pl.DataFrame({"a": [1]})
+        df1 = pl.DataFrame({"b": [2]})
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(default_chunk_size=1)
+        registry = _make_registry(_make_extractor(dfs=[df0, df1]))
+        runner = ExtractorRunner(registry, settings, journal)
+        captured_sources: list[list[dict[str, object]]] = []
+
+        def persist_chunk(
+            _frames: dict[str, pl.DataFrame],
+            *,
+            source_results: list[dict[str, object]],
+        ) -> None:
+            captured_sources.append(source_results)
+
+        entries = [
+            StagingEntry("schedule", "stg_schedule", "season", result_set_index=0, use_multi=True),
+            StagingEntry(
+                "schedule",
+                "stg_schedule_weeks",
+                "season",
+                result_set_index=1,
+                use_multi=True,
+            ),
+        ]
+        await runner.run_pattern(
+            "season",
+            [{"season": "2024-25"}],
+            entries,
+            persist_chunk_results=persist_chunk,
+        )
+
+        assert len(captured_sources) == 1
+        assert captured_sources[0][0]["source_endpoint_name"] == "schedule"
+        assert captured_sources[0][0]["source_params_json"] == '{"season": "2024-25"}'
+        assert captured_sources[0][0]["expected_staging_keys"] == (
+            "stg_schedule",
+            "stg_schedule_weeks",
+        )
+        source_frames = captured_sources[0][0]["frames"]
+        assert isinstance(source_frames, dict)
+        assert source_frames["stg_schedule"].equals(df0)
+        assert source_frames["stg_schedule_weeks"].equals(df1)
+        journal.record_success.assert_called_once()
+
+    def test_source_results_for_persistence_requires_source_identity(self):
+        result = _ExtractionTaskResult(
+            frames={"stg_ep1": pl.DataFrame({"a": [1]})},
+            pending_success=_PendingJournalSuccess("ep1", "{}", 1),
+        )
+
+        with pytest.raises(RuntimeError, match="missing source identity"):
+            ExtractorRunner._source_results_for_persistence([result])
+
+    @pytest.mark.asyncio
     async def test_run_pattern_does_not_mark_success_when_chunk_persist_fails(self):
         df = pl.DataFrame({"col": [10, 20]})
         journal = _make_journal(already_done=False)
@@ -441,6 +558,99 @@ class TestRunPattern:
             )
 
         journal.record_success.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_pattern_persists_empty_chunk_before_journal_success(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(default_chunk_size=1)
+        registry = _make_registry(_make_extractor(df=pl.DataFrame()))
+        runner = ExtractorRunner(registry, settings, journal)
+        persist_events: list[list[str]] = []
+
+        def persist_chunk(
+            frames: dict[str, pl.DataFrame],
+            *,
+            expected_staging_keys: list[str],
+        ) -> None:
+            assert frames == {}
+            assert journal.record_success.call_count == 0
+            persist_events.append(expected_staging_keys)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        result = await runner.run_pattern(
+            "season",
+            [{"season": "2024-25"}],
+            [entry],
+            persist_chunk_results=persist_chunk,
+        )
+
+        assert persist_events == [["stg_ep1"]]
+        assert result.get("stg_ep1", pl.DataFrame()).is_empty()
+        journal.record_success.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_pattern_filters_chunk_metadata_for_callback_signature(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(default_chunk_size=1)
+        registry = _make_registry(_make_extractor(df=pl.DataFrame({"season": ["2024-25"]})))
+        runner = ExtractorRunner(registry, settings, journal)
+        chunk_indexes: list[int] = []
+
+        def persist_chunk(
+            frames: dict[str, pl.DataFrame],
+            *,
+            chunk_index: int,
+        ) -> None:
+            assert "stg_ep1" in frames
+            chunk_indexes.append(chunk_index)
+
+        entry = StagingEntry("ep1", "stg_ep1", "season")
+        await runner.run_pattern(
+            "season",
+            [{"season": "2024-25"}],
+            [entry],
+            persist_chunk_results=persist_chunk,
+        )
+
+        assert chunk_indexes == [0]
+
+    @pytest.mark.asyncio
+    async def test_deferred_multi_replay_preserves_eligible_entry_subset(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(default_chunk_size=1)
+        registry = _make_registry(_make_extractor())
+        runner = ExtractorRunner(registry, settings, journal)
+        active = StagingEntry("ep_multi", "stg_active", "season", use_multi=True)
+        filtered = StagingEntry("ep_multi", "stg_filtered", "season", use_multi=True)
+        captured_entries: list[list[StagingEntry]] = []
+
+        async def _capture_extract_multi_result(
+            endpoint_name,
+            entries,
+            params,
+            **kwargs,
+        ):
+            captured_entries.append(entries)
+            return {}
+
+        runner._extract_multi_result = _capture_extract_multi_result  # type: ignore[method-assign]
+
+        await runner._replay_deferred_chunk(
+            [
+                _DeferredExtraction(
+                    endpoint_name="ep_multi",
+                    params={"season": "2024-25"},
+                    wait_seconds=0,
+                    eligible_staging_keys=("stg_active",),
+                )
+            ],
+            single_by_key={},
+            multi_by_ep={"ep_multi": [active, filtered]},
+            on_progress=None,
+            defer_journal_success=False,
+        )
+
+        assert captured_entries == [[active]]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -1137,10 +1347,12 @@ class TestBuildChunkTasksDeprecated:
                 on_progress=None,
             )
 
-        tasks = asyncio.run(_run())
+        batch = asyncio.run(_run())
 
         # Only the active entry should produce a task
-        assert len(tasks) == 1
+        assert len(batch.tasks) == 1
+        assert batch.eligible_calls == 1
+        assert batch.support_skip_count == 1
         assert runner.skipped >= 1
 
     def test_non_deprecated_entry_proceeds(self):
@@ -1167,8 +1379,9 @@ class TestBuildChunkTasksDeprecated:
                 on_progress=None,
             )
 
-        tasks = asyncio.run(_run())
-        assert len(tasks) == 1
+        batch = asyncio.run(_run())
+        assert len(batch.tasks) == 1
+        assert batch.eligible_calls == 1
         assert runner.skipped == 0
 
 
@@ -1220,9 +1433,11 @@ class TestBuildChunkTasksMinSeason:
                 on_progress=None,
             )
 
-        tasks = asyncio.run(_run())
+        batch = asyncio.run(_run())
 
-        assert tasks == []
+        assert batch.tasks == []
+        assert batch.eligible_calls == 0
+        assert batch.support_skip_count == 1
         assert runner.skipped == 1
 
 

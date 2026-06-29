@@ -369,6 +369,50 @@ class DataQualityMonitor:
             ],
         }
 
+    def compute_table_quality_score(self, table: str) -> float:
+        """Return a 0-1 quality score from checks already recorded for *table*."""
+        table_results = [result for result in self.results if result.table == table]
+        if not table_results:
+            return 1.0
+        passed = sum(1 for result in table_results if result.passed)
+        return round(passed / len(table_results), 4)
+
+    def summarize_table_quality(self, tables: list[str]) -> dict[str, float]:
+        return {table: self.compute_table_quality_score(table) for table in tables}
+
+    def record_table_quality_checks(
+        self,
+        table: str,
+        *,
+        row_count: int,
+        key_columns: list[str] | None = None,
+    ) -> float:
+        """Run lightweight structural checks and return the resulting score."""
+        if row_count <= 0:
+            self.results.append(
+                QualityResult(
+                    table=table,
+                    check_type="empty_table",
+                    layer=CheckLayer.STRUCTURAL,
+                    passed=False,
+                    message=f"{table}: empty output table",
+                )
+            )
+        else:
+            self.results.append(
+                QualityResult(
+                    table=table,
+                    check_type="row_count_positive",
+                    layer=CheckLayer.STRUCTURAL,
+                    passed=True,
+                    message=f"{table}: {row_count} rows",
+                )
+            )
+        if row_count > 0:
+            for column in key_columns or []:
+                self.check_null_rate(table, column, max_null_fraction=0.0)
+        return self.compute_table_quality_score(table)
+
     def log_summary(self) -> None:
         s = self.summary()
         logger.info(f"Quality: {s['passed']}/{s['total']} passed, {s['failed']} failed")

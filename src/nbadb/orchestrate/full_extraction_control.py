@@ -675,6 +675,12 @@ def _season_span(start: int | None, end: int | None) -> int:
     return max(1, end - start + 1)
 
 
+def _optional_int(value: Any) -> int | None:
+    if value in {None, ""}:
+        return None
+    return int(value)
+
+
 def _max_span_for_pattern(pattern: str) -> int:
     return HISTORICAL_MAX_SPAN_BY_PATTERN.get(pattern, 12)
 
@@ -981,8 +987,8 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         lane_index=lane_index,
         lane_name=str(raw.get("lane_name") or raw["lane_id"]),
         lane_kind=str(raw.get("lane_kind") or "custom"),
-        season_start=None if season_start in {None, ""} else int(season_start),
-        season_end=None if season_end in {None, ""} else int(season_end),
+        season_start=_optional_int(season_start),
+        season_end=_optional_int(season_end),
         patterns=patterns,
         season_types=season_types,
         endpoints=endpoints,
@@ -1663,8 +1669,8 @@ def lane_outcome_from_metadata(
             for rule in contract_blocking_rules_for_lane(
                 endpoints=endpoints,
                 patterns=patterns,
-                season_start=None if season_start in {None, ""} else int(season_start),
-                season_end=None if season_end in {None, ""} else int(season_end),
+                season_start=_optional_int(season_start),
+                season_end=_optional_int(season_end),
             )
         )
     )

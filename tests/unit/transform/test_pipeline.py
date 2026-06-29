@@ -9,6 +9,7 @@ import polars as pl
 from nbadb.schemas.base import BaseSchema
 from nbadb.transform.base import BaseTransformer
 from nbadb.transform.pipeline import TransformPipeline, _input_schema_for
+from nbadb.transform.schema_version import SchemaVersionTracker
 
 
 class _TransA(BaseTransformer):
@@ -343,3 +344,18 @@ class TestTransformPipeline:
         ).fetchall()
         assert ("table_a",) in rows
         conn.close()
+
+    def test_run_records_schema_versions(
+        self,
+        duckdb_memory_with_pipeline_tables: duckdb.DuckDBPyConnection,
+    ) -> None:
+        conn = duckdb_memory_with_pipeline_tables
+        pipeline = TransformPipeline(conn)
+        pipeline.register(_TransA())
+        staging = {"raw_input": pl.DataFrame({"val": [10]}).lazy()}
+        pipeline.run(staging)
+        tracker = SchemaVersionTracker(conn)
+        version = tracker.get_current_version("table_a")
+        assert version is not None
+        assert version[0] == 1
+        assert version[2] == ["val", "val_a"]

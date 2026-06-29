@@ -506,9 +506,18 @@ def _get_table_metadata(conn: DuckDbConnection) -> list[dict[str, Any]] | None:
     """Return table metadata rows, or None if the table doesn't exist."""
     try:
         rows = conn.execute(
-            "SELECT table_name, row_count, last_updated FROM _pipeline_metadata ORDER BY table_name"
+            "SELECT table_name, row_count, last_updated, quality_score "
+            "FROM _pipeline_metadata ORDER BY table_name"
         ).fetchall()
-        return [{"table": r[0], "rows": r[1], "updated": str(r[2])} for r in rows]
+        return [
+            {
+                "table": r[0],
+                "rows": r[1],
+                "updated": str(r[2]),
+                "quality_score": None if r[3] is None else float(r[3]),
+            }
+            for r in rows
+        ]
     except duckdb.Error:
         return None
 

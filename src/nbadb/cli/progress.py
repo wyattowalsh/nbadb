@@ -351,7 +351,7 @@ class PipelineProgress:
     def export_summary(self) -> RunSummary:
         """Return a structured summary of the pipeline run."""
         elapsed = time.monotonic() - self._start_time if self._start_time else 0.0
-        patterns = []
+        patterns: list[dict[str, object]] = []
         for p in self._patterns:
             patterns.append(
                 {
@@ -614,7 +614,7 @@ class CIProgress:
     def export_summary(self) -> RunSummary:
         """Return a structured summary of the pipeline run."""
         elapsed = time.monotonic() - self._start_time if self._start_time else 0.0
-        patterns = []
+        patterns: list[dict[str, object]] = []
         for p in self._patterns:
             patterns.append(
                 {

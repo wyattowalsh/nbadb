@@ -823,7 +823,7 @@ class NbaDbDashboard(App):
         self._tripped = tripped
 
     def export_summary(self) -> RunSummary:
-        patterns = []
+        patterns: list[dict[str, object]] = []
         for p in self._patterns:
             dur = (
                 (p.end_time - p.start_time)

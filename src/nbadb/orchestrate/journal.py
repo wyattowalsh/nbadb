@@ -549,6 +549,54 @@ class PipelineJournal:
         ).fetchall()
         return [(r[0], r[1], r[2], r[3], str(r[4])) for r in rows]
 
+    # ── table metadata ────────────────────────────────────────────
+
+    def record_table_metadata(
+        self,
+        table: str,
+        row_count: int,
+        schema_hash: str,
+        *,
+        quality_score: float | None = None,
+    ) -> None:
+        """Upsert per-table inventory metadata for status and agent surfaces."""
+        now = datetime.now(UTC).isoformat()
+        self._conn.execute(
+            """
+            INSERT INTO _pipeline_metadata
+                (table_name, last_updated, row_count, schema_hash, quality_score)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (table_name)
+            DO UPDATE SET
+                last_updated = EXCLUDED.last_updated,
+                row_count = EXCLUDED.row_count,
+                schema_hash = EXCLUDED.schema_hash,
+                quality_score = EXCLUDED.quality_score
+            """,
+            [table, now, row_count, schema_hash, quality_score],
+        )
+        logger.debug(
+            "metadata {} rows={} schema_hash={}",
+            table,
+            row_count,
+            schema_hash,
+        )
+
+    def get_table_metadata(self, table: str) -> tuple[int, str, str, float | None] | None:
+        """Return (row_count, schema_hash, last_updated, quality_score) for a table."""
+        row = self._conn.execute(
+            """
+            SELECT row_count, schema_hash, last_updated, quality_score
+            FROM _pipeline_metadata
+            WHERE table_name = $1
+            """,
+            [table],
+        ).fetchone()
+        if row is None:
+            return None
+        quality_score = None if row[3] is None else float(row[3])
+        return (int(row[0]), str(row[1]), str(row[2]), quality_score)
+
     # ── pipeline metrics ──────────────────────────────────────────
 
     def record_metric(
