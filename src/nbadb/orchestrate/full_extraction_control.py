@@ -1690,6 +1690,7 @@ def build_resume_manifest(
     attempted_lane_ids: frozenset[str] | None = None,
     allow_missing_attempted_metadata: bool = False,
     completed_artifact_run_id: str | None = None,
+    chunk_profile: str | None = None,
     latest_checkpoint_run_id: str | None = None,
     latest_checkpoint_artifact_name: str | None = None,
     latest_checkpoint_generation: int | None = None,
@@ -1706,8 +1707,14 @@ def build_resume_manifest(
     contract_blocked = 0
     blocked_lanes: list[FullExtractionLane] = []
     pipeline_failures: list[str] = []
+    profile_override = _validate_chunk_profile(chunk_profile) if chunk_profile else None
 
-    for lane in lanes:
+    for source_lane in lanes:
+        lane = (
+            replace(source_lane, chunk_profile=profile_override)
+            if profile_override is not None
+            else source_lane
+        )
         payload = metadata.get(lane.lane_id)
         raw_status = str(payload.get("status", "")) if payload else ""
         if not raw_status and lane.resume_only:
@@ -1725,8 +1732,31 @@ def build_resume_manifest(
             else:
                 active += 1
                 deferred += 1
+                if _lane_exceeds_policy(lane):
+                    next_lanes.pop()
+                    child_lanes = _split_legacy_oversized_lane(
+                        lane,
+                        reason="resume-profile-oversized",
+                    )
+                    next_lanes.extend(child_lanes)
+                    split_lane_count += len(child_lanes)
+                    active += len(child_lanes) - 1
+                    deferred += len(child_lanes) - 1
             continue
         if payload is None and allow_missing_attempted_metadata:
+            if _lane_exceeds_policy(lane):
+                child_lanes = _split_legacy_oversized_lane(
+                    lane,
+                    reason="missing-metadata-profile-oversized",
+                )
+                next_lanes.extend(child_lanes)
+                split_lane_count += len(child_lanes)
+                active += len(child_lanes)
+                failure_reason_counts["missing-metadata"] = (
+                    failure_reason_counts.get("missing-metadata", 0) + 1
+                )
+                outcome_counts["needs_resume"] = outcome_counts.get("needs_resume", 0) + 1
+                continue
             next_lanes.append(
                 replace(
                     lane,
@@ -1816,7 +1846,7 @@ def build_resume_manifest(
             *([completed_artifact_run_id] if completed_artifact_run_id else []),
         ]
     )
-    profile = _manifest_chunk_profile(next_lanes or lanes)
+    profile = profile_override or _manifest_chunk_profile(next_lanes or lanes)
     next_lanes = _schedule_lanes(next_lanes, chunk_profile=profile)
     previous_state = chain_state or FullExtractionChainState()
     checkpoint_generation = (
@@ -2459,6 +2489,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         attempted_lane_ids=manifest.matrix_lane_ids or None,
         allow_missing_attempted_metadata=args.allow_missing_attempted_metadata,
         completed_artifact_run_id=args.completed_artifact_run_id,
+        chunk_profile=args.chunk_profile,
         latest_checkpoint_run_id=args.latest_checkpoint_run_id,
         latest_checkpoint_artifact_name=args.latest_checkpoint_artifact_name,
         latest_checkpoint_generation=args.latest_checkpoint_generation,
@@ -2533,6 +2564,7 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--latest-checkpoint-artifact-name", type=str, default=None)
     resume.add_argument("--latest-checkpoint-generation", type=int, default=None)
     resume.add_argument("--latest-checkpoint-coverage-hash", type=str, default=None)
+    resume.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
     resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)

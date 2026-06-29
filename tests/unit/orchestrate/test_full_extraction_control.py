@@ -283,6 +283,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "--checkpoint-dir checkpoint-artifact" in workflow
     assert "--checkpoint-report-path checkpoint-artifact/checkpoint-report.json" in workflow
     assert "needs.preflight.outputs.effective-network-mode == 'direct'" in workflow
+    assert '--chunk-profile "$CHUNK_PROFILE"' in workflow
     direct_parallel_expr = (
         "max-parallel: ${{ fromJSON("
         "needs.preflight.outputs.effective-network-mode == 'direct' "
@@ -1601,6 +1602,44 @@ def test_build_resume_manifest_preserves_deferred_unattempted_lanes(tmp_path: Pa
     assert summary["active_lane_count"] == 5
     assert summary["deferred_lane_count"] == 1
     assert summary["failure_reason_counts"] == {"extract-timeout": 1}
+
+
+def test_build_resume_manifest_applies_chunk_profile_to_deferred_lanes(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-date-scoreboard-v2-no-season-type-1957-1960",
+        lane_index=0,
+        lane_name="Historical date 1957-1960",
+        lane_kind="historical",
+        season_start=1957,
+        season_end=1960,
+        patterns=("date",),
+        endpoints=("scoreboard_v2",),
+        timeout_seconds=5400,
+        chunk_profile="standard",
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset(),
+        chunk_profile="micro",
+    )
+
+    validate_manifest(next_lanes)
+    assert len(next_lanes) == 4
+    assert {lane.chunk_profile for lane in next_lanes} == {"micro"}
+    assert all(lane.season_start == lane.season_end for lane in next_lanes)
+    assert all(
+        lane.parent_lane_id == "historical-date-scoreboard-v2-no-season-type-1957-1960"
+        for lane in next_lanes
+    )
+    assert summary["split_lane_count"] == 4
+    assert summary["active_lane_count"] == 4
+    assert summary["deferred_lane_count"] == 4
 
 
 def test_build_resume_manifest_treats_corrupt_metadata_as_missing(
