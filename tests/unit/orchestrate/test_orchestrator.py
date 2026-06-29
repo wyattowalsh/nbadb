@@ -1262,6 +1262,45 @@ class TestPersistStagingToDuckdb:
         assert rows == [("001", 1)]
         assert journal_count == 1
 
+    def test_persist_staging_replaces_changed_daily_source_results(self):
+        orch = Orchestrator(settings=_mock_settings())
+        conn = duckdb.connect(":memory:")
+        db = SimpleNamespace(duckdb=conn)
+        first = pl.DataFrame({"game_id": ["001"], "value": [1]})
+        second = pl.DataFrame({"game_id": ["001"], "value": [2]})
+
+        try:
+            for frame in (first, second):
+                orch._persist_staging_to_duckdb(
+                    db,
+                    {"stg_sample": frame},
+                    run_mode="daily",
+                    lane_id="daily.current",
+                    pattern="season",
+                    chunk_index=0,
+                    chunk_params=[{"season": "2024-25"}],
+                    entries=[SimpleNamespace(endpoint_name="ep1")],
+                    expected_staging_keys=["stg_sample"],
+                    source_results=[
+                        {
+                            "frames": {"stg_sample": frame},
+                            "source_endpoint_name": "ep1",
+                            "source_params_json": '{"season": "2024-25"}',
+                            "expected_staging_keys": ("stg_sample",),
+                        }
+                    ],
+                    materialize=True,
+                )
+            rows = conn.execute("SELECT game_id, value FROM stg_sample").fetchall()
+            journal_count = conn.execute(
+                "SELECT count(*) FROM _staging_chunk_journal WHERE staging_key = 'stg_sample'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+        assert rows == [("001", 2)]
+        assert journal_count == 1
+
 
 # ---------------------------------------------------------------------------
 # run_backfill tests

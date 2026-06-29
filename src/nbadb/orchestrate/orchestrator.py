@@ -513,6 +513,7 @@ class Orchestrator:
         store = StagingBatchStore(db.duckdb)
         if source_results:
             source_batches: list[StagingFrameBatch] = []
+            replace_source_chunk = run_mode in {"daily", "monthly"}
             for source_result in source_results:
                 source_frames = cast("dict[str, pl.DataFrame]", source_result["frames"])
                 source_endpoint_name = str(source_result["source_endpoint_name"])
@@ -541,6 +542,7 @@ class Orchestrator:
                         dedupe_materialized=False
                         if dedupe_materialized is None
                         else dedupe_materialized,
+                        replace_existing_chunk=replace_source_chunk,
                     )
                 )
             result = store.persist_frame_batches(source_batches, materialize=materialize)

@@ -43,6 +43,7 @@ class StagingFrameBatch:
     metadata: StagingChunkMetadata
     expected_staging_keys: tuple[str, ...] = ()
     dedupe_materialized: bool = False
+    replace_existing_chunk: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +103,7 @@ class StagingBatchStore:
         expected_staging_keys: Iterable[str] | None = None,
         materialize: bool = False,
         dedupe_materialized: bool = False,
+        replace_existing_chunk: bool = False,
     ) -> StagingPersistResult:
         return self.persist_frame_batches(
             [
@@ -110,6 +112,7 @@ class StagingBatchStore:
                     metadata=metadata,
                     expected_staging_keys=tuple(expected_staging_keys or ()),
                     dedupe_materialized=dedupe_materialized,
+                    replace_existing_chunk=replace_existing_chunk,
                 )
             ],
             materialize=materialize,
@@ -171,15 +174,40 @@ class StagingBatchStore:
             content_hash = frame_content_hash(df)
             chunk_id = self._chunk_id(safe_key, batch.metadata)
             existing = self._existing_chunk_hash(chunk_id, safe_key)
+            if existing is None:
+                legacy_chunk_id = self._legacy_source_chunk_id(safe_key, batch.metadata)
+                if legacy_chunk_id is not None:
+                    existing = self._existing_chunk_hash(legacy_chunk_id, safe_key)
+                    if existing is not None:
+                        if existing == content_hash:
+                            self._rename_chunk(
+                                safe_key,
+                                old_chunk_id=legacy_chunk_id,
+                                new_chunk_id=chunk_id,
+                            )
+                        elif batch.replace_existing_chunk:
+                            self._delete_chunk(safe_key, legacy_chunk_id)
+                            existing = None
+                        else:
+                            msg = (
+                                f"staging chunk hash mismatch for {safe_key} "
+                                f"{legacy_chunk_id}: {existing} != {content_hash}"
+                            )
+                            raise RuntimeError(msg)
             if existing is not None:
                 if existing != content_hash:
-                    msg = (
-                        f"staging chunk hash mismatch for {safe_key} "
-                        f"{chunk_id}: {existing} != {content_hash}"
-                    )
-                    raise RuntimeError(msg)
-                replayed += 1
-                continue
+                    if batch.replace_existing_chunk:
+                        self._delete_chunk(safe_key, chunk_id)
+                        existing = None
+                    else:
+                        msg = (
+                            f"staging chunk hash mismatch for {safe_key} "
+                            f"{chunk_id}: {existing} != {content_hash}"
+                        )
+                        raise RuntimeError(msg)
+                if existing is not None:
+                    replayed += 1
+                    continue
 
             frame_to_append = df
             if not df.is_empty():
@@ -199,7 +227,7 @@ class StagingBatchStore:
                 content_hash=content_hash,
                 source_label=batch.metadata.source_label,
             )
-            if not frame_to_append.is_empty():
+            if batch.replace_existing_chunk or not frame_to_append.is_empty():
                 changed_keys.append(safe_key)
             tables += 1
             rows += frame_to_append.height
@@ -238,7 +266,6 @@ class StagingBatchStore:
         if metadata.source_endpoint_name is not None and metadata.source_params_digest is not None:
             payload = {
                 "staging_key": staging_key,
-                "run_mode": metadata.run_mode,
                 "pattern": metadata.pattern,
                 "source_endpoint_name": metadata.source_endpoint_name,
                 "source_params_digest": metadata.source_params_digest,
@@ -253,6 +280,24 @@ class StagingBatchStore:
                 "params_digest": metadata.params_digest,
                 "entries_digest": metadata.entries_digest,
             }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    def _legacy_source_chunk_id(
+        self,
+        staging_key: str,
+        metadata: StagingChunkMetadata,
+    ) -> str | None:
+        if metadata.source_endpoint_name is None or metadata.source_params_digest is None:
+            return None
+        payload = {
+            "staging_key": staging_key,
+            "run_mode": metadata.run_mode,
+            "pattern": metadata.pattern,
+            "source_endpoint_name": metadata.source_endpoint_name,
+            "source_params_digest": metadata.source_params_digest,
+        }
         return hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
@@ -284,6 +329,39 @@ class StagingBatchStore:
             VALUES ($1, $2, $3, $4, $5)
             """,
             [chunk_id, staging_key, row_count, content_hash, source_label],
+        )
+
+    def _rename_chunk(self, staging_key: str, *, old_chunk_id: str, new_chunk_id: str) -> None:
+        if old_chunk_id == new_chunk_id:
+            return
+        internal = self._chunk_table_name(staging_key)
+        if self._table_exists(internal):
+            self._conn.execute(
+                f"UPDATE {internal} SET _nbadb_chunk_id = $1 WHERE _nbadb_chunk_id = $2",
+                [new_chunk_id, old_chunk_id],
+            )
+        self._conn.execute(
+            """
+            UPDATE _staging_chunk_journal
+            SET chunk_id = $1
+            WHERE chunk_id = $2 AND staging_key = $3
+            """,
+            [new_chunk_id, old_chunk_id, staging_key],
+        )
+
+    def _delete_chunk(self, staging_key: str, chunk_id: str) -> None:
+        internal = self._chunk_table_name(staging_key)
+        if self._table_exists(internal):
+            self._conn.execute(
+                f"DELETE FROM {internal} WHERE _nbadb_chunk_id = $1",
+                [chunk_id],
+            )
+        self._conn.execute(
+            """
+            DELETE FROM _staging_chunk_journal
+            WHERE chunk_id = $1 AND staging_key = $2
+            """,
+            [chunk_id, staging_key],
         )
 
     def _legacy_filtered_frame(self, staging_key: str, df: pl.DataFrame) -> pl.DataFrame:
