@@ -118,6 +118,10 @@ on:
         description: "Completed or failed source run ID to resume from metadata and its original manifest"
         type: string
         default: ""
+      retry_pipeline_failures:
+        description: "Retry pipeline-failure lanes during resume-source planning"
+        type: boolean
+        default: false
 
 env:
   NBADB_DATA_DIR: data/nbadb
@@ -294,6 +298,7 @@ jobs:
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
+          RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
         run: |
           mkdir -p artifacts/full-extraction
           args=(
@@ -349,13 +354,19 @@ jobs:
               find "$RUNNER_TEMP/resume-source/manifest" -maxdepth 4 -type f -print || true
               exit 1
             fi
-            uv run python -m nbadb.orchestrate.full_extraction_control resume \
-              --lane-manifest-path "$source_manifest" \
-              --metadata-dir "$RUNNER_TEMP/resume-source/metadata" \
-              --completed-artifact-run-id "$RESUME_SOURCE_RUN_ID" \
-              --chunk-profile "$CHUNK_PROFILE" \
-              --allow-missing-attempted-metadata \
-              --output-path artifacts/full-extraction/resume-source-manifest.json \
+            resume_args=(
+              resume
+              --lane-manifest-path "$source_manifest"
+              --metadata-dir "$RUNNER_TEMP/resume-source/metadata"
+              --completed-artifact-run-id "$RESUME_SOURCE_RUN_ID"
+              --chunk-profile "$CHUNK_PROFILE"
+              --allow-missing-attempted-metadata
+              --output-path artifacts/full-extraction/resume-source-manifest.json
+            )
+            if [ "$RETRY_PIPELINE_FAILURES" = "true" ]; then
+              resume_args+=(--allow-pipeline-failures)
+            fi
+            uv run python -m nbadb.orchestrate.full_extraction_control "${resume_args[@]}" \
               > artifacts/full-extraction/resume-source-manifest.stdout.json
             args+=(--lane-manifest-path artifacts/full-extraction/resume-source-manifest.json)
           else
@@ -1737,6 +1748,7 @@ jobs:
           DIRECT_PARALLELISM: ${{ inputs.direct_parallelism }}
           DIRECT_REQUEST_PROFILE: ${{ inputs.direct_request_profile }}
           DIRECT_TIMEOUT_CAP_MINUTES: ${{ inputs.direct_timeout_cap_minutes }}
+          RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
           NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode == 'direct' && 'direct' || inputs.network_mode }}
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
@@ -1764,6 +1776,7 @@ jobs:
             -f direct_parallelism="$DIRECT_PARALLELISM" \
             -f direct_request_profile="$DIRECT_REQUEST_PROFILE" \
             -f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES" \
+            -f retry_pipeline_failures="$RETRY_PIPELINE_FAILURES" \
             -f network_mode="$NETWORK_MODE" \
             -f chunk_profile="$CHUNK_PROFILE" \
             -f iteration="$next" \

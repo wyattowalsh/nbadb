@@ -1689,6 +1689,7 @@ def build_resume_manifest(
     chain_state: FullExtractionChainState | None = None,
     attempted_lane_ids: frozenset[str] | None = None,
     allow_missing_attempted_metadata: bool = False,
+    allow_pipeline_failures: bool = False,
     completed_artifact_run_id: str | None = None,
     chunk_profile: str | None = None,
     latest_checkpoint_run_id: str | None = None,
@@ -1707,6 +1708,7 @@ def build_resume_manifest(
     contract_blocked = 0
     blocked_lanes: list[FullExtractionLane] = []
     pipeline_failures: list[str] = []
+    pipeline_failure_retries = 0
     profile_override = _validate_chunk_profile(chunk_profile) if chunk_profile else None
 
     for source_lane in lanes:
@@ -1791,7 +1793,30 @@ def build_resume_manifest(
         failure_reason = str(payload.get("raw_status") or raw_status or status)
         failure_reason_counts[failure_reason] = failure_reason_counts.get(failure_reason, 0) + 1
         if status == "pipeline_failure":
-            pipeline_failures.append(f"{lane.lane_id} ({failure_reason})")
+            if not allow_pipeline_failures:
+                pipeline_failures.append(f"{lane.lane_id} ({failure_reason})")
+                continue
+            if _lane_exceeds_policy(lane):
+                child_lanes = _split_legacy_oversized_lane(
+                    lane,
+                    reason=f"pipeline-failure-{failure_reason}",
+                )
+                next_lanes.extend(child_lanes)
+                split_lane_count += len(child_lanes)
+                active += len(child_lanes)
+                pipeline_failure_retries += 1
+                continue
+            failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
+            next_lanes.append(
+                replace(
+                    lane,
+                    resume_only=False,
+                    failure_streak=failure_streak,
+                    last_failure_reason=status,
+                )
+            )
+            active += 1
+            pipeline_failure_retries += 1
             continue
         if _status_allows_legacy_split(status) and _lane_exceeds_policy(lane):
             child_lanes = _split_legacy_oversized_lane(lane, reason=f"legacy-oversized-{status}")
@@ -1883,6 +1908,7 @@ def build_resume_manifest(
             "contract_blocked_lane_count": contract_blocked,
             "blocked_lane_count": 0,
             "split_lane_count": split_lane_count,
+            "pipeline_failure_retry_count": pipeline_failure_retries,
             "outcome_counts": outcome_counts,
             "failure_reason_counts": failure_reason_counts,
         },
@@ -2488,6 +2514,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         chain_state=manifest.chain_state,
         attempted_lane_ids=manifest.matrix_lane_ids or None,
         allow_missing_attempted_metadata=args.allow_missing_attempted_metadata,
+        allow_pipeline_failures=args.allow_pipeline_failures,
         completed_artifact_run_id=args.completed_artifact_run_id,
         chunk_profile=args.chunk_profile,
         latest_checkpoint_run_id=args.latest_checkpoint_run_id,
@@ -2566,6 +2593,7 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--latest-checkpoint-coverage-hash", type=str, default=None)
     resume.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
     resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
+    resume.add_argument("--allow-pipeline-failures", action="store_true")
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)
 

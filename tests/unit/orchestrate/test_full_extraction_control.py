@@ -260,6 +260,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "direct_parallelism:" in workflow
     assert "direct_request_profile:" in workflow
     assert "turbo" in workflow
+    assert "retry_pipeline_failures:" in workflow
     assert "direct_timeout_cap_minutes:" in workflow
     assert "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS" in workflow
     assert "effective-network-mode:" in workflow
@@ -286,6 +287,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "--checkpoint-report-path checkpoint-artifact/checkpoint-report.json" in workflow
     assert "needs.preflight.outputs.effective-network-mode == 'direct'" in workflow
     assert '--chunk-profile "$CHUNK_PROFILE"' in workflow
+    assert "RETRY_PIPELINE_FAILURES" in workflow
+    assert "resume_args+=(--allow-pipeline-failures)" in workflow
     direct_parallel_expr = (
         "max-parallel: ${{ fromJSON("
         "needs.preflight.outputs.effective-network-mode == 'direct' "
@@ -296,6 +299,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert '-f direct_parallelism="$DIRECT_PARALLELISM"' in workflow
     assert '-f direct_request_profile="$DIRECT_REQUEST_PROFILE"' in workflow
     assert '-f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES"' in workflow
+    assert '-f retry_pipeline_failures="$RETRY_PIPELINE_FAILURES"' in workflow
     assert '-f chunk_profile="$CHUNK_PROFILE"' in workflow
 
 
@@ -862,6 +866,7 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
         "blocked_lane_count": 0,
         "split_lane_count": 0,
         "contract_blocked_lane_count": 0,
+        "pipeline_failure_retry_count": 0,
         "outcome_counts": {"complete": 1, "needs_resume": 1},
         "failure_reason_counts": {"needs_resume": 1},
     }
@@ -891,6 +896,50 @@ def test_build_resume_manifest_fails_on_pipeline_failure(tmp_path: Path) -> None
 
     with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
         build_resume_manifest([lane], metadata_dir)
+
+
+def test_build_resume_manifest_can_retry_pipeline_failures(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-season-no-season-type-2020-2020",
+        lane_index=0,
+        lane_name="Historical season 2020",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2020,
+        patterns=("season",),
+        endpoints=("draft_history",),
+        timeout_seconds=7200,
+        failure_streak=2,
+        last_failure_reason="extract-error",
+    )
+
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        endpoints=["draft_history"],
+        patterns=["season"],
+        season_start=2020,
+        season_end=2020,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        allow_pipeline_failures=True,
+    )
+
+    assert len(next_lanes) == 1
+    assert next_lanes[0].resume_only is False
+    assert next_lanes[0].failure_streak == 1
+    assert next_lanes[0].last_failure_reason == "pipeline_failure"
+    assert summary["active_lane_count"] == 1
+    assert summary["pipeline_failure_retry_count"] == 1
+    assert summary["outcome_counts"] == {"pipeline_failure": 1}
+    assert summary["failure_reason_counts"] == {"extract-error": 1}
 
 
 @pytest.mark.parametrize(
