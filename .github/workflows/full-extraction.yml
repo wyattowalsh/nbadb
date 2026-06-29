@@ -31,6 +31,20 @@ on:
           - "2"
           - "3"
           - "4"
+          - "8"
+          - "12"
+          - "16"
+          - "20"
+      direct_request_profile:
+        description: "Request-rate profile for direct/no-VPN extract lanes"
+        type: choice
+        default: "direct"
+        options:
+          - direct
+          - conservative
+          - moderate
+          - aggressive
+          - turbo
       direct_timeout_cap_minutes:
         description: "Max minutes before a direct/no-VPN date lane yields timeout metadata"
         type: choice
@@ -738,6 +752,7 @@ jobs:
         env:
           CONCURRENCY: ${{ inputs.concurrency }}
           EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
+          DIRECT_REQUEST_PROFILE: ${{ inputs.direct_request_profile }}
           DIRECT_TIMEOUT_CAP_MINUTES: ${{ inputs.direct_timeout_cap_minutes }}
           PATTERNS: ${{ matrix.patterns }}
           ENDPOINTS: ${{ matrix.endpoints }}
@@ -745,8 +760,24 @@ jobs:
           lane_concurrency="$CONCURRENCY"
           effective_network_mode="${EFFECTIVE_NETWORK_MODE:-vpn}"
           if [ "$effective_network_mode" = "direct" ]; then
-            lane_concurrency="direct"
-            echo "::notice::Using conservative direct no-VPN extraction profile"
+            direct_timeout_cap_minutes="${DIRECT_TIMEOUT_CAP_MINUTES:-30}"
+            if ! [[ "$direct_timeout_cap_minutes" =~ ^[0-9]+$ ]] || [ "$direct_timeout_cap_minutes" -le 0 ]; then
+              echo "::error::Unsupported direct_timeout_cap_minutes: $direct_timeout_cap_minutes"
+              exit 1
+            fi
+            echo "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS=$((direct_timeout_cap_minutes * 60))" >> "$GITHUB_ENV"
+
+            direct_profile="${DIRECT_REQUEST_PROFILE:-direct}"
+            case "$direct_profile" in
+              direct|conservative|moderate|aggressive|turbo)
+                lane_concurrency="$direct_profile"
+                ;;
+              *)
+                echo "::error::Unsupported direct_request_profile: $direct_profile"
+                exit 1
+                ;;
+            esac
+            echo "::notice::Using direct no-VPN extraction profile: $lane_concurrency"
           fi
           # Hosted runners have repeatedly dropped long-running singleton player lanes
           # after clean VPN setup, so force those lanes onto the lowest-stress profile.
@@ -757,12 +788,6 @@ jobs:
 
           case "$lane_concurrency" in
             direct)
-              direct_timeout_cap_minutes="${DIRECT_TIMEOUT_CAP_MINUTES:-30}"
-              if ! [[ "$direct_timeout_cap_minutes" =~ ^[0-9]+$ ]] || [ "$direct_timeout_cap_minutes" -le 0 ]; then
-                echo "::error::Unsupported direct_timeout_cap_minutes: $direct_timeout_cap_minutes"
-                exit 1
-              fi
-              echo "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS=$((direct_timeout_cap_minutes * 60))" >> "$GITHUB_ENV"
               echo 'NBADB_RATE_LIMIT=2'                  >> "$GITHUB_ENV"
               echo 'NBADB_DISCOVERY_CONCURRENCY=2'      >> "$GITHUB_ENV"
               echo 'NBADB_THREAD_POOL_SIZE=24'          >> "$GITHUB_ENV"
@@ -793,6 +818,14 @@ jobs:
               echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=90' >> "$GITHUB_ENV"
               echo 'NBADB_DEFAULT_CHUNK_SIZE=1250'     >> "$GITHUB_ENV"
               echo 'NBADB_PBP_CHUNK_SIZE=2500'         >> "$GITHUB_ENV"
+              ;;
+            turbo)
+              echo 'NBADB_RATE_LIMIT=24'                >> "$GITHUB_ENV"
+              echo 'NBADB_DISCOVERY_CONCURRENCY=12'    >> "$GITHUB_ENV"
+              echo 'NBADB_THREAD_POOL_SIZE=128'        >> "$GITHUB_ENV"
+              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=60' >> "$GITHUB_ENV"
+              echo 'NBADB_DEFAULT_CHUNK_SIZE=2000'     >> "$GITHUB_ENV"
+              echo 'NBADB_PBP_CHUNK_SIZE=4000'         >> "$GITHUB_ENV"
               ;;
             *)
               echo "::error::Unsupported concurrency setting: $lane_concurrency"
@@ -1702,6 +1735,7 @@ jobs:
           CONCURRENCY: ${{ inputs.concurrency }}
           VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
           DIRECT_PARALLELISM: ${{ inputs.direct_parallelism }}
+          DIRECT_REQUEST_PROFILE: ${{ inputs.direct_request_profile }}
           DIRECT_TIMEOUT_CAP_MINUTES: ${{ inputs.direct_timeout_cap_minutes }}
           NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode == 'direct' && 'direct' || inputs.network_mode }}
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
@@ -1728,6 +1762,7 @@ jobs:
             -f concurrency="$next_concurrency" \
             -f vpn_parallelism="$VPN_PARALLELISM" \
             -f direct_parallelism="$DIRECT_PARALLELISM" \
+            -f direct_request_profile="$DIRECT_REQUEST_PROFILE" \
             -f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES" \
             -f network_mode="$NETWORK_MODE" \
             -f chunk_profile="$CHUNK_PROFILE" \
