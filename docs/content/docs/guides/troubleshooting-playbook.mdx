@@ -167,11 +167,51 @@ print(json.load(open(root / "extraction-audit.json"))["outcome_counts"])
 PY
 ```
 
-### 3) Remediate
+### 3) Understand chunk profiles and checkpoints
+
+Fresh GitHub Actions full-extraction runs default to `balanced-small`, which keeps
+full coverage but narrows high-risk temporal lanes before dispatch. Use `standard`
+only when you need the older broader lane shape, and use `micro` when repeated
+provider, timeout, or terminal-merge failures make one-season chunks worth the
+extra Actions overhead.
+
+Each iteration now builds a cumulative checkpoint artifact named
+`full-extraction-checkpoint-<chain_id>-iter-<iteration>`. The next manifest carries
+that checkpoint pointer forward, so redispatched runs can merge the previous
+checkpoint with only the newly completed lane databases. Terminal merge consumes
+the checkpoint first and falls back to lane artifacts only if the checkpoint
+report is missing, non-terminal, or coverage-mismatched.
+
+When VPN bootstrap is down, dispatch a narrow smoke run with
+`network_mode=direct`, `vpn_parallelism=1`, and `chunk_profile=micro` before
+fan-out. Direct mode skips NordVPN setup, caps the matrix to one active lane at
+a time, writes `direct-no-vpn` into lane metadata, and does not require VPN
+diagnostic artifacts for failed lanes. Use `network_mode=auto` only after a
+smoke proves the direct path is viable and future iterations should prefer VPN
+again when preflight recovers.
+
+Inspect checkpoint health with:
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+
+report = json.load(open(Path("artifacts/full-extraction/checkpoint-report.json")))
+print("generation:", report["checkpoint_generation"])
+print("terminal_ready:", report["terminal_ready"])
+print("active_lane_count:", report["active_lane_count"])
+print("included_lane_count:", report["complete_lane_count"])
+print("coverage_fingerprint:", report["coverage_fingerprint"])
+PY
+```
+
+### 4) Remediate
 
 - Retry only `needs_resume` lanes. For repeated game/date timeouts, the controller splits children down to one-season lanes.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
 - Treat any `pipeline_failure` as a control-plane failure. Check for missing metadata, missing VPN diagnostics, auth/VPN failures, manifest errors, and unclassified zero-row extract errors before relaunch.
+- If checkpoint promotion fails but lane artifacts still exist, let the merge fallback rebuild the terminal database from the chain's recorded artifact run IDs. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
 
 ## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)
 

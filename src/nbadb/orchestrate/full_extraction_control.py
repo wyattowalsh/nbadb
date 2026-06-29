@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import shutil
 from contextlib import suppress
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -10,6 +12,7 @@ from typing import Any
 import duckdb
 
 from nbadb.core.types import SeasonType
+from nbadb.orchestrate.execution_policy import build_execution_policy
 from nbadb.orchestrate.extraction_contract import (
     FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
     FinalLaneOutcome,
@@ -27,6 +30,8 @@ DEFAULT_HISTORICAL_START = 1946
 MAX_CONSECUTIVE_FAILURES = 3
 MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
 MAX_GITHUB_MATRIX_LANES = 220
+CHUNK_PROFILES = frozenset({"standard", "balanced-small", "micro"})
+DEFAULT_CHUNK_PROFILE = "balanced-small"
 SPLITTABLE_TIMEOUT_STATUSES = frozenset(
     {"needs_resume", "extract-timeout", "timeout_with_persisted_progress"}
 )
@@ -69,6 +74,108 @@ much slower than the broad season sweeps. Isolating these lanes keeps a slow or
 rate-limited endpoint from blocking unrelated endpoint/time-period coverage.
 """
 CROSS_PRODUCT_MAX_SPAN = 4
+CHUNK_PROFILE_MAX_SPAN_BY_PATTERN: dict[str, dict[str, dict[str, int]]] = {
+    "standard": {
+        "cheap_high_volume": {
+            "game": HISTORICAL_MAX_SPAN_BY_PATTERN["game"],
+            "date": HISTORICAL_MAX_SPAN_BY_PATTERN["date"],
+            "season": HISTORICAL_MAX_SPAN_BY_PATTERN["season"],
+            "player_season": HISTORICAL_MAX_SPAN_BY_PATTERN["player_season"],
+            "team_season": HISTORICAL_MAX_SPAN_BY_PATTERN["team_season"],
+            "player_team_season": CROSS_PRODUCT_MAX_SPAN,
+        },
+        "expensive_stable": {
+            "game": HISTORICAL_MAX_SPAN_BY_PATTERN["game"],
+            "date": HISTORICAL_MAX_SPAN_BY_PATTERN["date"],
+            "season": HISTORICAL_MAX_SPAN_BY_PATTERN["season"],
+            "player_season": HISTORICAL_MAX_SPAN_BY_PATTERN["player_season"],
+            "team_season": HISTORICAL_MAX_SPAN_BY_PATTERN["team_season"],
+            "player_team_season": CROSS_PRODUCT_MAX_SPAN,
+        },
+        "expensive_flaky": {
+            "game": HISTORICAL_MAX_SPAN_BY_PATTERN["game"],
+            "date": HISTORICAL_MAX_SPAN_BY_PATTERN["date"],
+            "season": HISTORICAL_MAX_SPAN_BY_PATTERN["season"],
+            "player_season": HISTORICAL_MAX_SPAN_BY_PATTERN["player_season"],
+            "team_season": HISTORICAL_MAX_SPAN_BY_PATTERN["team_season"],
+            "player_team_season": CROSS_PRODUCT_MAX_SPAN,
+        },
+        "discovery_bound_cross_product": {
+            "player_team_season": CROSS_PRODUCT_MAX_SPAN,
+        },
+    },
+    "balanced-small": {
+        "cheap_high_volume": {
+            "game": 2,
+            "date": 2,
+            "season": 4,
+            "player_season": 3,
+            "team_season": 4,
+            "player_team_season": 2,
+        },
+        "expensive_stable": {
+            "game": 1,
+            "date": 1,
+            "season": 3,
+            "player_season": 2,
+            "team_season": 3,
+            "player_team_season": 1,
+        },
+        "expensive_flaky": {
+            "game": 1,
+            "date": 1,
+            "season": 3,
+            "player_season": 2,
+            "team_season": 3,
+            "player_team_season": 1,
+        },
+        "discovery_bound_cross_product": {
+            "player_team_season": 1,
+        },
+    },
+    "micro": {
+        "cheap_high_volume": {
+            "game": 1,
+            "date": 1,
+            "season": 1,
+            "player_season": 1,
+            "team_season": 1,
+            "player_team_season": 1,
+        },
+        "expensive_stable": {
+            "game": 1,
+            "date": 1,
+            "season": 1,
+            "player_season": 1,
+            "team_season": 1,
+            "player_team_season": 1,
+        },
+        "expensive_flaky": {
+            "game": 1,
+            "date": 1,
+            "season": 1,
+            "player_season": 1,
+            "team_season": 1,
+            "player_team_season": 1,
+        },
+        "discovery_bound_cross_product": {
+            "player_team_season": 1,
+        },
+    },
+}
+THROUGHPUT_TIER_SEVERITY: dict[str, int] = {
+    "cheap_high_volume": 0,
+    "expensive_stable": 1,
+    "expensive_flaky": 2,
+    "discovery_bound_cross_product": 3,
+}
+FAMILY_PRIORITY: dict[str, int] = {
+    "box_score": 40,
+    "play_by_play": 35,
+    "player_history": 30,
+    "team_history": 25,
+    "default": 0,
+}
 REFERENCE_MAX_ENDPOINTS_BY_PATTERN: dict[str, int] = {
     "static": 64,
     "team": 12,
@@ -130,6 +237,13 @@ class FullExtractionLane:
     last_failure_reason: str = ""
     parent_lane_id: str = ""
     split_generation: int = 0
+    chunk_profile: str = "standard"
+    endpoint_family: str = ""
+    throughput_tier: str = ""
+    estimated_lane_cost: float = 0.0
+    coverage_units_hash: str = ""
+    schedule_priority: float = 0.0
+    planned_wave: int = 0
 
     def to_workflow_dict(self) -> dict[str, Any]:
         return {
@@ -147,6 +261,13 @@ class FullExtractionLane:
             "timeout_seconds": self.timeout_seconds,
             "parent_lane_id": self.parent_lane_id,
             "split_generation": self.split_generation,
+            "chunk_profile": self.chunk_profile,
+            "endpoint_family": self.endpoint_family,
+            "throughput_tier": self.throughput_tier,
+            "estimated_lane_cost": f"{self.estimated_lane_cost:.3f}",
+            "coverage_units_hash": self.coverage_units_hash,
+            "schedule_priority": f"{self.schedule_priority:.3f}",
+            "planned_wave": self.planned_wave,
         }
 
 
@@ -208,11 +329,19 @@ def _contract_supported_season_bands(
 class FullExtractionChainState:
     vpn_quarantined_servers: tuple[str, ...] = ()
     artifact_run_ids: tuple[str, ...] = ()
+    latest_checkpoint_run_id: str = ""
+    latest_checkpoint_artifact_name: str = ""
+    latest_checkpoint_generation: int = 0
+    latest_checkpoint_coverage_hash: str = ""
 
     def to_payload(self) -> dict[str, Any]:
         return {
             "vpn_quarantined_servers": list(self.vpn_quarantined_servers),
             "artifact_run_ids": list(self.artifact_run_ids),
+            "latest_checkpoint_run_id": self.latest_checkpoint_run_id,
+            "latest_checkpoint_artifact_name": self.latest_checkpoint_artifact_name,
+            "latest_checkpoint_generation": self.latest_checkpoint_generation,
+            "latest_checkpoint_coverage_hash": self.latest_checkpoint_coverage_hash,
         }
 
 
@@ -241,6 +370,12 @@ def _normalize_server_list(raw: Any) -> tuple[str, ...]:
     return tuple(values)
 
 
+def _normalize_scalar_string(raw: Any) -> str:
+    if raw is None:
+        return ""
+    return str(raw).strip()
+
+
 def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
     if raw_chain_state is None or raw_chain_state == "":
         return FullExtractionChainState()
@@ -252,6 +387,16 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
             raw_chain_state.get("vpn_quarantined_servers", [])
         ),
         artifact_run_ids=_normalize_server_list(raw_chain_state.get("artifact_run_ids", [])),
+        latest_checkpoint_run_id=_normalize_scalar_string(
+            raw_chain_state.get("latest_checkpoint_run_id")
+        ),
+        latest_checkpoint_artifact_name=_normalize_scalar_string(
+            raw_chain_state.get("latest_checkpoint_artifact_name")
+        ),
+        latest_checkpoint_generation=int(raw_chain_state.get("latest_checkpoint_generation") or 0),
+        latest_checkpoint_coverage_hash=_normalize_scalar_string(
+            raw_chain_state.get("latest_checkpoint_coverage_hash")
+        ),
     )
 
 
@@ -537,11 +682,214 @@ def _max_span_for_pattern(pattern: str) -> int:
 def _max_span_for_lane(lane: FullExtractionLane) -> int | None:
     if lane.season_start is None or lane.season_end is None:
         return None
+    if lane.chunk_profile in CHUNK_PROFILES and lane.patterns:
+        return _profile_max_span_for_lane(lane)
     if lane.lane_kind == "historical" and lane.patterns:
         return _max_span_for_pattern(lane.patterns[0])
     if lane.lane_kind in {"cross_product", "cross_product_blocked"}:
         return CROSS_PRODUCT_MAX_SPAN
     return None
+
+
+def _validate_chunk_profile(chunk_profile: str) -> str:
+    if chunk_profile not in CHUNK_PROFILES:
+        msg = (
+            f"Unsupported chunk_profile {chunk_profile!r}; expected one of {sorted(CHUNK_PROFILES)}"
+        )
+        raise ValueError(msg)
+    return chunk_profile
+
+
+def _endpoint_profile_values(
+    *,
+    endpoints: tuple[str, ...],
+    pattern: str | None,
+    planning_snapshot: WorkloadPlanningSnapshot | None,
+) -> tuple[str, str, float]:
+    families: list[str] = []
+    tiers: list[str] = []
+    cost = 0.0
+    for endpoint in endpoints:
+        profile = (
+            planning_snapshot.endpoint_profiles.get(endpoint)
+            if planning_snapshot is not None
+            else None
+        )
+        if profile is not None:
+            families.append(profile.endpoint_family)
+            tiers.append(profile.throughput_tier)
+            cost += profile.lane_cost
+            continue
+        policy = build_execution_policy(endpoint, pattern=pattern)
+        families.append(policy.family)
+        tiers.append(policy.throughput_tier)
+        cost += 1.0
+    if not endpoints:
+        families.append(pattern or "default")
+        tiers.append("cheap_high_volume")
+        cost += 1.0
+    family_values = sorted(set(families))
+    tier = max(tiers, key=lambda value: THROUGHPUT_TIER_SEVERITY.get(value, 0))
+    family = family_values[0] if len(family_values) == 1 else "mixed"
+    return family, tier, max(cost, 1.0)
+
+
+def _profile_max_span(
+    *,
+    chunk_profile: str,
+    pattern: str,
+    throughput_tier: str,
+    endpoint_family: str = "",
+) -> int:
+    _validate_chunk_profile(chunk_profile)
+    if chunk_profile == "standard":
+        if pattern == "player_team_season":
+            return CROSS_PRODUCT_MAX_SPAN
+        return _max_span_for_pattern(pattern)
+    if (
+        chunk_profile == "balanced-small"
+        and pattern in {"date", "game"}
+        and endpoint_family in {"box_score", "play_by_play"}
+    ):
+        return 1
+    profile_map = CHUNK_PROFILE_MAX_SPAN_BY_PATTERN[chunk_profile]
+    tier_map = profile_map.get(throughput_tier) or profile_map["cheap_high_volume"]
+    return max(1, int(tier_map.get(pattern, _max_span_for_pattern(pattern))))
+
+
+def _profile_max_span_for_lane(lane: FullExtractionLane) -> int | None:
+    if lane.season_start is None or lane.season_end is None or not lane.patterns:
+        return None
+    return _profile_max_span(
+        chunk_profile=lane.chunk_profile,
+        pattern=lane.patterns[0],
+        throughput_tier=lane.throughput_tier or "cheap_high_volume",
+        endpoint_family=lane.endpoint_family,
+    )
+
+
+def _coverage_units_for_lane(lane: FullExtractionLane) -> list[dict[str, Any]]:
+    patterns = lane.patterns or ("",)
+    endpoints = lane.endpoints or ("",)
+    season_types = lane.season_types or ("",)
+    seasons: tuple[int | None, ...]
+    if lane.season_start is None or lane.season_end is None:
+        seasons = (None,)
+    else:
+        seasons = tuple(range(lane.season_start, lane.season_end + 1))
+    return [
+        {
+            "endpoint": endpoint,
+            "pattern": pattern,
+            "season_type": season_type,
+            "season": season,
+        }
+        for endpoint in endpoints
+        for pattern in patterns
+        for season_type in season_types
+        for season in seasons
+    ]
+
+
+def _hash_payload(payload: Any) -> str:
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _coverage_hash_for_lane(lane: FullExtractionLane) -> str:
+    return _hash_payload(_coverage_units_for_lane(lane))
+
+
+def _coverage_fingerprint(lanes: list[FullExtractionLane] | tuple[FullExtractionLane, ...]) -> str:
+    units: list[dict[str, Any]] = []
+    for lane in lanes:
+        units.extend(_coverage_units_for_lane(lane))
+    units.sort(key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":")))
+    return _hash_payload(units)
+
+
+def _lane_schedule_priority(lane: FullExtractionLane) -> float:
+    failure_bonus = 1_000_000.0 if lane.last_failure_reason or lane.split_generation else 0.0
+    tier_bonus = THROUGHPUT_TIER_SEVERITY.get(lane.throughput_tier, 0) * 100_000.0
+    family_bonus = FAMILY_PRIORITY.get(lane.endpoint_family, 0) * 1_000.0
+    cost_bonus = lane.estimated_lane_cost * 100.0
+    season_bonus = 0.0 if lane.season_start is None else max(0, 3_000 - lane.season_start)
+    return failure_bonus + tier_bonus + family_bonus + cost_bonus + season_bonus
+
+
+def _annotate_lane(
+    lane: FullExtractionLane,
+    *,
+    chunk_profile: str,
+    planning_snapshot: WorkloadPlanningSnapshot | None,
+) -> FullExtractionLane:
+    pattern = lane.patterns[0] if lane.patterns else None
+    family, tier, endpoint_cost_value = _endpoint_profile_values(
+        endpoints=lane.endpoints,
+        pattern=pattern,
+        planning_snapshot=planning_snapshot,
+    )
+    span = max(1, _season_span(lane.season_start, lane.season_end))
+    estimated_lane_cost = endpoint_cost_value * span
+    annotated = replace(
+        lane,
+        chunk_profile=chunk_profile,
+        endpoint_family=family,
+        throughput_tier=tier,
+        estimated_lane_cost=round(estimated_lane_cost, 3),
+        coverage_units_hash=_coverage_hash_for_lane(lane),
+    )
+    return replace(annotated, schedule_priority=round(_lane_schedule_priority(annotated), 3))
+
+
+def _schedule_lanes(
+    lanes: list[FullExtractionLane],
+    *,
+    chunk_profile: str,
+    planning_snapshot: WorkloadPlanningSnapshot | None = None,
+    max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
+) -> list[FullExtractionLane]:
+    chunk_profile = _validate_chunk_profile(chunk_profile)
+    annotated = [
+        _annotate_lane(lane, chunk_profile=chunk_profile, planning_snapshot=planning_snapshot)
+        for lane in lanes
+    ]
+    if chunk_profile == "standard":
+        return [
+            replace(lane, lane_index=index, planned_wave=index // max_matrix_lanes)
+            for index, lane in enumerate(annotated)
+        ]
+
+    resume_only = [lane for lane in annotated if lane.resume_only]
+    active = [lane for lane in annotated if not lane.resume_only]
+    active.sort(
+        key=lambda lane: (
+            -lane.schedule_priority,
+            lane.endpoint_family,
+            lane.season_start if lane.season_start is not None else 9999,
+            lane.lane_id,
+        )
+    )
+    buckets: dict[str, list[FullExtractionLane]] = {}
+    for lane in active:
+        buckets.setdefault(lane.endpoint_family or "default", []).append(lane)
+    family_order = sorted(
+        buckets,
+        key=lambda family: (
+            -buckets[family][0].schedule_priority,
+            family,
+        ),
+    )
+    interleaved: list[FullExtractionLane] = []
+    while any(buckets.values()):
+        for family in family_order:
+            if buckets[family]:
+                interleaved.append(buckets[family].pop(0))
+    ordered = [*interleaved, *resume_only]
+    return [
+        replace(lane, lane_index=index, planned_wave=index // max_matrix_lanes)
+        for index, lane in enumerate(ordered)
+    ]
 
 
 def _historical_timeout_seconds(pattern: str, start: int, end: int) -> int:
@@ -612,8 +960,6 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: failure_streak must be >= 0")
         if lane.split_generation < 0:
             errors.append(f"{lane.lane_id}: split_generation must be >= 0")
-        if not lane.resume_only and not lane.use_vpn:
-            errors.append(f"{lane.lane_id}: active lanes must require VPN")
         max_span = _max_span_for_lane(lane)
         span = _season_span(lane.season_start, lane.season_end)
         if not lane.resume_only and max_span is not None and span > max_span:
@@ -630,7 +976,7 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
     season_start = raw.get("season_start")
     season_end = raw.get("season_end")
 
-    return FullExtractionLane(
+    lane = FullExtractionLane(
         lane_id=str(raw["lane_id"]),
         lane_index=lane_index,
         lane_name=str(raw.get("lane_name") or raw["lane_id"]),
@@ -647,7 +993,17 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         last_failure_reason=str(raw.get("last_failure_reason") or ""),
         parent_lane_id=str(raw.get("parent_lane_id") or ""),
         split_generation=int(raw.get("split_generation") or 0),
+        chunk_profile=str(raw.get("chunk_profile") or "standard"),
+        endpoint_family=str(raw.get("endpoint_family") or ""),
+        throughput_tier=str(raw.get("throughput_tier") or ""),
+        estimated_lane_cost=float(raw.get("estimated_lane_cost") or 0.0),
+        coverage_units_hash=str(raw.get("coverage_units_hash") or ""),
+        schedule_priority=float(raw.get("schedule_priority") or 0.0),
+        planned_wave=int(raw.get("planned_wave") or 0),
     )
+    if not lane.coverage_units_hash:
+        lane = replace(lane, coverage_units_hash=_coverage_hash_for_lane(lane))
+    return lane
 
 
 def build_default_manifest(
@@ -656,7 +1012,9 @@ def build_default_manifest(
     selected_patterns: list[str] | None = None,
     selected_endpoints: list[str] | None = None,
     planning_snapshot: WorkloadPlanningSnapshot | None = None,
+    chunk_profile: str = "standard",
 ) -> list[FullExtractionLane]:
+    chunk_profile = _validate_chunk_profile(chunk_profile)
     endpoint_patterns = _patterns_for_endpoints(support_matrix_rows, selected_endpoints)
     if selected_patterns is not None:
         requested_patterns = set(selected_patterns)
@@ -742,16 +1100,28 @@ def build_default_manifest(
                     pattern=pattern,
                 ):
                     endpoints = _endpoint_names(endpoint_rows)
+                    endpoint_family_value, throughput_tier_value, season_cost = (
+                        _endpoint_profile_values(
+                            endpoints=endpoints,
+                            pattern=pattern,
+                            planning_snapshot=planning_snapshot,
+                        )
+                    )
                     adaptive_max_span = (
                         preferred_max_span(planning_snapshot.endpoint_profiles, endpoints)
                         if planning_snapshot is not None
                         else None
                     )
-                    season_cost = endpoint_cost(
-                        planning_snapshot.endpoint_profiles
+                    season_cost = (
+                        endpoint_cost(planning_snapshot.endpoint_profiles, endpoints)
                         if planning_snapshot is not None
-                        else None,
-                        endpoints,
+                        else season_cost
+                    )
+                    profile_max_span = _profile_max_span(
+                        chunk_profile=chunk_profile,
+                        pattern=pattern,
+                        throughput_tier=throughput_tier_value,
+                        endpoint_family=endpoint_family_value,
                     )
                     target_cost = max(float(_max_span_for_pattern(pattern)), season_cost * 3.0)
                     for start, end in _season_bands(endpoint_rows, {pattern}):
@@ -771,8 +1141,8 @@ def build_default_manifest(
                                     supported_start,
                                     supported_end,
                                     max_span=min(
-                                        _max_span_for_pattern(pattern),
-                                        adaptive_max_span or _max_span_for_pattern(pattern),
+                                        profile_max_span,
+                                        adaptive_max_span or profile_max_span,
                                     ),
                                     target_cost=target_cost,
                                     season_costs=season_costs,
@@ -781,7 +1151,7 @@ def build_default_manifest(
                                 else _split_season_band(
                                     supported_start,
                                     supported_end,
-                                    max_span=_max_span_for_pattern(pattern),
+                                    max_span=profile_max_span,
                                 )
                             ):
                                 endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
@@ -845,6 +1215,13 @@ def build_default_manifest(
                 )
             )
             endpoints = _endpoint_names(grouped_rows)
+            endpoint_family_value, throughput_tier_value, _endpoint_cost_value = (
+                _endpoint_profile_values(
+                    endpoints=endpoints,
+                    pattern="player_team_season",
+                    planning_snapshot=planning_snapshot,
+                )
+            )
             end_year = _current_end_year()
             cross_product_costs = {
                 year: max(
@@ -876,7 +1253,12 @@ def build_default_manifest(
                     _adaptive_split_season_band(
                         supported_start,
                         supported_end,
-                        max_span=CROSS_PRODUCT_MAX_SPAN,
+                        max_span=_profile_max_span(
+                            chunk_profile=chunk_profile,
+                            pattern="player_team_season",
+                            throughput_tier=throughput_tier_value,
+                            endpoint_family=endpoint_family_value,
+                        ),
                         target_cost=max(6.0, CROSS_PRODUCT_MAX_SPAN * 1.5),
                         season_costs=supported_costs,
                     )
@@ -884,7 +1266,12 @@ def build_default_manifest(
                     else _split_season_band(
                         supported_start,
                         supported_end,
-                        max_span=CROSS_PRODUCT_MAX_SPAN,
+                        max_span=_profile_max_span(
+                            chunk_profile=chunk_profile,
+                            pattern="player_team_season",
+                            throughput_tier=throughput_tier_value,
+                            endpoint_family=endpoint_family_value,
+                        ),
                     )
                 ):
                     appended = _append_lane_if_supported(
@@ -917,7 +1304,11 @@ def build_default_manifest(
         msg = "Selected full-extraction filters produced no runnable lanes"
         raise ValueError(msg)
 
-    return lanes
+    return _schedule_lanes(
+        lanes,
+        chunk_profile=chunk_profile,
+        planning_snapshot=planning_snapshot,
+    )
 
 
 def normalize_manifest(
@@ -956,13 +1347,30 @@ def manifest_payload(
     active_lanes = [lane for lane in lanes if not lane.resume_only]
     matrix_lanes = active_lanes[:max_matrix_lanes]
     deferred_lane_count = max(0, len(active_lanes) - len(matrix_lanes))
+    chunk_profiles = sorted({lane.chunk_profile for lane in lanes if lane.chunk_profile})
+    coverage_fingerprint = _coverage_fingerprint(lanes)
     return {
         "manifest_version": 2,
+        "chunk_profile": chunk_profiles[0] if len(chunk_profiles) == 1 else "mixed",
+        "coverage_fingerprint": coverage_fingerprint,
         "lane_count": len(lanes),
         "active_lane_count": len(active_lanes),
         "resume_only_lane_count": len(lanes) - len(active_lanes),
         "matrix_lane_count": len(matrix_lanes),
         "deferred_lane_count": deferred_lane_count,
+        "planned_wave_count": max((lane.planned_wave for lane in lanes), default=0) + 1,
+        "top_cost_lanes": [
+            {
+                "lane_id": lane.lane_id,
+                "estimated_lane_cost": lane.estimated_lane_cost,
+                "schedule_priority": lane.schedule_priority,
+                "planned_wave": lane.planned_wave,
+            }
+            for lane in sorted(
+                active_lanes,
+                key=lambda lane: (-lane.schedule_priority, lane.lane_id),
+            )[:10]
+        ],
         "lanes": lane_dicts,
         "chain_state": (chain_state or FullExtractionChainState()).to_payload(),
         "github_matrix": {"include": [lane.to_workflow_dict() for lane in matrix_lanes]},
@@ -993,6 +1401,20 @@ def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[st
             payload.pop("parent_lane_id", None)
         if not lane.split_generation:
             payload.pop("split_generation", None)
+        if lane.chunk_profile == "standard":
+            payload.pop("chunk_profile", None)
+        if not lane.endpoint_family:
+            payload.pop("endpoint_family", None)
+        if not lane.throughput_tier:
+            payload.pop("throughput_tier", None)
+        if not lane.estimated_lane_cost:
+            payload.pop("estimated_lane_cost", None)
+        if not lane.coverage_units_hash:
+            payload.pop("coverage_units_hash", None)
+        if not lane.schedule_priority:
+            payload.pop("schedule_priority", None)
+        if not lane.planned_wave:
+            payload.pop("planned_wave", None)
     return payload
 
 
@@ -1152,6 +1574,23 @@ def _reindex_lanes(lanes: list[FullExtractionLane]) -> list[FullExtractionLane]:
     return [replace(lane, lane_index=index) for index, lane in enumerate(lanes)]
 
 
+def _manifest_chunk_profile(
+    lanes: list[FullExtractionLane] | tuple[FullExtractionLane, ...],
+) -> str:
+    profiles = [lane.chunk_profile for lane in lanes if lane.chunk_profile]
+    if not profiles:
+        return "standard"
+    unique_profiles = set(profiles)
+    if len(unique_profiles) == 1:
+        return _validate_chunk_profile(profiles[0])
+    # Mixed manifests can arise during manual recovery. Keep the narrowest policy.
+    if "micro" in unique_profiles:
+        return "micro"
+    if "balanced-small" in unique_profiles:
+        return "balanced-small"
+    return "standard"
+
+
 def _int_metadata_value(value: Any) -> int:
     try:
         return int(value or 0)
@@ -1251,6 +1690,10 @@ def build_resume_manifest(
     attempted_lane_ids: frozenset[str] | None = None,
     allow_missing_attempted_metadata: bool = False,
     completed_artifact_run_id: str | None = None,
+    latest_checkpoint_run_id: str | None = None,
+    latest_checkpoint_artifact_name: str | None = None,
+    latest_checkpoint_generation: int | None = None,
+    latest_checkpoint_coverage_hash: str | None = None,
 ) -> tuple[list[FullExtractionLane], FullExtractionChainState, dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
     next_lanes: list[FullExtractionLane] = []
@@ -1373,11 +1816,31 @@ def build_resume_manifest(
             *([completed_artifact_run_id] if completed_artifact_run_id else []),
         ]
     )
+    profile = _manifest_chunk_profile(next_lanes or lanes)
+    next_lanes = _schedule_lanes(next_lanes, chunk_profile=profile)
+    previous_state = chain_state or FullExtractionChainState()
+    checkpoint_generation = (
+        int(latest_checkpoint_generation)
+        if latest_checkpoint_generation is not None
+        else previous_state.latest_checkpoint_generation
+    )
     next_chain_state = FullExtractionChainState(
         vpn_quarantined_servers=tuple(sorted(merged_quarantined_servers)),
         artifact_run_ids=tuple(merged_artifact_run_ids),
+        latest_checkpoint_run_id=(
+            _normalize_scalar_string(latest_checkpoint_run_id)
+            or previous_state.latest_checkpoint_run_id
+        ),
+        latest_checkpoint_artifact_name=(
+            _normalize_scalar_string(latest_checkpoint_artifact_name)
+            or previous_state.latest_checkpoint_artifact_name
+        ),
+        latest_checkpoint_generation=checkpoint_generation,
+        latest_checkpoint_coverage_hash=(
+            _normalize_scalar_string(latest_checkpoint_coverage_hash)
+            or previous_state.latest_checkpoint_coverage_hash
+        ),
     )
-    next_lanes = _reindex_lanes(next_lanes)
 
     return (
         next_lanes,
@@ -1481,14 +1944,14 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
     }
 
 
-def merge_lane_databases(
+def _merge_database_paths(
     *,
-    artifacts_dir: Path,
+    db_paths: list[Path],
     output_dir: Path,
 ) -> dict[str, Any]:
-    db_paths = sorted(path for path in artifacts_dir.rglob("nba.duckdb") if path.is_file())
+    db_paths = sorted(path for path in db_paths if path.is_file())
     if not db_paths:
-        msg = f"No lane databases found under {artifacts_dir}"
+        msg = "No lane databases were available to merge"
         raise FileNotFoundError(msg)
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1696,9 +2159,258 @@ def merge_lane_databases(
     }
 
 
+def merge_lane_databases(
+    *,
+    artifacts_dir: Path,
+    output_dir: Path,
+) -> dict[str, Any]:
+    db_paths = sorted(path for path in artifacts_dir.rglob("nba.duckdb") if path.is_file())
+    if not db_paths:
+        msg = f"No lane databases found under {artifacts_dir}"
+        raise FileNotFoundError(msg)
+    return _merge_database_paths(db_paths=db_paths, output_dir=output_dir)
+
+
+def _read_json_file(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def _first_database_path(root: Path | None) -> Path | None:
+    if root is None or not root.exists():
+        return None
+    for path in sorted(root.rglob("nba.duckdb")):
+        if path.is_file():
+            return path
+    return None
+
+
+def _database_row_counts(db_path: Path) -> tuple[dict[str, int], int]:
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        tables = [
+            row[0]
+            for row in conn.execute(
+                """
+                SELECT table_name
+                FROM duckdb_tables()
+                WHERE database_name = 'nba'
+                  AND schema_name = 'main'
+                ORDER BY table_name
+                """
+            ).fetchall()
+        ]
+        table_counts: dict[str, int] = {}
+        journal_rows = 0
+        for table_name in tables:
+            quoted = '"' + table_name.replace('"', '""') + '"'
+            row = conn.execute(f"SELECT COUNT(*) FROM main.{quoted}").fetchone()
+            count = int(row[0] if row is not None else 0)
+            if table_name == "_extraction_journal":
+                journal_rows = count
+            elif table_name.startswith("stg_"):
+                table_counts[table_name] = count
+        return table_counts, journal_rows
+    finally:
+        conn.close()
+
+
+def _metadata_complete_lane_ids(metadata: dict[str, dict[str, Any]]) -> set[str]:
+    return {
+        lane_id
+        for lane_id, payload in metadata.items()
+        if str(lane_outcome_from_metadata(payload)) == "complete"
+    }
+
+
+def _metadata_contract_blocked_lane_ids(
+    metadata: dict[str, dict[str, Any]],
+    lanes_by_id: dict[str, FullExtractionLane],
+) -> set[str]:
+    return {
+        lane_id
+        for lane_id, payload in metadata.items()
+        if str(lane_outcome_from_metadata(payload, lanes_by_id.get(lane_id))) == "contract_blocked"
+    }
+
+
+def _lane_artifact_database_paths(
+    *,
+    artifacts_dir: Path,
+    lane_ids: set[str],
+) -> tuple[list[Path], set[str]]:
+    if not lane_ids or not artifacts_dir.exists():
+        return [], set()
+    matched_paths: list[Path] = []
+    matched_lane_ids: set[str] = set()
+    ordered_lane_ids = sorted(lane_ids, key=len, reverse=True)
+    for db_path in sorted(artifacts_dir.rglob("nba.duckdb")):
+        parent_name = db_path.parent.name
+        for lane_id in ordered_lane_ids:
+            if parent_name.endswith(lane_id) or f"-{lane_id}" in parent_name:
+                if lane_id not in matched_lane_ids:
+                    matched_paths.append(db_path)
+                    matched_lane_ids.add(lane_id)
+                break
+    return matched_paths, matched_lane_ids
+
+
+def build_checkpoint_database(
+    *,
+    manifest_path: Path,
+    metadata_dir: Path,
+    lane_artifacts_dir: Path,
+    output_dir: Path,
+    report_path: Path,
+    previous_checkpoint_dir: Path | None = None,
+    previous_checkpoint_report_path: Path | None = None,
+    chain_id: str = "",
+    run_id: str = "",
+) -> dict[str, Any]:
+    manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
+    lanes = list(manifest.lanes)
+    lanes_by_id = {lane.lane_id: lane for lane in lanes}
+    metadata = _metadata_by_lane(metadata_dir)
+    previous_report = _read_json_file(previous_checkpoint_report_path)
+    previous_included_lane_ids = {
+        str(value) for value in previous_report.get("included_lane_ids", []) if str(value).strip()
+    }
+    previous_run_ids = [
+        str(value) for value in previous_report.get("included_run_ids", []) if str(value).strip()
+    ]
+    complete_current_lane_ids = _metadata_complete_lane_ids(metadata)
+    contract_blocked_lane_ids = _metadata_contract_blocked_lane_ids(metadata, lanes_by_id)
+    current_db_paths, current_included_lane_ids = _lane_artifact_database_paths(
+        artifacts_dir=lane_artifacts_dir,
+        lane_ids=complete_current_lane_ids,
+    )
+    skipped_complete_lane_ids = sorted(complete_current_lane_ids - current_included_lane_ids)
+    db_paths: list[Path] = []
+    db_paths.extend(current_db_paths)
+    previous_db_path = _first_database_path(previous_checkpoint_dir)
+    if previous_db_path is not None:
+        # Merge current lanes first so newer journal rows win when endpoint/params collide.
+        db_paths.append(previous_db_path)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if db_paths:
+        merge_summary = _merge_database_paths(db_paths=db_paths, output_dir=output_dir)
+        checkpoint_db_path = Path(str(merge_summary["output_path"]))
+        table_row_counts, journal_row_count = _database_row_counts(checkpoint_db_path)
+        merge_mode = "checkpoint"
+        output_path = str(checkpoint_db_path)
+    else:
+        merge_summary = {
+            "merged_database_count": 0,
+            "merged_table_operations": 0,
+            "output_path": "",
+            "table_reports": {},
+            "journal_report": {},
+        }
+        table_row_counts = {}
+        journal_row_count = 0
+        merge_mode = "empty"
+        output_path = ""
+
+    included_lane_ids = previous_included_lane_ids | current_included_lane_ids
+    non_contract_lane_ids = set(lanes_by_id) - contract_blocked_lane_ids
+    missing_lane_ids = sorted(non_contract_lane_ids - included_lane_ids)
+    included_lanes = [lane for lane in lanes if lane.lane_id in included_lane_ids]
+    coverage_fingerprint = _coverage_fingerprint(included_lanes)
+    checkpoint_generation = int(previous_report.get("checkpoint_generation") or 0) + 1
+    included_run_ids = list(dict.fromkeys([*previous_run_ids, *([run_id] if run_id else [])]))
+    report = {
+        "chain_id": chain_id,
+        "run_id": run_id,
+        "chunk_profile": _manifest_chunk_profile(lanes),
+        "checkpoint_generation": checkpoint_generation,
+        "previous_checkpoint_generation": int(previous_report.get("checkpoint_generation") or 0),
+        "included_lane_ids": sorted(included_lane_ids),
+        "included_run_ids": included_run_ids,
+        "complete_lane_count": len(included_lane_ids),
+        "contract_blocked_lane_count": len(contract_blocked_lane_ids),
+        "active_lane_count": len(missing_lane_ids),
+        "skipped_lane_count": len(skipped_complete_lane_ids),
+        "missing_lane_ids": missing_lane_ids,
+        "skipped_complete_lane_ids": skipped_complete_lane_ids,
+        "coverage_fingerprint": coverage_fingerprint,
+        "table_row_counts": table_row_counts,
+        "journal_row_count": journal_row_count,
+        "merge_mode": merge_mode,
+        "merge_summary": merge_summary,
+        "output_path": output_path,
+        "terminal_ready": not missing_lane_ids and bool(included_lane_ids),
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
+def merge_final_database(
+    *,
+    artifacts_dir: Path,
+    output_dir: Path,
+    manifest_path: Path | None = None,
+    checkpoint_dir: Path | None = None,
+    checkpoint_report_path: Path | None = None,
+) -> dict[str, Any]:
+    fallback_reason = ""
+    checkpoint_report = _read_json_file(checkpoint_report_path)
+    checkpoint_db_path = _first_database_path(checkpoint_dir)
+    if checkpoint_report and checkpoint_db_path is not None:
+        if checkpoint_report.get("terminal_ready") is True:
+            if manifest_path is not None and manifest_path.exists():
+                manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
+                expected_hash = _coverage_fingerprint(list(manifest.lanes))
+                actual_hash = str(checkpoint_report.get("coverage_fingerprint") or "")
+                if actual_hash != expected_hash:
+                    fallback_reason = (
+                        "checkpoint coverage fingerprint mismatch: "
+                        f"expected {expected_hash}, got {actual_hash}"
+                    )
+                else:
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    target_path = output_dir / "nba.duckdb"
+                    shutil.copy2(checkpoint_db_path, target_path)
+                    table_row_counts, journal_row_count = _database_row_counts(target_path)
+                    return {
+                        "merge_mode": "checkpoint",
+                        "output_path": str(target_path),
+                        "checkpoint_generation": checkpoint_report.get("checkpoint_generation"),
+                        "coverage_fingerprint": actual_hash,
+                        "table_row_counts": table_row_counts,
+                        "journal_row_count": journal_row_count,
+                    }
+            else:
+                output_dir.mkdir(parents=True, exist_ok=True)
+                target_path = output_dir / "nba.duckdb"
+                shutil.copy2(checkpoint_db_path, target_path)
+                table_row_counts, journal_row_count = _database_row_counts(target_path)
+                return {
+                    "merge_mode": "checkpoint",
+                    "output_path": str(target_path),
+                    "checkpoint_generation": checkpoint_report.get("checkpoint_generation"),
+                    "coverage_fingerprint": checkpoint_report.get("coverage_fingerprint"),
+                    "table_row_counts": table_row_counts,
+                    "journal_row_count": journal_row_count,
+                }
+        else:
+            fallback_reason = "checkpoint report is not terminal-ready"
+    elif checkpoint_report_path is not None or checkpoint_dir is not None:
+        fallback_reason = "checkpoint database or report missing"
+
+    lane_summary = merge_lane_databases(artifacts_dir=artifacts_dir, output_dir=output_dir)
+    lane_summary["merge_mode"] = "lane_artifacts"
+    lane_summary["fallback_reason"] = fallback_reason
+    return lane_summary
+
+
 def _command_plan(args: argparse.Namespace) -> int:
     manifest = _load_manifest_argument(args.lane_manifest_json, args.lane_manifest_path)
     if manifest is None:
+        chunk_profile = args.chunk_profile or DEFAULT_CHUNK_PROFILE
         if args.support_matrix_path is None:
             msg = "support-matrix-path is required when no explicit lane manifest is provided"
             raise ValueError(msg)
@@ -1716,10 +2428,14 @@ def _command_plan(args: argparse.Namespace) -> int:
             selected_patterns=_parse_csv(args.backfill_patterns),
             selected_endpoints=_parse_csv(args.backfill_endpoints),
             planning_snapshot=planning_snapshot,
+            chunk_profile=chunk_profile,
         )
         chain_state = FullExtractionChainState()
     else:
-        lanes = list(manifest.lanes)
+        lanes = _schedule_lanes(
+            list(manifest.lanes),
+            chunk_profile=args.chunk_profile or _manifest_chunk_profile(manifest.lanes),
+        )
         chain_state = manifest.chain_state
 
     validate_manifest(lanes)
@@ -1743,6 +2459,10 @@ def _command_resume(args: argparse.Namespace) -> int:
         attempted_lane_ids=manifest.matrix_lane_ids or None,
         allow_missing_attempted_metadata=args.allow_missing_attempted_metadata,
         completed_artifact_run_id=args.completed_artifact_run_id,
+        latest_checkpoint_run_id=args.latest_checkpoint_run_id,
+        latest_checkpoint_artifact_name=args.latest_checkpoint_artifact_name,
+        latest_checkpoint_generation=args.latest_checkpoint_generation,
+        latest_checkpoint_coverage_hash=args.latest_checkpoint_coverage_hash,
     )
     validate_manifest(next_lanes)
     payload = manifest_payload(next_lanes, chain_state=next_chain_state)
@@ -1754,7 +2474,29 @@ def _command_resume(args: argparse.Namespace) -> int:
 
 
 def _command_merge(args: argparse.Namespace) -> int:
-    summary = merge_lane_databases(artifacts_dir=args.artifacts_dir, output_dir=args.output_dir)
+    summary = merge_final_database(
+        artifacts_dir=args.artifacts_dir,
+        output_dir=args.output_dir,
+        manifest_path=args.manifest_path,
+        checkpoint_dir=args.checkpoint_dir,
+        checkpoint_report_path=args.checkpoint_report_path,
+    )
+    print(json.dumps(summary))
+    return 0
+
+
+def _command_checkpoint(args: argparse.Namespace) -> int:
+    summary = build_checkpoint_database(
+        manifest_path=args.lane_manifest_path,
+        metadata_dir=args.metadata_dir,
+        lane_artifacts_dir=args.artifacts_dir,
+        output_dir=args.output_dir,
+        report_path=args.report_path,
+        previous_checkpoint_dir=args.previous_checkpoint_dir,
+        previous_checkpoint_report_path=args.previous_checkpoint_report_path,
+        chain_id=args.chain_id,
+        run_id=args.run_id,
+    )
     print(json.dumps(summary))
     return 0
 
@@ -1778,6 +2520,7 @@ def _build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--backfill-patterns", type=str, default=None)
     plan.add_argument("--backfill-endpoints", type=str, default=None)
     plan.add_argument("--duckdb-path", type=Path, default=None)
+    plan.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
     plan.add_argument("--output-path", type=Path, required=True)
     plan.set_defaults(func=_command_plan)
 
@@ -1786,13 +2529,32 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--lane-manifest-path", type=Path, default=None)
     resume.add_argument("--metadata-dir", type=Path, required=True)
     resume.add_argument("--completed-artifact-run-id", type=str, default=None)
+    resume.add_argument("--latest-checkpoint-run-id", type=str, default=None)
+    resume.add_argument("--latest-checkpoint-artifact-name", type=str, default=None)
+    resume.add_argument("--latest-checkpoint-generation", type=int, default=None)
+    resume.add_argument("--latest-checkpoint-coverage-hash", type=str, default=None)
     resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)
 
+    checkpoint = subparsers.add_parser("checkpoint", help="Build a cumulative checkpoint DB.")
+    checkpoint.add_argument("--lane-manifest-path", type=Path, required=True)
+    checkpoint.add_argument("--metadata-dir", type=Path, required=True)
+    checkpoint.add_argument("--artifacts-dir", type=Path, required=True)
+    checkpoint.add_argument("--previous-checkpoint-dir", type=Path, default=None)
+    checkpoint.add_argument("--previous-checkpoint-report-path", type=Path, default=None)
+    checkpoint.add_argument("--output-dir", type=Path, required=True)
+    checkpoint.add_argument("--report-path", type=Path, required=True)
+    checkpoint.add_argument("--chain-id", type=str, default="")
+    checkpoint.add_argument("--run-id", type=str, default="")
+    checkpoint.set_defaults(func=_command_checkpoint)
+
     merge = subparsers.add_parser("merge", help="Merge lane DuckDB artifacts.")
     merge.add_argument("--artifacts-dir", type=Path, required=True)
     merge.add_argument("--output-dir", type=Path, required=True)
+    merge.add_argument("--manifest-path", type=Path, default=None)
+    merge.add_argument("--checkpoint-dir", type=Path, default=None)
+    merge.add_argument("--checkpoint-report-path", type=Path, default=None)
     merge.set_defaults(func=_command_merge)
 
     audit = subparsers.add_parser("audit", help="Summarize lane metadata for extraction audit.")

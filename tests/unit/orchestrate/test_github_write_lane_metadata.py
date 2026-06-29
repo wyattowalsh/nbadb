@@ -54,6 +54,9 @@ def _set_required_env(monkeypatch: pytest.MonkeyPatch, summary_path: Path) -> No
         "FINISHED_AT": "2026-05-21T10:43:59Z",
         "EXTRACT_STATUS": "extract-timeout",
         "EXTRACT_EXIT_CODE": "124",
+        "NETWORK_MODE": "vpn",
+        "EFFECTIVE_NETWORK_MODE": "vpn",
+        "DIRECT_EGRESS_REASON": "",
         "VPN_SERVER": "us11547.nordvpn.com",
         "VPN_INTERFACE": "tun0",
         "VPN_EXIT_IP": "216.183.125.141",
@@ -141,6 +144,51 @@ def test_build_payload_marks_zero_row_timeout_resumable(
 
     assert payload["status"] == "needs_resume"
     assert payload["telemetry"]["zero_row_reason"] == "unknown"
+
+
+def test_build_payload_marks_direct_no_vpn_zero_row_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 0,
+                    "failed_extractions": 0,
+                    "skipped_extractions": 0,
+                    "tables_updated": 0,
+                },
+                "progress": {"patterns": [{"total": 1}], "totals": {}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.setenv("EXTRACT_STATUS", "extract-error")
+    monkeypatch.setenv("NETWORK_MODE", "direct")
+    monkeypatch.setenv("EFFECTIVE_NETWORK_MODE", "direct")
+    monkeypatch.setenv("DIRECT_EGRESS_REASON", "vpn-unavailable-or-bypassed")
+    monkeypatch.delenv("VPN_STATUS", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["network_mode"] == "direct"
+    assert payload["effective_network_mode"] == "direct"
+    assert payload["direct_egress_reason"] == "vpn-unavailable-or-bypassed"
+    assert payload["vpn_status"] == "direct-no-vpn"
+    assert payload["vpn"]["status"] == "direct-no-vpn"
+    assert payload["telemetry"]["zero_row_reason"] == "direct_no_data"
+    assert payload["artifact_requirements"] == {
+        "lane_metadata": True,
+        "vpn_diagnostics": False,
+    }
 
 
 def test_build_payload_marks_partial_extract_error_resumable(

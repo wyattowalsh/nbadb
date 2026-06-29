@@ -178,9 +178,17 @@ def _final_outcome(
 
 def build_payload() -> dict[str, Any]:
     resume_only = os.environ["RESUME_ONLY"].lower() == "true"
+    network_mode = os.environ.get("NETWORK_MODE", "vpn").strip() or "vpn"
+    effective_network_mode = os.environ.get("EFFECTIVE_NETWORK_MODE", "").strip() or network_mode
+    direct_egress_reason = os.environ.get("DIRECT_EGRESS_REASON", "").strip()
     vpn_status = os.environ.get("VPN_STATUS", "").strip()
     if not vpn_status:
-        vpn_status = "resume-only" if resume_only else "unknown"
+        if resume_only:
+            vpn_status = "resume-only"
+        elif effective_network_mode == "direct":
+            vpn_status = "direct-no-vpn"
+        else:
+            vpn_status = "unknown"
 
     summary_path = Path(os.environ["EXTRACT_SUMMARY_PATH"])
     extract_summary, extract_summary_parse_error = _load_extract_summary(summary_path)
@@ -258,6 +266,8 @@ def build_payload() -> dict[str, Any]:
             zero_row_reason = "zero_row_progress"
         elif failed_calls > 0:
             zero_row_reason = "contract_gap"
+        elif effective_network_mode == "direct":
+            zero_row_reason = "direct_no_data"
         else:
             zero_row_reason = "unknown"
 
@@ -283,6 +293,9 @@ def build_payload() -> dict[str, Any]:
         "finished_at": os.environ.get("FINISHED_AT", ""),
         "extract_status": os.environ.get("EXTRACT_STATUS", ""),
         "extract_exit_code": os.environ.get("EXTRACT_EXIT_CODE", ""),
+        "network_mode": network_mode,
+        "effective_network_mode": effective_network_mode,
+        "direct_egress_reason": direct_egress_reason,
         "vpn_status": vpn_status,
         "patterns": patterns,
         "season_types": _csv_values(os.environ.get("SEASON_TYPES", "")),
@@ -294,7 +307,11 @@ def build_payload() -> dict[str, Any]:
         "support_rules": support_rules,
         "artifact_requirements": {
             "lane_metadata": final_outcome != "complete",
-            "vpn_diagnostics": final_outcome != "complete" and not resume_only,
+            "vpn_diagnostics": (
+                final_outcome != "complete"
+                and not resume_only
+                and effective_network_mode != "direct"
+            ),
         },
         "telemetry": {
             "planned_calls": planned_calls,
@@ -310,6 +327,7 @@ def build_payload() -> dict[str, Any]:
         },
         "extract_summary": extract_summary,
         "vpn": {
+            "status": vpn_status,
             "server": os.environ.get("VPN_SERVER", ""),
             "interface": os.environ.get("VPN_INTERFACE", ""),
             "exit_ip": os.environ.get("VPN_EXIT_IP", ""),

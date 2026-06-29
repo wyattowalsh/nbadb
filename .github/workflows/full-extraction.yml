@@ -22,6 +22,22 @@ on:
           - "4"
           - "5"
           - "6"
+      network_mode:
+        description: "Network path for extraction lanes"
+        type: choice
+        default: "vpn"
+        options:
+          - vpn
+          - direct
+          - auto
+      chunk_profile:
+        description: "Temporal lane chunk sizing profile"
+        type: choice
+        default: "balanced-small"
+        options:
+          - standard
+          - balanced-small
+          - micro
       iteration:
         description: "Iteration number (auto-incremented on self-chain)"
         type: string
@@ -77,6 +93,8 @@ env:
   ACTIVE_CHAIN_ID: ${{ inputs.chain_id || github.run_id }}
   WORKFLOW_SOURCE_REF: ${{ inputs.workflow_ref || github.ref_name }}
   WORKFLOW_SOURCE_SHA: ${{ inputs.workflow_sha || github.sha }}
+  FULL_EXTRACTION_CHUNK_PROFILE: ${{ inputs.chunk_profile }}
+  FULL_EXTRACTION_NETWORK_MODE: ${{ inputs.network_mode }}
 
 permissions:
   contents: read
@@ -86,7 +104,7 @@ concurrency:
   cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────
-#  plan → lane extract(matrix) → merge → chain
+#  plan → lane extract(matrix) → lane control/checkpoint → dispatch next or merge
 # ─────────────────────────────────────────────────────────────────
 jobs:
   plan:
@@ -102,6 +120,9 @@ jobs:
       matrix-lane-count: ${{ steps.manifest.outputs.matrix-lane-count }}
       deferred-lane-count: ${{ steps.manifest.outputs.deferred-lane-count }}
       vpn-quarantined-servers-json: ${{ steps.manifest.outputs.vpn-quarantined-servers-json }}
+      chunk-profile: ${{ steps.manifest.outputs.chunk-profile }}
+      coverage-fingerprint: ${{ steps.manifest.outputs.coverage-fingerprint }}
+      planned-wave-count: ${{ steps.manifest.outputs.planned-wave-count }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -240,6 +261,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
+          CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
         run: |
           mkdir -p artifacts/full-extraction
           args=(
@@ -305,6 +327,7 @@ jobs:
             args+=(--lane-manifest-path artifacts/full-extraction/resume-source-manifest.json)
           else
             args+=(--support-matrix-path artifacts/endpoint-coverage/endpoint-support-matrix.json)
+            args+=(--chunk-profile "$CHUNK_PROFILE")
           fi
           [ -n "$BACKFILL_PATTERNS" ]  && args+=(--backfill-patterns "$BACKFILL_PATTERNS")
           [ -n "$BACKFILL_ENDPOINTS" ] && args+=(--backfill-endpoints "$BACKFILL_ENDPOINTS")
@@ -330,6 +353,9 @@ jobs:
               handle.write(f"matrix-lane-count={manifest.get('matrix_lane_count', 0)}\n")
               handle.write(f"deferred-lane-count={manifest.get('deferred_lane_count', 0)}\n")
               handle.write(f"vpn-quarantined-servers-json={compact_quarantined_servers}\n")
+              handle.write(f"chunk-profile={manifest.get('chunk_profile', '')}\n")
+              handle.write(f"coverage-fingerprint={manifest.get('coverage_fingerprint', '')}\n")
+              handle.write(f"planned-wave-count={manifest.get('planned_wave_count', 0)}\n")
           PY
 
       - name: Plan summary
@@ -347,6 +373,9 @@ jobs:
               handle.write(f"**Active lanes:** {manifest.get('active_lane_count', 0)}\n")
               handle.write(f"**This wave:** {manifest.get('matrix_lane_count', 0)}\n")
               handle.write(f"**Deferred lanes:** {manifest.get('deferred_lane_count', 0)}\n")
+              handle.write(f"**Chunk profile:** {manifest.get('chunk_profile', '')}\n")
+              handle.write(f"**Coverage fingerprint:** `{manifest.get('coverage_fingerprint', '')}`\n")
+              handle.write(f"**Planned waves:** {manifest.get('planned_wave_count', 0)}\n")
               for lane in lanes:
                   season_range = "n/a"
                   if lane.get("season_start") is not None and lane.get("season_end") is not None:
@@ -381,6 +410,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    outputs:
+      effective-network-mode: ${{ steps.network_mode.outputs.effective-network-mode }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -397,6 +428,7 @@ jobs:
       - run: uv sync
 
       - name: Validate VPN credentials are present
+        if: ${{ inputs.network_mode != 'direct' }}
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
@@ -445,6 +477,7 @@ jobs:
 
       - name: Preflight VPN validation
         id: vpn
+        if: ${{ inputs.network_mode != 'direct' }}
         timeout-minutes: 3
         continue-on-error: true
         env:
@@ -466,22 +499,60 @@ jobs:
           rc=$?
           exit "$rc"
 
-      - name: Summarize preflight VPN validation
+      - name: Resolve effective network mode
+        id: network_mode
         if: always()
         env:
+          REQUESTED_NETWORK_MODE: ${{ inputs.network_mode }}
           VPN_STATUS: ${{ steps.vpn.outputs.status }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
         run: |
+          requested="${REQUESTED_NETWORK_MODE:-vpn}"
           status="${VPN_STATUS:-unknown}"
-          if [ "$status" = "connected" ]; then
-            echo "::notice::Preflight VPN validation connected via ${VPN_SERVER:-unknown} (${VPN_EXIT_IP:-unknown})"
-            exit 0
+          effective="$requested"
+
+          if [ "$requested" = "direct" ]; then
+            effective="direct"
+            echo "::notice::Skipping VPN preflight; direct no-VPN extraction requested"
+          elif [ "$requested" = "auto" ]; then
+            if [ "$status" = "connected" ]; then
+              effective="vpn"
+              echo "::notice::Preflight VPN validation connected via ${VPN_SERVER:-unknown} (${VPN_EXIT_IP:-unknown}); using VPN extraction"
+            else
+              effective="direct"
+              echo "::warning::Preflight VPN validation returned ${status}; falling back to direct no-VPN extraction"
+            fi
+          elif [ "$requested" = "vpn" ]; then
+            effective="vpn"
+            if [ "$status" = "connected" ]; then
+              echo "::notice::Preflight VPN validation connected via ${VPN_SERVER:-unknown} (${VPN_EXIT_IP:-unknown})"
+            else
+              echo "::warning::Preflight VPN validation returned ${status}; proceeding with VPN extraction for live lane verification"
+            fi
+          else
+            echo "::error::Unsupported network_mode: $requested"
+            exit 1
           fi
-          echo "::warning::Preflight VPN validation returned ${status}; proceeding to extract lanes for live verification"
+
+          {
+            echo "effective-network-mode=$effective"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Summarize preflight network mode
+        if: always()
+        env:
+          EFFECTIVE_NETWORK_MODE: ${{ steps.network_mode.outputs.effective-network-mode }}
+          REQUESTED_NETWORK_MODE: ${{ inputs.network_mode }}
+        run: |
+          {
+            echo "## Network Preflight"
+            echo "**Requested network mode:** ${REQUESTED_NETWORK_MODE:-vpn}"
+            echo "**Effective network mode:** ${EFFECTIVE_NETWORK_MODE:-vpn}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Disconnect preflight VPN
-        if: always()
+        if: ${{ always() && inputs.network_mode != 'direct' }}
         uses: ./.github/actions/nordvpn-disconnect
         with:
           pid: ${{ steps.vpn.outputs.pid }}
@@ -498,7 +569,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: ${{ fromJSON(inputs.vpn_parallelism) }}
+      max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && '1' || inputs.vpn_parallelism) }}
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
@@ -620,7 +691,7 @@ jobs:
       # ── Connect NordVPN tunnel for active extraction lanes ──
       - name: Connect NordVPN tunnel
         id: vpn
-        if: ${{ !matrix.resume_only }}
+        if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' }}
         timeout-minutes: 6
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
@@ -647,18 +718,32 @@ jobs:
       - name: Configure extraction environment
         env:
           CONCURRENCY: ${{ inputs.concurrency }}
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
           PATTERNS: ${{ matrix.patterns }}
           ENDPOINTS: ${{ matrix.endpoints }}
         run: |
           lane_concurrency="$CONCURRENCY"
+          effective_network_mode="${EFFECTIVE_NETWORK_MODE:-vpn}"
+          if [ "$effective_network_mode" = "direct" ]; then
+            lane_concurrency="direct"
+            echo "::notice::Using conservative direct no-VPN extraction profile"
+          fi
           # Hosted runners have repeatedly dropped long-running singleton player lanes
           # after clean VPN setup, so force those lanes onto the lowest-stress profile.
-          if [ "$PATTERNS" = "player" ] && [ -n "$ENDPOINTS" ] && [ "${ENDPOINTS#*,}" = "$ENDPOINTS" ]; then
+          if [ "$effective_network_mode" != "direct" ] && [ "$PATTERNS" = "player" ] && [ -n "$ENDPOINTS" ] && [ "${ENDPOINTS#*,}" = "$ENDPOINTS" ]; then
             lane_concurrency="conservative"
             echo "::notice::Forcing conservative extraction profile for singleton player lane: $ENDPOINTS"
           fi
 
           case "$lane_concurrency" in
+            direct)
+              echo 'NBADB_RATE_LIMIT=2'                  >> "$GITHUB_ENV"
+              echo 'NBADB_DISCOVERY_CONCURRENCY=2'      >> "$GITHUB_ENV"
+              echo 'NBADB_THREAD_POOL_SIZE=24'          >> "$GITHUB_ENV"
+              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=240' >> "$GITHUB_ENV"
+              echo 'NBADB_DEFAULT_CHUNK_SIZE=400'       >> "$GITHUB_ENV"
+              echo 'NBADB_PBP_CHUNK_SIZE=800'           >> "$GITHUB_ENV"
+              ;;
             conservative)
               echo 'NBADB_RATE_LIMIT=6'                  >> "$GITHUB_ENV"
               echo 'NBADB_DISCOVERY_CONCURRENCY=4'      >> "$GITHUB_ENV"
@@ -713,6 +798,7 @@ jobs:
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           LANE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
           EXTRACT_SUMMARY_PATH: artifacts/extraction/extract-summary.json
+          NBADB_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
         run: |
           mkdir -p artifacts/extraction
           python .github/scripts/run_extract_lane.py
@@ -726,6 +812,7 @@ jobs:
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status }}
           VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
         run: |
           if [ "$JOB_STATUS" = "cancelled" ]; then
             status="cancelled"
@@ -735,6 +822,8 @@ jobs:
             status="$EXTRACT_STATUS"
           elif [ -n "$VPN_STATUS" ] && [ "$VPN_STATUS" != "connected" ]; then
             status="$VPN_STATUS"
+          elif [ "$EFFECTIVE_NETWORK_MODE" = "direct" ]; then
+            status="failed-before-extract"
           else
             status="failed-before-extract"
           fi
@@ -757,6 +846,8 @@ jobs:
           VPN_BASELINE_IP: ${{ steps.vpn.outputs.baseline-ip }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
           VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          REQUESTED_NETWORK_MODE: ${{ inputs.network_mode }}
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
           RESTORE_SOURCE: ${{ steps.restore_state.outputs.restore-source }}
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
@@ -765,6 +856,8 @@ jobs:
           effective_vpn_status="${VPN_STATUS:-}"
           if [ "$RESUME_ONLY" = "true" ] && [ -z "$effective_vpn_status" ]; then
             effective_vpn_status="resume-only"
+          elif [ "$EFFECTIVE_NETWORK_MODE" = "direct" ] && [ -z "$effective_vpn_status" ]; then
+            effective_vpn_status="direct-no-vpn"
           elif [ -z "$effective_vpn_status" ]; then
             effective_vpn_status="unknown"
           fi
@@ -777,6 +870,8 @@ jobs:
             echo "**Restore source:** ${RESTORE_SOURCE:-none}"
             echo "**Restore usable:** ${RESTORE_USABLE:-false}"
             echo "**Resume only:** $RESUME_ONLY"
+            echo "**Requested network mode:** ${REQUESTED_NETWORK_MODE:-vpn}"
+            echo "**Effective network mode:** ${EFFECTIVE_NETWORK_MODE:-vpn}"
             echo "**Lane timeout seconds:** $TIMEOUT_SECONDS"
             echo "**Effective lane timeout seconds:** $EFFECTIVE_TIMEOUT_SECONDS"
             echo "**VPN status:** $effective_vpn_status"
@@ -819,7 +914,10 @@ jobs:
           FINISHED_AT: ${{ steps.extract.outputs.finished-at }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
           EXTRACT_EXIT_CODE: ${{ steps.extract.outputs.exit-code || '' }}
-          VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          NETWORK_MODE: ${{ inputs.network_mode }}
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
+          DIRECT_EGRESS_REASON: ${{ needs.preflight.outputs.effective-network-mode == 'direct' && 'vpn-unavailable-or-bypassed' || '' }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status || (needs.preflight.outputs.effective-network-mode == 'direct' && 'direct-no-vpn' || '') }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_INTERFACE: ${{ steps.vpn.outputs.interface }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
@@ -865,7 +963,7 @@ jobs:
           compression-level: 6
 
       - name: Upload VPN diagnostics
-        if: always()
+        if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
@@ -881,7 +979,7 @@ jobs:
 
       # ── Cleanup ──
       - name: Disconnect VPN
-        if: ${{ always() && !matrix.resume_only }}
+        if: ${{ always() && !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' }}
         uses: ./.github/actions/nordvpn-disconnect
         with:
           pid: ${{ steps.vpn.outputs.pid }}
@@ -896,17 +994,18 @@ jobs:
           RAW_STATUS: ${{ steps.lane_status.outputs.status }}
           EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
           EXTRACT_EXIT_CODE: ${{ steps.extract.outputs.exit-code || '' }}
-          VPN_STATUS: ${{ steps.vpn.outputs.status || 'unknown' }}
+          VPN_STATUS: ${{ steps.vpn.outputs.status || (needs.preflight.outputs.effective-network-mode == 'direct' && 'direct-no-vpn' || 'unknown') }}
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
         run: |
-          echo "::error::Lane $LANE_ID ended in pipeline_failure: status=$STATUS raw_status=$RAW_STATUS extract_status=$EXTRACT_STATUS exit_code=${EXTRACT_EXIT_CODE:-n/a} vpn_status=$VPN_STATUS"
+          echo "::error::Lane $LANE_ID ended in pipeline_failure: status=$STATUS raw_status=$RAW_STATUS extract_status=$EXTRACT_STATUS exit_code=${EXTRACT_EXIT_CODE:-n/a} vpn_status=$VPN_STATUS network_mode=${EFFECTIVE_NETWORK_MODE:-vpn}"
           exit 1
 
   # ─────────────────────────────────────────────────────────────
-  #  Merge all lane artifacts once all lanes are complete
+  #  Merge the cumulative checkpoint once all lanes are complete
   # ─────────────────────────────────────────────────────────────
   merge:
-    needs: [plan, preflight, extract, chain]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && (needs.plan.outputs.active-lane-count == '0' || (needs.chain.result == 'success' && needs.chain.outputs.active-lane-count == '0')) }}
+    needs: [plan, preflight, extract, lane_control, checkpoint]
+    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:
@@ -928,11 +1027,17 @@ jobs:
 
       - run: uv sync
 
-      - name: Download lane manifest
+      - name: Download terminal manifest
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
-          path: plan-artifact/
+          name: ${{ needs.lane_control.outputs.artifact-name }}
+          path: next-manifest-artifact/
+
+      - name: Download terminal checkpoint
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: ${{ needs.checkpoint.outputs.artifact-name }}
+          path: checkpoint-artifact/
 
       - name: Download chained lane artifacts
         env:
@@ -940,10 +1045,10 @@ jobs:
           ACTIVE_CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
         run: |
           mkdir -p lanes artifacts/full-extraction
-          manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
+          manifest_path="$(find next-manifest-artifact \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
           if [ -z "$manifest_path" ]; then
-            echo "::error::Plan artifact did not contain manifest.json"
-            find plan-artifact -maxdepth 4 -type f -print || true
+            echo "::error::Terminal manifest artifact did not contain next-manifest.json or manifest.json"
+            find next-manifest-artifact -maxdepth 4 -type f -print || true
             exit 1
           fi
           cp "$manifest_path" artifacts/full-extraction/merge-manifest.json
@@ -980,10 +1085,10 @@ jobs:
 
           lane_count="$(find lanes -path '*extraction-lane-*' -type d | wc -l | tr -d ' ')"
           if [ "$lane_count" -eq 0 ]; then
-            echo "::error::No extraction lane artifacts were available to merge"
-            exit 1
+            echo "::warning::No extraction lane artifacts were available; checkpoint merge must succeed"
+          else
+            echo "Downloaded $lane_count lane artifact directories"
           fi
-          echo "Downloaded $lane_count lane artifact directories"
 
       - name: List downloaded lanes
         run: |
@@ -998,15 +1103,16 @@ jobs:
           mkdir -p data/nbadb
           uv run python -m nbadb.orchestrate.full_extraction_control merge \
             --artifacts-dir lanes \
-            --output-dir data/nbadb
+            --output-dir data/nbadb \
+            --manifest-path artifacts/full-extraction/merge-manifest.json \
+            --checkpoint-dir checkpoint-artifact \
+            --checkpoint-report-path checkpoint-artifact/checkpoint-report.json
 
       # Transform from merged staging once every planned lane is complete.
       - name: Transform and load
-        if: needs.extract.result == 'success'
         run: uv run nbadb backfill run --transform-only --verbose
 
       - name: Append live snapshot
-        if: needs.extract.result == 'success'
         run: uv run nbadb live-snapshot --verbose
 
       - name: Merge summary
@@ -1026,7 +1132,6 @@ jobs:
       # Scan, export, upload — only when all lanes completed
       - name: Scan data quality
         id: scan
-        if: needs.extract.result == 'success'
         uses: ./.github/actions/scan-report
         with:
           report-name: full-extraction-scan-report
@@ -1034,15 +1139,12 @@ jobs:
           fail-on: error
 
       - name: Export all formats
-        if: needs.extract.result == 'success'
         run: uv run nbadb export
 
       - name: Refresh checked-in metadata
-        if: needs.extract.result == 'success'
         uses: ./.github/actions/refresh-metadata
 
       - name: Upload to Kaggle
-        if: needs.extract.result == 'success'
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
@@ -1062,9 +1164,9 @@ jobs:
           compression-level: 0
 
   # ─────────────────────────────────────────────────────────────
-  #  Self-chain: carry a manifest forward and only re-extract unresolved lanes
+  #  Lane control: carry a manifest forward and classify unresolved lanes
   # ─────────────────────────────────────────────────────────────
-  chain:
+  lane_control:
     needs: [plan, preflight, extract]
     if: ${{ always() && !cancelled() && needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' }}
     runs-on: ubuntu-latest
@@ -1077,6 +1179,8 @@ jobs:
       resume-only-lane-count: ${{ steps.next_manifest.outputs.resume_only_lane_count }}
       contract-blocked-lane-count: ${{ steps.next_manifest.outputs.contract_blocked_lane_count }}
       split-lane-count: ${{ steps.next_manifest.outputs.split_lane_count }}
+      artifact-name: ${{ steps.next_manifest.outputs.artifact_name }}
+      checkpoint-artifact-name: ${{ steps.next_manifest.outputs.checkpoint_artifact_name }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -1110,6 +1214,7 @@ jobs:
           ITERATION: ${{ inputs.iteration }}
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CHECKPOINT_ARTIFACT_NAME: full-extraction-checkpoint-${{ env.ACTIVE_CHAIN_ID }}-iter-${{ inputs.iteration }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -1133,6 +1238,9 @@ jobs:
             --lane-manifest-path artifacts/full-extraction/current-manifest.json \
             --metadata-dir lane-metadata \
             --completed-artifact-run-id "${{ github.run_id }}" \
+            --latest-checkpoint-run-id "${{ github.run_id }}" \
+            --latest-checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME" \
+            --latest-checkpoint-generation "$ITERATION" \
             --output-path artifacts/full-extraction/next-manifest.json \
             > artifacts/full-extraction/next-manifest.stdout.json
 
@@ -1169,6 +1277,7 @@ jobs:
           )
           report = {
               "artifact_name": artifact_name,
+              "checkpoint_artifact_name": os.environ["CHECKPOINT_ARTIFACT_NAME"],
               "active_lane_count": int(summary.get("active_lane_count", 0)),
               "resume_only_lane_count": int(summary.get("resume_only_lane_count", 0)),
               "contract_blocked_lane_count": int(summary.get("contract_blocked_lane_count", 0)),
@@ -1199,6 +1308,7 @@ jobs:
                       + json.dumps(report["failure_reason_counts"], sort_keys=True),
                       f"redispatch_payload_bytes={report['redispatch_payload_bytes']}",
                       f"artifact_name={artifact_name}",
+                      f"checkpoint_artifact_name={report['checkpoint_artifact_name']}",
                   ]
               )
               + "\n",
@@ -1315,7 +1425,7 @@ jobs:
             if [ "$active_lane_count" -gt 0 ]; then
               echo "| Next action | Redispatch iteration $((ITERATION + 1)) via \`$artifact_name\` |"
             else
-              echo "| Next action | Merge terminal lane artifacts |"
+              echo "| Next action | Merge terminal checkpoint artifact |"
             fi
             echo ""
             echo "**Unresolved reasons:** \`$failure_reason_counts\`"
@@ -1340,6 +1450,222 @@ jobs:
           retention-days: 14
           compression-level: 6
 
+      - name: Upload VPN quarantine artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: full-extraction-vpn-quarantine-${{ env.ACTIVE_CHAIN_ID }}
+          path: artifacts/full-extraction/vpn-quarantine.json
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
+
+  # ─────────────────────────────────────────────────────────────
+  #  Checkpoint: aggregate complete lanes into a cumulative database
+  # ─────────────────────────────────────────────────────────────
+  checkpoint:
+    needs: [plan, preflight, extract, lane_control]
+    if: ${{ always() && !cancelled() && needs.lane_control.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact-name: ${{ steps.checkpoint.outputs.artifact_name }}
+      checkpoint-generation: ${{ steps.checkpoint.outputs.checkpoint_generation }}
+      coverage-fingerprint: ${{ steps.checkpoint.outputs.coverage_fingerprint }}
+      terminal-ready: ${{ steps.checkpoint.outputs.terminal_ready }}
+      active-lane-count: ${{ steps.checkpoint.outputs.active_lane_count }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Download lane metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
+          path: lane-metadata/
+
+      - name: Download lane-control manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: ${{ needs.lane_control.outputs.artifact-name }}
+          path: lane-control-artifact/
+
+      - name: Download current lane artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIVE_CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+        run: |
+          mkdir -p lanes/run-${{ github.run_id }}
+          if ! gh run download "${{ github.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "extraction-lane-${ACTIVE_CHAIN_ID}-*" \
+            --dir "lanes/run-${{ github.run_id }}"; then
+            echo "::warning::No current lane artifacts were downloaded for checkpointing"
+          fi
+
+      - name: Download previous checkpoint
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p previous-checkpoint artifacts/full-extraction
+          current_manifest="$(find lane-control-artifact -name current-manifest.json -type f -print -quit)"
+          if [ -z "$current_manifest" ]; then
+            echo "::error::Lane-control artifact did not contain current-manifest.json"
+            find lane-control-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+
+          checkpoint_pointer="$(CURRENT_MANIFEST="$current_manifest" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest_path = Path(os.environ["CURRENT_MANIFEST"])
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          state = manifest.get("chain_state", {})
+          print(
+              str(state.get("latest_checkpoint_run_id") or ""),
+              str(state.get("latest_checkpoint_artifact_name") or ""),
+          )
+          PY
+          )"
+          read -r previous_run_id previous_artifact_name <<< "$checkpoint_pointer"
+
+          if [ -z "$previous_run_id" ] || [ -z "$previous_artifact_name" ]; then
+            echo "::notice::No previous checkpoint pointer found"
+            exit 0
+          fi
+
+          echo "Downloading previous checkpoint $previous_artifact_name from run $previous_run_id"
+          if ! gh run download "$previous_run_id" \
+            --repo "${{ github.repository }}" \
+            --name "$previous_artifact_name" \
+            --dir previous-checkpoint; then
+            echo "::warning::Previous checkpoint artifact $previous_artifact_name from run $previous_run_id was unavailable"
+          fi
+
+      - name: Build checkpoint database
+        id: checkpoint
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+        run: |
+          mkdir -p data/nbadb-checkpoint artifacts/full-extraction
+          checkpoint_manifest="$(find lane-control-artifact -name next-manifest.json -type f -print -quit)"
+          if [ -z "$checkpoint_manifest" ]; then
+            echo "::error::Lane-control artifact did not contain next-manifest.json"
+            find lane-control-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+          cp "$checkpoint_manifest" artifacts/full-extraction/checkpoint-manifest.json
+
+          previous_args=()
+          previous_report="$(find previous-checkpoint -name checkpoint-report.json -type f -print -quit || true)"
+          if [ -n "$previous_report" ]; then
+            previous_args+=(
+              --previous-checkpoint-dir previous-checkpoint
+              --previous-checkpoint-report-path "$previous_report"
+            )
+          fi
+
+          uv run python -m nbadb.orchestrate.full_extraction_control checkpoint \
+            --lane-manifest-path artifacts/full-extraction/checkpoint-manifest.json \
+            --metadata-dir lane-metadata \
+            --artifacts-dir lanes \
+            "${previous_args[@]}" \
+            --output-dir data/nbadb-checkpoint \
+            --report-path artifacts/full-extraction/checkpoint-report.json \
+            --chain-id "$CHAIN_ID" \
+            --run-id "${{ github.run_id }}" \
+            > artifacts/full-extraction/checkpoint.stdout.json
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              Path("artifacts/full-extraction/checkpoint-report.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          output_pairs = {
+              "artifact_name": os.environ["CHECKPOINT_ARTIFACT_NAME"],
+              "checkpoint_generation": report.get("checkpoint_generation", 0),
+              "coverage_fingerprint": report.get("coverage_fingerprint", ""),
+              "terminal_ready": str(bool(report.get("terminal_ready"))).lower(),
+              "active_lane_count": report.get("active_lane_count", 0),
+          }
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              for key, value in output_pairs.items():
+                  handle.write(f"{key}={value}\n")
+          PY
+
+          {
+            echo "## Full Extraction Checkpoint"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|---|---:|"
+            echo "| Artifact | \`$CHECKPOINT_ARTIFACT_NAME\` |"
+            python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("artifacts/full-extraction/checkpoint-report.json").read_text())
+          rows = {
+              "Generation": report.get("checkpoint_generation", 0),
+              "Included lanes": report.get("complete_lane_count", 0),
+              "Missing active lanes": report.get("active_lane_count", 0),
+              "Skipped complete lanes": report.get("skipped_lane_count", 0),
+              "Journal rows": report.get("journal_row_count", 0),
+              "Terminal ready": report.get("terminal_ready", False),
+          }
+          for key, value in rows.items():
+              print(f"| {key} | {value} |")
+          print(f"| Coverage fingerprint | `{report.get('coverage_fingerprint', '')}` |")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload checkpoint artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          path: |
+            data/nbadb-checkpoint/nba.duckdb
+            artifacts/full-extraction/checkpoint-report.json
+            artifacts/full-extraction/checkpoint.stdout.json
+            artifacts/full-extraction/checkpoint-manifest.json
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 0
+
+  # ─────────────────────────────────────────────────────────────
+  #  Redispatch only after the checkpoint for this iteration is durable
+  # ─────────────────────────────────────────────────────────────
+  dispatch_next:
+    needs: [plan, preflight, lane_control, checkpoint]
+    if: ${{ always() && !cancelled() && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    steps:
       - name: Dispatch next iteration
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1349,11 +1675,13 @@ jobs:
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CONCURRENCY: ${{ inputs.concurrency }}
           VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
+          NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode == 'direct' && 'direct' || inputs.network_mode }}
+          CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
-          ACTIVE_LANE_COUNT: ${{ steps.next_manifest.outputs.active_lane_count }}
-          ARTIFACT_NAME: ${{ steps.next_manifest.outputs.artifact_name }}
+          ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
+          ARTIFACT_NAME: ${{ needs.lane_control.outputs.artifact-name }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -1361,13 +1689,8 @@ jobs:
           next_concurrency="$CONCURRENCY"
 
           if [ "$next" -gt "$max" ]; then
-            echo "::error::Reached max iterations ($max) with incomplete extraction; next-manifest artifacts were uploaded for manual resume."
+            echo "::error::Reached max iterations ($max) with incomplete extraction; next-manifest and checkpoint artifacts were uploaded for manual resume."
             exit 1
-          fi
-
-          if [ "${ACTIVE_LANE_COUNT:-0}" -le 0 ]; then
-            echo "::notice::No active lanes remain; merge job will consume terminal lane artifacts."
-            exit 0
           fi
 
           echo "::notice::Some lanes incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
@@ -1376,6 +1699,8 @@ jobs:
             --ref "$WORKFLOW_REF" \
             -f concurrency="$next_concurrency" \
             -f vpn_parallelism="$VPN_PARALLELISM" \
+            -f network_mode="$NETWORK_MODE" \
+            -f chunk_profile="$CHUNK_PROFILE" \
             -f iteration="$next" \
             -f max_iterations="$max" \
             -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
@@ -1386,13 +1711,3 @@ jobs:
             -f workflow_sha="$WORKFLOW_SHA" \
             -f lane_manifest_run_id="${{ github.run_id }}" \
             -f lane_manifest_artifact_name="$ARTIFACT_NAME"
-
-      - name: Upload VPN quarantine artifact
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: full-extraction-vpn-quarantine-${{ env.ACTIVE_CHAIN_ID }}
-          path: artifacts/full-extraction/vpn-quarantine.json
-          if-no-files-found: ignore
-          retention-days: 7
-          compression-level: 6
