@@ -96,6 +96,19 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Regenerate docs artifacts
         run: uv run nbadb docs-autogen --docs-root docs/content/docs
+      - name: Format generated docs artifacts
+        working-directory: docs
+        run: |
+          pnpm exec prettier --write \
+            content/docs/schema/raw-reference.mdx \
+            content/docs/schema/staging-reference.mdx \
+            content/docs/schema/star-reference.mdx \
+            content/docs/data-dictionary/raw.mdx \
+            content/docs/data-dictionary/staging.mdx \
+            content/docs/data-dictionary/star.mdx \
+            lib/generated/agent-catalog.json \
+            lib/generated/lineage.json \
+            lib/site-metrics.generated.ts
       - name: Verify generated docs are committed
         run: |
           status="$(
