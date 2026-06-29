@@ -17,6 +17,19 @@ _EXPORT_JSON = (
 _SCD2_JOIN_NOTE = (
     "dim_player and dim_team_history are SCD2; filter is_current = TRUE for present-day names."
 )
+_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+
+
+def _tokens(value: str) -> tuple[str, ...]:
+    normalized = value.casefold().replace("_", " ").replace("-", " ")
+    return tuple(_TOKEN_PATTERN.findall(normalized))
+
+
+def _contains_token_sequence(haystack: tuple[str, ...], needle: tuple[str, ...]) -> bool:
+    if not needle or len(needle) > len(haystack):
+        return False
+    width = len(needle)
+    return any(haystack[index : index + width] == needle for index in range(len(haystack)))
 
 
 @dataclass(frozen=True)
@@ -34,9 +47,9 @@ class CatalogEntry:
     patterns: tuple[re.Pattern[str], ...] = field(default_factory=tuple, compare=False)
 
     def matches(self, question: str) -> bool:
-        normalized = question.casefold()
+        question_tokens = _tokens(question)
         terms = (self.name, *self.aliases, *self.metrics)
-        if any(term.casefold() in normalized for term in terms):
+        if any(_contains_token_sequence(question_tokens, _tokens(term)) for term in terms):
             return True
         return any(pattern.search(question) for pattern in self.patterns)
 

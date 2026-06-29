@@ -62,6 +62,23 @@ def test_catalog_returns_table_hints_without_duplicates() -> None:
     assert tables == ("agg_player_season", "dim_player")
 
 
+def test_catalog_does_not_match_short_metric_substrings_inside_words() -> None:
+    catalog = default_catalog()
+
+    for question in ("what is a forecast?", "past results", "last"):
+        assert catalog.relevant_entries(question) == ()
+        assert catalog.table_hints(question) == ()
+
+
+def test_catalog_still_matches_intended_short_metric_phrases() -> None:
+    catalog = default_catalog()
+
+    assert catalog.match_route("show last game") is not None
+    assert catalog.match_route("who had the most assists?") is not None
+    assert catalog.match_route("team pace leaders") is not None
+    assert any(entry.route == "team_season" for entry in catalog.relevant_entries("avg pts"))
+
+
 def test_catalog_exposes_at_least_twenty_five_routed_intents() -> None:
     catalog = default_catalog()
     routed = [entry for entry in catalog.entries if entry.route and entry.sql_template]
