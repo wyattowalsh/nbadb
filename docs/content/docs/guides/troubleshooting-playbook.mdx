@@ -185,12 +185,12 @@ report is missing, non-terminal, or coverage-mismatched.
 When VPN bootstrap is down, dispatch a narrow smoke run with
 `network_mode=direct`, `direct_parallelism=1`, `chunk_profile=micro`, and a low
 `direct_timeout_cap_minutes` value before fan-out. Direct mode skips NordVPN
-setup, uses `direct_parallelism` instead of VPN fan-out, caps active lane runtime
-before writing timeout metadata, writes `direct-no-vpn` into lane metadata, and
-does not require VPN diagnostic artifacts for failed lanes. Keep direct fan-out
-low (`1` or `2`) and the cap at `15` or `30` minutes until lane metadata proves
-the direct path is viable; use `network_mode=auto` only after future iterations
-should prefer VPN again when preflight recovers.
+setup, uses `direct_parallelism` instead of VPN fan-out, caps direct date-lane
+runtime before writing timeout metadata, writes `direct-no-vpn` into lane
+metadata, and does not require VPN diagnostic artifacts for failed lanes. Keep
+direct fan-out low (`1` or `2`) and the date-lane cap at `15` or `30` minutes
+until lane metadata proves the direct path is viable; use `network_mode=auto`
+only after future iterations should prefer VPN again when preflight recovers.
 
 Inspect checkpoint health with:
 

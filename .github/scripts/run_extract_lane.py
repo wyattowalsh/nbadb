@@ -111,8 +111,17 @@ def direct_timeout_cap_seconds() -> int | None:
     return timeout_seconds
 
 
+def direct_timeout_cap_applies() -> bool:
+    patterns = {
+        value.strip() for value in os.environ.get("PATTERNS", "").split(",") if value.strip()
+    }
+    return "date" in patterns
+
+
 def effective_timeout_seconds(timeout_seconds: int) -> int:
     if os.environ.get("NBADB_NETWORK_MODE", "").strip().lower() != "direct":
+        return timeout_seconds
+    if not direct_timeout_cap_applies():
         return timeout_seconds
     cap_seconds = direct_timeout_cap_seconds()
     if cap_seconds is None:

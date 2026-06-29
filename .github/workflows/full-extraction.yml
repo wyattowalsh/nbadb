@@ -32,7 +32,7 @@ on:
           - "3"
           - "4"
       direct_timeout_cap_minutes:
-        description: "Max minutes before a direct/no-VPN lane yields timeout metadata"
+        description: "Max minutes before a direct/no-VPN date lane yields timeout metadata"
         type: choice
         default: "30"
         options:

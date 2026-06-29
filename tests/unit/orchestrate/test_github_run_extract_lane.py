@@ -52,6 +52,8 @@ def test_effective_timeout_uses_manifest_timeout_for_singleton_player_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load_module()
+    monkeypatch.setenv("NBADB_NETWORK_MODE", "direct")
+    monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
     monkeypatch.setenv("PATTERNS", "player")
     monkeypatch.setenv("BACKFILL_ENDPOINTS", "common_player_info")
 
@@ -62,21 +64,35 @@ def test_effective_timeout_does_not_cap_multi_endpoint_player_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load_module()
+    monkeypatch.setenv("NBADB_NETWORK_MODE", "direct")
+    monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
     monkeypatch.setenv("PATTERNS", "player")
     monkeypatch.setenv("BACKFILL_ENDPOINTS", "common_player_info,player_profile_v2")
 
     assert module.effective_timeout_seconds(7200) == 7200
 
 
-def test_effective_timeout_caps_direct_no_vpn_lanes(
+def test_effective_timeout_caps_direct_no_vpn_date_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load_module()
     monkeypatch.setenv("NBADB_NETWORK_MODE", "direct")
     monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
+    monkeypatch.setenv("PATTERNS", "date")
 
     assert module.effective_timeout_seconds(7200) == 1800
     assert module.effective_timeout_seconds(600) == 600
+
+
+def test_effective_timeout_does_not_cap_direct_game_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_NETWORK_MODE", "direct")
+    monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
+    monkeypatch.setenv("PATTERNS", "game")
+
+    assert module.effective_timeout_seconds(7200) == 7200
 
 
 def test_effective_timeout_ignores_direct_cap_for_vpn_lanes(
@@ -85,6 +101,7 @@ def test_effective_timeout_ignores_direct_cap_for_vpn_lanes(
     module = _load_module()
     monkeypatch.setenv("NBADB_NETWORK_MODE", "vpn")
     monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
+    monkeypatch.setenv("PATTERNS", "date")
 
     assert module.effective_timeout_seconds(7200) == 7200
 
