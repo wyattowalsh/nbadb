@@ -68,6 +68,37 @@ def test_effective_timeout_does_not_cap_multi_endpoint_player_lanes(
     assert module.effective_timeout_seconds(7200) == 7200
 
 
+def test_effective_timeout_caps_direct_no_vpn_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_NETWORK_MODE", "direct")
+    monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
+
+    assert module.effective_timeout_seconds(7200) == 1800
+    assert module.effective_timeout_seconds(600) == 600
+
+
+def test_effective_timeout_ignores_direct_cap_for_vpn_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_NETWORK_MODE", "vpn")
+    monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
+
+    assert module.effective_timeout_seconds(7200) == 7200
+
+
+def test_direct_timeout_cap_seconds_validates_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "0")
+
+    with pytest.raises(ValueError, match="must be > 0"):
+        module.direct_timeout_cap_seconds()
+
+
 def test_env_timeout_seconds_validates_input(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
     monkeypatch.setenv("LANE_TIMEOUT_SECONDS", "0")

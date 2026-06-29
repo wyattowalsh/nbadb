@@ -258,6 +258,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert 'default: "balanced-small"' in workflow
     assert "network_mode:" in workflow
     assert "direct_parallelism:" in workflow
+    assert "direct_timeout_cap_minutes:" in workflow
+    assert "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS" in workflow
     assert "effective-network-mode:" in workflow
     assert "Resolve effective network mode" in workflow
     assert "direct-no-vpn" in workflow
@@ -289,6 +291,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert direct_parallel_expr in workflow
     assert '-f network_mode="$NETWORK_MODE"' in workflow
     assert '-f direct_parallelism="$DIRECT_PARALLELISM"' in workflow
+    assert '-f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES"' in workflow
     assert '-f chunk_profile="$CHUNK_PROFILE"' in workflow
 
 

@@ -94,8 +94,39 @@ def env_timeout_seconds() -> int:
     return timeout_seconds
 
 
-def effective_timeout_seconds(timeout_seconds: int) -> int:
+def direct_timeout_cap_seconds() -> int | None:
+    raw = os.environ.get("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "").strip()
+    if not raw:
+        return None
+    try:
+        timeout_seconds = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS must be an integer, got {raw!r}"
+        ) from exc
+    if timeout_seconds <= 0:
+        raise ValueError(
+            f"NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS must be > 0, got {timeout_seconds}"
+        )
     return timeout_seconds
+
+
+def effective_timeout_seconds(timeout_seconds: int) -> int:
+    if os.environ.get("NBADB_NETWORK_MODE", "").strip().lower() != "direct":
+        return timeout_seconds
+    cap_seconds = direct_timeout_cap_seconds()
+    if cap_seconds is None:
+        return timeout_seconds
+    return min(timeout_seconds, cap_seconds)
+
+
+def describe_timeout(timeout_seconds: int, effective_timeout_seconds: int) -> None:
+    if timeout_seconds == effective_timeout_seconds:
+        return
+    print(
+        "::notice::Direct no-VPN extraction timeout capped from "
+        f"{timeout_seconds}s to {effective_timeout_seconds}s"
+    )
 
 
 def status_for_exit_code(exit_code: int) -> str:
@@ -115,8 +146,10 @@ def status_for_exit_code(exit_code: int) -> str:
 
 
 def main() -> int:
-    timeout_seconds = effective_timeout_seconds(env_timeout_seconds())
-    append_output("effective-timeout-seconds", str(timeout_seconds))
+    timeout_seconds = env_timeout_seconds()
+    effective_timeout = effective_timeout_seconds(timeout_seconds)
+    describe_timeout(timeout_seconds, effective_timeout)
+    append_output("effective-timeout-seconds", str(effective_timeout))
     cmd = build_command()
     print(f"::notice::Running: {' '.join(shlex.quote(part) for part in cmd)}")
 
@@ -124,7 +157,7 @@ def main() -> int:
     append_output("started-at", started_at)
 
     child = subprocess.Popen(cmd, start_new_session=True)
-    deadline = time.monotonic() + timeout_seconds
+    deadline = time.monotonic() + effective_timeout
 
     exit_code: int
     status: str
@@ -135,7 +168,7 @@ def main() -> int:
             status = status_for_exit_code(rc)
             break
         if time.monotonic() >= deadline:
-            print(f"::error::Extraction lane exceeded the allotted timeout ({timeout_seconds}s)")
+            print(f"::error::Extraction lane exceeded the allotted timeout ({effective_timeout}s)")
             terminate_tree(child.pid)
             exit_code = 124
             status = "extract-timeout"

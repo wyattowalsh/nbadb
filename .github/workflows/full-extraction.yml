@@ -31,6 +31,15 @@ on:
           - "2"
           - "3"
           - "4"
+      direct_timeout_cap_minutes:
+        description: "Max minutes before a direct/no-VPN lane yields timeout metadata"
+        type: choice
+        default: "30"
+        options:
+          - "15"
+          - "30"
+          - "45"
+          - "60"
       network_mode:
         description: "Network path for extraction lanes"
         type: choice
@@ -728,6 +737,7 @@ jobs:
         env:
           CONCURRENCY: ${{ inputs.concurrency }}
           EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
+          DIRECT_TIMEOUT_CAP_MINUTES: ${{ inputs.direct_timeout_cap_minutes }}
           PATTERNS: ${{ matrix.patterns }}
           ENDPOINTS: ${{ matrix.endpoints }}
         run: |
@@ -746,6 +756,12 @@ jobs:
 
           case "$lane_concurrency" in
             direct)
+              direct_timeout_cap_minutes="${DIRECT_TIMEOUT_CAP_MINUTES:-30}"
+              if ! [[ "$direct_timeout_cap_minutes" =~ ^[0-9]+$ ]] || [ "$direct_timeout_cap_minutes" -le 0 ]; then
+                echo "::error::Unsupported direct_timeout_cap_minutes: $direct_timeout_cap_minutes"
+                exit 1
+              fi
+              echo "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS=$((direct_timeout_cap_minutes * 60))" >> "$GITHUB_ENV"
               echo 'NBADB_RATE_LIMIT=2'                  >> "$GITHUB_ENV"
               echo 'NBADB_DISCOVERY_CONCURRENCY=2'      >> "$GITHUB_ENV"
               echo 'NBADB_THREAD_POOL_SIZE=24'          >> "$GITHUB_ENV"
@@ -1685,6 +1701,7 @@ jobs:
           CONCURRENCY: ${{ inputs.concurrency }}
           VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
           DIRECT_PARALLELISM: ${{ inputs.direct_parallelism }}
+          DIRECT_TIMEOUT_CAP_MINUTES: ${{ inputs.direct_timeout_cap_minutes }}
           NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode == 'direct' && 'direct' || inputs.network_mode }}
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
@@ -1710,6 +1727,7 @@ jobs:
             -f concurrency="$next_concurrency" \
             -f vpn_parallelism="$VPN_PARALLELISM" \
             -f direct_parallelism="$DIRECT_PARALLELISM" \
+            -f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES" \
             -f network_mode="$NETWORK_MODE" \
             -f chunk_profile="$CHUNK_PROFILE" \
             -f iteration="$next" \
