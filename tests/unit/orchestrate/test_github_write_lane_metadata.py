@@ -379,7 +379,7 @@ def test_build_payload_classifies_documented_zero_row_as_contract_blocked(
     assert payload["support_rules"][0]["endpoint_name"] == "scoreboard_v2"
 
 
-def test_build_payload_classifies_1946_1948_season_lane_as_contract_blocked(
+def test_build_payload_classifies_early_season_lane_as_contract_blocked(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -404,12 +404,12 @@ def test_build_payload_classifies_1946_1948_season_lane_as_contract_blocked(
         encoding="utf-8",
     )
     _set_required_env(monkeypatch, summary_path)
-    monkeypatch.setenv("LANE_ID", "historical-season-no-season-type-1946-1948")
-    monkeypatch.setenv("NAME", "Historical season 1946-1948")
+    monkeypatch.setenv("LANE_ID", "historical-season-no-season-type-1949-1951")
+    monkeypatch.setenv("NAME", "Historical season 1949-1951")
     monkeypatch.setenv("PATTERNS", "season")
     monkeypatch.setenv("ENDPOINTS", ",".join(EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS))
-    monkeypatch.setenv("SEASON_START", "1946")
-    monkeypatch.setenv("SEASON_END", "1948")
+    monkeypatch.setenv("SEASON_START", "1949")
+    monkeypatch.setenv("SEASON_END", "1951")
     monkeypatch.setenv("STATUS", "extract-error")
     monkeypatch.setenv("EXTRACT_STATUS", "extract-error")
     monkeypatch.setenv("EXTRACT_EXIT_CODE", "1")

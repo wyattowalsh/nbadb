@@ -817,7 +817,7 @@ def test_build_default_manifest_excludes_known_early_season_contract_gaps_from_i
 
     assert lanes
     assert all(endpoint_name in lane.endpoints for lane in lanes)
-    assert all(lane.season_start is not None and lane.season_start >= 1949 for lane in lanes)
+    assert all(lane.season_start is not None and lane.season_start >= 1952 for lane in lanes)
 
 
 @pytest.mark.parametrize(
@@ -1399,16 +1399,26 @@ def test_build_resume_manifest_blocks_1956_scoreboard_v2_contract_gap(
     assert summary["outcome_counts"] == {"contract_blocked": 1}
 
 
-def test_build_resume_manifest_blocks_1946_1948_season_endpoint_contract_gap(
+@pytest.mark.parametrize(
+    ("season_start", "season_end", "lane_id"),
+    [
+        (1946, 1948, "historical-season-no-season-type-1946-1948"),
+        (1949, 1951, "historical-season-no-season-type-1949-1951"),
+    ],
+)
+def test_build_resume_manifest_blocks_early_season_endpoint_contract_gap(
     tmp_path: Path,
+    season_start: int,
+    season_end: int,
+    lane_id: str,
 ) -> None:
     lane = FullExtractionLane(
-        lane_id="historical-season-no-season-type-1946-1948",
+        lane_id=lane_id,
         lane_index=3,
-        lane_name="Historical season 1946-1948",
+        lane_name=f"Historical season {season_start}-{season_end}",
         lane_kind="historical",
-        season_start=1946,
-        season_end=1948,
+        season_start=season_start,
+        season_end=season_end,
         patterns=("season",),
         endpoints=EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
         timeout_seconds=7200,
