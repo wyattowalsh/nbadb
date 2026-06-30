@@ -862,6 +862,20 @@ def test_build_default_manifest_excludes_known_box_score_contract_gaps_from_init
     assert all(endpoint_name in lane.endpoints for lane in lanes)
 
 
+def test_build_default_manifest_excludes_1946_win_probability_contract_gap() -> None:
+    rows = [_support_row("win_probability", ["game"], 1946)]
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        selected_endpoints=["win_probability"],
+    )
+
+    assert lanes
+    assert min(lane.season_start for lane in lanes if lane.season_start is not None) == 1947
+    assert all(lane.season_start >= 1947 for lane in lanes if lane.season_start is not None)
+    assert all("win_probability" in lane.endpoints for lane in lanes)
+
+
 def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path) -> None:
     rows = [
         _support_row("franchise_history", ["static"], None),
@@ -1265,6 +1279,69 @@ def test_build_resume_manifest_blocks_historical_box_score_contract_gaps(
         status="extract-error",
         failed_calls=100,
         endpoints=[endpoint_name],
+        patterns=["game"],
+        season_start=supported_lane.season_start,
+        season_end=supported_lane.season_end,
+    )
+
+    with pytest.raises(ValueError, match="Pipeline-failure lane outcomes"):
+        build_resume_manifest([supported_lane], supported_metadata_dir)
+
+
+def test_build_resume_manifest_blocks_1946_win_probability_contract_gap(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-win-probability-no-season-type-1946-1946",
+        lane_index=0,
+        lane_name="Historical game 1946 (win_probability)",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1946,
+        patterns=("game",),
+        endpoints=("win_probability",),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        failed_calls=350,
+        endpoints=["win_probability"],
+        patterns=["game"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+    supported_lane = FullExtractionLane(
+        lane_id="historical-game-win-probability-no-season-type-1947-1947",
+        lane_index=1,
+        lane_name="Historical game 1947 (win_probability)",
+        lane_kind="historical",
+        season_start=1947,
+        season_end=1947,
+        patterns=("game",),
+        endpoints=("win_probability",),
+        timeout_seconds=7200,
+    )
+    supported_metadata_dir = tmp_path / "metadata-supported"
+    supported_metadata_dir.mkdir()
+    _write_metadata(
+        supported_metadata_dir / "historical.json",
+        lane_id=supported_lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        failed_calls=350,
+        endpoints=["win_probability"],
         patterns=["game"],
         season_start=supported_lane.season_start,
         season_end=supported_lane.season_end,

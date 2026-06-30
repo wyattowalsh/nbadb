@@ -238,6 +238,32 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS
     ),
     EndpointSupportRule(
+        endpoint_name="win_probability",
+        pattern="game",
+        classification="contract_blocked",
+        reason=(
+            "NBA win probability result sets returned no usable data for 1946-47 "
+            "game ids in full extraction; the lane exhausted game calls and "
+            "persisted zero rows."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28422481029 job 84218364528 "
+            "reported 350 win_probability failures and zero persisted rows for "
+            "lane historical-game-win-probability-no-season-type-1946-1946. "
+            "The lane metadata artifact had digest "
+            "sha256:d0062fb92539fc19ac678208f6414acd28d958ca76ddc4c6e5ed020d3c0d51e0, "
+            "and the lane DuckDB artifact had digest "
+            "sha256:580ca7bed7c4ecc9a298f66211288476109e28952c27cdc4aa587ba2f7861e37."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern game "
+            "--endpoint win_probability --seasons 1946:1946 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1946,
+        season_end=1946,
+    ),
+    EndpointSupportRule(
         endpoint_name="box_score_advanced",
         pattern="game",
         classification="contract_blocked",
