@@ -190,6 +190,40 @@ def _mid_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
     )
 
 
+def _late_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats returned no usable season-level result sets for "
+            "1967-68 through 1969-70 in full extraction; throwing endpoints "
+            "exhausted all retries and the lane persisted zero rows. The "
+            "adjacent 1961-62 through 1963-64 lane persisted rows, so this "
+            "gap remains separate from the earlier contiguous support window."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28421455147 job 84215408055 "
+            "reported 48 TransientError failures across 16 endpoints and zero "
+            "rows for lane historical-season-no-season-type-1967-1969. The "
+            "lane metadata artifact had digest "
+            "sha256:46d446716d9edf455c3ed21e92a12d3f9ba2d68c21bfdf9137826b13c3cf7c6e, "
+            "and the lane DuckDB artifact had digest "
+            "sha256:a7b210be029ae6ad59563b982d04f8c8eac0b48543383a968cfc23aa821ecc90. "
+            "Run 28420152202 job 84211483954 for historical-season-no-season-type-"
+            "1961-1963 persisted 1341 rows, so the 1967-1969 gap is not merged "
+            "into the earlier 1946-1960 support rule."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern season "
+            f"--endpoint {endpoint_name} --seasons 1967:1969 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1967,
+        season_end=1969,
+    )
+
+
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     *(
         _early_season_contract_gap(endpoint_name)
@@ -197,6 +231,10 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     ),
     *(
         _mid_1960s_season_contract_gap(endpoint_name)
+        for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS
+    ),
+    *(
+        _late_1960s_season_contract_gap(endpoint_name)
         for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS
     ),
     EndpointSupportRule(

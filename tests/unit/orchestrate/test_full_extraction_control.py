@@ -823,7 +823,7 @@ def test_build_default_manifest_excludes_known_early_season_contract_gaps_from_i
         and lane.season_end is not None
         and lane.season_start <= blocked_year <= lane.season_end
         for lane in lanes
-        for blocked_year in (1964, 1965, 1966)
+        for blocked_year in (1964, 1965, 1966, 1967, 1968, 1969)
     )
 
 
@@ -1415,6 +1415,7 @@ def test_build_resume_manifest_blocks_1956_scoreboard_v2_contract_gap(
         (1955, 1957, "historical-season-no-season-type-1955-1957"),
         (1958, 1960, "historical-season-no-season-type-1958-1960"),
         (1964, 1966, "historical-season-no-season-type-1964-1966"),
+        (1967, 1969, "historical-season-no-season-type-1967-1969"),
     ],
 )
 def test_build_resume_manifest_blocks_early_season_endpoint_contract_gap(

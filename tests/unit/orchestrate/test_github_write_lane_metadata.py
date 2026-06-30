@@ -3,17 +3,14 @@ from __future__ import annotations
 import json
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import duckdb
+import pytest
 
 from nbadb.orchestrate.extraction_contract import (
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
     EndpointSupportRule,
 )
-
-if TYPE_CHECKING:
-    import pytest
 
 MODULE_PATH = Path(__file__).resolve().parents[3] / ".github" / "scripts" / "write_lane_metadata.py"
 MODULE_CODE = compile(MODULE_PATH.read_text(encoding="utf-8"), str(MODULE_PATH), "exec")
@@ -379,9 +376,19 @@ def test_build_payload_classifies_documented_zero_row_as_contract_blocked(
     assert payload["support_rules"][0]["endpoint_name"] == "scoreboard_v2"
 
 
+@pytest.mark.parametrize(
+    ("season_start", "season_end", "lane_id"),
+    [
+        ("1964", "1966", "historical-season-no-season-type-1964-1966"),
+        ("1967", "1969", "historical-season-no-season-type-1967-1969"),
+    ],
+)
 def test_build_payload_classifies_early_season_lane_as_contract_blocked(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    season_start: str,
+    season_end: str,
+    lane_id: str,
 ) -> None:
     module = _load_module()
     summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
@@ -404,12 +411,12 @@ def test_build_payload_classifies_early_season_lane_as_contract_blocked(
         encoding="utf-8",
     )
     _set_required_env(monkeypatch, summary_path)
-    monkeypatch.setenv("LANE_ID", "historical-season-no-season-type-1964-1966")
-    monkeypatch.setenv("NAME", "Historical season 1964-1966")
+    monkeypatch.setenv("LANE_ID", lane_id)
+    monkeypatch.setenv("NAME", f"Historical season {season_start}-{season_end}")
     monkeypatch.setenv("PATTERNS", "season")
     monkeypatch.setenv("ENDPOINTS", ",".join(EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS))
-    monkeypatch.setenv("SEASON_START", "1964")
-    monkeypatch.setenv("SEASON_END", "1966")
+    monkeypatch.setenv("SEASON_START", season_start)
+    monkeypatch.setenv("SEASON_END", season_end)
     monkeypatch.setenv("STATUS", "extract-error")
     monkeypatch.setenv("EXTRACT_STATUS", "extract-error")
     monkeypatch.setenv("EXTRACT_EXIT_CODE", "1")
