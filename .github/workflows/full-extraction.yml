@@ -1285,6 +1285,7 @@ jobs:
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           CHECKPOINT_ARTIFACT_NAME: full-extraction-checkpoint-${{ env.ACTIVE_CHAIN_ID }}-iter-${{ inputs.iteration }}
+          RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
         run: |
           current=$ITERATION
           max=$MAX_ITERATIONS
@@ -1304,14 +1305,20 @@ jobs:
             exit 1
           fi
           cp "$manifest_path" artifacts/full-extraction/current-manifest.json
-          uv run python -m nbadb.orchestrate.full_extraction_control resume \
-            --lane-manifest-path artifacts/full-extraction/current-manifest.json \
-            --metadata-dir lane-metadata \
-            --completed-artifact-run-id "${{ github.run_id }}" \
-            --latest-checkpoint-run-id "${{ github.run_id }}" \
-            --latest-checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME" \
-            --latest-checkpoint-generation "$ITERATION" \
-            --output-path artifacts/full-extraction/next-manifest.json \
+          resume_args=(
+            resume
+            --lane-manifest-path artifacts/full-extraction/current-manifest.json
+            --metadata-dir lane-metadata
+            --completed-artifact-run-id "${{ github.run_id }}"
+            --latest-checkpoint-run-id "${{ github.run_id }}"
+            --latest-checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME"
+            --latest-checkpoint-generation "$ITERATION"
+            --output-path artifacts/full-extraction/next-manifest.json
+          )
+          if [ "$RETRY_PIPELINE_FAILURES" = "true" ]; then
+            resume_args+=(--allow-pipeline-failures)
+          fi
+          uv run python -m nbadb.orchestrate.full_extraction_control "${resume_args[@]}" \
             > artifacts/full-extraction/next-manifest.stdout.json
 
           uv run python -m nbadb.orchestrate.full_extraction_control audit \

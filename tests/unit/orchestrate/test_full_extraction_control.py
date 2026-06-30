@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING
 import duckdb
 import pytest
 
-from nbadb.orchestrate.extraction_contract import EndpointSupportRule
+from nbadb.orchestrate.extraction_contract import (
+    EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
+    EndpointSupportRule,
+)
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
@@ -288,7 +291,14 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "needs.preflight.outputs.effective-network-mode == 'direct'" in workflow
     assert '--chunk-profile "$CHUNK_PROFILE"' in workflow
     assert "RETRY_PIPELINE_FAILURES" in workflow
-    assert "resume_args+=(--allow-pipeline-failures)" in workflow
+    assert workflow.count("resume_args+=(--allow-pipeline-failures)") == 2
+    lane_control_block = workflow.split("  lane_control:", 1)[1].split(
+        "  # ─────────────────────────────────────────────────────────────",
+        1,
+    )[0]
+    assert "RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}" in lane_control_block
+    assert "resume_args=(" in lane_control_block
+    assert 'full_extraction_control "${resume_args[@]}"' in lane_control_block
     direct_parallel_expr = (
         "max-parallel: ${{ fromJSON("
         "needs.preflight.outputs.effective-network-mode == 'direct' "
@@ -792,6 +802,22 @@ def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
 
     assert all("documented_zero_row" not in lane.endpoints for lane in lanes)
     assert any("box_score_summary" in lane.endpoints for lane in lanes)
+
+
+@pytest.mark.parametrize("endpoint_name", EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS)
+def test_build_default_manifest_excludes_known_early_season_contract_gaps_from_initial_plan(
+    endpoint_name: str,
+) -> None:
+    rows = [_support_row(endpoint_name, ["season"], 1946)]
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        selected_endpoints=[endpoint_name],
+    )
+
+    assert lanes
+    assert all(endpoint_name in lane.endpoints for lane in lanes)
+    assert all(lane.season_start is not None and lane.season_start >= 1949 for lane in lanes)
 
 
 @pytest.mark.parametrize(
@@ -1362,6 +1388,41 @@ def test_build_resume_manifest_blocks_1956_scoreboard_v2_contract_gap(
         failed_calls=124,
         endpoints=["scoreboard_v2"],
         patterns=["date"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+
+def test_build_resume_manifest_blocks_1946_1948_season_endpoint_contract_gap(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-season-no-season-type-1946-1948",
+        lane_index=3,
+        lane_name="Historical season 1946-1948",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1948,
+        patterns=("season",),
+        endpoints=EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        failed_calls=48,
+        endpoints=list(lane.endpoints),
+        patterns=["season"],
         season_start=lane.season_start,
         season_end=lane.season_end,
     )

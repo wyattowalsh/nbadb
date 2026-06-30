@@ -104,7 +104,58 @@ FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT: dict[str, ExtractionExclusion] = {
     exclusion.endpoint_name: exclusion for exclusion in FULL_EXTRACTION_EXCLUSIONS
 }
 
+EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS: tuple[str, ...] = (
+    "common_playoff_series",
+    "draft_board",
+    "draft_combine_drill_results",
+    "draft_combine_non_stationary_shooting",
+    "draft_combine_player_anthro",
+    "draft_combine_spot_shooting",
+    "draft_combine_stats",
+    "draft_history",
+    "ist_standings",
+    "league_season_matchups",
+    "player_career_by_college",
+    "player_index",
+    "player_streak_finder",
+    "playoff_picture",
+    "schedule",
+    "schedule_int",
+    "shot_chart_league_wide",
+    "team_game_streak_finder",
+)
+
+
+def _early_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats returned no usable season-level result sets for "
+            "1946-47 through 1948-49 in full extraction; throwing endpoints "
+            "exhausted all retries and the lane persisted zero rows."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction runs 28414935130 and 28416663358 "
+            "lane historical-season-no-season-type-1946-1948; job 84201081366 "
+            "reported 48 TransientError failures across 16 endpoints and zero "
+            "rows for the 18-endpoint lane."
+        ),
+        revalidation_command=(
+            "uv run nbadb extract --patterns season "
+            f"--endpoints {endpoint_name} --season-start 1946 --season-end 1948 --dry-run"
+        ),
+        season_start=1946,
+        season_end=1948,
+    )
+
+
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
+    *(
+        _early_season_contract_gap(endpoint_name)
+        for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS
+    ),
     EndpointSupportRule(
         endpoint_name="box_score_advanced",
         pattern="game",
