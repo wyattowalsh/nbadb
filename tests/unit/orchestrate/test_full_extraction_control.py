@@ -817,7 +817,7 @@ def test_build_default_manifest_excludes_known_early_season_contract_gaps_from_i
 
     assert lanes
     assert all(endpoint_name in lane.endpoints for lane in lanes)
-    assert all(lane.season_start is not None and lane.season_start >= 1958 for lane in lanes)
+    assert all(lane.season_start is not None and lane.season_start >= 1961 for lane in lanes)
 
 
 @pytest.mark.parametrize(
@@ -1406,6 +1406,7 @@ def test_build_resume_manifest_blocks_1956_scoreboard_v2_contract_gap(
         (1949, 1951, "historical-season-no-season-type-1949-1951"),
         (1952, 1954, "historical-season-no-season-type-1952-1954"),
         (1955, 1957, "historical-season-no-season-type-1955-1957"),
+        (1958, 1960, "historical-season-no-season-type-1958-1960"),
     ],
 )
 def test_build_resume_manifest_blocks_early_season_endpoint_contract_gap(

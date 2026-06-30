@@ -133,7 +133,7 @@ def _early_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
         classification="contract_blocked",
         reason=(
             "NBA Stats returned no usable season-level result sets for "
-            "1946-47 through 1957-58 in full extraction; throwing endpoints "
+            "1946-47 through 1960-61 in full extraction; throwing endpoints "
             "exhausted all retries and the lane persisted zero rows."
         ),
         evidence=(
@@ -146,15 +146,17 @@ def _early_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
             "job 84206096326 reproduced the same 48-failure zero-row pattern "
             "for historical-season-no-season-type-1952-1954. Run 28418877674 "
             "job 84207757226 reproduced the same 48-failure zero-row pattern "
-            "for historical-season-no-season-type-1955-1957."
+            "for historical-season-no-season-type-1955-1957. Run 28419517277 "
+            "job 84209629787 reproduced the same 48-failure zero-row pattern "
+            "for historical-season-no-season-type-1958-1960."
         ),
         revalidation_command=(
             "uv run nbadb backfill run --extract-only --verbose --pattern season "
-            f"--endpoint {endpoint_name} --seasons 1946:1957 "
+            f"--endpoint {endpoint_name} --seasons 1946:1960 "
             "--summary-path artifacts/extraction/extract-summary.json"
         ),
         season_start=1946,
-        season_end=1957,
+        season_end=1960,
     )
 
 
