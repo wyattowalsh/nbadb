@@ -264,6 +264,40 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         season_end=1946,
     ),
     EndpointSupportRule(
+        endpoint_name="win_probability",
+        pattern="game",
+        classification="contract_blocked",
+        reason=(
+            "NBA win probability result sets returned no usable data for "
+            "1949-50 and 1950-51 game ids in full extraction; both lanes "
+            "exhausted game calls and persisted zero rows. Adjacent 1947-48 "
+            "and 1948-49 lanes completed successfully, so this gap is "
+            "intentionally non-contiguous."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28429968833 jobs 84242174237 "
+            "and 84242176146 reported 593 and 381 win_probability failures, "
+            "respectively, with zero persisted rows for lanes "
+            "historical-game-win-probability-no-season-type-1949-1949 and "
+            "historical-game-win-probability-no-season-type-1950-1950. "
+            "The 1949 lane metadata and DuckDB artifact digests were "
+            "sha256:8041baf9aa649787841db517e3106cbb8446a55589f604fa6b9bc3ed25cc83cc "
+            "and "
+            "sha256:4f820dcd261d9293536805ea3bb9d8f3bd531f6dad4dfaa8ac0cd6773cde2353. "
+            "The 1950 lane metadata and DuckDB artifact digests were "
+            "sha256:c9f8a3785b31b64a6b9814b3638d6cf86bc4dba1d2c027d0ec1deed4849ff20a "
+            "and "
+            "sha256:75bf342282ee6b53ef3ed44a4700df615604be7c6845d6d7f9ffc779368e2a94."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern game "
+            "--endpoint win_probability --seasons 1949:1950 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1949,
+        season_end=1950,
+    ),
+    EndpointSupportRule(
         endpoint_name="box_score_advanced",
         pattern="game",
         classification="contract_blocked",
