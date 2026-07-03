@@ -16,6 +16,13 @@ def upload(
         "-m",
         help="Version notes for Kaggle upload",
     ),
+    verify_remote: bool = typer.Option(
+        False,
+        "--verify-remote",
+        help=(
+            "Download the latest Kaggle dataset after upload and verify bundle fingerprint parity."
+        ),
+    ),
 ) -> None:
     """Push data to Kaggle."""
     from nbadb.kaggle.client import KaggleClient
@@ -24,8 +31,14 @@ def upload(
     try:
         client = KaggleClient()
         client.ensure_metadata(settings.data_dir)
-        client.upload(settings.data_dir, version_notes=message)
+        manifest_path = client.upload(
+            settings.data_dir,
+            version_notes=message,
+            verify_remote=verify_remote,
+        )
     except Exception as exc:
         typer.echo(f"Upload failed: {type(exc).__name__}: {exc}", err=True)
         raise typer.Exit(1) from exc
+    if manifest_path is not None:
+        typer.echo(f"Upload manifest: {manifest_path}")
     typer.echo("Upload complete")

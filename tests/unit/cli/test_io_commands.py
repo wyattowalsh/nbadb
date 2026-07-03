@@ -96,9 +96,10 @@ def test_upload_success() -> None:
     """Exit 0 and print 'Upload complete' when KaggleClient succeeds."""
     with patch(_KAGGLE_CLIENT) as mock_cls:
         mock_cls.return_value.ensure_metadata.return_value = None
-        mock_cls.return_value.upload.return_value = None
+        mock_cls.return_value.upload.return_value = Path("/tmp/kaggle-upload-manifest.json")
         result = runner.invoke(app, ["upload"])
     assert result.exit_code == 0
+    assert "Upload manifest: /tmp/kaggle-upload-manifest.json" in result.output
     assert "Upload complete" in result.output
 
 
@@ -131,10 +132,23 @@ def test_upload_passes_data_dir_message_and_orders_metadata(tmp_path: Path) -> N
 
     assert result.exit_code == 0, result.output
     client.ensure_metadata.assert_called_once_with(tmp_path)
-    client.upload.assert_called_once_with(tmp_path, version_notes="test run")
+    client.upload.assert_called_once_with(tmp_path, version_notes="test run", verify_remote=False)
     assert client.method_calls[0].args == (tmp_path,)
     assert client.method_calls[0][0] == "ensure_metadata"
     assert client.method_calls[1][0] == "upload"
+
+
+def test_upload_passes_verify_remote_flag(tmp_path: Path) -> None:
+    """--verify-remote requests a post-upload Kaggle readback check."""
+    with patch(_KAGGLE_CLIENT) as mock_cls:
+        client = mock_cls.return_value
+        result = runner.invoke(
+            app,
+            ["upload", "--data-dir", str(tmp_path), "--message", "test run", "--verify-remote"],
+        )
+
+    assert result.exit_code == 0, result.output
+    client.upload.assert_called_once_with(tmp_path, version_notes="test run", verify_remote=True)
 
 
 # ---------------------------------------------------------------------------

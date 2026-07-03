@@ -130,19 +130,20 @@ uv run nbadb upload --data-dir data/nbadb --message "Post-trade-deadline refresh
 | Kaggle credentials are available to the environment that `kagglehub` uses          | Upload cannot authenticate without them |
 | `NBADB_KAGGLE_DATASET` points at the correct slug if you are not using the default | Metadata and upload target must agree   |
 | CSV export headers match the generated table schemas                               | Kaggle resource schemas are order-bound |
+| `dataset-metadata.json` declares every public file or directory you intend to ship | Upload stages only declared resources   |
 
 ### Operator preflight
 
 ```bash
 uv run nbadb export --data-dir data/nbadb
-uv run nbadb scan --data-dir data/nbadb --fail-on error
-uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
-uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json
-git diff --exit-code dataset-metadata.json
+uv run nbadb scan --data-dir data/nbadb --fail-on error --report-path artifacts/health/local/scan-report.json
+uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata.json
+uv run python -m json.tool data/nbadb/dataset-metadata.json >/dev/null
 uv run nbadb upload --data-dir data/nbadb --message "Describe this publish"
+uv run python -m json.tool logs/kaggle/kaggle-upload-manifest.json >/dev/null
 ```
 
-Use `uv run nbadb metadata --output dataset-metadata.json` without `--data-dir` only as a catalog preview. Use an existing `--data-dir` for publish validation so the rendered resource inventory reflects the bundle on disk.
+`data/nbadb` is ignored by git, so validate its generated metadata directly instead of using `git diff` on that path. Use `uv run nbadb metadata --output data/nbadb/dataset-metadata.json` without `--data-dir` only as a catalog preview. Use an existing `--data-dir` for publish validation so the rendered resource inventory reflects the bundle on disk. The upload manifest records the staged-resource fingerprint and final local post-upload check for the latest publish attempt.
 
 ## Version notes and metadata
 
@@ -151,7 +152,7 @@ uv run nbadb upload --data-dir data/nbadb --message "Post-trade-deadline refresh
 ```
 
 ```bash
-uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json
+uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata.json
 ```
 
 - The CLI default message is `"Automated update"`.
@@ -159,7 +160,7 @@ uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
 - Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
 - Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift.
-- The current `kagglehub` upload path uploads `dataset-metadata.json` as part of the bundle; the latest verified 1.0.1 source still does not expose a separate high-level dataset-page metadata update API.
+- The current upload path validates local metadata/resources, stages only declared files and directories into a temporary upload root, rejects symlinks/path traversal, records a staged-tree fingerprint in `logs/kaggle/kaggle-upload-manifest.json`, and then hands that staged bundle to `kagglehub`.
 
 <Callout type="warn">
   Treat `dataset-metadata.json` as the generated source of truth for the Kaggle
