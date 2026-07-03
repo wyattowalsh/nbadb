@@ -21,11 +21,11 @@ classifiers = [
 ]
 dependencies = [
     "nba-api>=1.11.4",
-    "polars[database,pyarrow]>=1.38.1",
-    "pandera[polars]>=0.29",
-    "sqlmodel>=0.0.37,<0.1.0",
-    "duckdb>=1.4",
-    "kagglehub>=1.0",
+    "polars[database,pyarrow]>=1.42.1",
+    "pandera[polars]>=0.32.1",
+    "sqlmodel>=0.0.39,<0.1.0",
+    "duckdb>=1.5.4",
+    "kagglehub>=1.0.2",
     "typer>=0.15",
     "rich>=13.7",
     "loguru>=0.7",
@@ -43,7 +43,7 @@ dev = [
     "hypothesis>=6.100",
     "mcp>=1.28.1",
     "ruff>=0.9",
-    "ty>=0.0.19",
+    "ty>=0.0.56",
 ]
 notebooks = [
     "great-tables>=0.21.0",
