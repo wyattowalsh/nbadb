@@ -5,15 +5,28 @@ from typing import Annotated
 
 import typer
 
-from nbadb.docs_gen.autogen import DEFAULT_DOCS_ROOT, generate_docs_artifacts
+from nbadb.docs_gen.autogen import DEFAULT_DOCS_ROOT, check_docs_artifacts, generate_docs_artifacts
 
 DocsRootOption = Annotated[
     Path,
     typer.Option("--docs-root", help="Docs content root directory"),
 ]
+CheckOption = Annotated[
+    bool,
+    typer.Option("--check", help="Check generated docs artifacts without writing files"),
+]
 
 
-def main(docs_root: DocsRootOption = DEFAULT_DOCS_ROOT) -> None:
+def main(docs_root: DocsRootOption = DEFAULT_DOCS_ROOT, check: CheckOption = False) -> None:
+    if check:
+        stale_paths = check_docs_artifacts(docs_root)
+        if stale_paths:
+            for path in stale_paths:
+                typer.echo(f"stale: {path}")
+            raise typer.Exit(1)
+        typer.echo("Docs autogen check passed.")
+        return
+
     updated_paths, unchanged_paths = generate_docs_artifacts(docs_root)
 
     for path in updated_paths:

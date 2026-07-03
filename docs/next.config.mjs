@@ -6,6 +6,7 @@ const docsRoot = fileURLToPath(new URL("./", import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const config = {
+  staticPageGenerationTimeout: 180,
   turbopack: {
     root: docsRoot,
   },

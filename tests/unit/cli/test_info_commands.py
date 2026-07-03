@@ -254,6 +254,7 @@ class TestStatusCommand:
 
 DISCOVER_PATH = "nbadb.cli.commands.schema.discover_all_transformers"
 _DOCS_AUTOGEN_PATH = "nbadb.cli.commands.docs_autogen.generate_docs_artifacts"
+_DOCS_AUTOGEN_CHECK_PATH = "nbadb.cli.commands.docs_autogen.check_docs_artifacts"
 
 
 class TestSchemaCommand:
@@ -324,6 +325,26 @@ class TestDocsAutogenCommand:
         assert "updated: " in result.output
         assert "unchanged: " in result.output
         assert "Docs autogen complete (1 updated, 1 unchanged)." in result.output
+
+    def test_docs_autogen_check_passes_without_writes(self, tmp_path: object) -> None:
+        docs_root = Path(str(tmp_path))
+
+        with patch(_DOCS_AUTOGEN_CHECK_PATH, return_value=[]) as mock_check:
+            result = runner.invoke(app, ["docs-autogen", "--docs-root", str(docs_root), "--check"])
+
+        assert result.exit_code == 0, result.output
+        mock_check.assert_called_once_with(docs_root)
+        assert "Docs autogen check passed." in result.output
+
+    def test_docs_autogen_check_fails_on_stale_artifacts(self, tmp_path: object) -> None:
+        docs_root = Path(str(tmp_path))
+        stale = [docs_root / "schema" / "star-reference.mdx"]
+
+        with patch(_DOCS_AUTOGEN_CHECK_PATH, return_value=stale):
+            result = runner.invoke(app, ["docs-autogen", "--docs-root", str(docs_root), "--check"])
+
+        assert result.exit_code == 1
+        assert "stale: " in result.output
 
 
 # ---------------------------------------------------------------------------
