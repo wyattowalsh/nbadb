@@ -1755,6 +1755,271 @@ def test_build_artifacts_compares_endpoint_analysis_docs_to_runtime_contracts(
     ]
 
 
+def test_docs_upstream_contract_diff_resolves_result_sets_by_schema_when_order_differs() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    docs_contract = NbaApiEndpointContract(
+        runtime_class_name="BoxScoreSummaryV3",
+        module_name="nba_api.docs.nba_api.stats.endpoints.boxscoresummaryv3",
+        endpoint_slug="boxscoresummaryv3",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=0,
+                result_set_name="ArenaInfo",
+                expected_columns=("gameId", "arenaId", "arenaName"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=1,
+                result_set_name="GameSummary",
+                expected_columns=("gameId", "gameCode", "gameStatusText"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+
+    diff = EndpointCoverageGenerator._build_upstream_contract_diff(
+        contracts_by_endpoint={"box_score_summary_v3": docs_contract},
+        staging_entries_by_endpoint={
+            "box_score_summary_v3": [
+                StagingEntry(
+                    "box_score_summary_v3",
+                    "stg_summary_v3_game_summary",
+                    "game",
+                    result_set_index=0,
+                    use_multi=True,
+                ),
+                StagingEntry(
+                    "box_score_summary_v3",
+                    "stg_arena_info",
+                    "game",
+                    result_set_index=1,
+                    use_multi=True,
+                ),
+            ],
+        },
+        input_schema_columns={
+            "stg_summary_v3_game_summary": {
+                "game_id",
+                "game_code",
+                "game_status_text",
+            },
+            "stg_arena_info": {"game_id", "arena_id", "arena_name"},
+        },
+        input_schema_behaviors={
+            "stg_summary_v3_game_summary": "closed",
+            "stg_arena_info": "closed",
+        },
+    )
+
+    rows = {row["staging_key"]: row for row in diff["matrix"]}
+    assert diff["summary"]["field_gap_count"] == 0
+    assert rows["stg_summary_v3_game_summary"]["status"] == "ok"
+    assert rows["stg_summary_v3_game_summary"]["upstream_result_set_name"] == "GameSummary"
+    assert rows["stg_summary_v3_game_summary"]["resolved_result_set_index"] == 1
+    assert rows["stg_arena_info"]["status"] == "ok"
+    assert rows["stg_arena_info"]["upstream_result_set_name"] == "ArenaInfo"
+    assert rows["stg_arena_info"]["resolved_result_set_index"] == 0
+
+
+def test_docs_upstream_contract_diff_resolves_with_declared_index_column_aliases() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    docs_contract = NbaApiEndpointContract(
+        runtime_class_name="BoxScoreSummaryV3",
+        module_name="nba_api.docs.nba_api.stats.endpoints.boxscoresummaryv3",
+        endpoint_slug="boxscoresummaryv3",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=1,
+                result_set_name="AvailableVideo",
+                expected_columns=(
+                    "gameId",
+                    "videoAvailableFlag",
+                    "ptAvailable",
+                    "ptXYZAvailable",
+                    "whStatus",
+                    "hustleStatus",
+                    "historicalStatus",
+                ),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=8,
+                result_set_name="OtherStats",
+                expected_columns=("gameId", "teamId", "benchPoints"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+
+    diff = EndpointCoverageGenerator._build_upstream_contract_diff(
+        contracts_by_endpoint={"box_score_summary_v3": docs_contract},
+        staging_entries_by_endpoint={
+            "box_score_summary_v3": [
+                StagingEntry(
+                    "box_score_summary_v3",
+                    "stg_summary_v3_available_video",
+                    "game",
+                    result_set_index=8,
+                    use_multi=True,
+                )
+            ],
+        },
+        input_schema_columns={
+            "stg_summary_v3_available_video": {
+                "game_id",
+                "video_available_flag",
+                "pt_available",
+                "pt_xyz_available",
+                "wh_status",
+                "hustle_status",
+                "historical_status",
+            }
+        },
+        input_schema_behaviors={"stg_summary_v3_available_video": "closed"},
+    )
+
+    row = diff["matrix"][0]
+    assert diff["summary"]["field_gap_count"] == 0
+    assert diff["summary"]["missing_result_set_staging_count"] == 1
+    assert row["status"] == "ok"
+    assert row["upstream_result_set_name"] == "AvailableVideo"
+    assert row["resolved_result_set_index"] == 1
+    assert "pt_xyz_available" in row["expected_columns"]
+
+
+def test_docs_upstream_contract_diff_does_not_resolve_to_subset_result_set() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    docs_contract = NbaApiEndpointContract(
+        runtime_class_name="SubsetEndpoint",
+        module_name="nba_api.docs.nba_api.stats.endpoints.subsetendpoint",
+        endpoint_slug="subsetendpoint",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="SubsetEndpoint",
+                result_set_index=0,
+                result_set_name="DeclaredSet",
+                expected_columns=("gameId", "newField"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+            NbaApiResultSetContract(
+                runtime_class_name="SubsetEndpoint",
+                result_set_index=1,
+                result_set_name="SubsetSet",
+                expected_columns=("gameId",),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+
+    diff = EndpointCoverageGenerator._build_upstream_contract_diff(
+        contracts_by_endpoint={"subset_endpoint": docs_contract},
+        staging_entries_by_endpoint={
+            "subset_endpoint": [
+                StagingEntry(
+                    "subset_endpoint",
+                    "stg_subset_declared",
+                    "game",
+                    result_set_index=0,
+                    use_multi=True,
+                )
+            ],
+        },
+        input_schema_columns={"stg_subset_declared": {"game_id"}},
+        input_schema_behaviors={"stg_subset_declared": "closed"},
+    )
+
+    field_gap_row = diff["matrix"][0]
+    missing_staging_row = diff["matrix"][1]
+    assert diff["summary"]["field_gap_count"] == 1
+    assert diff["summary"]["missing_result_set_staging_count"] == 1
+    assert field_gap_row["status"] == "field_gaps"
+    assert field_gap_row["upstream_result_set_name"] == "DeclaredSet"
+    assert field_gap_row["missing_columns"] == ["new_field"]
+    assert "resolved_result_set_index" not in field_gap_row
+    assert missing_staging_row["status"] == "missing_result_set_staging"
+    assert missing_staging_row["upstream_result_set_name"] == "SubsetSet"
+
+
+def test_build_artifacts_blocks_supplied_docs_root_with_zero_contracts(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import nbadb.core.endpoint_coverage as endpoint_coverage
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    runtime_contract = NbaApiEndpointContract(
+        runtime_class_name="FooEndpoint",
+        module_name="nba_api.stats.endpoints.fooendpoint",
+        endpoint_slug="fooendpoint",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(),
+        deprecated=False,
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        endpoint_coverage,
+        "discover_runtime_endpoint_contracts",
+        lambda: {"FooEndpoint": runtime_contract},
+    )
+    monkeypatch.setattr(
+        endpoint_coverage,
+        "discover_endpoint_analysis_doc_contracts",
+        lambda _root: {},
+    )
+
+    artifacts = EndpointCoverageGenerator(
+        project_root=project_root,
+        endpoint_analysis_docs_root=tmp_path / "empty-nba-api",
+        staging_entries=[StagingEntry("foo_endpoint", "stg_foo", "season")],
+    ).build_artifacts(
+        runtime_endpoint_classes={"FooEndpoint"},
+        runtime_version="contract-runtime",
+    )
+
+    docs_summary = artifacts["summary"]["endpoint_analysis_docs"]
+    assert docs_summary["docs_contract_discovery_failure_count"] == 1
+    assert docs_summary["blocking_docs_contract_gap_count"] == 1
+    assert artifacts["endpoint_analysis_doc_diff"]["matrix"][0]["status"] == (
+        "docs_contract_discovery_failed"
+    )
+
+
 def test_upstream_contract_diff_uses_box_score_traditional_canonical_columns(
     tmp_path: Path,
     monkeypatch,
@@ -1972,6 +2237,165 @@ def test_upstream_field_fate_detects_open_passthrough_schema_base(
     fate_by_field = {row["field_name"]: row for row in artifacts["upstream_field_fate"]["matrix"]}
     assert fate_by_field["extra_metric"]["field_fate"] == "sunk_passthrough"
     assert fate_by_field["extra_metric"]["schema_behavior"] == "passthrough"
+
+
+def test_upstream_field_fate_resolves_result_sets_by_schema_when_order_differs() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    docs_contract = NbaApiEndpointContract(
+        runtime_class_name="BoxScoreSummaryV3",
+        module_name="nba_api.docs.nba_api.stats.endpoints.boxscoresummaryv3",
+        endpoint_slug="boxscoresummaryv3",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=0,
+                result_set_name="ArenaInfo",
+                expected_columns=("gameId", "arenaId", "arenaName"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+            NbaApiResultSetContract(
+                runtime_class_name="BoxScoreSummaryV3",
+                result_set_index=1,
+                result_set_name="GameSummary",
+                expected_columns=("gameId", "gameCode", "gameStatusText"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+
+    fate = EndpointCoverageGenerator._build_upstream_field_fate_matrix(
+        contracts_by_endpoint={"box_score_summary_v3": docs_contract},
+        staging_entries_by_endpoint={
+            "box_score_summary_v3": [
+                StagingEntry(
+                    "box_score_summary_v3",
+                    "stg_summary_v3_game_summary",
+                    "game",
+                    result_set_index=0,
+                    use_multi=True,
+                ),
+                StagingEntry(
+                    "box_score_summary_v3",
+                    "stg_arena_info",
+                    "game",
+                    result_set_index=1,
+                    use_multi=True,
+                ),
+            ],
+        },
+        input_schema_columns={
+            "stg_summary_v3_game_summary": {
+                "game_id",
+                "game_code",
+                "game_status_text",
+            },
+            "stg_arena_info": {"game_id", "arena_id", "arena_name"},
+        },
+        input_schema_behaviors={
+            "stg_summary_v3_game_summary": "closed",
+            "stg_arena_info": "closed",
+        },
+        transform_outputs_by_staging={},
+        transform_semantics_by_output={},
+        transform_column_usage_by_staging={},
+    )
+
+    game_summary_rows = [
+        row for row in fate["matrix"] if row["staging_key"] == "stg_summary_v3_game_summary"
+    ]
+    arena_rows = [row for row in fate["matrix"] if row["staging_key"] == "stg_arena_info"]
+    assert fate["summary"]["invalid_result_set_count"] == 0
+    assert fate["summary"]["missing_sink_count"] == 0
+    assert fate["summary"]["upstream_field_count"] == 6
+    assert fate["summary"]["field_fate_breakdown"] == {"sink_declared_staging_only": 6}
+    assert {row["field_name"] for row in game_summary_rows} == {
+        "game_id",
+        "game_code",
+        "game_status_text",
+    }
+    assert {row["upstream_result_set_name"] for row in game_summary_rows} == {"GameSummary"}
+    assert {row["declared_result_set_index"] for row in game_summary_rows} == {0}
+    assert {row["resolved_result_set_index"] for row in game_summary_rows} == {1}
+    assert {row["field_name"] for row in arena_rows} == {
+        "game_id",
+        "arena_id",
+        "arena_name",
+    }
+    assert {row["upstream_result_set_name"] for row in arena_rows} == {"ArenaInfo"}
+    assert {row["declared_result_set_index"] for row in arena_rows} == {1}
+    assert {row["resolved_result_set_index"] for row in arena_rows} == {0}
+
+
+def test_upstream_field_fate_does_not_resolve_to_subset_result_set() -> None:
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract, NbaApiResultSetContract
+
+    docs_contract = NbaApiEndpointContract(
+        runtime_class_name="SubsetEndpoint",
+        module_name="nba_api.docs.nba_api.stats.endpoints.subsetendpoint",
+        endpoint_slug="subsetendpoint",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(
+            NbaApiResultSetContract(
+                runtime_class_name="SubsetEndpoint",
+                result_set_index=0,
+                result_set_name="DeclaredSet",
+                expected_columns=("gameId", "newField"),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+            NbaApiResultSetContract(
+                runtime_class_name="SubsetEndpoint",
+                result_set_index=1,
+                result_set_name="SubsetSet",
+                expected_columns=("gameId",),
+                source="endpoint_analysis_docs",
+                confidence="high",
+            ),
+        ),
+        deprecated=False,
+        warnings=(),
+    )
+
+    fate = EndpointCoverageGenerator._build_upstream_field_fate_matrix(
+        contracts_by_endpoint={"subset_endpoint": docs_contract},
+        staging_entries_by_endpoint={
+            "subset_endpoint": [
+                StagingEntry(
+                    "subset_endpoint",
+                    "stg_subset_declared",
+                    "game",
+                    result_set_index=0,
+                    use_multi=True,
+                )
+            ],
+        },
+        input_schema_columns={"stg_subset_declared": {"game_id"}},
+        input_schema_behaviors={"stg_subset_declared": "closed"},
+        transform_outputs_by_staging={},
+        transform_semantics_by_output={},
+        transform_column_usage_by_staging={},
+    )
+
+    fate_by_field = {row["field_name"]: row for row in fate["matrix"]}
+    assert fate["summary"]["missing_sink_count"] == 1
+    assert fate["summary"]["sink_declared_staging_only_count"] == 1
+    assert fate_by_field["game_id"]["field_fate"] == "sink_declared_staging_only"
+    assert fate_by_field["new_field"]["field_fate"] == "missing_sink"
+    assert fate_by_field["new_field"]["upstream_result_set_name"] == "DeclaredSet"
+    assert fate_by_field["new_field"]["declared_result_set_index"] == 0
+    assert fate_by_field["new_field"]["resolved_result_set_index"] == 0
 
 
 def test_upstream_contract_diff_classifies_unknown_contract_result_sets(
@@ -2632,6 +3056,8 @@ def test_build_artifacts_writes_upstream_contract_artifacts(
     )
 
     assert "upstream_contracts" in paths
+    assert "nba_api_upstream_contract_bundle" in paths
+    assert "nba_api_bronze_contracts" in paths
     assert "endpoint_analysis_doc_contracts" in paths
     assert "endpoint_analysis_doc_diff" in paths
     assert "endpoint_analysis_doc_upstream_contract_diff" in paths
@@ -2639,6 +3065,10 @@ def test_build_artifacts_writes_upstream_contract_artifacts(
     assert "upstream_field_fate" in paths
     assert "temporal_coverage_matrix" in paths
     contracts_payload = json.loads(paths["upstream_contracts"].read_text(encoding="utf-8"))
+    bundle_payload = json.loads(
+        paths["nba_api_upstream_contract_bundle"].read_text(encoding="utf-8")
+    )
+    bronze_payload = json.loads(paths["nba_api_bronze_contracts"].read_text(encoding="utf-8"))
     docs_payload = json.loads(paths["endpoint_analysis_doc_contracts"].read_text(encoding="utf-8"))
     docs_diff_payload = json.loads(paths["endpoint_analysis_doc_diff"].read_text(encoding="utf-8"))
     docs_upstream_diff_payload = json.loads(
@@ -2648,12 +3078,103 @@ def test_build_artifacts_writes_upstream_contract_artifacts(
     fate_payload = json.loads(paths["upstream_field_fate"].read_text(encoding="utf-8"))
     temporal_payload = json.loads(paths["temporal_coverage_matrix"].read_text(encoding="utf-8"))
     assert contracts_payload["contracts"][0]["endpoint_name"] == "foo_endpoint"
+    assert bundle_payload["enabled"] is False
+    assert len(bundle_payload["bundle_digest"]) == 64
+    assert bronze_payload["enabled"] is False
+    assert bronze_payload["summary"]["table_count"] == 0
     assert docs_payload["contracts"] == []
     assert docs_diff_payload["summary"]["enabled"] is False
     assert docs_upstream_diff_payload["summary"]["endpoint_contract_count"] == 0
     assert diff_payload["summary"]["endpoint_contract_count"] == 1
     assert fate_payload["summary"]["endpoint_contract_count"] == 1
     assert "matrix" in temporal_payload
+
+
+def test_build_artifacts_writes_enabled_upstream_contract_bundle(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import nbadb.core.endpoint_coverage as endpoint_coverage
+    from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+    from nbadb.core.nba_api_contract import NbaApiEndpointContract
+
+    project_root = tmp_path / "project"
+    _write_sample_extractors(project_root)
+    docs_root = tmp_path / "nba-api-upstream"
+    docs_dir = docs_root / "docs" / "nba_api" / "stats" / "endpoints"
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "fooendpoint.md").write_text(
+        """# FooEndpoint
+
+## JSON
+```json
+{
+  "data_sets": {},
+  "endpoint": "FooEndpoint",
+  "nullable_parameters": [],
+  "parameters": [],
+  "required_parameters": [],
+  "status": "success"
+}
+```
+""",
+        encoding="utf-8",
+    )
+    tools_dir = docs_root / "tools" / "stats"
+    tools_dir.mkdir(parents=True)
+    (tools_dir / "mapping.py").write_text("endpoint_list = []\n", encoding="utf-8")
+    contract = NbaApiEndpointContract(
+        runtime_class_name="FooEndpoint",
+        module_name="nba_api.stats.endpoints.fooendpoint",
+        endpoint_slug="fooendpoint",
+        parameters=(),
+        required_parameters=(),
+        nullable_parameters=(),
+        result_sets=(),
+        deprecated=False,
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        endpoint_coverage,
+        "discover_runtime_endpoint_contracts",
+        lambda: {"FooEndpoint": contract},
+    )
+
+    paths = EndpointCoverageGenerator(
+        project_root=project_root,
+        endpoint_analysis_docs_root=docs_root,
+        staging_entries=[StagingEntry("foo_endpoint", "stg_foo", "season")],
+    ).write(
+        output_dir=tmp_path / "artifacts",
+        runtime_endpoint_classes={"FooEndpoint"},
+        runtime_version="contract-runtime",
+    )
+
+    bundle_payload = json.loads(
+        paths["nba_api_upstream_contract_bundle"].read_text(encoding="utf-8")
+    )
+    bronze_payload = json.loads(paths["nba_api_bronze_contracts"].read_text(encoding="utf-8"))
+    summary_payload = json.loads(paths["summary"].read_text(encoding="utf-8"))
+    assert bundle_payload["enabled"] is True
+    assert bundle_payload["source_inventory"]["parsed_stats_contract_count"] == 1
+    assert bundle_payload["source_inventory"]["tools_python_file_count"] == 1
+    assert bundle_payload["stats_contracts"][0]["runtime_class_name"] == "FooEndpoint"
+    assert len(bundle_payload["source_file_digests"]["tools"]["tools/stats/mapping.py"]) == 64
+    assert (
+        summary_payload["endpoint_analysis_docs"]["source_inventory"]
+        == (bundle_payload["source_inventory"])
+    )
+    assert (
+        summary_payload["endpoint_analysis_docs"]["bundle_digest"]
+        == (bundle_payload["bundle_digest"])
+    )
+    assert (
+        summary_payload["endpoint_analysis_docs"]["bronze_contracts"] == (bronze_payload["summary"])
+    )
+    assert (
+        summary_payload["endpoint_analysis_docs"]["bronze_contract_digest"]
+        == (bronze_payload["bronze_contract_digest"])
+    )
 
 
 def test_build_artifacts_includes_strict_support_contract_summary(tmp_path: Path) -> None:

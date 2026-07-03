@@ -37,8 +37,9 @@ EndpointAnalysisDocsRootOption = Annotated[
     typer.Option(
         "--endpoint-analysis-docs-root",
         help=(
-            "Optional local nba_api checkout/docs root. When provided, compare installed "
-            "runtime expected_data with endpoint-analysis docs JSON blocks."
+            "Optional local upstream nba_api checkout root containing docs/** and tools/**. "
+            "When provided, compare installed runtime expected_data with endpoint-analysis "
+            "docs and write the upstream contract bundle artifact."
         ),
     ),
 ]
@@ -121,6 +122,8 @@ def extract_completeness(
             f"{temporal_coverage.get('required_temporal_missing_count', 0)}"
         )
     if endpoint_analysis_docs.get("enabled"):
+        metadata_ledger = endpoint_analysis_docs.get("metadata_ledger", {})
+        bronze_contracts = endpoint_analysis_docs.get("bronze_contracts", {})
         typer.echo(
             "Endpoint-analysis docs: "
             f"docs_contracts={endpoint_analysis_docs.get('docs_contract_count', 0)} "
@@ -137,8 +140,32 @@ def extract_completeness(
             f"docs_field_gaps={endpoint_analysis_docs.get('docs_field_gap_count', 0)} "
             f"docs_missing_result_sets="
             f"{endpoint_analysis_docs.get('docs_missing_result_set_staging_count', 0)} "
+            f"docs_discovery_failures="
+            f"{endpoint_analysis_docs.get('docs_contract_discovery_failure_count', 0)} "
             f"blocking_docs_contract_gaps="
             f"{endpoint_analysis_docs.get('blocking_docs_contract_gap_count', 0)}"
+        )
+        typer.echo(
+            "Docs/tools metadata ledger: "
+            f"stats_endpoints={metadata_ledger.get('stats_endpoint_metadata_count', 0)} "
+            f"stats_result_sets={metadata_ledger.get('stats_result_set_metadata_count', 0)} "
+            f"stats_columns={metadata_ledger.get('stats_column_metadata_count', 0)} "
+            f"live_endpoints={metadata_ledger.get('live_endpoint_metadata_count', 0)} "
+            f"live_fields={metadata_ledger.get('live_field_metadata_count', 0)} "
+            f"static_docs={metadata_ledger.get('static_doc_metadata_count', 0)} "
+            f"parameter_entries={metadata_ledger.get('parameter_library_entry_count', 0)} "
+            f"endpoint_output_samples={metadata_ledger.get('endpoint_output_sample_count', 0)} "
+            f"tools_endpoint_list={metadata_ledger.get('tools_endpoint_list_count', 0)} "
+            f"tools_missing_docs={metadata_ledger.get('tools_endpoint_missing_docs_count', 0)} "
+            f"docs_missing_tools={metadata_ledger.get('docs_endpoint_missing_tools_count', 0)} "
+            f"blocking_tools_docs_mismatches="
+            f"{metadata_ledger.get('blocking_tools_docs_mismatch_count', 0)} "
+            f"metadata_warnings={metadata_ledger.get('metadata_ingestion_warning_count', 0)} "
+            f"bronze_tables={bronze_contracts.get('table_count', 0)} "
+            f"bronze_columns={bronze_contracts.get('column_count', 0)} "
+            f"bronze_zero_column_tables={bronze_contracts.get('zero_column_table_count', 0)} "
+            f"blocking_bronze_zero_column_tables="
+            f"{bronze_contracts.get('blocking_zero_column_table_count', 0)}"
         )
     typer.echo(f"Artifacts dir: {written['summary'].parent}")
 
@@ -166,6 +193,33 @@ def extract_completeness(
     docs_missing_input_schemas = int(
         endpoint_analysis_docs.get("docs_missing_input_schema_count", 0)
     )
+    docs_contract_discovery_failures = int(
+        endpoint_analysis_docs.get("docs_contract_discovery_failure_count", 0)
+    )
+    metadata_ingestion_warnings = int(
+        endpoint_analysis_docs.get("metadata_ledger", {}).get(
+            "metadata_ingestion_warning_count",
+            0,
+        )
+    )
+    blocking_tools_endpoint_missing_docs = int(
+        endpoint_analysis_docs.get("metadata_ledger", {}).get(
+            "blocking_tools_endpoint_missing_docs_count",
+            0,
+        )
+    )
+    blocking_docs_endpoint_missing_tools = int(
+        endpoint_analysis_docs.get("metadata_ledger", {}).get(
+            "blocking_docs_endpoint_missing_tools_count",
+            0,
+        )
+    )
+    blocking_bronze_zero_column_tables = int(
+        endpoint_analysis_docs.get("bronze_contracts", {}).get(
+            "blocking_zero_column_table_count",
+            0,
+        )
+    )
     if require_full and (
         partial
         or blocked
@@ -184,11 +238,16 @@ def extract_completeness(
         or docs_invalid_result_sets
         or docs_missing_result_sets
         or docs_missing_input_schemas
+        or docs_contract_discovery_failures
+        or metadata_ingestion_warnings
+        or blocking_tools_endpoint_missing_docs
+        or blocking_docs_endpoint_missing_tools
+        or blocking_bronze_zero_column_tables
     ):
         typer.echo(
             (
                 "require-full check failed: extraction, field sink, endpoint-analysis docs, "
-                "or temporal contract gaps remain"
+                "docs/tools metadata, or temporal contract gaps remain"
             ),
             err=True,
         )

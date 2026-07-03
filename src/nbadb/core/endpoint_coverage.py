@@ -14,6 +14,9 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 from nbadb.core.nba_api_contract import (
     NbaApiEndpointContract,
+    NbaApiResultSetContract,
+    build_nba_api_bronze_contracts_from_bundle,
+    build_nba_api_upstream_contract_bundle,
     contract_to_json,
     discover_endpoint_analysis_doc_contracts,
     discover_runtime_endpoint_contracts,
@@ -1471,9 +1474,24 @@ class EndpointCoverageGenerator:
             "docs_field_missing_in_runtime_count": 0,
             "runtime_field_missing_in_docs_count": 0,
             "blocking_docs_contract_gap_count": 0,
+            "docs_contract_discovery_failure_count": 0,
         }
         if docs_root is None:
             return {"matrix": rows, "summary": summary}
+        if not docs_contracts_by_endpoint:
+            summary["docs_contract_discovery_failure_count"] += 1
+            summary["blocking_docs_contract_gap_count"] += 1
+            rows.append(
+                {
+                    "status": "docs_contract_discovery_failed",
+                    "reason": (
+                        "Endpoint-analysis docs root was provided, but no stats endpoint "
+                        "contracts were discovered. A missing, stale, or mispointed upstream "
+                        "nba_api checkout must not silently disable docs assurance."
+                    ),
+                    "docs_root": str(docs_root),
+                }
+            )
 
         runtime_endpoints = set(runtime_contracts_by_endpoint)
         docs_endpoints = set(docs_contracts_by_endpoint)
@@ -1617,6 +1635,75 @@ class EndpointCoverageGenerator:
         return input_schema_behaviors.get(alias)
 
     @classmethod
+    def _normalized_expected_columns(
+        cls,
+        contract: NbaApiEndpointContract,
+        result_set_index: int,
+        columns: tuple[str, ...],
+    ) -> list[str]:
+        return [
+            _normalize_contract_column(
+                column,
+                runtime_class_name=contract.runtime_class_name,
+                result_set_index=result_set_index,
+            )
+            for column in columns
+        ]
+
+    @classmethod
+    def _resolve_result_set_for_staging_entry(
+        cls,
+        *,
+        contract: NbaApiEndpointContract,
+        indexed_result_sets: Mapping[int, NbaApiResultSetContract],
+        declared_result_set_index: int,
+        input_columns: set[str] | None,
+    ) -> NbaApiResultSetContract | None:
+        result_set = indexed_result_sets.get(declared_result_set_index)
+        if input_columns is None or not contract.result_sets:
+            return result_set
+        if result_set is not None and result_set.source != "endpoint_analysis_docs":
+            return result_set
+        if result_set is None and not any(
+            candidate.source == "endpoint_analysis_docs" for candidate in contract.result_sets
+        ):
+            return result_set
+
+        def _fit(candidate: NbaApiResultSetContract) -> tuple[int, int, int]:
+            # Staging schemas are keyed to the runtime/extractor result-set index.
+            # Endpoint-analysis docs can order result sets differently, so score
+            # docs candidates with the declared staging index while still tracking
+            # the candidate's docs index for remap reporting.
+            normalized_columns = cls._normalized_expected_columns(
+                contract,
+                declared_result_set_index,
+                candidate.expected_columns,
+            )
+            candidate_columns = set(normalized_columns)
+            missing_count = len(candidate_columns - input_columns)
+            overlap_count = len(candidate_columns & input_columns)
+            declared_index_match = int(candidate.result_set_index == declared_result_set_index)
+            return missing_count, overlap_count, declared_index_match
+
+        def _score(candidate: NbaApiResultSetContract) -> tuple[int, int, int]:
+            missing_count, overlap_count, declared_index_match = _fit(candidate)
+            return missing_count, -overlap_count, -declared_index_match
+
+        best_result_set = min(contract.result_sets, key=_score)
+        if result_set is None:
+            return best_result_set
+        current_missing, current_overlap, _ = _fit(result_set)
+        best_missing, best_overlap, _ = _fit(best_result_set)
+        if (
+            best_result_set is not result_set
+            and current_missing > 0
+            and best_missing == 0
+            and best_overlap > current_overlap
+        ):
+            return best_result_set
+        return result_set
+
+    @classmethod
     def _build_upstream_contract_diff(
         cls,
         *,
@@ -1644,11 +1731,10 @@ class EndpointCoverageGenerator:
             indexed_result_sets = {
                 result_set.result_set_index: result_set for result_set in contract.result_sets
             }
-            staged_indexes = {entry.result_set_index if entry.use_multi else 0 for entry in entries}
+            staged_result_set_indexes: set[int] = set()
 
             for entry in entries:
                 declared_result_set_index = entry.result_set_index if entry.use_multi else 0
-                result_set = indexed_result_sets.get(declared_result_set_index)
                 status = "ok"
                 missing_columns: list[str] = []
                 expected_columns: list[str] = []
@@ -1664,6 +1750,14 @@ class EndpointCoverageGenerator:
                     entry.staging_key,
                     input_schema_behaviors or {},
                 )
+                result_set = cls._resolve_result_set_for_staging_entry(
+                    contract=contract,
+                    indexed_result_sets=indexed_result_sets,
+                    declared_result_set_index=declared_result_set_index,
+                    input_columns=input_columns,
+                )
+                if result_set is not None:
+                    staged_result_set_indexes.add(result_set.result_set_index)
                 if result_set is None:
                     if contract.result_sets:
                         status = "invalid_result_set_index"
@@ -1692,14 +1786,11 @@ class EndpointCoverageGenerator:
                             summary["blocking_contract_unknown_result_set_count"] += 1
                 else:
                     result_set_name = result_set.result_set_name
-                    expected_columns = [
-                        _normalize_contract_column(
-                            column,
-                            runtime_class_name=contract.runtime_class_name,
-                            result_set_index=result_set.result_set_index,
-                        )
-                        for column in result_set.expected_columns
-                    ]
+                    expected_columns = cls._normalized_expected_columns(
+                        contract,
+                        declared_result_set_index,
+                        result_set.expected_columns,
+                    )
                     if not expected_columns:
                         status = "contract_unknown_result_set"
                         status_reason = (
@@ -1745,6 +1836,11 @@ class EndpointCoverageGenerator:
                     "expected_columns": expected_columns,
                     "missing_columns": missing_columns,
                 }
+                if (
+                    result_set is not None
+                    and result_set.result_set_index != declared_result_set_index
+                ):
+                    row["resolved_result_set_index"] = result_set.result_set_index
                 if status_reason is not None:
                     row["status_reason"] = status_reason
                 if contract_unknown_classification is not None:
@@ -1755,7 +1851,7 @@ class EndpointCoverageGenerator:
                 rows.append(row)
 
             for result_set in contract.result_sets:
-                if result_set.result_set_index in staged_indexes:
+                if result_set.result_set_index in staged_result_set_indexes:
                     continue
                 if not result_set.expected_columns:
                     continue
@@ -1810,7 +1906,23 @@ class EndpointCoverageGenerator:
 
             for entry in entries:
                 declared_result_set_index = entry.result_set_index if entry.use_multi else 0
-                result_set = indexed_result_sets.get(declared_result_set_index)
+                input_columns = cls._input_columns_for_staging_key(
+                    entry.staging_key,
+                    input_schema_columns,
+                )
+                schema_behavior = (
+                    cls._input_behavior_for_staging_key(
+                        entry.staging_key,
+                        input_schema_behaviors,
+                    )
+                    or "missing"
+                )
+                result_set = cls._resolve_result_set_for_staging_entry(
+                    contract=contract,
+                    indexed_result_sets=indexed_result_sets,
+                    declared_result_set_index=declared_result_set_index,
+                    input_columns=input_columns,
+                )
                 if result_set is None:
                     if contract.result_sets:
                         invalid_result_set_count += 1
@@ -1827,14 +1939,11 @@ class EndpointCoverageGenerator:
                             blocking_contract_unknown_result_set_count += 1
                     continue
 
-                expected_columns = [
-                    _normalize_contract_column(
-                        column,
-                        runtime_class_name=contract.runtime_class_name,
-                        result_set_index=result_set.result_set_index,
-                    )
-                    for column in result_set.expected_columns
-                ]
+                expected_columns = cls._normalized_expected_columns(
+                    contract,
+                    declared_result_set_index,
+                    result_set.expected_columns,
+                )
                 if not expected_columns:
                     contract_unknown_result_set_count += 1
                     classification, _ = _contract_unknown_result_set_classification(
@@ -1848,17 +1957,6 @@ class EndpointCoverageGenerator:
                         blocking_contract_unknown_result_set_count += 1
                     continue
 
-                input_columns = cls._input_columns_for_staging_key(
-                    entry.staging_key,
-                    input_schema_columns,
-                )
-                schema_behavior = (
-                    cls._input_behavior_for_staging_key(
-                        entry.staging_key,
-                        input_schema_behaviors,
-                    )
-                    or "missing"
-                )
                 transform_outputs = sorted(
                     transform_outputs_by_staging.get(entry.staging_key, set())
                 )
@@ -1982,6 +2080,7 @@ class EndpointCoverageGenerator:
                             "runtime_class_name": contract.runtime_class_name,
                             "staging_key": entry.staging_key,
                             "declared_result_set_index": declared_result_set_index,
+                            "resolved_result_set_index": result_set.result_set_index,
                             "upstream_result_set_name": result_set.result_set_name,
                             "field_name": field_name,
                             "field_fate": field_fate,
@@ -3277,6 +3376,12 @@ class EndpointCoverageGenerator:
         endpoint_analysis_doc_contracts = self._runtime_contract_payloads_by_endpoint(
             docs_contracts_by_endpoint
         )
+        nba_api_upstream_contract_bundle = build_nba_api_upstream_contract_bundle(
+            self.endpoint_analysis_docs_root
+        )
+        nba_api_bronze_contracts = build_nba_api_bronze_contracts_from_bundle(
+            nba_api_upstream_contract_bundle
+        )
         endpoint_analysis_doc_diff = self._build_endpoint_analysis_doc_diff(
             runtime_contracts_by_endpoint=contracts_by_endpoint,
             docs_contracts_by_endpoint=docs_contracts_by_endpoint,
@@ -3331,6 +3436,26 @@ class EndpointCoverageGenerator:
             endpoint_analysis_doc_upstream_contract_diff["summary"].get(
                 "missing_input_schema_count", 0
             )
+        )
+        summary["endpoint_analysis_docs"]["bundle_digest"] = nba_api_upstream_contract_bundle.get(
+            "bundle_digest"
+        )
+        summary["endpoint_analysis_docs"]["upstream_git_sha"] = (
+            nba_api_upstream_contract_bundle.get("upstream_git_sha")
+        )
+        summary["endpoint_analysis_docs"]["source_inventory"] = (
+            nba_api_upstream_contract_bundle.get("source_inventory", {})
+        )
+        metadata_ledger = nba_api_upstream_contract_bundle.get("metadata_ledger", {})
+        summary["endpoint_analysis_docs"]["metadata_ledger"] = metadata_ledger.get("summary", {})
+        summary["endpoint_analysis_docs"]["metadata_digest"] = metadata_ledger.get(
+            "metadata_digest"
+        )
+        summary["endpoint_analysis_docs"]["bronze_contracts"] = nba_api_bronze_contracts.get(
+            "summary", {}
+        )
+        summary["endpoint_analysis_docs"]["bronze_contract_digest"] = nba_api_bronze_contracts.get(
+            "bronze_contract_digest"
         )
         summary["temporal_coverage"] = temporal_coverage_matrix["summary"]
         summary["coverage_truth"] = {
@@ -3397,6 +3522,8 @@ class EndpointCoverageGenerator:
             "temporal_coverage_matrix": temporal_coverage_matrix,
             "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard,
             "upstream_contracts": upstream_contracts,
+            "nba_api_upstream_contract_bundle": nba_api_upstream_contract_bundle,
+            "nba_api_bronze_contracts": nba_api_bronze_contracts,
             "endpoint_analysis_doc_contracts": endpoint_analysis_doc_contracts,
             "endpoint_analysis_doc_diff": endpoint_analysis_doc_diff,
             "endpoint_analysis_doc_upstream_contract_diff": (
@@ -4147,6 +4274,10 @@ class EndpointCoverageGenerator:
         endpoint_adequacy_report_path = destination / "endpoint-adequacy-scorecard-report.md"
         upstream_contracts_path = destination / "endpoint-upstream-contracts.json"
         endpoint_analysis_doc_contracts_path = destination / "endpoint-analysis-doc-contracts.json"
+        nba_api_upstream_contract_bundle_path = (
+            destination / "nba-api-upstream-contract-bundle.json"
+        )
+        nba_api_bronze_contracts_path = destination / "nba-api-bronze-contracts.json"
         endpoint_analysis_doc_diff_path = destination / "endpoint-analysis-doc-diff.json"
         endpoint_analysis_doc_upstream_contract_diff_path = (
             destination / "endpoint-analysis-doc-upstream-contract-diff.json"
@@ -4169,6 +4300,8 @@ class EndpointCoverageGenerator:
             "endpoint_adequacy_scorecard": endpoint_adequacy_scorecard_path,
             "endpoint_adequacy_report": endpoint_adequacy_report_path,
             "upstream_contracts": upstream_contracts_path,
+            "nba_api_upstream_contract_bundle": nba_api_upstream_contract_bundle_path,
+            "nba_api_bronze_contracts": nba_api_bronze_contracts_path,
             "endpoint_analysis_doc_contracts": endpoint_analysis_doc_contracts_path,
             "endpoint_analysis_doc_diff": endpoint_analysis_doc_diff_path,
             "endpoint_analysis_doc_upstream_contract_diff": (
@@ -4255,6 +4388,24 @@ class EndpointCoverageGenerator:
             elif key == "upstream_contracts":
                 upstream_contracts_path.write_text(
                     json.dumps({"contracts": artifacts["upstream_contracts"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "nba_api_upstream_contract_bundle":
+                nba_api_upstream_contract_bundle_path.write_text(
+                    json.dumps(
+                        artifacts["nba_api_upstream_contract_bundle"],
+                        indent=2,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+            elif key == "nba_api_bronze_contracts":
+                nba_api_bronze_contracts_path.write_text(
+                    json.dumps(
+                        artifacts["nba_api_bronze_contracts"],
+                        indent=2,
+                    )
+                    + "\n",
                     encoding="utf-8",
                 )
             elif key == "endpoint_analysis_doc_contracts":

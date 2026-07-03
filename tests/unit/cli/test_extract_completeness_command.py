@@ -183,6 +183,7 @@ def test_extract_completeness_require_full_exits_when_noncovered(tmp_path: Path)
         ("endpoint_analysis_docs", "docs_invalid_result_set_index_count"),
         ("endpoint_analysis_docs", "docs_missing_result_set_staging_count"),
         ("endpoint_analysis_docs", "docs_missing_input_schema_count"),
+        ("endpoint_analysis_docs", "docs_contract_discovery_failure_count"),
     ],
 )
 def test_extract_completeness_require_full_exits_for_contract_gap_counters(
@@ -245,6 +246,7 @@ def test_extract_completeness_require_full_exits_for_contract_gap_counters(
             "docs_invalid_result_set_index_count": 0,
             "docs_missing_result_set_staging_count": 0,
             "docs_missing_input_schema_count": 0,
+            "docs_contract_discovery_failure_count": 0,
         },
     }
     summary_payload[summary_section][counter_name] = 1
@@ -260,6 +262,351 @@ def test_extract_completeness_require_full_exits_for_contract_gap_counters(
 
     assert result.exit_code == 1
     assert "require-full check failed" in result.output
+
+
+def test_extract_completeness_require_full_exits_for_docs_field_drift(
+    tmp_path: Path,
+) -> None:
+    written = _artifact_paths(
+        tmp_path,
+        {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+    )
+    summary_payload = {
+        "coverage": {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 5,
+            "extractable_endpoint_count": 5,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
+        "upstream_contract": {
+            "field_gap_count": 0,
+            "invalid_result_set_index_count": 0,
+            "missing_result_set_staging_count": 0,
+            "missing_input_schema_count": 0,
+            "contract_unknown_result_set_count": 0,
+            "classified_contract_unknown_result_set_count": 0,
+            "blocking_contract_unknown_result_set_count": 0,
+        },
+        "upstream_field_fate": {
+            "missing_sink_count": 0,
+            "model_usage_unknown_count": 0,
+            "unmodeled_unclassified_count": 0,
+        },
+        "temporal_coverage": {"required_temporal_missing_count": 0},
+        "endpoint_analysis_docs": {
+            "enabled": True,
+            "docs_contract_count": 1,
+            "runtime_endpoint_missing_docs_count": 1,
+            "docs_endpoint_missing_runtime_count": 0,
+            "docs_only_result_set_count": 0,
+            "docs_field_missing_in_runtime_count": 1,
+            "runtime_field_missing_in_docs_count": 4,
+            "blocking_docs_contract_gap_count": 0,
+            "docs_field_gap_count": 12,
+            "docs_invalid_result_set_index_count": 0,
+            "docs_missing_result_set_staging_count": 0,
+            "docs_missing_input_schema_count": 0,
+            "docs_contract_discovery_failure_count": 0,
+        },
+    }
+
+    with patch(_GENERATOR_PATH) as mock_generator:
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert "require-full check failed" in result.output
+    assert "docs_field_gaps=12" in result.output
+    assert "blocking_docs_contract_gaps=0" in result.output
+
+
+def test_extract_completeness_require_full_exits_for_docs_tools_metadata_warning(
+    tmp_path: Path,
+) -> None:
+    written = _artifact_paths(
+        tmp_path,
+        {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+    )
+    summary_payload = {
+        "coverage": {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 5,
+            "extractable_endpoint_count": 5,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
+        "upstream_contract": {
+            "field_gap_count": 0,
+            "invalid_result_set_index_count": 0,
+            "missing_result_set_staging_count": 0,
+            "missing_input_schema_count": 0,
+            "contract_unknown_result_set_count": 0,
+            "classified_contract_unknown_result_set_count": 0,
+            "blocking_contract_unknown_result_set_count": 0,
+        },
+        "upstream_field_fate": {
+            "missing_sink_count": 0,
+            "model_usage_unknown_count": 0,
+            "unmodeled_unclassified_count": 0,
+        },
+        "temporal_coverage": {"required_temporal_missing_count": 0},
+        "endpoint_analysis_docs": {
+            "enabled": True,
+            "docs_contract_count": 1,
+            "runtime_endpoint_missing_docs_count": 0,
+            "docs_endpoint_missing_runtime_count": 0,
+            "docs_only_result_set_count": 0,
+            "docs_field_missing_in_runtime_count": 0,
+            "runtime_field_missing_in_docs_count": 0,
+            "blocking_docs_contract_gap_count": 0,
+            "docs_field_gap_count": 0,
+            "docs_invalid_result_set_index_count": 0,
+            "docs_missing_result_set_staging_count": 0,
+            "docs_missing_input_schema_count": 0,
+            "docs_contract_discovery_failure_count": 0,
+            "metadata_ledger": {"metadata_ingestion_warning_count": 1},
+        },
+    }
+
+    with patch(_GENERATOR_PATH) as mock_generator:
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert "metadata_warnings=1" in result.output
+    assert "require-full check failed" in result.output
+
+
+@pytest.mark.parametrize(
+    ("metadata_ledger", "bronze_contracts", "expected_output"),
+    [
+        (
+            {
+                "tools_endpoint_missing_docs_count": 1,
+                "blocking_tools_endpoint_missing_docs_count": 1,
+            },
+            {},
+            "tools_missing_docs=1",
+        ),
+        (
+            {
+                "docs_endpoint_missing_tools_count": 1,
+                "blocking_docs_endpoint_missing_tools_count": 1,
+            },
+            {},
+            "docs_missing_tools=1",
+        ),
+        (
+            {},
+            {"zero_column_table_count": 1, "blocking_zero_column_table_count": 1},
+            "bronze_zero_column_tables=1",
+        ),
+    ],
+)
+def test_extract_completeness_require_full_exits_for_docs_tools_bronze_gates(
+    tmp_path: Path,
+    metadata_ledger: dict[str, int],
+    bronze_contracts: dict[str, int],
+    expected_output: str,
+) -> None:
+    written = _artifact_paths(
+        tmp_path,
+        {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+    )
+    summary_payload = {
+        "coverage": {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 5,
+            "extractable_endpoint_count": 5,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
+        "upstream_contract": {
+            "field_gap_count": 0,
+            "invalid_result_set_index_count": 0,
+            "missing_result_set_staging_count": 0,
+            "missing_input_schema_count": 0,
+            "contract_unknown_result_set_count": 0,
+            "classified_contract_unknown_result_set_count": 0,
+            "blocking_contract_unknown_result_set_count": 0,
+        },
+        "upstream_field_fate": {
+            "missing_sink_count": 0,
+            "model_usage_unknown_count": 0,
+            "unmodeled_unclassified_count": 0,
+        },
+        "temporal_coverage": {"required_temporal_missing_count": 0},
+        "endpoint_analysis_docs": {
+            "enabled": True,
+            "docs_contract_count": 1,
+            "runtime_endpoint_missing_docs_count": 0,
+            "docs_endpoint_missing_runtime_count": 0,
+            "docs_only_result_set_count": 0,
+            "docs_field_missing_in_runtime_count": 0,
+            "runtime_field_missing_in_docs_count": 0,
+            "blocking_docs_contract_gap_count": 0,
+            "docs_field_gap_count": 0,
+            "docs_invalid_result_set_index_count": 0,
+            "docs_missing_result_set_staging_count": 0,
+            "docs_missing_input_schema_count": 0,
+            "docs_contract_discovery_failure_count": 0,
+            "metadata_ledger": {
+                "metadata_ingestion_warning_count": 0,
+                **metadata_ledger,
+            },
+            "bronze_contracts": bronze_contracts,
+        },
+    }
+
+    with patch(_GENERATOR_PATH) as mock_generator:
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 1
+    assert expected_output in result.output
+    assert "require-full check failed" in result.output
+
+
+def test_extract_completeness_require_full_allows_classified_docs_tools_bronze_drift(
+    tmp_path: Path,
+) -> None:
+    written = _artifact_paths(
+        tmp_path,
+        {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+    )
+    summary_payload = {
+        "coverage": {
+            "covered": 5,
+            "runtime_gap": 0,
+            "staging_only": 0,
+            "extractor_only": 0,
+            "source_only": 0,
+        },
+        "extraction_contract": {
+            "in_scope_endpoint_count": 5,
+            "extractable_endpoint_count": 5,
+            "partial_endpoint_count": 0,
+            "blocked_endpoint_count": 0,
+            "excluded_endpoint_count": 0,
+            "season_type_contract_open_count": 0,
+            "ready_for_full_backfill": True,
+        },
+        "upstream_contract": {
+            "field_gap_count": 0,
+            "invalid_result_set_index_count": 0,
+            "missing_result_set_staging_count": 0,
+            "missing_input_schema_count": 0,
+            "contract_unknown_result_set_count": 0,
+            "classified_contract_unknown_result_set_count": 0,
+            "blocking_contract_unknown_result_set_count": 0,
+        },
+        "upstream_field_fate": {
+            "missing_sink_count": 0,
+            "model_usage_unknown_count": 0,
+            "unmodeled_unclassified_count": 0,
+        },
+        "temporal_coverage": {"required_temporal_missing_count": 0},
+        "endpoint_analysis_docs": {
+            "enabled": True,
+            "docs_contract_count": 1,
+            "runtime_endpoint_missing_docs_count": 0,
+            "docs_endpoint_missing_runtime_count": 0,
+            "docs_only_result_set_count": 0,
+            "docs_field_missing_in_runtime_count": 0,
+            "runtime_field_missing_in_docs_count": 0,
+            "blocking_docs_contract_gap_count": 0,
+            "docs_field_gap_count": 0,
+            "docs_invalid_result_set_index_count": 0,
+            "docs_missing_result_set_staging_count": 0,
+            "docs_missing_input_schema_count": 0,
+            "docs_contract_discovery_failure_count": 0,
+            "metadata_ledger": {
+                "metadata_ingestion_warning_count": 0,
+                "tools_endpoint_missing_docs_count": 1,
+                "docs_endpoint_missing_tools_count": 1,
+                "blocking_tools_endpoint_missing_docs_count": 0,
+                "blocking_docs_endpoint_missing_tools_count": 0,
+            },
+            "bronze_contracts": {
+                "zero_column_table_count": 1,
+                "blocking_zero_column_table_count": 0,
+            },
+        },
+    }
+
+    with patch(_GENERATOR_PATH) as mock_generator:
+        mock_generator.return_value.build_artifacts.return_value = {
+            "summary": summary_payload,
+        }
+        mock_generator.return_value.write_artifacts.return_value = written
+        result = runner.invoke(app, ["extract-completeness", "--require-full"])
+
+    assert result.exit_code == 0, result.output
+    assert "tools_missing_docs=1" in result.output
+    assert "docs_missing_tools=1" in result.output
+    assert "blocking_tools_docs_mismatches=0" in result.output
+    assert "blocking_bronze_zero_column_tables=0" in result.output
 
 
 def test_extract_completeness_require_full_allows_classified_contract_unknowns(

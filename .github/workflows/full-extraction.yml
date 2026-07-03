@@ -174,16 +174,28 @@ jobs:
 
       - run: uv sync
 
-      - name: Fetch nba_api endpoint-analysis docs
+      - name: Fetch nba_api upstream docs and tools
         if: ${{ inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         run: |
           git clone --depth=1 --filter=blob:none \
             https://github.com/swar/nba_api.git "$RUNNER_TEMP/nba_api-upstream"
 
-      - name: Generate support bundle artifacts
+          # The support bundle ingests the upstream docs/tools contract, not just endpoint docs.
+          test -d "$RUNNER_TEMP/nba_api-upstream/docs/nba_api/stats/endpoints" || {
+            echo "::error::nba_api clone is missing docs/nba_api/stats/endpoints"
+            exit 1
+          }
+          test -d "$RUNNER_TEMP/nba_api-upstream/tools/stats" || {
+            echo "::error::nba_api clone is missing tools/stats"
+            exit 1
+          }
+
+      - name: Generate support bundle from nba_api docs/tools contract
         if: ${{ inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         run: |
           mkdir -p artifacts/endpoint-coverage
+          # The historical option name points at the full upstream checkout used for
+          # docs/nba_api/stats/endpoints and tools/stats contract ingestion.
           uv run nbadb extract-completeness \
             --require-full \
             --endpoint-analysis-docs-root "$RUNNER_TEMP/nba_api-upstream" \
@@ -284,6 +296,16 @@ jobs:
             --strictness consistency \
             --require-result-table-contract \
             --output-dir artifacts/model-audit
+
+      - name: Upload endpoint coverage diagnostics
+        if: ${{ always() && inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: full-extraction-endpoint-coverage-${{ env.ACTIVE_CHAIN_ID }}
+          path: artifacts/endpoint-coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
 
       - name: Build lane manifest
         id: manifest

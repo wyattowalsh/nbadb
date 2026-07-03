@@ -292,6 +292,12 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert '--chunk-profile "$CHUNK_PROFILE"' in workflow
     assert "RETRY_PIPELINE_FAILURES" in workflow
     assert workflow.count("resume_args+=(--allow-pipeline-failures)") == 2
+    assert "Upload endpoint coverage diagnostics" in workflow
+    assert (
+        "if: ${{ always() && inputs.lane_manifest_json == '' && "
+        "inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}"
+    ) in workflow
+    assert "full-extraction-endpoint-coverage-${{ env.ACTIVE_CHAIN_ID }}" in workflow
     lane_control_block = workflow.split("  lane_control:", 1)[1].split(
         "  # ─────────────────────────────────────────────────────────────",
         1,
