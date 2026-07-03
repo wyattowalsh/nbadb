@@ -349,6 +349,7 @@ export interface SchemaColumn {
   nullable: boolean;
   constraints: string;
   description: string;
+  description_source?: string;
 }
 
 export interface SchemaEntry {
@@ -364,6 +365,7 @@ export interface DictionaryField {
   type: string;
   nullable: boolean;
   description: string;
+  description_source?: string;
   source: string;
   fk_ref: string;
 }
@@ -378,6 +380,18 @@ const TH_CLASS =
 
 const TR_CLASS =
   "border-b border-border/50 transition-colors duration-150 even:bg-muted hover:bg-[color-mix(in_oklch,var(--primary)_6%,transparent)]";
+
+function DescriptionSourceBadge({ source }: { source?: string }) {
+  if (!source) {
+    return null;
+  }
+
+  return (
+    <Badge variant={source === "metadata" ? "primary" : "muted"}>
+      {source}
+    </Badge>
+  );
+}
 
 function SchemaEntryDetail({ entry }: { entry: SchemaEntry }) {
   return (
@@ -416,7 +430,12 @@ function SchemaEntryDetail({ entry }: { entry: SchemaEntry }) {
               </td>
               <td className="px-2 py-1">{column.nullable ? "Yes" : "No"}</td>
               <td className="px-2 py-1">{column.constraints}</td>
-              <td className="px-2 py-1">{column.description}</td>
+              <td className="px-2 py-1">
+                <div className="flex flex-col gap-1">
+                  <span>{column.description}</span>
+                  <DescriptionSourceBadge source={column.description_source} />
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -482,8 +501,13 @@ function DictionaryEntryDetail({ entry }: { entry: DictionaryEntry }) {
               </td>
               <td className="px-2 py-1">{field.nullable ? "Yes" : "No"}</td>
               <td className="px-2 py-1">
-                {field.description}
-                {field.fk_ref ? ` (FK → ${field.fk_ref})` : ""}
+                <div className="flex flex-col gap-1">
+                  <span>
+                    {field.description}
+                    {field.fk_ref ? ` (FK → ${field.fk_ref})` : ""}
+                  </span>
+                  <DescriptionSourceBadge source={field.description_source} />
+                </div>
               </td>
               <td className="px-2 py-1">
                 <code>{field.source}</code>

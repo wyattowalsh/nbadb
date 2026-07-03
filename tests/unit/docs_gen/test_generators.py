@@ -6,6 +6,7 @@ from nbadb.docs_gen.data_dictionary import DataDictionaryGenerator
 from nbadb.docs_gen.er_diagram import ERDiagramGenerator
 from nbadb.docs_gen.lineage import LineageGenerator
 from nbadb.docs_gen.schema_docs import SchemaDocsGenerator
+from nbadb.schemas.registry import _staging_schema_registry, _star_schema_registry
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -60,6 +61,31 @@ class TestSchemaDocsGenerator:
         gen = SchemaDocsGenerator()
         content = gen.generate_tier_mdx("staging")
         assert "description:" in content
+
+    def test_tier_json_has_no_empty_column_descriptions(self) -> None:
+        gen = SchemaDocsGenerator()
+
+        for tier in ("raw", "staging", "star"):
+            payload = gen.generate_tier_json(tier)
+            columns = [column for table in payload for column in table["columns"]]
+            assert columns
+            assert all(column["description"] for column in columns)
+            assert all(
+                column["description_source"] in {"metadata", "generated"} for column in columns
+            )
+
+    def test_tier_json_uses_public_registry_names(self) -> None:
+        gen = SchemaDocsGenerator()
+
+        staging_tables = {entry["table_name"] for entry in gen.generate_tier_json("staging")}
+        star_tables = {entry["table_name"] for entry in gen.generate_tier_json("star")}
+
+        assert staging_tables == set(_staging_schema_registry())
+        assert star_tables == set(_star_schema_registry())
+        assert all(table.startswith("stg_") for table in staging_tables)
+        assert not any(table.startswith("staging_") for table in staging_tables)
+        assert "fact_estimated_metrics" not in star_tables
+        assert not any(table.startswith("_") or table.endswith("_base") for table in star_tables)
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +182,28 @@ class TestLineageGenerator:
 
 
 class TestDataDictionaryGenerator:
+    def test_tier_json_has_no_empty_field_descriptions(self) -> None:
+        gen = DataDictionaryGenerator()
+
+        for tier in ("raw", "staging", "star"):
+            payload = gen.generate_tier_json(tier)
+            fields = [field for table in payload for field in table["fields"]]
+            assert fields
+            assert all(field["description"] for field in fields)
+            assert all(field["description_source"] in {"metadata", "generated"} for field in fields)
+
+    def test_tier_json_uses_public_registry_names(self) -> None:
+        gen = DataDictionaryGenerator()
+
+        staging_tables = {entry["table_name"] for entry in gen.generate_tier_json("staging")}
+        star_tables = {entry["table_name"] for entry in gen.generate_tier_json("star")}
+
+        assert staging_tables == set(_staging_schema_registry())
+        assert star_tables == set(_star_schema_registry())
+        assert all(table.startswith("stg_") for table in staging_tables)
+        assert not any(table.startswith("staging_") for table in staging_tables)
+        assert "fact_estimated_metrics" not in star_tables
+
     def test_data_dict_mdx_returns_string(self) -> None:
         gen = DataDictionaryGenerator()
         result = gen.generate_mdx("star")

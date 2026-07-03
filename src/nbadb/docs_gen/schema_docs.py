@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandera.polars as pa
 from loguru import logger
+
+from nbadb.core.field_docs import resolved_field_description
+from nbadb.schemas.registry import (
+    _raw_schema_registry,
+    _staging_schema_registry,
+    _star_schema_registry,
+)
+
+if TYPE_CHECKING:
+    from nbadb.schemas.base import BaseSchema
 
 
 class SchemaDocsGenerator:
@@ -23,39 +30,21 @@ class SchemaDocsGenerator:
         "staging": "nbadb.schemas.staging",
         "star": "nbadb.schemas.star",
     }
+    SCHEMA_REGISTRIES = {
+        "raw": _raw_schema_registry,
+        "staging": _staging_schema_registry,
+        "star": _star_schema_registry,
+    }
 
     def __init__(self, output_dir: Path | None = None) -> None:
         self.output_dir = output_dir or Path("docs/content/docs/schema")
 
-    def _discover_schemas(self, package_name: str) -> list[tuple[str, type[pa.DataFrameModel]]]:
-        """Discover schema classes in a package."""
-        schemas: list[tuple[str, type[pa.DataFrameModel]]] = []
-        try:
-            pkg = importlib.import_module(package_name)
-        except ImportError:
-            return schemas
-
-        pkg_path = getattr(pkg, "__path__", None)
-        if pkg_path is None:
-            return schemas
-
-        for module_path in Path(pkg_path[0]).glob("*.py"):
-            if module_path.name.startswith("_"):
-                continue
-            module_name = f"{package_name}.{module_path.stem}"
-            try:
-                mod = importlib.import_module(module_name)
-            except ImportError:
-                continue
-
-            for name, obj in inspect.getmembers(mod, inspect.isclass):
-                if (
-                    issubclass(obj, pa.DataFrameModel)
-                    and obj is not pa.DataFrameModel
-                    and obj.__module__ == module_name
-                ):
-                    schemas.append((name, obj))
-        return schemas
+    def _discover_schemas(self, tier: str) -> list[tuple[str, type[BaseSchema]]]:
+        """Return public schemas for a tier using the registry source of truth."""
+        registry_factory = self.SCHEMA_REGISTRIES.get(tier)
+        if registry_factory is None:
+            return []
+        return sorted(registry_factory().items())
 
     def _table_name_from_class(self, class_name: str) -> str:
         """Convert class name to table name."""
@@ -72,11 +61,10 @@ class SchemaDocsGenerator:
 
     def generate_tier_mdx(self, tier: str) -> str:
         """Generate schema reference MDX for a tier."""
-        package = self.SCHEMA_PACKAGES.get(tier)
-        if not package:
+        if tier not in self.SCHEMA_REGISTRIES:
             return f"# Schema Reference — {tier.title()}\n\nUnknown tier.\n"
 
-        schemas = self._discover_schemas(package)
+        schemas = self._discover_schemas(tier)
         lines = [
             "---",
             f"title: Schema Reference — {tier.title()}",
@@ -89,8 +77,8 @@ class SchemaDocsGenerator:
             "",
         ]
 
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
+        for table_name, schema_cls in schemas:
+            class_name = schema_cls.__name__
             config = getattr(schema_cls, "Config", None)
             coerce = getattr(config, "coerce", False) if config else False
             strict = getattr(config, "strict", True) if config else True
@@ -108,7 +96,12 @@ class SchemaDocsGenerator:
             for col_name, col in schema.columns.items():
                 metadata = getattr(col, "metadata", {}) or {}
                 nullable = getattr(col, "nullable", False)
-                desc = metadata.get("description", "")
+                desc = resolved_field_description(
+                    metadata.get("description", ""),
+                    col_name,
+                    table_name=table_name,
+                    tier=tier,
+                )[0]
                 fk = metadata.get("fk_ref", "")
                 dtype = getattr(col, "dtype", None)
                 type_str = str(dtype) if dtype else "unknown"
@@ -150,15 +143,14 @@ class SchemaDocsGenerator:
 
     def generate_tier_json(self, tier: str) -> list[dict[str, Any]]:
         """Generate JSON schema reference data for a tier."""
-        package = self.SCHEMA_PACKAGES.get(tier)
-        if not package:
+        if tier not in self.SCHEMA_REGISTRIES:
             return []
 
-        schemas = self._discover_schemas(package)
+        schemas = self._discover_schemas(tier)
         result: list[dict[str, Any]] = []
 
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
+        for table_name, schema_cls in schemas:
+            class_name = schema_cls.__name__
             config = getattr(schema_cls, "Config", None)
             coerce = getattr(config, "coerce", False) if config else False
             strict = getattr(config, "strict", True) if config else True
@@ -198,13 +190,20 @@ class SchemaDocsGenerator:
                 if fk:
                     constraints.append(f"FK→{fk}")
 
+                description, description_source = resolved_field_description(
+                    metadata.get("description", ""),
+                    col_name,
+                    table_name=table_name,
+                    tier=tier,
+                )
                 columns.append(
                     {
                         "name": col_name,
                         "type": type_str,
                         "nullable": nullable,
                         "constraints": ", ".join(constraints) if constraints else "—",
-                        "description": metadata.get("description", ""),
+                        "description": description,
+                        "description_source": description_source,
                     }
                 )
 

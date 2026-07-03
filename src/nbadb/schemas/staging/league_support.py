@@ -288,6 +288,14 @@ class StagingShotLocationsSchema(BaseSchema):
         nullable=True,
         metadata={"description": "Team abbreviation"},
     )
+    age: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.AGE",
+            "description": "Player age",
+        },
+    )
     shot_zone_basic: str | None = pa.Field(
         nullable=True,
         metadata={"description": "Basic shot zone bucket"},
@@ -313,6 +321,181 @@ class StagingShotLocationsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={"description": "Field goal percentage"},
+    )
+    restricted_area_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.RESTRICTED_AREA_FGM",
+            "description": "Restricted area field goals made",
+        },
+    )
+    restricted_area_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.RESTRICTED_AREA_FGA",
+            "description": "Restricted area field goals attempted",
+        },
+    )
+    restricted_area_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.RESTRICTED_AREA_FG_PCT",
+            "description": "Restricted area field goal percentage",
+        },
+    )
+    in_the_paint_non_ra_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.IN_THE_PAINT_NON_RA_FGM",
+            "description": "Non-restricted paint field goals made",
+        },
+    )
+    in_the_paint_non_ra_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.IN_THE_PAINT_NON_RA_FGA",
+            "description": "Non-restricted paint field goals attempted",
+        },
+    )
+    in_the_paint_non_ra_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.IN_THE_PAINT_NON_RA_FG_PCT",
+            "description": "Non-restricted paint field goal percentage",
+        },
+    )
+    mid_range_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.MID_RANGE_FGM",
+            "description": "Mid-range field goals made",
+        },
+    )
+    mid_range_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.MID_RANGE_FGA",
+            "description": "Mid-range field goals attempted",
+        },
+    )
+    mid_range_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.MID_RANGE_FG_PCT",
+            "description": "Mid-range field goal percentage",
+        },
+    )
+    left_corner_3_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.LEFT_CORNER_3_FGM",
+            "description": "Left-corner three-point field goals made",
+        },
+    )
+    left_corner_3_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.LEFT_CORNER_3_FGA",
+            "description": "Left-corner three-point field goals attempted",
+        },
+    )
+    left_corner_3_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.LEFT_CORNER_3_FG_PCT",
+            "description": "Left-corner three-point field goal percentage",
+        },
+    )
+    right_corner_3_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.RIGHT_CORNER_3_FGM",
+            "description": "Right-corner three-point field goals made",
+        },
+    )
+    right_corner_3_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.RIGHT_CORNER_3_FGA",
+            "description": "Right-corner three-point field goals attempted",
+        },
+    )
+    right_corner_3_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.RIGHT_CORNER_3_FG_PCT",
+            "description": "Right-corner three-point field goal percentage",
+        },
+    )
+    above_the_break_3_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.ABOVE_THE_BREAK_3_FGM",
+            "description": "Above-the-break three-point field goals made",
+        },
+    )
+    above_the_break_3_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.ABOVE_THE_BREAK_3_FGA",
+            "description": "Above-the-break three-point field goals attempted",
+        },
+    )
+    above_the_break_3_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.ABOVE_THE_BREAK_3_FG_PCT",
+            "description": "Above-the-break three-point field goal percentage",
+        },
+    )
+    backcourt_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.BACKCOURT_FGM",
+            "description": "Backcourt field goals made",
+        },
+    )
+    backcourt_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.BACKCOURT_FGA",
+            "description": "Backcourt field goals attempted",
+        },
+    )
+    backcourt_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashPlayerShotLocations.ShotLocations.BACKCOURT_FG_PCT",
+            "description": "Backcourt field goal percentage",
+        },
     )
 
 
@@ -616,6 +799,181 @@ class StagingLeagueTeamShotLocationsSchema(BaseSchema):
         ge=0.0,
         le=1.0,
         metadata={"description": "Field goal percentage"},
+    )
+    restricted_area_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.RESTRICTED_AREA_FGM",
+            "description": "Restricted area field goals made",
+        },
+    )
+    restricted_area_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.RESTRICTED_AREA_FGA",
+            "description": "Restricted area field goals attempted",
+        },
+    )
+    restricted_area_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.RESTRICTED_AREA_FG_PCT",
+            "description": "Restricted area field goal percentage",
+        },
+    )
+    in_the_paint_non_ra_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.IN_THE_PAINT_NON_RA_FGM",
+            "description": "Non-restricted paint field goals made",
+        },
+    )
+    in_the_paint_non_ra_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.IN_THE_PAINT_NON_RA_FGA",
+            "description": "Non-restricted paint field goals attempted",
+        },
+    )
+    in_the_paint_non_ra_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.IN_THE_PAINT_NON_RA_FG_PCT",
+            "description": "Non-restricted paint field goal percentage",
+        },
+    )
+    mid_range_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.MID_RANGE_FGM",
+            "description": "Mid-range field goals made",
+        },
+    )
+    mid_range_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.MID_RANGE_FGA",
+            "description": "Mid-range field goals attempted",
+        },
+    )
+    mid_range_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.MID_RANGE_FG_PCT",
+            "description": "Mid-range field goal percentage",
+        },
+    )
+    left_corner_3_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.LEFT_CORNER_3_FGM",
+            "description": "Left-corner three-point field goals made",
+        },
+    )
+    left_corner_3_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.LEFT_CORNER_3_FGA",
+            "description": "Left-corner three-point field goals attempted",
+        },
+    )
+    left_corner_3_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.LEFT_CORNER_3_FG_PCT",
+            "description": "Left-corner three-point field goal percentage",
+        },
+    )
+    right_corner_3_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.RIGHT_CORNER_3_FGM",
+            "description": "Right-corner three-point field goals made",
+        },
+    )
+    right_corner_3_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.RIGHT_CORNER_3_FGA",
+            "description": "Right-corner three-point field goals attempted",
+        },
+    )
+    right_corner_3_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.RIGHT_CORNER_3_FG_PCT",
+            "description": "Right-corner three-point field goal percentage",
+        },
+    )
+    above_the_break_3_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.ABOVE_THE_BREAK_3_FGM",
+            "description": "Above-the-break three-point field goals made",
+        },
+    )
+    above_the_break_3_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.ABOVE_THE_BREAK_3_FGA",
+            "description": "Above-the-break three-point field goals attempted",
+        },
+    )
+    above_the_break_3_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.ABOVE_THE_BREAK_3_FG_PCT",
+            "description": "Above-the-break three-point field goal percentage",
+        },
+    )
+    backcourt_fgm: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.BACKCOURT_FGM",
+            "description": "Backcourt field goals made",
+        },
+    )
+    backcourt_fga: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.BACKCOURT_FGA",
+            "description": "Backcourt field goals attempted",
+        },
+    )
+    backcourt_fg_pct: float | None = pa.Field(
+        nullable=True,
+        ge=0.0,
+        le=1.0,
+        metadata={
+            "source": "LeagueDashTeamShotLocations.ShotLocations.BACKCOURT_FG_PCT",
+            "description": "Backcourt field goal percentage",
+        },
     )
 
 

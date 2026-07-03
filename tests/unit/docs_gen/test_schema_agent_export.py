@@ -21,3 +21,12 @@ def test_export_covers_all_star_tables_with_grain_and_intents() -> None:
     missing_intents = [item["table"] for item in payload["tables"] if not item.get("agent_intents")]
     assert missing_grain == []
     assert missing_intents == []
+
+
+def test_export_covers_all_star_columns_with_descriptions() -> None:
+    payload = export_schema_agent_metadata()
+
+    columns = [column for table in payload["tables"] for column in table["columns"]]
+    assert columns
+    assert all(column["description"] for column in columns)
+    assert all(column["description_source"] in {"metadata", "generated"} for column in columns)

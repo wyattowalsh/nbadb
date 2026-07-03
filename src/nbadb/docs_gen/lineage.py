@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandera.polars as pa
 from loguru import logger
+
+from nbadb.schemas.registry import _star_schema_registry
+
+if TYPE_CHECKING:
+    from nbadb.schemas.base import BaseSchema
 
 
 def _safe_mermaid_id(name: str) -> str:
@@ -96,36 +98,11 @@ class LineageGenerator:
 
     def _discover_schemas(
         self, package_name: str = "nbadb.schemas.star"
-    ) -> list[tuple[str, type[pa.DataFrameModel]]]:
-        """Discover schema classes."""
-        schemas: list[tuple[str, type[pa.DataFrameModel]]] = []
-        try:
-            pkg = importlib.import_module(package_name)
-        except ImportError:
-            return schemas
-
-        pkg_path = getattr(pkg, "__path__", None)
-        if pkg_path is None:
-            return schemas
-
-        for module_path in Path(pkg_path[0]).glob("*.py"):
-            if module_path.name.startswith("_"):
-                continue
-            module_name = f"{package_name}.{module_path.stem}"
-            try:
-                mod = importlib.import_module(module_name)
-            except ImportError:
-                continue
-
-            for name, obj in inspect.getmembers(mod, inspect.isclass):
-                if (
-                    issubclass(obj, pa.DataFrameModel)
-                    and obj is not pa.DataFrameModel
-                    and obj.__module__ == module_name
-                    and not name.startswith("_")  # Skip mixin classes
-                ):
-                    schemas.append((name, obj))
-        return schemas
+    ) -> list[tuple[str, type[BaseSchema]]]:
+        """Return public star schemas from the registry source of truth."""
+        if package_name != "nbadb.schemas.star":
+            return []
+        return sorted(_star_schema_registry().items())
 
     def _table_name_from_class(self, class_name: str) -> str:
         """Convert class name to table name."""
@@ -164,8 +141,8 @@ class LineageGenerator:
         schemas = self._discover_schemas()
         graph: dict[str, Any] = {}
 
-        for class_name, schema_cls in schemas:
-            table_name = self._table_name_from_class(class_name)
+        for table_name, schema_cls in schemas:
+            class_name = schema_cls.__name__
             columns: dict[str, dict[str, str]] = {}
             schema = schema_cls.to_schema()
 

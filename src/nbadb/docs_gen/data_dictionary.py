@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandera.polars as pa
 from loguru import logger
+
+from nbadb.core.field_docs import resolved_field_description
+from nbadb.schemas.registry import (
+    _raw_schema_registry,
+    _staging_schema_registry,
+    _star_schema_registry,
+)
+
+if TYPE_CHECKING:
+    from nbadb.schemas.base import BaseSchema
 
 
 class DataDictionaryGenerator:
@@ -22,44 +29,30 @@ class DataDictionaryGenerator:
         "nbadb.schemas.staging",
         "nbadb.schemas.raw",
     ]
+    SCHEMA_REGISTRIES = {
+        "raw": _raw_schema_registry,
+        "staging": _staging_schema_registry,
+        "star": _star_schema_registry,
+    }
 
     def __init__(self, output_dir: Path | None = None) -> None:
         self.output_dir = output_dir or Path("docs/content/docs/data-dictionary")
 
-    def _discover_schemas(self, package_name: str) -> list[tuple[str, type[pa.DataFrameModel]]]:
-        """Discover all DataFrameModel subclasses in a package."""
-        schemas: list[tuple[str, type[pa.DataFrameModel]]] = []
-        try:
-            pkg = importlib.import_module(package_name)
-        except ImportError:
-            logger.warning(f"Could not import {package_name}")
-            return schemas
+    def _discover_schemas(self, tier: str) -> list[tuple[str, type[BaseSchema]]]:
+        """Return public schemas for a tier using the registry source of truth."""
+        registry_factory = self.SCHEMA_REGISTRIES.get(tier)
+        if registry_factory is None:
+            logger.warning(f"Unknown schema tier {tier}")
+            return []
+        return sorted(registry_factory().items())
 
-        pkg_path = getattr(pkg, "__path__", None)
-        if pkg_path is None:
-            return schemas
-
-        for module_path in Path(pkg_path[0]).glob("*.py"):
-            if module_path.name.startswith("_"):
-                continue
-            module_name = f"{package_name}.{module_path.stem}"
-            try:
-                mod = importlib.import_module(module_name)
-            except ImportError:
-                logger.warning(f"Could not import {module_name}")
-                continue
-
-            for name, obj in inspect.getmembers(mod, inspect.isclass):
-                if (
-                    issubclass(obj, pa.DataFrameModel)
-                    and obj is not pa.DataFrameModel
-                    and obj.__module__ == module_name
-                    and not name.startswith("_")
-                ):
-                    schemas.append((name, obj))
-        return schemas
-
-    def _extract_fields(self, schema_cls: type[pa.DataFrameModel]) -> list[dict[str, Any]]:
+    def _extract_fields(
+        self,
+        schema_cls: type[BaseSchema],
+        *,
+        table_name: str,
+        tier: str,
+    ) -> list[dict[str, Any]]:
         """Extract field metadata from a schema class."""
         fields: list[dict[str, Any]] = []
         schema = schema_cls.to_schema()
@@ -68,13 +61,20 @@ class DataDictionaryGenerator:
             nullable = getattr(col, "nullable", False)
             dtype = getattr(col, "dtype", None)
             type_str = str(dtype) if dtype else "unknown"
+            description, description_source = resolved_field_description(
+                metadata.get("description", ""),
+                col_name,
+                table_name=table_name,
+                tier=tier,
+            )
 
             fields.append(
                 {
                     "name": col_name,
                     "type": type_str,
                     "nullable": nullable,
-                    "description": metadata.get("description", ""),
+                    "description": description,
+                    "description_source": description_source,
                     "source": metadata.get("source", ""),
                     "fk_ref": metadata.get("fk_ref", ""),
                 }
@@ -96,8 +96,7 @@ class DataDictionaryGenerator:
 
     def generate_mdx(self, tier: str = "star") -> str:
         """Generate MDX content for a schema tier."""
-        package = f"nbadb.schemas.{tier}"
-        schemas = self._discover_schemas(package)
+        schemas = self._discover_schemas(tier)
         if not schemas:
             return f"# Data Dictionary — {tier.title()}\n\nNo schemas found.\n"
 
@@ -111,9 +110,8 @@ class DataDictionaryGenerator:
             "",
         ]
 
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
-            fields = self._extract_fields(schema_cls)
+        for table_name, schema_cls in schemas:
+            fields = self._extract_fields(schema_cls, table_name=table_name, tier=tier)
             lines.append(f"## {table_name}")
             lines.append("")
             lines.append("| Column | Type | Nullable | Description | Source |")
@@ -132,22 +130,22 @@ class DataDictionaryGenerator:
 
     def generate_json(self, tier: str = "star") -> str:
         """Generate JSON data dictionary for programmatic use."""
-        package = f"nbadb.schemas.{tier}"
-        schemas = self._discover_schemas(package)
+        schemas = self._discover_schemas(tier)
         result: dict[str, Any] = {}
-        for class_name, schema_cls in schemas:
-            table_name = self._table_name_from_class(class_name)
-            result[table_name] = self._extract_fields(schema_cls)
+        for table_name, schema_cls in schemas:
+            result[table_name] = self._extract_fields(
+                schema_cls,
+                table_name=table_name,
+                tier=tier,
+            )
         return json.dumps(result, indent=2)
 
     def generate_tier_json(self, tier: str = "star") -> list[dict[str, Any]]:
         """Generate JSON data dictionary for a tier."""
-        package = f"nbadb.schemas.{tier}"
-        schemas = self._discover_schemas(package)
+        schemas = self._discover_schemas(tier)
         result: list[dict[str, Any]] = []
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
-            fields = self._extract_fields(schema_cls)
+        for table_name, schema_cls in schemas:
+            fields = self._extract_fields(schema_cls, table_name=table_name, tier=tier)
             result.append({"table_name": table_name, "fields": fields})
         return result
 

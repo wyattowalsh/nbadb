@@ -1151,11 +1151,47 @@ class StagingBoxScoreDefensivePlayerSchema(
             "description": ("Points allowed on defense"),
         },
     )
+    team_pts: float | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("BoxScoreDefensiveV2.PlayerStats.TEAM_PTS"),
+            "description": "Team points while the player was tracked defensively",
+        },
+    )
     defensive_rebounds: float | None = pa.Field(nullable=True, ge=0)
-    matchup_assists: float | None = pa.Field(nullable=True, ge=0)
-    matchup_turnovers: float | None = pa.Field(nullable=True, ge=0)
-    steals: float | None = pa.Field(nullable=True, ge=0)
-    blocks: float | None = pa.Field(nullable=True, ge=0)
+    matchup_assists: float | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("BoxScoreDefensiveV2.PlayerStats.MATCHUP_AST"),
+            "description": "Assists allowed in the defensive matchup",
+        },
+    )
+    matchup_turnovers: float | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("BoxScoreDefensiveV2.PlayerStats.MATCHUP_TOV"),
+            "description": "Turnovers forced in the defensive matchup",
+        },
+    )
+    steals: float | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("BoxScoreDefensiveV2.PlayerStats.STL"),
+            "description": "Steals credited in the defensive matchup",
+        },
+    )
+    blocks: float | None = pa.Field(
+        nullable=True,
+        ge=0,
+        metadata={
+            "source": ("BoxScoreDefensiveV2.PlayerStats.BLK"),
+            "description": "Blocks credited in the defensive matchup",
+        },
+    )
     def_fgm: float | None = pa.Field(
         nullable=True,
         ge=0,

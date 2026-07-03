@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from nbadb.core.field_docs import resolved_field_description
 from nbadb.schemas.consumer_metadata import infer_consumer_metadata
 from nbadb.schemas.registry import _star_schema_registry
 
@@ -19,15 +20,22 @@ def _schema_doc(schema_cls: type[BaseSchema]) -> str:
     return " ".join(doc.split())
 
 
-def _column_summaries(schema_cls: type[BaseSchema]) -> list[dict[str, Any]]:
+def _column_summaries(schema_cls: type[BaseSchema], *, table_name: str) -> list[dict[str, Any]]:
     schema = schema_cls.to_schema()
     summaries: list[dict[str, Any]] = []
     for column_name, column in schema.columns.items():
         metadata = dict(column.metadata or {})
+        description, description_source = resolved_field_description(
+            metadata.get("description"),
+            column_name,
+            table_name=table_name,
+            tier="star",
+        )
         summaries.append(
             {
                 "name": column_name,
-                "description": metadata.get("description"),
+                "description": description,
+                "description_source": description_source,
                 "fk_ref": metadata.get("fk_ref"),
                 "source": metadata.get("source"),
             }
@@ -62,7 +70,7 @@ def export_schema_agent_metadata() -> dict[str, Any]:
                 "agent_intents": intents,
                 "scd2_notes": consumer.get("scd2_notes"),
                 "join_hints": dict(consumer.get("join_hints", {}) or {}),
-                "columns": _column_summaries(schema_cls),
+                "columns": _column_summaries(schema_cls, table_name=table_name),
             }
         )
     return {

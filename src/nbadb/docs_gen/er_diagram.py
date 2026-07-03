@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pandera.polars as pa
 from loguru import logger
+
+from nbadb.schemas.registry import _star_schema_registry
+
+if TYPE_CHECKING:
+    from nbadb.schemas.base import BaseSchema
 
 
 class ERDiagramGenerator:
@@ -20,37 +23,9 @@ class ERDiagramGenerator:
 
     def _discover_schemas(
         self,
-    ) -> list[tuple[str, type[pa.DataFrameModel]]]:
-        """Discover all star schema classes."""
-        schemas: list[tuple[str, type[pa.DataFrameModel]]] = []
-        try:
-            pkg = importlib.import_module("nbadb.schemas.star")
-        except ImportError:
-            logger.warning("Could not import nbadb.schemas.star")
-            return schemas
-
-        pkg_path = getattr(pkg, "__path__", None)
-        if pkg_path is None:
-            return schemas
-
-        for module_path in Path(pkg_path[0]).glob("*.py"):
-            if module_path.name.startswith("_"):
-                continue
-            module_name = f"nbadb.schemas.star.{module_path.stem}"
-            try:
-                mod = importlib.import_module(module_name)
-            except ImportError:
-                continue
-
-            for name, obj in inspect.getmembers(mod, inspect.isclass):
-                if (
-                    issubclass(obj, pa.DataFrameModel)
-                    and obj is not pa.DataFrameModel
-                    and obj.__module__ == module_name
-                    and not name.startswith("_")  # Skip mixin classes
-                ):
-                    schemas.append((name, obj))
-        return schemas
+    ) -> list[tuple[str, type[BaseSchema]]]:
+        """Return public star schemas from the registry source of truth."""
+        return sorted(_star_schema_registry().items())
 
     def _table_name_from_class(self, class_name: str) -> str:
         """Convert class name to table name (CamelCase → snake_case)."""
@@ -66,7 +41,7 @@ class ERDiagramGenerator:
         return "".join(result)
 
     def _extract_relationships(
-        self, table_name: str, schema_cls: type[pa.DataFrameModel]
+        self, table_name: str, schema_cls: type[BaseSchema]
     ) -> list[dict[str, str]]:
         """Extract FK relationships from schema metadata."""
         rels: list[dict[str, str]] = []
@@ -94,7 +69,7 @@ class ERDiagramGenerator:
                 )
         return rels
 
-    def _extract_columns(self, schema_cls: type[pa.DataFrameModel]) -> list[dict[str, str]]:
+    def _extract_columns(self, schema_cls: type[BaseSchema]) -> list[dict[str, str]]:
         """Extract column info for ER entity block."""
         cols: list[dict[str, str]] = []
         annotations = {}
@@ -146,8 +121,7 @@ class ERDiagramGenerator:
         schemas = self._discover_schemas()
         tables: dict[str, dict[str, object]] = {}
 
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
+        for table_name, schema_cls in schemas:
             # Skip internal mixin/base classes
             if table_name.startswith("__") or table_name.startswith("_"):
                 continue
@@ -183,8 +157,7 @@ class ERDiagramGenerator:
         all_rels: list[dict[str, str]] = []
         table_cols: dict[str, list[dict[str, str]]] = {}
 
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
+        for table_name, schema_cls in schemas:
             if filter_prefix and not table_name.startswith(filter_prefix):
                 continue
             rels = self._extract_relationships(table_name, schema_cls)
@@ -228,8 +201,7 @@ class ERDiagramGenerator:
         table_cols: dict[str, list[dict[str, str]]] = {}
         family_tables: set[str] = set()
 
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
+        for table_name, schema_cls in schemas:
             if not any(table_name.startswith(p) for p in family_prefixes):
                 continue
             family_tables.add(table_name)
@@ -245,8 +217,7 @@ class ERDiagramGenerator:
                 cross_tables.add(rel["to_table"])
 
         # Add cross-family target entities (columns discovered from schemas)
-        for class_name, schema_cls in sorted(schemas, key=lambda x: x[0]):
-            table_name = self._table_name_from_class(class_name)
+        for table_name, schema_cls in schemas:
             if table_name in cross_tables and table_name not in table_cols:
                 table_cols[table_name] = self._extract_columns(schema_cls)
 
