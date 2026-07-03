@@ -9,6 +9,7 @@ import pytest
 
 from nbadb.orchestrate.extraction_contract import (
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
+    SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969,
     EndpointSupportRule,
 )
 
@@ -430,6 +431,69 @@ def test_build_payload_classifies_early_season_lane_as_contract_blocked(
     assert payload["status"] == "contract_blocked"
     assert payload["telemetry"]["zero_row_reason"] == "contract_blocked"
     assert len(payload["support_rules"]) == len(EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS)
+
+
+@pytest.mark.parametrize(
+    ("endpoint_name", "season_start", "season_end"),
+    [
+        ("draft_history", "1970", "1996"),
+        ("schedule_int", "1970", "1999"),
+        ("ist_standings", "1970", "2020"),
+        *(
+            (endpoint_name, "2024", "2024")
+            for endpoint_name in SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969
+        ),
+    ],
+)
+def test_build_payload_classifies_post_1969_season_endpoint_as_contract_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    endpoint_name: str,
+    season_start: str,
+    season_end: str,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 0,
+                    "failed_extractions": 3,
+                    "skipped_extractions": 0,
+                    "tables_updated": 0,
+                },
+                "progress": {
+                    "patterns": [{"total": 3}],
+                    "totals": {"rows_extracted": 0, "failed": 3},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv(
+        "LANE_ID",
+        f"historical-season-{endpoint_name}-no-season-type-{season_start}-{season_end}",
+    )
+    monkeypatch.setenv("NAME", f"Historical season {endpoint_name}")
+    monkeypatch.setenv("PATTERNS", "season")
+    monkeypatch.setenv("ENDPOINTS", endpoint_name)
+    monkeypatch.setenv("SEASON_START", season_start)
+    monkeypatch.setenv("SEASON_END", season_end)
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.setenv("EXTRACT_STATUS", "extract-error")
+    monkeypatch.setenv("EXTRACT_EXIT_CODE", "1")
+    monkeypatch.setenv("EFFECTIVE_NETWORK_MODE", "direct")
+    monkeypatch.setenv("VPN_STATUS", "direct-no-vpn")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "contract_blocked"
+    assert payload["telemetry"]["zero_row_reason"] == "contract_blocked"
+    assert [rule["endpoint_name"] for rule in payload["support_rules"]] == [endpoint_name]
 
 
 def test_build_payload_keeps_undocumented_zero_row_error_as_pipeline_failure(

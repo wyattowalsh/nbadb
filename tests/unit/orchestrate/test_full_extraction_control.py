@@ -9,6 +9,8 @@ import pytest
 
 from nbadb.orchestrate.extraction_contract import (
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
+    SEASON_ENDPOINTS_SUPPORTED_FROM_1997,
+    SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969,
     EndpointSupportRule,
 )
 from nbadb.orchestrate.full_extraction_control import (
@@ -170,10 +172,11 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
         lane for lane in lanes if lane.lane_kind == "historical" and lane.patterns == ("season",)
     ]
     assert season_lanes[0].lane_id == (
-        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1953"
+        "historical-season-league-dash-pt-defend-regular-season-playoffs-pre-season-all-star-"
+        "2013-2020"
     )
     assert season_lanes[-1].lane_id == (
-        "historical-season-regular-season-playoffs-pre-season-all-star-2021-2025"
+        "historical-season-league-game-log-regular-season-playoffs-pre-season-all-star-2018-2025"
     )
     assert season_lanes[0].season_types == (
         "Regular Season",
@@ -181,6 +184,10 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
         "Pre Season",
         "All Star",
     )
+    assert {lane.endpoints for lane in season_lanes} == {
+        ("league_dash_pt_defend",),
+        ("league_game_log",),
+    }
     assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in season_lanes)
 
     cross_product_lanes = [lane for lane in lanes if lane.lane_kind == "cross_product"]
@@ -650,10 +657,10 @@ def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
     )
 
     assert lanes[0].lane_id == (
-        "historical-season-regular-season-playoffs-pre-season-all-star-1946-1953"
+        "historical-season-league-game-log-regular-season-playoffs-pre-season-all-star-1946-1953"
     )
     assert lanes[-1].lane_id == (
-        "historical-season-regular-season-playoffs-pre-season-all-star-2018-2025"
+        "historical-season-league-game-log-regular-season-playoffs-pre-season-all-star-2018-2025"
     )
     assert len(lanes) == 10
     assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in lanes)
@@ -810,9 +817,19 @@ def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
     assert any("box_score_summary" in lane.endpoints for lane in lanes)
 
 
-@pytest.mark.parametrize("endpoint_name", EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS)
-def test_build_default_manifest_excludes_known_early_season_contract_gaps_from_initial_plan(
+@pytest.mark.parametrize(
+    ("endpoint_name", "expected_first_supported_season"),
+    [
+        *((endpoint_name, 1997) for endpoint_name in SEASON_ENDPOINTS_SUPPORTED_FROM_1997),
+        ("schedule_int", 2000),
+        ("ist_standings", 2021),
+        ("playoff_picture", 1970),
+        ("player_streak_finder", 1970),
+    ],
+)
+def test_build_default_manifest_excludes_known_season_contract_gaps_from_initial_plan(
     endpoint_name: str,
+    expected_first_supported_season: int,
 ) -> None:
     rows = [_support_row(endpoint_name, ["season"], 1946)]
 
@@ -823,14 +840,58 @@ def test_build_default_manifest_excludes_known_early_season_contract_gaps_from_i
 
     assert lanes
     assert all(endpoint_name in lane.endpoints for lane in lanes)
-    assert all(lane.season_start is not None and lane.season_start >= 1970 for lane in lanes)
+    assert min(lane.season_start for lane in lanes if lane.season_start is not None) == (
+        expected_first_supported_season
+    )
+    assert all(
+        lane.season_start is not None and lane.season_start >= expected_first_supported_season
+        for lane in lanes
+    )
     assert not any(
         lane.season_start is not None
         and lane.season_end is not None
         and lane.season_start <= blocked_year <= lane.season_end
         for lane in lanes
-        for blocked_year in range(1961, 1970)
+        for blocked_year in range(1946, expected_first_supported_season)
     )
+
+
+@pytest.mark.parametrize("endpoint_name", SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969)
+def test_build_default_manifest_rejects_unscoped_season_contract_gap_endpoint(
+    endpoint_name: str,
+) -> None:
+    rows = [_support_row(endpoint_name, ["season"], 1946)]
+
+    with pytest.raises(ValueError, match="produced no runnable lanes"):
+        build_default_manifest(
+            support_matrix_rows=rows,
+            selected_endpoints=[endpoint_name],
+        )
+
+
+def test_build_default_manifest_isolates_season_endpoint_contract_windows() -> None:
+    rows = [
+        _support_row("playoff_picture", ["season"], 1946),
+        _support_row("draft_history", ["season"], 1946),
+        _support_row("schedule_int", ["season"], 1946),
+        _support_row("ist_standings", ["season"], 1946),
+        _support_row("player_career_by_college", ["season"], 1946),
+        _support_row("team_game_streak_finder", ["season"], 1946),
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+
+    assert all(len(lane.endpoints) == 1 for lane in lanes)
+    lanes_by_endpoint: dict[str, list[FullExtractionLane]] = {}
+    for lane in lanes:
+        lanes_by_endpoint.setdefault(lane.endpoints[0], []).append(lane)
+
+    assert min(lane.season_start for lane in lanes_by_endpoint["playoff_picture"]) == 1970
+    assert min(lane.season_start for lane in lanes_by_endpoint["draft_history"]) == 1997
+    assert min(lane.season_start for lane in lanes_by_endpoint["schedule_int"]) == 2000
+    assert min(lane.season_start for lane in lanes_by_endpoint["ist_standings"]) == 2021
+    assert "player_career_by_college" not in lanes_by_endpoint
+    assert "team_game_streak_finder" not in lanes_by_endpoint
 
 
 @pytest.mark.parametrize(
@@ -1617,6 +1678,54 @@ def test_build_resume_manifest_blocks_early_season_endpoint_contract_gap(
         raw_status="extract-error",
         failed_calls=48,
         endpoints=list(lane.endpoints),
+        patterns=["season"],
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+
+@pytest.mark.parametrize(
+    ("endpoint_name", "season_start", "season_end"),
+    [
+        ("draft_history", 1970, 1996),
+        ("schedule_int", 1970, 1999),
+        ("ist_standings", 1970, 2020),
+        ("player_career_by_college", 2024, 2024),
+        ("team_game_streak_finder", 2024, 2024),
+    ],
+)
+def test_build_resume_manifest_blocks_post_1969_season_endpoint_contract_gaps(
+    tmp_path: Path,
+    endpoint_name: str,
+    season_start: int,
+    season_end: int,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id=f"historical-season-{endpoint_name}-no-season-type-{season_start}-{season_end}",
+        lane_index=3,
+        lane_name=f"Historical season {endpoint_name} {season_start}-{season_end}",
+        lane_kind="historical",
+        season_start=season_start,
+        season_end=season_end,
+        patterns=("season",),
+        endpoints=(endpoint_name,),
+        timeout_seconds=7200,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "historical.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-error",
+        failed_calls=3,
+        endpoints=[endpoint_name],
         patterns=["season"],
         season_start=lane.season_start,
         season_end=lane.season_end,

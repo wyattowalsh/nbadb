@@ -125,6 +125,26 @@ EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS: tuple[str, ...] = (
     "team_game_streak_finder",
 )
 
+SEASON_ENDPOINTS_SUPPORTED_FROM_1997: tuple[str, ...] = (
+    "common_playoff_series",
+    "draft_board",
+    "draft_combine_drill_results",
+    "draft_combine_non_stationary_shooting",
+    "draft_combine_player_anthro",
+    "draft_combine_spot_shooting",
+    "draft_combine_stats",
+    "draft_history",
+    "league_season_matchups",
+    "player_index",
+    "schedule",
+    "shot_chart_league_wide",
+)
+
+SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969: tuple[str, ...] = (
+    "player_career_by_college",
+    "team_game_streak_finder",
+)
+
 
 def _early_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
     return EndpointSupportRule(
@@ -257,6 +277,120 @@ def _late_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
     )
 
 
+def _post_1969_pre_1997_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats season-level extraction returned no usable result sets "
+            "for this endpoint from 1970-71 through 1996-97 in full extraction, "
+            "while local current-runtime probes show the endpoint is callable "
+            "from the 1997-98 season."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction runs 28684723560 and 28685994721 "
+            "reported repeated TransientError failures for this endpoint in "
+            "historical-season-no-season-type lanes covering 1970-1972 through "
+            "1994-1996, while playoff_picture in the same lanes persisted rows. "
+            "A 2026-07-03 local probe against nba_api 1.11.4 verified callable "
+            "1997-98 responses for this endpoint."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern season "
+            f"--endpoint {endpoint_name} --seasons 1970:1996 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1970,
+        season_end=1996,
+    )
+
+
+def _post_1969_pre_2000_schedule_int_contract_gap() -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name="schedule_int",
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats ScheduleLeagueV2Int season extraction failed for "
+            "1970-71 through 1996-97 in full extraction and fails local "
+            "1997-98 probing, while 2000-01 returns a usable schedule payload."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction runs 28684723560 and 28685994721 "
+            "reported repeated schedule_int TransientError failures in "
+            "historical-season-no-season-type lanes covering 1970-1972 through "
+            "1994-1996. A 2026-07-03 local probe against nba_api 1.11.4 returned "
+            "IndexError for 1997-98 and a 1,375-row multi-frame payload for "
+            "2000-01."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern season "
+            "--endpoint schedule_int --seasons 1970:1999 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1970,
+        season_end=1999,
+    )
+
+
+def _post_1969_pre_2021_ist_standings_contract_gap() -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name="ist_standings",
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats IST standings are unavailable for pre-2021 seasons in "
+            "the season backfill contract; legacy seasons return unusable JSON "
+            "responses instead of empty result sets."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction runs 28684723560 and 28685994721 "
+            "reported repeated ist_standings TransientError failures in "
+            "historical-season-no-season-type lanes covering 1970-1972 through "
+            "1994-1996. A 2026-07-03 local probe against nba_api 1.11.4 returned "
+            "JSONDecodeError for 1997-98 through 2016-17 and a handled empty "
+            "frame for 2021-22."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern season "
+            "--endpoint ist_standings --seasons 1970:2020 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1970,
+        season_end=2020,
+    )
+
+
+def _post_1969_unscoped_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "This endpoint is not usable as an unscoped season-wide full-"
+            "extraction lane after 1969-70; current-runtime probes still fail "
+            "without the endpoint-specific filter context the NBA Stats API "
+            "expects."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction runs 28684723560 and 28685994721 "
+            "reported repeated TransientError failures for this endpoint in "
+            "historical-season-no-season-type lanes covering 1970-1972 through "
+            "1994-1996. A 2026-07-03 local probe against nba_api 1.11.4 found "
+            "no supported candidate season from 1997-98 through 2024-25 for "
+            "the unscoped season backfill call."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern season "
+            f"--endpoint {endpoint_name} --seasons 1970:2025 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1970,
+        season_end=None,
+    )
+
+
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     *(
         _early_season_contract_gap(endpoint_name)
@@ -273,6 +407,16 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     *(
         _late_1960s_season_contract_gap(endpoint_name)
         for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS
+    ),
+    *(
+        _post_1969_pre_1997_season_contract_gap(endpoint_name)
+        for endpoint_name in SEASON_ENDPOINTS_SUPPORTED_FROM_1997
+    ),
+    _post_1969_pre_2000_schedule_int_contract_gap(),
+    _post_1969_pre_2021_ist_standings_contract_gap(),
+    *(
+        _post_1969_unscoped_season_contract_gap(endpoint_name)
+        for endpoint_name in SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969
     ),
     EndpointSupportRule(
         endpoint_name="win_probability",

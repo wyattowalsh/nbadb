@@ -66,12 +66,14 @@ HISTORICAL_MAX_SPAN_BY_PATTERN: dict[str, int] = {
     "player_season": 6,
     "team_season": 8,
 }
-HISTORICAL_ENDPOINT_ISOLATION_PATTERNS = frozenset({"date", "game"})
+HISTORICAL_ENDPOINT_ISOLATION_PATTERNS = frozenset({"date", "game", "season"})
 """High-volume historical patterns that must be planned per endpoint.
 
 The support matrix is endpoint/table-oriented, but date/game extraction can be
-much slower than the broad season sweeps. Isolating these lanes keeps a slow or
-rate-limited endpoint from blocking unrelated endpoint/time-period coverage.
+much slower than the broad season sweeps, and season-level endpoint availability
+varies sharply by endpoint. Isolating these lanes keeps a slow, rate-limited, or
+temporally unsupported endpoint from blocking unrelated endpoint/time-period
+coverage.
 """
 CROSS_PRODUCT_MAX_SPAN = 4
 CHUNK_PROFILE_MAX_SPAN_BY_PATTERN: dict[str, dict[str, dict[str, int]]] = {
