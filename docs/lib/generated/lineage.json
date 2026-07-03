@@ -5974,7 +5974,7 @@
         "team_id": {
           "endpoint": "BoxScoreAdvancedV3",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStats"
         },
         "team_name": {
@@ -6043,7 +6043,7 @@
         "team_id": {
           "endpoint": "BoxScoreDefensiveV2",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStats"
         },
         "team_name": {
@@ -6200,7 +6200,7 @@
         "team_id": {
           "endpoint": "BoxScoreFourFactorsV3",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStats"
         },
         "team_name": {
@@ -6334,7 +6334,7 @@
         "player_id": {
           "endpoint": "BoxScoreHustleV2",
           "field": "PLAYER_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "PlayerStats"
         },
         "player_name": {
@@ -6380,7 +6380,7 @@
         "team_id": {
           "endpoint": "BoxScoreHustleV2",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "PlayerStats"
         },
         "team_name": {
@@ -6489,7 +6489,7 @@
         "team_id": {
           "endpoint": "BoxScoreMiscV3",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStats"
         },
         "team_name": {
@@ -6618,7 +6618,7 @@
         "team_id": {
           "endpoint": "BoxScorePlayerTrackV3",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStats"
         },
         "team_name": {
@@ -6757,7 +6757,7 @@
         "team_id": {
           "endpoint": "BoxScoreScoringV3",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStats"
         },
         "team_name": {
@@ -6896,7 +6896,7 @@
         "team_id": {
           "endpoint": "BoxScoreTraditionalV3",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStarterBenchStats"
         },
         "team_name": {
@@ -7142,7 +7142,7 @@
         "away_team_id": {
           "endpoint": "BoxScoreSummaryV3",
           "field": "awayTeamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "GameSummary"
         },
         "duration": {
@@ -7189,7 +7189,7 @@
         "home_team_id": {
           "endpoint": "BoxScoreSummaryV3",
           "field": "homeTeamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "GameSummary"
         },
         "period": {
@@ -7252,13 +7252,13 @@
         "person_id": {
           "endpoint": "BoxScoreSummaryV3",
           "field": "personId",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "InactivePlayers"
         },
         "team_id": {
           "endpoint": "BoxScoreSummaryV3",
           "field": "teamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "InactivePlayers"
         }
       }
@@ -7455,7 +7455,7 @@
         "team_id": {
           "endpoint": "BoxScoreSummaryV3",
           "field": "teamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LineScore"
         },
         "team_losses": {
@@ -7660,7 +7660,7 @@
         "team_id": {
           "endpoint": "BoxScoreSummaryV3",
           "field": "teamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "OtherStats"
         },
         "team_name": {
@@ -7851,7 +7851,7 @@
         "team_id": {
           "endpoint": "BoxScoreTraditionalV3",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamStats"
         },
         "team_name": {
@@ -7985,7 +7985,7 @@
           "result_set": "fact_box_score_usage_team"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -9947,7 +9947,7 @@
         "player_id": {
           "endpoint": "DraftCombineStats",
           "field": "PLAYER_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "DraftCombineStats"
         },
         "player_name": {
@@ -10110,7 +10110,7 @@
         "person_id": {
           "endpoint": "DraftHistory",
           "field": "PERSON_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "DraftHistory"
         },
         "player_name": {
@@ -10151,7 +10151,7 @@
         "team_id": {
           "endpoint": "DraftHistory",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "DraftHistory"
         },
         "team_name": {
@@ -10185,100 +10185,6 @@
       "class_name": "FactDunkScoreLeadersTransformer",
       "columns": ["*"],
       "source_tables": ["stg_dunk_score_leaders"]
-    }
-  },
-  "fact_estimated_metrics": {
-    "schema_lineage": {
-      "class": "FactEstimatedMetricsSchema",
-      "columns": {
-        "e_ast_ratio": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_AST_RATIO",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_def_rating": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_DEF_RATING",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_dreb_pct": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_DREB_PCT",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_net_rating": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_NET_RATING",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_off_rating": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_OFF_RATING",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_oreb_pct": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_OREB_PCT",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_pace": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_PACE",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_reb_pct": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_REB_PCT",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_tov_pct": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_TOV_PCT",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "e_usg_pct": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "E_USG_PCT",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "gp": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "GP",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "l": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "L",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "min": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "MIN",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "player_id": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "PLAYER_ID",
-          "fk_ref": "dim_player.player_id",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "season_year": {
-          "endpoint": "derived",
-          "field": "season_year",
-          "result_set": ""
-        },
-        "team_id": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "TEAM_ID",
-          "fk_ref": "dim_team.team_id",
-          "result_set": "PlayerEstimatedMetrics"
-        },
-        "w": {
-          "endpoint": "PlayerEstimatedMetrics",
-          "field": "W",
-          "result_set": "PlayerEstimatedMetrics"
-        }
-      }
     }
   },
   "fact_fantasy": {
@@ -12292,7 +12198,7 @@
           "result_set": "fact_ist_standings"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -12645,7 +12551,7 @@
         "player_id": {
           "endpoint": "LeagueDashPlayerStats",
           "field": "PLAYER_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "LeagueDashPlayerStats"
         },
         "player_name": {
@@ -12711,7 +12617,7 @@
         "team_id": {
           "endpoint": "LeagueDashPlayerStats",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LeagueDashPlayerStats"
         },
         "tov": {
@@ -12999,7 +12905,7 @@
         "team_id": {
           "endpoint": "LeagueDashTeamStats",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LeagueDashTeamStats"
         },
         "team_name": {
@@ -13173,7 +13079,7 @@
         "team_id": {
           "endpoint": "LeagueGameFinder",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LeagueGameFinderResults"
         },
         "team_name": {
@@ -13713,7 +13619,7 @@
           "result_set": "fact_league_opp_pt_shot"
         },
         "player_id": {
-          "fk_ref": "staging_player.person_id"
+          "fk_ref": "dim_player.player_id"
         },
         "player_name": {
           "endpoint": "derived",
@@ -13736,7 +13642,7 @@
           "result_set": "fact_league_opp_pt_shot"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -13861,7 +13767,7 @@
           "result_set": "fact_league_player_pt_shot"
         },
         "player_id": {
-          "fk_ref": "staging_player.person_id"
+          "fk_ref": "dim_player.player_id"
         },
         "player_last_team_abbreviation": {
           "endpoint": "derived",
@@ -13869,7 +13775,7 @@
           "result_set": "fact_league_player_pt_shot"
         },
         "player_last_team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "player_name": {
           "endpoint": "derived",
@@ -13892,7 +13798,7 @@
           "result_set": "fact_league_player_pt_shot"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -13911,6 +13817,41 @@
     "schema_lineage": {
       "class": "FactLeaguePlayerShotLocationsSchema",
       "columns": {
+        "above_the_break_3_fg_pct": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "above_the_break_3_fga": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "above_the_break_3_fgm": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FGM",
+          "result_set": "ShotLocations"
+        },
+        "age": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "AGE",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fg_pct": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "BACKCOURT_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fga": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "BACKCOURT_FGA",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fgm": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "BACKCOURT_FGM",
+          "result_set": "ShotLocations"
+        },
         "fg_pct": {
           "endpoint": "derived",
           "field": "fg_pct",
@@ -13926,13 +13867,88 @@
           "field": "fgm",
           "result_set": "fact_league_player_shot_locations"
         },
+        "in_the_paint_non_ra_fg_pct": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "in_the_paint_non_ra_fga": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FGA",
+          "result_set": "ShotLocations"
+        },
+        "in_the_paint_non_ra_fgm": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FGM",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fg_pct": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "LEFT_CORNER_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fga": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "LEFT_CORNER_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fgm": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "LEFT_CORNER_3_FGM",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fg_pct": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "MID_RANGE_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fga": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "MID_RANGE_FGA",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fgm": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "MID_RANGE_FGM",
+          "result_set": "ShotLocations"
+        },
         "player_id": {
-          "fk_ref": "staging_player.person_id"
+          "fk_ref": "dim_player.player_id"
         },
         "player_name": {
           "endpoint": "derived",
           "field": "player_name",
           "result_set": "fact_league_player_shot_locations"
+        },
+        "restricted_area_fg_pct": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "RESTRICTED_AREA_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fga": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "RESTRICTED_AREA_FGA",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fgm": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "RESTRICTED_AREA_FGM",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fg_pct": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "RIGHT_CORNER_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fga": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "RIGHT_CORNER_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fgm": {
+          "endpoint": "LeagueDashPlayerShotLocations",
+          "field": "RIGHT_CORNER_3_FGM",
+          "result_set": "ShotLocations"
         },
         "season_year": {
           "endpoint": "derived",
@@ -13960,7 +13976,7 @@
           "result_set": "fact_league_player_shot_locations"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         }
       }
     },
@@ -14149,7 +14165,7 @@
           "result_set": "fact_league_pt_shots"
         },
         "player_id": {
-          "fk_ref": "staging_player.person_id"
+          "fk_ref": "dim_player.player_id"
         },
         "player_name": {
           "endpoint": "derived",
@@ -14177,7 +14193,7 @@
           "result_set": "fact_league_pt_shots"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -14348,7 +14364,7 @@
           "result_set": "fact_league_pt_stats"
         },
         "player_id": {
-          "fk_ref": "staging_player.person_id"
+          "fk_ref": "dim_player.player_id"
         },
         "player_name": {
           "endpoint": "derived",
@@ -14371,7 +14387,7 @@
           "result_set": "fact_league_pt_stats"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -14531,7 +14547,7 @@
           "result_set": "fact_league_pt_team_defend"
         },
         "player_id": {
-          "fk_ref": "staging_player.person_id"
+          "fk_ref": "dim_player.player_id"
         },
         "player_name": {
           "endpoint": "derived",
@@ -14554,7 +14570,7 @@
           "result_set": "fact_league_pt_team_defend"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -14573,6 +14589,36 @@
     "schema_lineage": {
       "class": "FactLeagueShotLocationsSchema",
       "columns": {
+        "above_the_break_3_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "above_the_break_3_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "above_the_break_3_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FGM",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "BACKCOURT_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "BACKCOURT_FGA",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "BACKCOURT_FGM",
+          "result_set": "ShotLocations"
+        },
         "fg_pct": {
           "endpoint": "derived",
           "field": "fg_pct",
@@ -14587,6 +14633,81 @@
           "endpoint": "derived",
           "field": "fgm",
           "result_set": "fact_league_shot_locations"
+        },
+        "in_the_paint_non_ra_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "in_the_paint_non_ra_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FGA",
+          "result_set": "ShotLocations"
+        },
+        "in_the_paint_non_ra_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FGM",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "LEFT_CORNER_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "LEFT_CORNER_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "LEFT_CORNER_3_FGM",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "MID_RANGE_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "MID_RANGE_FGA",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "MID_RANGE_FGM",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RESTRICTED_AREA_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RESTRICTED_AREA_FGA",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RESTRICTED_AREA_FGM",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RIGHT_CORNER_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RIGHT_CORNER_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RIGHT_CORNER_3_FGM",
+          "result_set": "ShotLocations"
         },
         "season_year": {
           "endpoint": "derived",
@@ -14609,7 +14730,7 @@
           "result_set": "fact_league_shot_locations"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -14874,7 +14995,7 @@
           "result_set": "fact_league_team_clutch"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -15024,7 +15145,7 @@
           "result_set": "fact_league_team_pt_shot"
         },
         "player_id": {
-          "fk_ref": "staging_player.person_id"
+          "fk_ref": "dim_player.player_id"
         },
         "player_name": {
           "endpoint": "derived",
@@ -15047,7 +15168,7 @@
           "result_set": "fact_league_team_pt_shot"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -15066,6 +15187,36 @@
     "schema_lineage": {
       "class": "FactLeagueTeamShotLocationsSchema",
       "columns": {
+        "above_the_break_3_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "above_the_break_3_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "above_the_break_3_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "ABOVE_THE_BREAK_3_FGM",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "BACKCOURT_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "BACKCOURT_FGA",
+          "result_set": "ShotLocations"
+        },
+        "backcourt_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "BACKCOURT_FGM",
+          "result_set": "ShotLocations"
+        },
         "fg_pct": {
           "endpoint": "derived",
           "field": "fg_pct",
@@ -15080,6 +15231,81 @@
           "endpoint": "derived",
           "field": "fgm",
           "result_set": "fact_league_team_shot_locations"
+        },
+        "in_the_paint_non_ra_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "in_the_paint_non_ra_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FGA",
+          "result_set": "ShotLocations"
+        },
+        "in_the_paint_non_ra_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "IN_THE_PAINT_NON_RA_FGM",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "LEFT_CORNER_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "LEFT_CORNER_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "left_corner_3_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "LEFT_CORNER_3_FGM",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "MID_RANGE_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "MID_RANGE_FGA",
+          "result_set": "ShotLocations"
+        },
+        "mid_range_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "MID_RANGE_FGM",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RESTRICTED_AREA_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RESTRICTED_AREA_FGA",
+          "result_set": "ShotLocations"
+        },
+        "restricted_area_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RESTRICTED_AREA_FGM",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fg_pct": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RIGHT_CORNER_3_FG_PCT",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fga": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RIGHT_CORNER_3_FGA",
+          "result_set": "ShotLocations"
+        },
+        "right_corner_3_fgm": {
+          "endpoint": "LeagueDashTeamShotLocations",
+          "field": "RIGHT_CORNER_3_FGM",
+          "result_set": "ShotLocations"
         },
         "season_year": {
           "endpoint": "derived",
@@ -15102,7 +15328,7 @@
           "result_set": "fact_league_team_shot_locations"
         },
         "team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "team_name": {
           "endpoint": "derived",
@@ -16028,7 +16254,7 @@
         "player1_id": {
           "endpoint": "PlayByPlayV2",
           "field": "PLAYER1_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "PlayByPlay"
         },
         "player1_name": {
@@ -16049,7 +16275,7 @@
         "player1_team_id": {
           "endpoint": "PlayByPlayV2",
           "field": "PLAYER1_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "PlayByPlay"
         },
         "player1_team_nickname": {
@@ -16060,7 +16286,7 @@
         "player2_id": {
           "endpoint": "PlayByPlayV2",
           "field": "PLAYER2_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "PlayByPlay"
         },
         "player2_name": {
@@ -16081,7 +16307,7 @@
         "player2_team_id": {
           "endpoint": "PlayByPlayV2",
           "field": "PLAYER2_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "PlayByPlay"
         },
         "player2_team_nickname": {
@@ -16092,7 +16318,7 @@
         "player3_id": {
           "endpoint": "PlayByPlayV2",
           "field": "PLAYER3_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "PlayByPlay"
         },
         "player3_name": {
@@ -16113,7 +16339,7 @@
         "player3_team_id": {
           "endpoint": "PlayByPlayV2",
           "field": "PLAYER3_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "PlayByPlay"
         },
         "player3_team_nickname": {
@@ -21250,7 +21476,7 @@
         "team_id": {
           "endpoint": "PlayerIndex",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "PlayerIndex"
         },
         "team_name": {
@@ -25292,7 +25518,7 @@
           "result_set": "fact_playoff_series"
         },
         "away_team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "game_id": {
           "fk_ref": "dim_game.game_id"
@@ -25308,7 +25534,7 @@
           "result_set": "fact_playoff_series"
         },
         "home_team_id": {
-          "fk_ref": "staging_team.team_id"
+          "fk_ref": "dim_team.team_id"
         },
         "losses": {
           "endpoint": "derived",
@@ -25493,7 +25719,7 @@
         "team_id": {
           "endpoint": "ScoreboardV2",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "EastConfStandingsByDay"
         },
         "w": {
@@ -25731,7 +25957,7 @@
         "home_team_id": {
           "endpoint": "ScoreboardV2",
           "field": "HOME_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "GameHeader"
         },
         "home_tv_broadcaster_abbreviation": {
@@ -25767,7 +25993,7 @@
         "visitor_team_id": {
           "endpoint": "ScoreboardV2",
           "field": "VISITOR_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "GameHeader"
         },
         "wh_status": {
@@ -25829,7 +26055,7 @@
         "last_game_home_team_id": {
           "endpoint": "ScoreboardV2",
           "field": "LAST_GAME_HOME_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LastMeeting"
         },
         "last_game_home_team_name": {
@@ -25860,7 +26086,7 @@
         "last_game_visitor_team_id": {
           "endpoint": "ScoreboardV2",
           "field": "LAST_GAME_VISITOR_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LastMeeting"
         },
         "last_game_visitor_team_name": {
@@ -26028,7 +26254,7 @@
         "team_id": {
           "endpoint": "ScoreboardV2",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LineScore"
         },
         "team_name": {
@@ -26102,7 +26328,7 @@
         "home_team_id": {
           "endpoint": "ScoreboardV2",
           "field": "HOME_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "SeriesStandings"
         },
         "home_team_losses": {
@@ -26128,7 +26354,7 @@
         "visitor_team_id": {
           "endpoint": "ScoreboardV2",
           "field": "VISITOR_TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "SeriesStandings"
         }
       }
@@ -26219,7 +26445,7 @@
         "team_id": {
           "endpoint": "ScoreboardV2",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamLeaders"
         },
         "team_nickname": {
@@ -26382,7 +26608,7 @@
         "broadcaster_team_id": {
           "endpoint": "ScoreboardV3",
           "field": "broadcasterTeamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "Broadcasters"
         },
         "broadcaster_type": {
@@ -26571,7 +26797,7 @@
         "team_id": {
           "endpoint": "ScoreboardV3",
           "field": "teamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "LineScore"
         },
         "team_name": {
@@ -26680,7 +26906,7 @@
         "person_id": {
           "endpoint": "ScoreboardV3",
           "field": "personId",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "TeamLeaders"
         },
         "player_slug": {
@@ -26711,7 +26937,7 @@
         "team_id": {
           "endpoint": "ScoreboardV3",
           "field": "teamId",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamLeaders"
         },
         "team_tricode": {
@@ -27218,7 +27444,7 @@
         "player_id": {
           "endpoint": "ShotChartDetail",
           "field": "PLAYER_ID",
-          "fk_ref": "staging_player.person_id",
+          "fk_ref": "dim_player.player_id",
           "result_set": "Shot_Chart_Detail"
         },
         "player_name": {
@@ -27269,7 +27495,7 @@
         "team_id": {
           "endpoint": "ShotChartDetail",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "Shot_Chart_Detail"
         },
         "team_name": {
@@ -32241,7 +32467,7 @@
         "team_id": {
           "endpoint": "TeamGameStreakFinder",
           "field": "TEAM_ID",
-          "fk_ref": "staging_team.team_id",
+          "fk_ref": "dim_team.team_id",
           "result_set": "TeamGameStreakFinderParametersResults"
         },
         "team_name": {

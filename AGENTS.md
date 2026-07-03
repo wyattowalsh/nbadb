@@ -11,11 +11,11 @@ analytics/star schema → export to SQLite/DuckDB/Parquet/CSV.
 ## Tech Stack
 
 - Python ≥3.12, uv (package manager), hatchling (build)
-- Polars 1.38 (primary DataFrame engine)
-- DuckDB 1.4 (staging engine, zero-copy Arrow interchange)
-- Pandera[polars] 0.29 (3-tier schema validation: raw → staging → star)
-- SQLModel 0.0.37
-- ty 0.0.19 (type checker), ruff (lint/format)
+- Polars 1.42.1 (primary DataFrame engine)
+- DuckDB 1.5.4 (staging engine, zero-copy Arrow interchange)
+- Pandera[polars] 0.32.1 (3-tier schema validation: raw → staging → star)
+- SQLModel 0.0.39
+- ty 0.0.56 (type checker), ruff (lint/format)
 - Docs: Fumadocs 16 + Next.js 16 + pnpm + Tailwind v4
 
 ## Module Map
@@ -84,7 +84,7 @@ Most transformers (100+) extend `SqlTransformer(BaseTransformer)` — define `_S
 
 ### Test Patterns
 
-- 2481+ test functions collected across 173 test files
+- 3494 tests collected across 181 test files
 - `conftest.py` autouse fixture calls `get_settings.cache_clear()` (settings use `@lru_cache`)
 - Use `--import-mode=importlib` — the `nbadb/` root dir shadows `src/nbadb/`
 
@@ -109,11 +109,11 @@ uv run nbadb monthly                              # Recent-season refresh
 uv run nbadb backfill run                          # Targeted gap backfill
 uv run nbadb full                                 # Fill gaps (deprecated — use backfill)
 uv run nbadb status --output-format json          # Machine-readable pipeline status
-uv run nbadb run-quality --report-path artifacts/health/local/data-quality-report.json
+uv run nbadb scan --fail-on error --report-path artifacts/health/local/scan-report.json  # Hard assurance gate
 uv run nbadb export --data-dir data/nbadb       # Export sqlite/duckdb/csv/parquet by default
 uv run nbadb extract-completeness --require-full  # CI coverage gate
+uv run nbadb extract-completeness --require-full --endpoint-analysis-docs-root /path/to/nba_api  # Full upstream docs/tools + runtime live contract gate
 uv run nbadb migrate                              # Create/migrate pipeline tables
-uv run nbadb scan                                 # Detect missing data and gaps
 uv run nbadb schema                               # Star schema info + lineage
 uv run nbadb ask "Who scored the most in 1996?"   # Natural-language query
 uv run nbadb chat                                 # AI chat UI when chat/chainlit_app.py and chat/pyproject.toml are present
@@ -122,7 +122,7 @@ uv run nbadb lint-sql                              # SQLFluff lint on transforme
 uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json  # Generate Kaggle metadata JSON
 uv run nbadb journal-summary                       # Pipeline telemetry for docs admin
 uv run nbadb download                             # Pull latest Kaggle dataset
-uv run nbadb upload --data-dir data/nbadb -m "Automated update"  # Push dataset to Kaggle
+uv run nbadb upload --data-dir data/nbadb -m "Automated update"  # Validate bundle and push dataset to Kaggle
 
 # Docs
 uv run nbadb docs-autogen --docs-root docs/content/docs   # Regenerate docs artifacts
@@ -185,6 +185,6 @@ These DuckDB tables track pipeline state — do not modify directly:
 - **Transform naming**: `fact_box_score_*` is team-level, `fact_player_game_*` is player-level — intentional
 - **fact_rotation**: Depends on `[stg_rotation_away, stg_rotation_home]` (UNION of both)
 - **Quality checks**: `--quality-check` on pipeline commands is informational; empty-table warnings do not fail the command
-- **run-quality exit semantics**: `nbadb run-quality` writes useful JSON/text output, but failed checks are currently reported without forcing a non-zero exit unless no checks ran or the command errors
+- **scan assurance gate**: use `nbadb scan --fail-on error` for hard assurance; `run-quality` is deprecated and no longer the gate
 - **`full` deprecated**: use `backfill` for targeted gap-filling instead
 - **CI**: All GitHub Actions are SHA-pinned, all workflows have permissions blocks, timeout-minutes, and concurrency groups

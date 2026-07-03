@@ -49,8 +49,10 @@ flowchart LR
     HomePageV2[HomePageV2]:::endpoint
     LeadersTiles[LeadersTiles]:::endpoint
     LeagueDashLineups[LeagueDashLineups]:::endpoint
+    LeagueDashPlayerShotLocations[LeagueDashPlayerShotLocations]:::endpoint
     LeagueDashPlayerStats[LeagueDashPlayerStats]:::endpoint
     LeagueDashPtDefend[LeagueDashPtDefend]:::endpoint
+    LeagueDashTeamShotLocations[LeagueDashTeamShotLocations]:::endpoint
     LeagueDashTeamStats[LeagueDashTeamStats]:::endpoint
     LeagueGameFinder[LeagueGameFinder]:::endpoint
     LeagueGameLog[LeagueGameLog]:::endpoint
@@ -495,7 +497,6 @@ flowchart LR
     fact_draft_combine_spot_shooting[(fact_draft_combine_spot_shooting)]:::fact
     fact_draft_combine_stats[(fact_draft_combine_stats)]:::fact
     fact_draft_history[(fact_draft_history)]:::fact
-    fact_estimated_metrics[(fact_estimated_metrics)]:::fact
     fact_fantasy[(fact_fantasy)]:::fact
     fact_franchise_detail[(fact_franchise_detail)]:::fact
     fact_game_context[(fact_game_context)]:::fact
@@ -515,8 +516,11 @@ flowchart LR
     fact_league_hustle[(fact_league_hustle)]:::fact
     fact_league_leaders_detail[(fact_league_leaders_detail)]:::fact
     fact_league_lineup_viz[(fact_league_lineup_viz)]:::fact
+    fact_league_player_shot_locations[(fact_league_player_shot_locations)]:::fact
     fact_league_pt_defend[(fact_league_pt_defend)]:::fact
     fact_league_pt_shots[(fact_league_pt_shots)]:::fact
+    fact_league_shot_locations[(fact_league_shot_locations)]:::fact
+    fact_league_team_shot_locations[(fact_league_team_shot_locations)]:::fact
     fact_lineup_stats[(fact_lineup_stats)]:::fact
     fact_live_box_score_player[(fact_live_box_score_player)]:::fact
     fact_live_box_score_team[(fact_live_box_score_team)]:::fact
@@ -642,9 +646,12 @@ flowchart LR
     LeadersTiles --> fact_leaders_tiles_detail
     LeagueDashLineups --> bridge_lineup_player
     LeagueDashLineups --> fact_lineup_stats
+    LeagueDashPlayerShotLocations --> fact_league_player_shot_locations
     LeagueDashPlayerStats --> fact_league_dash_player_stats
     LeagueDashPtDefend --> fact_league_pt_defend
     LeagueDashPtDefend --> fact_tracking_defense
+    LeagueDashTeamShotLocations --> fact_league_shot_locations
+    LeagueDashTeamShotLocations --> fact_league_team_shot_locations
     LeagueDashTeamStats --> fact_league_dash_team_stats
     LeagueGameFinder --> fact_league_game_finder
     LeagueGameLog --> bridge_game_team
@@ -659,7 +666,6 @@ flowchart LR
     PlayByPlayV3 --> fact_play_by_play
     PlayByPlayV3 --> fact_play_by_play_video
     PlayerAwards --> fact_player_awards
-    PlayerEstimatedMetrics --> fact_estimated_metrics
     PlayerEstimatedMetrics --> fact_player_estimated_metrics
     PlayerIndex --> fact_player_index
     ScheduleLeagueV2 --> dim_season_week
@@ -1881,4 +1887,4 @@ See `lineage.json` for machine-readable column-level tracing.
 
 ## Coverage Notes
 
-`schema.json` and `lineage.json` are aligned across **255** outputs.
+`schema.json` and `lineage.json` are aligned across **254** outputs.

@@ -8834,97 +8834,6 @@
       "family": "fact",
       "relationships": []
     },
-    "fact_estimated_metrics": {
-      "columns": [
-        {
-          "key": "PK",
-          "name": "player_id",
-          "type": "int"
-        },
-        {
-          "key": "PK",
-          "name": "team_id",
-          "type": "int"
-        },
-        {
-          "key": "",
-          "name": "gp",
-          "type": "int"
-        },
-        {
-          "key": "",
-          "name": "w",
-          "type": "int"
-        },
-        {
-          "key": "",
-          "name": "l",
-          "type": "int"
-        },
-        {
-          "key": "",
-          "name": "min",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_off_rating",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_def_rating",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_net_rating",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_pace",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_ast_ratio",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_oreb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_dreb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_reb_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_tov_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "e_usg_pct",
-          "type": "float"
-        },
-        {
-          "key": "",
-          "name": "season_year",
-          "type": "str"
-        }
-      ],
-      "family": "fact",
-      "relationships": []
-    },
     "fact_fantasy": {
       "columns": [
         {
@@ -12423,6 +12332,11 @@
         },
         {
           "key": "",
+          "name": "age",
+          "type": "float"
+        },
+        {
+          "key": "",
           "name": "shot_zone_basic",
           "type": "str"
         },
@@ -12449,6 +12363,111 @@
         {
           "key": "",
           "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fg_pct",
           "type": "float"
         }
       ],
@@ -13080,6 +13099,111 @@
           "key": "",
           "name": "fg_pct",
           "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fg_pct",
+          "type": "float"
         }
       ],
       "family": "fact",
@@ -13562,6 +13686,111 @@
         {
           "key": "",
           "name": "fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "restricted_area_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "in_the_paint_non_ra_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "mid_range_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "left_corner_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "right_corner_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "above_the_break_3_fg_pct",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fgm",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fga",
+          "type": "float"
+        },
+        {
+          "key": "",
+          "name": "backcourt_fg_pct",
           "type": "float"
         }
       ],

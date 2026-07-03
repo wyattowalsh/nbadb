@@ -8,8 +8,8 @@
 [![Python](https://img.shields.io/pypi/pyversions/nbadb?style=for-the-badge)](https://pypi.org/project/nbadb/)
 [![License](https://img.shields.io/github/license/wyattowalsh/nba-db?style=for-the-badge)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/wyattowalsh/nba-db/ci.yml?label=CI&style=for-the-badge)](https://github.com/wyattowalsh/nba-db/actions/workflows/ci.yml)
-[![DuckDB](https://img.shields.io/badge/DuckDB-1.4-yellow?style=for-the-badge&logo=duckdb)](https://duckdb.org)
-[![Polars](https://img.shields.io/badge/Polars-1.38-blue?style=for-the-badge&logo=polars)](https://pola.rs/)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.5.4-yellow?style=for-the-badge&logo=duckdb)](https://duckdb.org)
+[![Polars](https://img.shields.io/badge/Polars-1.42.1-blue?style=for-the-badge&logo=polars)](https://pola.rs/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Docs](https://img.shields.io/website?url=https%3A%2F%2Fnbadb.w4w.dev&label=docs&style=for-the-badge)](https://nbadb.w4w.dev)
 [![Kaggle](https://img.shields.io/badge/Kaggle-Dataset-blue?logo=kaggle&style=for-the-badge)](https://www.kaggle.com/datasets/wyattowalsh/basketball)
@@ -48,8 +48,8 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 
 | Format  | Path         | Description                                                      |
 | ------- | ------------ | ---------------------------------------------------------------- |
-| DuckDB  | `nba.duckdb` | Primary analytics engine — columnar storage and fast SQL queries |
-| SQLite  | `nba.sqlite` | Portable single-file relational database                         |
+| DuckDB  | `nba.duckdb` | Canonical analytics engine — columnar storage and fast SQL queries |
+| SQLite  | `nba.sqlite` | Kaggle preview-friendly portable relational database               |
 | Parquet | `parquet/`   | Zstd-compressed columnar files, partitioned by season            |
 | CSV     | `csv/`       | Universal flat files for any tool                                |
 
@@ -86,16 +86,20 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 | `nbadb backfill`                | Recovery and targeted historical repair                                          |
 | `nbadb live-snapshot`           | Manually append a live snapshot for active or explicit game ids                  |
 | `nbadb migrate`                 | Run schema migrations                                                            |
-| `nbadb scan`                    | Detect missing data, gaps, and quality issues                                    |
+| `nbadb scan --fail-on error`    | Hard assurance gate for missing data, gaps, and quality issues                   |
 | `nbadb export`                  | Re-export DuckDB → SQLite / Parquet / CSV                                        |
-| `nbadb upload`                  | Push the dataset to Kaggle                                                       |
+| `nbadb upload`                  | Stage declared resources, validate the bundle, and push the dataset to Kaggle    |
 | `nbadb download`                | Pull the Kaggle dataset and seed local DuckDB                                    |
-| `nbadb extract-completeness`    | Report endpoint coverage gaps                                                    |
+| `nbadb extract-completeness`    | Report coverage gaps; with an upstream checkout, generate `nba_api` contracts    |
 | `nbadb endpoint-support-matrix` | Report strict endpoint support + warehouse contract coverage                     |
+| `nbadb endpoint-adequacy-scorecard` | Generate endpoint adequacy scorecard artifacts                               |
 | `nbadb audit-models`            | Generate end-to-end model + result-table audit artifacts                         |
+| `nbadb schema-annotation-audit` | Generate schema annotation, route, and field fate audit artifacts                |
+| `nbadb table-year-coverage`     | Generate table/year coverage summary artifacts                                   |
 | `nbadb docs-autogen`            | Regenerate generator-owned schema, data dictionary, ER, and lineage artifacts    |
 | `nbadb schema [TABLE]`          | Show schema for a table or list all star tables                                  |
 | `nbadb status`                  | Pipeline status, row counts, and watermarks                                      |
+| `nbadb journal-summary`         | Export pipeline telemetry summary artifacts                                      |
 | `nbadb ask QUESTION`            | Natural-language query interface (read-only)                                     |
 | `nbadb chat`                    | AI-powered Chainlit chat interface backed by the local DuckDB warehouse          |
 | `nbadb full`                    | Fill gaps and retry failed extractions (deprecated—use `backfill` instead)       |
@@ -190,13 +194,13 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Language        | Python ≥3.12                                                                                                            |
 | Package Manager | [uv](https://docs.astral.sh/uv/)                                                                                        |
-| DataFrames      | [Polars](https://pola.rs/) 1.38                                                                                         |
-| Validation      | [Pandera](https://pandera.readthedocs.io/) (Polars backend)                                                             |
-| Analytics DB    | [DuckDB](https://duckdb.org/) 1.4                                                                                       |
-| Relational DB   | [SQLModel](https://sqlmodel.tiangolo.com/) + SQLite                                                                     |
+| DataFrames      | [Polars](https://pola.rs/) 1.42.1                                                                                       |
+| Validation      | [Pandera](https://pandera.readthedocs.io/) 0.32.1 (Polars backend)                                                      |
+| Analytics DB    | [DuckDB](https://duckdb.org/) 1.5.4                                                                                     |
+| Relational DB   | [SQLModel](https://sqlmodel.tiangolo.com/) 0.0.39 + SQLite                                                              |
 | HTTP / Proxy    | [proxywhirl](https://github.com/wyattowalsh/proxywhirl)                                                                 |
 | CLI             | [Typer](https://typer.tiangolo.com/) + [Rich](https://rich.readthedocs.io/) + [Textual](https://textual.textualize.io/) |
-| Type Checking   | [ty](https://github.com/astral-sh/ty)                                                                                   |
+| Type Checking   | [ty](https://github.com/astral-sh/ty) 0.0.56                                                                            |
 | Linting         | [Ruff](https://docs.astral.sh/ruff/)                                                                                    |
 | Docs            | [Fumadocs](https://fumadocs.vercel.app/) + [Next.js](https://nextjs.org/) + [pnpm](https://pnpm.io/) 11.x               |
 | CI              | GitHub Actions (SHA-pinned)                                                                                             |

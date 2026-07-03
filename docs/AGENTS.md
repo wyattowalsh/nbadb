@@ -2,10 +2,10 @@
 
 ## 1. Framework
 
-- **Fumadocs 16** (fumadocs-core 16.7.4, fumadocs-mdx 14.2.11, fumadocs-ui 16.7.4)
-- **Next.js 16.2.1** with App Router
-- **pnpm** (package manager)
-- **Tailwind CSS v4.2** (v4 `@theme` syntax, no `tailwind.config.js`)
+- **Fumadocs 16** (fumadocs-core 16.10.6, fumadocs-mdx 15.0.13, fumadocs-ui 16.10.6)
+- **Next.js 16.2.9** with App Router
+- **pnpm 11.9.0** (package manager)
+- **Tailwind CSS v4.3.1** (v4 `@theme` syntax, no `tailwind.config.js`)
 - **Mermaid 11** for diagrams (client-side rendering via custom component)
 - **DuckDB-WASM** for in-browser SQL playground
 - **Observable Plot** for data visualization (shot charts, game flow, heatmaps, comparisons, trends, distributions)
@@ -491,6 +491,16 @@ This runs generators from `src/nbadb/docs_gen/`:
 - `SchemaDocsGenerator` — Schema reference pages
 - `DataDictionaryGenerator` — Field-level data dictionary
 - `SiteMetricsGenerator` — Homepage scoreboard metrics (`site-metrics.generated.ts`)
+
+For endpoint-analysis contract checks, document and run
+`uv run nbadb extract-completeness --require-full --endpoint-analysis-docs-root /path/to/nba_api`
+against the root of a full upstream `nba_api` checkout containing both `docs/**`
+and `tools/**`; copied docs subtrees are insufficient for complete docs-derived
+contract artifacts. The generated artifacts include the upstream contract
+bundle, docs/tools metadata ledger summary, and `nba-api-bronze-contracts.json`.
+Stats and static bronze contracts are enriched from upstream docs/tools; live
+bronze contracts come from installed `nba_api.live.nba.endpoints.*.expected_data`,
+with rendered live docs used only as supplemental metadata and drift evidence.
 
 ## 15. Style Guidelines
 

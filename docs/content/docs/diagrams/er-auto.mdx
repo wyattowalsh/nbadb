@@ -1075,25 +1075,6 @@ erDiagram
         int player_id PK
         float dunk_score
     }
-    fact_estimated_metrics {
-        int player_id PK
-        int team_id PK
-        int gp
-        int w
-        int l
-        float min
-        float e_off_rating
-        float e_def_rating
-        float e_net_rating
-        float e_pace
-        float e_ast_ratio
-        float e_oreb_pct
-        float e_dreb_pct
-        float e_reb_pct
-        float e_tov_pct
-        float e_usg_pct
-        str season_year
-    }
     fact_fantasy {
         int player_id PK
         str player_name
@@ -1817,12 +1798,34 @@ erDiagram
         str player_name
         int team_id PK
         str team_abbreviation
+        float age
         str shot_zone_basic
         str shot_zone_area
         str shot_zone_range
         float fgm
         float fga
         float fg_pct
+        float restricted_area_fgm
+        float restricted_area_fga
+        float restricted_area_fg_pct
+        float in_the_paint_non_ra_fgm
+        float in_the_paint_non_ra_fga
+        float in_the_paint_non_ra_fg_pct
+        float mid_range_fgm
+        float mid_range_fga
+        float mid_range_fg_pct
+        float left_corner_3_fgm
+        float left_corner_3_fga
+        float left_corner_3_fg_pct
+        float right_corner_3_fgm
+        float right_corner_3_fga
+        float right_corner_3_fg_pct
+        float above_the_break_3_fgm
+        float above_the_break_3_fga
+        float above_the_break_3_fg_pct
+        float backcourt_fgm
+        float backcourt_fga
+        float backcourt_fg_pct
     }
     fact_league_pt_defend {
         int player_id PK
@@ -1953,6 +1956,27 @@ erDiagram
         float fgm
         float fga
         float fg_pct
+        float restricted_area_fgm
+        float restricted_area_fga
+        float restricted_area_fg_pct
+        float in_the_paint_non_ra_fgm
+        float in_the_paint_non_ra_fga
+        float in_the_paint_non_ra_fg_pct
+        float mid_range_fgm
+        float mid_range_fga
+        float mid_range_fg_pct
+        float left_corner_3_fgm
+        float left_corner_3_fga
+        float left_corner_3_fg_pct
+        float right_corner_3_fgm
+        float right_corner_3_fga
+        float right_corner_3_fg_pct
+        float above_the_break_3_fgm
+        float above_the_break_3_fga
+        float above_the_break_3_fg_pct
+        float backcourt_fgm
+        float backcourt_fga
+        float backcourt_fg_pct
     }
     fact_league_team_clutch {
         int team_id PK
@@ -2052,6 +2076,27 @@ erDiagram
         float fgm
         float fga
         float fg_pct
+        float restricted_area_fgm
+        float restricted_area_fga
+        float restricted_area_fg_pct
+        float in_the_paint_non_ra_fgm
+        float in_the_paint_non_ra_fga
+        float in_the_paint_non_ra_fg_pct
+        float mid_range_fgm
+        float mid_range_fga
+        float mid_range_fg_pct
+        float left_corner_3_fgm
+        float left_corner_3_fga
+        float left_corner_3_fg_pct
+        float right_corner_3_fgm
+        float right_corner_3_fga
+        float right_corner_3_fg_pct
+        float above_the_break_3_fgm
+        float above_the_break_3_fga
+        float above_the_break_3_fg_pct
+        float backcourt_fgm
+        float backcourt_fga
+        float backcourt_fg_pct
     }
     fact_lineup_stats {
         str group_set
