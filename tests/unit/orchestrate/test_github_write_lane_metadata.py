@@ -379,6 +379,7 @@ def test_build_payload_classifies_documented_zero_row_as_contract_blocked(
 @pytest.mark.parametrize(
     ("season_start", "season_end", "lane_id"),
     [
+        ("1961", "1963", "historical-season-no-season-type-1961-1963"),
         ("1964", "1966", "historical-season-no-season-type-1964-1966"),
         ("1967", "1969", "historical-season-no-season-type-1967-1969"),
     ],

@@ -160,6 +160,37 @@ def _early_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
     )
 
 
+def _early_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats returned no usable season-level result sets for "
+            "1961-62 through 1963-64 in current full extraction; throwing "
+            "endpoints exhausted all retries and the lane persisted zero rows."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28682995009 job 85070250088 "
+            "reported 48 TransientError failures across 16 endpoints, 75 "
+            "planned calls, zero rows persisted, and zero_row_reason=contract_gap "
+            "for lane historical-season-no-season-type-1961-1963. The lane "
+            "metadata artifact 8074754457 and DuckDB artifact 8074754314 were "
+            "uploaded. Adjacent run 28682995009 lanes historical-season-no-season-"
+            "type-1970-1972 and historical-season-no-season-type-1973-1975 "
+            "persisted 126 and 129 rows respectively, so this support rule is "
+            "bounded to 1961-1963."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern season "
+            f"--endpoint {endpoint_name} --seasons 1961:1963 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1961,
+        season_end=1963,
+    )
+
+
 def _mid_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
     return EndpointSupportRule(
         endpoint_name=endpoint_name,
@@ -168,17 +199,18 @@ def _mid_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
         reason=(
             "NBA Stats returned no usable season-level result sets for "
             "1964-65 through 1966-67 in full extraction; throwing endpoints "
-            "exhausted all retries and the lane persisted zero rows. The "
-            "adjacent 1961-62 through 1963-64 lane persisted rows, so this "
-            "gap is intentionally non-contiguous."
+            "exhausted all retries and the lane persisted zero rows. This "
+            "window remains a separate support rule because each 1960s band "
+            "has independent full-extraction evidence."
         ),
         evidence=(
             "GitHub Actions full-extraction run 28420152202 job 84211483989 "
             "reported 48 TransientError failures across 16 endpoints and zero "
             "rows for lane historical-season-no-season-type-1964-1966. Run "
-            "28420152202 job 84211483954 for historical-season-no-season-type-"
-            "1961-1963 persisted 1341 rows, so the 1964-1966 gap is not merged "
-            "into the earlier 1946-1960 support rule."
+            "28682995009 later showed the same zero-row 48-failure pattern for "
+            "historical-season-no-season-type-1961-1963 while adjacent "
+            "1970-1975 lanes persisted rows, so the 1964-1966 gap remains "
+            "separately bounded."
         ),
         revalidation_command=(
             "uv run nbadb backfill run --extract-only --verbose --pattern season "
@@ -198,9 +230,9 @@ def _late_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
         reason=(
             "NBA Stats returned no usable season-level result sets for "
             "1967-68 through 1969-70 in full extraction; throwing endpoints "
-            "exhausted all retries and the lane persisted zero rows. The "
-            "adjacent 1961-62 through 1963-64 lane persisted rows, so this "
-            "gap remains separate from the earlier contiguous support window."
+            "exhausted all retries and the lane persisted zero rows. This "
+            "window remains a separate support rule because each 1960s band "
+            "has independent full-extraction evidence."
         ),
         evidence=(
             "GitHub Actions full-extraction run 28421455147 job 84215408055 "
@@ -210,9 +242,10 @@ def _late_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
             "sha256:46d446716d9edf455c3ed21e92a12d3f9ba2d68c21bfdf9137826b13c3cf7c6e, "
             "and the lane DuckDB artifact had digest "
             "sha256:a7b210be029ae6ad59563b982d04f8c8eac0b48543383a968cfc23aa821ecc90. "
-            "Run 28420152202 job 84211483954 for historical-season-no-season-type-"
-            "1961-1963 persisted 1341 rows, so the 1967-1969 gap is not merged "
-            "into the earlier 1946-1960 support rule."
+            "Run 28682995009 later showed the same zero-row 48-failure pattern "
+            "for historical-season-no-season-type-1961-1963 while adjacent "
+            "1970-1975 lanes persisted rows, so the 1967-1969 gap remains "
+            "separately bounded."
         ),
         revalidation_command=(
             "uv run nbadb backfill run --extract-only --verbose --pattern season "
@@ -227,6 +260,10 @@ def _late_1960s_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     *(
         _early_season_contract_gap(endpoint_name)
+        for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS
+    ),
+    *(
+        _early_1960s_season_contract_gap(endpoint_name)
         for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS
     ),
     *(

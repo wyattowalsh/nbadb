@@ -823,13 +823,13 @@ def test_build_default_manifest_excludes_known_early_season_contract_gaps_from_i
 
     assert lanes
     assert all(endpoint_name in lane.endpoints for lane in lanes)
-    assert all(lane.season_start is not None and lane.season_start >= 1961 for lane in lanes)
+    assert all(lane.season_start is not None and lane.season_start >= 1970 for lane in lanes)
     assert not any(
         lane.season_start is not None
         and lane.season_end is not None
         and lane.season_start <= blocked_year <= lane.season_end
         for lane in lanes
-        for blocked_year in (1964, 1965, 1966, 1967, 1968, 1969)
+        for blocked_year in range(1961, 1970)
     )
 
 
@@ -1586,6 +1586,7 @@ def test_build_resume_manifest_blocks_1956_scoreboard_v2_contract_gap(
         (1952, 1954, "historical-season-no-season-type-1952-1954"),
         (1955, 1957, "historical-season-no-season-type-1955-1957"),
         (1958, 1960, "historical-season-no-season-type-1958-1960"),
+        (1961, 1963, "historical-season-no-season-type-1961-1963"),
         (1964, 1966, "historical-season-no-season-type-1964-1966"),
         (1967, 1969, "historical-season-no-season-type-1967-1969"),
     ],
