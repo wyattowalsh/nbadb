@@ -17202,6 +17202,11 @@
             "description": "Team abbreviation"
           },
           {
+            "name": "age",
+            "type": "number",
+            "description": "Player age"
+          },
+          {
             "name": "shot_zone_basic",
             "type": "string",
             "description": "Basic shot zone bucket"
@@ -17230,6 +17235,111 @@
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "restricted_area_fgm",
+            "type": "number",
+            "description": "Restricted area field goals made"
+          },
+          {
+            "name": "restricted_area_fga",
+            "type": "number",
+            "description": "Restricted area field goals attempted"
+          },
+          {
+            "name": "restricted_area_fg_pct",
+            "type": "number",
+            "description": "Restricted area field goal percentage"
+          },
+          {
+            "name": "in_the_paint_non_ra_fgm",
+            "type": "number",
+            "description": "Non-restricted paint field goals made"
+          },
+          {
+            "name": "in_the_paint_non_ra_fga",
+            "type": "number",
+            "description": "Non-restricted paint field goals attempted"
+          },
+          {
+            "name": "in_the_paint_non_ra_fg_pct",
+            "type": "number",
+            "description": "Non-restricted paint field goal percentage"
+          },
+          {
+            "name": "mid_range_fgm",
+            "type": "number",
+            "description": "Mid-range field goals made"
+          },
+          {
+            "name": "mid_range_fga",
+            "type": "number",
+            "description": "Mid-range field goals attempted"
+          },
+          {
+            "name": "mid_range_fg_pct",
+            "type": "number",
+            "description": "Mid-range field goal percentage"
+          },
+          {
+            "name": "left_corner_3_fgm",
+            "type": "number",
+            "description": "Left-corner three-point field goals made"
+          },
+          {
+            "name": "left_corner_3_fga",
+            "type": "number",
+            "description": "Left-corner three-point field goals attempted"
+          },
+          {
+            "name": "left_corner_3_fg_pct",
+            "type": "number",
+            "description": "Left-corner three-point field goal percentage"
+          },
+          {
+            "name": "right_corner_3_fgm",
+            "type": "number",
+            "description": "Right-corner three-point field goals made"
+          },
+          {
+            "name": "right_corner_3_fga",
+            "type": "number",
+            "description": "Right-corner three-point field goals attempted"
+          },
+          {
+            "name": "right_corner_3_fg_pct",
+            "type": "number",
+            "description": "Right-corner three-point field goal percentage"
+          },
+          {
+            "name": "above_the_break_3_fgm",
+            "type": "number",
+            "description": "Above-the-break three-point field goals made"
+          },
+          {
+            "name": "above_the_break_3_fga",
+            "type": "number",
+            "description": "Above-the-break three-point field goals attempted"
+          },
+          {
+            "name": "above_the_break_3_fg_pct",
+            "type": "number",
+            "description": "Above-the-break three-point field goal percentage"
+          },
+          {
+            "name": "backcourt_fgm",
+            "type": "number",
+            "description": "Backcourt field goals made"
+          },
+          {
+            "name": "backcourt_fga",
+            "type": "number",
+            "description": "Backcourt field goals attempted"
+          },
+          {
+            "name": "backcourt_fg_pct",
+            "type": "number",
+            "description": "Backcourt field goal percentage"
           }
         ]
       }
@@ -17266,6 +17376,11 @@
             "description": "Team abbreviation"
           },
           {
+            "name": "age",
+            "type": "number",
+            "description": "Player age"
+          },
+          {
             "name": "shot_zone_basic",
             "type": "string",
             "description": "Basic shot zone bucket"
@@ -17294,6 +17409,111 @@
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "restricted_area_fgm",
+            "type": "number",
+            "description": "Restricted area field goals made"
+          },
+          {
+            "name": "restricted_area_fga",
+            "type": "number",
+            "description": "Restricted area field goals attempted"
+          },
+          {
+            "name": "restricted_area_fg_pct",
+            "type": "number",
+            "description": "Restricted area field goal percentage"
+          },
+          {
+            "name": "in_the_paint_non_ra_fgm",
+            "type": "number",
+            "description": "Non-restricted paint field goals made"
+          },
+          {
+            "name": "in_the_paint_non_ra_fga",
+            "type": "number",
+            "description": "Non-restricted paint field goals attempted"
+          },
+          {
+            "name": "in_the_paint_non_ra_fg_pct",
+            "type": "number",
+            "description": "Non-restricted paint field goal percentage"
+          },
+          {
+            "name": "mid_range_fgm",
+            "type": "number",
+            "description": "Mid-range field goals made"
+          },
+          {
+            "name": "mid_range_fga",
+            "type": "number",
+            "description": "Mid-range field goals attempted"
+          },
+          {
+            "name": "mid_range_fg_pct",
+            "type": "number",
+            "description": "Mid-range field goal percentage"
+          },
+          {
+            "name": "left_corner_3_fgm",
+            "type": "number",
+            "description": "Left-corner three-point field goals made"
+          },
+          {
+            "name": "left_corner_3_fga",
+            "type": "number",
+            "description": "Left-corner three-point field goals attempted"
+          },
+          {
+            "name": "left_corner_3_fg_pct",
+            "type": "number",
+            "description": "Left-corner three-point field goal percentage"
+          },
+          {
+            "name": "right_corner_3_fgm",
+            "type": "number",
+            "description": "Right-corner three-point field goals made"
+          },
+          {
+            "name": "right_corner_3_fga",
+            "type": "number",
+            "description": "Right-corner three-point field goals attempted"
+          },
+          {
+            "name": "right_corner_3_fg_pct",
+            "type": "number",
+            "description": "Right-corner three-point field goal percentage"
+          },
+          {
+            "name": "above_the_break_3_fgm",
+            "type": "number",
+            "description": "Above-the-break three-point field goals made"
+          },
+          {
+            "name": "above_the_break_3_fga",
+            "type": "number",
+            "description": "Above-the-break three-point field goals attempted"
+          },
+          {
+            "name": "above_the_break_3_fg_pct",
+            "type": "number",
+            "description": "Above-the-break three-point field goal percentage"
+          },
+          {
+            "name": "backcourt_fgm",
+            "type": "number",
+            "description": "Backcourt field goals made"
+          },
+          {
+            "name": "backcourt_fga",
+            "type": "number",
+            "description": "Backcourt field goals attempted"
+          },
+          {
+            "name": "backcourt_fg_pct",
+            "type": "number",
+            "description": "Backcourt field goal percentage"
           }
         ]
       }
@@ -18482,6 +18702,111 @@
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "restricted_area_fgm",
+            "type": "number",
+            "description": "Restricted area field goals made"
+          },
+          {
+            "name": "restricted_area_fga",
+            "type": "number",
+            "description": "Restricted area field goals attempted"
+          },
+          {
+            "name": "restricted_area_fg_pct",
+            "type": "number",
+            "description": "Restricted area field goal percentage"
+          },
+          {
+            "name": "in_the_paint_non_ra_fgm",
+            "type": "number",
+            "description": "Non-restricted paint field goals made"
+          },
+          {
+            "name": "in_the_paint_non_ra_fga",
+            "type": "number",
+            "description": "Non-restricted paint field goals attempted"
+          },
+          {
+            "name": "in_the_paint_non_ra_fg_pct",
+            "type": "number",
+            "description": "Non-restricted paint field goal percentage"
+          },
+          {
+            "name": "mid_range_fgm",
+            "type": "number",
+            "description": "Mid-range field goals made"
+          },
+          {
+            "name": "mid_range_fga",
+            "type": "number",
+            "description": "Mid-range field goals attempted"
+          },
+          {
+            "name": "mid_range_fg_pct",
+            "type": "number",
+            "description": "Mid-range field goal percentage"
+          },
+          {
+            "name": "left_corner_3_fgm",
+            "type": "number",
+            "description": "Left-corner three-point field goals made"
+          },
+          {
+            "name": "left_corner_3_fga",
+            "type": "number",
+            "description": "Left-corner three-point field goals attempted"
+          },
+          {
+            "name": "left_corner_3_fg_pct",
+            "type": "number",
+            "description": "Left-corner three-point field goal percentage"
+          },
+          {
+            "name": "right_corner_3_fgm",
+            "type": "number",
+            "description": "Right-corner three-point field goals made"
+          },
+          {
+            "name": "right_corner_3_fga",
+            "type": "number",
+            "description": "Right-corner three-point field goals attempted"
+          },
+          {
+            "name": "right_corner_3_fg_pct",
+            "type": "number",
+            "description": "Right-corner three-point field goal percentage"
+          },
+          {
+            "name": "above_the_break_3_fgm",
+            "type": "number",
+            "description": "Above-the-break three-point field goals made"
+          },
+          {
+            "name": "above_the_break_3_fga",
+            "type": "number",
+            "description": "Above-the-break three-point field goals attempted"
+          },
+          {
+            "name": "above_the_break_3_fg_pct",
+            "type": "number",
+            "description": "Above-the-break three-point field goal percentage"
+          },
+          {
+            "name": "backcourt_fgm",
+            "type": "number",
+            "description": "Backcourt field goals made"
+          },
+          {
+            "name": "backcourt_fga",
+            "type": "number",
+            "description": "Backcourt field goals attempted"
+          },
+          {
+            "name": "backcourt_fg_pct",
+            "type": "number",
+            "description": "Backcourt field goal percentage"
           }
         ]
       }
@@ -18536,6 +18861,111 @@
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "restricted_area_fgm",
+            "type": "number",
+            "description": "Restricted area field goals made"
+          },
+          {
+            "name": "restricted_area_fga",
+            "type": "number",
+            "description": "Restricted area field goals attempted"
+          },
+          {
+            "name": "restricted_area_fg_pct",
+            "type": "number",
+            "description": "Restricted area field goal percentage"
+          },
+          {
+            "name": "in_the_paint_non_ra_fgm",
+            "type": "number",
+            "description": "Non-restricted paint field goals made"
+          },
+          {
+            "name": "in_the_paint_non_ra_fga",
+            "type": "number",
+            "description": "Non-restricted paint field goals attempted"
+          },
+          {
+            "name": "in_the_paint_non_ra_fg_pct",
+            "type": "number",
+            "description": "Non-restricted paint field goal percentage"
+          },
+          {
+            "name": "mid_range_fgm",
+            "type": "number",
+            "description": "Mid-range field goals made"
+          },
+          {
+            "name": "mid_range_fga",
+            "type": "number",
+            "description": "Mid-range field goals attempted"
+          },
+          {
+            "name": "mid_range_fg_pct",
+            "type": "number",
+            "description": "Mid-range field goal percentage"
+          },
+          {
+            "name": "left_corner_3_fgm",
+            "type": "number",
+            "description": "Left-corner three-point field goals made"
+          },
+          {
+            "name": "left_corner_3_fga",
+            "type": "number",
+            "description": "Left-corner three-point field goals attempted"
+          },
+          {
+            "name": "left_corner_3_fg_pct",
+            "type": "number",
+            "description": "Left-corner three-point field goal percentage"
+          },
+          {
+            "name": "right_corner_3_fgm",
+            "type": "number",
+            "description": "Right-corner three-point field goals made"
+          },
+          {
+            "name": "right_corner_3_fga",
+            "type": "number",
+            "description": "Right-corner three-point field goals attempted"
+          },
+          {
+            "name": "right_corner_3_fg_pct",
+            "type": "number",
+            "description": "Right-corner three-point field goal percentage"
+          },
+          {
+            "name": "above_the_break_3_fgm",
+            "type": "number",
+            "description": "Above-the-break three-point field goals made"
+          },
+          {
+            "name": "above_the_break_3_fga",
+            "type": "number",
+            "description": "Above-the-break three-point field goals attempted"
+          },
+          {
+            "name": "above_the_break_3_fg_pct",
+            "type": "number",
+            "description": "Above-the-break three-point field goal percentage"
+          },
+          {
+            "name": "backcourt_fgm",
+            "type": "number",
+            "description": "Backcourt field goals made"
+          },
+          {
+            "name": "backcourt_fga",
+            "type": "number",
+            "description": "Backcourt field goals attempted"
+          },
+          {
+            "name": "backcourt_fg_pct",
+            "type": "number",
+            "description": "Backcourt field goal percentage"
           }
         ]
       }
@@ -18884,6 +19314,111 @@
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "restricted_area_fgm",
+            "type": "number",
+            "description": "Restricted area field goals made"
+          },
+          {
+            "name": "restricted_area_fga",
+            "type": "number",
+            "description": "Restricted area field goals attempted"
+          },
+          {
+            "name": "restricted_area_fg_pct",
+            "type": "number",
+            "description": "Restricted area field goal percentage"
+          },
+          {
+            "name": "in_the_paint_non_ra_fgm",
+            "type": "number",
+            "description": "Non-restricted paint field goals made"
+          },
+          {
+            "name": "in_the_paint_non_ra_fga",
+            "type": "number",
+            "description": "Non-restricted paint field goals attempted"
+          },
+          {
+            "name": "in_the_paint_non_ra_fg_pct",
+            "type": "number",
+            "description": "Non-restricted paint field goal percentage"
+          },
+          {
+            "name": "mid_range_fgm",
+            "type": "number",
+            "description": "Mid-range field goals made"
+          },
+          {
+            "name": "mid_range_fga",
+            "type": "number",
+            "description": "Mid-range field goals attempted"
+          },
+          {
+            "name": "mid_range_fg_pct",
+            "type": "number",
+            "description": "Mid-range field goal percentage"
+          },
+          {
+            "name": "left_corner_3_fgm",
+            "type": "number",
+            "description": "Left-corner three-point field goals made"
+          },
+          {
+            "name": "left_corner_3_fga",
+            "type": "number",
+            "description": "Left-corner three-point field goals attempted"
+          },
+          {
+            "name": "left_corner_3_fg_pct",
+            "type": "number",
+            "description": "Left-corner three-point field goal percentage"
+          },
+          {
+            "name": "right_corner_3_fgm",
+            "type": "number",
+            "description": "Right-corner three-point field goals made"
+          },
+          {
+            "name": "right_corner_3_fga",
+            "type": "number",
+            "description": "Right-corner three-point field goals attempted"
+          },
+          {
+            "name": "right_corner_3_fg_pct",
+            "type": "number",
+            "description": "Right-corner three-point field goal percentage"
+          },
+          {
+            "name": "above_the_break_3_fgm",
+            "type": "number",
+            "description": "Above-the-break three-point field goals made"
+          },
+          {
+            "name": "above_the_break_3_fga",
+            "type": "number",
+            "description": "Above-the-break three-point field goals attempted"
+          },
+          {
+            "name": "above_the_break_3_fg_pct",
+            "type": "number",
+            "description": "Above-the-break three-point field goal percentage"
+          },
+          {
+            "name": "backcourt_fgm",
+            "type": "number",
+            "description": "Backcourt field goals made"
+          },
+          {
+            "name": "backcourt_fga",
+            "type": "number",
+            "description": "Backcourt field goals attempted"
+          },
+          {
+            "name": "backcourt_fg_pct",
+            "type": "number",
+            "description": "Backcourt field goal percentage"
           }
         ]
       }
@@ -18938,6 +19473,111 @@
             "name": "fg_pct",
             "type": "number",
             "description": "Field goal percentage"
+          },
+          {
+            "name": "restricted_area_fgm",
+            "type": "number",
+            "description": "Restricted area field goals made"
+          },
+          {
+            "name": "restricted_area_fga",
+            "type": "number",
+            "description": "Restricted area field goals attempted"
+          },
+          {
+            "name": "restricted_area_fg_pct",
+            "type": "number",
+            "description": "Restricted area field goal percentage"
+          },
+          {
+            "name": "in_the_paint_non_ra_fgm",
+            "type": "number",
+            "description": "Non-restricted paint field goals made"
+          },
+          {
+            "name": "in_the_paint_non_ra_fga",
+            "type": "number",
+            "description": "Non-restricted paint field goals attempted"
+          },
+          {
+            "name": "in_the_paint_non_ra_fg_pct",
+            "type": "number",
+            "description": "Non-restricted paint field goal percentage"
+          },
+          {
+            "name": "mid_range_fgm",
+            "type": "number",
+            "description": "Mid-range field goals made"
+          },
+          {
+            "name": "mid_range_fga",
+            "type": "number",
+            "description": "Mid-range field goals attempted"
+          },
+          {
+            "name": "mid_range_fg_pct",
+            "type": "number",
+            "description": "Mid-range field goal percentage"
+          },
+          {
+            "name": "left_corner_3_fgm",
+            "type": "number",
+            "description": "Left-corner three-point field goals made"
+          },
+          {
+            "name": "left_corner_3_fga",
+            "type": "number",
+            "description": "Left-corner three-point field goals attempted"
+          },
+          {
+            "name": "left_corner_3_fg_pct",
+            "type": "number",
+            "description": "Left-corner three-point field goal percentage"
+          },
+          {
+            "name": "right_corner_3_fgm",
+            "type": "number",
+            "description": "Right-corner three-point field goals made"
+          },
+          {
+            "name": "right_corner_3_fga",
+            "type": "number",
+            "description": "Right-corner three-point field goals attempted"
+          },
+          {
+            "name": "right_corner_3_fg_pct",
+            "type": "number",
+            "description": "Right-corner three-point field goal percentage"
+          },
+          {
+            "name": "above_the_break_3_fgm",
+            "type": "number",
+            "description": "Above-the-break three-point field goals made"
+          },
+          {
+            "name": "above_the_break_3_fga",
+            "type": "number",
+            "description": "Above-the-break three-point field goals attempted"
+          },
+          {
+            "name": "above_the_break_3_fg_pct",
+            "type": "number",
+            "description": "Above-the-break three-point field goal percentage"
+          },
+          {
+            "name": "backcourt_fgm",
+            "type": "number",
+            "description": "Backcourt field goals made"
+          },
+          {
+            "name": "backcourt_fga",
+            "type": "number",
+            "description": "Backcourt field goals attempted"
+          },
+          {
+            "name": "backcourt_fg_pct",
+            "type": "number",
+            "description": "Backcourt field goal percentage"
           }
         ]
       }
