@@ -143,6 +143,7 @@ def _discover_schemas(
         for name, obj in inspect.getmembers(module, inspect.isclass):
             if (
                 name.startswith("_")
+                or name != obj.__name__
                 or obj.__module__ != module_name
                 or obj is BaseSchema
                 or not issubclass(obj, BaseSchema)

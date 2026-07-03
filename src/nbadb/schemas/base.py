@@ -31,6 +31,16 @@ _DEFAULT_FK_REFS = {
     "vs_player_id": "dim_player.player_id",
 }
 
+_STAR_FK_REF_ALIASES = {
+    "staging_arena.arena_id": "dim_arena.arena_id",
+    "staging_game_log.game_id": "dim_game.game_id",
+    "staging_game.game_id": "dim_game.game_id",
+    "staging_official.official_id": "dim_official.official_id",
+    "staging_player.person_id": "dim_player.player_id",
+    "staging_player.player_id": "dim_player.player_id",
+    "staging_team.team_id": "dim_team.team_id",
+}
+
 _SCHEMA_METADATA_POLICY_ATTR = "__schema_metadata_policy__"
 
 
@@ -133,7 +143,21 @@ class BaseSchema(pa.DataFrameModel):
         strict = False
 
     @classmethod
+    def _normalize_star_fk_refs(cls, schema: Any) -> Any:
+        if not cls.__module__.startswith("nbadb.schemas.star."):
+            return schema
+
+        for column in schema.columns.values():
+            metadata = dict(column.metadata or {})
+            fk_ref = metadata.get("fk_ref")
+            if isinstance(fk_ref, str) and fk_ref in _STAR_FK_REF_ALIASES:
+                metadata["fk_ref"] = _STAR_FK_REF_ALIASES[fk_ref]
+                column.metadata = metadata
+        return schema
+
+    @classmethod
     def _apply_schema_metadata_policy(cls, schema: Any) -> Any:
+        schema = cls._normalize_star_fk_refs(schema)
         policy = getattr(cls, _SCHEMA_METADATA_POLICY_ATTR, None)
         if policy is None:
             return schema
@@ -157,7 +181,14 @@ class BaseSchema(pa.DataFrameModel):
             fk_ref = fk_refs.get(column_name)
             if fk_ref is None and auto_fk:
                 fk_ref = _DEFAULT_FK_REFS.get(column_name)
-            if fk_ref is not None and "fk_ref" not in metadata:
+            existing_fk_ref = metadata.get("fk_ref")
+            if (
+                isinstance(existing_fk_ref, str)
+                and cls.__module__.startswith("nbadb.schemas.star.")
+                and existing_fk_ref in _STAR_FK_REF_ALIASES
+            ):
+                metadata["fk_ref"] = _STAR_FK_REF_ALIASES[existing_fk_ref]
+            elif fk_ref is not None and "fk_ref" not in metadata:
                 metadata["fk_ref"] = fk_ref
 
             if (
