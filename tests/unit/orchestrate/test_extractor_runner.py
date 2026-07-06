@@ -21,6 +21,7 @@ from nbadb.orchestrate.extractor_runner import (
     _AdaptiveThrottle,
     _DeferredExtraction,
     _ExtractionTaskResult,
+    _FailedExtraction,
     _PendingJournalSuccess,
     _sync_extract,
 )
@@ -272,7 +273,7 @@ class TestExtractMulti:
         assert "secret" not in error_msg
 
     @pytest.mark.asyncio
-    async def test_out_of_range_index_returns_empty_df(self):
+    async def test_required_out_of_range_index_fails(self):
         df0 = pl.DataFrame({"x": [1]})
         journal = _make_journal(already_done=False)
         settings = _make_settings()
@@ -283,10 +284,16 @@ class TestExtractMulti:
             StagingEntry("ep_multi", "stg_a", "season", result_set_index=0, use_multi=True),
             StagingEntry("ep_multi", "stg_b", "season", result_set_index=5, use_multi=True),
         ]
-        result = await runner._extract_multi("ep_multi", entries, {})
+        result = await runner._extract_multi_result("ep_multi", entries, {})
         assert result is not None
-        assert result["stg_a"].shape[0] == 1
-        assert result["stg_b"].is_empty()
+        assert isinstance(result, _FailedExtraction)
+        assert result.status == "unexpected"
+        assert result.error == "MissingRequiredResultSet:stg_b:5"
+        journal.record_failure.assert_called_with(
+            "ep_multi",
+            "{}",
+            "MissingRequiredResultSet:stg_b:5",
+        )
 
     @pytest.mark.asyncio
     async def test_optional_out_of_range_index_returns_empty_df_without_warning(self):

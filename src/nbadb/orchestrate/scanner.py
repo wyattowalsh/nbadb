@@ -442,14 +442,30 @@ class DataScanner:
                 self._report.checks_run += 1
                 try:
                     row = self._conn.execute(f"""
+                        WITH
+                            dim_games AS (
+                                SELECT DISTINCT game_id
+                                FROM dim_game
+                                WHERE game_id IS NOT NULL
+                            ),
+                            fact_games AS (
+                                SELECT DISTINCT game_id
+                                FROM "{fact_table}"
+                                WHERE game_id IS NOT NULL
+                            )
                         SELECT
-                            (SELECT COUNT(DISTINCT game_id) FROM dim_game) AS dim_count,
-                            (SELECT COUNT(DISTINCT game_id) FROM "{fact_table}") AS fact_count
+                            (SELECT COUNT(*) FROM dim_games) AS dim_count,
+                            (SELECT COUNT(*) FROM fact_games) AS fact_count,
+                            (
+                                SELECT COUNT(*)
+                                FROM dim_games d
+                                LEFT JOIN fact_games f ON d.game_id = f.game_id
+                                WHERE f.game_id IS NULL
+                            ) AS missing_count
                     """).fetchone()
                     if row is None:
                         continue
-                    dim_count, fact_count = row[0], row[1]
-                    missing = dim_count - fact_count
+                    dim_count, fact_count, missing = row[0], row[1], row[2]
                     if missing > 0:
                         pct = missing / dim_count * 100 if dim_count > 0 else 0
                         severity = ScanSeverity.ERROR if pct > 10 else ScanSeverity.WARNING

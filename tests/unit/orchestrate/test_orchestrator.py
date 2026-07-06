@@ -12,6 +12,7 @@ import pytest
 
 from nbadb.orchestrate.discovery import GameDiscoveryResult, PlayerTeamSeasonDiscoveryResult
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope
+from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
 from nbadb.orchestrate.extractor_runner import PatternExtractionResult
 from nbadb.orchestrate.orchestrator import (
     ExtractionOutcome,
@@ -686,6 +687,107 @@ class TestExtractAllPatterns:
         assert outcome.failed_calls == 1
         assert outcome.errors == ['ep1[{"season":"2024-25"}]: TimeoutError']
 
+    def test_stale_progress_marker_does_not_skip_without_journal_evidence(self, tmp_path):
+        orch, _db, journal = _build_orchestrator_with_mocks()
+        journal.was_extracted_batch.return_value = set()
+        runner = MagicMock()
+        entry = SimpleNamespace(endpoint_name="ep1", param_pattern="season")
+        item = ExtractionPlanItem(
+            label="season",
+            pattern="season",
+            entries=[entry],
+            params=[{"season": "2024-25"}],
+            priority=1,
+        )
+        store = ExtractionProgressStore.from_duckdb_path(tmp_path / "planner.duckdb")
+        key = store.slice_key("daily", item)
+        store.mark_complete(
+            key,
+            task_count=1,
+            eligible_calls=1,
+            success_count=1,
+            row_count=1,
+            wall_time_seconds=1.0,
+            staging_keys=["stg_ep1"],
+            endpoint_families=["default"],
+        )
+        runner.run_pattern_result = AsyncMock(
+            return_value=PatternExtractionResult(
+                frames={"stg_ep1": pl.DataFrame({"season": ["2024-25"]})},
+                eligible_calls=1,
+                success_count=1,
+            )
+        )
+
+        outcome = asyncio.run(
+            orch._extract_all_patterns(
+                runner,
+                plan=[item],
+                seasons=[],
+                game_ids=[],
+                player_ids=[],
+                team_ids=[],
+                current_team_ids=[],
+                game_dates=[],
+                player_team_season_params=[],
+                game_log_df=pl.DataFrame(),
+                run_mode="daily",
+                journal=journal,
+                progress_store=store,
+            )
+        )
+
+        runner.run_pattern_result.assert_awaited_once()
+        assert "stg_ep1" in outcome.raw
+
+    def test_progress_marker_skips_when_journal_evidence_matches(self, tmp_path):
+        orch, _db, journal = _build_orchestrator_with_mocks()
+        journal_key = ("ep1", '{"season": "2024-25"}')
+        journal.was_extracted_batch.return_value = {journal_key}
+        runner = MagicMock()
+        runner.run_pattern_result = AsyncMock()
+        entry = SimpleNamespace(endpoint_name="ep1", param_pattern="season")
+        item = ExtractionPlanItem(
+            label="season",
+            pattern="season",
+            entries=[entry],
+            params=[{"season": "2024-25"}],
+            priority=1,
+        )
+        store = ExtractionProgressStore.from_duckdb_path(tmp_path / "planner.duckdb")
+        key = store.slice_key("daily", item)
+        store.mark_complete(
+            key,
+            task_count=1,
+            eligible_calls=1,
+            success_count=1,
+            row_count=1,
+            wall_time_seconds=1.0,
+            staging_keys=["stg_ep1"],
+            endpoint_families=["default"],
+        )
+
+        outcome = asyncio.run(
+            orch._extract_all_patterns(
+                runner,
+                plan=[item],
+                seasons=[],
+                game_ids=[],
+                player_ids=[],
+                team_ids=[],
+                current_team_ids=[],
+                game_dates=[],
+                player_team_season_params=[],
+                game_log_df=pl.DataFrame(),
+                run_mode="daily",
+                journal=journal,
+                progress_store=store,
+            )
+        )
+
+        runner.run_pattern_result.assert_not_awaited()
+        assert outcome.raw == {}
+
     def test_retry_skip_pattern_result_does_not_surface_failure(self):
         orch, _db, _journal = _build_orchestrator_with_mocks()
         runner = MagicMock()
@@ -1301,6 +1403,46 @@ class TestPersistStagingToDuckdb:
         assert rows == [("001", 2)]
         assert journal_count == 1
 
+    def test_persist_staging_replaces_changed_force_backfill_source_results(self):
+        orch = Orchestrator(settings=_mock_settings())
+        conn = duckdb.connect(":memory:")
+        db = SimpleNamespace(duckdb=conn)
+        first = pl.DataFrame({"game_id": ["001"], "value": [1]})
+        second = pl.DataFrame({"game_id": ["001"], "value": [2]})
+
+        try:
+            for frame in (first, second):
+                orch._persist_staging_to_duckdb(
+                    db,
+                    {"stg_sample": frame},
+                    run_mode="backfill",
+                    lane_id="backfill.season",
+                    pattern="season",
+                    chunk_index=0,
+                    chunk_params=[{"season": "2024-25"}],
+                    entries=[SimpleNamespace(endpoint_name="ep1")],
+                    expected_staging_keys=["stg_sample"],
+                    source_results=[
+                        {
+                            "frames": {"stg_sample": frame},
+                            "source_endpoint_name": "ep1",
+                            "source_params_json": '{"season": "2024-25"}',
+                            "expected_staging_keys": ("stg_sample",),
+                        }
+                    ],
+                    replace_existing_chunks=True,
+                    materialize=True,
+                )
+            rows = conn.execute("SELECT game_id, value FROM stg_sample").fetchall()
+            journal_count = conn.execute(
+                "SELECT count(*) FROM _staging_chunk_journal WHERE staging_key = 'stg_sample'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+        assert rows == [("001", 2)]
+        assert journal_count == 1
+
 
 # ---------------------------------------------------------------------------
 # run_backfill tests
@@ -1586,7 +1728,7 @@ class TestRunDaily:
         assert mock_transform.call_args.args[1] is recovered_raw
         assert result.tables_updated == 1
 
-    def test_run_daily_reloads_staged_batches_for_phase_b_after_current_run_failure(self):
+    def test_run_daily_stops_before_phase_b_after_current_run_failure(self):
         orch, db, journal = _build_orchestrator_with_mocks()
         journal.has_done_entries.return_value = True
 
@@ -1638,12 +1780,13 @@ class TestRunDaily:
                 return_value={"stg_league_game_log": game_log_df},
             ) as mock_load,
             patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
-            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)),
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)) as mock_live,
         ):
             result = asyncio.run(orch.run_daily())
 
-        mock_load.assert_called_once_with(db)
-        assert mock_transform.call_args.args[1]["stg_league_game_log"].equals(game_log_df)
+        mock_load.assert_not_called()
+        mock_transform.assert_not_called()
+        mock_live.assert_not_called()
         assert result.failed_extractions == 1
         assert result.errors == ['league_game_log[{"season":"2025-26"}]: TimeoutError']
 
@@ -1851,6 +1994,66 @@ class TestRunMonthly:
         mock_load.assert_called_once_with(db)
         assert mock_transform.call_args.args[1] is recovered_raw
         assert result.tables_updated == 1
+
+    def test_run_monthly_stops_before_phase_b_after_current_run_failure(self):
+        orch, db, journal = _build_orchestrator_with_mocks()
+        journal.has_done_entries.return_value = True
+
+        game_log_df = pl.DataFrame(
+            {
+                "game_id": ["0022400001"],
+                "game_date": ["2026-02-28"],
+            }
+        )
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_game_ids_result.return_value = _game_discovery_result(
+            game_ids=["0022400001"],
+            game_log_df=game_log_df,
+            seasons=("2025-26",),
+            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+        )
+        mock_discovery.discover_player_ids.return_value = []
+        mock_discovery.discover_team_ids.return_value = []
+        mock_discovery.discover_game_dates.return_value = ["2026-02-28"]
+        mock_discovery.discover_player_team_season_params_result.return_value = (
+            _player_team_discovery_result(
+                seasons=("2025-26",),
+                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            )
+        )
+        mock_runner = _mock_runner(
+            planned_calls=1,
+            skipped=0,
+            skipped_due_to_journal=0,
+            failed_current_run=1,
+        )
+        mock_extract = AsyncMock(
+            return_value=ExtractionOutcome(
+                raw={"stg_league_game_log": game_log_df},
+                failed_calls=1,
+                errors=['league_game_log[{"season":"2025-26"}]: TimeoutError'],
+            )
+        )
+
+        with (
+            patch(_RECENT_SEASONS, return_value=["2025-26"]),
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch.object(orch, "_extract_all_patterns", mock_extract),
+            patch.object(
+                orch, "_load_staging_from_duckdb", return_value={"stg_league_game_log": game_log_df}
+            ) as mock_load,
+            patch.object(orch, "_transform_and_load", return_value=(1, 50, 0)) as mock_transform,
+            patch.object(orch, "_run_live_snapshot_upkeep", return_value=(0, 0)) as mock_live,
+        ):
+            result = asyncio.run(orch.run_monthly())
+
+        mock_load.assert_not_called()
+        mock_transform.assert_not_called()
+        mock_live.assert_not_called()
+        assert result.failed_extractions == 1
+        assert result.errors == ['league_game_log[{"season":"2025-26"}]: TimeoutError']
 
 
 # ---------------------------------------------------------------------------

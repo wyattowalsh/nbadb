@@ -125,6 +125,35 @@ EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS: tuple[str, ...] = (
     "team_game_streak_finder",
 )
 
+EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS: tuple[str, ...] = (
+    "dunk_score_leaders",
+    "fantasy_widget",
+    "gravity_leaders",
+    "homepage_leaders",
+    "homepage_v2",
+    "leaders_tiles",
+    "league_dash_lineups",
+    "league_dash_opp_pt_shot",
+    "league_dash_player_bio",
+    "league_dash_player_clutch",
+    "league_dash_player_pt_shot",
+    "league_dash_player_shot_locations",
+    "league_dash_player_stats",
+    "league_dash_pt_defend",
+    "league_dash_pt_stats",
+    "league_dash_pt_team_defend",
+    "league_dash_team_clutch",
+    "league_dash_team_pt_shot",
+    "league_dash_team_shot_locations",
+    "league_dash_team_stats",
+    "league_hustle_player",
+    "league_hustle_team",
+    "league_lineup_viz",
+    "league_standings",
+    "matchups_rollup",
+    "player_estimated_metrics",
+)
+
 SEASON_ENDPOINTS_SUPPORTED_FROM_1997: tuple[str, ...] = (
     "common_playoff_series",
     "draft_board",
@@ -177,6 +206,36 @@ def _early_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
         ),
         season_start=1946,
         season_end=1960,
+    )
+
+
+def _early_1946_1949_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats returned no usable season-level result sets for "
+            "1946-47 through 1949-50 in full extraction; this endpoint "
+            "exhausted retries and persisted zero rows in its isolated lane."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28710521686, chain "
+            "28687179975, iteration 3, reported 26 extract lane failures for "
+            "1946-1949 season endpoints. Each failed lane persisted zero rows, "
+            "ended as extract-error, and reported TransientError failures with "
+            "zero_row_reason=contract_gap. The failed lanes included "
+            "dunk_score_leaders, fantasy_widget, gravity_leaders, homepage "
+            "leaders/v2, league dash player/team tracking families, hustle, "
+            "lineup, standings, matchups_rollup, and player_estimated_metrics."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose --pattern season "
+            f"--endpoint {endpoint_name} --seasons 1946:1949 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1946,
+        season_end=1949,
     )
 
 
@@ -392,6 +451,10 @@ def _post_1969_unscoped_season_contract_gap(endpoint_name: str) -> EndpointSuppo
 
 
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
+    *(
+        _early_1946_1949_season_contract_gap(endpoint_name)
+        for endpoint_name in EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS
+    ),
     *(
         _early_season_contract_gap(endpoint_name)
         for endpoint_name in EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS

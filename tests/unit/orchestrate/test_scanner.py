@@ -181,6 +181,28 @@ class TestCrossTableChecks:
         assert coverage[0].details["missing"] == 1
         assert coverage[0].table == "fact_game_result"
 
+    def test_game_coverage_detects_set_gap_when_distinct_counts_match(self, conn):
+        conn.execute("""
+            CREATE TABLE fact_game_result (
+                game_id VARCHAR, season_year VARCHAR, pts_home INTEGER, pts_away INTEGER
+            )
+        """)
+        conn.execute("""
+            INSERT INTO fact_game_result VALUES
+                ('0021400001', '2024-25', 110, 100),
+                ('0021400002', '2024-25', 105, 95),
+                ('ORPHAN_GAME', '2024-25', 115, 108)
+        """)
+
+        scanner = DataScanner(conn)
+        report = scanner.scan(categories=[ScanCategory.CROSS_TABLE])
+
+        coverage = [f for f in report.findings if f.check == "game_coverage"]
+        assert len(coverage) == 1
+        assert coverage[0].details["dim_game_count"] == 3
+        assert coverage[0].details["fact_game_count"] == 3
+        assert coverage[0].details["missing"] == 1
+
     def test_game_coverage_no_gap(self, conn):
         conn.execute("""
             CREATE TABLE fact_game_result (

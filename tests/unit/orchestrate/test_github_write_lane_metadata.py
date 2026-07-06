@@ -8,6 +8,7 @@ import duckdb
 import pytest
 
 from nbadb.orchestrate.extraction_contract import (
+    EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
     SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969,
     EndpointSupportRule,
@@ -431,6 +432,103 @@ def test_build_payload_classifies_early_season_lane_as_contract_blocked(
     assert payload["status"] == "contract_blocked"
     assert payload["telemetry"]["zero_row_reason"] == "contract_blocked"
     assert len(payload["support_rules"]) == len(EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS)
+
+
+@pytest.mark.parametrize("endpoint_name", EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS)
+def test_build_payload_classifies_1946_1949_season_endpoint_as_contract_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    endpoint_name: str,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 0,
+                    "failed_extractions": 16,
+                    "skipped_extractions": 0,
+                    "tables_updated": 0,
+                },
+                "progress": {
+                    "patterns": [{"total": 16}],
+                    "totals": {"rows_extracted": 0, "failed": 16},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv(
+        "LANE_ID",
+        f"historical-season-{endpoint_name}-regular-season-playoffs-1946-1949",
+    )
+    monkeypatch.setenv("NAME", f"Historical season 1946-1949 ({endpoint_name})")
+    monkeypatch.setenv("PATTERNS", "season")
+    monkeypatch.setenv("ENDPOINTS", endpoint_name)
+    monkeypatch.setenv("SEASON_START", "1946")
+    monkeypatch.setenv("SEASON_END", "1949")
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.setenv("EXTRACT_STATUS", "extract-error")
+    monkeypatch.setenv("EXTRACT_EXIT_CODE", "1")
+    monkeypatch.setenv("EFFECTIVE_NETWORK_MODE", "direct")
+    monkeypatch.setenv("VPN_STATUS", "direct-no-vpn")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "contract_blocked"
+    assert payload["telemetry"]["zero_row_reason"] == "contract_blocked"
+    assert [rule["endpoint_name"] for rule in payload["support_rules"]] == [endpoint_name]
+
+
+def test_build_payload_keeps_post_1949_season_endpoint_error_as_pipeline_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    endpoint_name = EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS[0]
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    summary_path.parent.mkdir(parents=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "result": {
+                    "rows_total": 0,
+                    "failed_extractions": 16,
+                    "skipped_extractions": 0,
+                    "tables_updated": 0,
+                },
+                "progress": {
+                    "patterns": [{"total": 16}],
+                    "totals": {"rows_extracted": 0, "failed": 16},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv(
+        "LANE_ID",
+        f"historical-season-{endpoint_name}-regular-season-playoffs-1950-1950",
+    )
+    monkeypatch.setenv("NAME", f"Historical season 1950 ({endpoint_name})")
+    monkeypatch.setenv("PATTERNS", "season")
+    monkeypatch.setenv("ENDPOINTS", endpoint_name)
+    monkeypatch.setenv("SEASON_START", "1950")
+    monkeypatch.setenv("SEASON_END", "1950")
+    monkeypatch.setenv("STATUS", "extract-error")
+    monkeypatch.setenv("EXTRACT_STATUS", "extract-error")
+    monkeypatch.setenv("EXTRACT_EXIT_CODE", "1")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["telemetry"]["zero_row_reason"] == "contract_gap"
+    assert payload["support_rules"] == []
 
 
 @pytest.mark.parametrize(

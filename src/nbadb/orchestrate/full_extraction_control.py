@@ -29,7 +29,7 @@ from nbadb.orchestrate.workload_profile import (
 DEFAULT_HISTORICAL_START = 1946
 MAX_CONSECUTIVE_FAILURES = 3
 MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
-MAX_GITHUB_MATRIX_LANES = 220
+MAX_GITHUB_MATRIX_LANES = 256
 CHUNK_PROFILES = frozenset({"standard", "balanced-small", "micro"})
 DEFAULT_CHUNK_PROFILE = "balanced-small"
 SPLITTABLE_TIMEOUT_STATUSES = frozenset(
@@ -66,16 +66,19 @@ HISTORICAL_MAX_SPAN_BY_PATTERN: dict[str, int] = {
     "player_season": 6,
     "team_season": 8,
 }
-HISTORICAL_ENDPOINT_ISOLATION_PATTERNS = frozenset({"date", "game", "season"})
+HISTORICAL_ENDPOINT_ISOLATION_PATTERNS = frozenset(
+    {"date", "game", "season", "player_season", "team_season"}
+)
 """High-volume historical patterns that must be planned per endpoint.
 
-The support matrix is endpoint/table-oriented, but date/game extraction can be
-much slower than the broad season sweeps, and season-level endpoint availability
-varies sharply by endpoint. Isolating these lanes keeps a slow, rate-limited, or
-temporally unsupported endpoint from blocking unrelated endpoint/time-period
-coverage.
+The support matrix is endpoint/table-oriented, but high-volume historical
+extraction can be much slower than broad season sweeps, and season-level
+availability varies sharply by endpoint. Isolating these lanes keeps a slow,
+rate-limited, or temporally unsupported endpoint from blocking unrelated
+endpoint/time-period coverage.
 """
 CROSS_PRODUCT_MAX_SPAN = 4
+CROSS_PRODUCT_ENDPOINT_ISOLATION_PATTERNS = frozenset({"player_team_season"})
 CHUNK_PROFILE_MAX_SPAN_BY_PATTERN: dict[str, dict[str, dict[str, int]]] = {
     "standard": {
         "cheap_high_volume": {
@@ -553,6 +556,12 @@ def _historical_endpoint_row_groups(
     if pattern not in HISTORICAL_ENDPOINT_ISOLATION_PATTERNS:
         return [(None, rows)]
 
+    return _endpoint_row_groups(rows)
+
+
+def _endpoint_row_groups(
+    rows: list[dict[str, Any]],
+) -> list[tuple[str | None, list[dict[str, Any]]]]:
     rows_by_endpoint: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         endpoint_name = str(row.get("endpoint_name", "")).strip()
@@ -563,6 +572,16 @@ def _historical_endpoint_row_groups(
         (_lane_slug(endpoint_name), rows_by_endpoint[endpoint_name])
         for endpoint_name in sorted(rows_by_endpoint)
     ]
+
+
+def _cross_product_endpoint_row_groups(
+    rows: list[dict[str, Any]],
+    *,
+    pattern: str,
+) -> list[tuple[str | None, list[dict[str, Any]]]]:
+    if pattern not in CROSS_PRODUCT_ENDPOINT_ISOLATION_PATTERNS:
+        return [(None, rows)]
+    return _endpoint_row_groups(rows)
 
 
 def _chunked_endpoint_names(
@@ -873,27 +892,14 @@ def _schedule_lanes(
     active.sort(
         key=lambda lane: (
             -lane.schedule_priority,
+            -lane.estimated_lane_cost,
+            -THROUGHPUT_TIER_SEVERITY.get(lane.throughput_tier, 0),
             lane.endpoint_family,
             lane.season_start if lane.season_start is not None else 9999,
             lane.lane_id,
         )
     )
-    buckets: dict[str, list[FullExtractionLane]] = {}
-    for lane in active:
-        buckets.setdefault(lane.endpoint_family or "default", []).append(lane)
-    family_order = sorted(
-        buckets,
-        key=lambda family: (
-            -buckets[family][0].schedule_priority,
-            family,
-        ),
-    )
-    interleaved: list[FullExtractionLane] = []
-    while any(buckets.values()):
-        for family in family_order:
-            if buckets[family]:
-                interleaved.append(buckets[family].pop(0))
-    ordered = [*interleaved, *resume_only]
+    ordered = [*active, *resume_only]
     return [
         replace(lane, lane_index=index, planned_wave=index // max_matrix_lanes)
         for index, lane in enumerate(ordered)
@@ -1212,101 +1218,110 @@ def build_default_manifest(
             supported_cross_product_rows,
             pattern="player_team_season",
         ):
-            patterns = tuple(
-                sorted(
-                    {
-                        str(pattern)
-                        for row in grouped_rows
-                        for pattern in row.get("param_patterns", [])
-                        if str(pattern) in CROSS_PRODUCT_PATTERNS
-                    }
+            for endpoint_slug, endpoint_rows in _cross_product_endpoint_row_groups(
+                grouped_rows,
+                pattern="player_team_season",
+            ):
+                patterns = tuple(
+                    sorted(
+                        {
+                            str(pattern)
+                            for row in endpoint_rows
+                            for pattern in row.get("param_patterns", [])
+                            if str(pattern) in CROSS_PRODUCT_PATTERNS
+                        }
+                    )
                 )
-            )
-            endpoints = _endpoint_names(grouped_rows)
-            endpoint_family_value, throughput_tier_value, _endpoint_cost_value = (
-                _endpoint_profile_values(
-                    endpoints=endpoints,
-                    pattern="player_team_season",
-                    planning_snapshot=planning_snapshot,
+                endpoints = _endpoint_names(endpoint_rows)
+                endpoint_family_value, throughput_tier_value, _endpoint_cost_value = (
+                    _endpoint_profile_values(
+                        endpoints=endpoints,
+                        pattern="player_team_season",
+                        planning_snapshot=planning_snapshot,
+                    )
                 )
-            )
-            end_year = _current_end_year()
-            cross_product_costs = {
-                year: max(
-                    1.0,
-                    sum(
-                        count / 500.0
-                        for (season, _season_type), count in (
-                            planning_snapshot.cross_product_pair_counts.items()
-                            if planning_snapshot is not None
-                            else {}
-                        )
-                        if str(season).startswith(str(year))
-                    ),
-                )
-                for year in range(DEFAULT_HISTORICAL_START, end_year + 1)
-            }
-            supported_bands = _contract_supported_season_bands(
-                endpoints=endpoints,
-                patterns=patterns,
-                start=DEFAULT_HISTORICAL_START,
-                end=end_year,
-            )
-            for supported_start, supported_end in supported_bands:
-                supported_costs = {
-                    year: cross_product_costs[year]
-                    for year in range(supported_start, supported_end + 1)
+                end_year = _current_end_year()
+                cross_product_costs = {
+                    year: max(
+                        1.0,
+                        sum(
+                            count / 500.0
+                            for (season, _season_type), count in (
+                                planning_snapshot.cross_product_pair_counts.items()
+                                if planning_snapshot is not None
+                                else {}
+                            )
+                            if str(season).startswith(str(year))
+                        ),
+                    )
+                    for year in range(DEFAULT_HISTORICAL_START, end_year + 1)
                 }
-                for band_start, band_end in (
-                    _adaptive_split_season_band(
-                        supported_start,
-                        supported_end,
-                        max_span=_profile_max_span(
-                            chunk_profile=chunk_profile,
-                            pattern="player_team_season",
-                            throughput_tier=throughput_tier_value,
-                            endpoint_family=endpoint_family_value,
-                        ),
-                        target_cost=max(6.0, CROSS_PRODUCT_MAX_SPAN * 1.5),
-                        season_costs=supported_costs,
-                    )
-                    if planning_snapshot is not None
-                    else _split_season_band(
-                        supported_start,
-                        supported_end,
-                        max_span=_profile_max_span(
-                            chunk_profile=chunk_profile,
-                            pattern="player_team_season",
-                            throughput_tier=throughput_tier_value,
-                            endpoint_family=endpoint_family_value,
-                        ),
-                    )
-                ):
-                    appended = _append_lane_if_supported(
-                        lanes,
-                        FullExtractionLane(
-                            lane_id=(
-                                f"cross-product-{_season_type_slug(season_types)}-"
-                                f"{band_start}-{band_end}"
+                supported_bands = _contract_supported_season_bands(
+                    endpoints=endpoints,
+                    patterns=patterns,
+                    start=DEFAULT_HISTORICAL_START,
+                    end=end_year,
+                )
+                for supported_start, supported_end in supported_bands:
+                    supported_costs = {
+                        year: cross_product_costs[year]
+                        for year in range(supported_start, supported_end + 1)
+                    }
+                    for band_start, band_end in (
+                        _adaptive_split_season_band(
+                            supported_start,
+                            supported_end,
+                            max_span=_profile_max_span(
+                                chunk_profile=chunk_profile,
+                                pattern="player_team_season",
+                                throughput_tier=throughput_tier_value,
+                                endpoint_family=endpoint_family_value,
                             ),
-                            lane_index=lane_index,
-                            lane_name=f"Cross Product Historical {band_start}-{band_end}",
-                            lane_kind="cross_product",
-                            season_start=band_start,
-                            season_end=band_end,
-                            patterns=patterns,
-                            season_types=season_types,
-                            endpoints=endpoints,
-                            use_vpn=True,
-                            resume_only=False,
-                            timeout_seconds=_cross_product_timeout_seconds(
-                                band_start,
-                                band_end,
+                            target_cost=max(6.0, CROSS_PRODUCT_MAX_SPAN * 1.5),
+                            season_costs=supported_costs,
+                        )
+                        if planning_snapshot is not None
+                        else _split_season_band(
+                            supported_start,
+                            supported_end,
+                            max_span=_profile_max_span(
+                                chunk_profile=chunk_profile,
+                                pattern="player_team_season",
+                                throughput_tier=throughput_tier_value,
+                                endpoint_family=endpoint_family_value,
                             ),
-                        ),
-                    )
-                    if appended:
-                        lane_index += 1
+                        )
+                    ):
+                        endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
+                        lane_name = f"Cross Product Historical {band_start}-{band_end}"
+                        if endpoints and endpoint_slug:
+                            lane_name = f"{lane_name} ({', '.join(endpoints)})"
+                        appended = _append_lane_if_supported(
+                            lanes,
+                            FullExtractionLane(
+                                lane_id=(
+                                    f"cross-product{endpoint_component}-"
+                                    f"{_season_type_slug(season_types)}-"
+                                    f"{band_start}-{band_end}"
+                                ),
+                                lane_index=lane_index,
+                                lane_name=lane_name,
+                                lane_kind="cross_product",
+                                season_start=band_start,
+                                season_end=band_end,
+                                patterns=patterns,
+                                season_types=season_types,
+                                endpoints=endpoints,
+                                use_vpn=True,
+                                resume_only=False,
+                                timeout_seconds=_cross_product_timeout_seconds(
+                                    band_start,
+                                    band_end,
+                                ),
+                            ),
+                        )
+                        if appended:
+                            lane_index += 1
 
     if not lanes:
         msg = "Selected full-extraction filters produced no runnable lanes"
@@ -1345,6 +1360,61 @@ def normalize_manifest(
     )
 
 
+def _lane_summary_key(lane: FullExtractionLane, *, dimension: str) -> str:
+    if dimension == "wave":
+        return str(lane.planned_wave)
+    if dimension == "pattern":
+        return ",".join(lane.patterns) or "none"
+    if dimension == "family":
+        return lane.endpoint_family or "default"
+    if dimension == "tier":
+        return lane.throughput_tier or "unknown"
+    msg = f"Unsupported lane summary dimension: {dimension}"
+    raise ValueError(msg)
+
+
+def _lane_cost_summary(
+    lanes: list[FullExtractionLane],
+    *,
+    dimension: str,
+) -> list[dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {}
+    for lane in lanes:
+        key = _lane_summary_key(lane, dimension=dimension)
+        bucket = buckets.setdefault(
+            key,
+            {
+                dimension: int(key) if dimension == "wave" else key,
+                "lane_count": 0,
+                "coverage_unit_count": 0,
+                "estimated_lane_cost": 0.0,
+                "schedule_priority": 0.0,
+                "max_timeout_seconds": 0,
+            },
+        )
+        bucket["lane_count"] += 1
+        bucket["coverage_unit_count"] += len(_coverage_units_for_lane(lane))
+        bucket["estimated_lane_cost"] += lane.estimated_lane_cost
+        bucket["schedule_priority"] += lane.schedule_priority
+        bucket["max_timeout_seconds"] = max(bucket["max_timeout_seconds"], lane.timeout_seconds)
+
+    summary = [
+        {
+            **bucket,
+            "estimated_lane_cost": round(float(bucket["estimated_lane_cost"]), 3),
+            "schedule_priority": round(float(bucket["schedule_priority"]), 3),
+        }
+        for bucket in buckets.values()
+    ]
+    return sorted(
+        summary,
+        key=lambda row: (
+            row[dimension] if dimension == "wave" else -float(row["estimated_lane_cost"]),
+            str(row[dimension]),
+        ),
+    )
+
+
 def manifest_payload(
     lanes: list[FullExtractionLane],
     *,
@@ -1357,6 +1427,10 @@ def manifest_payload(
     deferred_lane_count = max(0, len(active_lanes) - len(matrix_lanes))
     chunk_profiles = sorted({lane.chunk_profile for lane in lanes if lane.chunk_profile})
     coverage_fingerprint = _coverage_fingerprint(lanes)
+    wave_summary = _lane_cost_summary(active_lanes, dimension="wave")
+    pattern_summary = _lane_cost_summary(active_lanes, dimension="pattern")
+    family_summary = _lane_cost_summary(active_lanes, dimension="family")
+    tier_summary = _lane_cost_summary(active_lanes, dimension="tier")
     return {
         "manifest_version": 2,
         "chunk_profile": chunk_profiles[0] if len(chunk_profiles) == 1 else "mixed",
@@ -1367,6 +1441,14 @@ def manifest_payload(
         "matrix_lane_count": len(matrix_lanes),
         "deferred_lane_count": deferred_lane_count,
         "planned_wave_count": max((lane.planned_wave for lane in lanes), default=0) + 1,
+        "scheduler_diagnostics": {
+            "max_matrix_lanes": max_matrix_lanes,
+            "active_wave_count": len(wave_summary),
+            "wave_cost_summary": wave_summary,
+            "pattern_cost_summary": pattern_summary,
+            "family_cost_summary": family_summary,
+            "throughput_tier_summary": tier_summary,
+        },
         "top_cost_lanes": [
             {
                 "lane_id": lane.lane_id,
@@ -1626,27 +1708,8 @@ def lane_outcome_from_metadata(
     ).strip()
     if metadata_status == "complete":
         return "complete"
-    if metadata_status in {"needs_resume", "contract_blocked"}:
-        if not _metadata_has_required_noncomplete_artifacts(payload):
-            return "pipeline_failure"
-        return metadata_status
-    if metadata_status == "pipeline_failure" and raw_status == "pipeline_failure":
-        if not _metadata_has_required_noncomplete_artifacts(payload):
-            return "pipeline_failure"
-        return "pipeline_failure"
     if not _metadata_has_required_noncomplete_artifacts(payload):
         return "pipeline_failure"
-
-    vpn_payload = payload.get("vpn")
-    vpn_status = (
-        str(vpn_payload.get("status") or "").strip() if isinstance(vpn_payload, dict) else ""
-    )
-    if metadata_status == "pipeline_failure" and (
-        raw_status in RETRYABLE_PIPELINE_FAILURE_STATUSES
-        or str(payload.get("vpn_status") or "").strip() in RETRYABLE_PIPELINE_FAILURE_STATUSES
-        or vpn_status in RETRYABLE_PIPELINE_FAILURE_STATUSES
-    ):
-        return "needs_resume"
 
     telemetry = payload.get("telemetry", {})
     if not isinstance(telemetry, dict):
@@ -1677,8 +1740,24 @@ def lane_outcome_from_metadata(
         )
     )
 
+    if metadata_status == "contract_blocked":
+        return "contract_blocked"
     if rows_persisted == 0 and failed_calls > 0 and lane_contract_rules:
         return "contract_blocked"
+    if metadata_status == "needs_resume":
+        return "needs_resume"
+
+    vpn_payload = payload.get("vpn")
+    vpn_status = (
+        str(vpn_payload.get("status") or "").strip() if isinstance(vpn_payload, dict) else ""
+    )
+    if metadata_status == "pipeline_failure" and (
+        raw_status in RETRYABLE_PIPELINE_FAILURE_STATUSES
+        or str(payload.get("vpn_status") or "").strip() in RETRYABLE_PIPELINE_FAILURE_STATUSES
+        or vpn_status in RETRYABLE_PIPELINE_FAILURE_STATUSES
+    ):
+        return "needs_resume"
+
     if raw_status == "extract-error" and (
         rows_persisted > 0 or journal_skips > 0 or running_calls > 0
     ):
@@ -1804,6 +1883,18 @@ def build_resume_manifest(
             if not allow_pipeline_failures:
                 pipeline_failures.append(f"{lane.lane_id} ({failure_reason})")
                 continue
+            failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
+            retry_lane = replace(
+                lane,
+                resume_only=False,
+                failure_streak=failure_streak,
+                last_failure_reason=status,
+            )
+            if failure_streak >= MAX_CONSECUTIVE_FAILURES:
+                blocked_lanes.append(retry_lane)
+                next_lanes.append(retry_lane)
+                active += 1
+                continue
             if _lane_exceeds_policy(lane):
                 child_lanes = _split_legacy_oversized_lane(
                     lane,
@@ -1814,15 +1905,7 @@ def build_resume_manifest(
                 active += len(child_lanes)
                 pipeline_failure_retries += 1
                 continue
-            failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
-            next_lanes.append(
-                replace(
-                    lane,
-                    resume_only=False,
-                    failure_streak=failure_streak,
-                    last_failure_reason=status,
-                )
-            )
+            next_lanes.append(retry_lane)
             active += 1
             pipeline_failure_retries += 1
             continue
@@ -2321,6 +2404,168 @@ def _lane_artifact_database_paths(
     return matched_paths, matched_lane_ids
 
 
+def _legacy_cross_product_spans(lane_ids: set[str]) -> set[tuple[str, int, int]]:
+    spans: set[tuple[str, int, int]] = set()
+    prefix = "cross-product-"
+    for lane_id in lane_ids:
+        if not lane_id.startswith(prefix):
+            continue
+        pieces = lane_id[len(prefix) :].rsplit("-", 2)
+        if len(pieces) != 3:
+            continue
+        season_slug, raw_start, raw_end = pieces
+        if not raw_start.isdigit() or not raw_end.isdigit():
+            continue
+        spans.add((season_slug, int(raw_start), int(raw_end)))
+    return spans
+
+
+def _legacy_historical_spans(lane_ids: set[str]) -> set[tuple[str, str, int, int]]:
+    spans: set[tuple[str, str, int, int]] = set()
+    prefix = "historical-"
+    pattern_aliases = {
+        pattern: {pattern, _lane_slug(pattern)}
+        for pattern in HISTORICAL_ENDPOINT_ISOLATION_PATTERNS
+    }
+    for lane_id in lane_ids:
+        if not lane_id.startswith(prefix):
+            continue
+        pieces = lane_id[len(prefix) :].rsplit("-", 2)
+        if len(pieces) != 3:
+            continue
+        body, raw_start, raw_end = pieces
+        if not raw_start.isdigit() or not raw_end.isdigit():
+            continue
+        for pattern, aliases in pattern_aliases.items():
+            for alias in aliases:
+                marker = f"{alias}-"
+                if not body.startswith(marker):
+                    continue
+                season_slug = body[len(marker) :]
+                if season_slug:
+                    spans.add((pattern, season_slug, int(raw_start), int(raw_end)))
+    return spans
+
+
+def _season_year_tokens(season_year: int) -> set[str]:
+    return {str(season_year), f"{season_year}-{str(season_year + 1)[-2:]}"}
+
+
+def _journal_params_match_season(params_json: str, season_year: int) -> bool:
+    try:
+        payload = json.loads(params_json)
+    except json.JSONDecodeError:
+        return any(token in params_json for token in _season_year_tokens(season_year))
+
+    tokens = _season_year_tokens(season_year)
+    stack: list[Any] = [payload]
+    while stack:
+        value = stack.pop()
+        if isinstance(value, dict):
+            stack.extend(value.values())
+        elif isinstance(value, list):
+            stack.extend(value)
+        elif str(value) in tokens:
+            return True
+    return False
+
+
+def _previous_checkpoint_has_lane_evidence(
+    previous_db_path: Path | None,
+    lane: FullExtractionLane,
+) -> bool:
+    if (
+        previous_db_path is None
+        or lane.season_start is None
+        or lane.season_end is None
+        or not lane.endpoints
+    ):
+        return False
+
+    conn = duckdb.connect(str(previous_db_path), read_only=True)
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'"
+            ).fetchall()
+        }
+        if "_extraction_journal" not in tables:
+            return False
+        rows = conn.execute(
+            """
+            SELECT endpoint, params
+            FROM _extraction_journal
+            WHERE status = 'done'
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    params_by_endpoint: dict[str, list[str]] = {}
+    for endpoint, params in rows:
+        params_by_endpoint.setdefault(str(endpoint), []).append(str(params))
+
+    for endpoint in lane.endpoints:
+        endpoint_params = params_by_endpoint.get(endpoint, [])
+        if not endpoint_params:
+            return False
+        for season_year in range(lane.season_start, lane.season_end + 1):
+            if not any(
+                _journal_params_match_season(params_json, season_year)
+                for params_json in endpoint_params
+            ):
+                return False
+    return True
+
+
+def _compatible_previous_checkpoint_lane_ids(
+    lanes: list[FullExtractionLane],
+    *,
+    previous_included_lane_ids: set[str],
+    previous_db_path: Path | None,
+) -> set[str]:
+    """Map pre-endpoint-isolation checkpoint lanes to current isolated lanes."""
+    legacy_spans = _legacy_cross_product_spans(previous_included_lane_ids)
+    legacy_historical_spans = _legacy_historical_spans(previous_included_lane_ids)
+    if previous_db_path is None or (not legacy_spans and not legacy_historical_spans):
+        return set()
+
+    compatible: set[str] = set()
+    for lane in lanes:
+        if lane.season_start is None or lane.season_end is None:
+            continue
+        if (
+            lane.lane_kind == "historical"
+            and len(lane.patterns) == 1
+            and lane.patterns[0] in HISTORICAL_ENDPOINT_ISOLATION_PATTERNS
+        ):
+            season_slug = _season_type_slug(lane.season_types)
+            for (
+                legacy_pattern,
+                legacy_season_slug,
+                legacy_start,
+                legacy_end,
+            ) in legacy_historical_spans:
+                if legacy_pattern != lane.patterns[0] or legacy_season_slug != season_slug:
+                    continue
+                if legacy_start <= lane.season_start and lane.season_end <= legacy_end:
+                    if _previous_checkpoint_has_lane_evidence(previous_db_path, lane):
+                        compatible.add(lane.lane_id)
+                    break
+            continue
+        if lane.lane_kind == "cross_product":
+            season_slug = _season_type_slug(lane.season_types)
+            for legacy_season_slug, legacy_start, legacy_end in legacy_spans:
+                if legacy_season_slug != season_slug:
+                    continue
+                if legacy_start <= lane.season_start and lane.season_end <= legacy_end:
+                    if _previous_checkpoint_has_lane_evidence(previous_db_path, lane):
+                        compatible.add(lane.lane_id)
+                    break
+    return compatible
+
+
 def build_checkpoint_database(
     *,
     manifest_path: Path,
@@ -2338,12 +2583,6 @@ def build_checkpoint_database(
     lanes_by_id = {lane.lane_id: lane for lane in lanes}
     metadata = _metadata_by_lane(metadata_dir)
     previous_report = _read_json_file(previous_checkpoint_report_path)
-    previous_included_lane_ids = {
-        str(value) for value in previous_report.get("included_lane_ids", []) if str(value).strip()
-    }
-    previous_run_ids = [
-        str(value) for value in previous_report.get("included_run_ids", []) if str(value).strip()
-    ]
     complete_current_lane_ids = _metadata_complete_lane_ids(metadata)
     contract_blocked_lane_ids = _metadata_contract_blocked_lane_ids(metadata, lanes_by_id)
     current_db_paths, current_included_lane_ids = _lane_artifact_database_paths(
@@ -2354,6 +2593,21 @@ def build_checkpoint_database(
     db_paths: list[Path] = []
     db_paths.extend(current_db_paths)
     previous_db_path = _first_database_path(previous_checkpoint_dir)
+    previous_included_lane_ids = (
+        {str(value) for value in previous_report.get("included_lane_ids", []) if str(value).strip()}
+        if previous_db_path is not None
+        else set()
+    )
+    previous_run_ids = (
+        [str(value) for value in previous_report.get("included_run_ids", []) if str(value).strip()]
+        if previous_db_path is not None
+        else []
+    )
+    compatible_previous_lane_ids = _compatible_previous_checkpoint_lane_ids(
+        lanes,
+        previous_included_lane_ids=previous_included_lane_ids,
+        previous_db_path=previous_db_path,
+    )
     if previous_db_path is not None:
         # Merge current lanes first so newer journal rows win when endpoint/params collide.
         db_paths.append(previous_db_path)
@@ -2378,10 +2632,13 @@ def build_checkpoint_database(
         merge_mode = "empty"
         output_path = ""
 
-    included_lane_ids = previous_included_lane_ids | current_included_lane_ids
+    included_lane_ids = (
+        previous_included_lane_ids | compatible_previous_lane_ids | current_included_lane_ids
+    )
+    effective_included_lane_ids = set(lanes_by_id) & included_lane_ids
     non_contract_lane_ids = set(lanes_by_id) - contract_blocked_lane_ids
-    missing_lane_ids = sorted(non_contract_lane_ids - included_lane_ids)
-    included_lanes = [lane for lane in lanes if lane.lane_id in included_lane_ids]
+    missing_lane_ids = sorted(non_contract_lane_ids - effective_included_lane_ids)
+    included_lanes = [lane for lane in lanes if lane.lane_id in effective_included_lane_ids]
     coverage_fingerprint = _coverage_fingerprint(included_lanes)
     checkpoint_generation = int(previous_report.get("checkpoint_generation") or 0) + 1
     included_run_ids = list(dict.fromkeys([*previous_run_ids, *([run_id] if run_id else [])]))
@@ -2392,8 +2649,9 @@ def build_checkpoint_database(
         "checkpoint_generation": checkpoint_generation,
         "previous_checkpoint_generation": int(previous_report.get("checkpoint_generation") or 0),
         "included_lane_ids": sorted(included_lane_ids),
+        "compatible_previous_lane_ids": sorted(compatible_previous_lane_ids),
         "included_run_ids": included_run_ids,
-        "complete_lane_count": len(included_lane_ids),
+        "complete_lane_count": len(effective_included_lane_ids),
         "contract_blocked_lane_count": len(contract_blocked_lane_ids),
         "active_lane_count": len(missing_lane_ids),
         "skipped_lane_count": len(skipped_complete_lane_ids),
@@ -2405,7 +2663,7 @@ def build_checkpoint_database(
         "merge_mode": merge_mode,
         "merge_summary": merge_summary,
         "output_path": output_path,
-        "terminal_ready": not missing_lane_ids and bool(included_lane_ids),
+        "terminal_ready": not missing_lane_ids and bool(effective_included_lane_ids),
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

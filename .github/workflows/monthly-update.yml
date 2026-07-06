@@ -56,11 +56,10 @@ jobs:
         id: monthly
         continue-on-error: true
         run: uv run nbadb monthly
-      # Scan is advisory — continue-on-error ensures export/upload proceeds.
-      # --fail-on error produces exit 1 for annotations; the step shows yellow on errors.
+      # Keep scan diagnostics visible, but require green extraction + scan before publishing.
       - name: Scan data quality
         id: scan
-        if: always() && steps.monthly.outcome != 'skipped'
+        if: always() && steps.monthly.outcome == 'success'
         continue-on-error: true
         uses: ./.github/actions/scan-report
         with:
@@ -68,17 +67,31 @@ jobs:
           report-dir: artifacts/health/monthly
           fail-on: error
       - name: Export data
-        if: always() && steps.monthly.outcome != 'skipped'
+        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
         run: uv run nbadb export
       - name: Refresh checked-in metadata
-        if: always() && steps.monthly.outcome != 'skipped'
+        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
         uses: ./.github/actions/refresh-metadata
       - name: Upload to Kaggle
-        if: always() && steps.monthly.outcome != 'skipped'
+        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: uv run nbadb upload
+      - name: Assert extraction and scan passed
+        if: always()
+        env:
+          MONTHLY_OUTCOME: ${{ steps.monthly.outcome }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          if [ "$MONTHLY_OUTCOME" != "success" ]; then
+            echo "::error::Monthly extraction did not pass: ${MONTHLY_OUTCOME:-unknown}"
+            exit 1
+          fi
+          if [ "$SCAN_OUTCOME" != "success" ]; then
+            echo "::error::Monthly scan did not pass: ${SCAN_OUTCOME:-skipped}"
+            exit 1
+          fi
       - name: Disconnect VPN
         if: always()
         uses: ./.github/actions/nordvpn-disconnect

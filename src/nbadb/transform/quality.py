@@ -42,7 +42,7 @@ class DataQualityMonitor:
         threshold: float = 2.0,
     ) -> QualityResult:
         if historical_std == 0:
-            passed = True
+            passed = current_count == int(round(historical_avg))
         else:
             z_score = abs(current_count - historical_avg) / historical_std
             passed = z_score <= threshold

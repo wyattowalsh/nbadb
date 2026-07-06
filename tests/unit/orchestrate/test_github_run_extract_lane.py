@@ -84,7 +84,7 @@ def test_effective_timeout_caps_direct_no_vpn_date_lanes(
     assert module.effective_timeout_seconds(600) == 600
 
 
-def test_effective_timeout_does_not_cap_direct_game_lanes(
+def test_effective_timeout_caps_direct_no_vpn_game_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load_module()
@@ -92,7 +92,23 @@ def test_effective_timeout_does_not_cap_direct_game_lanes(
     monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
     monkeypatch.setenv("PATTERNS", "game")
 
-    assert module.effective_timeout_seconds(7200) == 7200
+    assert module.effective_timeout_seconds(7200) == 1800
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["player_season", "team_season", "player_team_season"],
+)
+def test_effective_timeout_caps_direct_no_vpn_expensive_season_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+    pattern: str,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_NETWORK_MODE", "direct")
+    monkeypatch.setenv("NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS", "1800")
+    monkeypatch.setenv("PATTERNS", pattern)
+
+    assert module.effective_timeout_seconds(7200) == 1800
 
 
 def test_effective_timeout_ignores_direct_cap_for_vpn_lanes(

@@ -7,6 +7,16 @@ import subprocess
 import time
 from contextlib import suppress
 
+DIRECT_TIMEOUT_CAP_PATTERNS = frozenset(
+    {
+        "date",
+        "game",
+        "player_season",
+        "team_season",
+        "player_team_season",
+    }
+)
+
 
 def append_output(key: str, value: str) -> None:
     output_path = os.environ.get("GITHUB_OUTPUT")
@@ -115,7 +125,7 @@ def direct_timeout_cap_applies() -> bool:
     patterns = {
         value.strip() for value in os.environ.get("PATTERNS", "").split(",") if value.strip()
     }
-    return "date" in patterns
+    return bool(patterns & DIRECT_TIMEOUT_CAP_PATTERNS)
 
 
 def effective_timeout_seconds(timeout_seconds: int) -> int:

@@ -1558,13 +1558,20 @@ class ExtractorRunner:
                 )
                 output[entry.staging_key] = pl.DataFrame()
             else:
+                error = f"MissingRequiredResultSet:{entry.staging_key}:{idx}"
                 logger.warning(
                     "{}: result_set_index {} out of range (got {} sets)",
                     entry.staging_key,
                     idx,
                     len(all_dfs),
                 )
-                output[entry.staging_key] = pl.DataFrame()
+                self._journal.record_failure(endpoint_name, params_json, error)
+                return _FailedExtraction(
+                    endpoint_name,
+                    params_json,
+                    error,
+                    status="unexpected",
+                )
 
         if pending_success is not None:
             return _ExtractionTaskResult(

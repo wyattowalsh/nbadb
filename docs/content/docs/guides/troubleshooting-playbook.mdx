@@ -100,13 +100,17 @@ PY
 ### 1) Generate
 
 ```bash
+# Local runtime coverage audit
 uv run nbadb extract-completeness
 
-# Source coverage gate
+# Runtime source coverage gate
 uv run nbadb extract-completeness --require-full
 
-# Source + model-contract gate
-uv run nbadb extract-completeness --require-full --require-model-contract
+# Full upstream docs/tools + runtime source coverage gate
+uv run nbadb extract-completeness --require-full --endpoint-analysis-docs-root /path/to/nba_api
+
+# Full upstream docs/tools + runtime + model-contract gate
+uv run nbadb extract-completeness --require-full --require-model-contract --endpoint-analysis-docs-root /path/to/nba_api
 ```
 
 By default this writes:
@@ -185,12 +189,14 @@ report is missing, non-terminal, or coverage-mismatched.
 When VPN bootstrap is down, dispatch a narrow smoke run with
 `network_mode=direct`, `direct_parallelism=1`, `chunk_profile=micro`, and a low
 `direct_timeout_cap_minutes` value before fan-out. Direct mode skips NordVPN
-setup, uses `direct_parallelism` instead of VPN fan-out, caps direct date-lane
-runtime before writing timeout metadata, writes `direct-no-vpn` into lane
-metadata, and does not require VPN diagnostic artifacts for failed lanes. Keep
-direct fan-out low (`1` or `2`) and the date-lane cap at `15` or `30` minutes
-until lane metadata proves the direct path is viable; use `network_mode=auto`
-only after future iterations should prefer VPN again when preflight recovers.
+setup, uses `direct_parallelism` instead of VPN fan-out, caps high-volume
+temporal lanes (`date`, `game`, `player_season`, `team_season`, and
+`player_team_season`) before writing timeout metadata, writes `direct-no-vpn`
+into lane metadata, and does not require VPN diagnostic artifacts for failed
+lanes. Start direct fan-out low (`1` or `2`) for smoke validation, then raise it
+toward the workflow ceiling only after lane metadata proves the direct path is
+viable; use `network_mode=auto` only after future iterations should prefer VPN
+again when preflight recovers.
 
 Inspect checkpoint health with:
 
@@ -210,9 +216,13 @@ PY
 
 ### 4) Remediate
 
-- Retry only `needs_resume` lanes. For repeated game/date timeouts, the controller splits children down to one-season lanes.
+- Retry `needs_resume` lanes by default. Repeated temporal timeouts for `game`,
+  `date`, `season`, `player_season`, `team_season`, and `player_team_season`
+  are split before redispatch; short `game`/`date` spans split to one-season
+  children, while the season and cross-product patterns split by their lane
+  policy span.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
-- Treat any `pipeline_failure` as a control-plane failure. Check for missing metadata, missing VPN diagnostics, auth/VPN failures, manifest errors, and unclassified zero-row extract errors before relaunch.
+- Treat any `pipeline_failure` as a control-plane failure. Check for missing metadata, missing VPN diagnostics, auth/VPN failures, manifest errors, and unclassified zero-row extract errors before relaunch. Use `retry_pipeline_failures=true` only after classifying the lane as retryable or accepting the explicit recovery risk.
 - If checkpoint promotion fails but lane artifacts still exist, let the merge fallback rebuild the terminal database from the chain's recorded artifact run IDs. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
 
 ## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)

@@ -35,6 +35,15 @@ on:
           - "12"
           - "16"
           - "20"
+          - "32"
+          - "48"
+          - "64"
+          - "96"
+          - "128"
+          - "160"
+          - "192"
+          - "220"
+          - "256"
       direct_request_profile:
         description: "Request-rate profile for direct/no-VPN extract lanes"
         type: choice
@@ -46,7 +55,7 @@ on:
           - aggressive
           - turbo
       direct_timeout_cap_minutes:
-        description: "Max minutes before a direct/no-VPN date lane yields timeout metadata"
+        description: "Max minutes before a direct/no-VPN high-volume lane yields timeout metadata"
         type: choice
         default: "30"
         options:
@@ -77,7 +86,7 @@ on:
       max_iterations:
         description: "Max self-chain iterations (safety limit)"
         type: string
-        default: "12"
+        default: "32"
       backfill_endpoints:
         description: "Comma-separated endpoints to backfill (empty = all)"
         type: string
@@ -177,7 +186,10 @@ jobs:
       - name: Fetch nba_api upstream docs and tools
         if: ${{ inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         run: |
-          git clone --depth=1 --filter=blob:none \
+          NBA_API_VERSION="$(uv run python -c 'import importlib.metadata; print(importlib.metadata.version("nba-api"))')"
+          NBA_API_REF="v${NBA_API_VERSION}"
+          echo "Fetching nba_api docs/tools at ${NBA_API_REF}"
+          git clone --depth=1 --filter=blob:none --branch "$NBA_API_REF" \
             https://github.com/swar/nba_api.git "$RUNNER_TEMP/nba_api-upstream"
 
           # The support bundle ingests the upstream docs/tools contract, not just endpoint docs.
@@ -627,7 +639,7 @@ jobs:
 
   extract:
     needs: [plan, preflight]
-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' }}
+    if: ${{ always() && needs.plan.result == 'success' && needs.preflight.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -1097,7 +1109,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   merge:
     needs: [plan, preflight, extract, lane_control, checkpoint]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:

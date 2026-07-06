@@ -34,7 +34,12 @@ def atomic_write_text(path: Path, content: str) -> None:
     atomic_write_path(path, _write)
 
 
-def read_json_object(path: Path, *, metadata_label: str = "JSON metadata") -> dict[str, object]:
+def read_json_object(
+    path: Path,
+    *,
+    metadata_label: str = "JSON metadata",
+    repair_corrupt: bool = True,
+) -> dict[str, object]:
     if not path.exists():
         return {}
     try:
@@ -46,11 +51,15 @@ def read_json_object(path: Path, *, metadata_label: str = "JSON metadata") -> di
             path,
             type(exc).__name__,
         )
-        _quarantine_corrupt_path(path, reason=type(exc).__name__, metadata_label=metadata_label)
+        if repair_corrupt:
+            _quarantine_corrupt_path(path, reason=type(exc).__name__, metadata_label=metadata_label)
         return {}
     if not isinstance(payload, dict):
         logger.warning("ignoring non-object {} {}", metadata_label, path)
-        _quarantine_corrupt_path(path, reason=type(payload).__name__, metadata_label=metadata_label)
+        if repair_corrupt:
+            _quarantine_corrupt_path(
+                path, reason=type(payload).__name__, metadata_label=metadata_label
+            )
         return {}
     return payload
 

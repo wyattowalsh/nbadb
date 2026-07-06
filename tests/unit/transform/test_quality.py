@@ -56,12 +56,20 @@ class TestRowCountAnomaly:
         assert not result.passed
         conn.close()
 
-    def test_zero_std_always_passes(self) -> None:
+    def test_zero_std_passes_exact_stable_count(self) -> None:
+        conn, monitor = _make_monitor()
+        result = monitor.check_row_count_anomaly(
+            "test_facts", current_count=4, historical_avg=4.0, historical_std=0.0
+        )
+        assert result.passed
+        conn.close()
+
+    def test_zero_std_fails_changed_stable_count(self) -> None:
         conn, monitor = _make_monitor()
         result = monitor.check_row_count_anomaly(
             "test_facts", current_count=999, historical_avg=4.0, historical_std=0.0
         )
-        assert result.passed
+        assert not result.passed
         conn.close()
 
 

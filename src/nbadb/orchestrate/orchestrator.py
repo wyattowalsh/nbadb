@@ -485,6 +485,7 @@ class Orchestrator:
         expected_staging_keys: list[str] | None = None,
         source_results: list[dict[str, object]] | None = None,
         dedupe_materialized: bool | None = None,
+        replace_existing_chunks: bool = False,
         materialize: bool = True,
     ) -> None:
         """Persist in-memory staging DataFrames to DuckDB tables.
@@ -513,7 +514,7 @@ class Orchestrator:
         store = StagingBatchStore(db.duckdb)
         if source_results:
             source_batches: list[StagingFrameBatch] = []
-            replace_source_chunk = run_mode in {"daily", "monthly"}
+            replace_source_chunk = replace_existing_chunks or run_mode in {"daily", "monthly"}
             for source_result in source_results:
                 source_frames = cast("dict[str, pl.DataFrame]", source_result["frames"])
                 source_endpoint_name = str(source_result["source_endpoint_name"])
@@ -555,6 +556,7 @@ class Orchestrator:
                 dedupe_materialized=metadata_less_call
                 if dedupe_materialized is None
                 else dedupe_materialized,
+                replace_existing_chunk=replace_existing_chunks,
             )
         logger.info(
             "persisted {} staging chunk tables to DuckDB ({} rows)",
@@ -958,6 +960,13 @@ class Orchestrator:
             pp.start_phase("Extraction", total=total_tasks)
 
         # Run a single pattern group
+        def _journal_items_for_plan_item(item: ExtractionPlanItem) -> set[tuple[str, str]]:
+            return {
+                (entry.endpoint_name, json.dumps(params, sort_keys=True))
+                for entry in item.entries
+                for params in item.params
+            }
+
         async def _run_one(
             idx: int,
             item: ExtractionPlanItem,
@@ -978,8 +987,22 @@ class Orchestrator:
                 and progress_store_local is not None
                 and progress_store_local.is_complete(lane_key)
             ):
-                logger.info("skipping completed extraction slice: {}", label)
-                return PatternExtractionResult(frames={}, eligible_calls=0)
+                journal_items = _journal_items_for_plan_item(item)
+                done_items = (
+                    journal.was_extracted_batch(sorted(journal_items))
+                    if journal is not None
+                    else set()
+                )
+                if journal_items and done_items == journal_items:
+                    logger.info("skipping completed extraction slice: {}", label)
+                    return PatternExtractionResult(frames={}, eligible_calls=0)
+                logger.warning(
+                    "ignoring stale extraction progress marker for {}: "
+                    "{} of {} journal entries are complete",
+                    label,
+                    len(done_items),
+                    len(journal_items),
+                )
             logger.info("Step {}/{}: {} ({} tasks)", idx, len(plan), label, n_tasks)
             if pp is not None:
                 pp.start_pattern(f"{label} ({n_tasks:,})", total=n_tasks)
@@ -1315,7 +1338,9 @@ class Orchestrator:
                 journal=journal,
                 progress_store=self._extraction_progress(),
                 persist_results=lambda frames, **metadata: self._persist_staging_to_duckdb(
-                    db, frames, **metadata
+                    db,
+                    frames,
+                    **metadata,
                 ),
                 retain_in_memory=False,
             )
@@ -1494,6 +1519,30 @@ class Orchestrator:
             if not game_log_df.is_empty():
                 raw.setdefault("stg_league_game_log", game_log_df)
 
+            if extraction.pattern_failures or extraction.failed_calls or journal.get_failed():
+                bound_log.error(
+                    "daily extraction incomplete: {} pattern failures, {} failed calls",
+                    extraction.pattern_failures,
+                    extraction.failed_calls,
+                )
+                result = self._build_result(
+                    t0,
+                    0,
+                    0,
+                    0,
+                    journal=journal,
+                    extra_errors=extraction.errors,
+                    include_exhausted=True,
+                    include_abandoned=True,
+                )
+                result.failed_extractions = max(
+                    result.failed_extractions,
+                    extraction.failed_calls or extraction.pattern_failures,
+                )
+                result.skipped_extractions = runner.skipped
+                runner.log_latency_summary()
+                return result
+
             self._materialize_staging_batches(db)
             raw = self._load_staging_from_duckdb(db)
             bound_log.info("daily loaded {} staged tables from DuckDB", len(raw))
@@ -1584,6 +1633,30 @@ class Orchestrator:
                 retain_in_memory=False,
             )
             raw = extraction.raw
+
+            if extraction.pattern_failures or extraction.failed_calls or journal.get_failed():
+                bound_log.error(
+                    "monthly extraction incomplete: {} pattern failures, {} failed calls",
+                    extraction.pattern_failures,
+                    extraction.failed_calls,
+                )
+                result = self._build_result(
+                    t0,
+                    0,
+                    0,
+                    0,
+                    journal=journal,
+                    extra_errors=extraction.errors,
+                    include_exhausted=True,
+                    include_abandoned=True,
+                )
+                result.failed_extractions = max(
+                    result.failed_extractions,
+                    extraction.failed_calls or extraction.pattern_failures,
+                )
+                result.skipped_extractions = runner.skipped
+                runner.log_latency_summary()
+                return result
 
             self._materialize_staging_batches(db)
             raw = self._load_staging_from_duckdb(db)
@@ -2040,7 +2113,10 @@ class Orchestrator:
                 journal=journal,
                 progress_store=self._extraction_progress(),
                 persist_results=lambda frames, **metadata: self._persist_staging_to_duckdb(
-                    db, frames, **metadata
+                    db,
+                    frames,
+                    replace_existing_chunks=force,
+                    **metadata,
                 ),
                 retain_in_memory=False,
             )

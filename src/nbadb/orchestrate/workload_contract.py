@@ -109,7 +109,7 @@ class PlayerTeamSeasonWorkloadStore:
 
         atomic_write_path(artifact_path, combined.write_parquet)
 
-        manifest = self._read_manifest()
+        manifest = self._read_manifest(repair=True)
         previous_pairs = self._manifest_pairs(manifest)
         covered_pairs_list = sorted((previous_pairs - target_pairs) | target_pairs)
         manifest_payload = {
@@ -154,7 +154,7 @@ class PlayerTeamSeasonWorkloadStore:
         seasons: list[str] | None = None,
         season_types: list[str] | None = None,
     ) -> PlayerTeamSeasonWorkloadCoverage:
-        manifest = self._read_manifest()
+        manifest = self._read_manifest(repair=False)
         all_pairs = self._manifest_pairs(manifest)
         filtered_pairs = {
             pair
@@ -230,7 +230,7 @@ class PlayerTeamSeasonWorkloadStore:
             return frame
         return pl.DataFrame(schema=_SCHEMA)
 
-    def _read_manifest(self) -> dict[str, object]:
+    def _read_manifest(self, *, repair: bool = False) -> dict[str, object]:
         if not self.is_available():
             return {}
         manifest_path = self._manifest_path
@@ -238,12 +238,13 @@ class PlayerTeamSeasonWorkloadStore:
         manifest = read_json_object(
             manifest_path,
             metadata_label="player/team workload manifest",
+            repair_corrupt=repair,
         )
         if manifest:
             return manifest
 
         recovered = self._rebuild_manifest_from_artifact()
-        if recovered:
+        if recovered and repair:
             logger.warning(
                 "recovered player/team workload manifest from parquet artifact {}",
                 self._artifact_path,
