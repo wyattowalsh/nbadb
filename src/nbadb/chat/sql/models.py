@@ -33,7 +33,7 @@ class QueryResponse:
         elif self.schema_context is not None:
             text = (
                 "I couldn't match your question to a known pattern.\n\n"
-                "You can write DuckDB SQL directly. Here is the schema:\n\n"
+                "Here is the schema context for a more specific follow-up:\n\n"
                 f"{self.schema_context}"
             )
         elif not self.rows:

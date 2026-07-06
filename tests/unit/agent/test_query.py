@@ -101,6 +101,7 @@ class TestQueryAgentPatternMatching:
         result = agent.ask("what is the meaning of life?")
         assert "couldn't match" in result.lower()
         assert "schema" in result.lower() or "tables" in result.lower()
+        assert "DuckDB SQL directly" not in result
 
     def test_unmatched_input_does_not_contain_traceback(self, agent: QueryAgent) -> None:
         result = agent.ask("random gibberish xyz 12345")

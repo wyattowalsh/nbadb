@@ -28,7 +28,43 @@ def test_mcp_memory_tools_round_trip(tmp_path) -> None:
     )
     assert trajectory.sql_hash == "abc123"
     assert memory_tools.search_trajectories(store, "scoring")[0].sql_hash == "abc123"
-    assert memory_tools.forget_memory(store, "default_metric") is True
+    assert (
+        memory_tools.forget_memory(
+            store,
+            "default_metric",
+            session_id="sess-1",
+            confirm=True,
+        )
+        is True
+    )
+
+
+def test_mcp_memory_mutations_require_session_scope(tmp_path) -> None:
+    store = MemoryStore(root=tmp_path / "memory")
+
+    for call in (
+        lambda: memory_tools.remember_preference(store, "metric", "points"),
+        lambda: memory_tools.save_trajectory(store, "leaderboard", {"sql_hash": "abc123"}),
+        lambda: memory_tools.forget_memory(store, "metric", confirm=True),
+    ):
+        try:
+            call()
+        except ValueError as exc:
+            assert "session_id" in str(exc)
+        else:
+            raise AssertionError("expected memory mutation to require session_id")
+
+
+def test_mcp_memory_forget_requires_explicit_confirmation(tmp_path) -> None:
+    store = MemoryStore(root=tmp_path / "memory")
+    memory_tools.remember_preference(store, "default_metric", "points", session_id="sess-1")
+
+    try:
+        memory_tools.forget_memory(store, "default_metric", session_id="sess-1")
+    except ValueError as exc:
+        assert "confirm=True" in str(exc)
+    else:
+        raise AssertionError("expected forget_memory to require confirm=True")
 
 
 def test_mcp_catalog_search_includes_export_metadata(monkeypatch) -> None:

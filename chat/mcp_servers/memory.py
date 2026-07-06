@@ -60,8 +60,13 @@ def search_trajectories(
 
 
 @server.tool()
-def forget_memory(key: str) -> bool:
-    return memory_tools.forget_memory(MemoryStore(), key)
+def forget_memory(key: str, session_id: str, confirm: bool = False) -> bool:
+    return memory_tools.forget_memory(
+        MemoryStore(),
+        key,
+        session_id=session_id,
+        confirm=confirm,
+    )
 
 
 if __name__ == "__main__":
