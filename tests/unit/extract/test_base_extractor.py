@@ -301,3 +301,12 @@ class TestRawSchemaRegistry:
         assert schedule_schema.__name__ == "RawScheduleLeagueV2Schema"
         assert live_schema is not None
         assert live_schema.__name__ == "RawLiveBoxScoreTeamStatsSchema"
+
+    def test_get_raw_schema_resolves_misc_leader_endpoints(self) -> None:
+        dunk_schema = get_raw_schema("dunk_score_leaders")
+        gravity_schema = get_raw_schema("gravity_leaders")
+
+        assert dunk_schema is not None
+        assert dunk_schema.__name__ == "RawDunkScoreLeadersSchema"
+        assert gravity_schema is not None
+        assert gravity_schema.__name__ == "RawGravityLeadersSchema"

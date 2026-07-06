@@ -2289,6 +2289,50 @@ class TestSynergyPlayTypesExtractor:
             }
         ]
 
+    def test_fetch_fallback_validates_raw_schema(self, synergy_ext, monkeypatch):
+        from nbadb.core.errors import ValidationError as NbaDbValidationError
+
+        class _FakeResponse:
+            def get_dict(self):
+                return {
+                    "resultSets": [
+                        {
+                            "name": "SynergyPlayType",
+                            "headers": ["PLAYER_ID", "GP"],
+                            "rowSet": [[1, "not-an-int"]],
+                        }
+                    ]
+                }
+
+        def _fake_from_nba_api(endpoint_cls, **kwargs):
+            raise KeyError("resultSet")
+
+        def _fake_send_api_request(
+            self,
+            *,
+            endpoint,
+            parameters,
+            proxy=None,
+            headers=None,
+            timeout=None,
+        ):
+            return _FakeResponse()
+
+        monkeypatch.setattr(synergy_ext, "_from_nba_api", _fake_from_nba_api)
+        monkeypatch.setattr(
+            "nbadb.extract.stats.synergy.NBAStatsHTTP.send_api_request",
+            _fake_send_api_request,
+        )
+
+        with pytest.raises(NbaDbValidationError, match="synergy_play_types"):
+            synergy_ext._fetch_synergy_frame(
+                season="2024-25",
+                season_type="Regular Season",
+                play_type="Isolation",
+                entity_type="P",
+                grouping="offensive",
+            )
+
     @pytest.mark.asyncio
     async def test_known_invalid_parameter_skips_all_putbacks_combos_via_fetch_path(
         self,

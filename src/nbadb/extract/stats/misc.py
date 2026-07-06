@@ -244,7 +244,8 @@ class DunkScoreLeadersExtractor(BaseExtractor):
         rows = payload.get("dunks")
         if not isinstance(rows, list):
             raise KeyError("dunks")
-        return _payload_rows_to_frame(rows)
+        df = _payload_rows_to_frame(rows)
+        return df if df.is_empty() else self._validate(df)
 
 
 @registry.register
@@ -283,7 +284,8 @@ class GravityLeadersExtractor(BaseExtractor):
         rows = payload.get("leaders")
         if not isinstance(rows, list):
             raise KeyError("leaders")
-        return _payload_rows_to_frame(rows)
+        df = _payload_rows_to_frame(rows)
+        return df if df.is_empty() else self._validate(df)
 
 
 @registry.register

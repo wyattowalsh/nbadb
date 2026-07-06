@@ -141,7 +141,7 @@ class SynergyPlayTypesExtractor(BaseExtractor):
                 f"synergy {play_type}/{entity_type}/{grouping} "
                 f"for {season} ({season_type}) returned Invalid Parameter"
             )
-        return _synergy_payload_to_frame(payload, season_type=season_type)
+        return self._validate(_synergy_payload_to_frame(payload, season_type=season_type))
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         import polars as pl

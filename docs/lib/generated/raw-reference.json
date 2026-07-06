@@ -4768,6 +4768,30 @@
     ]
   },
   {
+    "table_name": "raw_dunk_score_leaders",
+    "class_name": "RawDunkScoreLeadersSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "player_id",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0, FK\u2192dim_player.player_id",
+        "description": "NBA player identifier from the dunk score leaderboard payload.",
+        "description_source": "metadata"
+      },
+      {
+        "name": "dunk_score",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Endpoint-provided dunk score leaderboard value.",
+        "description_source": "metadata"
+      }
+    ]
+  },
+  {
     "table_name": "raw_franchise_history",
     "class_name": "RawFranchiseHistorySchema",
     "coerce": true,
@@ -4995,6 +5019,30 @@
         "nullable": true,
         "constraints": "\u2014",
         "description": "Usage percentage during stint",
+        "description_source": "metadata"
+      }
+    ]
+  },
+  {
+    "table_name": "raw_gravity_leaders",
+    "class_name": "RawGravityLeadersSchema",
+    "coerce": true,
+    "strict": false,
+    "columns": [
+      {
+        "name": "playerid",
+        "type": "Int64",
+        "nullable": false,
+        "constraints": "gt=0, FK\u2192dim_player.player_id",
+        "description": "NBA player identifier from the gravity leaderboard payload.",
+        "description_source": "metadata"
+      },
+      {
+        "name": "gravityscore",
+        "type": "Float64",
+        "nullable": true,
+        "constraints": "\u2014",
+        "description": "Endpoint-provided player gravity score leaderboard value.",
         "description_source": "metadata"
       }
     ]

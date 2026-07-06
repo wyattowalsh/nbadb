@@ -6,6 +6,7 @@ import pytest
 from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.transformers import discover_all_transformers
 from nbadb.schemas.raw.live import RawLiveScoreBoardSchema
+from nbadb.schemas.raw.misc import RawDunkScoreLeadersSchema, RawGravityLeadersSchema
 from nbadb.schemas.raw.player_info import RawCommonPlayerInfoSchema
 from nbadb.schemas.registry import (
     _INPUT_SCHEMA_ALIASES,
@@ -96,6 +97,11 @@ def test_get_input_schema_returns_direct_raw_schema() -> None:
 
 def test_get_input_schema_returns_live_raw_schema() -> None:
     assert get_input_schema("raw_live_score_board") is RawLiveScoreBoardSchema
+
+
+def test_get_input_schema_returns_misc_raw_leader_schemas() -> None:
+    assert get_input_schema("raw_dunk_score_leaders") is RawDunkScoreLeadersSchema
+    assert get_input_schema("raw_gravity_leaders") is RawGravityLeadersSchema
 
 
 def test_get_input_schema_returns_live_staging_schema() -> None:
