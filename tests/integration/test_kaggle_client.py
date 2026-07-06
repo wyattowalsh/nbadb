@@ -854,7 +854,7 @@ class TestKaggleClientEnsureMetadata:
         assert len(data["resources"]) == 0
 
     @patch("nbadb.kaggle.client.get_settings")
-    def test_ensure_metadata_creates_parent_dirs(
+    def test_ensure_metadata_rejects_missing_data_dir(
         self, mock_settings: MagicMock, tmp_path: Path
     ) -> None:
         data_dir = tmp_path / "deep" / "nested" / "data"
@@ -862,5 +862,5 @@ class TestKaggleClientEnsureMetadata:
         from nbadb.kaggle.client import KaggleClient
 
         client = KaggleClient()
-        result = client.ensure_metadata(data_dir=data_dir)
-        assert result.exists()
+        with pytest.raises(FileNotFoundError, match="Metadata data_dir does not exist"):
+            client.ensure_metadata(data_dir=data_dir)

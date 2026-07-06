@@ -60,11 +60,38 @@ class TestMultiLoaderErrorHandling:
         mock_ok = MagicMock()
         mock_fail = MagicMock()
         mock_fail.load.side_effect = ValueError("disk full")
-        loader = MultiLoader([mock_ok, mock_fail])
+        loader = MultiLoader([mock_ok, mock_fail], strict=False)
         df = pl.DataFrame({"x": [1]})
         # Should NOT raise — neither loader is a DuckDBLoader
         loader.load("tbl", df)
         mock_ok.load.assert_called_once()
+
+    def test_secondary_loader_failure_raises_in_strict_mode(self) -> None:
+        mock_ok = MagicMock()
+        mock_fail = MagicMock()
+        mock_fail.load.side_effect = ValueError("disk full")
+        loader = MultiLoader([mock_ok, mock_fail])
+        df = pl.DataFrame({"x": [1]})
+
+        with pytest.raises(RuntimeError, match="requested loader failed"):
+            loader.load("tbl", df)
+
+    def test_strict_append_rejects_unsupported_loader_before_mutating_duckdb(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        conn = duckdb.connect()
+        conn.execute("CREATE TABLE tbl (id INTEGER)")
+        conn.execute("INSERT INTO tbl VALUES (1)")
+        loader = MultiLoader([DuckDBLoader(conn), ParquetLoader(tmp_path / "parquet")])
+        df = pl.DataFrame({"id": [2]})
+
+        with pytest.raises(RuntimeError, match="append mode not supported"):
+            loader.load("tbl", df, mode="append")
+
+        assert conn.execute("SELECT COUNT(*) FROM tbl").fetchone()[0] == 1
+        assert not (tmp_path / "parquet" / "tbl").exists()
+        conn.close()
 
     def test_duckdb_loader_failure_raises_runtime_error(self) -> None:
         """When the DuckDB loader fails, MultiLoader raises RuntimeError."""
@@ -85,7 +112,7 @@ class TestMultiLoaderErrorHandling:
         mock1.load.side_effect = OSError("fail1")
         mock2 = MagicMock()
         mock2.load.side_effect = OSError("fail2")
-        loader = MultiLoader([mock1, mock2])
+        loader = MultiLoader([mock1, mock2], strict=False)
         df = pl.DataFrame({"x": [1]})
         # Should NOT raise — neither is a DuckDBLoader
         loader.load("tbl", df)
@@ -154,3 +181,23 @@ class TestCreateMultiLoader:
         )
         ml = create_multi_loader(settings)
         assert len(ml._loaders) == 1
+
+    def test_unknown_format_raises(self, tmp_path: Path) -> None:
+        settings = NbaDbSettings(
+            data_dir=tmp_path / "data",
+            log_dir=tmp_path / "logs",
+            formats=["sqlite", "bogus"],
+        )
+
+        with pytest.raises(ValueError, match="unsupported export format"):
+            create_multi_loader(settings)
+
+    def test_empty_format_list_raises(self, tmp_path: Path) -> None:
+        settings = NbaDbSettings(
+            data_dir=tmp_path / "data",
+            log_dir=tmp_path / "logs",
+            formats=[],
+        )
+
+        with pytest.raises(ValueError, match="at least one export format"):
+            create_multi_loader(settings)

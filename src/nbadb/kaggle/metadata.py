@@ -564,11 +564,7 @@ def _resolve_export_inventory(data_dir: Path | None) -> ExportInventory:
         return _expected_inventory()
 
     if not data_dir.exists():
-        logger.warning(
-            "Metadata data_dir {} does not exist; falling back to catalog-only metadata.",
-            data_dir,
-        )
-        return _expected_inventory()
+        raise FileNotFoundError(f"Metadata data_dir does not exist: {data_dir}")
 
     all_tables = _iter_catalog_tables()
     csv_tables = sum(1 for table in all_tables if (data_dir / "csv" / f"{table}.csv").exists())

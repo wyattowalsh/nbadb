@@ -51,6 +51,49 @@ def test_export_success(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
 
 
+def test_export_fails_when_table_export_fails(tmp_path: Path) -> None:
+    db_file = tmp_path / "nba.duckdb"
+    conn = duckdb.connect(str(db_file))
+    conn.execute("CREATE TABLE dim_player AS SELECT 1 AS player_id")
+    conn.close()
+
+    mock_loader = MagicMock()
+    mock_loader.load.side_effect = RuntimeError("disk full")
+    with patch(_MULTI_LOADER, return_value=mock_loader):
+        result = runner.invoke(app, ["export", "--data-dir", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "Export failed for 1 table" in result.output
+
+
+def test_export_allow_partial_exits_zero_when_table_export_fails(tmp_path: Path) -> None:
+    db_file = tmp_path / "nba.duckdb"
+    conn = duckdb.connect(str(db_file))
+    conn.execute("CREATE TABLE dim_player AS SELECT 1 AS player_id")
+    conn.close()
+
+    mock_loader = MagicMock()
+    mock_loader.load.side_effect = RuntimeError("disk full")
+    with patch(_MULTI_LOADER, return_value=mock_loader):
+        result = runner.invoke(
+            app,
+            ["export", "--data-dir", str(tmp_path), "--allow-partial"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Exported 0/1 tables" in result.output
+
+
+def test_export_rejects_unknown_format(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["export", "--data-dir", str(tmp_path), "--format", "bogus"],
+    )
+
+    assert result.exit_code == 1
+    assert "Unsupported export format" in result.output
+
+
 def test_export_no_tables(tmp_path: Path) -> None:
     """Exit 1 with 'No tables found' when the DB has only internal tables."""
     db_file = tmp_path / "nba.duckdb"

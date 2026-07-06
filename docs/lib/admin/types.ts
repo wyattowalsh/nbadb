@@ -12,6 +12,13 @@ export type ColumnProfile = {
   name: string;
   type: string;
   nullPct: number;
+  nonNullCount?: number;
+  distinctCount?: number;
+  min?: string | number | null;
+  max?: string | number | null;
+  p50?: number | null;
+  p95?: number | null;
+  topValues?: { value: string | number | boolean | null; count: number }[];
 };
 
 export type TableProfile = {

@@ -35,9 +35,11 @@ class KaggleClient:
 
         # Copy downloaded files into the working data directory
         copied = 0
+        copied_names: set[str] = set()
         for src_file in download_path.iterdir():
             if src_file.is_file():
                 shutil.copy2(src_file, dest / src_file.name)
+                copied_names.add(src_file.name)
                 size_mb = src_file.stat().st_size / 1_048_576
                 logger.info(f"  copied file: {src_file.name} ({size_mb:.1f} MB)")
                 copied += 1
@@ -50,13 +52,21 @@ class KaggleClient:
                 copied += 1
         logger.info(f"Copied {copied} items from Kaggle cache to {dest}")
 
-        # Seed DuckDB from SQLite if no DuckDB was downloaded
-        duckdb_path = dest / "nba.duckdb"
-        sqlite_path = dest / "nba.sqlite"
-        if sqlite_path.exists() and not duckdb_path.exists():
-            self._seed_duckdb_from_sqlite(sqlite_path, duckdb_path)
+        self._sync_duckdb_after_download(dest, copied_names=copied_names)
 
         return dest
+
+    @staticmethod
+    def _sync_duckdb_after_download(dest: Path, *, copied_names: set[str]) -> None:
+        """Ensure DuckDB reflects the freshly downloaded bundle."""
+        duckdb_path = dest / "nba.duckdb"
+        sqlite_path = dest / "nba.sqlite"
+        if "nba.duckdb" in copied_names or "nba.sqlite" not in copied_names:
+            return
+        if duckdb_path.exists():
+            logger.info("Replacing stale local nba.duckdb from freshly downloaded nba.sqlite")
+            duckdb_path.unlink()
+        KaggleClient._seed_duckdb_from_sqlite(sqlite_path, duckdb_path)
 
     @staticmethod
     def _seed_duckdb_from_sqlite(sqlite_path: Path, duckdb_path: Path) -> None:
@@ -245,7 +255,6 @@ class KaggleClient:
 
         resolved_data_dir = data_dir or self._settings.data_dir
         target = resolved_data_dir / "dataset-metadata.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
         generate_metadata(target, data_dir=resolved_data_dir)
         return target
 

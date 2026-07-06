@@ -149,13 +149,9 @@ class TestGenerateMetadata:
         assert "nba.duckdb\nnba.sqlite" not in desc
         assert "parquet/<table>/..." not in desc
 
-    def test_missing_data_dir_uses_consistent_catalog_preview(
-        self, tmp_path: Path, settings: NbaDbSettings
-    ) -> None:
-        data = _generate_metadata_json(tmp_path, settings, data_dir=tmp_path / "missing")
-        assert f"{_TABLE_COUNT}-table star schema" in data["subtitle"]
-        assert len(data["resources"]) == 2 + _TABLE_COUNT * 2
-        assert f"**CSV exports available**: {_TABLE_COUNT}/{_TABLE_COUNT}" in data["description"]
+    def test_missing_data_dir_fails_closed(self, tmp_path: Path, settings: NbaDbSettings) -> None:
+        with pytest.raises(FileNotFoundError, match="Metadata data_dir does not exist"):
+            _generate_metadata_json(tmp_path, settings, data_dir=tmp_path / "missing")
 
     def test_no_pipeline_internal_tables_in_resources(
         self, tmp_path: Path, settings: NbaDbSettings

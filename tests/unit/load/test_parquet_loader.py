@@ -51,6 +51,34 @@ class TestParquetLoader:
         assert (tmp_path / table / "season_year=2023-24" / "part0.parquet").exists()
         assert (tmp_path / table / "season_year=2024-25" / "part0.parquet").exists()
 
+    def test_partitioned_replace_removes_stale_partitions(self, tmp_path: Path) -> None:
+        table = PARTITIONED_SAMPLE_TABLE
+        loader = ParquetLoader(tmp_path)
+        loader.load(
+            table,
+            pl.DataFrame(
+                {
+                    "game_id": ["001", "002"],
+                    "season_year": ["2023-24", "2024-25"],
+                    "pts": [100, 110],
+                }
+            ),
+        )
+
+        loader.load(
+            table,
+            pl.DataFrame(
+                {
+                    "game_id": ["003"],
+                    "season_year": ["2024-25"],
+                    "pts": [105],
+                }
+            ),
+        )
+
+        assert not (tmp_path / table / "season_year=2023-24").exists()
+        assert (tmp_path / table / "season_year=2024-25" / "part0.parquet").exists()
+
     def test_partitioned_drops_season_column(self, tmp_path: Path) -> None:
         table = PARTITIONED_SAMPLE_TABLE
         loader = ParquetLoader(tmp_path)
@@ -85,6 +113,25 @@ class TestParquetLoader:
         df = pl.DataFrame({"game_id": ["001"], "pts": [100]})
         loader.load(table, df)
         assert (tmp_path / table / f"{table}.parquet").exists()
+
+    def test_empty_partitioned_table_writes_discoverable_parquet_file(self, tmp_path: Path) -> None:
+        table = PARTITIONED_SAMPLE_TABLE
+        loader = ParquetLoader(tmp_path)
+        df = pl.DataFrame(
+            {
+                "game_id": pl.Series([], dtype=pl.String),
+                "season_year": pl.Series([], dtype=pl.String),
+                "pts": pl.Series([], dtype=pl.Int64),
+            }
+        )
+
+        loader.load(table, df)
+
+        parquet_file = tmp_path / table / f"{table}.parquet"
+        assert parquet_file.exists()
+        loaded = pl.read_parquet(parquet_file)
+        assert loaded.shape == (0, 3)
+        assert loaded.columns == ["game_id", "season_year", "pts"]
 
     def test_custom_compression_level(self, tmp_path: Path) -> None:
         loader = ParquetLoader(tmp_path, compression_level=1)

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import shutil
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from loguru import logger
@@ -8,8 +11,6 @@ from nbadb.core.types import validate_sql_identifier
 from nbadb.load.base import BaseLoader
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     import polars as pl
 
 PARTITIONED_TABLES = {
@@ -58,18 +59,40 @@ class ParquetLoader(BaseLoader):
             raise ValueError(f"Invalid table name: {table!r}")
         if mode == "append":
             raise NotImplementedError("append mode not supported for Parquet — overwrite only")
+        self.parquet_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = self.parquet_dir / table
+        temp_dir = Path(tempfile.mkdtemp(prefix=f".{table}.", dir=self.parquet_dir))
+        try:
+            self._write_table(temp_dir, table, df)
+            if out_dir.exists():
+                shutil.rmtree(out_dir)
+            temp_dir.replace(out_dir)
+        finally:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+        logger.debug(f"Parquet: wrote {df.shape[0]} rows to {table}/")
+
+    def _write_table(self, out_dir: Path, table: str, df: pl.DataFrame) -> None:
         if table in PARTITIONED_TABLES and "season_year" in df.columns:
-            for (season,), part in df.group_by("season_year"):
-                out_dir = self.parquet_dir / table / f"season_year={season}"
+            if df.is_empty():
                 out_dir.mkdir(parents=True, exist_ok=True)
+                df.write_parquet(
+                    out_dir / f"{table}.parquet",
+                    compression="zstd",
+                    compression_level=self.compression_level,
+                    statistics=True,
+                )
+                return
+            for (season,), part in df.group_by("season_year"):
+                part_dir = out_dir / f"season_year={season}"
+                part_dir.mkdir(parents=True, exist_ok=True)
                 part.drop("season_year").write_parquet(
-                    out_dir / "part0.parquet",
+                    part_dir / "part0.parquet",
                     compression="zstd",
                     compression_level=self.compression_level,
                     statistics=True,
                 )
         else:
-            out_dir = self.parquet_dir / table
             out_dir.mkdir(parents=True, exist_ok=True)
             df.write_parquet(
                 out_dir / f"{table}.parquet",
@@ -77,4 +100,3 @@ class ParquetLoader(BaseLoader):
                 compression_level=self.compression_level,
                 statistics=True,
             )
-        logger.debug(f"Parquet: wrote {df.shape[0]} rows to {table}/")

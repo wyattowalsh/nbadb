@@ -135,6 +135,40 @@ def test_live_snapshot_warehouse_appends_staging_and_star_tables(tmp_path) -> No
     ]
 
 
+def test_live_snapshot_append_updates_duckdb_when_secondary_formats_are_replace_only(
+    tmp_path,
+) -> None:
+    settings = NbaDbSettings(
+        data_dir=tmp_path / "data",
+        log_dir=tmp_path / "logs",
+        formats=["duckdb", "parquet"],
+        sqlite_path=tmp_path / "data" / "live.sqlite",
+        duckdb_path=tmp_path / "data" / "live.duckdb",
+    )
+    warehouse = LiveSnapshotWarehouse(settings=settings)
+
+    first_snapshot = datetime(2026, 4, 17, 12, 0, tzinfo=UTC)
+    second_snapshot = datetime(2026, 4, 17, 12, 5, tzinfo=UTC)
+
+    with (
+        patch("nbadb.extract.live.endpoints.ScoreBoard", _FakeScoreBoard),
+        patch("nbadb.extract.live.endpoints.Odds", _FakeOdds),
+        patch("nbadb.extract.live.endpoints.PlayByPlay", _FakePlayByPlay),
+        patch("nbadb.extract.live.endpoints.BoxScore", _FakeBoxScore),
+    ):
+        warehouse.run(game_ids=["001"], snapshot_at=first_snapshot)
+        warehouse.run(game_ids=["001"], snapshot_at=second_snapshot)
+
+    import duckdb
+
+    conn = duckdb.connect(str(settings.duckdb_path))
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM fact_live_score_board").fetchone()[0] == 2
+    finally:
+        conn.close()
+    assert (tmp_path / "data" / "parquet" / "fact_live_score_board").exists()
+
+
 def test_live_snapshot_warehouse_noops_when_no_active_games(tmp_path) -> None:
     settings = NbaDbSettings(
         data_dir=tmp_path / "data",

@@ -81,9 +81,13 @@ class TestCLICommandsWithoutDB:
         assert "Total" in result.output
 
     def test_download_runs(self) -> None:
-        result = runner.invoke(app, ["download"])
-        # Exit 0 if kaggle API configured; exit 1 otherwise
-        assert result.exit_code in (0, 1)
+        with patch("nbadb.kaggle.client.KaggleClient") as mock_cls:
+            mock_cls.return_value.download.return_value = Path("/tmp/nbadb-download")
+            result = runner.invoke(app, ["download"])
+
+        assert result.exit_code == 0
+        assert "Downloaded to" in result.output
+        mock_cls.return_value.download.assert_called_once()
 
     def test_upload_fails_without_data(self) -> None:
         with patch("nbadb.kaggle.client.KaggleClient") as mock_cls:

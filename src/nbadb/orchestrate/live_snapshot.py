@@ -18,6 +18,7 @@ from nbadb.extract.live.endpoints import (
     LivePlayByPlayExtractor,
     LiveScoreBoardExtractor,
 )
+from nbadb.load.duckdb_loader import DuckDBLoader
 from nbadb.load.multi import create_multi_loader
 from nbadb.orchestrate.extractor_runner import _sync_extract, _sync_extract_all
 from nbadb.orchestrate.transformers import discover_live_transformers
@@ -278,6 +279,7 @@ class LiveSnapshotWarehouse:
             )
 
             loader = create_multi_loader(self._settings, duckdb_conn=db.duckdb)
+            duckdb_loader = DuckDBLoader(db.duckdb)
             star_tables_loaded = 0
             star_rows_loaded = 0
             for table_name, frame in outputs.items():
@@ -298,7 +300,10 @@ class LiveSnapshotWarehouse:
                     ).fetchone()
                     else "replace"
                 )
-                loader.load(table_name, frame, mode=load_mode_for_table)
+                if load_mode_for_table == "append":
+                    duckdb_loader.load(table_name, frame, mode="append")
+                else:
+                    loader.load(table_name, frame, mode="replace")
                 star_tables_loaded += 1
                 star_rows_loaded += frame.height
                 logger.info("loaded live snapshot table {}: {} rows", table_name, frame.height)

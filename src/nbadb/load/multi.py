@@ -12,9 +12,14 @@ if TYPE_CHECKING:
     from nbadb.load.base import BaseLoader
 
 
+SUPPORTED_FORMATS = frozenset({"sqlite", "duckdb", "csv", "parquet"})
+APPEND_UNSUPPORTED_LOADERS = frozenset({"CSVLoader", "ParquetLoader"})
+
+
 class MultiLoader:
-    def __init__(self, loaders: list[BaseLoader]) -> None:
+    def __init__(self, loaders: list[BaseLoader], *, strict: bool = True) -> None:
         self._loaders = loaders
+        self._strict = strict
 
     def load(
         self,
@@ -23,6 +28,16 @@ class MultiLoader:
         mode: Literal["replace", "append"] = "replace",
     ) -> None:
         from nbadb.load.duckdb_loader import DuckDBLoader
+
+        if self._strict and mode == "append":
+            append_unsupported = [
+                type(loader).__name__
+                for loader in self._loaders
+                if type(loader).__name__ in APPEND_UNSUPPORTED_LOADERS
+            ]
+            if append_unsupported:
+                failed = ", ".join(append_unsupported)
+                raise RuntimeError(f"MultiLoader: append mode not supported for {table}: {failed}")
 
         secondary_errors: list[tuple[str, Exception]] = []
         for loader in self._loaders:
@@ -38,6 +53,11 @@ class MultiLoader:
                     table,
                     e,
                 )
+                if self._strict:
+                    failed = ", ".join(name for name, _ in secondary_errors)
+                    raise RuntimeError(
+                        f"MultiLoader: requested loader failed for {table}: {failed}"
+                    ) from e
         if secondary_errors:
             failed = ", ".join(name for name, _ in secondary_errors)
             logger.info(
@@ -51,19 +71,26 @@ class MultiLoader:
 def create_multi_loader(
     settings: NbaDbSettings,
     duckdb_conn: duckdb.DuckDBPyConnection | None = None,
+    *,
+    strict: bool = True,
 ) -> MultiLoader:
     from nbadb.load.csv_loader import CSVLoader
     from nbadb.load.duckdb_loader import DuckDBLoader
     from nbadb.load.parquet_loader import ParquetLoader
     from nbadb.load.sqlite import SQLiteLoader
 
+    formats = list(settings.formats)
+    unknown_formats = sorted(set(formats) - SUPPORTED_FORMATS)
+    if unknown_formats:
+        raise ValueError(f"unsupported export format(s): {', '.join(unknown_formats)}")
+
     loaders: list[BaseLoader] = []
 
-    if "sqlite" in settings.formats:
+    if "sqlite" in formats:
         if settings.sqlite_path is None:
             raise ValueError("sqlite_path must be set in settings to use SQLite loader")
         loaders.append(SQLiteLoader(settings.sqlite_path))
-    if "duckdb" in settings.formats:
+    if "duckdb" in formats:
         if duckdb_conn is not None:
             loaders.append(DuckDBLoader(duckdb_conn))
         else:
@@ -71,9 +98,12 @@ def create_multi_loader(
 
             conn = duckdb.connect(str(settings.duckdb_path))
             loaders.append(DuckDBLoader(conn))
-    if "parquet" in settings.formats:
+    if "parquet" in formats:
         loaders.append(ParquetLoader(settings.data_dir / "parquet"))
-    if "csv" in settings.formats:
+    if "csv" in formats:
         loaders.append(CSVLoader(settings.data_dir / "csv"))
 
-    return MultiLoader(loaders)
+    if not loaders:
+        raise ValueError("at least one export format must be requested")
+
+    return MultiLoader(loaders, strict=strict)
