@@ -1781,7 +1781,16 @@ def lane_outcome_from_metadata(
 
     if metadata_status == "contract_blocked":
         return "contract_blocked"
-    if rows_persisted == 0 and failed_calls > 0 and lane_contract_rules:
+    if (
+        rows_persisted == 0
+        and lane_contract_rules
+        and (
+            failed_calls > 0
+            or running_calls > 0
+            or raw_status in SPLITTABLE_TIMEOUT_STATUSES
+            or metadata_status == "pipeline_failure"
+        )
+    ):
         return "contract_blocked"
     if metadata_status == "needs_resume":
         return "needs_resume"
@@ -1849,29 +1858,12 @@ def build_resume_manifest(
             next_lanes.append(lane)
             resumed += 1
             continue
-        if (
-            not raw_status
-            and attempted_lane_ids is not None
-            and lane.lane_id not in attempted_lane_ids
-        ):
-            next_lanes.append(lane)
-            if lane.resume_only:
-                resumed += 1
-            else:
-                active += 1
-                deferred += 1
-                if _lane_exceeds_policy(lane):
-                    next_lanes.pop()
-                    child_lanes = _split_legacy_oversized_lane(
-                        lane,
-                        reason="resume-profile-oversized",
-                    )
-                    next_lanes.extend(child_lanes)
-                    split_lane_count += len(child_lanes)
-                    active += len(child_lanes) - 1
-                    deferred += len(child_lanes) - 1
-            continue
-        if payload is None and allow_missing_attempted_metadata:
+        missing_attempted_metadata = (
+            payload is None
+            and allow_missing_attempted_metadata
+            and (attempted_lane_ids is None or lane.lane_id in attempted_lane_ids)
+        )
+        if missing_attempted_metadata:
             if _lane_exceeds_policy(lane):
                 child_lanes = _split_legacy_oversized_lane(
                     lane,
@@ -1897,6 +1889,32 @@ def build_resume_manifest(
                 failure_reason_counts.get("missing-metadata", 0) + 1
             )
             outcome_counts["needs_resume"] = outcome_counts.get("needs_resume", 0) + 1
+            continue
+        if not raw_status and _lane_is_contract_blocked(lane):
+            contract_blocked += 1
+            outcome_counts["contract_blocked"] = outcome_counts.get("contract_blocked", 0) + 1
+            continue
+        if (
+            not raw_status
+            and attempted_lane_ids is not None
+            and lane.lane_id not in attempted_lane_ids
+        ):
+            next_lanes.append(lane)
+            if lane.resume_only:
+                resumed += 1
+            else:
+                active += 1
+                deferred += 1
+                if _lane_exceeds_policy(lane):
+                    next_lanes.pop()
+                    child_lanes = _split_legacy_oversized_lane(
+                        lane,
+                        reason="resume-profile-oversized",
+                    )
+                    next_lanes.extend(child_lanes)
+                    split_lane_count += len(child_lanes)
+                    active += len(child_lanes) - 1
+                    deferred += len(child_lanes) - 1
             continue
         if payload is None:
             payload = {"lane_id": lane.lane_id, "status": "missing-metadata", "vpn": {}}

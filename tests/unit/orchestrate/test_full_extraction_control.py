@@ -80,6 +80,7 @@ def _write_metadata(
     raw_status: str | None = None,
     rows_persisted: int = 0,
     failed_calls: int = 0,
+    running_calls: int = 0,
     endpoints: list[str] | None = None,
     patterns: list[str] | None = None,
     season_start: int | None = None,
@@ -98,7 +99,7 @@ def _write_metadata(
             "rows_persisted": rows_persisted,
             "failed_calls": failed_calls,
             "journal_skips": 0,
-            "db_telemetry": {"running_calls": 0},
+            "db_telemetry": {"running_calls": running_calls},
         },
     }
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
@@ -2419,6 +2420,82 @@ def test_build_resume_manifest_skips_contract_blocked_lanes(
         patterns=["game"],
         season_start=1946,
         season_end=1950,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert next_lanes == []
+    assert summary["active_lane_count"] == 0
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+
+def test_build_resume_manifest_skips_newly_contract_blocked_unattempted_lane(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id=(
+            "historical-player-season-player-next-games-regular-season-playoffs-"
+            "pre-season-all-star-1946-1946-split-1946-1946-regular-season"
+        ),
+        lane_index=0,
+        lane_name="Historical player_season 1946-1946 (player_next_games)",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1946,
+        patterns=("player_season",),
+        season_types=("Regular Season",),
+        endpoints=("player_next_games",),
+        timeout_seconds=4800,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        attempted_lane_ids=frozenset(),
+        allow_missing_attempted_metadata=True,
+    )
+
+    assert next_lanes == []
+    assert summary["active_lane_count"] == 0
+    assert summary["contract_blocked_lane_count"] == 1
+    assert summary["outcome_counts"] == {"contract_blocked": 1}
+
+
+def test_build_resume_manifest_reclassifies_zero_progress_contract_blocked_timeout(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id=(
+            "historical-player-season-shot-chart-detail-regular-season-playoffs-"
+            "pre-season-all-star-1946-1946-split-1946-1946-regular-season"
+        ),
+        lane_index=0,
+        lane_name="Historical player_season 1946-1946 (shot_chart_detail)",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1946,
+        patterns=("player_season",),
+        season_types=("Regular Season",),
+        endpoints=("shot_chart_detail",),
+        timeout_seconds=4800,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "shot_chart_detail.json",
+        lane_id=lane.lane_id,
+        status="pipeline_failure",
+        raw_status="extract-timeout",
+        rows_persisted=0,
+        failed_calls=0,
+        running_calls=161,
+        endpoints=list(lane.endpoints),
+        patterns=list(lane.patterns),
+        season_start=1946,
+        season_end=1946,
     )
 
     next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
