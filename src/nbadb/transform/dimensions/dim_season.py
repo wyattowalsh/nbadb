@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from nbadb.transform.base import BaseTransformer
 
@@ -16,7 +16,8 @@ class DimSeasonTransformer(BaseTransformer):
         import polars as pl
 
         gl = staging["stg_league_game_log"]
-        return (
+        return cast(
+            "pl.DataFrame",
             gl.select("season_year", "game_date")
             .group_by("season_year")
             .agg(
@@ -24,5 +25,5 @@ class DimSeasonTransformer(BaseTransformer):
                 pl.col("game_date").max().alias("end_date"),
             )
             .sort("season_year")
-            .collect()
+            .collect(),
         )

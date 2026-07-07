@@ -7,7 +7,7 @@ import shutil
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
 
@@ -291,6 +291,7 @@ class KaggleClient:
             if not isinstance(resource, dict):
                 msg = f"Kaggle resource entry {index} must be an object"
                 raise ValueError(msg)
+            resource = cast("dict[str, Any]", resource)
             raw_path = resource.get("path")
             if not isinstance(raw_path, str) or not raw_path.strip():
                 msg = f"Kaggle resource entry {index} is missing a non-empty path"
@@ -338,7 +339,7 @@ class KaggleClient:
                     resolved_resource_path,
                     normalized_path,
                 )
-                inventory = {
+                inventory: dict[str, Any] = {
                     "path": normalized_path,
                     "source_path": str(resolved_resource_path),
                     "kind": "file",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import polars as pl
 
@@ -32,7 +32,7 @@ def consolidate_detail_family(
         if frame is None:
             continue
 
-        df = frame.collect()
+        df = cast("pl.DataFrame", frame.collect())
         if df.is_empty():
             continue
 

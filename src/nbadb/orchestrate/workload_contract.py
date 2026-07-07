@@ -217,12 +217,15 @@ class PlayerTeamSeasonWorkloadStore:
             lazy = lazy.filter(pl.col("season").is_in(seasons))
         if season_types is not None:
             lazy = lazy.filter(pl.col("season_type").is_in(season_types))
-        return lazy.select(
-            pl.col("player_id"),
-            pl.col("team_id"),
-            pl.col("season"),
-            pl.col("season_type"),
-        ).collect()
+        return cast(
+            "pl.DataFrame",
+            lazy.select(
+                pl.col("player_id"),
+                pl.col("team_id"),
+                pl.col("season"),
+                pl.col("season_type"),
+            ).collect(),
+        )
 
     def _read_existing_frame(self) -> pl.DataFrame:
         frame = self._artifact_frame(seasons=None, season_types=None)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from nbadb.transform.base import BaseTransformer
 
@@ -34,9 +34,12 @@ class DimShotZoneTransformer(BaseTransformer):
             .alias("zone_id")
         )
 
-        return zones.select(
-            pl.col("zone_id").cast(pl.Int32),
-            "shot_zone_basic",
-            "shot_zone_area",
-            "shot_zone_range",
-        ).collect()
+        return cast(
+            "pl.DataFrame",
+            zones.select(
+                pl.col("zone_id").cast(pl.Int32),
+                "shot_zone_basic",
+                "shot_zone_area",
+                "shot_zone_range",
+            ).collect(),
+        )

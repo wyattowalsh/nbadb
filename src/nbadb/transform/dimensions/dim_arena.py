@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from nbadb.transform.base import BaseTransformer
 
@@ -47,7 +47,8 @@ class DimArenaTransformer(BaseTransformer):
             .alias("arena_id")
         )
 
-        return (
+        return cast(
+            "pl.DataFrame",
             arenas.select(
                 pl.col("arena_id").cast(pl.Int32),
                 "arena_name",
@@ -57,5 +58,5 @@ class DimArenaTransformer(BaseTransformer):
                 "arena_timezone",
             )
             .sort("arena_name")
-            .collect()
+            .collect(),
         )
