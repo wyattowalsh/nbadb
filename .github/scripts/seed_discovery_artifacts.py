@@ -12,6 +12,7 @@ from loguru import logger
 from nbadb.extract.registry import registry
 from nbadb.orchestrate.discovery import EntityDiscovery
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, DiscoveryArtifactStore
+from nbadb.orchestrate.player_directory_snapshot import player_ids_by_season_from_snapshot
 from nbadb.orchestrate.seasons import season_range
 
 PLAYER_DISCOVERY_PATTERNS = frozenset({"player", "player_season"})
@@ -191,34 +192,22 @@ async def _seed_scopes_concurrently(
     return await asyncio.gather(*(_run(scope) for scope in scopes))
 
 
-async def _seed_single_season_scopes_from_bulk(
+def _seed_scopes_from_ids_by_season(
     *,
     scopes: list[DiscoveryArtifactScope],
     store: DiscoveryArtifactStore,
-    discovery: EntityDiscovery,
+    ids_by_season: dict[str, list[int]],
+    provenance: str,
 ) -> tuple[list[tuple[str, dict[str, Any]]], list[DiscoveryArtifactScope]]:
-    if not scopes:
-        return [], []
-
-    seasons = [scope.seasons[0] for scope in scopes]
-    bulk_discover = getattr(discovery, "discover_all_player_ids_by_season", None)
-    ids_by_season: dict[str, list[int]] = {}
-    if callable(bulk_discover):
-        logger.info(
-            "bulk-seeding {} historical player discovery seasons from common_all_players",
-            len(set(seasons)),
-        )
-        ids_by_season = await bulk_discover(seasons)
-
     results: list[tuple[str, dict[str, Any]]] = []
-    fallback_scopes: list[DiscoveryArtifactScope] = []
+    missing_scopes: list[DiscoveryArtifactScope] = []
     for scope in scopes:
         season = scope.seasons[0]
         ids = ids_by_season.get(season, [])
         if not ids:
-            fallback_scopes.append(scope)
+            missing_scopes.append(scope)
             continue
-        stored = store.upsert_ids(scope, ids, provenance="workflow-discovery-seed-bulk")
+        stored = store.upsert_ids(scope, ids, provenance=provenance)
         results.append(
             (
                 "seeded",
@@ -229,8 +218,48 @@ async def _seed_single_season_scopes_from_bulk(
                 },
             )
         )
+    return results, missing_scopes
 
-    return results, fallback_scopes
+
+async def _seed_single_season_scopes_from_bulk(
+    *,
+    scopes: list[DiscoveryArtifactScope],
+    store: DiscoveryArtifactStore,
+    discovery: EntityDiscovery,
+) -> tuple[list[tuple[str, dict[str, Any]]], list[DiscoveryArtifactScope]]:
+    if not scopes:
+        return [], []
+
+    seasons = [scope.seasons[0] for scope in scopes]
+    logger.info(
+        "snapshot-seeding {} historical player discovery seasons",
+        len(set(seasons)),
+    )
+    snapshot_results, live_scopes = _seed_scopes_from_ids_by_season(
+        scopes=scopes,
+        store=store,
+        ids_by_season=player_ids_by_season_from_snapshot(seasons),
+        provenance="workflow-discovery-seed-snapshot",
+    )
+    if not live_scopes:
+        return snapshot_results, []
+
+    bulk_discover = getattr(discovery, "discover_all_player_ids_by_season", None)
+    ids_by_season: dict[str, list[int]] = {}
+    if callable(bulk_discover):
+        logger.info(
+            "bulk-seeding {} historical player discovery seasons from common_all_players",
+            len({scope.seasons[0] for scope in live_scopes}),
+        )
+        ids_by_season = await bulk_discover([scope.seasons[0] for scope in live_scopes])
+
+    bulk_results, fallback_scopes = _seed_scopes_from_ids_by_season(
+        scopes=live_scopes,
+        store=store,
+        ids_by_season=ids_by_season,
+        provenance="workflow-discovery-seed-bulk",
+    )
+    return [*snapshot_results, *bulk_results], fallback_scopes
 
 
 def _sort_summary_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
