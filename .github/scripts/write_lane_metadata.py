@@ -12,7 +12,11 @@ def _int_value(value: object, default: int = 0) -> int:
     if value in (None, ""):
         return default
     try:
-        return int(value)  # type: ignore[arg-type]
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        return int(str(value))
     except (TypeError, ValueError):
         return default
 
@@ -122,7 +126,8 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
         ).fetchall()
         staging_counts: dict[str, int] = {}
         for (table_name,) in staging_tables:
-            rows = int(con.execute(f'select count(*) from "{table_name}"').fetchone()[0])
+            row = con.execute(f'select count(*) from "{table_name}"').fetchone()
+            rows = int(row[0]) if row else 0
             staging_counts[str(table_name)] = rows
 
         telemetry["staging_tables"] = staging_counts
@@ -153,6 +158,7 @@ def _load_extract_summary(summary_path: Path) -> tuple[dict[str, Any], str]:
 def _final_outcome(
     *,
     raw_status: str,
+    effective_network_mode: str,
     rows_persisted: int,
     failed_calls: int,
     journal_skips: int,
@@ -169,6 +175,15 @@ def _final_outcome(
         rows_persisted > 0 or journal_skips > 0 or running_calls > 0
     ):
         return "needs_resume"
+    if (
+        raw_status == "extract-timeout"
+        and effective_network_mode == "direct"
+        and rows_persisted == 0
+        and failed_calls == 0
+        and journal_skips == 0
+        and running_calls > 0
+    ):
+        return "pipeline_failure"
     if raw_status in {"extract-timeout", "timeout_with_persisted_progress"}:
         return "needs_resume"
     if raw_status == "cancelled" and (rows_persisted > 0 or journal_skips > 0 or running_calls > 0):
@@ -249,6 +264,7 @@ def build_payload() -> dict[str, Any]:
     running_calls = _int_value(db_telemetry.get("running_calls"))
     final_outcome = _final_outcome(
         raw_status=raw_status,
+        effective_network_mode=effective_network_mode,
         rows_persisted=rows_persisted,
         failed_calls=failed_calls,
         journal_skips=journal_skips,
@@ -262,6 +278,8 @@ def build_payload() -> dict[str, Any]:
             zero_row_reason = "expected_empty"
         elif final_outcome == "contract_blocked":
             zero_row_reason = "contract_blocked"
+        elif final_outcome == "pipeline_failure" and raw_status == "extract-timeout":
+            zero_row_reason = "zero_progress_timeout"
         elif journal_skips > 0 or _int_value(db_telemetry.get("running_calls")) > 0:
             zero_row_reason = "zero_row_progress"
         elif failed_calls > 0:

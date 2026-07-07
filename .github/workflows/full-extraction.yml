@@ -894,6 +894,19 @@ jobs:
                 ;;
             esac
             echo "::notice::Using direct no-VPN extraction profile: $lane_concurrency"
+            case "$direct_profile" in
+              turbo|aggressive)
+                echo 'NBADB_REQUEST_TIMEOUT_CAP=10' >> "$GITHUB_ENV"
+                ;;
+              moderate)
+                echo 'NBADB_REQUEST_TIMEOUT_CAP=15' >> "$GITHUB_ENV"
+                ;;
+              *)
+                echo 'NBADB_REQUEST_TIMEOUT_CAP=20' >> "$GITHUB_ENV"
+                ;;
+            esac
+            echo 'NBADB_EXTRACT_MAX_RETRIES=1'      >> "$GITHUB_ENV"
+            echo 'NBADB_EXTRACT_RETRY_BASE_DELAY=1' >> "$GITHUB_ENV"
           fi
           # Hosted runners have repeatedly dropped long-running singleton player lanes
           # after clean VPN setup, so force those lanes onto the lowest-stress profile.

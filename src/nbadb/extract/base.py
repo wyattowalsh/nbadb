@@ -487,7 +487,9 @@ class BaseExtractor(ABC):
         """Apply timeout override for nba_api endpoint calls.
 
         Per-endpoint overrides set by the runner take precedence over the
-        global NBADB_REQUEST_TIMEOUT environment variable.
+        global NBADB_REQUEST_TIMEOUT environment variable. NBADB_REQUEST_TIMEOUT_CAP
+        can lower either value for hosted extraction profiles that need fail-fast
+        endpoint calls.
         """
         if "timeout" in kwargs:
             return
@@ -497,9 +499,24 @@ class BaseExtractor(ABC):
         if timeout_override is None:
             return
         try:
-            kwargs["timeout"] = int(timeout_override)
+            timeout_value = int(timeout_override)
+            if timeout_value <= 0:
+                raise ValueError
         except (TypeError, ValueError):
             logger.warning("invalid request timeout override={!r}; ignoring", timeout_override)
+            return
+
+        timeout_cap = os.getenv("NBADB_REQUEST_TIMEOUT_CAP")
+        if timeout_cap is not None:
+            try:
+                timeout_cap_value = int(timeout_cap)
+                if timeout_cap_value <= 0:
+                    raise ValueError
+                timeout_value = min(timeout_value, timeout_cap_value)
+            except (TypeError, ValueError):
+                logger.warning("invalid request timeout cap={!r}; ignoring", timeout_cap)
+
+        kwargs["timeout"] = timeout_value
 
     def _call_nba_api(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
         """Call nba_api endpoint and return all result sets as Polars DataFrames.

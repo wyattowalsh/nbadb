@@ -193,6 +193,49 @@ def test_build_payload_marks_direct_no_vpn_zero_row_failure(
     }
 
 
+def test_build_payload_marks_direct_zero_progress_timeout_as_pipeline_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("NETWORK_MODE", "direct")
+    monkeypatch.setenv("EFFECTIVE_NETWORK_MODE", "direct")
+    monkeypatch.setenv("VPN_STATUS", "direct-no-vpn")
+    monkeypatch.chdir(tmp_path)
+
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    con = duckdb.connect(str(db_path))
+    con.execute(
+        """
+        create table _extraction_journal (
+            endpoint varchar,
+            params varchar,
+            status varchar,
+            rows_extracted bigint
+        )
+        """
+    )
+    con.execute(
+        """
+        insert into _extraction_journal values
+            ('player_dash_team_perf', '{"player_id": 76007, "season": "1946-47"}', 'running', 0)
+        """
+    )
+    con.close()
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["raw_status"] == "extract-timeout"
+    assert payload["telemetry"]["rows_persisted"] == 0
+    assert payload["telemetry"]["failed_calls"] == 0
+    assert payload["telemetry"]["zero_row_reason"] == "zero_progress_timeout"
+    assert payload["telemetry"]["db_telemetry"]["running_calls"] == 1
+
+
 def test_build_payload_marks_partial_extract_error_resumable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
