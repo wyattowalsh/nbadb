@@ -283,6 +283,54 @@ class TestDiscoverAllPlayerIds:
             result = await disc.discover_all_player_ids(season="1946-47")
         assert result == []
 
+    async def test_bulk_season_filter_maps_all_players_to_requested_seasons(self):
+        df = pl.DataFrame(
+            {
+                "person_id": [1, 2, 3, 4],
+                "from_year": ["1945", "1946", "1947", "1964"],
+                "to_year": ["1945", "1946", "1950", "1965"],
+            }
+        )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df) as sync_extract:
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_all_player_ids_by_season(
+                ["1946-47", "1947-48", "1964-65", "1946-47"]
+            )
+
+        assert result == {
+            "1946-47": [2],
+            "1947-48": [3],
+            "1964-65": [4],
+        }
+        sync_extract.assert_called_once()
+        assert sync_extract.call_args.kwargs == {"allow_static_fallback": False}
+
+    async def test_bulk_season_filter_omits_seasons_when_year_metadata_is_unusable(self):
+        df = pl.DataFrame(
+            {
+                "person_id": [1, 2, 3],
+                "from_year": [None, None, None],
+                "to_year": [None, None, None],
+            }
+        )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_all_player_ids_by_season(["1946-47"])
+
+        assert result == {}
+
 
 class TestDiscoverPlayerTeamSeasonParams:
     async def test_returns_unique_player_team_season_params(self):

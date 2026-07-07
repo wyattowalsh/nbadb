@@ -586,6 +586,70 @@ class EntityDiscovery:
             params={},
         )
 
+    async def discover_all_player_ids_by_season(self, seasons: list[str]) -> dict[str, list[int]]:
+        """Get historical player IDs for many seasons from one player directory call.
+
+        The unscoped ``CommonAllPlayers`` response includes ``from_year`` and
+        ``to_year`` metadata.  Reusing that payload avoids one upstream request
+        per season during GitHub full-extraction discovery seeding while keeping
+        the same season-window filtering used by ``discover_all_player_ids``.
+        Seasons that cannot be derived are omitted so callers can fall back to
+        targeted per-season discovery.
+        """
+
+        unique_seasons = sorted({season for season in seasons if season})
+        if not unique_seasons:
+            return {}
+
+        extractor_cls = self._registry.get("common_all_players")
+        extractor = extractor_cls()
+
+        try:
+            df = await _extract_with_retry(
+                extractor,
+                "common_all_players",
+                thread_pool=self._thread_pool,
+                attempts=self._retry_attempts,
+                base_delay=self._retry_delay,
+                rate_limiter=self._rate_limiter,
+                allow_static_fallback=False,
+            )
+        except NbaDbError as exc:
+            logger.error(
+                "failed to bulk-discover historical player IDs by season: {}",
+                type(exc).__name__,
+            )
+            return {}
+
+        if df.is_empty():
+            logger.warning("no common_all_players data returned for bulk season discovery")
+            return {}
+        if "person_id" not in df.columns:
+            logger.warning("common_all_players missing person_id column for bulk season discovery")
+            return {}
+
+        ids_by_season: dict[str, list[int]] = {}
+        for season in unique_seasons:
+            filtered, usable = _filter_player_year_window(df, season)
+            if not usable:
+                logger.warning(
+                    "common_all_players has no usable from_year/to_year metadata for {}; "
+                    "cannot bulk season-scope IDs",
+                    season,
+                )
+                continue
+            entity_ids: list[int] = filtered.get_column("person_id").unique().sort().to_list()
+            if entity_ids:
+                ids_by_season[season] = entity_ids
+                logger.info(
+                    "bulk-discovered {} common_all_players IDs for {}",
+                    len(entity_ids),
+                    season,
+                )
+            else:
+                logger.warning("bulk-discovered no common_all_players IDs for {}", season)
+        return ids_by_season
+
     async def discover_player_team_season_params_result(
         self,
         seasons: list[str],

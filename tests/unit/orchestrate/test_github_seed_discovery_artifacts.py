@@ -162,6 +162,68 @@ def test_seed_player_discovery_artifacts_reuses_per_season_cache(
     assert sorted(item["count"] for item in summary["seeded"]) == [1, 1, 2]
 
 
+def test_seed_player_discovery_artifacts_bulk_seeds_single_seasons(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "lanes": [
+                    {
+                        "patterns": ["player_season"],
+                        "season_start": 1946,
+                        "season_end": 1947,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeRegistry:
+        def discover(self) -> None:
+            return None
+
+    class FakeDiscovery:
+        fallback_calls: list[str] = []
+
+        def __init__(self, _registry: object) -> None:
+            return None
+
+        async def discover_all_player_ids_by_season(
+            self,
+            seasons: list[str],
+        ) -> dict[str, list[int]]:
+            assert sorted(seasons) == ["1946-47", "1947-48"]
+            return {
+                "1946-47": [1, 2],
+                "1947-48": [2, 3],
+            }
+
+        async def discover_all_player_ids(self, *, season: str | None = None) -> list[int]:
+            assert season is not None
+            self.fallback_calls.append(season)
+            return [int(season[:4])]
+
+    monkeypatch.setattr(module, "registry", FakeRegistry())
+    monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
+
+    summary = module.asyncio.run(
+        module.seed_player_discovery_artifacts(
+            manifest_path=manifest_path,
+            duckdb_path=tmp_path / "data" / "nba.duckdb",
+        )
+    )
+
+    assert summary["failure_count"] == 0
+    assert summary["seeded_count"] == 3
+    assert sorted(item["count"] for item in summary["seeded"]) == [2, 2, 3]
+    assert FakeDiscovery.fallback_calls == []
+
+
 def test_seed_player_discovery_artifacts_seeds_single_seasons_concurrently(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -191,6 +191,48 @@ async def _seed_scopes_concurrently(
     return await asyncio.gather(*(_run(scope) for scope in scopes))
 
 
+async def _seed_single_season_scopes_from_bulk(
+    *,
+    scopes: list[DiscoveryArtifactScope],
+    store: DiscoveryArtifactStore,
+    discovery: EntityDiscovery,
+) -> tuple[list[tuple[str, dict[str, Any]]], list[DiscoveryArtifactScope]]:
+    if not scopes:
+        return [], []
+
+    seasons = [scope.seasons[0] for scope in scopes]
+    bulk_discover = getattr(discovery, "discover_all_player_ids_by_season", None)
+    ids_by_season: dict[str, list[int]] = {}
+    if callable(bulk_discover):
+        logger.info(
+            "bulk-seeding {} historical player discovery seasons from common_all_players",
+            len(set(seasons)),
+        )
+        ids_by_season = await bulk_discover(seasons)
+
+    results: list[tuple[str, dict[str, Any]]] = []
+    fallback_scopes: list[DiscoveryArtifactScope] = []
+    for scope in scopes:
+        season = scope.seasons[0]
+        ids = ids_by_season.get(season, [])
+        if not ids:
+            fallback_scopes.append(scope)
+            continue
+        stored = store.upsert_ids(scope, ids, provenance="workflow-discovery-seed-bulk")
+        results.append(
+            (
+                "seeded",
+                {
+                    "kind": scope.kind,
+                    "seasons": list(scope.seasons),
+                    "count": len(stored),
+                },
+            )
+        )
+
+    return results, fallback_scopes
+
+
 def _sort_summary_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(
         items,
@@ -222,16 +264,47 @@ async def seed_player_discovery_artifacts(
     aggregate_scopes = [scope for scope in scopes if len(scope.seasons) != 1]
 
     logger.info(
-        "seeding {} single-season discovery scopes with concurrency {}",
+        "seeding {} single-season discovery scopes; fallback concurrency {}",
         len(single_season_scopes),
         seed_concurrency,
     )
-    results = await _seed_scopes_concurrently(
-        scopes=single_season_scopes,
+    cached_results: list[tuple[str, dict[str, Any]]] = []
+    pending_single_season_scopes: list[DiscoveryArtifactScope] = []
+    for scope in single_season_scopes:
+        cached = store.load_ids(scope)
+        if cached:
+            cached_results.append(
+                (
+                    "skipped",
+                    {
+                        "kind": scope.kind,
+                        "seasons": list(scope.seasons),
+                        "count": len(cached),
+                        "reason": "already_cached",
+                    },
+                )
+            )
+        else:
+            pending_single_season_scopes.append(scope)
+
+    bulk_results, fallback_single_season_scopes = await _seed_single_season_scopes_from_bulk(
+        scopes=pending_single_season_scopes,
+        store=store,
+        discovery=discovery,
+    )
+    if fallback_single_season_scopes:
+        logger.info(
+            "falling back to targeted discovery for {} single-season scopes with concurrency {}",
+            len(fallback_single_season_scopes),
+            seed_concurrency,
+        )
+    fallback_results = await _seed_scopes_concurrently(
+        scopes=fallback_single_season_scopes,
         store=store,
         discovery=discovery,
         concurrency=seed_concurrency,
     )
+    results = [*cached_results, *bulk_results, *fallback_results]
     for scope in aggregate_scopes:
         results.append(await _seed_scope(scope=scope, store=store, discovery=discovery))
 
