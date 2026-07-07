@@ -179,7 +179,6 @@ def _final_outcome(
         raw_status == "extract-timeout"
         and effective_network_mode == "direct"
         and rows_persisted == 0
-        and failed_calls == 0
         and journal_skips == 0
         and running_calls > 0
     ):

@@ -909,15 +909,15 @@ jobs:
                 write_env 'NBADB_REQUEST_TIMEOUT_CAP=20'
                 ;;
             esac
-            write_env 'NBADB_EXTRACT_MAX_RETRIES=1'
-            write_env 'NBADB_EXTRACT_RETRY_BASE_DELAY=1'
+            write_env 'NBADB_EXTRACT_MAX_RETRIES=0'
+            write_env 'NBADB_EXTRACT_RETRY_BASE_DELAY=0.5'
             # Direct-mode player-history lanes can contain hundreds of
-            # player-season calls. Keep those chunks small enough to checkpoint
-            # before the direct lane timeout while preserving larger chunks for
-            # faster endpoint families.
-            write_env 'NBADB_ADAPTIVE_CHUNK_MIN_SIZE=5'
-            write_env 'NBADB_ADAPTIVE_CHUNK_MAX_SIZE=250'
-            write_env 'NBADB_FAMILY_CHUNK_MULTIPLIERS={"default":1.0,"box_score":1.0,"play_by_play":0.5,"player_history":0.02,"team_history":0.5}'
+            # player-season calls. Keep the slow family to one player at a
+            # time so a direct egress stall records a concrete failure instead
+            # of leaving an entire chunk in the running state.
+            write_env 'NBADB_ADAPTIVE_CHUNK_MIN_SIZE=1'
+            write_env 'NBADB_ADAPTIVE_CHUNK_MAX_SIZE=100'
+            write_env 'NBADB_FAMILY_CHUNK_MULTIPLIERS={"default":1.0,"box_score":1.0,"play_by_play":0.5,"player_history":0.001,"team_history":0.5}'
           fi
           # Hosted runners have repeatedly dropped long-running singleton player lanes
           # after clean VPN setup, so force those lanes onto the lowest-stress profile.
@@ -972,6 +972,12 @@ jobs:
               exit 1
               ;;
           esac
+          if [ "$effective_network_mode" = "direct" ]; then
+            # Keep direct egress retries observable. The generic concurrency
+            # profile writes a larger breaker wait above, so apply this after
+            # the profile block.
+            write_env 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=15'
+          fi
 
       - name: Rehydrate completed lane
         if: ${{ matrix.resume_only }}

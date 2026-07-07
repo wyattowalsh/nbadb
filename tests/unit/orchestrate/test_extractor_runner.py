@@ -1008,11 +1008,11 @@ class TestAdaptiveThrottleIntegration:
                 "default": 1.0,
                 "box_score": 1.0,
                 "play_by_play": 0.5,
-                "player_history": 0.02,
+                "player_history": 0.001,
                 "team_history": 0.5,
             },
-            adaptive_chunk_min_size=5,
-            adaptive_chunk_max_size=250,
+            adaptive_chunk_min_size=1,
+            adaptive_chunk_max_size=100,
             default_chunk_size=1000,
         )
         runner = ExtractorRunner(_make_registry(_make_extractor()), settings, journal)
@@ -1026,7 +1026,7 @@ class TestAdaptiveThrottleIntegration:
             ],
         )
 
-        assert chunk_size == 20
+        assert chunk_size == 1
 
     def test_default_settings_isolate_slow_player_history_endpoints(self):
         settings = NbaDbSettings()
