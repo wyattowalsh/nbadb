@@ -5,6 +5,7 @@ import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
+import polars as pl
 from aiolimiter import AsyncLimiter
 from loguru import logger
 from nba_api.stats.library.http import NBAStatsHTTP
@@ -18,8 +19,6 @@ from nbadb.orchestrate.seasons import season_range
 if TYPE_CHECKING:
     from collections.abc import Callable
     from concurrent.futures import ThreadPoolExecutor
-
-    import polars as pl
 
     from nbadb.core.config import NbaDbSettings
     from nbadb.extract.registry import EndpointRegistry
@@ -66,6 +65,33 @@ class PlayerTeamSeasonDiscoveryResult:
 def _reset_nba_stats_session() -> None:
     """Drop the shared nba_api session so recovery starts from a fresh client."""
     NBAStatsHTTP.set_session(None)
+
+
+def _season_start_year(season: str | None) -> int | None:
+    if not season:
+        return None
+    try:
+        return int(str(season)[:4])
+    except (TypeError, ValueError):
+        return None
+
+
+def _common_all_players_season_filter(season: str | None) -> Callable[[pl.DataFrame], pl.DataFrame]:
+    def _filter(df: pl.DataFrame) -> pl.DataFrame:
+        start_year = _season_start_year(season)
+        if start_year is None or {"from_year", "to_year"} - set(df.columns):
+            return df
+
+        from_year = pl.col("from_year").cast(pl.Int64, strict=False)
+        to_year = pl.col("to_year").cast(pl.Int64, strict=False)
+        valid_years = from_year.is_not_null() & to_year.is_not_null()
+        valid_count = df.filter(valid_years).height
+        if valid_count == 0:
+            return df
+
+        return df.filter(valid_years & (from_year <= start_year) & (to_year >= start_year))
+
+    return _filter
 
 
 async def _extract_with_retry(
@@ -484,6 +510,7 @@ class EntityDiscovery:
             staging_key="common_all_players",
             id_column="person_id",
             params=params,
+            filter_fn=_common_all_players_season_filter(season) if season else None,
         )
 
     async def discover_player_team_season_params_result(

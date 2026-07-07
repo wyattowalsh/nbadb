@@ -197,7 +197,7 @@ class TestDiscoverPlayerIds:
 
 
 class TestDiscoverAllPlayerIds:
-    async def test_returns_all_players_unfiltered(self):
+    async def test_returns_all_players_unfiltered_without_season(self):
         df = pl.DataFrame({"person_id": [1, 2, 3], "is_active": [1, 0, 1]})
 
         class _Ext:
@@ -207,7 +207,45 @@ class TestDiscoverAllPlayerIds:
         reg.get.return_value = _Ext
         with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
             disc = EntityDiscovery(reg)
-            result = await disc.discover_all_player_ids(season="2024-25")
+            result = await disc.discover_all_player_ids()
+        assert result == [1, 2, 3]
+
+    async def test_filters_all_players_to_requested_season_window(self):
+        df = pl.DataFrame(
+            {
+                "person_id": [1, 2, 3, 4],
+                "from_year": ["1945", "1946", "1947", None],
+                "to_year": ["1945", "1946", "1950", None],
+            }
+        )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_all_player_ids(season="1946-47")
+        assert result == [2]
+
+    async def test_season_filter_preserves_rows_when_year_metadata_is_unusable(self):
+        df = pl.DataFrame(
+            {
+                "person_id": [1, 2, 3],
+                "from_year": [None, None, None],
+                "to_year": [None, None, None],
+            }
+        )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_all_player_ids(season="1946-47")
         assert result == [1, 2, 3]
 
 
