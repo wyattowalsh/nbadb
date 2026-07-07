@@ -86,3 +86,53 @@ def test_discovery_artifact_store_returns_none_when_unavailable() -> None:
     scope = DiscoveryArtifactScope(kind="league_game_log")
 
     assert store.load_frame(scope) is None
+
+
+def test_discovery_artifact_store_unions_complete_per_season_ids(tmp_path) -> None:
+    store = DiscoveryArtifactStore.from_duckdb_path(tmp_path / "planner.duckdb")
+    store.upsert_ids(
+        DiscoveryArtifactScope(
+            kind="player_ids_all",
+            seasons=("1946-47",),
+            variant="historical",
+        ),
+        [3, 1],
+        provenance="test",
+    )
+    store.upsert_ids(
+        DiscoveryArtifactScope(
+            kind="player_ids_all",
+            seasons=("1947-48",),
+            variant="historical",
+        ),
+        [3, 2],
+        provenance="test",
+    )
+
+    assert store.load_ids_for_seasons(
+        kind="player_ids_all",
+        seasons=("1946-47", "1947-48"),
+        variant="historical",
+    ) == [1, 2, 3]
+
+
+def test_discovery_artifact_store_requires_every_per_season_id_scope(tmp_path) -> None:
+    store = DiscoveryArtifactStore.from_duckdb_path(tmp_path / "planner.duckdb")
+    store.upsert_ids(
+        DiscoveryArtifactScope(
+            kind="player_ids_all",
+            seasons=("1946-47",),
+            variant="historical",
+        ),
+        [1],
+        provenance="test",
+    )
+
+    assert (
+        store.load_ids_for_seasons(
+            kind="player_ids_all",
+            seasons=("1946-47", "1947-48"),
+            variant="historical",
+        )
+        is None
+    )

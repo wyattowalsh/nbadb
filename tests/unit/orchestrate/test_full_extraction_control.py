@@ -357,6 +357,11 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "chain:" not in workflow
     assert 'default: "32"' in max_iterations_block
 
+    assert "discovery_seed:" in workflow
+    assert "full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}" in workflow
+    assert "seed_discovery_artifacts.py" in workflow
+    assert "needs: [plan, preflight, discovery_seed]" in workflow
+    assert "needs.discovery_seed.result == 'success'" in workflow
     assert "needs: [plan, preflight, extract, lane_control]" in workflow
     assert "needs: [plan, preflight, extract, lane_control, checkpoint]" in workflow
     assert "needs: [plan, preflight, lane_control, checkpoint]" in workflow
@@ -379,7 +384,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert workflow.count("resume_args+=(--allow-pipeline-failures)") == 2
     assert (
         "needs.plan.result == 'success' && needs.preflight.result == 'success' "
-        "&& needs.plan.outputs.matrix-lane-count != '0'"
+        "&& needs.discovery_seed.result == 'success' && "
+        "needs.plan.outputs.matrix-lane-count != '0'"
     ) in workflow
     assert "Upload endpoint coverage diagnostics" in workflow
     assert (

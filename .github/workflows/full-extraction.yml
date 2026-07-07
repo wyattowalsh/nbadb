@@ -637,9 +637,63 @@ jobs:
           pid-file: ${{ steps.vpn.outputs.pid-file }}
           work-dir: ${{ steps.vpn.outputs.work-dir }}
 
-  extract:
+  discovery_seed:
     needs: [plan, preflight]
-    if: ${{ always() && needs.plan.result == 'success' && needs.preflight.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' }}
+    if: ${{ needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Download lane manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: plan-artifact/
+
+      - name: Seed discovery artifacts
+        run: |
+          mkdir -p artifacts/discovery data/nbadb
+          manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
+          if [ -z "$manifest_path" ]; then
+            echo "::error::Plan artifact did not contain manifest.json"
+            find plan-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+          uv run python .github/scripts/seed_discovery_artifacts.py \
+            --manifest-path "$manifest_path" \
+            --duckdb-path data/nbadb/nba.duckdb \
+            --summary-path artifacts/discovery/discovery-seed-summary.json
+
+      - name: Upload discovery artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
+          path: |
+            data/nbadb/nba.discovery-artifacts/
+            artifacts/discovery/discovery-seed-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
+
+  extract:
+    needs: [plan, preflight, discovery_seed]
+    if: ${{ always() && needs.plan.result == 'success' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -665,6 +719,23 @@ jobs:
           python-version: "3.12"
 
       - run: uv sync
+
+      - name: Download discovery artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
+          path: discovery-artifact/
+
+      - name: Install discovery artifacts
+        run: |
+          mkdir -p data/nbadb
+          artifact_dir="$(find discovery-artifact -type d -name nba.discovery-artifacts -print -quit)"
+          if [ -n "$artifact_dir" ]; then
+            rm -rf data/nbadb/nba.discovery-artifacts
+            cp -R "$artifact_dir" data/nbadb/nba.discovery-artifacts
+          else
+            echo "::notice::No seeded discovery artifact directory found"
+          fi
 
       # ── Restore state from previous iteration ──
       - name: Restore extraction state

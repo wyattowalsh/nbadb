@@ -734,6 +734,19 @@ class Orchestrator:
                 variant="historical" if include_historical_players else "active",
             )
             cached_player_ids = artifacts.load_ids(player_scope)
+            if not cached_player_ids and include_historical_players and len(seasons) > 1:
+                season_cached_player_ids = artifacts.load_ids_for_seasons(
+                    kind="player_ids_all",
+                    seasons=tuple(seasons),
+                    variant="historical",
+                )
+                if season_cached_player_ids is not None:
+                    cached_player_ids = season_cached_player_ids
+                    artifacts.upsert_ids(
+                        player_scope,
+                        cached_player_ids,
+                        provenance="per-season-discovery-cache",
+                    )
             if cached_player_ids:
                 player_ids = _apply_player_shard(cached_player_ids)
                 if pp is not None:

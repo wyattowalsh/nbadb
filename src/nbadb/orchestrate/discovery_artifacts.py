@@ -139,6 +139,35 @@ class DiscoveryArtifactStore:
             )
         ]
 
+    def load_ids_for_seasons(
+        self,
+        *,
+        kind: ArtifactKind,
+        seasons: tuple[str, ...],
+        variant: str = "default",
+        column: str = "value",
+    ) -> list[int] | None:
+        """Load a union of per-season ID artifacts when every season is cached."""
+        if not seasons:
+            return []
+
+        values: list[int] = []
+        for season in seasons:
+            ids = self.load_ids(
+                DiscoveryArtifactScope(
+                    kind=kind,
+                    seasons=(season,),
+                    season_types=(),
+                    variant=variant,
+                ),
+                column=column,
+            )
+            if not ids:
+                return None
+            values.extend(ids)
+
+        return sorted({int(value) for value in values})
+
     def upsert_ids(
         self,
         scope: DiscoveryArtifactScope,
