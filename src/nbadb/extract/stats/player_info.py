@@ -244,9 +244,12 @@ class PlayerIndexExtractor(BaseExtractor):
 
     async def extract(self, **params: Any) -> pl.DataFrame:
         season = params.get("season") or None
+        timeout = params.get("timeout")
         kwargs: dict[str, Any] = {}
         if season is not None:
             kwargs["season"] = season
+        if timeout is not None:
+            kwargs["timeout"] = timeout
         return self._from_nba_api(PlayerIndex, **kwargs)
 
 

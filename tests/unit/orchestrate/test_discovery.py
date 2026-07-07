@@ -229,7 +229,10 @@ class TestDiscoverAllPlayerIds:
             result = await disc.discover_all_player_ids(season="1946-47")
         assert result == [2]
         sync_extract.assert_called_once()
-        assert sync_extract.call_args.kwargs == {"allow_static_fallback": False}
+        assert sync_extract.call_args.kwargs == {
+            "allow_static_fallback": False,
+            "timeout": _CONCURRENT_DISCOVERY_TIMEOUT,
+        }
 
     async def test_season_filter_uses_player_index_when_common_year_metadata_is_unusable(self):
         common_df = pl.DataFrame(
@@ -260,8 +263,11 @@ class TestDiscoverAllPlayerIds:
             result = await disc.discover_all_player_ids(season="1946-47")
         assert result == [2]
         assert [call.kwargs for call in sync_extract.call_args_list] == [
-            {"allow_static_fallback": False},
-            {"season": "1946-47"},
+            {
+                "allow_static_fallback": False,
+                "timeout": _CONCURRENT_DISCOVERY_TIMEOUT,
+            },
+            {"season": "1946-47", "timeout": _CONCURRENT_DISCOVERY_TIMEOUT},
         ]
 
     async def test_season_filter_returns_empty_when_no_source_has_usable_year_metadata(self):
@@ -309,7 +315,10 @@ class TestDiscoverAllPlayerIds:
             "1964-65": [4],
         }
         sync_extract.assert_called_once()
-        assert sync_extract.call_args.kwargs == {"allow_static_fallback": False}
+        assert sync_extract.call_args.kwargs == {
+            "allow_static_fallback": False,
+            "timeout": _CONCURRENT_DISCOVERY_TIMEOUT,
+        }
 
     async def test_bulk_season_filter_omits_seasons_when_year_metadata_is_unusable(self):
         df = pl.DataFrame(

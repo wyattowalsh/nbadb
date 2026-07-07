@@ -558,7 +558,10 @@ class EntityDiscovery:
                 endpoint="common_all_players",
                 staging_key="common_all_players",
                 season=season,
-                params={"allow_static_fallback": False},
+                params={
+                    "allow_static_fallback": False,
+                    "timeout": _CONCURRENT_DISCOVERY_TIMEOUT,
+                },
             )
             if common_ids is not None:
                 return common_ids
@@ -571,7 +574,7 @@ class EntityDiscovery:
                 endpoint="player_index",
                 staging_key="player_index",
                 season=season,
-                params={"season": season},
+                params={"season": season, "timeout": _CONCURRENT_DISCOVERY_TIMEOUT},
             )
             if player_index_ids is not None:
                 return player_index_ids
@@ -613,6 +616,7 @@ class EntityDiscovery:
                 base_delay=self._retry_delay,
                 rate_limiter=self._rate_limiter,
                 allow_static_fallback=False,
+                timeout=_CONCURRENT_DISCOVERY_TIMEOUT,
             )
         except NbaDbError as exc:
             logger.error(

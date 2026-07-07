@@ -747,6 +747,25 @@ class TestCrossProductParameterHandling:
         assert "season" not in kwargs
 
     @pytest.mark.asyncio
+    async def test_player_index_forwards_timeout_override(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerIndexExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured["kwargs"] = kwargs
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+        await ext.extract(season="2024-25", timeout=(3.05, 10.0))
+
+        kwargs = captured["kwargs"]
+        assert isinstance(kwargs, dict)
+        assert kwargs["timeout"] == (3.05, 10.0)
+
+    @pytest.mark.asyncio
     async def test_common_all_players_omits_empty_season_param(
         self,
         monkeypatch: pytest.MonkeyPatch,
