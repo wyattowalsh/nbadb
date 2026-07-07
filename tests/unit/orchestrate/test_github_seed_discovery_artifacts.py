@@ -79,6 +79,40 @@ def test_player_discovery_scopes_skip_resume_only_lanes() -> None:
     )
 
 
+def test_player_discovery_scopes_prefers_current_matrix_wave(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "season_range",
+        lambda start=1946, end=None: [f"{start}-{str(start + 1)[-2:]}"],
+    )
+
+    scopes = module.player_discovery_scopes(
+        {
+            "github_matrix": {
+                "include": [
+                    {
+                        "patterns": "player_season",
+                        "season_start": "1946",
+                        "season_end": "1946",
+                    }
+                ]
+            },
+            "lanes": [
+                {
+                    "patterns": ["player_season"],
+                    "season_start": 1996,
+                    "season_end": 1996,
+                }
+            ],
+        }
+    )
+
+    assert [(scope.seasons, scope.variant) for scope in scopes] == [(("1946-47",), "historical")]
+
+
 def test_seed_player_discovery_artifacts_reuses_per_season_cache(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

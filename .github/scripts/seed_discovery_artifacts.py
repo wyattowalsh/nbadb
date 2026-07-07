@@ -32,11 +32,23 @@ def _lane_seasons(lane: dict[str, Any]) -> tuple[str, ...]:
     return tuple(season_range(int(raw_start), int(raw_end)))
 
 
+def _seed_lanes(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    matrix = manifest.get("github_matrix")
+    if isinstance(matrix, dict):
+        matrix_lanes = matrix.get("include")
+        if isinstance(matrix_lanes, list):
+            return [lane for lane in matrix_lanes if isinstance(lane, dict)]
+    lanes = manifest.get("lanes", [])
+    if isinstance(lanes, list):
+        return [lane for lane in lanes if isinstance(lane, dict)]
+    return []
+
+
 def player_discovery_scopes(manifest: dict[str, Any]) -> tuple[DiscoveryArtifactScope, ...]:
-    """Return required historical player-ID cache scopes for active lanes."""
+    """Return required historical player-ID cache scopes for this matrix wave."""
     scopes: set[DiscoveryArtifactScope] = set()
-    for lane in manifest.get("lanes", []):
-        if not isinstance(lane, dict) or lane.get("resume_only"):
+    for lane in _seed_lanes(manifest):
+        if lane.get("resume_only"):
             continue
         patterns = set(_split_csv(lane.get("patterns")))
         if not patterns & PLAYER_DISCOVERY_PATTERNS:
