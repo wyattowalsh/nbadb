@@ -730,7 +730,7 @@ class Orchestrator:
             player_scope = DiscoveryArtifactScope(
                 kind="player_ids_all" if include_historical_players else "player_ids_active",
                 seasons=tuple(seasons),
-                season_types=resolved_season_types if include_historical_players else (),
+                season_types=(),
                 variant="historical" if include_historical_players else "active",
             )
             cached_player_ids = artifacts.load_ids(player_scope)
@@ -740,8 +740,11 @@ class Orchestrator:
                     pp.log_discovery("players", len(player_ids))
             else:
                 player_index = len(discovery_tasks)
+                single_season = (
+                    seasons[0] if include_historical_players and len(seasons) == 1 else None
+                )
                 discovery_tasks.append(
-                    discovery.discover_all_player_ids()
+                    discovery.discover_all_player_ids(season=single_season)
                     if include_historical_players
                     else discovery.discover_player_ids()
                 )
@@ -843,7 +846,7 @@ class Orchestrator:
                 DiscoveryArtifactScope(
                     kind="player_ids_all" if include_historical_players else "player_ids_active",
                     seasons=tuple(seasons),
-                    season_types=resolved_season_types if include_historical_players else (),
+                    season_types=(),
                     variant="historical" if include_historical_players else "active",
                 ),
                 player_ids,

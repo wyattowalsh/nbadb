@@ -242,6 +242,74 @@ class TestDiscoverEntities:
         assert game_log_df.shape == (1, 2)
         mock_discovery.discover_game_ids_result.assert_not_called()
 
+    def test_historical_single_season_player_discovery_is_season_scoped(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        bound_log = MagicMock()
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_all_player_ids.return_value = [10, 20]
+
+        _game_ids, player_ids, _team_ids, _game_dates, _game_log_df = asyncio.run(
+            orch._discover_entities(
+                mock_discovery,
+                ["1946-47"],
+                bound_log,
+                include_historical_players=True,
+                include_games=False,
+                include_players=True,
+                include_teams=False,
+                include_dates=False,
+                season_types=["Regular Season"],
+            )
+        )
+
+        assert player_ids == [10, 20]
+        mock_discovery.discover_all_player_ids.assert_awaited_once_with(season="1946-47")
+        cached = orch._discovery_artifacts().load_ids(
+            DiscoveryArtifactScope(
+                kind="player_ids_all",
+                seasons=("1946-47",),
+                season_types=(),
+                variant="historical",
+            )
+        )
+        assert cached == [10, 20]
+
+    def test_historical_player_cache_is_independent_of_season_type(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        bound_log = MagicMock()
+        mock_discovery = AsyncMock()
+        orch._discovery_artifacts().upsert_ids(
+            DiscoveryArtifactScope(
+                kind="player_ids_all",
+                seasons=("1946-47",),
+                season_types=(),
+                variant="historical",
+            ),
+            [10, 20],
+            provenance="test",
+        )
+
+        _game_ids, player_ids, _team_ids, _game_dates, _game_log_df = asyncio.run(
+            orch._discover_entities(
+                mock_discovery,
+                ["1946-47"],
+                bound_log,
+                include_historical_players=True,
+                include_games=False,
+                include_players=True,
+                include_teams=False,
+                include_dates=False,
+                season_types=["All Star"],
+            )
+        )
+
+        assert player_ids == [10, 20]
+        mock_discovery.discover_all_player_ids.assert_not_called()
+
     def test_does_not_cache_partial_game_discovery_as_full_scope(self, tmp_path):
         settings = _mock_settings()
         settings.duckdb_path = tmp_path / "nba.duckdb"
