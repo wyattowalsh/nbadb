@@ -2028,6 +2028,7 @@ class Orchestrator:
                 include_players=needs_players,
                 include_teams=needs_teams,
                 include_dates=needs_dates,
+                require_complete=needs_games or needs_players or needs_teams,
             )
             current_team_ids = (
                 await self._discover_current_team_ids(discovery, seasons=effective_seasons)

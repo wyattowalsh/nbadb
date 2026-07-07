@@ -504,12 +504,11 @@ class EntityDiscovery:
         Use this for ``run_init()`` to ensure historical players are included
         in player-level extraction.
         """
-        params = {"season": season} if season else {}
         return await self._discover_entity_ids(
             endpoint="common_all_players",
             staging_key="common_all_players",
             id_column="person_id",
-            params=params,
+            params={},
             filter_fn=_common_all_players_season_filter(season) if season else None,
         )
 

@@ -14,6 +14,7 @@ from nbadb.orchestrate.discovery import GameDiscoveryResult, PlayerTeamSeasonDis
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope
 from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
 from nbadb.orchestrate.extractor_runner import PatternExtractionResult
+from nbadb.orchestrate.init_coverage import InitDiscoveryCoverageError
 from nbadb.orchestrate.orchestrator import (
     ExtractionOutcome,
     Orchestrator,
@@ -309,6 +310,52 @@ class TestDiscoverEntities:
 
         assert player_ids == [10, 20]
         mock_discovery.discover_all_player_ids.assert_not_called()
+
+    def test_require_complete_raises_on_player_discovery_exception(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        bound_log = MagicMock()
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_all_player_ids.side_effect = RuntimeError("upstream timeout")
+
+        with pytest.raises(InitDiscoveryCoverageError, match="discover_player_ids failed"):
+            asyncio.run(
+                orch._discover_entities(
+                    mock_discovery,
+                    ["1946-47"],
+                    bound_log,
+                    include_historical_players=True,
+                    include_games=False,
+                    include_players=True,
+                    include_teams=False,
+                    include_dates=False,
+                    require_complete=True,
+                )
+            )
+
+    def test_require_complete_raises_on_empty_historical_player_discovery(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        bound_log = MagicMock()
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_all_player_ids.return_value = []
+
+        with pytest.raises(InitDiscoveryCoverageError, match="player discovery returned no ids"):
+            asyncio.run(
+                orch._discover_entities(
+                    mock_discovery,
+                    ["1946-47"],
+                    bound_log,
+                    include_historical_players=True,
+                    include_games=False,
+                    include_players=True,
+                    include_teams=False,
+                    include_dates=False,
+                    require_complete=True,
+                )
+            )
 
     def test_does_not_cache_partial_game_discovery_as_full_scope(self, tmp_path):
         settings = _mock_settings()
@@ -1599,6 +1646,31 @@ class TestRunBackfill:
         mock_discovery.discover_game_ids_result.assert_not_called()
         mock_discovery.discover_game_dates.assert_not_called()
         mock_discovery.discover_player_team_season_params_result.assert_not_called()
+
+    def test_run_backfill_requires_complete_player_discovery_for_player_season_scope(self):
+        orch, _db, _journal = _build_orchestrator_with_mocks()
+
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_all_player_ids.return_value = []
+        mock_runner = _mock_runner()
+
+        with (
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            pytest.raises(InitDiscoveryCoverageError, match="player discovery returned no ids"),
+        ):
+            asyncio.run(
+                orch.run_backfill(
+                    seasons=["1946-47"],
+                    endpoints=["player_dash_last_n_games"],
+                    patterns=["player_season"],
+                    extract_only=True,
+                )
+            )
+
+        mock_discovery.discover_all_player_ids.assert_awaited_once_with(season="1946-47")
+        mock_runner.run_pattern_result.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

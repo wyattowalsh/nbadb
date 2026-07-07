@@ -224,10 +224,12 @@ class TestDiscoverAllPlayerIds:
 
         reg = MagicMock()
         reg.get.return_value = _Ext
-        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df) as sync_extract:
             disc = EntityDiscovery(reg)
             result = await disc.discover_all_player_ids(season="1946-47")
         assert result == [2]
+        sync_extract.assert_called_once()
+        assert sync_extract.call_args.kwargs == {}
 
     async def test_season_filter_preserves_rows_when_year_metadata_is_unusable(self):
         df = pl.DataFrame(
