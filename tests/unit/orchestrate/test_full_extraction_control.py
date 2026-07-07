@@ -10,6 +10,8 @@ import pytest
 from nbadb.orchestrate.extraction_contract import (
     EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
+    PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996,
+    PLAYER_SEASON_FULL_EXTRACTION_UNSUPPORTED_ENDPOINTS,
     SEASON_ENDPOINTS_SUPPORTED_FROM_1997,
     SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969,
     EndpointSupportRule,
@@ -610,6 +612,62 @@ def test_build_default_manifest_routes_player_dashboard_family_to_historical_lan
         "player_streak_finder",
         "shot_chart_detail",
     }
+    shot_chart_lanes = [lane for lane in lanes if lane.endpoints == ("shot_chart_detail",)]
+    assert shot_chart_lanes
+    assert min(lane.season_start for lane in shot_chart_lanes) == 1996
+
+
+@pytest.mark.parametrize(
+    ("endpoint_name", "expected_first_supported_season"),
+    [(endpoint_name, 1996) for endpoint_name in PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996],
+)
+def test_build_default_manifest_excludes_known_player_season_contract_gaps_from_initial_plan(
+    endpoint_name: str,
+    expected_first_supported_season: int,
+) -> None:
+    rows = [
+        _support_row(
+            endpoint_name,
+            ["player_season"],
+            1946,
+            season_type_contract_status="supported",
+        )
+    ]
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        selected_endpoints=[endpoint_name],
+    )
+
+    assert lanes
+    assert all(endpoint_name in lane.endpoints for lane in lanes)
+    assert min(lane.season_start for lane in lanes if lane.season_start is not None) == (
+        expected_first_supported_season
+    )
+    assert all(
+        lane.season_start is not None and lane.season_start >= expected_first_supported_season
+        for lane in lanes
+    )
+
+
+@pytest.mark.parametrize("endpoint_name", PLAYER_SEASON_FULL_EXTRACTION_UNSUPPORTED_ENDPOINTS)
+def test_build_default_manifest_rejects_historical_player_season_contract_gap_endpoint(
+    endpoint_name: str,
+) -> None:
+    rows = [
+        _support_row(
+            endpoint_name,
+            ["player_season"],
+            1946,
+            season_type_contract_status="supported",
+        )
+    ]
+
+    with pytest.raises(ValueError, match="produced no runnable lanes"):
+        build_default_manifest(
+            support_matrix_rows=rows,
+            selected_endpoints=[endpoint_name],
+        )
 
 
 def test_build_default_manifest_skips_full_extraction_excluded_endpoints() -> None:
@@ -1411,23 +1469,23 @@ def test_build_resume_manifest_splits_single_year_timeout_by_season_type(
 ) -> None:
     lane = FullExtractionLane(
         lane_id=(
-            "historical-player_season-player-next-games-regular-season-playoffs-"
+            "historical-player_season-player-dash-team-perf-regular-season-playoffs-"
             "pre-season-all-star-1946-1946"
         ),
         lane_index=0,
-        lane_name="Historical player_season 1946-1946 (player_next_games)",
+        lane_name="Historical player_season 1946-1946 (player_dash_team_perf)",
         lane_kind="historical",
         season_start=1946,
         season_end=1946,
         patterns=("player_season",),
         season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
-        endpoints=("player_next_games",),
+        endpoints=("player_dash_team_perf",),
         timeout_seconds=4800,
     )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
     _write_metadata(
-        metadata_dir / "player_next_games.json",
+        metadata_dir / "player_dash_team_perf.json",
         lane_id=lane.lane_id,
         status="needs_resume",
         raw_status="extract-timeout",
@@ -1453,7 +1511,7 @@ def test_build_resume_manifest_splits_single_year_timeout_by_season_type(
         ("All Star",),
     ]
     parent_slug = (
-        "historical-player-season-player-next-games-regular-season-playoffs-"
+        "historical-player-season-player-dash-team-perf-regular-season-playoffs-"
         "pre-season-all-star-1946-1946"
     )
     assert [child.lane_id for child in next_lanes] == [

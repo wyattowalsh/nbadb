@@ -174,6 +174,10 @@ SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969: tuple[str, ...] = (
     "team_game_streak_finder",
 )
 
+PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996: tuple[str, ...] = ("shot_chart_detail",)
+
+PLAYER_SEASON_FULL_EXTRACTION_UNSUPPORTED_ENDPOINTS: tuple[str, ...] = ("player_next_games",)
+
 
 def _early_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
     return EndpointSupportRule(
@@ -450,6 +454,67 @@ def _post_1969_unscoped_season_contract_gap(endpoint_name: str) -> EndpointSuppo
     )
 
 
+def _pre_1996_player_season_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="player_season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats player-season shot-chart extraction returned no usable "
+            "historical result sets before the 1996-97 season; modern seasons "
+            "return the documented ShotChartDetail result-set shape."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28864855855 reported "
+            "pipeline_failure for all 1946-47 shot_chart_detail player-season "
+            "season-type split lanes: extract_exit_code=124, zero rows persisted, "
+            "161 running calls, and zero_row_reason=zero_progress_timeout. A "
+            "2026-07-07 local runtime probe returned [0, 0] rows for player "
+            "76007 in 1946-47, [0, 20] rows for player 2544 in 1996-97, and "
+            "[1270, 20] rows for player 2544 in 2024-25."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose "
+            "--pattern player_season "
+            f"--endpoint {endpoint_name} --seasons 1946:1995 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1946,
+        season_end=1995,
+    )
+
+
+def _player_next_games_historical_contract_gap() -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name="player_next_games",
+        pattern="player_season",
+        classification="contract_blocked",
+        reason=(
+            "PlayerNextNGames is an upcoming-games surface, not a reproducible "
+            "historical backfill surface. Full extraction should not fan out "
+            "across historical player seasons for an endpoint whose payload is "
+            "defined by future schedule context."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28864855855 reported "
+            "pipeline_failure for all 1946-47 player_next_games player-season "
+            "season-type split lanes: extract_exit_code=124, zero rows persisted, "
+            "161 running calls, and zero_row_reason=zero_progress_timeout. A "
+            "2026-07-07 local runtime probe returned zero rows for player 76007 "
+            "in 1946-47 and zero rows for player 2544 in 2024-25, matching the "
+            "endpoint's upcoming-games semantics rather than historical fact "
+            "coverage."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose "
+            "--pattern player_season --endpoint player_next_games "
+            "--seasons 2024:2025 --summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1946,
+        season_end=None,
+    )
+
+
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     *(
         _early_1946_1949_season_contract_gap(endpoint_name)
@@ -481,6 +546,11 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         _post_1969_unscoped_season_contract_gap(endpoint_name)
         for endpoint_name in SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969
     ),
+    *(
+        _pre_1996_player_season_contract_gap(endpoint_name)
+        for endpoint_name in PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996
+    ),
+    _player_next_games_historical_contract_gap(),
     EndpointSupportRule(
         endpoint_name="win_probability",
         pattern="game",
