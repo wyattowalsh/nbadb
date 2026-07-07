@@ -258,6 +258,7 @@ class CommonAllPlayersExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         season = params.get("season") or None
         is_only_current: int = params.get("is_only_current_season", 0)
+        allow_static_fallback = bool(params.get("allow_static_fallback", True))
         kwargs: dict[str, Any] = {"is_only_current_season": is_only_current}
         if season is not None:
             kwargs["season"] = season
@@ -268,7 +269,7 @@ class CommonAllPlayersExtractor(BaseExtractor):
         try:
             return self._from_nba_api(CommonAllPlayers, **kwargs)
         except Exception as exc:
-            if season is not None:
+            if season is not None or not allow_static_fallback:
                 raise
             if isinstance(exc, json.JSONDecodeError):
                 logger.warning(

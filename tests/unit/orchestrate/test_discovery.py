@@ -229,9 +229,42 @@ class TestDiscoverAllPlayerIds:
             result = await disc.discover_all_player_ids(season="1946-47")
         assert result == [2]
         sync_extract.assert_called_once()
-        assert sync_extract.call_args.kwargs == {}
+        assert sync_extract.call_args.kwargs == {"allow_static_fallback": False}
 
-    async def test_season_filter_preserves_rows_when_year_metadata_is_unusable(self):
+    async def test_season_filter_uses_player_index_when_common_year_metadata_is_unusable(self):
+        common_df = pl.DataFrame(
+            {
+                "person_id": [1, 2, 3],
+                "from_year": [None, None, None],
+                "to_year": [None, None, None],
+            }
+        )
+        player_index_df = pl.DataFrame(
+            {
+                "person_id": [1, 2, 3],
+                "from_year": ["1945", "1946", "1947"],
+                "to_year": ["1945", "1946", "1950"],
+            }
+        )
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.side_effect = [_Ext, _Ext]
+        with patch(
+            "nbadb.orchestrate.discovery._sync_extract",
+            side_effect=[common_df, player_index_df],
+        ) as sync_extract:
+            disc = EntityDiscovery(reg)
+            result = await disc.discover_all_player_ids(season="1946-47")
+        assert result == [2]
+        assert [call.kwargs for call in sync_extract.call_args_list] == [
+            {"allow_static_fallback": False},
+            {"season": "1946-47"},
+        ]
+
+    async def test_season_filter_returns_empty_when_no_source_has_usable_year_metadata(self):
         df = pl.DataFrame(
             {
                 "person_id": [1, 2, 3],
@@ -244,11 +277,11 @@ class TestDiscoverAllPlayerIds:
             pass
 
         reg = MagicMock()
-        reg.get.return_value = _Ext
-        with patch("nbadb.orchestrate.discovery._sync_extract", return_value=df):
+        reg.get.side_effect = [_Ext, _Ext]
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=[df, df]):
             disc = EntityDiscovery(reg)
             result = await disc.discover_all_player_ids(season="1946-47")
-        assert result == [1, 2, 3]
+        assert result == []
 
 
 class TestDiscoverPlayerTeamSeasonParams:

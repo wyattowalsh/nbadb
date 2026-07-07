@@ -76,22 +76,21 @@ def _season_start_year(season: str | None) -> int | None:
         return None
 
 
-def _common_all_players_season_filter(season: str | None) -> Callable[[pl.DataFrame], pl.DataFrame]:
-    def _filter(df: pl.DataFrame) -> pl.DataFrame:
-        start_year = _season_start_year(season)
-        if start_year is None or {"from_year", "to_year"} - set(df.columns):
-            return df
+def _filter_player_year_window(df: pl.DataFrame, season: str | None) -> tuple[pl.DataFrame, bool]:
+    start_year = _season_start_year(season)
+    if start_year is None:
+        return df, True
+    if {"from_year", "to_year"} - set(df.columns):
+        return df, False
 
-        from_year = pl.col("from_year").cast(pl.Int64, strict=False)
-        to_year = pl.col("to_year").cast(pl.Int64, strict=False)
-        valid_years = from_year.is_not_null() & to_year.is_not_null()
-        valid_count = df.filter(valid_years).height
-        if valid_count == 0:
-            return df
+    from_year = pl.col("from_year").cast(pl.Int64, strict=False)
+    to_year = pl.col("to_year").cast(pl.Int64, strict=False)
+    valid_years = from_year.is_not_null() & to_year.is_not_null()
+    valid_count = df.filter(valid_years).height
+    if valid_count == 0:
+        return df, False
 
-        return df.filter(valid_years & (from_year <= start_year) & (to_year >= start_year))
-
-    return _filter
+    return df.filter(valid_years & (from_year <= start_year) & (to_year >= start_year)), True
 
 
 async def _extract_with_retry(
@@ -479,6 +478,56 @@ class EntityDiscovery:
         logger.info("discovered {} {} IDs", len(entity_ids), staging_key)
         return entity_ids
 
+    async def _discover_season_player_ids_from_endpoint(
+        self,
+        endpoint: str,
+        staging_key: str,
+        season: str,
+        params: dict[str, object],
+    ) -> list[int] | None:
+        extractor_cls = self._registry.get(endpoint)
+        extractor = extractor_cls()
+
+        try:
+            df = await _extract_with_retry(
+                extractor,
+                staging_key,
+                thread_pool=self._thread_pool,
+                attempts=self._retry_attempts,
+                base_delay=self._retry_delay,
+                rate_limiter=self._rate_limiter,
+                **params,
+            )
+        except NbaDbError as exc:
+            logger.error(
+                "failed to discover {} IDs for {}: {}",
+                staging_key,
+                season,
+                type(exc).__name__,
+            )
+            return None
+
+        if df.is_empty():
+            logger.warning("no {} data returned for {}", staging_key, season)
+            return []
+
+        if "person_id" not in df.columns:
+            logger.warning("{} missing person_id column for {}", staging_key, season)
+            return None
+
+        filtered, usable = _filter_player_year_window(df, season)
+        if not usable:
+            logger.warning(
+                "{} has no usable from_year/to_year metadata for {}; cannot season-scope IDs",
+                staging_key,
+                season,
+            )
+            return None
+
+        entity_ids: list[int] = filtered.get_column("person_id").unique().sort().to_list()
+        logger.info("discovered {} {} IDs for {}", len(entity_ids), staging_key, season)
+        return entity_ids
+
     async def discover_player_ids(self, season: str | None = None) -> list[int]:
         """Get active player IDs from common_all_players."""
 
@@ -504,12 +553,37 @@ class EntityDiscovery:
         Use this for ``run_init()`` to ensure historical players are included
         in player-level extraction.
         """
+        if season:
+            common_ids = await self._discover_season_player_ids_from_endpoint(
+                endpoint="common_all_players",
+                staging_key="common_all_players",
+                season=season,
+                params={"allow_static_fallback": False},
+            )
+            if common_ids is not None:
+                return common_ids
+
+            logger.warning(
+                "falling back to player_index for season-scoped player discovery ({})",
+                season,
+            )
+            player_index_ids = await self._discover_season_player_ids_from_endpoint(
+                endpoint="player_index",
+                staging_key="player_index",
+                season=season,
+                params={"season": season},
+            )
+            if player_index_ids is not None:
+                return player_index_ids
+
+            logger.error("failed to season-scope player discovery for {}", season)
+            return []
+
         return await self._discover_entity_ids(
             endpoint="common_all_players",
             staging_key="common_all_players",
             id_column="person_id",
             params={},
-            filter_fn=_common_all_players_season_filter(season) if season else None,
         )
 
     async def discover_player_team_season_params_result(

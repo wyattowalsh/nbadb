@@ -915,6 +915,21 @@ class TestCrossProductParameterHandling:
         assert result.get_column("person_id").to_list() == [1]
 
     @pytest.mark.asyncio
+    async def test_common_all_players_can_disable_static_fallback_after_retryable_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = CommonAllPlayersExtractor()
+
+        def _boom(*_args: object, **_kwargs: object) -> pl.DataFrame:
+            raise ConnectionError("transient failure")
+
+        monkeypatch.setattr(ext, "_from_nba_api", _boom)
+
+        with pytest.raises(ConnectionError, match="transient failure"):
+            await ext.extract(allow_static_fallback=False)
+
+    @pytest.mark.asyncio
     async def test_common_all_players_re_raises_json_error_for_season_scoped_requests(
         self,
         monkeypatch: pytest.MonkeyPatch,
