@@ -1583,11 +1583,13 @@ def _metadata_quarantined_servers(metadata: dict[str, dict[str, Any]]) -> tuple[
 def _timeout_lane_can_split(lane: FullExtractionLane) -> bool:
     if lane.season_start is None or lane.season_end is None:
         return False
-    if _season_span(lane.season_start, lane.season_end) <= 1:
-        return False
     if not lane.patterns:
         return False
-    return bool(set(lane.patterns) & TIMEOUT_SPLIT_PATTERNS)
+    if not (set(lane.patterns) & TIMEOUT_SPLIT_PATTERNS):
+        return False
+    if _season_span(lane.season_start, lane.season_end) > 1:
+        return True
+    return len(lane.season_types) > 1
 
 
 def _timeout_split_bands(lane: FullExtractionLane) -> list[tuple[int, int]]:
@@ -1625,28 +1627,65 @@ def _split_lane_by_bands(
     bands: list[tuple[int, int]],
     reason: str,
 ) -> list[FullExtractionLane]:
+    return _split_lane_by_segments(
+        lane,
+        bands=bands,
+        season_type_groups=[lane.season_types],
+        reason=reason,
+    )
+
+
+def _split_lane_by_segments(
+    lane: FullExtractionLane,
+    *,
+    bands: list[tuple[int, int]],
+    season_type_groups: list[tuple[str, ...]],
+    reason: str,
+) -> list[FullExtractionLane]:
     parent_lane_id = lane.parent_lane_id or lane.lane_id
     children: list[FullExtractionLane] = []
     for start, end in bands:
-        child_lane_id = f"{_lane_slug(parent_lane_id)}-split-{start}-{end}"
-        children.append(
-            replace(
-                lane,
-                lane_id=child_lane_id,
-                lane_name=f"{lane.lane_name} {start}-{end}",
-                season_start=start,
-                season_end=end,
-                resume_only=False,
-                failure_streak=0,
-                last_failure_reason=f"split-from-{reason}",
-                parent_lane_id=parent_lane_id,
-                split_generation=lane.split_generation + 1,
+        for season_types in season_type_groups:
+            season_type_suffix = (
+                f"-{_season_type_slug(season_types)}"
+                if season_types and season_types != lane.season_types
+                else ""
             )
-        )
+            child_lane_id = f"{_lane_slug(parent_lane_id)}-split-{start}-{end}{season_type_suffix}"
+            lane_name = f"{lane.lane_name} {start}-{end}"
+            if season_type_suffix:
+                lane_name = f"{lane_name} ({', '.join(season_types)})"
+            children.append(
+                replace(
+                    lane,
+                    lane_id=child_lane_id,
+                    lane_name=lane_name,
+                    season_start=start,
+                    season_end=end,
+                    season_types=season_types,
+                    resume_only=False,
+                    failure_streak=0,
+                    last_failure_reason=f"split-from-{reason}",
+                    parent_lane_id=parent_lane_id,
+                    split_generation=lane.split_generation + 1,
+                )
+            )
     return children
 
 
 def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullExtractionLane]:
+    if (
+        lane.season_start is not None
+        and lane.season_end is not None
+        and _season_span(lane.season_start, lane.season_end) == 1
+        and len(lane.season_types) > 1
+    ):
+        return _split_lane_by_segments(
+            lane,
+            bands=[(lane.season_start, lane.season_end)],
+            season_type_groups=[(season_type,) for season_type in lane.season_types],
+            reason=reason,
+        )
     return _split_lane_by_bands(lane, bands=_timeout_split_bands(lane), reason=reason)
 
 
@@ -2392,7 +2431,7 @@ def _lane_artifact_database_paths(
         return [], set()
     matched_paths: list[Path] = []
     matched_lane_ids: set[str] = set()
-    ordered_lane_ids = sorted(lane_ids, key=len, reverse=True)
+    ordered_lane_ids = sorted(lane_ids, key=lambda lane_id: len(lane_id), reverse=True)
     for db_path in sorted(artifacts_dir.rglob("nba.duckdb")):
         parent_name = db_path.parent.name
         for lane_id in ordered_lane_ids:

@@ -1400,6 +1400,74 @@ def test_build_resume_manifest_splits_zero_row_timeout_lanes(tmp_path: Path) -> 
     assert summary["outcome_counts"] == {"needs_resume": 1}
 
 
+def test_build_resume_manifest_splits_single_year_timeout_by_season_type(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id=(
+            "historical-player_season-player-next-games-regular-season-playoffs-"
+            "pre-season-all-star-1946-1946"
+        ),
+        lane_index=0,
+        lane_name="Historical player_season 1946-1946 (player_next_games)",
+        lane_kind="historical",
+        season_start=1946,
+        season_end=1946,
+        patterns=("player_season",),
+        season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+        endpoints=("player_next_games",),
+        timeout_seconds=4800,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "player_next_games.json",
+        lane_id=lane.lane_id,
+        status="needs_resume",
+        raw_status="extract-timeout",
+        endpoints=list(lane.endpoints),
+        patterns=list(lane.patterns),
+        season_start=1946,
+        season_end=1946,
+    )
+
+    next_lanes, _next_chain_state, summary = build_resume_manifest([lane], metadata_dir)
+
+    validate_manifest(next_lanes)
+    assert [(child.season_start, child.season_end) for child in next_lanes] == [
+        (1946, 1946),
+        (1946, 1946),
+        (1946, 1946),
+        (1946, 1946),
+    ]
+    assert [child.season_types for child in next_lanes] == [
+        ("Regular Season",),
+        ("Playoffs",),
+        ("Pre Season",),
+        ("All Star",),
+    ]
+    parent_slug = (
+        "historical-player-season-player-next-games-regular-season-playoffs-"
+        "pre-season-all-star-1946-1946"
+    )
+    assert [child.lane_id for child in next_lanes] == [
+        f"{parent_slug}-split-1946-1946-regular-season",
+        f"{parent_slug}-split-1946-1946-playoffs",
+        f"{parent_slug}-split-1946-1946-pre-season",
+        f"{parent_slug}-split-1946-1946-all-star",
+    ]
+    assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
+    assert all(child.split_generation == 1 for child in next_lanes)
+    assert summary["active_lane_count"] == 4
+    assert summary["split_lane_count"] == 4
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+    assert summary["failure_reason_counts"] == {"extract-timeout": 1}
+    assert (
+        manifest_payload(next_lanes)["coverage_fingerprint"]
+        == manifest_payload([lane])["coverage_fingerprint"]
+    )
+
+
 def test_build_resume_manifest_allows_missing_attempted_metadata_for_manual_resume(
     tmp_path: Path,
 ) -> None:
