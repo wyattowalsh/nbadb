@@ -352,6 +352,12 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "retry_pipeline_failures:" in workflow
     assert "direct_timeout_cap_minutes:" in workflow
     assert "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS" in workflow
+    assert "NBADB_ADAPTIVE_CHUNK_MIN_SIZE=5" in workflow
+    assert "NBADB_ADAPTIVE_CHUNK_MAX_SIZE=250" in workflow
+    assert (
+        'NBADB_FAMILY_CHUNK_MULTIPLIERS={"default":1.0,"box_score":1.0,'
+        '"play_by_play":0.5,"player_history":0.02,"team_history":0.5}'
+    ) in workflow
     assert "effective-network-mode:" in workflow
     assert "Resolve effective network mode" in workflow
     assert "direct-no-vpn" in workflow

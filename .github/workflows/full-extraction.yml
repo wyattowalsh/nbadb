@@ -875,13 +875,17 @@ jobs:
         run: |
           lane_concurrency="$CONCURRENCY"
           effective_network_mode="${EFFECTIVE_NETWORK_MODE:-vpn}"
+          write_env() {
+            printf '%s\n' "$1" >> "$GITHUB_ENV"
+          }
+
           if [ "$effective_network_mode" = "direct" ]; then
             direct_timeout_cap_minutes="${DIRECT_TIMEOUT_CAP_MINUTES:-30}"
             if ! [[ "$direct_timeout_cap_minutes" =~ ^[0-9]+$ ]] || [ "$direct_timeout_cap_minutes" -le 0 ]; then
               echo "::error::Unsupported direct_timeout_cap_minutes: $direct_timeout_cap_minutes"
               exit 1
             fi
-            echo "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS=$((direct_timeout_cap_minutes * 60))" >> "$GITHUB_ENV"
+            write_env "NBADB_DIRECT_LANE_TIMEOUT_CAP_SECONDS=$((direct_timeout_cap_minutes * 60))"
 
             direct_profile="${DIRECT_REQUEST_PROFILE:-direct}"
             case "$direct_profile" in
@@ -896,17 +900,24 @@ jobs:
             echo "::notice::Using direct no-VPN extraction profile: $lane_concurrency"
             case "$direct_profile" in
               turbo|aggressive)
-                echo 'NBADB_REQUEST_TIMEOUT_CAP=10' >> "$GITHUB_ENV"
+                write_env 'NBADB_REQUEST_TIMEOUT_CAP=10'
                 ;;
               moderate)
-                echo 'NBADB_REQUEST_TIMEOUT_CAP=15' >> "$GITHUB_ENV"
+                write_env 'NBADB_REQUEST_TIMEOUT_CAP=15'
                 ;;
               *)
-                echo 'NBADB_REQUEST_TIMEOUT_CAP=20' >> "$GITHUB_ENV"
+                write_env 'NBADB_REQUEST_TIMEOUT_CAP=20'
                 ;;
             esac
-            echo 'NBADB_EXTRACT_MAX_RETRIES=1'      >> "$GITHUB_ENV"
-            echo 'NBADB_EXTRACT_RETRY_BASE_DELAY=1' >> "$GITHUB_ENV"
+            write_env 'NBADB_EXTRACT_MAX_RETRIES=1'
+            write_env 'NBADB_EXTRACT_RETRY_BASE_DELAY=1'
+            # Direct-mode player-history lanes can contain hundreds of
+            # player-season calls. Keep those chunks small enough to checkpoint
+            # before the direct lane timeout while preserving larger chunks for
+            # faster endpoint families.
+            write_env 'NBADB_ADAPTIVE_CHUNK_MIN_SIZE=5'
+            write_env 'NBADB_ADAPTIVE_CHUNK_MAX_SIZE=250'
+            write_env 'NBADB_FAMILY_CHUNK_MULTIPLIERS={"default":1.0,"box_score":1.0,"play_by_play":0.5,"player_history":0.02,"team_history":0.5}'
           fi
           # Hosted runners have repeatedly dropped long-running singleton player lanes
           # after clean VPN setup, so force those lanes onto the lowest-stress profile.
@@ -917,44 +928,44 @@ jobs:
 
           case "$lane_concurrency" in
             direct)
-              echo 'NBADB_RATE_LIMIT=2'                  >> "$GITHUB_ENV"
-              echo 'NBADB_DISCOVERY_CONCURRENCY=2'      >> "$GITHUB_ENV"
-              echo 'NBADB_THREAD_POOL_SIZE=24'          >> "$GITHUB_ENV"
-              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=240' >> "$GITHUB_ENV"
-              echo 'NBADB_DEFAULT_CHUNK_SIZE=400'       >> "$GITHUB_ENV"
-              echo 'NBADB_PBP_CHUNK_SIZE=800'           >> "$GITHUB_ENV"
+              write_env 'NBADB_RATE_LIMIT=2'
+              write_env 'NBADB_DISCOVERY_CONCURRENCY=2'
+              write_env 'NBADB_THREAD_POOL_SIZE=24'
+              write_env 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=240'
+              write_env 'NBADB_DEFAULT_CHUNK_SIZE=400'
+              write_env 'NBADB_PBP_CHUNK_SIZE=800'
               ;;
             conservative)
-              echo 'NBADB_RATE_LIMIT=6'                  >> "$GITHUB_ENV"
-              echo 'NBADB_DISCOVERY_CONCURRENCY=4'      >> "$GITHUB_ENV"
-              echo 'NBADB_THREAD_POOL_SIZE=48'          >> "$GITHUB_ENV"
-              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=180' >> "$GITHUB_ENV"
-              echo 'NBADB_DEFAULT_CHUNK_SIZE=750'       >> "$GITHUB_ENV"
-              echo 'NBADB_PBP_CHUNK_SIZE=1500'          >> "$GITHUB_ENV"
+              write_env 'NBADB_RATE_LIMIT=6'
+              write_env 'NBADB_DISCOVERY_CONCURRENCY=4'
+              write_env 'NBADB_THREAD_POOL_SIZE=48'
+              write_env 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=180'
+              write_env 'NBADB_DEFAULT_CHUNK_SIZE=750'
+              write_env 'NBADB_PBP_CHUNK_SIZE=1500'
               ;;
             moderate)
-              echo 'NBADB_RATE_LIMIT=10'                 >> "$GITHUB_ENV"
-              echo 'NBADB_DISCOVERY_CONCURRENCY=6'      >> "$GITHUB_ENV"
-              echo 'NBADB_THREAD_POOL_SIZE=64'          >> "$GITHUB_ENV"
-              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=120' >> "$GITHUB_ENV"
-              echo 'NBADB_DEFAULT_CHUNK_SIZE=1000'      >> "$GITHUB_ENV"
-              echo 'NBADB_PBP_CHUNK_SIZE=2000'          >> "$GITHUB_ENV"
+              write_env 'NBADB_RATE_LIMIT=10'
+              write_env 'NBADB_DISCOVERY_CONCURRENCY=6'
+              write_env 'NBADB_THREAD_POOL_SIZE=64'
+              write_env 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=120'
+              write_env 'NBADB_DEFAULT_CHUNK_SIZE=1000'
+              write_env 'NBADB_PBP_CHUNK_SIZE=2000'
               ;;
             aggressive)
-              echo 'NBADB_RATE_LIMIT=14'                >> "$GITHUB_ENV"
-              echo 'NBADB_DISCOVERY_CONCURRENCY=8'     >> "$GITHUB_ENV"
-              echo 'NBADB_THREAD_POOL_SIZE=96'         >> "$GITHUB_ENV"
-              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=90' >> "$GITHUB_ENV"
-              echo 'NBADB_DEFAULT_CHUNK_SIZE=1250'     >> "$GITHUB_ENV"
-              echo 'NBADB_PBP_CHUNK_SIZE=2500'         >> "$GITHUB_ENV"
+              write_env 'NBADB_RATE_LIMIT=14'
+              write_env 'NBADB_DISCOVERY_CONCURRENCY=8'
+              write_env 'NBADB_THREAD_POOL_SIZE=96'
+              write_env 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=90'
+              write_env 'NBADB_DEFAULT_CHUNK_SIZE=1250'
+              write_env 'NBADB_PBP_CHUNK_SIZE=2500'
               ;;
             turbo)
-              echo 'NBADB_RATE_LIMIT=24'                >> "$GITHUB_ENV"
-              echo 'NBADB_DISCOVERY_CONCURRENCY=12'    >> "$GITHUB_ENV"
-              echo 'NBADB_THREAD_POOL_SIZE=128'        >> "$GITHUB_ENV"
-              echo 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=60' >> "$GITHUB_ENV"
-              echo 'NBADB_DEFAULT_CHUNK_SIZE=2000'     >> "$GITHUB_ENV"
-              echo 'NBADB_PBP_CHUNK_SIZE=4000'         >> "$GITHUB_ENV"
+              write_env 'NBADB_RATE_LIMIT=24'
+              write_env 'NBADB_DISCOVERY_CONCURRENCY=12'
+              write_env 'NBADB_THREAD_POOL_SIZE=128'
+              write_env 'NBADB_CIRCUIT_BREAKER_MAX_WAIT=60'
+              write_env 'NBADB_DEFAULT_CHUNK_SIZE=2000'
+              write_env 'NBADB_PBP_CHUNK_SIZE=4000'
               ;;
             *)
               echo "::error::Unsupported concurrency setting: $lane_concurrency"

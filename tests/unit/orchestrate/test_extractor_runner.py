@@ -1000,6 +1000,34 @@ class TestAdaptiveThrottleIntegration:
         )
         assert chunk_size == 100
 
+    def test_direct_profile_player_history_chunk_size_fits_lane_timeout(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            endpoint_family_overrides={"player_dash_game_splits": "player_history"},
+            family_chunk_multipliers={
+                "default": 1.0,
+                "box_score": 1.0,
+                "play_by_play": 0.5,
+                "player_history": 0.02,
+                "team_history": 0.5,
+            },
+            adaptive_chunk_min_size=5,
+            adaptive_chunk_max_size=250,
+            default_chunk_size=1000,
+        )
+        runner = ExtractorRunner(_make_registry(_make_extractor()), settings, journal)
+
+        chunk_size = runner._chunk_size_for_entries(
+            "player_season",
+            [
+                StagingEntry(
+                    "player_dash_game_splits", "stg_player_dash_game_splits", "player_season"
+                )
+            ],
+        )
+
+        assert chunk_size == 20
+
     def test_default_settings_isolate_slow_player_history_endpoints(self):
         settings = NbaDbSettings()
 
