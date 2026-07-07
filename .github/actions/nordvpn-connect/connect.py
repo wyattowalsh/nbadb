@@ -182,6 +182,7 @@ class NordVpnConnectAction:
         self.attempted_servers: list[str] = []
         self.failed_servers: list[str] = []
         self.openvpn_process: subprocess.Popen[str] | None = None
+        self.auth_source = ""
 
     def remaining_budget(self) -> float:
         return self.deadline - time.monotonic()
@@ -414,10 +415,55 @@ class NordVpnConnectAction:
             print("::warning::Could not determine baseline exit IP before connecting")
         write_output("baseline-ip", self.baseline_ip)
 
-    def prepare_auth(self) -> None:
+    def fetch_token_auth(self) -> tuple[str, str]:
+        token = os.environ.get("NORDVPN_TOKEN", "").strip()
+        if not token:
+            raise ActionError(
+                "vpn_auth_failure",
+                "NORDVPN_TOKEN is required to derive replacement OpenVPN credentials",
+            )
+        if not self.retry_http_get(
+            "NordVPN credentials request",
+            self.creds_file,
+            "https://api.nordvpn.com/v1/users/services/credentials",
+            "-u",
+            f"token:{token}",
+        ):
+            raise ActionError(
+                "vpn_auth_failure",
+                "Failed to fetch NordVPN OpenVPN credentials",
+            )
+        try:
+            payload = json.loads(self.creds_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ActionError(
+                "vpn_auth_failure",
+                "Failed to decode NordVPN OpenVPN credentials",
+            ) from exc
+        user = str(payload.get("username") or "").strip()
+        password = str(payload.get("password") or "").strip()
+        return user, password
+
+    def write_auth_file(self, user: str, password: str, *, source: str) -> None:
+        if not user or not password:
+            raise ActionError("vpn_auth_failure", "Failed to derive NordVPN credentials")
+
+        print(f"::add-mask::{user}")
+        print(f"::add-mask::{password}")
+        self.auth_file.write_text(f"{user}\n{password}\n", encoding="utf-8")
+        self.auth_file.chmod(0o600)
+        self.auth_source = source
+
+    def prepare_auth(self, *, prefer_token: bool = False) -> None:
         openvpn_user = os.environ.get("OPENVPN_USER", "").strip()
         openvpn_password = os.environ.get("OPENVPN_PASSWORD", "").strip()
         token = os.environ.get("NORDVPN_TOKEN", "").strip()
+
+        if prefer_token:
+            user, password = self.fetch_token_auth()
+            print("::notice::Using token-derived OpenVPN tunnel credentials")
+            self.write_auth_file(user, password, source="token")
+            return
 
         if openvpn_user or openvpn_password:
             if not openvpn_user or not openvpn_password:
@@ -428,40 +474,31 @@ class NordVpnConnectAction:
             user = openvpn_user
             password = openvpn_password
             print("::notice::Using configured OpenVPN tunnel credentials")
+            self.write_auth_file(user, password, source="configured")
         elif token:
-            if not self.retry_http_get(
-                "NordVPN credentials request",
-                self.creds_file,
-                "https://api.nordvpn.com/v1/users/services/credentials",
-                "-u",
-                f"token:{token}",
-            ):
-                raise ActionError(
-                    "vpn_auth_failure",
-                    "Failed to fetch NordVPN OpenVPN credentials",
-                )
-            try:
-                payload = json.loads(self.creds_file.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
-                raise ActionError(
-                    "vpn_auth_failure",
-                    "Failed to decode NordVPN OpenVPN credentials",
-                ) from exc
-            user = str(payload.get("username") or "").strip()
-            password = str(payload.get("password") or "").strip()
+            user, password = self.fetch_token_auth()
+            print("::notice::Using token-derived OpenVPN tunnel credentials")
+            self.write_auth_file(user, password, source="token")
         else:
             raise ActionError(
                 "vpn_auth_failure",
                 "Provide OPENVPN_USER and OPENVPN_PASSWORD secrets or NORDVPN_TOKEN",
             )
 
-        if not user or not password:
-            raise ActionError("vpn_auth_failure", "Failed to derive NordVPN credentials")
-
-        print(f"::add-mask::{user}")
-        print(f"::add-mask::{password}")
-        self.auth_file.write_text(f"{user}\n{password}\n", encoding="utf-8")
-        self.auth_file.chmod(0o600)
+    def switch_to_token_auth_after_rejection(self) -> bool:
+        token = os.environ.get("NORDVPN_TOKEN", "").strip()
+        if self.auth_source != "configured" or not token:
+            return False
+        print(
+            "::warning::Configured OpenVPN credentials were rejected; "
+            "retrying with token-derived service credentials"
+        )
+        self.cleanup_openvpn()
+        for path in (self.log_file, self.pid_file):
+            with suppress(FileNotFoundError):
+                path.unlink()
+        self.prepare_auth(prefer_token=True)
+        return True
 
     def recommendation_servers(self, technology: str) -> list[str]:
         recommendation_limit = max(
@@ -666,72 +703,83 @@ class NordVpnConnectAction:
         self.determine_baseline_ip()
         self.prepare_auth()
 
-        technologies = [self.technology]
-        if self.fallback_technology:
-            technologies.append(self.fallback_technology)
+        retried_token_credentials = False
+        while True:
+            technologies = [self.technology]
+            if self.fallback_technology:
+                technologies.append(self.fallback_technology)
 
-        saw_auth_failure = False
-        attempted_network = False
-        for technology in technologies:
-            self.ensure_budget("technology selection")
-            servers = self.recommendation_servers(technology)
-            if not servers:
-                attempted_network = True
-                continue
-            for server in servers:
-                try:
-                    if self.attempt_server(server, technology):
-                        print(
-                            f"::notice::VPN connected — server: {server}, "
-                            f"technology: {technology}, interface: {self.interface}, "
-                            f"exit IP: {self.exit_ip}"
-                        )
-                        write_output("server", self.server)
-                        write_output("exit-ip", self.exit_ip)
-                        write_output("interface", self.interface)
-                        write_output("pid", self.pid)
-                        return 0
-                except ActionError as exc:
+            saw_auth_failure = False
+            attempted_network = False
+            for technology in technologies:
+                self.ensure_budget("technology selection")
+                servers = self.recommendation_servers(technology)
+                if not servers:
                     attempted_network = True
-                    self.status = exc.status
-                    print(
-                        "::warning::"
-                        f"{exc.message}; trying the next recommended server if budget remains"
-                    )
-                    self.make_workdir_readable()
-                    self.cleanup_openvpn()
-                    if exc.status in {"vpn_connect_timeout", "vpn_network_error"} and (
-                        self.remaining_budget() > 0
-                    ):
-                        continue
-                    raise
-                attempted_network = True
-                if self.auth_failed_in_log():
-                    saw_auth_failure = True
+                    continue
+                for server in servers:
+                    try:
+                        if self.attempt_server(server, technology):
+                            print(
+                                f"::notice::VPN connected — server: {server}, "
+                                f"technology: {technology}, interface: {self.interface}, "
+                                f"exit IP: {self.exit_ip}"
+                            )
+                            write_output("server", self.server)
+                            write_output("exit-ip", self.exit_ip)
+                            write_output("interface", self.interface)
+                            write_output("pid", self.pid)
+                            return 0
+                    except ActionError as exc:
+                        attempted_network = True
+                        self.status = exc.status
+                        print(
+                            "::warning::"
+                            f"{exc.message}; trying the next recommended server if budget remains"
+                        )
+                        self.make_workdir_readable()
+                        self.cleanup_openvpn()
+                        if exc.status in {"vpn_connect_timeout", "vpn_network_error"} and (
+                            self.remaining_budget() > 0
+                        ):
+                            continue
+                        raise
+                    attempted_network = True
+                    if self.auth_failed_in_log():
+                        saw_auth_failure = True
 
-        self.make_workdir_readable()
-        if self.log_file.exists():
-            run_quiet(["sudo", "tail", "-50", str(self.log_file)], timeout=10)
+            if self.remaining_budget() <= 0:
+                raise ActionError(
+                    "vpn_connect_timeout",
+                    "VPN tunnel timed out before a verified connection was established",
+                )
+            if (
+                saw_auth_failure
+                and not retried_token_credentials
+                and self.switch_to_token_auth_after_rejection()
+            ):
+                retried_token_credentials = True
+                continue
 
-        if self.remaining_budget() <= 0:
-            raise ActionError(
-                "vpn_connect_timeout",
-                "VPN tunnel timed out before a verified connection was established",
-            )
-        if saw_auth_failure:
-            raise ActionError(
-                "vpn_auth_failure",
-                "NordVPN rejected the OpenVPN credentials on every attempted recommended server",
-            )
-        if not attempted_network:
+            self.make_workdir_readable()
+            if self.log_file.exists():
+                run_quiet(["sudo", "tail", "-50", str(self.log_file)], timeout=10)
+
+            if saw_auth_failure:
+                raise ActionError(
+                    "vpn_auth_failure",
+                    "NordVPN rejected the OpenVPN credentials on every attempted "
+                    "recommended server",
+                )
+            if not attempted_network:
+                raise ActionError(
+                    "vpn_network_error",
+                    "VPN tunnel failed before any server attempt could be made",
+                )
             raise ActionError(
                 "vpn_network_error",
-                "VPN tunnel failed before any server attempt could be made",
+                "VPN tunnel failed to establish with the recommended servers",
             )
-        raise ActionError(
-            "vpn_network_error",
-            "VPN tunnel failed to establish with the recommended servers",
-        )
 
     def finalize(self) -> None:
         self.cleanup_sensitive()

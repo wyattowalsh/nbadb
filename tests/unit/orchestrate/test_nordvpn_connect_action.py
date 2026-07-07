@@ -302,6 +302,48 @@ def test_main_writes_outputs_for_unexpected_exception(
     }
 
 
+def test_switch_to_token_auth_after_configured_credentials_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.log_file.write_text("AUTH_FAILED\n", encoding="utf-8")
+    action.pid_file.write_text("123\n", encoding="utf-8")
+    monkeypatch.setenv("OPENVPN_USER", "stale-user")
+    monkeypatch.setenv("OPENVPN_PASSWORD", "stale-password")
+    monkeypatch.setenv("NORDVPN_TOKEN", "valid-token")
+
+    action.prepare_auth()
+    assert action.auth_source == "configured"
+    assert action.auth_file.read_text(encoding="utf-8") == "stale-user\nstale-password\n"
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        assert label == "NordVPN credentials request"
+        assert url == "https://api.nordvpn.com/v1/users/services/credentials"
+        assert extra_args == ("-u", "token:valid-token")
+        output_path.write_text(
+            json.dumps({"username": "token-user", "password": "token-password"}),
+            encoding="utf-8",
+        )
+        return True
+
+    monkeypatch.setattr(action, "cleanup_openvpn", lambda: None)
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.switch_to_token_auth_after_rejection() is True
+    assert action.auth_source == "token"
+    assert action.auth_file.read_text(encoding="utf-8") == "token-user\ntoken-password\n"
+    assert not action.log_file.exists()
+    assert not action.pid_file.exists()
+
+
 def test_attempt_server_records_verified_tunnel_details(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,

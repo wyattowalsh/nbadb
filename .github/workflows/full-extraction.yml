@@ -606,7 +606,8 @@ jobs:
             if [ "$status" = "connected" ]; then
               echo "::notice::Preflight VPN validation connected via ${VPN_SERVER:-unknown} (${VPN_EXIT_IP:-unknown})"
             else
-              echo "::warning::Preflight VPN validation returned ${status}; proceeding with VPN extraction for live lane verification"
+              echo "::error::Preflight VPN validation returned ${status}; refusing requested VPN extraction"
+              exit 1
             fi
           else
             echo "::error::Unsupported network_mode: $requested"

@@ -362,6 +362,10 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     ) in workflow
     assert "effective-network-mode:" in workflow
     assert "Resolve effective network mode" in workflow
+    assert (
+        "Preflight VPN validation returned ${status}; refusing requested VPN extraction" in workflow
+    )
+    assert "proceeding with VPN extraction for live lane verification" not in workflow
     assert "direct-no-vpn" in workflow
     assert "lane_control:" in workflow
     assert "checkpoint:" in workflow
