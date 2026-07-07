@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,8 @@ from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, Discov
 from nbadb.orchestrate.seasons import season_range
 
 PLAYER_DISCOVERY_PATTERNS = frozenset({"player", "player_season"})
+DEFAULT_DISCOVERY_SEED_CONCURRENCY = 8
+DISCOVERY_SEED_CONCURRENCY_ENV = "NBADB_DISCOVERY_SEED_CONCURRENCY"
 
 
 def _split_csv(value: object) -> tuple[str, ...]:
@@ -30,6 +33,23 @@ def _lane_seasons(lane: dict[str, Any]) -> tuple[str, ...]:
     if raw_start in (None, "") or raw_end in (None, ""):
         return tuple(season_range())
     return tuple(season_range(int(raw_start), int(raw_end)))
+
+
+def _seed_concurrency() -> int:
+    raw_value = os.environ.get(
+        DISCOVERY_SEED_CONCURRENCY_ENV,
+        str(DEFAULT_DISCOVERY_SEED_CONCURRENCY),
+    )
+    try:
+        return max(1, int(raw_value))
+    except ValueError:
+        logger.warning(
+            "invalid {}={!r}; using {}",
+            DISCOVERY_SEED_CONCURRENCY_ENV,
+            raw_value,
+            DEFAULT_DISCOVERY_SEED_CONCURRENCY,
+        )
+        return DEFAULT_DISCOVERY_SEED_CONCURRENCY
 
 
 def _seed_lanes(manifest: dict[str, Any]) -> list[dict[str, Any]]:
@@ -77,6 +97,111 @@ def player_discovery_scopes(manifest: dict[str, Any]) -> tuple[DiscoveryArtifact
     return tuple(sorted(scopes, key=lambda scope: (len(scope.seasons), scope.seasons)))
 
 
+async def _seed_scope(
+    *,
+    scope: DiscoveryArtifactScope,
+    store: DiscoveryArtifactStore,
+    discovery: EntityDiscovery,
+) -> tuple[str, dict[str, Any]]:
+    cached = store.load_ids(scope)
+    if cached:
+        return (
+            "skipped",
+            {
+                "kind": scope.kind,
+                "seasons": list(scope.seasons),
+                "count": len(cached),
+                "reason": "already_cached",
+            },
+        )
+
+    if len(scope.seasons) == 1:
+        season = scope.seasons[0]
+        logger.info("seeding historical player discovery for {}", season)
+        ids = await discovery.discover_all_player_ids(season=season)
+    else:
+        logger.info(
+            "seeding aggregate historical player discovery for {} seasons",
+            len(scope.seasons),
+        )
+        per_season_ids = store.load_ids_for_seasons(
+            kind="player_ids_all",
+            seasons=scope.seasons,
+            variant="historical",
+        )
+        if per_season_ids is None:
+            per_season_ids = []
+            for season in scope.seasons:
+                season_scope = DiscoveryArtifactScope(
+                    kind="player_ids_all",
+                    seasons=(season,),
+                    season_types=(),
+                    variant="historical",
+                )
+                season_ids = store.load_ids(season_scope)
+                if not season_ids:
+                    season_ids = await discovery.discover_all_player_ids(season=season)
+                    if season_ids:
+                        store.upsert_ids(
+                            season_scope,
+                            season_ids,
+                            provenance="workflow-discovery-seed",
+                        )
+                per_season_ids.extend(season_ids)
+            per_season_ids = sorted({int(value) for value in per_season_ids})
+        ids = per_season_ids
+
+    if not ids:
+        return (
+            "failures",
+            {
+                "kind": scope.kind,
+                "seasons": list(scope.seasons),
+                "reason": "no_ids",
+            },
+        )
+
+    stored = store.upsert_ids(scope, ids, provenance="workflow-discovery-seed")
+    return (
+        "seeded",
+        {
+            "kind": scope.kind,
+            "seasons": list(scope.seasons),
+            "count": len(stored),
+        },
+    )
+
+
+async def _seed_scopes_concurrently(
+    *,
+    scopes: list[DiscoveryArtifactScope],
+    store: DiscoveryArtifactStore,
+    discovery: EntityDiscovery,
+    concurrency: int,
+) -> list[tuple[str, dict[str, Any]]]:
+    if not scopes:
+        return []
+
+    semaphore = asyncio.Semaphore(max(1, concurrency))
+
+    async def _run(scope: DiscoveryArtifactScope) -> tuple[str, dict[str, Any]]:
+        async with semaphore:
+            return await _seed_scope(scope=scope, store=store, discovery=discovery)
+
+    return await asyncio.gather(*(_run(scope) for scope in scopes))
+
+
+def _sort_summary_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        items,
+        key=lambda item: (
+            str(item.get("kind", "")),
+            tuple(str(value) for value in item.get("seasons", [])),
+            str(item.get("reason", "")),
+        ),
+    )
+
+
 async def seed_player_discovery_artifacts(
     *,
     manifest_path: Path,
@@ -87,86 +212,47 @@ async def seed_player_discovery_artifacts(
     store = DiscoveryArtifactStore.from_duckdb_path(duckdb_path)
     registry.discover()
     discovery = EntityDiscovery(registry)
+    seed_concurrency = _seed_concurrency()
 
     seeded: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
 
-    for scope in scopes:
-        cached = store.load_ids(scope)
-        if cached:
-            skipped.append(
-                {
-                    "kind": scope.kind,
-                    "seasons": list(scope.seasons),
-                    "count": len(cached),
-                    "reason": "already_cached",
-                }
-            )
-            continue
+    single_season_scopes = [scope for scope in scopes if len(scope.seasons) == 1]
+    aggregate_scopes = [scope for scope in scopes if len(scope.seasons) != 1]
 
-        if len(scope.seasons) == 1:
-            season = scope.seasons[0]
-            logger.info("seeding historical player discovery for {}", season)
-            ids = await discovery.discover_all_player_ids(season=season)
+    logger.info(
+        "seeding {} single-season discovery scopes with concurrency {}",
+        len(single_season_scopes),
+        seed_concurrency,
+    )
+    results = await _seed_scopes_concurrently(
+        scopes=single_season_scopes,
+        store=store,
+        discovery=discovery,
+        concurrency=seed_concurrency,
+    )
+    for scope in aggregate_scopes:
+        results.append(await _seed_scope(scope=scope, store=store, discovery=discovery))
+
+    for bucket, item in results:
+        if bucket == "seeded":
+            seeded.append(item)
+        elif bucket == "skipped":
+            skipped.append(item)
+        elif bucket == "failures":
+            failures.append(item)
         else:
-            logger.info(
-                "seeding aggregate historical player discovery for {} seasons",
-                len(scope.seasons),
-            )
-            per_season_ids = store.load_ids_for_seasons(
-                kind="player_ids_all",
-                seasons=scope.seasons,
-                variant="historical",
-            )
-            if per_season_ids is None:
-                per_season_ids = []
-                for season in scope.seasons:
-                    season_scope = DiscoveryArtifactScope(
-                        kind="player_ids_all",
-                        seasons=(season,),
-                        season_types=(),
-                        variant="historical",
-                    )
-                    season_ids = store.load_ids(season_scope)
-                    if not season_ids:
-                        season_ids = await discovery.discover_all_player_ids(season=season)
-                        if season_ids:
-                            store.upsert_ids(
-                                season_scope,
-                                season_ids,
-                                provenance="workflow-discovery-seed",
-                            )
-                    per_season_ids.extend(season_ids)
-                per_season_ids = sorted({int(value) for value in per_season_ids})
-            ids = per_season_ids
-
-        if not ids:
-            failures.append(
-                {
-                    "kind": scope.kind,
-                    "seasons": list(scope.seasons),
-                    "reason": "no_ids",
-                }
-            )
-            continue
-        stored = store.upsert_ids(scope, ids, provenance="workflow-discovery-seed")
-        seeded.append(
-            {
-                "kind": scope.kind,
-                "seasons": list(scope.seasons),
-                "count": len(stored),
-            }
-        )
+            raise RuntimeError(f"unexpected discovery seed result bucket: {bucket}")
 
     return {
         "scope_count": len(scopes),
         "seeded_count": len(seeded),
         "skipped_count": len(skipped),
         "failure_count": len(failures),
-        "seeded": seeded,
-        "skipped": skipped,
-        "failures": failures,
+        "seeded": _sort_summary_items(seeded),
+        "skipped": _sort_summary_items(skipped),
+        "failures": _sort_summary_items(failures),
     }
 
 

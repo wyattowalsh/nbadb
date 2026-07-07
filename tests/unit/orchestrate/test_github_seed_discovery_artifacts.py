@@ -160,3 +160,61 @@ def test_seed_player_discovery_artifacts_reuses_per_season_cache(
     assert summary["failure_count"] == 0
     assert summary["seeded_count"] == 3
     assert sorted(item["count"] for item in summary["seeded"]) == [1, 1, 2]
+
+
+def test_seed_player_discovery_artifacts_seeds_single_seasons_concurrently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "lanes": [
+                    {
+                        "patterns": ["player_season"],
+                        "season_start": 1946,
+                        "season_end": 1948,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeRegistry:
+        def discover(self) -> None:
+            return None
+
+    class FakeDiscovery:
+        active = 0
+        max_active = 0
+
+        def __init__(self, _registry: object) -> None:
+            return None
+
+        async def discover_all_player_ids(self, *, season: str | None = None) -> list[int]:
+            assert season is not None
+            type(self).active += 1
+            type(self).max_active = max(type(self).max_active, type(self).active)
+            try:
+                await module.asyncio.sleep(0.01)
+                return [int(season[:4])]
+            finally:
+                type(self).active -= 1
+
+    monkeypatch.setenv(module.DISCOVERY_SEED_CONCURRENCY_ENV, "3")
+    monkeypatch.setattr(module, "registry", FakeRegistry())
+    monkeypatch.setattr(module, "EntityDiscovery", FakeDiscovery)
+
+    summary = module.asyncio.run(
+        module.seed_player_discovery_artifacts(
+            manifest_path=manifest_path,
+            duckdb_path=tmp_path / "data" / "nba.duckdb",
+        )
+    )
+
+    assert summary["failure_count"] == 0
+    assert summary["seeded_count"] == 4
+    assert FakeDiscovery.max_active > 1
