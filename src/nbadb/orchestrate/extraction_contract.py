@@ -174,7 +174,36 @@ SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969: tuple[str, ...] = (
     "team_game_streak_finder",
 )
 
-PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996: tuple[str, ...] = ("shot_chart_detail",)
+SHOT_CHART_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996: tuple[str, ...] = ("shot_chart_detail",)
+
+PLAYER_DASHBOARD_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996: tuple[str, ...] = (
+    "player_dashboard_clutch",
+    "player_dashboard_game_splits",
+    "player_dashboard_general_splits",
+    "player_dashboard_last_n_games",
+    "player_dashboard_shooting_splits",
+    "player_dashboard_team_performance",
+    "player_dashboard_year_over_year",
+    "player_dash_game_splits",
+    "player_dash_general_splits",
+    "player_dash_last_n_games",
+    "player_dash_shooting_splits",
+    "player_dash_team_perf",
+    "player_dash_yoy",
+    "player_streak_finder",
+)
+
+PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996: tuple[str, ...] = (
+    *SHOT_CHART_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996,
+    *PLAYER_DASHBOARD_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996,
+)
+
+PLAYER_TRACKING_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_2013: tuple[str, ...] = (
+    "player_dash_pt_pass",
+    "player_dash_pt_reb",
+    "player_dash_pt_shot_defend",
+    "player_dash_pt_shots",
+)
 
 PLAYER_SEASON_FULL_EXTRACTION_UNSUPPORTED_ENDPOINTS: tuple[str, ...] = ("player_next_games",)
 
@@ -484,6 +513,74 @@ def _pre_1996_player_season_contract_gap(endpoint_name: str) -> EndpointSupportR
     )
 
 
+def _pre_1996_player_dashboard_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="player_season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats player dashboard and player streak result sets return "
+            "no usable historical player-season payloads before 1996-97; the "
+            "same endpoints return normal result-set shapes for 1996-97 and "
+            "current seasons."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 28867994300 reported "
+            "pipeline_failure for all 1946-47 player dashboard/streak "
+            "player-season lanes: extract_exit_code=124. Each lane DuckDB "
+            "artifact contained 161 _extraction_journal rows still marked "
+            "running, zero rows extracted, and zero staging chunks. A "
+            "2026-07-07 local runtime probe with known active players returned "
+            "all-zero frames for 1946-47 player 76007 and 1970-71 player "
+            "76003, then nonzero frames for 1996-97 player 893 and 2024-25 "
+            "player 2544 across player_dash_game_splits, "
+            "player_dash_general_splits, player_dash_last_n_games, "
+            "player_dash_shooting_splits, player_dash_team_perf, "
+            "player_dash_yoy, player_dashboard_clutch, and "
+            "player_streak_finder."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose "
+            "--pattern player_season "
+            f"--endpoint {endpoint_name} --seasons 1946:1995 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1946,
+        season_end=1995,
+    )
+
+
+def _pre_2013_player_tracking_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="player_season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats PlayerDashPt tracking endpoints return no usable "
+            "player-season tracking payloads before 2013-14; tracking "
+            "payloads are available for 2013-14 and current seasons when "
+            "queried with team_id=0."
+        ),
+        evidence=(
+            "A 2026-07-07 local runtime probe against nba_api returned "
+            "all-zero frames for 1946-47 player 76007 and 1996-97 player 893, "
+            "then nonzero 2013-14 and 2024-25 frames for player 2544 across "
+            "player_dash_pt_pass, player_dash_pt_reb, player_dash_pt_shots, "
+            "and player_dash_pt_shot_defend when called with team_id=0. The "
+            "same probe also found the local extractors needed to supply the "
+            "nba_api-required team_id parameter."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose "
+            "--pattern player_season "
+            f"--endpoint {endpoint_name} --seasons 1946:2012 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1946,
+        season_end=2012,
+    )
+
+
 def _player_next_games_historical_contract_gap() -> EndpointSupportRule:
     return EndpointSupportRule(
         endpoint_name="player_next_games",
@@ -548,7 +645,15 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     ),
     *(
         _pre_1996_player_season_contract_gap(endpoint_name)
-        for endpoint_name in PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996
+        for endpoint_name in SHOT_CHART_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996
+    ),
+    *(
+        _pre_1996_player_dashboard_contract_gap(endpoint_name)
+        for endpoint_name in PLAYER_DASHBOARD_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996
+    ),
+    *(
+        _pre_2013_player_tracking_contract_gap(endpoint_name)
+        for endpoint_name in PLAYER_TRACKING_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_2013
     ),
     _player_next_games_historical_contract_gap(),
     EndpointSupportRule(

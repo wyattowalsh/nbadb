@@ -12,6 +12,7 @@ from nbadb.orchestrate.extraction_contract import (
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
     PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996,
     PLAYER_SEASON_FULL_EXTRACTION_UNSUPPORTED_ENDPOINTS,
+    PLAYER_TRACKING_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_2013,
     SEASON_ENDPOINTS_SUPPORTED_FROM_1997,
     SEASON_ENDPOINTS_UNSUPPORTED_AFTER_1969,
     EndpointSupportRule,
@@ -602,7 +603,6 @@ def test_build_default_manifest_routes_player_dashboard_family_to_historical_lan
 
     assert {lane.lane_kind for lane in lanes} == {"historical"}
     assert {lane.patterns for lane in lanes} == {("player_season",)}
-    assert min(lane.season_start for lane in lanes if lane.season_start is not None) == 1946
     assert all((lane.season_end - lane.season_start + 1) <= 16 for lane in lanes)
     assert all(len(lane.endpoints) == 1 for lane in lanes)
     historical_endpoints = {endpoint for lane in lanes for endpoint in lane.endpoints}
@@ -613,14 +613,28 @@ def test_build_default_manifest_routes_player_dashboard_family_to_historical_lan
         "player_streak_finder",
         "shot_chart_detail",
     }
-    shot_chart_lanes = [lane for lane in lanes if lane.endpoints == ("shot_chart_detail",)]
-    assert shot_chart_lanes
-    assert min(lane.season_start for lane in shot_chart_lanes) == 1996
+    first_season_by_endpoint = {
+        endpoint: min(lane.season_start for lane in lanes if lane.endpoints == (endpoint,))
+        for endpoint in historical_endpoints
+    }
+    assert first_season_by_endpoint == {
+        "player_dashboard_clutch": 1996,
+        "player_dash_game_splits": 1996,
+        "player_game_logs_v2": 1946,
+        "player_streak_finder": 1996,
+        "shot_chart_detail": 1996,
+    }
 
 
 @pytest.mark.parametrize(
     ("endpoint_name", "expected_first_supported_season"),
-    [(endpoint_name, 1996) for endpoint_name in PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996],
+    [
+        *((endpoint_name, 1996) for endpoint_name in PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_1996),
+        *(
+            (endpoint_name, 2013)
+            for endpoint_name in PLAYER_TRACKING_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_2013
+        ),
+    ],
 )
 def test_build_default_manifest_excludes_known_player_season_contract_gaps_from_initial_plan(
     endpoint_name: str,
@@ -723,7 +737,7 @@ def test_build_default_manifest_routes_player_tracking_to_historical_player_seas
 
     assert [lane.lane_id for lane in reference_lanes] == ["reference-player"]
     assert reference_lanes[0].endpoints == ("player_dash_game_splits",)
-    assert min(lane.season_start for lane in historical_lanes) == 1946
+    assert min(lane.season_start for lane in historical_lanes) == 2013
     assert max(lane.season_end for lane in historical_lanes if lane.season_end is not None) >= 2025
     assert all((lane.season_end - lane.season_start + 1) <= 6 for lane in historical_lanes)
     assert all(len(lane.endpoints) == 1 for lane in historical_lanes)
@@ -744,10 +758,10 @@ def test_build_default_manifest_routes_player_tracking_to_historical_player_seas
             "player_dash_pt_shots",
         }
     } == {
-        "player_dash_pt_pass": 1946,
-        "player_dash_pt_reb": 1946,
-        "player_dash_pt_shot_defend": 1946,
-        "player_dash_pt_shots": 1946,
+        "player_dash_pt_pass": 2013,
+        "player_dash_pt_reb": 2013,
+        "player_dash_pt_shot_defend": 2013,
+        "player_dash_pt_shots": 2013,
     }
     assert historical_lanes[0].season_types == (
         "Regular Season",
@@ -1470,23 +1484,23 @@ def test_build_resume_manifest_splits_single_year_timeout_by_season_type(
 ) -> None:
     lane = FullExtractionLane(
         lane_id=(
-            "historical-player_season-player-dash-team-perf-regular-season-playoffs-"
+            "historical-player_season-player-game-logs-v2-regular-season-playoffs-"
             "pre-season-all-star-1946-1946"
         ),
         lane_index=0,
-        lane_name="Historical player_season 1946-1946 (player_dash_team_perf)",
+        lane_name="Historical player_season 1946-1946 (player_game_logs_v2)",
         lane_kind="historical",
         season_start=1946,
         season_end=1946,
         patterns=("player_season",),
         season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
-        endpoints=("player_dash_team_perf",),
+        endpoints=("player_game_logs_v2",),
         timeout_seconds=4800,
     )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
     _write_metadata(
-        metadata_dir / "player_dash_team_perf.json",
+        metadata_dir / "player_game_logs_v2.json",
         lane_id=lane.lane_id,
         status="needs_resume",
         raw_status="extract-timeout",
@@ -1511,10 +1525,7 @@ def test_build_resume_manifest_splits_single_year_timeout_by_season_type(
         ("Pre Season",),
         ("All Star",),
     ]
-    parent_slug = (
-        "historical-player-season-player-dash-team-perf-regular-season-playoffs-"
-        "pre-season-all-star-1946-1946"
-    )
+    parent_slug = lane.lane_id.replace("_", "-")
     assert [child.lane_id for child in next_lanes] == [
         f"{parent_slug}-split-1946-1946-regular-season",
         f"{parent_slug}-split-1946-1946-playoffs",

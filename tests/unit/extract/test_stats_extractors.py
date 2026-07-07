@@ -181,6 +181,7 @@ from nbadb.extract.stats.player_info import (
 from nbadb.extract.stats.player_tracking import (
     PlayerDashPtPassExtractor,
     PlayerDashPtRebExtractor,
+    PlayerDashPtShotDefendExtractor,
     PlayerDashPtShotsExtractor,
     PlayerEstimatedMetricsExtractor,
 )
@@ -1922,6 +1923,52 @@ class TestExtractAllMethodCoverage:
         assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(df, pl.DataFrame) for df in result)
+
+
+class TestPlayerTrackingTeamId:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "cls",
+        [PlayerDashPtPassExtractor, PlayerDashPtRebExtractor, PlayerDashPtShotsExtractor],
+        ids=["pass", "reb", "shots"],
+    )
+    async def test_extract_all_defaults_team_id_to_zero(
+        self,
+        cls: type,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = cls()
+        captured: dict[str, object] = {}
+
+        def _fake_multi(endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
+            captured.update(kwargs)
+            return [pl.DataFrame({"ok": [1]})]
+
+        monkeypatch.setattr(ext, "_from_nba_api_multi", _fake_multi)
+
+        await ext.extract_all(player_id=2544, season="2024-25", season_type="Playoffs")
+
+        assert captured["team_id"] == 0
+        assert captured["season_type_all_star"] == "Playoffs"
+
+    @pytest.mark.asyncio
+    async def test_shot_defend_extract_defaults_team_id_to_zero(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ext = PlayerDashPtShotDefendExtractor()
+        captured: dict[str, object] = {}
+
+        def _fake(endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+            captured.update(kwargs)
+            return pl.DataFrame({"ok": [1]})
+
+        monkeypatch.setattr(ext, "_from_nba_api", _fake)
+
+        await ext.extract(player_id=2544, season="2024-25", season_type="Playoffs")
+
+        assert captured["team_id"] == 0
+        assert captured["season_type_all_star"] == "Playoffs"
 
 
 # team_tracking: extract_all with explicit season_type param
