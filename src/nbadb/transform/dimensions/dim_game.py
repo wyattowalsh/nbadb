@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 
 from nbadb.transform.base import BaseTransformer
 
@@ -27,10 +27,9 @@ class DimGameTransformer(BaseTransformer):
         arenas = sched.select("game_id", "arena_name", "arena_city").unique(
             subset=["game_id"], keep="last"
         )
-        return cast(
-            "pl.DataFrame",
+        return (
             games.join(arenas, on="game_id", how="left")
             .unique(subset=["game_id"], keep="last")
             .sort("game_date", "game_id")
-            .collect(),
+            .collect()
         )

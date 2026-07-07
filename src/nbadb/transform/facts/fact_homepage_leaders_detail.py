@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar
 
 import polars as pl
 
@@ -46,7 +46,7 @@ class FactHomepageLeadersDetailTransformer(BaseTransformer):
             if frame is None:
                 continue
 
-            df = cast("pl.DataFrame", frame.collect())
+            df = frame.collect()
             if df.is_empty():
                 continue
 

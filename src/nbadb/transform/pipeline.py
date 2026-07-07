@@ -8,7 +8,7 @@ import traceback
 import uuid
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol
 
 import pandera.polars as pa
 import polars as pl
@@ -234,7 +234,7 @@ class TransformPipeline:
         failed: set[str] = set()
         for key, val in staging.items():
             try:
-                data = cast("pl.DataFrame", val.collect())
+                data = val.collect()
                 if validate_input_schemas:
                     data = self._validate_input_schema(key, data)
                 prepared[key] = data.lazy()
