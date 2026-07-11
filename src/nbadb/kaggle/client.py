@@ -1,28 +1,118 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
+import os
 import re
 import shutil
 import tempfile
+import threading
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime
+from http import HTTPStatus
 from pathlib import Path, PurePosixPath
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from typing import BinaryIO, Protocol
+
+    class _FcntlModule(Protocol):
+        LOCK_EX: int
+        LOCK_NB: int
+        LOCK_UN: int
+
+        def flock(self, file_descriptor: int, operation: int) -> None: ...
+
+    class _MsvcrtModule(Protocol):
+        LK_NBLCK: int
+        LK_UNLCK: int
+
+        def locking(self, file_descriptor: int, mode: int, byte_count: int) -> None: ...
+
 
 from loguru import logger
 
 from nbadb.core.config import get_settings
-from nbadb.core.extraction_failures import classify_exception
 from nbadb.core.types import validate_sql_identifier
 
 PUBLICATION_MARKER_NAME = "nbadb-publication.json"
+PUBLICATION_STATE_NAME = "kaggle-publication-state.json"
+UPLOAD_SERIALIZATION_CONTRACT = {
+    "mechanism": "process_mutex_and_advisory_file_lock",
+    "scope": "same_process_and_same_host_shared_log_directory",
+    "cross_host_supported": False,
+    "cross_host_guard": "remote_marker_and_exact_version_reconciliation",
+}
+_PUBLICATION_RECORD_STATES = frozenset({"failed", "resolved", "unresolved"})
+
+_PROCESS_UPLOAD_LOCK = threading.Lock()
+_AUTHORIZATION_BEARER_RE = re.compile(
+    r"(?i)(\bauthorization\b[\"']?\s*(?::|=)?\s*[\"']?bearer\s+)([^\"'\s,;}]+)"
+)
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)(\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|kaggle[_-]?(?:key|token|secret)|"
+    r"(?:[a-z0-9]+[_-])?(?:token|secret|password))\b[\"']?\s*(?:=|:)\s*)"
+    r"([\"']?)([^\"'\s&,;}\]]+)([\"']?)"
+)
+_SECRET_FLAG_RE = re.compile(
+    r"(?i)((?:--)(?:api[_-]?key|(?:[a-z0-9]+[_-])?(?:token|secret|password))\s+)"
+    r"([\"']?)([^\"'\s,;}]+)([\"']?)"
+)
 
 
 class KagglePublicationPendingError(RuntimeError):
     def __init__(self, message: str, publication: dict[str, Any]) -> None:
         self.publication = publication
         super().__init__(message)
+
+
+class _PosixAdvisoryFileLock:
+    @staticmethod
+    def acquire(handle: BinaryIO) -> None:
+        fcntl = cast("_FcntlModule", importlib.import_module("fcntl"))
+
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    @staticmethod
+    def release(handle: BinaryIO) -> None:
+        fcntl = cast("_FcntlModule", importlib.import_module("fcntl"))
+
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+class _WindowsAdvisoryFileLock:
+    @staticmethod
+    def acquire(handle: BinaryIO) -> None:
+        msvcrt = cast("_MsvcrtModule", importlib.import_module("msvcrt"))
+
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            raise BlockingIOError("The advisory lock is already held") from exc
+
+    @staticmethod
+    def release(handle: BinaryIO) -> None:
+        msvcrt = cast("_MsvcrtModule", importlib.import_module("msvcrt"))
+
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def _advisory_file_lock_backend() -> type[_PosixAdvisoryFileLock] | type[_WindowsAdvisoryFileLock]:
+    if os.name == "posix":
+        return _PosixAdvisoryFileLock
+    if os.name == "nt":
+        return _WindowsAdvisoryFileLock
+    msg = f"Kaggle advisory file locking is unsupported on os.name={os.name!r}"
+    raise RuntimeError(msg)
 
 
 class KaggleClient:
@@ -65,6 +155,40 @@ class KaggleClient:
         self._sync_duckdb_after_download(dest, copied_names=copied_names)
 
         return dest
+
+    def publication_preflight(self) -> dict[str, Any]:
+        """Read and classify exact remote publication evidence without uploading."""
+        try:
+            with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-preflight-") as temp_dir:
+                marker, marker_version = self._download_remote_publication_marker(Path(temp_dir))
+        except Exception as exc:
+            if not self._is_publication_marker_not_found(exc):
+                raise
+            version = self._resolve_remote_dataset_version()
+            return {
+                "acceptable": True,
+                "dataset": self._dataset,
+                "state": "bootstrap_marker_missing",
+                "marker_status_code": int(HTTPStatus.NOT_FOUND),
+                "version": version,
+            }
+
+        self._validate_publication_marker(marker)
+        metadata_version = self._resolve_remote_dataset_version()
+        if marker_version != metadata_version:
+            msg = (
+                "Kaggle publication preflight resolved ambiguous dataset versions: "
+                f"marker={marker_version}, metadata={metadata_version}"
+            )
+            raise RuntimeError(msg)
+        return {
+            "acceptable": True,
+            "dataset": self._dataset,
+            "state": "marker_present",
+            "version": marker_version,
+            "publish_key": marker["publish_key"],
+            "bundle_fingerprint": marker["bundle_fingerprint"],
+        }
 
     @staticmethod
     def _sync_duckdb_after_download(dest: Path, *, copied_names: set[str]) -> None:
@@ -124,7 +248,30 @@ class KaggleClient:
         remote_timeout_seconds: float = 900.0,
         remote_poll_interval_seconds: float = 15.0,
     ) -> Path:
-        """Upload dataset to Kaggle after validating the local upload bundle."""
+        """Upload with same-host serialization and remote publication reconciliation.
+
+        The advisory file claim coordinates processes that share this client's local
+        log directory. Kaggle has no conditional version-upload API, so separate hosts
+        remain coordinated only by the marker and exact-version checks.
+        """
+        with self._local_upload_claim():
+            return self._upload_claimed(
+                data_dir=data_dir,
+                version_notes=version_notes,
+                verify_remote=verify_remote,
+                remote_timeout_seconds=remote_timeout_seconds,
+                remote_poll_interval_seconds=remote_poll_interval_seconds,
+            )
+
+    def _upload_claimed(
+        self,
+        data_dir: Path | None = None,
+        version_notes: str = "Automated update via nbadb",
+        verify_remote: bool = False,
+        remote_timeout_seconds: float = 900.0,
+        remote_poll_interval_seconds: float = 15.0,
+    ) -> Path:
+        """Validate and upload a bundle while the local upload claim is held."""
         import kagglehub
 
         upload_dir = data_dir or self._settings.data_dir
@@ -224,6 +371,47 @@ class KaggleClient:
                 msg = "Kaggle upload source bundle changed before upload"
                 raise RuntimeError(msg)
 
+            try:
+                prior_unresolved = self._prior_unresolved_publication(publish_key=publish_key)
+            except Exception as exc:
+                publication["local_state"] = {
+                    "state": "reconciliation_failed",
+                    "error": self._redacted_error(exc),
+                }
+                publication["result"] = "local_state_reconciliation_failed"
+                self._write_upload_manifest(
+                    data_dir=upload_dir,
+                    staged_dir=staged_dir,
+                    version_notes=version_notes,
+                    status="local_state_reconciliation_failed",
+                    preflight=preflight,
+                    post_upload=staged,
+                    publication=publication,
+                    error=self._redacted_error(exc),
+                )
+                raise
+
+            if prior_unresolved is not None and not verify_remote:
+                publication["prior_unresolved_publication"] = prior_unresolved
+                publication["result"] = "publication_reconciliation_required"
+                msg = (
+                    "Kaggle has a prior unresolved upload attempt; remote verification is "
+                    "required before another upload"
+                )
+                pending = KagglePublicationPendingError(msg, publication)
+                self._write_upload_manifest(
+                    data_dir=upload_dir,
+                    staged_dir=staged_dir,
+                    version_notes=version_notes,
+                    status="publication_reconciliation_required",
+                    preflight=preflight,
+                    post_upload=staged,
+                    publication=publication,
+                    error=self._redacted_error(pending),
+                )
+                raise pending
+
+            bootstrap_baseline_version: int | None = None
             if verify_remote:
                 try:
                     with tempfile.TemporaryDirectory(
@@ -233,18 +421,131 @@ class KaggleClient:
                             self._download_remote_publication_marker(Path(baseline_dir))
                         )
                 except Exception as exc:
-                    publication["baseline"] = {"error": self._redacted_error(exc)}
+                    if not self._is_publication_marker_not_found(exc):
+                        publication["baseline"] = {
+                            "state": "reconciliation_failed",
+                            "error": self._redacted_error(exc),
+                        }
+                        publication["result"] = "baseline_reconciliation_failed"
+                        self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="baseline_reconciliation_failed",
+                            preflight=preflight,
+                            post_upload=staged,
+                            publication=publication,
+                            error=self._redacted_error(exc),
+                        )
+                        raise
+
+                    try:
+                        baseline_version = self._resolve_remote_dataset_version()
+                    except Exception as bootstrap_exc:
+                        publication["baseline"] = {
+                            "state": "bootstrap_version_resolution_failed",
+                            "marker_status_code": int(HTTPStatus.NOT_FOUND),
+                            "error": self._redacted_error(bootstrap_exc),
+                        }
+                        publication["result"] = "baseline_reconciliation_failed"
+                        self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="baseline_reconciliation_failed",
+                            preflight=preflight,
+                            post_upload=staged,
+                            publication=publication,
+                            error=self._redacted_error(bootstrap_exc),
+                        )
+                        raise
+
+                    publication["baseline"] = {
+                        "state": "bootstrap_marker_missing",
+                        "marker_status_code": int(HTTPStatus.NOT_FOUND),
+                        "version": baseline_version,
+                        "matches_expected": False,
+                        "upload_allowed": prior_unresolved is None,
+                    }
+                    if prior_unresolved is not None:
+                        publication["prior_unresolved_publication"] = prior_unresolved
+                        publication["result"] = "bootstrap_reconciliation_required"
+                        msg = (
+                            "Kaggle has a prior unresolved upload attempt and the remote "
+                            "publication marker is absent; refusing another upload"
+                        )
+                        pending = KagglePublicationPendingError(msg, publication)
+                        self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="bootstrap_reconciliation_required",
+                            preflight=preflight,
+                            post_upload=staged,
+                            publication=publication,
+                            error=self._redacted_error(pending),
+                        )
+                        raise pending from exc
+                    bootstrap_baseline_version = baseline_version
                 else:
                     baseline_matches = self._publication_marker_matches(
                         baseline_marker,
                         expected=publication_marker,
                     )
+                    prior_matches = prior_unresolved is not None and (
+                        self._publication_marker_matches_record(
+                            baseline_marker,
+                            record=prior_unresolved,
+                        )
+                    )
                     publication["baseline"] = {
+                        "state": "marker_present",
                         "publish_key": baseline_marker.get("publish_key"),
                         "bundle_fingerprint": baseline_marker.get("bundle_fingerprint"),
                         "version": baseline_version,
                         "matches_expected": baseline_matches,
+                        "upload_allowed": prior_unresolved is None,
                     }
+                    if prior_unresolved is not None and not prior_matches:
+                        publication["prior_unresolved_publication"] = prior_unresolved
+                        publication["result"] = "publication_reconciliation_required"
+                        msg = (
+                            "Kaggle has a prior unresolved upload attempt and the remote "
+                            "publication marker does not resolve that exact record; refusing "
+                            "another upload"
+                        )
+                        pending = KagglePublicationPendingError(msg, publication)
+                        self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="publication_reconciliation_required",
+                            preflight=preflight,
+                            post_upload=staged,
+                            publication=publication,
+                            error=self._redacted_error(pending),
+                        )
+                        raise pending
+                    if (
+                        prior_unresolved is not None
+                        and prior_unresolved.get("publish_key") != publish_key
+                    ):
+                        publication["prior_unresolved_publication"] = prior_unresolved
+                        publication["prior_unresolved_reconciliation"] = {
+                            "state": "resolved",
+                            "status": "reconciled_prior_remote",
+                            "resolved_version": baseline_version,
+                        }
+                        self._transition_publication_state(
+                            prior_unresolved,
+                            state_name="resolved",
+                            status="reconciled_prior_remote",
+                            resolved_version=baseline_version,
+                        )
+                        prior_unresolved = None
+                    publication["baseline"]["upload_allowed"] = (
+                        prior_unresolved is None or baseline_matches
+                    )
                     if baseline_matches:
                         publication.update(
                             {
@@ -252,6 +553,12 @@ class KaggleClient:
                                 "resolved_version": baseline_version,
                                 "verification_attempts": 1,
                             }
+                        )
+                        self._transition_publication_state(
+                            publication,
+                            state_name="resolved",
+                            status="reconciled_existing_remote",
+                            resolved_version=baseline_version,
                         )
                         manifest_path = self._write_upload_manifest(
                             data_dir=upload_dir,
@@ -271,6 +578,25 @@ class KaggleClient:
                         )
                         logger.info("Kaggle already exposes the staged bundle; upload skipped")
                         return manifest_path
+                    if prior_unresolved is not None:
+                        publication["prior_unresolved_publication"] = prior_unresolved
+                        publication["result"] = "publication_reconciliation_required"
+                        msg = (
+                            "Kaggle has a prior unresolved upload attempt and the remote "
+                            "publication marker is present but nonmatching; refusing another upload"
+                        )
+                        pending = KagglePublicationPendingError(msg, publication)
+                        self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="publication_reconciliation_required",
+                            preflight=preflight,
+                            post_upload=staged,
+                            publication=publication,
+                            error=self._redacted_error(pending),
+                        )
+                        raise pending
 
             manifest_path = self._write_upload_manifest(
                 data_dir=upload_dir,
@@ -280,9 +606,107 @@ class KaggleClient:
                 preflight=preflight,
                 publication=publication,
             )
+            if bootstrap_baseline_version is not None:
+                try:
+                    bootstrap_recheck = self._reconcile_bootstrap_before_upload(
+                        expected_marker=publication_marker,
+                        baseline_version=bootstrap_baseline_version,
+                    )
+                except Exception as exc:
+                    publication["bootstrap_pre_upload"] = {
+                        "state": "reconciliation_failed",
+                        "baseline_version": bootstrap_baseline_version,
+                        "error": self._redacted_error(exc),
+                    }
+                    publication["result"] = "bootstrap_pre_upload_reconciliation_failed"
+                    self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="bootstrap_pre_upload_reconciliation_failed",
+                        preflight=preflight,
+                        post_upload=staged,
+                        publication=publication,
+                        error=self._redacted_error(exc),
+                    )
+                    raise
+                publication["bootstrap_pre_upload"] = bootstrap_recheck
+                if (
+                    bootstrap_recheck["state"] == "marker_present"
+                    and bootstrap_recheck["upload_allowed"]
+                ):
+                    resolved_version = self._require_exact_dataset_version(
+                        bootstrap_recheck["marker_version"],
+                        source="bootstrap pre-upload marker",
+                    )
+                    remote_marker = cast("dict[str, Any]", bootstrap_recheck["marker"])
+                    publication.update(
+                        {
+                            "result": "reconciled_existing_remote",
+                            "resolved_version": resolved_version,
+                            "verification_attempts": 1,
+                        }
+                    )
+                    self._transition_publication_state(
+                        publication,
+                        state_name="resolved",
+                        status="reconciled_existing_remote",
+                        resolved_version=resolved_version,
+                    )
+                    manifest_path = self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="reconciled_existing_remote",
+                        preflight=preflight,
+                        post_upload=staged,
+                        remote_readback={
+                            **remote_marker,
+                            "verification_mode": "publication_marker",
+                            "verification_attempts": 1,
+                            "verification_elapsed_seconds": 0.0,
+                            "resolved_version": resolved_version,
+                        },
+                        publication=publication,
+                    )
+                    logger.info("Kaggle bootstrap recheck found the staged bundle; upload skipped")
+                    return manifest_path
+                if not bootstrap_recheck["upload_allowed"]:
+                    publication["result"] = "bootstrap_pre_upload_reconciliation_required"
+                    msg = (
+                        "Kaggle remote publication evidence changed or became ambiguous after "
+                        "the marker-specific 404; refusing upload"
+                    )
+                    pending = KagglePublicationPendingError(msg, publication)
+                    self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="bootstrap_pre_upload_reconciliation_required",
+                        preflight=preflight,
+                        post_upload=staged,
+                        publication=publication,
+                        error=self._redacted_error(pending),
+                    )
+                    raise pending
+
             upload_error: Exception | None = None
             try:
                 publication["upload_attempts"] = 1
+                self._transition_publication_state(
+                    publication,
+                    state_name="unresolved",
+                    status="upload_attempt_started",
+                )
+                self._write_upload_manifest(
+                    data_dir=upload_dir,
+                    staged_dir=staged_dir,
+                    version_notes=version_notes,
+                    status="upload_attempt_started",
+                    preflight=preflight,
+                    post_upload=staged,
+                    publication=publication,
+                )
                 kagglehub.dataset_upload(
                     handle=self._dataset,
                     local_dataset_dir=str(staged_dir),
@@ -291,21 +715,32 @@ class KaggleClient:
             except Exception as exc:
                 upload_error = exc
                 publication["upload_error"] = self._redacted_error(exc)
-                if not verify_remote or classify_exception(exc) != "transport_transient":
-                    publication["result"] = "upload_failed"
-                    self._write_upload_manifest(
-                        data_dir=upload_dir,
-                        staged_dir=staged_dir,
-                        version_notes=version_notes,
-                        status="upload_failed",
-                        preflight=preflight,
-                        publication=publication,
-                        error=self._redacted_error(exc),
-                    )
+                publication["result"] = "upload_ambiguous"
+                self._transition_publication_state(
+                    publication,
+                    state_name="unresolved",
+                    status="upload_ambiguous",
+                    error=self._redacted_error(exc),
+                )
+                self._write_upload_manifest(
+                    data_dir=upload_dir,
+                    staged_dir=staged_dir,
+                    version_notes=version_notes,
+                    status="upload_ambiguous_reconciling" if verify_remote else "upload_ambiguous",
+                    preflight=preflight,
+                    publication=publication,
+                    error=self._redacted_error(exc),
+                )
+                if not verify_remote:
                     raise
 
             post_upload = self._snapshot_tree(staged_dir)
             if post_upload["fingerprint"] != staged["fingerprint"]:
+                self._transition_publication_state(
+                    publication,
+                    state_name="unresolved",
+                    status="post_upload_mismatch_remote_may_exist",
+                )
                 self._write_upload_manifest(
                     data_dir=upload_dir,
                     staged_dir=staged_dir,
@@ -333,6 +768,12 @@ class KaggleClient:
                 except KagglePublicationPendingError as exc:
                     publication = exc.publication
                     publication["result"] = "publication_reconciliation_required"
+                    self._transition_publication_state(
+                        publication,
+                        state_name="unresolved",
+                        status="publication_reconciliation_required",
+                        error=self._redacted_error(exc),
+                    )
                     self._write_upload_manifest(
                         data_dir=upload_dir,
                         staged_dir=staged_dir,
@@ -347,8 +788,19 @@ class KaggleClient:
                 publication["result"] = (
                     "reconciled_after_upload_error" if upload_error is not None else "verified"
                 )
+                self._transition_publication_state(
+                    publication,
+                    state_name="resolved",
+                    status="uploaded_remote_verified",
+                    resolved_version=publication.get("resolved_version"),
+                )
             else:
                 publication["result"] = "uploaded_unverified"
+                self._transition_publication_state(
+                    publication,
+                    state_name="unresolved",
+                    status="uploaded_unverified",
+                )
 
             manifest_path = self._write_upload_manifest(
                 data_dir=upload_dir,
@@ -372,6 +824,283 @@ class KaggleClient:
         target = resolved_data_dir / "dataset-metadata.json"
         generate_metadata(target, data_dir=resolved_data_dir)
         return target
+
+    @contextmanager
+    def _local_upload_claim(self) -> Iterator[None]:
+        """Claim this host/log root; separate hosts still require remote reconciliation."""
+        if not _PROCESS_UPLOAD_LOCK.acquire(blocking=False):
+            msg = "Another Kaggle upload is already active in this process"
+            raise RuntimeError(msg)
+
+        lock_handle = None
+        lock_backend = None
+        file_claimed = False
+        try:
+            lock_dir = self._settings.log_dir / "kaggle"
+            lock_dir.mkdir(parents=True, exist_ok=True)
+            dataset_key = hashlib.sha256(self._dataset.encode("utf-8")).hexdigest()[:16]
+            lock_path = lock_dir / f"kaggle-upload-{dataset_key}.lock"
+            lock_path.touch(exist_ok=True)
+            lock_handle = lock_path.open("r+b")
+            lock_backend = _advisory_file_lock_backend()
+            try:
+                lock_backend.acquire(lock_handle)
+            except BlockingIOError as exc:
+                msg = (
+                    "Another Kaggle upload is already active on this host for the shared "
+                    "log directory"
+                )
+                raise RuntimeError(msg) from exc
+            file_claimed = True
+            lock_handle.seek(0)
+            lock_handle.write(
+                (
+                    json.dumps(
+                        {
+                            "dataset": self._dataset,
+                            "process_id": os.getpid(),
+                            "claimed_at": datetime.now(UTC).isoformat(),
+                            "serialization": UPLOAD_SERIALIZATION_CONTRACT,
+                        },
+                        sort_keys=True,
+                    )
+                    + "\n"
+                ).encode("utf-8")
+            )
+            lock_handle.truncate()
+            lock_handle.flush()
+            os.fsync(lock_handle.fileno())
+            yield
+        finally:
+            try:
+                if lock_handle is not None:
+                    try:
+                        if file_claimed and lock_backend is not None:
+                            lock_backend.release(lock_handle)
+                    finally:
+                        lock_handle.close()
+            finally:
+                _PROCESS_UPLOAD_LOCK.release()
+
+    def _publication_state_path(self) -> Path:
+        return self._settings.log_dir / "kaggle" / PUBLICATION_STATE_NAME
+
+    @staticmethod
+    def _is_lowercase_hex(value: Any, *, length: int) -> bool:
+        return (
+            isinstance(value, str)
+            and len(value) == length
+            and all(character in "0123456789abcdef" for character in value)
+        )
+
+    @staticmethod
+    def _require_nonempty_record_string(
+        record: dict[str, Any],
+        field: str,
+        *,
+        context: str,
+    ) -> None:
+        value = record.get(field)
+        if not isinstance(value, str) or not value.strip():
+            msg = f"Kaggle publication record {context} must have a nonempty {field}"
+            raise RuntimeError(msg)
+
+    @classmethod
+    def _validate_publication_record(
+        cls,
+        *,
+        dataset_key: str,
+        stored_key: str,
+        record: dict[str, Any],
+    ) -> None:
+        if record.get("dataset") != dataset_key or record.get("publish_key") != stored_key:
+            msg = "Kaggle publication record identity is inconsistent"
+            raise RuntimeError(msg)
+        if not cls._is_lowercase_hex(stored_key, length=20):
+            msg = "Kaggle publication record publish_key must be 20 lowercase hex characters"
+            raise RuntimeError(msg)
+        if not cls._is_lowercase_hex(record.get("bundle_fingerprint"), length=64):
+            msg = "Kaggle publication record bundle_fingerprint must be lowercase hex"
+            raise RuntimeError(msg)
+
+        state_name = record.get("state")
+        if state_name not in _PUBLICATION_RECORD_STATES:
+            msg = "Kaggle publication record has an unsupported state"
+            raise RuntimeError(msg)
+        context = f"{dataset_key}/{stored_key}"
+        cls._require_nonempty_record_string(record, "last_status", context=context)
+        cls._require_nonempty_record_string(record, "last_transition_at", context=context)
+        if record.get("serialization") != UPLOAD_SERIALIZATION_CONTRACT:
+            msg = "Kaggle publication record serialization contract is invalid"
+            raise RuntimeError(msg)
+
+        state_timestamp_fields = {
+            "failed": "failed_at",
+            "resolved": "resolved_at",
+            "unresolved": "first_unresolved_at",
+        }
+        cls._require_nonempty_record_string(
+            record,
+            state_timestamp_fields[cast("str", state_name)],
+            context=context,
+        )
+        for timestamp_field in state_timestamp_fields.values():
+            if timestamp_field in record:
+                cls._require_nonempty_record_string(
+                    record,
+                    timestamp_field,
+                    context=context,
+                )
+        if state_name == "resolved":
+            resolved_version = record.get("resolved_version")
+            if (
+                not isinstance(resolved_version, int)
+                or isinstance(resolved_version, bool)
+                or resolved_version <= 0
+            ):
+                msg = "Kaggle resolved publication record requires a positive resolved_version"
+                raise RuntimeError(msg)
+
+    @classmethod
+    def _validate_publication_state(cls, state: dict[str, Any]) -> None:
+        datasets = state.get("datasets")
+        if not isinstance(datasets, dict):
+            msg = "Kaggle publication state datasets must be an object"
+            raise RuntimeError(msg)
+        for dataset_key, dataset_state in datasets.items():
+            if not isinstance(dataset_key, str) or not dataset_key.strip():
+                msg = "Kaggle publication state dataset key must be nonempty"
+                raise RuntimeError(msg)
+            if not isinstance(dataset_state, dict):
+                msg = "Kaggle publication dataset state must be an object"
+                raise RuntimeError(msg)
+            publications = dataset_state.get("publications")
+            if not isinstance(publications, dict):
+                msg = "Kaggle publication records must be an object"
+                raise RuntimeError(msg)
+            for stored_key, raw_record in publications.items():
+                if not isinstance(stored_key, str) or not isinstance(raw_record, dict):
+                    msg = "Kaggle publication record must be an object with a string key"
+                    raise RuntimeError(msg)
+                cls._validate_publication_record(
+                    dataset_key=dataset_key,
+                    stored_key=stored_key,
+                    record=cast("dict[str, Any]", raw_record),
+                )
+
+    def _read_publication_state(self) -> dict[str, Any]:
+        state_path = self._publication_state_path()
+        if not state_path.is_file():
+            return {"schema_version": 1, "datasets": {}}
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            msg = "Kaggle publication state cannot be read safely"
+            raise RuntimeError(msg) from exc
+        if not isinstance(state, dict) or state.get("schema_version") != 1:
+            msg = "Kaggle publication state has an unsupported schema"
+            raise RuntimeError(msg)
+        validated_state = cast("dict[str, Any]", state)
+        self._validate_publication_state(validated_state)
+        return validated_state
+
+    def _prior_unresolved_publication(self, *, publish_key: str) -> dict[str, Any] | None:
+        state = self._read_publication_state()
+        dataset_state = state["datasets"].get(self._dataset)
+        if dataset_state is None:
+            return None
+        if not isinstance(dataset_state, dict):
+            msg = "Kaggle publication dataset state must be an object"
+            raise RuntimeError(msg)
+        publications = dataset_state.get("publications")
+        if not isinstance(publications, dict):
+            msg = "Kaggle publication records must be an object"
+            raise RuntimeError(msg)
+        unresolved: list[dict[str, Any]] = []
+        for raw_record in publications.values():
+            record = cast("dict[str, Any]", raw_record)
+            if record.get("state") == "unresolved":
+                unresolved.append(record)
+        if len(unresolved) > 1:
+            keys = sorted(str(record.get("publish_key") or "") for record in unresolved)
+            msg = "Kaggle publication state has multiple unresolved dataset uploads: " + ", ".join(
+                keys
+            )
+            raise RuntimeError(msg)
+        if not unresolved:
+            return None
+        record = unresolved[0]
+        if record.get("publish_key") != publish_key:
+            logger.warning(
+                "Kaggle dataset has an unresolved publication for a different bundle: {}",
+                record.get("publish_key"),
+            )
+        return record
+
+    def _transition_publication_state(
+        self,
+        publication: dict[str, Any],
+        *,
+        state_name: str,
+        status: str,
+        resolved_version: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        if state_name not in _PUBLICATION_RECORD_STATES:
+            msg = f"Unsupported Kaggle publication state transition: {state_name}"
+            raise RuntimeError(msg)
+        publish_key = publication.get("publish_key")
+        bundle_fingerprint = publication.get("expected_bundle_fingerprint") or publication.get(
+            "bundle_fingerprint"
+        )
+        if not isinstance(publish_key, str) or not isinstance(bundle_fingerprint, str):
+            msg = "Kaggle publication transition requires exact local identity"
+            raise RuntimeError(msg)
+
+        state = self._read_publication_state()
+        datasets = state["datasets"]
+        dataset_state = datasets.setdefault(self._dataset, {"publications": {}})
+        if not isinstance(dataset_state, dict):
+            msg = "Kaggle publication dataset state must be an object"
+            raise RuntimeError(msg)
+        publications = dataset_state.setdefault("publications", {})
+        if not isinstance(publications, dict):
+            msg = "Kaggle publication records must be an object"
+            raise RuntimeError(msg)
+        existing = publications.get(publish_key)
+        if existing is not None and not isinstance(existing, dict):
+            msg = "Kaggle publication record must be an object"
+            raise RuntimeError(msg)
+
+        transitioned_at = datetime.now(UTC).isoformat()
+        record: dict[str, Any] = {
+            **(existing or {}),
+            "dataset": self._dataset,
+            "publish_key": publish_key,
+            "bundle_fingerprint": bundle_fingerprint,
+            "state": state_name,
+            "last_status": status,
+            "last_transition_at": transitioned_at,
+            "serialization": UPLOAD_SERIALIZATION_CONTRACT,
+        }
+        if state_name == "unresolved":
+            record.setdefault("first_unresolved_at", transitioned_at)
+            record["baseline"] = publication.get("baseline")
+            record["result"] = publication.get("result")
+        elif state_name == "resolved":
+            record["resolved_at"] = transitioned_at
+            record["resolved_version"] = self._require_exact_dataset_version(
+                resolved_version,
+                source="publication state resolution",
+            )
+        else:
+            record["failed_at"] = transitioned_at
+        if error is not None:
+            record["error"] = self._redact_sensitive_text(error)
+        publications[publish_key] = record
+        state["updated_at"] = transitioned_at
+        self._validate_publication_state(state)
+        self._atomic_write_json(self._publication_state_path(), state)
 
     def _snapshot_upload_bundle(self, data_dir: Path) -> dict[str, Any]:
         metadata_path = data_dir / "dataset-metadata.json"
@@ -494,9 +1223,26 @@ class KaggleClient:
 
         self._validate_database_resource_parity(resource_inventory)
         metadata_bytes = metadata_path.read_bytes()
+        identity_resources = [
+            {
+                "path": resource["path"],
+                "kind": resource["kind"],
+                "bytes": resource["bytes"],
+                "sha256": resource["sha256"],
+                **(
+                    {
+                        "file_count": resource["file_count"],
+                        "files": resource["files"],
+                    }
+                    if resource["kind"] == "directory"
+                    else {}
+                ),
+            }
+            for resource in resource_inventory
+        ]
         fingerprint_payload = {
             "metadata_sha256": hashlib.sha256(metadata_bytes).hexdigest(),
-            "resources": sorted(resource_inventory, key=lambda resource: resource["path"]),
+            "resources": sorted(identity_resources, key=lambda resource: resource["path"]),
         }
         fingerprint_source = json.dumps(
             fingerprint_payload,
@@ -510,7 +1256,7 @@ class KaggleClient:
             "metadata_sha256": fingerprint_payload["metadata_sha256"],
             "resource_count": len(resource_inventory),
             "resource_bytes": sum(resource["bytes"] for resource in resource_inventory),
-            "resources": fingerprint_payload["resources"],
+            "resources": sorted(resource_inventory, key=lambda resource: resource["path"]),
             "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
         }
 
@@ -587,6 +1333,7 @@ class KaggleClient:
             "staged_dir": str(staged_dir) if staged_dir is not None else None,
             "version_notes": version_notes,
             "preflight": preflight,
+            "serialization": UPLOAD_SERIALIZATION_CONTRACT,
         }
         if post_upload is not None:
             manifest["post_upload"] = post_upload
@@ -596,8 +1343,33 @@ class KaggleClient:
             manifest["publication"] = publication
         if error is not None:
             manifest["error"] = error
-        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        sanitized = self._redact_persisted_error_fields(manifest)
+        self._atomic_write_json(manifest_path, cast("dict[str, Any]", sanitized))
         return manifest_path
+
+    @staticmethod
+    def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_descriptor, temporary_name = tempfile.mkstemp(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, indent=2) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, path)
+            directory_descriptor = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_descriptor)
+            finally:
+                os.close(directory_descriptor)
+        except Exception:
+            temporary_path.unlink(missing_ok=True)
+            raise
 
     @staticmethod
     def _file_sha256(path: Path) -> str:
@@ -838,6 +1610,104 @@ class KaggleClient:
         )
         return all(observed.get(field) == expected.get(field) for field in identity_fields)
 
+    @staticmethod
+    def _publication_marker_matches_record(
+        marker: dict[str, Any],
+        *,
+        record: dict[str, Any],
+    ) -> bool:
+        return all(
+            marker.get(field) == record.get(field)
+            for field in ("dataset", "publish_key", "bundle_fingerprint")
+        )
+
+    def _validate_publication_marker(self, marker: dict[str, Any]) -> None:
+        if marker.get("schema_version") != 1:
+            msg = "Kaggle remote publication marker has an unsupported schema"
+            raise ValueError(msg)
+        if marker.get("dataset") != self._dataset:
+            msg = "Kaggle remote publication marker dataset does not match configuration"
+            raise ValueError(msg)
+        digest_fields = {
+            "bundle_fingerprint": 64,
+            "data_tree_fingerprint": 64,
+            "metadata_sha256": 64,
+            "publish_key": 20,
+        }
+        for field, length in digest_fields.items():
+            value = marker.get(field)
+            if (
+                not isinstance(value, str)
+                or len(value) != length
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                msg = f"Kaggle remote publication marker has invalid {field}"
+                raise ValueError(msg)
+        resources = marker.get("resources")
+        if not isinstance(resources, list):
+            msg = "Kaggle remote publication marker resources must be a list"
+            raise ValueError(msg)
+        resource_count = marker.get("resource_count")
+        resource_bytes = marker.get("resource_bytes")
+        if (
+            not isinstance(resource_count, int)
+            or isinstance(resource_count, bool)
+            or resource_count <= 0
+            or resource_count != len(resources)
+        ):
+            msg = "Kaggle remote publication marker resource count is inconsistent"
+            raise ValueError(msg)
+        if (
+            not isinstance(resource_bytes, int)
+            or isinstance(resource_bytes, bool)
+            or resource_bytes < 0
+        ):
+            msg = "Kaggle remote publication marker resource bytes are invalid"
+            raise ValueError(msg)
+        observed_bytes = 0
+        seen_paths: set[str] = set()
+        for resource in resources:
+            if not isinstance(resource, dict):
+                msg = "Kaggle remote publication marker resource must be an object"
+                raise ValueError(msg)
+            path = resource.get("path")
+            kind = resource.get("kind")
+            byte_count = resource.get("bytes")
+            digest = resource.get("sha256")
+            if not isinstance(path, str) or self._normalize_resource_path(path) != path:
+                msg = "Kaggle remote publication marker resource path is invalid"
+                raise ValueError(msg)
+            if path in seen_paths:
+                msg = "Kaggle remote publication marker has duplicate resource paths"
+                raise ValueError(msg)
+            seen_paths.add(path)
+            if kind not in {"file", "directory"}:
+                msg = "Kaggle remote publication marker resource kind is invalid"
+                raise ValueError(msg)
+            if not isinstance(byte_count, int) or isinstance(byte_count, bool) or byte_count < 0:
+                msg = "Kaggle remote publication marker resource bytes are invalid"
+                raise ValueError(msg)
+            if (
+                not isinstance(digest, str)
+                or len(digest) != 64
+                or any(character not in "0123456789abcdef" for character in digest)
+            ):
+                msg = "Kaggle remote publication marker resource digest is invalid"
+                raise ValueError(msg)
+            if kind == "directory":
+                file_count = resource.get("file_count")
+                if (
+                    not isinstance(file_count, int)
+                    or isinstance(file_count, bool)
+                    or file_count <= 0
+                ):
+                    msg = "Kaggle remote publication marker directory file count is invalid"
+                    raise ValueError(msg)
+            observed_bytes += byte_count
+        if observed_bytes != resource_bytes:
+            msg = "Kaggle remote publication marker resource bytes are inconsistent"
+            raise ValueError(msg)
+
     def _snapshot_tree(self, root: Path) -> dict[str, Any]:
         files: list[dict[str, Any]] = []
         total_bytes = 0
@@ -1066,28 +1936,105 @@ class KaggleClient:
         time.sleep(seconds)
 
     @staticmethod
-    def _resolved_version(path: Path) -> int | None:
-        parts = path.parts
-        for index, part in enumerate(parts[:-1]):
-            if part != "versions":
-                continue
-            try:
-                return int(parts[index + 1])
-            except ValueError:
-                return None
-        return None
+    def _is_publication_marker_not_found(exc: Exception) -> bool:
+        from kagglehub.exceptions import KaggleApiHTTPError
+
+        response = getattr(exc, "response", None)
+        if (
+            not isinstance(exc, KaggleApiHTTPError)
+            or response is None
+            or response.status_code != HTTPStatus.NOT_FOUND
+        ):
+            return False
+        request = getattr(response, "request", None)
+        request_locations = (
+            getattr(response, "url", ""),
+            getattr(request, "url", ""),
+            getattr(request, "body", ""),
+        )
+        return any(PUBLICATION_MARKER_NAME in str(location) for location in request_locations)
+
+    @staticmethod
+    def _require_exact_dataset_version(version: Any, *, source: str) -> int:
+        if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
+            msg = f"Kaggle {source} did not resolve an exact dataset version"
+            raise RuntimeError(msg)
+        return version
+
+    def _resolve_remote_dataset_version(self) -> int:
+        from kagglehub.clients import build_kaggle_client
+        from kagglehub.exceptions import handle_call
+        from kagglehub.handle import parse_dataset_handle
+        from kagglesdk.datasets.types.dataset_api_service import ApiGetDatasetRequest
+
+        handle = parse_dataset_handle(self._dataset)
+        request = ApiGetDatasetRequest()
+        request.owner_slug = handle.owner
+        request.dataset_slug = handle.dataset
+        with build_kaggle_client() as api_client:
+            dataset = handle_call(
+                lambda: api_client.datasets.dataset_api_client.get_dataset(request),
+                handle,
+            )
+        return self._require_exact_dataset_version(
+            dataset.current_version_number,
+            source="dataset metadata API",
+        )
+
+    def _reconcile_bootstrap_before_upload(
+        self,
+        *,
+        expected_marker: dict[str, Any],
+        baseline_version: int,
+    ) -> dict[str, Any]:
+        """Recheck the marker and exact metadata version just before an upload call."""
+        try:
+            with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-bootstrap-recheck-") as temp_dir:
+                marker, marker_version = self._download_remote_publication_marker(Path(temp_dir))
+        except Exception as exc:
+            if not self._is_publication_marker_not_found(exc):
+                raise
+            metadata_version = self._resolve_remote_dataset_version()
+            return {
+                "state": "marker_missing",
+                "marker_status_code": int(HTTPStatus.NOT_FOUND),
+                "baseline_version": baseline_version,
+                "metadata_version": metadata_version,
+                "version_unchanged": metadata_version == baseline_version,
+                "upload_allowed": metadata_version == baseline_version,
+            }
+
+        metadata_version = self._resolve_remote_dataset_version()
+        marker_matches = self._publication_marker_matches(marker, expected=expected_marker)
+        return {
+            "state": "marker_present",
+            "marker": marker,
+            "publish_key": marker.get("publish_key"),
+            "bundle_fingerprint": marker.get("bundle_fingerprint"),
+            "baseline_version": baseline_version,
+            "marker_version": marker_version,
+            "metadata_version": metadata_version,
+            "versions_agree": marker_version == metadata_version,
+            "matches_expected": marker_matches,
+            "upload_allowed": marker_version == metadata_version and marker_matches,
+        }
 
     def _download_remote_publication_marker(
         self,
         download_root: Path,
-    ) -> tuple[dict[str, Any], int | None]:
-        import kagglehub
+    ) -> tuple[dict[str, Any], int]:
+        from kagglehub import registry
+        from kagglehub.handle import parse_dataset_handle
 
-        downloaded = kagglehub.dataset_download(
-            self._dataset,
-            path=PUBLICATION_MARKER_NAME,
+        downloaded, version = registry.dataset_resolver(
+            parse_dataset_handle(self._dataset),
+            PUBLICATION_MARKER_NAME,
             output_dir=str(download_root),
             force_download=True,
+        )
+        version = self._require_exact_dataset_version(
+            version,
+            source="remote publication marker",
         )
         remote_path = Path(downloaded)
         marker_path = (
@@ -1107,7 +2054,8 @@ class KaggleClient:
         if not isinstance(marker, dict):
             msg = "Kaggle remote publication marker must be a JSON object"
             raise ValueError(msg)
-        return marker, self._resolved_version(marker_path)
+        self._validate_publication_marker(marker)
+        return marker, version
 
     def _verify_remote_upload(
         self,
@@ -1178,10 +2126,33 @@ class KaggleClient:
             self._sleep(min(poll_interval_seconds, timeout_seconds - elapsed))
 
     @staticmethod
-    def _redacted_error(exc: Exception) -> str:
-        message = str(exc)
+    def _redact_sensitive_text(message: str) -> str:
         home = str(Path.home())
         if home and home in message:
             message = message.replace(home, "~")
-        message = re.sub(r"(?i)(kaggle[_-]?(?:key|token|secret)=)[^\s]+", r"\1<redacted>", message)
-        return f"{type(exc).__name__}: {message}"
+        message = _AUTHORIZATION_BEARER_RE.sub(r"\1<redacted>", message)
+        message = _SECRET_ASSIGNMENT_RE.sub(
+            lambda match: f"{match.group(1)}{match.group(2)}<redacted>{match.group(4)}",
+            message,
+        )
+        return _SECRET_FLAG_RE.sub(
+            lambda match: f"{match.group(1)}{match.group(2)}<redacted>{match.group(4)}",
+            message,
+        )
+
+    @classmethod
+    def _redact_persisted_error_fields(cls, value: Any, *, field_name: str = "") -> Any:
+        if isinstance(value, dict):
+            return {
+                key: cls._redact_persisted_error_fields(item, field_name=str(key))
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [cls._redact_persisted_error_fields(item) for item in value]
+        if isinstance(value, str) and "error" in field_name.lower():
+            return cls._redact_sensitive_text(value)
+        return value
+
+    @classmethod
+    def _redacted_error(cls, exc: Exception) -> str:
+        return f"{type(exc).__name__}: {cls._redact_sensitive_text(str(exc))}"
