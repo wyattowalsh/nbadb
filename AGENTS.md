@@ -82,9 +82,26 @@ Most transformers (100+) extend `SqlTransformer(BaseTransformer)` — define `_S
 - **Star**: Validates final output tables
 - `BaseSchema.Config.strict=False` — hard-fail on missing/type errors, soft-warn+strip extras
 
+### Full Extraction Control Plane
+
+- Fresh runs default to the `standard` chunk profile. Within each matrix wave, the scheduler targets a `5:3:1:1` rotation across fresh, partial-progress, retry, and infrastructure lanes when every queue has work, then applies priority and a ceiling-rounded 25% endpoint-family cap when alternatives are available.
+- The centralized `discovery_seed` job derives exact current-matrix season/season-type scopes for game/date and player-team-season discovery, restores the prior chain artifact from `lane_manifest_run_id`, and publishes the cumulative discovery artifact for extract lanes. It always refreshes active-season player, game, and player-team evidence, including aggregate-only player waves, while reusing stable historical scopes. Sparse missing player-team pairs are grouped without widening them into a Cartesian product. Explicit zero-row coverage is valid; an absent or partially covered required scope is not.
+- Discovery seeding is fail-closed: any unresolved player season, game combo, or player-team-season pair makes the seed command exit non-zero, so extraction matrix fan-out does not start.
+- Checkpoint roll-forward is copy-plus-delta. A new generation must use a different output path, copies the prior checkpoint before merging newly completed lane databases, and leaves the prior artifact unchanged; a zero-delta generation is still a distinct physical copy. Prior generations are accepted only when the report's database SHA-256 and per-lane coverage hashes match the physical database and current lane contracts. Current metadata schema v3 also binds each downloaded lane database to its exact lane fields, coverage hash, database digest, every applicable manifest season/type, and concrete successful game/player/workload journal units before merge. Reported `contract_blocked` evidence must exactly match recomputed support rules. Staging overlap removal preserves the maximum legitimate duplicate multiplicity with `EXCEPT ALL`.
+- Self-chaining preserves literal `max_iterations=auto` while enforcing the current manifest's numeric `iteration_budget`. Workflow concurrency is scoped by chain and iteration. The pinned source SHA must be an ancestor of its trusted branch, and publish runs additionally require default-branch ancestry. `dispatch_next` blocks active or successful exact-title children, permits recovery after failed/cancelled history, and then requires exactly one newly acknowledged `Full Extraction chain=<chain_id> iteration=<next>` run.
+- Terminal assurance is a read-only job. `publish=false` runs merge, transform, live snapshot, hard scan, and export without write permission or Kaggle secrets. `publish=true` consumes the exact run/attempt-scoped assured artifact in a separate writer job; publisher jobs share a FIFO `queue: max` concurrency group. A zero-active resume can replay an attested terminal checkpoint without rebuilding lanes. Full-extraction artifacts use overwrite semantics so job reruns can replace the same logical artifact names.
+
+### Kaggle Publication Verification
+
+- `nbadb upload --verify-remote` requires an exact positive dataset version returned by the publication-marker resolver; cache directory names are not version evidence.
+- Only a marker-specific Kaggle HTTP 404 enters bootstrap handling. Every downloaded marker and persisted publication record is validated before a decision. The client resolves the current baseline version through Kaggle's dataset metadata API and permits at most one unresolved upload for the dataset.
+- Baseline timeouts, authentication failures, non-404 HTTP errors, invalid versions, and unreadable reconciliation evidence fail closed before upload and are recorded as `baseline_reconciliation_failed`.
+- If any upload remains unresolved, a later run blocks every new bundle until exact marker evidence resolves the prior publication. A matching prior marker is reconciled first; a missing or nonmatching marker fails closed. Inspect `logs/kaggle/kaggle-upload-manifest.json` before retrying.
+- The client serializes same-process uploads and uses `fcntl` or `msvcrt` for same-host advisory locking; cross-host safety comes from exact marker/version reconciliation. Full, daily, and monthly publishing workflows are default-branch-only, FIFO-serialized, restore and save `logs/kaggle/kaggle-publication-state.json` through the same dataset-wide Actions cache, and include it in publication artifacts, so ambiguous upload evidence survives ephemeral runners, different extraction chains, and failed-job reruns.
+
 ### Test Patterns
 
-- 3494 tests collected across 181 test files
+- 3844 tests collected across 189 test files
 - `conftest.py` autouse fixture calls `get_settings.cache_clear()` (settings use `@lru_cache`)
 - Use `--import-mode=importlib` — the `nbadb/` root dir shadows `src/nbadb/`
 

@@ -143,7 +143,53 @@ uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" --ve
 uv run python -m json.tool logs/kaggle/kaggle-upload-manifest.json >/dev/null
 ```
 
-`data/nbadb` is ignored by git, so validate its generated metadata directly instead of using `git diff` on that path. Use `uv run nbadb metadata --output data/nbadb/dataset-metadata.json` without `--data-dir` only as a catalog preview. Use an existing `--data-dir` for publish validation so the rendered resource inventory reflects the bundle on disk. The upload manifest records the staged-resource fingerprint and final local post-upload check for the latest publish attempt.
+`data/nbadb` is ignored by git, so validate its generated metadata directly instead of using `git diff` on that path. Use `uv run nbadb metadata --output data/nbadb/dataset-metadata.json` without `--data-dir` only as a catalog preview. Use an existing `--data-dir` for publish validation so the rendered resource inventory reflects the bundle on disk. The upload manifest records the staged-resource fingerprint, exact remote versions, marker observations, and final local post-upload check for the latest publish attempt.
+
+## Remote verification contract
+
+`--verify-remote` resolves only `nbadb-publication.json`, not the full dataset. The
+resolver must return both the marker and an exact positive dataset version. nbadb
+does not infer a version from Kaggle cache-directory names. The resolver validates
+the complete marker schema centrally, and persisted publication records must have
+valid identity digests, state, transition evidence, and resolved versions before
+they can influence another upload.
+
+| Baseline result                                                                        | Upload behavior                                                                                                                                       | Manifest evidence                                                                                                                                 |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Matching marker already present                                                        | Skip upload and reconcile the existing remote bundle.                                                                                                 | `status=reconciled_existing_remote`, `upload_attempts=0`, and `resolved_version=<exact version>`                                                  |
+| Marker present but not this bundle                                                     | Upload once, then poll the marker until the expected hashes appear or the deadline expires.                                                           | `baseline.state=marker_present`, `baseline.version`, `observations`, and final `resolved_version`                                                 |
+| Marker request returns Kaggle HTTP 404                                                 | Resolve the current version through Kaggle's dataset metadata API and allow one bootstrap upload only when the dataset has no unresolved publication. | `baseline.state=bootstrap_marker_missing`, `marker_status_code=404`, `baseline.version`, and `upload_allowed=true`                                |
+| Timeout, authentication error, non-404 HTTP response, or missing/invalid exact version | Fail before upload.                                                                                                                                   | `status=baseline_reconciliation_failed`, `baseline.state=reconciliation_failed` or `bootstrap_version_resolution_failed`, and `upload_attempts=0` |
+
+### Unresolved uploads and retries
+
+If upload was attempted but the expected marker was not visible before
+`--remote-timeout`, the command writes
+`status=publication_reconciliation_required` and raises an error. Treat that as
+an ambiguous remote result, not permission to upload again. Once Kaggle exposes a
+matching marker, rerunning the same command reconciles it and skips upload.
+
+The marker-404 bootstrap path is stricter. The manifest is written with
+`status=upload_attempt_started` before the single upload call. If that attempt
+remains unresolved, a later run blocks every new bundle for the dataset. When the
+remote marker later matches the recorded prior `publish_key` and
+`bundle_fingerprint`, the client records `prior_unresolved_reconciliation`, resolves
+that publication at the exact marker version, and only then may upload the current
+bundle. A missing or nonmatching marker remains reconciliation-required.
+
+Full, daily, and monthly workflows publish only from the default branch and restore
+`kaggle-publication-state.json` from the same dataset-wide Actions cache before
+publication. An `always()` save step
+persists the state after both successful and failed upload commands, and each
+publication artifact includes the same file. This is the durable handoff that
+keeps an ambiguous upload fail-closed when a retry lands on a different runner or
+another extraction chain. Those jobs share `nbadb-kaggle-publish` with
+`queue: max`, so pending publishers wait FIFO instead of replacing one another.
+
+Within one process, uploads use a mutex. Processes sharing a host and log directory
+also take an advisory file lock through `fcntl` on POSIX or `msvcrt` on Windows.
+That lock is intentionally not cross-host; the shared workflow queue plus remote
+marker and exact-version reconciliation provide the distributed guard.
 
 ## Version notes and metadata
 
@@ -160,7 +206,7 @@ uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
 - Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
 - Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift.
-- Use `--verify-remote` for CI or release publishes. It first checks whether Kaggle already exposes the staged bundle identity, uploads at most once, then polls a small publication marker until its validated resource hashes match or `--remote-timeout` expires. `--remote-poll-interval` controls the polling cadence without repeatedly downloading the full dataset.
+- Use `--verify-remote` for CI or release publishes. It first checks whether Kaggle already exposes the staged bundle identity with exact version evidence, uploads at most once, then polls a small publication marker until its validated resource hashes match or `--remote-timeout` expires. `--remote-poll-interval` controls the polling cadence without repeatedly downloading the full dataset.
 - The current upload path validates local metadata/resources, stages only declared files and directories plus the generated publication marker into a temporary upload root, rejects symlinks/path traversal, records staged-tree and remote marker readback identities in `logs/kaggle/kaggle-upload-manifest.json`, and then hands that staged bundle to `kagglehub`.
 
 <Callout type="warn">

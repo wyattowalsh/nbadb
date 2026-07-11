@@ -171,7 +171,7 @@ print(json.load(open(root / "extraction-audit.json"))["outcome_counts"])
 PY
 ```
 
-### 3) Understand chunk profiles and checkpoints
+### 3) Understand scheduling, discovery, and checkpoints
 
 Fresh GitHub Actions full-extraction runs default to `standard`. It preserves the
 same coverage fingerprint as the smaller profiles while reducing runner setup,
@@ -180,13 +180,62 @@ makes these broader shards resume-safe. Use `balanced-small` after repeated
 endpoint timeouts, and reserve `micro` for isolating a provider or contract failure
 to one-season chunks.
 
-Each iteration now builds a cumulative checkpoint artifact named
+The scheduler divides active work into fresh, partial-progress, retry, and
+infrastructure queues. When every queue has work, each ten-slot rotation targets
+five fresh lanes, three partial-progress lanes, one retry lane, and one
+infrastructure lane. The priority score incorporates persisted progress,
+throughput tier, endpoint family, estimated cost, and older historical scope. A
+family uses a ceiling-rounded 25% cap while another family is available, so small
+waves may exceed exactly 25% and diversity can override the preferred queue. Inspect
+`scheduler_diagnostics.queue_counts`, the cost summaries, and `top_cost_lanes` in
+the manifest when the first wave is surprising.
+
+Before lane fan-out, one `discovery_seed` job derives the exact season and
+season-type combinations required by the current `github_matrix.include`. It
+centralizes game/date, player-ID, and player-team-season discovery behind one VPN
+tunnel when VPN mode is effective. Seasons are grouped only when they share the
+same season-type set, so the seed does not invent a broader cross product.
+
+On chained runs, the seed job downloads
+`full-extraction-discovery-artifacts-<chain_id>` from the exact
+`lane_manifest_run_id`, adds the current wave's missing scopes, and republishes the
+cumulative artifact. If that prior artifact is unavailable, the job reseeds from
+scratch and still applies the same exact-scope gate. Extract lanes install the
+result after restoring lane state, preventing an older cached database from
+replacing current discovery evidence. A required scope counts as covered only
+when its exact artifact exists; explicit zero-row game combinations and
+player/team pairs are valid coverage, but missing combinations are not. Any
+unresolved player season, game combination, or player/team pair increments
+`failure_count`, exits the seed command non-zero, and prevents the extraction
+matrix from starting. Active-season player IDs, game/type combinations, and
+player-team/type pairs are always rediscovered; historical scopes remain reusable.
+An aggregate-only player wave still performs one targeted active-season refresh.
+Sparse missing/invalid player-team pairs are grouped by identical type sets, so
+live fallback does not refetch the surrounding Cartesian rectangle.
+
+Each iteration builds a cumulative checkpoint artifact named
 `full-extraction-checkpoint-<chain_id>-iter-<iteration>`. The next manifest carries
 that checkpoint pointer forward, so redispatched runs can merge the previous
 checkpoint with only the newly completed lane databases. Terminal merge consumes
 the checkpoint first. Artifact fallback is an explicit recovery path, not the
 default terminal merge path, because it can silently rebuild from incomplete or
 stale lane output if used casually.
+
+Checkpoint roll-forward is copy-plus-delta and never edits the prior generation.
+The output path must differ from the previous checkpoint; the builder copies the
+base database to a temporary file, merges current complete-lane databases, and
+promotes the new file. With no new lane delta, it still emits a physically distinct
+copy. In `checkpoint-report.json`, verify `base_database_copied`,
+`merged_delta_database_count`, and `copy_fast_path` under `merge_summary` alongside
+the generation and coverage fingerprint. Also verify `database_sha256` and
+`included_lane_coverage_hashes`; roll-forward rejects a prior database when either
+identity no longer matches. Metadata schema v3 applies the same binding to each
+current lane: lane fields, coverage hash, physical database digest, every applicable
+manifest season/type, concrete game/player/workload journal units, and endpoint
+presence must all match before merge. `contract_blocked` is accepted only when the
+reported support evidence exactly matches recomputed rules. Staging merge
+uses `EXCEPT ALL` overlap subtraction, preserving legitimate duplicate multiplicity
+without replaying rows already represented by a prior checkpoint or another delta.
 
 Incomplete lanes upload a longer-retained durable state artifact with their
 DuckDB file when available. The next iteration prefers a usable cache restore,
@@ -198,14 +247,38 @@ traceable.
 `matrix_batch_size` controls how many lane jobs enter one workflow iteration and
 defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
-therefore API pressure. The scheduler rotates fresh, partial-progress, retry, and
-infrastructure lanes while applying an endpoint-family cap when another family is
-available. This keeps runners fed and avoids checkpoint barriers between tiny
-batches without letting one hot failure family monopolize every runner.
+therefore API pressure.
 
-When VPN bootstrap is down, dispatch a narrow smoke run with
-`network_mode=direct`, `direct_parallelism=1`, `chunk_profile=micro`, and a low
-`direct_timeout_cap_minutes` value before fan-out. Direct mode skips NordVPN
+With `max_iterations=auto`, the manifest carries a numeric `iteration_budget` and
+extends it from remaining matrix capacity when the current budget is exhausted.
+Redispatch still passes the literal `auto` value to the next run, so later
+iterations can refresh the safety budget rather than freezing an older derived
+limit. Before `gh workflow run`, the dispatch job queries all paginated
+workflow-dispatch runs and refuses an active or successful display-title match for
+`Full Extraction chain=<chain_id> iteration=<next>`. The job-level concurrency key
+serializes dispatch attempts for the current chain iteration as an additional
+guard. Workflow-level concurrency is scoped to chain plus iteration. Active or
+successful exact-title children block redispatch, but failed/cancelled historical
+runs are recorded and excluded when acknowledging the one newly created child run
+ID and URL. Upload-artifact steps use
+overwrite semantics so rerun jobs can replace their prior logical artifacts.
+
+The pinned `workflow_sha` must be a full commit on the trusted `workflow_ref` branch;
+publish runs also prove default-branch ancestry. Publish-capable runs perform an
+early credential/exact-version preflight before lane fan-out and repeat it after
+terminal assurance. Terminal assurance has read-only contents permission and emits
+an exact run/attempt-scoped artifact. Only the separate publisher job receives write
+permission and Kaggle secrets, and all full/daily/monthly publishers enter the shared
+FIFO `queue: max` group. If a source run already has zero active lanes, resume with
+its original `chain_id` and `resume_source_run_id`; the workflow attests and replays
+the terminal checkpoint instead of rerunning lanes.
+
+Use `publish=false` when a full-coverage Actions canary is worth the extra run. It
+exercises terminal transform, hard scan, and export without permitting metadata or
+Kaggle publication. A narrow custom manifest tests lane mechanics only; because it
+does not contain every staging dependency, do not treat its expected missing-table
+scan failures as terminal assurance. Use direct mode only when a separate
+connectivity probe succeeds. Direct mode skips NordVPN
 setup, uses `direct_parallelism` instead of VPN fan-out, caps high-volume
 temporal lanes (`date`, `game`, `player_season`, `team_season`, and
 `player_team_season`) before writing timeout metadata, writes `direct-no-vpn`
@@ -240,7 +313,9 @@ PY
   policy span.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
 - Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
+- If discovery seeding fails, read `artifacts/discovery/discovery-seed-summary.json` and repair only the listed `missing_seasons`, `missing_combos`, or `missing_pairs`. Do not bypass the seed dependency or treat a broader partial cache as proof of an exact missing scope.
 - If checkpoint promotion fails, fix or regenerate the checkpoint before terminal merge. Use lane-artifact fallback only as an explicit recovery decision after confirming the chain's recorded artifact run ids and coverage fingerprint. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
+- If redispatch reports an existing exact chain/iteration run, inspect that run instead of enqueueing another copy. If the numeric iteration budget is exhausted while work remains, resume manually from the uploaded next-manifest and checkpoint artifacts after deciding whether to raise the cap.
 
 ## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)
 
@@ -272,14 +347,37 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 
 ## Kaggle and common CLI/CI misses
 
-| Command or area                       | Symptom                                      | Fix                                                                                                                                                           |
-| ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uv sync`                             | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                                                                                           |
-| `uv run nbadb download` / `upload`    | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct                                                                    |
-| `uv run nbadb upload --verify-remote` | Remote publish stays pending                 | Inspect `logs/kaggle/kaggle-upload-manifest.json`; do not re-upload until the `publication` block proves whether Kaggle exposed the staged publication marker |
-| `nbadb scan --report-path ...`        | `database not found`                         | Initialize or download the dataset before running quality checks                                                                                              |
-| `actions/upload-artifact`             | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects                                                                              |
-| docs install/build step               | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                                                                                            |
+| Command or area                       | Symptom                                      | Fix                                                                                                                                                                                |
+| ------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uv sync`                             | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                                                                                                                |
+| `uv run nbadb download` / `upload`    | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct                                                                                         |
+| `uv run nbadb upload --verify-remote` | Remote publish stays pending                 | Inspect exact `baseline.version`, `resolved_version`, `observations`, and status in `logs/kaggle/kaggle-upload-manifest.json`; do not re-upload while reconciliation is unresolved |
+| `nbadb scan --report-path ...`        | `database not found`                         | Initialize or download the dataset before running quality checks                                                                                                                   |
+| `actions/upload-artifact`             | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects                                                                                                   |
+| docs install/build step               | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                                                                                                                 |
+
+For remote verification, the positive integer returned by Kaggle's marker resolver
+is the version evidence; a cache path such as `versions/999` is not. Baseline
+handling is intentionally narrow:
+
+| Manifest evidence                                                                              | Meaning                                                                                          | Safe action                                                               |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `baseline.state=marker_present` and `matches_expected=true`                                    | Kaggle already exposes this publish key and bundle at `baseline.version`.                        | The command records `reconciled_existing_remote` and skips upload.        |
+| `baseline.state=bootstrap_marker_missing`, `marker_status_code=404`, and `upload_allowed=true` | The marker alone is absent; the dataset metadata API supplied an exact baseline version.         | Allow the single bootstrap upload, then wait for marker readback.         |
+| `status=baseline_reconciliation_failed`                                                        | Baseline lookup timed out, returned a non-404 error, or could not supply exact version evidence. | Fix the lookup/authentication problem; `upload_attempts` remains `0`.     |
+| `status=publication_reconciliation_required`                                                   | One upload was attempted, but the expected marker was not visible before the deadline.           | Wait and rerun verification; do not assume the remote version was absent. |
+| `status=bootstrap_reconciliation_required`                                                     | A prior marker-404 upload for this dataset is still unresolved.                                  | Reconcile the prior marker identity; the client refuses every new bundle. |
+
+A later run can safely reconcile a now-visible matching marker. If it matches an
+older unresolved bundle, the client resolves that record before considering the
+current bundle; if it matches the current bundle, upload is skipped. If the marker
+is still 404 or nonmatching, the client fails before another upload even when the
+current version differs from the original baseline.
+For any publish retry, confirm that the job restored the shared
+`nbadb-kaggle-publication-state-*` cache and that its publication artifact contains
+`logs/kaggle/kaggle-publication-state.json`; do not retry publication if that
+durable evidence is unexpectedly absent after an ambiguous upload. Publishing
+workflows reject non-default refs because Actions cache visibility is ref-scoped.
 
 ## Best next move after a fix
 

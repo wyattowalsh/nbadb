@@ -274,7 +274,7 @@ nbadb scan --category data_quality,missing_table --severity warning --fail-on er
 | ----------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `nbadb export`                      | Re-export public tables from DuckDB                                 | Uses repeatable `--format/-f`; defaults come from `NBADB_FORMATS`                                             |
 | `nbadb download`                    | Pull the latest published Kaggle dataset into the data directory    | Seeds `nba.duckdb` from `nba.sqlite` if DuckDB is missing                                                     |
-| `nbadb upload`                      | Publish the data directory to Kaggle                                | Ensures `dataset-metadata.json` exists first; `--verify-remote` reads back the publication marker             |
+| `nbadb upload`                      | Publish the data directory to Kaggle                                | Ensures metadata exists; `--verify-remote` requires publication-marker identity plus exact version evidence   |
 | `nbadb docs-autogen`                | Regenerate generated docs artifacts                                 | Defaults `--docs-root` to `docs/content/docs`; `--check` fails on stale generated artifacts                   |
 | `nbadb extract-completeness`        | Generate endpoint coverage artifacts                                | Supports `--output-dir/-o`, `--require-full`, `--require-model-contract`, and `--endpoint-analysis-docs-root` |
 | `nbadb endpoint-support-matrix`     | Generate the strict endpoint support and warehouse contract matrix  | Supports `--output-dir/-o`, `--require-complete`, and `--require-season-type-contract`                        |
@@ -508,6 +508,7 @@ daily: 12 tables, 245,901 rows, 38.4s
 - `nbadb download` copies the Kaggle dataset into the target data directory and seeds `nba.duckdb` from `nba.sqlite` if only SQLite is present.
 - `nba.duckdb` is the canonical analytics database; `nba.sqlite` remains the Kaggle preview-friendly relational file.
 - `nbadb upload` ensures `dataset-metadata.json` exists, stages only declared files/directories into a temporary upload root, supports partitioned Parquet resource directories, rejects symlinks and path traversal, writes `logs/kaggle/kaggle-upload-manifest.json`, and then publishes the staged bundle.
+- With `--verify-remote`, the marker resolver must return an exact positive Kaggle version. Only a marker-specific HTTP 404 can bootstrap one upload after metadata-API version resolution; other baseline failures stop before upload. Any unresolved dataset upload blocks every later bundle until exact marker evidence resolves it. CLI retries depend on retained `logs/kaggle/kaggle-publication-state.json`; the publishing workflows persist that file in their shared default-branch cache.
 - `nbadb schema` groups tables by output prefix. Analysis-ready convenience outputs use the `analytics_*` prefix.
 
 <CourtDivider label="Exact signatures" />

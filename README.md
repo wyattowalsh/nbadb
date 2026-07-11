@@ -88,7 +88,7 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 | `nbadb migrate`                 | Run schema migrations                                                            |
 | `nbadb scan --fail-on error`    | Hard assurance gate for missing data, gaps, and quality issues                   |
 | `nbadb export`                  | Re-export DuckDB → SQLite / Parquet / CSV                                        |
-| `nbadb upload`                  | Stage declared resources, validate the bundle, push to Kaggle, and optionally verify remote readback |
+| `nbadb upload`                  | Stage declared resources, validate the bundle, push to Kaggle, and optionally verify exact-version remote readback |
 | `nbadb download`                | Pull the Kaggle dataset and seed local DuckDB                                    |
 | `nbadb extract-completeness`    | Report coverage gaps; with an upstream checkout, generate `nba_api` contracts    |
 | `nbadb endpoint-support-matrix` | Report strict endpoint support + warehouse contract coverage                     |
@@ -107,6 +107,18 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 | `nbadb metadata`                | Generate Kaggle metadata JSON                                                    |
 
 Run `nbadb --help` or `nbadb <command> --help` for full option details.
+
+Release publishes should use `nbadb upload --verify-remote`. Verification reads
+only `nbadb-publication.json` and requires the exact positive Kaggle version
+returned with that marker. A marker-specific HTTP 404 can enter a one-upload
+bootstrap path after the dataset metadata API supplies the current version; any
+other baseline lookup error stops before upload. If any upload remains unresolved,
+every later bundle is reconciliation-only until exact marker evidence resolves the
+prior publication. Full, daily, and monthly workflows publish only from the default
+branch, serialize publishers through a FIFO queue, and preserve that reconciliation
+state in a shared Actions cache and publication artifacts so a later runner or
+extraction chain cannot silently lose it. Remote markers and local publication
+records are schema-validated before any upload decision.
 
 For docs-site maintenance, regenerate generator-owned artifacts from the repo root with:
 
@@ -185,6 +197,29 @@ flowchart LR
 - **Checkpoint/resume** for interrupted transform runs
 - **Watermark tracking** for incremental extraction
 - **Proxy rotation** via proxywhirl with circuit-breaker failover
+
+The GitHub Actions full-extraction control plane defaults to the `standard` chunk
+profile and targets a `5:3:1:1` rotation across fresh, partial-progress, retry,
+and infrastructure lanes when every queue has work. A
+centralized discovery job seeds only the current wave's exact
+season/season-type scopes, carries those artifacts forward by chain and source
+run, refreshes active-season player/game/workload evidence, and blocks matrix
+fan-out when any required scope remains unproven. Aggregate-only player waves still
+refresh the active season, and sparse player-team misses are fetched as exact pairs.
+Each
+checkpoint generation copies the previous database into a new output before
+applying attested current lane deltas, preserving legitimate duplicate
+multiplicity while removing checkpoint overlap. Schema-v3 attestation requires all
+manifest season/type units and concrete successful journal units; false
+`contract_blocked` declarations fail closed. Chained
+runs preserve literal
+`max_iterations=auto`, enforce the manifest's numeric iteration budget locally,
+and refuse an active or successful `chain=<id> iteration=<n>` dispatch while
+allowing recovery from failed/cancelled history.
+The pinned source SHA must remain on its trusted branch. Terminal assurance has
+read-only permissions; `publish=false` never receives Kaggle secrets, while
+`publish=true` consumes the exact assured artifact in a separate FIFO-serialized
+writer job. A zero-active resume can replay its attested terminal checkpoint.
 
 Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architecture)**.
 
