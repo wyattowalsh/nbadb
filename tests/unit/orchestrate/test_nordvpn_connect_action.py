@@ -13,6 +13,7 @@ import pytest
 MODULE_PATH = (
     Path(__file__).resolve().parents[3] / ".github" / "actions" / "nordvpn-connect" / "connect.py"
 )
+ACTION_METADATA_PATH = MODULE_PATH.with_name("action.yml")
 MODULE_CODE = compile(MODULE_PATH.read_text(encoding="utf-8"), str(MODULE_PATH), "exec")
 
 
@@ -29,6 +30,30 @@ def _read_outputs(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         outputs[key] = value
     return outputs
+
+
+def _write_valid_nba_response(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "resource": "commonteamyears",
+                "resultSets": [
+                    {
+                        "name": "TeamYears",
+                        "headers": [
+                            "LEAGUE_ID",
+                            "TEAM_ID",
+                            "MIN_YEAR",
+                            "MAX_YEAR",
+                            "ABBREVIATION",
+                        ],
+                        "rowSet": [["00", 1610612737, "1949", "2024", "ATL"]],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 @pytest.fixture
@@ -87,6 +112,550 @@ def test_retry_http_get_raises_when_budget_is_exhausted(
             tmp_path / "servers.json",
             "https://example.test/recommendations",
         )
+
+
+@pytest.mark.parametrize(
+    ("overall_budget", "attempt_deadline", "expected_request", "expected_process"),
+    [
+        (60.0, 103.0, "2.25", 2.5),
+        (6.0, None, "5.25", 5.5),
+    ],
+)
+def test_retry_http_get_honors_attempt_and_overall_deadlines(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    tmp_path: Path,
+    overall_budget: float,
+    attempt_deadline: float | None,
+    expected_request: str,
+    expected_process: float,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: overall_budget)
+    monkeypatch.setattr(module.time, "monotonic", lambda: 100.0)
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        calls.append((cmd, kwargs))
+        return subprocess.CompletedProcess(cmd, 0, "200", "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.retry_http_get(
+        "bounded request",
+        tmp_path / "response.json",
+        "https://example.test/data",
+        attempt_deadline=attempt_deadline,
+    )
+
+    assert len(calls) == 1
+    cmd, kwargs = calls[0]
+    assert cmd[cmd.index("--max-time") + 1] == expected_request
+    assert cmd[cmd.index("--connect-timeout") + 1] == expected_request
+    assert kwargs["timeout"] == expected_process
+    assert kwargs["termination_grace"] == module.NBA_PROBE_TERMINATION_GRACE_SECONDS
+
+
+def test_verification_helpers_honor_attempt_and_overall_deadlines(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.time, "monotonic", lambda: 100.0)
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        calls.append((cmd, kwargs))
+        if cmd[:4] == ["ip", "-o", "link", "show"]:
+            return subprocess.CompletedProcess(cmd, 0, "7: tun0: <POINTOPOINT>", "")
+        if cmd[:4] == ["ip", "route", "show", "default"]:
+            return subprocess.CompletedProcess(cmd, 0, "default dev tun0", "")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.get_interface(attempt_deadline=102.0) == "tun0"
+    assert action.route_uses_interface("default", "tun0", attempt_deadline=102.0) is True
+    assert action.pid_alive("12345", attempt_deadline=102.0) is True
+
+    assert len(calls) == 3
+    for _cmd, kwargs in calls:
+        assert kwargs["timeout"] == 1.5
+        assert kwargs["termination_grace"] == module.NBA_PROBE_TERMINATION_GRACE_SECONDS
+
+
+def test_nba_probe_succeeds_with_compatible_headers_and_bounded_request(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        calls.append((cmd, kwargs))
+        _write_valid_nba_response(Path(cmd[cmd.index("-o") + 1]))
+        return subprocess.CompletedProcess(cmd, 0, "200", "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.probe_nba_stats() is True
+    assert action.nba_probe_status == "passed"
+    assert action.nba_probe_diagnostic == "NBA Stats response matched the expected JSON structure"
+    assert len(calls) == 1
+    cmd, kwargs = calls[0]
+    headers = [cmd[index + 1] for index, value in enumerate(cmd) if value == "-H"]
+    assert cmd[-1] == module.NBA_PROBE_DEFAULT_URL
+    assert cmd[cmd.index("--max-time") + 1] == "10"
+    assert cmd[cmd.index("--max-filesize") + 1] == str(module.NBA_PROBE_MAX_BYTES)
+    assert "--compressed" in cmd
+    assert "Accept: application/json, text/plain, */*" in headers
+    assert "Referer: https://www.nba.com/" in headers
+    assert any(header.startswith("User-Agent: Mozilla/5.0 ") for header in headers)
+    assert kwargs["timeout"] == 10.25
+
+
+def test_nba_probe_timeout_is_capped_by_remaining_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.time, "monotonic", lambda: 100.0)
+    calls: list[tuple[list[str], float]] = []
+
+    def _raise_timeout(cmd: list[str], **kwargs):
+        calls.append((cmd, kwargs["timeout"]))
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(module, "run_command", _raise_timeout)
+
+    assert action.probe_nba_stats(attempt_deadline=103.0) is False
+    assert action.nba_probe_status == "timeout"
+    assert action.nba_probe_diagnostic == "NBA Stats probe timed out"
+    assert len(calls) == 1
+    cmd, process_timeout = calls[0]
+    assert cmd[cmd.index("--max-time") + 1] == "2.25"
+    assert process_timeout == 2.5
+
+
+@pytest.mark.parametrize(
+    ("result_set", "reason"),
+    [
+        ({"name": "Other", "headers": ["TEAM_ID"], "rowSet": [[1]]}, "wrong name"),
+        (
+            {
+                "name": "TeamYears",
+                "headers": ["LEAGUE_ID", "TEAM_ID"],
+                "rowSet": [["00", 1]],
+            },
+            "missing headers",
+        ),
+        (
+            {
+                "name": "TeamYears",
+                "headers": [
+                    "LEAGUE_ID",
+                    "TEAM_ID",
+                    "MIN_YEAR",
+                    "MAX_YEAR",
+                    "ABBREVIATION",
+                ],
+                "rowSet": [],
+            },
+            "empty rows",
+        ),
+    ],
+)
+def test_nba_probe_rejects_unattested_team_years_shapes(
+    tmp_path: Path,
+    result_set: dict[str, object],
+    reason: str,
+) -> None:
+    module = _load_module()
+    path = tmp_path / "probe.json"
+    path.write_text(json.dumps({"resultSets": [result_set]}), encoding="utf-8")
+
+    assert module.NordVpnConnectAction.nba_probe_content_valid(path) is False, reason
+
+
+def test_nba_probe_rejects_malformed_body(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        Path(cmd[cmd.index("-o") + 1]).write_text("<html>blocked</html>", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "200", "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.probe_nba_stats() is False
+    assert action.nba_probe_status == "invalid_content"
+    assert action.nba_probe_diagnostic == (
+        "NBA Stats probe returned malformed or unexpected content"
+    )
+
+
+def test_nba_probe_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBA_PROBE_ENABLED", "false")
+    action = module.NordVpnConnectAction()
+
+    def _unexpected_request(*args, **kwargs):
+        raise AssertionError("disabled NBA probe made an HTTP request")
+
+    monkeypatch.setattr(module, "run_command", _unexpected_request)
+
+    assert action.probe_nba_stats() is True
+    assert action.nba_probe_status == "disabled"
+    assert action.nba_probe_diagnostic == "NBA Stats probe disabled by configuration"
+
+
+def test_nba_probe_uses_custom_url_and_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+    secret_marker = "secret-query-marker"
+    monkeypatch.setenv(
+        "NBA_PROBE_URL",
+        f"https://stats.nba.com/stats/customprobe?LeagueID=00&key={secret_marker}",
+    )
+    monkeypatch.setenv("NBA_PROBE_TIMEOUT_SECONDS", "3")
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    calls: list[list[str]] = []
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        calls.append(cmd)
+        _write_valid_nba_response(Path(cmd[cmd.index("-o") + 1]))
+        return subprocess.CompletedProcess(cmd, 0, "200", "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.probe_nba_stats() is True
+    assert calls[0][-1].endswith(f"key={secret_marker}")
+    assert calls[0][calls[0].index("--max-time") + 1] == "3"
+    action.finalize()
+    assert secret_marker not in runner_env.read_text(encoding="utf-8")
+    assert secret_marker not in capsys.readouterr().out
+
+
+def test_nba_stack_probe_runs_both_discovery_canaries_with_bounded_process(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(
+        module.shutil, "which", lambda tool: "/usr/bin/uv" if tool == "uv" else None
+    )
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        calls.append((cmd, kwargs))
+        payload = {
+            "status": "passed",
+            "endpoints": {
+                "common_all_players": {"rows": 4900},
+                "league_game_log": {"rows": 2460},
+            },
+        }
+        return subprocess.CompletedProcess(cmd, 0, json.dumps(payload), "ignored diagnostic")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.probe_nba_discovery_stack() is True
+    assert action.nba_probe_status == "passed"
+    assert action.nba_probe_diagnostic == (
+        "NBA discovery stack passed (common_all_players=4900 rows, league_game_log=2460 rows)"
+    )
+    assert len(calls) == 1
+    cmd, kwargs = calls[0]
+    assert cmd[:8] == [
+        "/usr/bin/uv",
+        "run",
+        "--project",
+        str(action.project_root),
+        "--frozen",
+        "--quiet",
+        "python",
+        str(action.nba_stack_probe_script),
+    ]
+    assert cmd[cmd.index("--request-timeout-seconds") + 1] == "8"
+    assert cmd[cmd.index("--season") + 1] == module.NBA_STACK_PROBE_DEFAULT_SEASON
+    assert kwargs["timeout"] == 18.25
+    assert kwargs["termination_grace"] == module.NBA_PROBE_TERMINATION_GRACE_SECONDS
+
+
+def test_nba_stack_probe_timeout_is_capped_by_server_attempt_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(module.shutil, "which", lambda tool: "/usr/bin/uv")
+    calls: list[tuple[list[str], float]] = []
+
+    def _raise_timeout(cmd: list[str], **kwargs):
+        calls.append((cmd, kwargs["timeout"]))
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(module, "run_command", _raise_timeout)
+
+    assert action.probe_nba_discovery_stack(attempt_deadline=102.5) is False
+    assert action.nba_probe_status == "stack_timeout"
+    assert calls[0][0][calls[0][0].index("--request-timeout-seconds") + 1] == "1"
+    assert calls[0][1] == 2.0
+
+
+def test_nba_stack_probe_transport_failure_remains_server_specific(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.shutil, "which", lambda tool: "/usr/bin/uv")
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        payload = {
+            "status": "failed",
+            "endpoint": "common_all_players",
+            "failure_kind": "exception",
+            "error_type": "TransientError",
+        }
+        return subprocess.CompletedProcess(cmd, 1, json.dumps(payload), "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert action.probe_nba_discovery_stack() is False
+    assert action.nba_probe_status == "stack_transport_failed"
+    assert action.nba_probe_diagnostic == (
+        "NBA discovery stack probe failed at common_all_players (TransientError)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("returncode", "payload", "expected_action_status", "expected_probe_status"),
+    [
+        (1, None, "nba_stack_runtime_error", "stack_runtime_error"),
+        (
+            1,
+            {
+                "status": "failed",
+                "endpoint": "league_game_log",
+                "failure_kind": "missing_columns",
+                "error_type": "ProbeContractError",
+            },
+            "nba_stack_contract_error",
+            "stack_contract_error",
+        ),
+        (
+            1,
+            {
+                "status": "failed",
+                "endpoint": "common_all_players",
+                "failure_kind": "invalid_values",
+                "error_type": "ProbeContractError",
+            },
+            "nba_stack_contract_error",
+            "stack_contract_error",
+        ),
+        (
+            1,
+            {
+                "status": "failed",
+                "endpoint": "common_all_players",
+                "failure_kind": "exception",
+                "error_type": "RuntimeError",
+            },
+            "nba_stack_runtime_error",
+            "stack_runtime_error",
+        ),
+        (
+            0,
+            {"status": "passed", "endpoints": {"common_all_players": {"rows": 1}}},
+            "nba_stack_invalid_attestation",
+            "stack_invalid_attestation",
+        ),
+    ],
+)
+def test_nba_stack_probe_host_independent_failures_are_fatal(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    returncode: int,
+    payload: dict[str, object] | None,
+    expected_action_status: str,
+    expected_probe_status: str,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.shutil, "which", lambda tool: "/usr/bin/uv")
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        stdout = "" if payload is None else json.dumps(payload)
+        return subprocess.CompletedProcess(cmd, returncode, stdout, "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.probe_nba_discovery_stack()
+
+    assert excinfo.value.status == expected_action_status
+    assert action.nba_probe_status == expected_probe_status
+
+
+def test_nba_stack_probe_missing_runtime_is_fatal(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.shutil, "which", lambda tool: None)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.probe_nba_discovery_stack()
+
+    assert excinfo.value.status == "nba_stack_unavailable"
+    assert action.nba_probe_status == "stack_unavailable"
+
+
+def test_nba_stack_probe_failure_diagnostic_does_not_echo_child_content(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(module.shutil, "which", lambda tool: "/usr/bin/uv")
+    secret_marker = "credential-secret-marker"
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        payload = {"status": "failed", "endpoint": secret_marker, "error_type": secret_marker}
+        return subprocess.CompletedProcess(cmd, 1, json.dumps(payload), secret_marker)
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.probe_nba_discovery_stack()
+
+    assert excinfo.value.status == "nba_stack_invalid_attestation"
+    assert action.nba_probe_status == "stack_invalid_attestation"
+    assert action.nba_probe_diagnostic == (
+        "NBA discovery stack probe returned invalid failure attestation"
+    )
+    assert secret_marker not in action.nba_probe_diagnostic
+
+
+def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 2
+    action.failed_servers = ["us1001.nordvpn.com"]
+    requested_urls: list[str] = []
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        requested_urls.append(url)
+        output_path.write_text(
+            json.dumps(
+                [
+                    {"hostname": "us1001.nordvpn.com"},
+                    {"hostname": "us1002.nordvpn.com"},
+                    {"hostname": "us1003.nordvpn.com"},
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.recommendation_servers("openvpn_tcp") == [
+        "us1002.nordvpn.com",
+        "us1003.nordvpn.com",
+    ]
+    assert "limit=3" in requested_urls[0]
+    assert "openvpn_tcp" in requested_urls[0]
+
+
+def test_verify_connection_keeps_full_tunnel_gate_before_network_probes(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    route_checks: list[str] = []
+
+    def _route_rejected(route_expr: str, interface: str, **kwargs) -> bool:
+        assert interface == "tun0"
+        route_checks.append(route_expr)
+        return False
+
+    def _unexpected_probe(*args, **kwargs):
+        raise AssertionError("network probe ran before the full-tunnel route was verified")
+
+    monkeypatch.setattr(action, "route_uses_interface", _route_rejected)
+    monkeypatch.setattr(action, "retry_http_get", _unexpected_probe)
+    monkeypatch.setattr(action, "probe_nba_stats", _unexpected_probe)
+    monkeypatch.setattr(action, "probe_nba_discovery_stack", _unexpected_probe)
+
+    assert action.verify_connection("tun0") is False
+    assert action.verification_failure == "route"
+    assert route_checks == ["default", "0.0.0.0/1"]
+
+
+def test_action_metadata_exposes_nba_probe_contract() -> None:
+    metadata = ACTION_METADATA_PATH.read_text(encoding="utf-8")
+
+    assert "nba-probe-enabled:" in metadata
+    assert 'default: "true"' in metadata
+    assert "nba-probe-url:" in metadata
+    assert "nba-probe-timeout-seconds:" in metadata
+    assert "nba-stack-probe-enabled:" in metadata
+    assert "nba-stack-probe-timeout-seconds:" in metadata
+    assert "nba-stack-probe-season:" in metadata
+    assert "nba-probe-status:" in metadata
+    assert "nba-probe-diagnostic:" in metadata
+    assert "NBA_PROBE_ENABLED: ${{ inputs.nba-probe-enabled }}" in metadata
+    assert "NBA_PROBE_URL: ${{ inputs.nba-probe-url }}" in metadata
+    assert "NBA_PROBE_TIMEOUT_SECONDS: ${{ inputs.nba-probe-timeout-seconds }}" in metadata
+    assert "NBA_STACK_PROBE_ENABLED: ${{ inputs.nba-stack-probe-enabled }}" in metadata
+    assert (
+        "NBA_STACK_PROBE_TIMEOUT_SECONDS: ${{ inputs.nba-stack-probe-timeout-seconds }}" in metadata
+    )
+    assert "NBA_STACK_PROBE_SEASON: ${{ inputs.nba-stack-probe-season }}" in metadata
 
 
 def test_pid_alive_returns_false_when_probe_times_out(
@@ -243,6 +812,8 @@ def test_main_writes_bounded_outputs_for_init_time_action_failure(
     assert rc == 1
     assert _read_outputs(runner_env) == {
         "status": "vpn_network_error",
+        "nba-probe-status": "not_run",
+        "nba-probe-diagnostic": "NBA Stats probe did not run",
         "attempted-servers-json": "[]",
         "failed-servers-json": "[]",
     }
@@ -270,6 +841,8 @@ def test_main_writes_outputs_for_action_failure_after_initialization(
     assert rc == 1
     assert _read_outputs(runner_env) == {
         "status": "vpn_auth_failure",
+        "nba-probe-status": "not_run",
+        "nba-probe-diagnostic": "NBA probes have not run",
         "attempted-servers-json": "[]",
         "failed-servers-json": "[]",
     }
@@ -297,6 +870,8 @@ def test_main_writes_outputs_for_unexpected_exception(
     assert rc == 1
     assert _read_outputs(runner_env) == {
         "status": "vpn_network_error",
+        "nba-probe-status": "not_run",
+        "nba-probe-diagnostic": "NBA probes have not run",
         "attempted-servers-json": "[]",
         "failed-servers-json": "[]",
     }
@@ -353,8 +928,16 @@ def test_attempt_server_records_verified_tunnel_details(
     action.work_dir.mkdir(parents=True, exist_ok=True)
     action.auth_file.write_text("user\npassword\n", encoding="utf-8")
     action.baseline_ip = "1.1.1.1"
+    network_deadlines: list[float] = []
 
-    def _fake_retry_http_get(label: str, output_path: Path, url: str, *extra_args: str) -> bool:
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        **kwargs,
+    ) -> bool:
+        network_deadlines.append(kwargs["attempt_deadline"])
         if label.startswith("NordVPN OpenVPN config download"):
             output_path.write_text("client\n", encoding="utf-8")
             return True
@@ -368,10 +951,14 @@ def test_attempt_server_records_verified_tunnel_details(
         action, "config_url", lambda server, technology: "https://example.test/server.ovpn"
     )
     monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
-    monkeypatch.setattr(action, "pid_alive", lambda pid: True)
+    monkeypatch.setattr(action, "pid_alive", lambda pid, **kwargs: True)
     monkeypatch.setattr(action, "initialization_complete", lambda: True)
-    monkeypatch.setattr(action, "get_interface", lambda: "tun0")
-    monkeypatch.setattr(action, "route_uses_interface", lambda route_expr, interface: True)
+    monkeypatch.setattr(action, "get_interface", lambda **kwargs: "tun0")
+    monkeypatch.setattr(
+        action, "route_uses_interface", lambda route_expr, interface, **kwargs: True
+    )
+    monkeypatch.setattr(action, "probe_nba_stats", lambda **kwargs: True)
+    monkeypatch.setattr(action, "probe_nba_discovery_stack", lambda **kwargs: True)
 
     class _FakeProcess:
         def __init__(self, cmd: list[str]) -> None:
@@ -406,6 +993,166 @@ def test_attempt_server_records_verified_tunnel_details(
     assert action.pid == "12345"
     assert action.attempted_servers == ["us1001.nordvpn.com"]
     assert action.failed_servers == []
+    assert len(network_deadlines) == 2
+    assert network_deadlines[0] == network_deadlines[1]
+    assert network_deadlines[0] <= action.deadline
+
+
+def test_run_quarantines_nba_blocked_server_and_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_file.write_text("user\npassword\n", encoding="utf-8")
+    action.baseline_ip = "1.1.1.1"
+    action.fallback_technology = ""
+
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+        "make_workdir_readable",
+    ):
+        monkeypatch.setattr(action, method_name, lambda: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: ["us1001.nordvpn.com", "us1002.nordvpn.com"],
+    )
+    monkeypatch.setattr(action, "pid_alive", lambda pid, **kwargs: True)
+    monkeypatch.setattr(action, "initialization_complete", lambda: True)
+    monkeypatch.setattr(action, "get_interface", lambda **kwargs: "tun0")
+    monkeypatch.setattr(
+        action, "route_uses_interface", lambda route_expr, interface, **kwargs: True
+    )
+    monkeypatch.setattr(action, "auth_failed_in_log", lambda: False)
+    monkeypatch.setattr(module, "run_quiet", lambda *args, **kwargs: None)
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        **kwargs,
+    ) -> bool:
+        if label.startswith("NordVPN OpenVPN config download"):
+            output_path.write_text("client\n", encoding="utf-8")
+            return True
+        if label == "VPN verification probe":
+            output_path.write_text(json.dumps({"ip": "2.2.2.2"}), encoding="utf-8")
+            return True
+        raise AssertionError(f"unexpected retry label: {label}")
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+    monkeypatch.setattr(
+        action, "config_url", lambda server, technology: "https://example.test/server.ovpn"
+    )
+
+    class _FakeProcess:
+        def __init__(self, pid: int) -> None:
+            self.pid = pid
+
+        def poll(self):
+            return None
+
+    launched: list[_FakeProcess] = []
+
+    def _fake_popen(cmd: list[str], **kwargs) -> _FakeProcess:
+        proc = _FakeProcess(90000 + len(launched))
+        launched.append(proc)
+        action.pid_file.write_text(str(proc.pid), encoding="utf-8")
+        return proc
+
+    monkeypatch.setattr(module.subprocess, "Popen", _fake_popen)
+    cleanup_calls: list[str] = []
+
+    def _fake_cleanup_openvpn() -> None:
+        cleanup_calls.append("cleanup")
+        action.openvpn_process = None
+        action.pid_file.unlink(missing_ok=True)
+
+    monkeypatch.setattr(action, "cleanup_openvpn", _fake_cleanup_openvpn)
+    probe_results = iter((False, True))
+
+    def _fake_nba_stack_probe(**kwargs) -> bool:
+        if next(probe_results):
+            action.nba_probe_status = "passed"
+            action.nba_probe_diagnostic = (
+                "NBA discovery stack passed "
+                "(common_all_players=4900 rows, league_game_log=2460 rows)"
+            )
+            return True
+        action.nba_probe_status = "stack_timeout"
+        action.nba_probe_diagnostic = "NBA discovery stack probe timed out"
+        return False
+
+    monkeypatch.setattr(action, "probe_nba_stats", lambda **kwargs: True)
+    monkeypatch.setattr(action, "probe_nba_discovery_stack", _fake_nba_stack_probe)
+
+    assert action.run() == 0
+    assert [process.pid for process in launched] == [90000, 90001]
+    assert action.attempted_servers == ["us1001.nordvpn.com", "us1002.nordvpn.com"]
+    assert action.failed_servers == ["us1001.nordvpn.com"]
+    assert action.server == "us1002.nordvpn.com"
+    assert action.nba_probe_status == "passed"
+    assert cleanup_calls == ["cleanup"]
+    assert "quarantining it for this run" in capsys.readouterr().out
+    action.finalize()
+    outputs = _read_outputs(runner_env)
+    assert json.loads(outputs["failed-servers-json"]) == ["us1001.nordvpn.com"]
+    assert outputs["nba-probe-status"] == "passed"
+    assert outputs["nba-probe-diagnostic"] == (
+        "NBA discovery stack passed (common_all_players=4900 rows, league_game_log=2460 rows)"
+    )
+
+
+def test_run_stops_on_fatal_stack_failure_without_rotating_or_quarantining(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    for method_name in (
+        "prepare_workdir",
+        "install_dependencies",
+        "determine_baseline_ip",
+        "prepare_auth",
+        "make_workdir_readable",
+    ):
+        monkeypatch.setattr(action, method_name, lambda: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(action, "cleanup_openvpn", lambda: None)
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: ["us1001.nordvpn.com", "us1002.nordvpn.com"],
+    )
+    attempts: list[str] = []
+
+    def _fatal_attempt(server: str, technology: str) -> bool:
+        attempts.append(server)
+        action.append_unique(action.attempted_servers, server)
+        raise module.ActionError(
+            "nba_stack_contract_error",
+            "NBA discovery stack probe failed at league_game_log (ProbeContractError)",
+        )
+
+    monkeypatch.setattr(action, "attempt_server", _fatal_attempt)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.run()
+
+    assert excinfo.value.status == "nba_stack_contract_error"
+    assert action.status == "nba_stack_contract_error"
+    assert attempts == ["us1001.nordvpn.com"]
+    assert action.attempted_servers == ["us1001.nordvpn.com"]
+    assert action.failed_servers == []
 
 
 def test_attempt_server_classifies_auth_failure_when_openvpn_exits_early(
@@ -417,7 +1164,13 @@ def test_attempt_server_classifies_auth_failure_when_openvpn_exits_early(
     action.work_dir.mkdir(parents=True, exist_ok=True)
     action.auth_file.write_text("user\npassword\n", encoding="utf-8")
 
-    def _fake_retry_http_get(label: str, output_path: Path, url: str, *extra_args: str) -> bool:
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        **kwargs,
+    ) -> bool:
         if label.startswith("NordVPN OpenVPN config download"):
             output_path.write_text("client\n", encoding="utf-8")
             return True

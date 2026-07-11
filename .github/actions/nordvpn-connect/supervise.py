@@ -8,6 +8,8 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
+SUPERVISOR_HEADROOM_SECONDS = 10
+
 
 def append_output(key: str, value: str) -> None:
     output_path = os.environ.get("GITHUB_OUTPUT")
@@ -80,7 +82,7 @@ def main() -> int:
     action_dir = Path(__file__).resolve().parent
     connect_script = action_dir / "connect.py"
     overall_timeout = int(os.environ.get("OVERALL_TIMEOUT_SECONDS", "300").strip() or "300")
-    deadline = time.monotonic() + overall_timeout + 30
+    deadline = time.monotonic() + overall_timeout + SUPERVISOR_HEADROOM_SECONDS
 
     child = subprocess.Popen(
         [sys.executable, str(connect_script)],
@@ -94,11 +96,16 @@ def main() -> int:
         if time.monotonic() >= deadline:
             print(
                 f"::error::NordVPN action exceeded the outer action timeout "
-                f"({overall_timeout + 30}s)"
+                f"({overall_timeout + SUPERVISOR_HEADROOM_SECONDS}s)"
             )
             terminate_tree(child.pid)
             kill_matching_processes(str(Path(os.environ.get("RUNNER_TEMP", "")) / "nordvpn"))
             append_output("status", "vpn_connect_timeout")
+            append_output("nba-probe-status", "timeout")
+            append_output(
+                "nba-probe-diagnostic",
+                "NBA probes did not complete before the VPN action deadline",
+            )
             append_output("attempted-servers-json", "[]")
             append_output("failed-servers-json", "[]")
             return 1

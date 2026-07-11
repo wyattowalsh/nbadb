@@ -25,6 +25,10 @@ _REFRESH_METADATA_ACTION_PATH = (
     _REPO_ROOT / ".github" / "actions" / "refresh-metadata" / "action.yml"
 )
 _DISCOVERY_SEED_PATH = _REPO_ROOT / ".github" / "scripts" / "seed_discovery_artifacts.py"
+_REQUIRED_EXTRACTION_SCRIPTS = (
+    _REPO_ROOT / ".github" / "scripts" / "probe_discovery_transport.py",
+    _REPO_ROOT / ".github" / "scripts" / "verify_discovery_bundle.py",
+)
 
 
 def _workflow_text() -> str:
@@ -59,11 +63,17 @@ def _embedded_python(workflow_block: str, marker: str) -> str:
     return textwrap.dedent(match.group("body"))
 
 
-def _run_python(script: str, *, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _run_python(
+    script: str,
+    *,
+    env: dict[str, str],
+    cwd: pathlib.Path | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", script],
         check=False,
         capture_output=True,
+        cwd=cwd,
         env={**os.environ, **env},
         text=True,
     )
@@ -112,13 +122,33 @@ def test_workflow_definition_guards_use_the_pinned_source_checkout() -> None:
     assert len(checkout_blocks) == workflow.count("- uses: actions/checkout@")
     assert checkout_blocks
     assert all("ref: ${{ env.WORKFLOW_SOURCE_SHA }}" in block for block in checkout_blocks)
-
     assert "Verify redispatch workflow definition" in dispatch
     assert '-f "ref=${WORKFLOW_REF}"' in dispatch
     assert "does not match workflow_source_sha" in dispatch
     assert dispatch.index("Verify redispatch workflow definition") < dispatch.index(
         "gh workflow run full-extraction.yml"
     )
+
+
+def test_required_extraction_runtime_scripts_exist_and_are_not_ignored() -> None:
+    for path in _REQUIRED_EXTRACTION_SCRIPTS:
+        assert path.is_file(), f"missing required workflow script: {path}"
+        result = subprocess.run(
+            ["git", "check-ignore", str(path.relative_to(_REPO_ROOT))],
+            cwd=_REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1, result.stdout or result.stderr
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", str(path.relative_to(_REPO_ROOT))],
+            cwd=_REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert tracked.returncode == 0, tracked.stdout or tracked.stderr
 
 
 def test_user_supplied_source_sha_must_descend_from_trusted_branches() -> None:
@@ -172,6 +202,116 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
         "needs.checkpoint.outputs.active-lane-count == needs.lane_control.outputs.active-lane-count"
     ) in dispatch
     assert "needs.checkpoint.outputs.terminal-ready == 'false'" in dispatch
+
+
+def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> None:
+    workflow = _workflow_text()
+    extract = _job_block(workflow, "extract")
+    lane_control = _job_block(workflow, "lane_control")
+    checkpoint = _job_block(workflow, "checkpoint")
+    dispatch = _job_block(workflow, "dispatch_next")
+    lane_control_header = lane_control.split("    steps:\n", 1)[0]
+
+    assert "needs.discovery_seed.result == 'success'" in extract
+    assert "needs: [plan, preflight, discovery_seed, extract]" in lane_control_header
+    assert "needs.discovery_seed.result == 'success'" in lane_control_header
+    assert "needs.extract.result != 'skipped'" in lane_control_header
+    assert "needs.extract.result == 'success'" not in lane_control_header
+    assert "--allow-missing-attempted-metadata" in lane_control
+
+    # Matrix failures still produce metadata/checkpoints and may dispatch a child.
+    assert "needs.lane_control.result == 'success'" in checkpoint
+    assert "needs.lane_control.result == 'success'" in dispatch
+    assert "needs.checkpoint.result == 'success'" in dispatch
+
+
+def test_discovery_artifact_upload_is_success_only_and_fail_closed() -> None:
+    seed = _job_block(_workflow_text(), "discovery_seed")
+    verify = _step_block(seed, "Verify complete discovery bundle")
+    upload = _step_block(seed, "Upload discovery artifacts")
+    recovery_upload = _step_block(seed, "Upload incomplete discovery recovery artifact")
+
+    assert "if: ${{ success() }}" in upload
+    assert "if: always()" not in upload
+    assert "if-no-files-found: error" in upload
+    assert "if-no-files-found: ignore" not in upload
+    assert "if: ${{ always() && !success() }}" in recovery_upload
+    assert (
+        "full-extraction-discovery-recovery-${{ env.ACTIVE_CHAIN_ID }}-"
+        "run-${{ github.run_id }}-attempt-${{ github.run_attempt }}" in recovery_upload
+    )
+    assert "if-no-files-found: warn" in recovery_upload
+    assert "retention-days: 30" in recovery_upload
+    assert "full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}" not in recovery_upload
+    assert ".github/scripts/verify_discovery_bundle.py" in verify
+    assert "--summary-path artifacts/discovery/discovery-seed-summary.json" in verify
+    assert "--manifest-path artifacts/discovery/discovery-manifest.json" in verify
+    assert "--duckdb-path data/nbadb/nba.duckdb" in verify
+    assert "artifacts/discovery/discovery-manifest.json" in upload
+    assert "artifacts/discovery/discovery-manifest.json" in recovery_upload
+    assert seed.index("- name: Seed discovery artifacts") < seed.index(
+        "- name: Verify complete discovery bundle"
+    )
+    assert seed.index("- name: Verify complete discovery bundle") < seed.index(
+        "- name: Upload discovery artifacts"
+    )
+    assert seed.index("- name: Upload discovery artifacts") < seed.index(
+        "- name: Upload incomplete discovery recovery artifact"
+    )
+
+
+def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped(
+    tmp_path: pathlib.Path,
+) -> None:
+    workflow = _workflow_text()
+    extract = _job_block(workflow, "extract")
+    metadata_step = _step_block(extract, "Write lane metadata")
+    complete_upload = _step_block(extract, "Upload complete lane artifact")
+    recovery_upload = _step_block(extract, "Upload incomplete lane state artifact")
+    checkpoint_download = _step_block(
+        _job_block(workflow, "checkpoint"),
+        "Download current lane artifacts",
+    )
+    complete_name = "extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}"
+    recovery_name = (
+        "extraction-lane-recovery-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}-"
+        "run-${{ github.run_id }}-attempt-${{ github.run_attempt }}"
+    )
+
+    assert complete_name in complete_upload
+    assert recovery_name in metadata_step
+    assert recovery_name in recovery_upload
+    assert complete_name not in recovery_upload
+    assert "steps.lane_metadata.outputs.final-outcome != 'complete'" in recovery_upload
+    assert '--pattern "extraction-lane-${ACTIVE_CHAIN_ID}-*"' in checkpoint_download
+    assert "extraction-lane-recovery-" not in checkpoint_download
+
+    rewrite = _embedded_python(metadata_step, "RECOVERY_ARTIFACT_METADATA_REWRITE")
+    metadata_path = tmp_path / "artifacts" / "extraction" / "lane-metadata.json"
+    metadata_path.parent.mkdir(parents=True)
+    runtime_recovery_name = "extraction-lane-recovery-chain-lane-run-123-attempt-2"
+    for status, expected_name in (
+        ("needs_resume", runtime_recovery_name),
+        ("cancelled", runtime_recovery_name),
+        ("complete", "extraction-lane-chain-lane"),
+    ):
+        metadata_path.write_text(
+            json.dumps(
+                {
+                    "status": status,
+                    "state_artifact": {"name": "extraction-lane-chain-lane"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run_python(
+            rewrite,
+            cwd=tmp_path,
+            env={"RECOVERY_ARTIFACT_NAME": runtime_recovery_name},
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        assert metadata["state_artifact"]["name"] == expected_name
 
 
 def test_redispatch_preserves_auto_and_enforces_numeric_iteration_cap() -> None:
@@ -1187,6 +1327,7 @@ def test_seeded_discovery_artifacts_are_installed_after_state_restore() -> None:
         "- name: Restore durable lane state artifact",
         "- name: Assess restored state",
         "- name: Install discovery artifacts after state restore",
+        "- name: Verify installed discovery bundle",
         "- name: Run extraction",
     ]
 
@@ -1195,15 +1336,25 @@ def test_seeded_discovery_artifacts_are_installed_after_state_restore() -> None:
     assert positions == sorted(positions)
     assert "rm -rf data/nbadb/nba.discovery-artifacts" in extract
     assert 'cp -R "$artifact_dir" data/nbadb/nba.discovery-artifacts' in extract
-    workload_paths = [
-        "data/nbadb/nba.player-team-season-workload.parquet",
-        "data/nbadb/nba.player-team-season-workload.player-team-season-workload.json",
-    ]
-    for path in workload_paths:
-        assert path in seed
-        assert path in extract
+    assert "data/nbadb/nba.player-team-season-workload.*.parquet" in seed
+    workload_manifest = (
+        "data/nbadb/nba.player-team-season-workload.player-team-season-workload.json"
+    )
+    assert workload_manifest in seed
+    assert workload_manifest in extract
+    assert "-name 'nba.player-team-season-workload.*.parquet'" in extract
     assert "Seeded player/team workload artifact is incomplete" in extract
-    assert extract.index('workload_parquet="$(find discovery-artifact') > extract.index(
+    assert "-name 'nba.player-team-season-workload*.parquet'" in extract
+    assert extract.index("-name 'nba.player-team-season-workload*.parquet'") < extract.index(
+        "mapfile -t workload_parquets"
+    )
+    installed_verify = _step_block(extract, "Verify installed discovery bundle")
+    assert "Downloaded discovery bundle is missing discovery-seed-summary.json" in installed_verify
+    assert "Downloaded discovery bundle is missing discovery-manifest.json" in installed_verify
+    assert ".github/scripts/verify_discovery_bundle.py" in installed_verify
+    assert '--manifest-path "$manifest_path"' in installed_verify
+    assert "--duckdb-path data/nbadb/nba.duckdb" in installed_verify
+    assert extract.index("mapfile -t workload_parquets") > extract.index(
         "- name: Restore extraction state"
     )
 
@@ -1229,6 +1380,106 @@ def test_discovery_seed_vpn_lifecycle_is_mode_gated_and_always_cleaned_up() -> N
     assert seed.index("- name: Upload discovery seed VPN diagnostics") < seed.index(
         "- name: Disconnect discovery seed VPN"
     )
+
+
+def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
+    tmp_path: pathlib.Path,
+) -> None:
+    workflow = _workflow_text()
+    preflight = _job_block(workflow, "preflight")
+    seed = _job_block(workflow, "discovery_seed")
+    extract = _job_block(workflow, "extract")
+    vpn_step = _step_block(preflight, "Preflight VPN validation")
+    quarantine_step = _step_block(
+        preflight,
+        "Carry preflight VPN failures into the chain quarantine",
+    )
+
+    assert "timeout-minutes: 7" in vpn_step
+    assert 'SERVER_LIMIT: "4"' in vpn_step
+    assert 'CONNECT_TIMEOUT_SECONDS: "60"' in vpn_step
+    assert 'OVERALL_TIMEOUT_SECONDS: "300"' in vpn_step
+    assert (
+        "vpn-quarantined-servers-json: "
+        "${{ steps.vpn_quarantine.outputs.vpn-quarantined-servers-json }}"
+    ) in preflight
+    downstream_quarantine = (
+        "QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}"
+    )
+    assert downstream_quarantine in seed
+    assert downstream_quarantine in extract
+    assert 'CONNECT_TIMEOUT_SECONDS: "60"' in seed
+    assert 'CONNECT_TIMEOUT_SECONDS: "60"' in extract
+    for job in (preflight, seed, extract):
+        assert "timeout-minutes: 7" in job
+        assert "350 \\" in job
+        assert "10 \\" in job
+
+    output_path = tmp_path / "github-output.txt"
+    result = _run_python(
+        _embedded_python(quarantine_step, "PREFLIGHT_VPN_QUARANTINE"),
+        env={
+            "CHAIN_QUARANTINE_JSON": '["us1.nordvpn.com","us2.nordvpn.com"]',
+            "PREFLIGHT_FAILED_JSON": '["us2.nordvpn.com","us3.nordvpn.com"]',
+            "GITHUB_OUTPUT": str(output_path),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert output_path.read_text(encoding="utf-8") == (
+        'vpn-quarantined-servers-json=["us1.nordvpn.com","us2.nordvpn.com","us3.nordvpn.com"]\n'
+    )
+
+
+def test_effective_preflight_quarantine_is_persisted_into_the_next_manifest(
+    tmp_path: pathlib.Path,
+) -> None:
+    lane_control = _job_block(_workflow_text(), "lane_control")
+    build_step = _step_block(lane_control, "Build next manifest")
+    assert (
+        "PREFLIGHT_QUARANTINE_JSON: "
+        "${{ needs.preflight.outputs.vpn-quarantined-servers-json }}" in build_step
+    )
+    script = _embedded_python(build_step, "PREFLIGHT_QUARANTINE_PERSISTENCE")
+    manifest_path = tmp_path / "artifacts" / "full-extraction" / "current-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "chain_state": {
+                    "vpn_quarantined_servers": [
+                        "us1.nordvpn.com",
+                        "us2.nordvpn.com",
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_python(
+        script,
+        cwd=tmp_path,
+        env={"PREFLIGHT_QUARANTINE_JSON": ('["us2.nordvpn.com","us3.nordvpn.com"]')},
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    persisted = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert persisted["chain_state"]["vpn_quarantined_servers"] == [
+        "us1.nordvpn.com",
+        "us2.nordvpn.com",
+        "us3.nordvpn.com",
+    ]
+
+
+def test_discovery_seed_has_a_process_deadline_inside_the_job_timeout() -> None:
+    seed = _job_block(_workflow_text(), "discovery_seed")
+    seed_step = _step_block(seed, "Seed discovery artifacts")
+
+    assert 'NBADB_DISCOVERY_SEED_DEADLINE_SECONDS: "5400"' in seed_step
+    assert "bash .github/scripts/run_with_deadline.sh" in seed_step
+    assert "5700 \\" in seed_step
+    assert "15 \\" in seed_step
 
 
 def test_discovery_seed_concurrency_tracks_network_mode_and_request_profile() -> None:
@@ -1261,8 +1512,15 @@ def test_chained_discovery_seed_restores_exact_prior_run_artifact() -> None:
     assert (
         "DISCOVERY_ARTIFACT_NAME: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}"
     ) in seed
+    assert (
+        "DISCOVERY_RECOVERY_PATTERN: full-extraction-discovery-recovery-"
+        "${{ env.ACTIVE_CHAIN_ID }}-run-${{ inputs.lane_manifest_run_id }}-attempt-*"
+    ) in seed
     assert 'gh run download "$PRIOR_RUN_ID"' in seed
     assert '--name "$DISCOVERY_ARTIFACT_NAME"' in seed
+    assert '--pattern "$DISCOVERY_RECOVERY_PATTERN"' in seed
+    assert "sort -V" in seed
+    assert "Restored latest incomplete discovery recovery bundle" in seed
     assert "seeding this wave from scratch" in seed
     assert seed.index("- name: Restore prior discovery artifacts") < seed.index(
         "- name: Seed discovery artifacts"

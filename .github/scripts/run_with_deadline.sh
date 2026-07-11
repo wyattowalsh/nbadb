@@ -23,6 +23,8 @@ write_timeout_outputs() {
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
     {
       echo "status=vpn_connect_timeout"
+      echo "nba-probe-status=timeout"
+      echo "nba-probe-diagnostic=NBA probes did not complete before the command deadline"
       echo "attempted-servers-json=[]"
       echo "failed-servers-json=[]"
     } >> "$GITHUB_OUTPUT"

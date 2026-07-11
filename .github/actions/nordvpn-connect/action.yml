@@ -1,5 +1,5 @@
 name: Connect NordVPN
-description: Establish a verified NordVPN OpenVPN tunnel with deterministic server selection and fallback.
+description: Establish a route, IP, and NBA-verified NordVPN tunnel with deterministic fallback.
 
 inputs:
   openvpn-user:
@@ -46,6 +46,30 @@ inputs:
     description: URL that returns the public exit IP as JSON.
     required: false
     default: "https://api.ipify.org?format=json"
+  nba-probe-enabled:
+    description: Whether to require a successful NBA Stats API probe after exit-IP verification.
+    required: false
+    default: "true"
+  nba-probe-url:
+    description: NBA Stats API URL used to validate that the selected VPN server can reach NBA data.
+    required: false
+    default: "https://stats.nba.com/stats/commonteamyears?LeagueID=00"
+  nba-probe-timeout-seconds:
+    description: Maximum time for the single NBA Stats API probe on each server.
+    required: false
+    default: "10"
+  nba-stack-probe-enabled:
+    description: Whether to require discovery canaries through the installed nbadb and nba_api stack.
+    required: false
+    default: "true"
+  nba-stack-probe-timeout-seconds:
+    description: Maximum total time for the installed-stack discovery canaries on each server.
+    required: false
+    default: "18"
+  nba-stack-probe-season:
+    description: Stable historical season used by the installed-stack discovery canaries.
+    required: false
+    default: "2024-25"
   connect-timeout-seconds:
     description: Maximum time to wait for an individual OpenVPN connection attempt.
     required: false
@@ -84,6 +108,12 @@ outputs:
   status:
     description: Connection result code.
     value: ${{ steps.connect.outputs.status }}
+  nba-probe-status:
+    description: Final NBA Stats API probe result code.
+    value: ${{ steps.connect.outputs.nba-probe-status }}
+  nba-probe-diagnostic:
+    description: Bounded non-secret diagnostic for the final NBA Stats API probe result.
+    value: ${{ steps.connect.outputs.nba-probe-diagnostic }}
   attempted-servers-json:
     description: JSON array of server hostnames attempted during this invocation.
     value: ${{ steps.connect.outputs.attempted-servers-json }}
@@ -111,6 +141,12 @@ runs:
         TECHNOLOGY: ${{ inputs.technology }}
         FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}
         VERIFY_URL: ${{ inputs.verify-url }}
+        NBA_PROBE_ENABLED: ${{ inputs.nba-probe-enabled }}
+        NBA_PROBE_URL: ${{ inputs.nba-probe-url }}
+        NBA_PROBE_TIMEOUT_SECONDS: ${{ inputs.nba-probe-timeout-seconds }}
+        NBA_STACK_PROBE_ENABLED: ${{ inputs.nba-stack-probe-enabled }}
+        NBA_STACK_PROBE_TIMEOUT_SECONDS: ${{ inputs.nba-stack-probe-timeout-seconds }}
+        NBA_STACK_PROBE_SEASON: ${{ inputs.nba-stack-probe-season }}
         CONNECT_TIMEOUT_SECONDS: ${{ inputs.connect-timeout-seconds }}
         OVERALL_TIMEOUT_SECONDS: ${{ inputs.overall-timeout-seconds }}
         REQUIRE_FULL_TUNNEL: ${{ inputs.require-full-tunnel }}

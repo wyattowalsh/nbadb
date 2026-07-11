@@ -57,8 +57,26 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --extra dev
-      - run: uv run ruff check src/ tests/
-      - run: uv run ruff format --check src/ tests/
+      - name: Lint package, tests, and extraction runtime scripts
+        run: |
+          uv run ruff check \
+            src/ \
+            tests/ \
+            .github/actions/nordvpn-connect/connect.py \
+            .github/actions/nordvpn-connect/supervise.py \
+            .github/scripts/probe_discovery_transport.py \
+            .github/scripts/seed_discovery_artifacts.py \
+            .github/scripts/verify_discovery_bundle.py
+      - name: Check formatting for package, tests, and extraction runtime scripts
+        run: |
+          uv run ruff format --check \
+            src/ \
+            tests/ \
+            .github/actions/nordvpn-connect/connect.py \
+            .github/actions/nordvpn-connect/supervise.py \
+            .github/scripts/probe_discovery_transport.py \
+            .github/scripts/seed_discovery_artifacts.py \
+            .github/scripts/verify_discovery_bundle.py
 
   metadata:
     runs-on: ubuntu-latest
@@ -98,7 +116,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --extra dev
-      - run: uv run ty check src/
+      - name: Type-check package and extraction runtime scripts
+        run: |
+          uv run ty check \
+            src/ \
+            .github/actions/nordvpn-connect/connect.py \
+            .github/actions/nordvpn-connect/supervise.py \
+            .github/scripts/probe_discovery_transport.py \
+            .github/scripts/seed_discovery_artifacts.py \
+            .github/scripts/verify_discovery_bundle.py
 
   docs:
     runs-on: ubuntu-latest

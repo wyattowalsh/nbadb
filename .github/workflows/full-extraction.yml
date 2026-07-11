@@ -708,6 +708,7 @@ jobs:
       contents: read
     outputs:
       effective-network-mode: ${{ steps.network_mode.outputs.effective-network-mode }}
+      vpn-quarantined-servers-json: ${{ steps.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -774,23 +775,23 @@ jobs:
       - name: Preflight VPN validation
         id: vpn
         if: ${{ inputs.network_mode != 'direct' }}
-        timeout-minutes: 3
+        timeout-minutes: 7
         continue-on-error: true
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
           LANE_INDEX: "0"
-          SERVER_LIMIT: "1"
+          SERVER_LIMIT: "4"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
-          CONNECT_TIMEOUT_SECONDS: "30"
-          OVERALL_TIMEOUT_SECONDS: "120"
+          CONNECT_TIMEOUT_SECONDS: "60"
+          OVERALL_TIMEOUT_SECONDS: "300"
           QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
         run: |
           set +e
           bash .github/scripts/run_with_deadline.sh \
-            180 \
-            15 \
+            350 \
+            10 \
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
           exit "$rc"
@@ -835,6 +836,42 @@ jobs:
           {
             echo "effective-network-mode=$effective"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Carry preflight VPN failures into the chain quarantine
+        id: vpn_quarantine
+        if: always()
+        env:
+          CHAIN_QUARANTINE_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+          PREFLIGHT_FAILED_JSON: ${{ steps.vpn.outputs.failed-servers-json }}
+        run: |
+          python3 - <<'PY'
+          # PREFLIGHT_VPN_QUARANTINE
+          import json
+          import os
+          from pathlib import Path
+
+          combined: list[str] = []
+          for name in ("CHAIN_QUARANTINE_JSON", "PREFLIGHT_FAILED_JSON"):
+              raw = os.environ.get(name, "") or "[]"
+              try:
+                  values = json.loads(raw)
+              except json.JSONDecodeError as exc:
+                  raise SystemExit(f"{name} is not valid JSON: {exc}") from exc
+              if not isinstance(values, list):
+                  raise SystemExit(f"{name} must be a JSON array")
+              for value in values:
+                  server = str(value).strip()
+                  if server and server not in combined:
+                      combined.append(server)
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as handle:
+              handle.write(
+                  "vpn-quarantined-servers-json="
+                  + json.dumps(combined, separators=(",", ":"))
+                  + "\n"
+              )
+          PY
 
       - name: Summarize preflight network mode
         if: always()
@@ -891,32 +928,68 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRIOR_RUN_ID: ${{ inputs.lane_manifest_run_id }}
           DISCOVERY_ARTIFACT_NAME: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
+          DISCOVERY_RECOVERY_PATTERN: full-extraction-discovery-recovery-${{ env.ACTIVE_CHAIN_ID }}-run-${{ inputs.lane_manifest_run_id }}-attempt-*
         run: |
           mkdir -p prior-discovery-artifact data/nbadb
-          if ! gh run download "$PRIOR_RUN_ID" \
+          discovery_source="prior-discovery-artifact"
+          if gh run download "$PRIOR_RUN_ID" \
             --repo "${{ github.repository }}" \
             --name "$DISCOVERY_ARTIFACT_NAME" \
             --dir prior-discovery-artifact; then
-            echo "::warning::Prior discovery artifact is unavailable; seeding this wave from scratch"
-            exit 0
+            echo "::notice::Restored canonical discovery bundle from run $PRIOR_RUN_ID"
+          else
+            rm -rf prior-discovery-artifact
+            mkdir -p prior-discovery-recovery
+            if ! gh run download "$PRIOR_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --pattern "$DISCOVERY_RECOVERY_PATTERN" \
+              --dir prior-discovery-recovery; then
+              echo "::warning::Prior discovery artifacts are unavailable; seeding this wave from scratch"
+              exit 0
+            fi
+            discovery_source="$(
+              find prior-discovery-recovery \
+                -mindepth 1 \
+                -maxdepth 1 \
+                -type d \
+                -name "$DISCOVERY_RECOVERY_PATTERN" \
+                -print \
+                | sort -V \
+                | tail -1
+            )"
+            if [ -z "$discovery_source" ]; then
+              echo "::warning::Recovery artifact download did not produce a matching bundle; seeding from scratch"
+              exit 0
+            fi
+            echo "::notice::Restored latest incomplete discovery recovery bundle: $(basename "$discovery_source")"
           fi
 
-          artifact_dir="$(find prior-discovery-artifact -type d -name nba.discovery-artifacts -print -quit)"
+          artifact_dir="$(find "$discovery_source" -type d -name nba.discovery-artifacts -print -quit)"
           if [ -n "$artifact_dir" ]; then
             rm -rf data/nbadb/nba.discovery-artifacts
             cp -R "$artifact_dir" data/nbadb/nba.discovery-artifacts
           fi
 
-          workload_parquet="$(find prior-discovery-artifact -type f -name nba.player-team-season-workload.parquet -print -quit)"
-          workload_manifest="$(find prior-discovery-artifact -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
-          if [ -n "$workload_parquet" ] && [ -n "$workload_manifest" ]; then
-            cp "$workload_parquet" data/nbadb/nba.player-team-season-workload.parquet
+          workload_manifest="$(find "$discovery_source" -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+          mapfile -t workload_parquets < <(
+            find "$discovery_source" \
+              -type f \
+              -name 'nba.player-team-season-workload*.parquet' \
+              -print
+          )
+          if [ -n "$workload_manifest" ] && [ "${#workload_parquets[@]}" -gt 0 ]; then
+            for workload_parquet in "${workload_parquets[@]}"; do
+              cp "$workload_parquet" "data/nbadb/$(basename "$workload_parquet")"
+            done
             cp "$workload_manifest" data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
-          elif [ -n "$workload_parquet" ] || [ -n "$workload_manifest" ]; then
+          elif [ "${#workload_parquets[@]}" -gt 0 ] || [ -n "$workload_manifest" ]; then
             echo "::warning::Prior player/team workload artifact is incomplete; ignoring it"
-            rm -f \
-              data/nbadb/nba.player-team-season-workload.parquet \
-              data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+            find data/nbadb \
+              -maxdepth 1 \
+              -type f \
+              -name 'nba.player-team-season-workload*.parquet' \
+              -delete
+            rm -f data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
           fi
 
       - name: Configure discovery seed concurrency
@@ -946,7 +1019,7 @@ jobs:
       - name: Connect NordVPN tunnel for discovery seeding
         id: vpn
         if: ${{ needs.preflight.outputs.effective-network-mode == 'vpn' }}
-        timeout-minutes: 6
+        timeout-minutes: 7
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
@@ -954,19 +1027,21 @@ jobs:
           LANE_INDEX: "0"
           SERVER_LIMIT: "6"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
-          CONNECT_TIMEOUT_SECONDS: "30"
+          CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
-          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+          QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
         run: |
           set +e
           bash .github/scripts/run_with_deadline.sh \
-            360 \
-            15 \
+            350 \
+            10 \
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
           exit "$rc"
 
       - name: Seed discovery artifacts
+        env:
+          NBADB_DISCOVERY_SEED_DEADLINE_SECONDS: "5400"
         run: |
           mkdir -p artifacts/discovery data/nbadb
           manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
@@ -975,24 +1050,53 @@ jobs:
             find plan-artifact -maxdepth 4 -type f -print || true
             exit 1
           fi
-          uv run python .github/scripts/seed_discovery_artifacts.py \
-            --manifest-path "$manifest_path" \
+          cp "$manifest_path" artifacts/discovery/discovery-manifest.json
+          bash .github/scripts/run_with_deadline.sh \
+            5700 \
+            15 \
+            uv run python .github/scripts/seed_discovery_artifacts.py \
+            --manifest-path artifacts/discovery/discovery-manifest.json \
             --duckdb-path data/nbadb/nba.duckdb \
             --summary-path artifacts/discovery/discovery-seed-summary.json
 
+      - name: Verify complete discovery bundle
+        run: |
+          uv run python .github/scripts/verify_discovery_bundle.py \
+            --summary-path artifacts/discovery/discovery-seed-summary.json \
+            --manifest-path artifacts/discovery/discovery-manifest.json \
+            --duckdb-path data/nbadb/nba.duckdb
+
       - name: Upload discovery artifacts
-        if: always()
+        if: ${{ success() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
           name: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
           path: |
             data/nbadb/nba.discovery-artifacts/
-            data/nbadb/nba.player-team-season-workload.parquet
+            data/nbadb/nba.player-team-season-workload.*.parquet
             data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+            artifacts/discovery/discovery-manifest.json
             artifacts/discovery/discovery-seed-summary.json
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
+          compression-level: 6
+
+      - name: Upload incomplete discovery recovery artifact
+        if: ${{ always() && !success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: full-extraction-discovery-recovery-${{ env.ACTIVE_CHAIN_ID }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: |
+            data/nbadb/nba.discovery-artifacts/
+            data/nbadb/nba.player-team-season-workload.parquet
+            data/nbadb/nba.player-team-season-workload.*.parquet
+            data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+            artifacts/discovery/discovery-manifest.json
+            artifacts/discovery/discovery-seed-summary.json
+          if-no-files-found: warn
+          retention-days: 30
           compression-level: 6
 
       - name: Upload discovery seed VPN diagnostics
@@ -1197,21 +1301,49 @@ jobs:
             echo "::notice::No seeded discovery artifact directory found"
           fi
 
-          workload_parquet="$(find discovery-artifact -type f -name nba.player-team-season-workload.parquet -print -quit)"
+          find data/nbadb \
+            -maxdepth 1 \
+            -type f \
+            -name 'nba.player-team-season-workload*.parquet' \
+            -delete
+          rm -f data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+
+          mapfile -t workload_parquets < <(
+            find discovery-artifact \
+              -type f \
+              -name 'nba.player-team-season-workload.*.parquet' \
+              -print
+          )
           workload_manifest="$(find discovery-artifact -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
-          if [ -n "$workload_parquet" ] || [ -n "$workload_manifest" ]; then
-            if [ -z "$workload_parquet" ] || [ -z "$workload_manifest" ]; then
+          if [ "${#workload_parquets[@]}" -gt 0 ] || [ -n "$workload_manifest" ]; then
+            if [ "${#workload_parquets[@]}" -eq 0 ] || [ -z "$workload_manifest" ]; then
               echo "::error::Seeded player/team workload artifact is incomplete"
               exit 1
             fi
-            rm -f \
-              data/nbadb/nba.player-team-season-workload.parquet \
-              data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
-            cp "$workload_parquet" data/nbadb/nba.player-team-season-workload.parquet
+            for workload_parquet in "${workload_parquets[@]}"; do
+              cp "$workload_parquet" "data/nbadb/$(basename "$workload_parquet")"
+            done
             cp "$workload_manifest" data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
           else
             echo "::notice::No seeded player/team workload artifact found"
           fi
+
+      - name: Verify installed discovery bundle
+        run: |
+          summary_path="$(find discovery-artifact -type f -name discovery-seed-summary.json -print -quit)"
+          manifest_path="$(find discovery-artifact -type f -name discovery-manifest.json -print -quit)"
+          if [ -z "$summary_path" ]; then
+            echo "::error::Downloaded discovery bundle is missing discovery-seed-summary.json"
+            exit 1
+          fi
+          if [ -z "$manifest_path" ]; then
+            echo "::error::Downloaded discovery bundle is missing discovery-manifest.json"
+            exit 1
+          fi
+          uv run python .github/scripts/verify_discovery_bundle.py \
+            --summary-path "$summary_path" \
+            --manifest-path "$manifest_path" \
+            --duckdb-path data/nbadb/nba.duckdb
 
       - name: Show lane info
         env:
@@ -1255,7 +1387,7 @@ jobs:
       - name: Connect NordVPN tunnel
         id: vpn
         if: ${{ !matrix.resume_only && needs.preflight.outputs.effective-network-mode == 'vpn' }}
-        timeout-minutes: 6
+        timeout-minutes: 7
         env:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
@@ -1265,14 +1397,14 @@ jobs:
           # does not burn an iteration on a few bad NordVPN hosts.
           SERVER_LIMIT: "6"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
-          CONNECT_TIMEOUT_SECONDS: "30"
+          CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
-          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+          QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
         run: |
           set +e
           bash .github/scripts/run_with_deadline.sh \
-            360 \
-            15 \
+            350 \
+            10 \
             python3 .github/actions/nordvpn-connect/supervise.py
           rc=$?
           exit "$rc"
@@ -1545,9 +1677,28 @@ jobs:
           VPN_ATTEMPTED_SERVERS_JSON: ${{ steps.vpn.outputs.attempted-servers-json || '[]' }}
           VPN_FAILED_SERVERS_JSON: ${{ steps.vpn.outputs.failed-servers-json || '[]' }}
           EXTRACT_SUMMARY_PATH: artifacts/extraction/extract-summary.json
+          RECOVERY_ARTIFACT_NAME: extraction-lane-recovery-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
         run: |
           mkdir -p artifacts/extraction
           uv run python .github/scripts/write_lane_metadata.py
+          uv run python - <<'PY'
+          # RECOVERY_ARTIFACT_METADATA_REWRITE
+          import json
+          import os
+          from pathlib import Path
+
+          metadata_path = Path("artifacts/extraction/lane-metadata.json")
+          metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+          if metadata.get("status") != "complete":
+              state_artifact = metadata.get("state_artifact")
+              if not isinstance(state_artifact, dict):
+                  raise SystemExit("Lane metadata is missing state_artifact")
+              state_artifact["name"] = os.environ["RECOVERY_ARTIFACT_NAME"]
+              metadata_path.write_text(
+                  json.dumps(metadata, indent=2) + "\n",
+                  encoding="utf-8",
+              )
+          PY
 
       # ── Save state ──
       - name: Save extraction state
@@ -1578,7 +1729,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
-          name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          name: extraction-lane-recovery-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: |
             data/nbadb/*.duckdb
             data/nbadb/*.duckdb.*
@@ -2194,8 +2345,8 @@ jobs:
   #  Lane control: carry a manifest forward and classify unresolved lanes
   # ─────────────────────────────────────────────────────────────
   lane_control:
-    needs: [plan, preflight, extract]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' }}
+    needs: [plan, preflight, discovery_seed, extract]
+    if: ${{ always() && !cancelled() && needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && needs.extract.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -2245,6 +2396,7 @@ jobs:
           CHECKPOINT_ARTIFACT_NAME: full-extraction-checkpoint-${{ env.ACTIVE_CHAIN_ID }}-iter-${{ inputs.iteration }}
           RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
           MATRIX_BATCH_SIZE: ${{ inputs.matrix_batch_size }}
+          PREFLIGHT_QUARANTINE_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
         run: |
           mkdir -p artifacts/full-extraction
           manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
@@ -2254,6 +2406,34 @@ jobs:
             exit 1
           fi
           cp "$manifest_path" artifacts/full-extraction/current-manifest.json
+          uv run python - <<'PY'
+          # PREFLIGHT_QUARANTINE_PERSISTENCE
+          import json
+          import os
+          from pathlib import Path
+
+          manifest_path = Path("artifacts/full-extraction/current-manifest.json")
+          payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+          chain_state = payload.setdefault("chain_state", {})
+          if not isinstance(chain_state, dict):
+              raise SystemExit("current manifest chain_state must be an object")
+          existing = chain_state.get("vpn_quarantined_servers", [])
+          incoming = json.loads(os.environ.get("PREFLIGHT_QUARANTINE_JSON", "") or "[]")
+          if not isinstance(existing, list) or not isinstance(incoming, list):
+              raise SystemExit("VPN quarantine state must be represented as JSON arrays")
+          combined = sorted(
+              {
+                  str(server).strip()
+                  for server in [*existing, *incoming]
+                  if str(server).strip()
+              }
+          )
+          chain_state["vpn_quarantined_servers"] = combined
+          manifest_path.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
           resume_args=(
             resume
             --lane-manifest-path artifacts/full-extraction/current-manifest.json

@@ -21,6 +21,67 @@ class ActionError(RuntimeError):
 
 AUTH_FAILURE_PATTERN: Final[re.Pattern[str]] = re.compile(r"AUTH_FAILED|auth-failure")
 INIT_COMPLETE_PATTERN: Final[str] = "Initialization Sequence Completed"
+NBA_PROBE_DEFAULT_URL: Final[str] = "https://stats.nba.com/stats/commonteamyears?LeagueID=00"
+NBA_PROBE_MAX_BYTES: Final[int] = 1_048_576
+NBA_PROBE_EXPECTED_HEADERS: Final[frozenset[str]] = frozenset(
+    {"LEAGUE_ID", "TEAM_ID", "MIN_YEAR", "MAX_YEAR", "ABBREVIATION"}
+)
+NBA_PROBE_TERMINATION_GRACE_SECONDS: Final[float] = 0.25
+NBA_STACK_PROBE_DEFAULT_SEASON: Final[str] = "2024-25"
+NBA_STACK_PROBE_DIAGNOSTIC_MAX_CHARS: Final[int] = 240
+NBA_STACK_PROBE_ENDPOINTS: Final[frozenset[str]] = frozenset(
+    {"common_all_players", "league_game_log"}
+)
+NBA_STACK_PROBE_TRANSPORT_ERROR_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "ConnectTimeout",
+        "ConnectionError",
+        "HTTPError",
+        "ReadTimeout",
+        "Timeout",
+        "TimeoutError",
+        "TransientError",
+    }
+)
+NBA_STACK_PROBE_CONTRACT_ERROR_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "ExtractionError",
+        "JSONDecodeError",
+        "NbaDbValidationError",
+        "ProbeContractError",
+        "ValidationError",
+    }
+)
+NBA_STACK_PROBE_RUNTIME_ERROR_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "AttributeError",
+        "ImportError",
+        "ModuleNotFoundError",
+        "RuntimeError",
+        "TypeError",
+    }
+)
+NBA_STACK_PROBE_ERROR_TYPES: Final[frozenset[str]] = (
+    NBA_STACK_PROBE_TRANSPORT_ERROR_TYPES
+    | NBA_STACK_PROBE_CONTRACT_ERROR_TYPES
+    | NBA_STACK_PROBE_RUNTIME_ERROR_TYPES
+)
+NBA_STACK_PROBE_FAILURE_KINDS: Final[frozenset[str]] = frozenset(
+    {"empty", "exception", "invalid_values", "missing_columns"}
+)
+NBA_PROBE_HEADERS: Final[tuple[tuple[str, str], ...]] = (
+    ("Accept", "application/json, text/plain, */*"),
+    ("Accept-Language", "en-US,en;q=0.5"),
+    ("Cache-Control", "no-cache"),
+    ("Connection", "keep-alive"),
+    ("Pragma", "no-cache"),
+    ("Referer", "https://www.nba.com/"),
+    (
+        "User-Agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+    ),
+)
 
 
 def env_int(name: str, default: int, *, minimum: int | None = None) -> int:
@@ -54,6 +115,7 @@ def run_command(
     timeout: float | None = None,
     capture_output: bool = True,
     check: bool = False,
+    termination_grace: float = 5.0,
 ) -> subprocess.CompletedProcess[str]:
     stdout_target: int = subprocess.PIPE if capture_output else subprocess.DEVNULL
     stderr_target: int = subprocess.PIPE if capture_output else subprocess.DEVNULL
@@ -67,14 +129,15 @@ def run_command(
     try:
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
+        termination_grace = max(0.05, termination_grace)
         with suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGTERM)
         try:
-            stdout, stderr = process.communicate(timeout=5)
+            stdout, stderr = process.communicate(timeout=termination_grace)
         except subprocess.TimeoutExpired:
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
-            stdout, stderr = process.communicate(timeout=5)
+            stdout, stderr = process.communicate(timeout=termination_grace)
         raise subprocess.TimeoutExpired(
             cmd=cmd,
             timeout=timeout if timeout is not None else 0.0,
@@ -148,6 +211,13 @@ class NordVpnConnectAction:
         self.creds_file = self.work_dir / "nordvpn-creds.json"
         self.servers_file = self.work_dir / "nordvpn-servers.json"
         self.verify_file = self.work_dir / "vpn-exit-ip.json"
+        self.nba_probe_file = self.work_dir / "nba-stats-probe.json"
+        self.nba_stack_probe_script = (
+            Path(__file__).resolve().parents[2] / "scripts" / "probe_discovery_transport.py"
+        )
+        self.project_root = Path(
+            os.environ.get("GITHUB_WORKSPACE", "") or self.nba_stack_probe_script.parents[2]
+        ).resolve()
         self.baseline_file = self.work_dir / "baseline-ip.json"
         self.auth_file = self.work_dir / "vpn-auth.txt"
 
@@ -169,6 +239,21 @@ class NordVpnConnectAction:
         self.require_full_tunnel = (
             os.environ.get("REQUIRE_FULL_TUNNEL", "true").strip().lower() == "true"
         )
+        self.nba_probe_enabled = (
+            os.environ.get("NBA_PROBE_ENABLED", "true").strip().lower() != "false"
+        )
+        self.nba_probe_url = (
+            os.environ.get("NBA_PROBE_URL", NBA_PROBE_DEFAULT_URL).strip() or NBA_PROBE_DEFAULT_URL
+        )
+        self.nba_probe_timeout = env_int("NBA_PROBE_TIMEOUT_SECONDS", 10, minimum=1)
+        self.nba_stack_probe_enabled = (
+            os.environ.get("NBA_STACK_PROBE_ENABLED", "true").strip().lower() != "false"
+        )
+        self.nba_stack_probe_timeout = env_int("NBA_STACK_PROBE_TIMEOUT_SECONDS", 18, minimum=2)
+        self.nba_stack_probe_season = (
+            os.environ.get("NBA_STACK_PROBE_SEASON", NBA_STACK_PROBE_DEFAULT_SEASON).strip()
+            or NBA_STACK_PROBE_DEFAULT_SEASON
+        )
         self.quarantined_servers = parse_quarantined_servers(
             os.environ.get("QUARANTINED_SERVERS_JSON", "[]")
         )
@@ -183,6 +268,12 @@ class NordVpnConnectAction:
         self.failed_servers: list[str] = []
         self.openvpn_process: subprocess.Popen[str] | None = None
         self.auth_source = ""
+        probes_enabled = self.nba_probe_enabled or self.nba_stack_probe_enabled
+        self.nba_probe_status = "not_run" if probes_enabled else "disabled"
+        self.nba_probe_diagnostic = (
+            "NBA probes have not run" if probes_enabled else "NBA probes disabled by configuration"
+        )
+        self.verification_failure = ""
 
     def remaining_budget(self) -> float:
         return self.deadline - time.monotonic()
@@ -202,6 +293,41 @@ class NordVpnConnectAction:
         if value and value not in values:
             values.append(value)
 
+    def probe_remaining_budget(self, attempt_deadline: float | None) -> float:
+        remaining = self.remaining_budget()
+        if attempt_deadline is not None:
+            remaining = min(remaining, attempt_deadline - time.monotonic())
+        return remaining
+
+    def probe_time_limits(
+        self,
+        configured_timeout: float,
+        attempt_deadline: float | None,
+    ) -> tuple[float, float] | None:
+        remaining = self.probe_remaining_budget(attempt_deadline)
+        cleanup_budget = NBA_PROBE_TERMINATION_GRACE_SECONDS * 2
+        if remaining <= cleanup_budget + 0.5:
+            return None
+        process_limit = min(float(configured_timeout) + 0.25, remaining - cleanup_budget)
+        request_limit = min(float(configured_timeout), max(0.5, process_limit - 0.25))
+        return request_limit, process_limit
+
+    def helper_timeout(
+        self,
+        *,
+        cap: float,
+        attempt_deadline: float | None,
+    ) -> float | None:
+        remaining = self.probe_remaining_budget(attempt_deadline)
+        cleanup_budget = NBA_PROBE_TERMINATION_GRACE_SECONDS * 2
+        if remaining <= cleanup_budget + 0.1:
+            return None
+        return min(cap, remaining - cleanup_budget)
+
+    @staticmethod
+    def format_seconds(value: float) -> str:
+        return f"{value:.3f}".rstrip("0").rstrip(".")
+
     def make_workdir_readable(self) -> None:
         if not self.work_dir.is_dir():
             return
@@ -218,6 +344,7 @@ class NordVpnConnectAction:
             self.creds_file,
             self.servers_file,
             self.verify_file,
+            self.nba_probe_file,
             self.baseline_file,
         ):
             with suppress(FileNotFoundError):
@@ -248,20 +375,32 @@ class NordVpnConnectAction:
         with suppress(FileNotFoundError):
             self.pid_file.unlink()
 
-    def retry_http_get(self, label: str, output_path: Path, url: str, *extra_args: str) -> bool:
+    def retry_http_get(
+        self,
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        attempt_deadline: float | None = None,
+        request_timeout: float = 30.0,
+    ) -> bool:
         attempts = 3
         for attempt in range(1, attempts + 1):
             self.ensure_budget(label)
-            remaining = self.remaining_budget()
-            connect_limit = max(1, min(10, int(remaining)))
-            request_limit = max(1, min(30, int(remaining)))
+            limits = self.probe_time_limits(request_timeout, attempt_deadline)
+            if limits is None:
+                print(f"::error::{label} skipped because the server-attempt budget is exhausted")
+                return False
+            request_limit, process_limit = limits
+            request_timeout_text = self.format_seconds(request_limit)
+            connect_timeout_text = self.format_seconds(min(10.0, request_limit))
             cmd = [
                 "curl",
                 "-sS",
                 "--connect-timeout",
-                str(connect_limit),
+                connect_timeout_text,
                 "--max-time",
-                str(request_limit),
+                request_timeout_text,
                 "-o",
                 str(output_path),
                 "-w",
@@ -272,9 +411,10 @@ class NordVpnConnectAction:
             try:
                 result = run_command(
                     cmd,
-                    timeout=request_limit + 5,
+                    timeout=process_limit,
                     capture_output=True,
                     check=False,
+                    termination_grace=NBA_PROBE_TERMINATION_GRACE_SECONDS,
                 )
             except subprocess.TimeoutExpired:
                 result = None
@@ -296,10 +436,10 @@ class NordVpnConnectAction:
                 print(f"::error::{label} failed after {attempt} attempts ({status_text})")
                 return False
             sleep_for = attempt * 5
-            if self.remaining_budget() <= sleep_for + 5:
+            if self.probe_remaining_budget(attempt_deadline) <= sleep_for + 1.0:
                 print(
                     f"::error::{label} failed ({status_text}) and retrying would "
-                    "exceed the VPN connection budget"
+                    "exceed the current operation budget"
                 )
                 return False
             print(
@@ -315,9 +455,16 @@ class NordVpnConnectAction:
     def initialization_complete(self) -> bool:
         return INIT_COMPLETE_PATTERN in read_text(self.log_file)
 
-    def get_interface(self) -> str:
+    def get_interface(self, *, attempt_deadline: float | None = None) -> str:
+        timeout = self.helper_timeout(cap=10.0, attempt_deadline=attempt_deadline)
+        if timeout is None:
+            return ""
         try:
-            result = run_command(["ip", "-o", "link", "show"], timeout=10)
+            result = run_command(
+                ["ip", "-o", "link", "show"],
+                timeout=timeout,
+                termination_grace=NBA_PROBE_TERMINATION_GRACE_SECONDS,
+            )
         except subprocess.TimeoutExpired:
             return ""
         for line in (result.stdout or "").splitlines():
@@ -326,20 +473,37 @@ class NordVpnConnectAction:
                 return match.group(1)
         return ""
 
-    def route_uses_interface(self, route_expr: str, interface: str) -> bool:
+    def route_uses_interface(
+        self,
+        route_expr: str,
+        interface: str,
+        *,
+        attempt_deadline: float | None = None,
+    ) -> bool:
+        timeout = self.helper_timeout(cap=10.0, attempt_deadline=attempt_deadline)
+        if timeout is None:
+            return False
         try:
-            result = run_command(["ip", "route", "show", route_expr], timeout=10)
+            result = run_command(
+                ["ip", "route", "show", route_expr],
+                timeout=timeout,
+                termination_grace=NBA_PROBE_TERMINATION_GRACE_SECONDS,
+            )
         except subprocess.TimeoutExpired:
             return False
         return f" dev {interface}" in (result.stdout or "")
 
-    def pid_alive(self, pid: str) -> bool:
+    def pid_alive(self, pid: str, *, attempt_deadline: float | None = None) -> bool:
+        timeout = self.helper_timeout(cap=10.0, attempt_deadline=attempt_deadline)
+        if timeout is None:
+            return False
         try:
             result = run_command(
                 ["sudo", "kill", "-0", pid],
-                timeout=10,
+                timeout=timeout,
                 capture_output=False,
                 check=False,
+                termination_grace=NBA_PROBE_TERMINATION_GRACE_SECONDS,
             )
         except (subprocess.TimeoutExpired, OSError):
             print(
@@ -401,8 +565,7 @@ class NordVpnConnectAction:
             "Baseline exit IP probe",
             self.baseline_file,
             self.verify_url,
-            "--max-time",
-            "10",
+            request_timeout=10.0,
         ):
             try:
                 payload = json.loads(self.baseline_file.read_text(encoding="utf-8"))
@@ -501,10 +664,8 @@ class NordVpnConnectAction:
         return True
 
     def recommendation_servers(self, technology: str) -> list[str]:
-        recommendation_limit = max(
-            self.server_limit,
-            self.server_limit + len(self.quarantined_servers),
-        )
+        excluded_servers = {*self.quarantined_servers, *self.failed_servers}
+        recommendation_limit = self.server_limit + len(excluded_servers)
         url = (
             "https://api.nordvpn.com/v1/servers/recommendations"
             f"?limit={recommendation_limit}"
@@ -532,9 +693,9 @@ class NordVpnConnectAction:
             seen.add(hostname)
             raw_servers.append(hostname)
 
-        filtered = [server for server in raw_servers if server not in self.quarantined_servers]
+        filtered = [server for server in raw_servers if server not in excluded_servers]
         if not filtered:
-            print(f"::warning::All recommended NordVPN servers are quarantined for {technology}")
+            print(f"::warning::All recommended NordVPN servers are excluded for {technology}")
             return []
 
         start_index = self.selector_index % len(filtered)
@@ -550,31 +711,304 @@ class NordVpnConnectAction:
             f"Unsupported NordVPN technology identifier: {technology}",
         )
 
-    def verify_connection(self, interface: str) -> bool:
+    @staticmethod
+    def nba_probe_content_valid(path: Path) -> bool:
+        try:
+            size = path.stat().st_size
+            if size <= 0 or size > NBA_PROBE_MAX_BYTES:
+                return False
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        if not isinstance(payload, dict):
+            return False
+
+        result_sets = payload.get("resultSets", payload.get("resultSet"))
+        if isinstance(result_sets, dict):
+            result_sets = [result_sets]
+        if not isinstance(result_sets, list) or not result_sets:
+            return False
+        for result_set in result_sets:
+            if not isinstance(result_set, dict) or result_set.get("name") != "TeamYears":
+                continue
+            headers = result_set.get("headers")
+            rows = result_set.get("rowSet")
+            if (
+                not isinstance(headers, list)
+                or not all(isinstance(header, str) for header in headers)
+                or not set(headers) >= NBA_PROBE_EXPECTED_HEADERS
+            ):
+                continue
+            if not isinstance(rows, list) or not rows:
+                continue
+            if any(isinstance(row, list) and len(row) == len(headers) for row in rows):
+                return True
+        return False
+
+    def probe_nba_stats(self, *, attempt_deadline: float | None = None) -> bool:
+        if not self.nba_probe_enabled:
+            self.nba_probe_status = "disabled"
+            self.nba_probe_diagnostic = "NBA Stats probe disabled by configuration"
+            print("::notice::NBA Stats API probe is disabled")
+            return True
+
+        limits = self.probe_time_limits(self.nba_probe_timeout, attempt_deadline)
+        if limits is None:
+            self.nba_probe_status = "budget_exhausted"
+            self.nba_probe_diagnostic = (
+                "NBA Stats probe skipped because the server-attempt budget is exhausted"
+            )
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+
+        request_limit, process_limit = limits
+        timeout_text = self.format_seconds(request_limit)
+        connect_timeout_text = self.format_seconds(min(5.0, request_limit))
+        with suppress(FileNotFoundError):
+            self.nba_probe_file.unlink()
+
+        cmd = [
+            "curl",
+            "-sS",
+            "--compressed",
+            "--connect-timeout",
+            connect_timeout_text,
+            "--max-time",
+            timeout_text,
+            "--max-filesize",
+            str(NBA_PROBE_MAX_BYTES),
+            "-o",
+            str(self.nba_probe_file),
+            "-w",
+            "%{http_code}",
+        ]
+        for name, value in NBA_PROBE_HEADERS:
+            cmd.extend(("-H", f"{name}: {value}"))
+        cmd.append(self.nba_probe_url)
+
+        try:
+            result = run_command(
+                cmd,
+                timeout=process_limit,
+                capture_output=True,
+                check=False,
+                termination_grace=NBA_PROBE_TERMINATION_GRACE_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            self.nba_probe_status = "timeout"
+            self.nba_probe_diagnostic = "NBA Stats probe timed out"
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+
+        http_code = (result.stdout or "").strip()
+        if result.returncode == 28:
+            self.nba_probe_status = "timeout"
+            self.nba_probe_diagnostic = "NBA Stats probe timed out"
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+        if result.returncode != 0:
+            self.nba_probe_status = "request_failed"
+            self.nba_probe_diagnostic = (
+                f"NBA Stats probe request failed with curl exit {result.returncode}"
+            )
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+        if re.fullmatch(r"2\d\d", http_code) is None:
+            safe_http_code = http_code if re.fullmatch(r"\d{3}", http_code) else "unknown"
+            self.nba_probe_status = "http_error"
+            self.nba_probe_diagnostic = f"NBA Stats probe returned HTTP {safe_http_code}"
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+        if not self.nba_probe_content_valid(self.nba_probe_file):
+            self.nba_probe_status = "invalid_content"
+            self.nba_probe_diagnostic = "NBA Stats probe returned malformed or unexpected content"
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+
+        self.nba_probe_status = "passed"
+        self.nba_probe_diagnostic = "NBA Stats response matched the expected JSON structure"
+        print("::notice::NBA Stats API probe passed")
+        return True
+
+    @staticmethod
+    def _safe_stack_probe_token(value: object, default: str) -> str:
+        token = re.sub(r"[^A-Za-z0-9_.-]", "_", str(value or ""))[:80]
+        return token or default
+
+    def probe_nba_discovery_stack(self, *, attempt_deadline: float | None = None) -> bool:
+        if not self.nba_stack_probe_enabled:
+            if not self.nba_probe_enabled:
+                self.nba_probe_status = "disabled"
+                self.nba_probe_diagnostic = "NBA probes disabled by configuration"
+            print("::notice::NBA discovery stack probe is disabled")
+            return True
+
+        limits = self.probe_time_limits(self.nba_stack_probe_timeout, attempt_deadline)
+        if limits is None:
+            self.nba_probe_status = "stack_budget_exhausted"
+            self.nba_probe_diagnostic = (
+                "NBA discovery stack probe skipped because the server-attempt budget is exhausted"
+            )
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+
+        request_limit, process_limit = limits
+        uv_path = shutil.which("uv")
+        if uv_path is None or not self.nba_stack_probe_script.is_file():
+            self.nba_probe_status = "stack_unavailable"
+            self.nba_probe_diagnostic = "NBA discovery stack probe runtime is unavailable"
+            raise ActionError("nba_stack_unavailable", self.nba_probe_diagnostic)
+
+        endpoint_timeout = max(1, min(10, int(max(1.0, (request_limit - 1.0) / 2))))
+        cmd = [
+            uv_path,
+            "run",
+            "--project",
+            str(self.project_root),
+            "--frozen",
+            "--quiet",
+            "python",
+            str(self.nba_stack_probe_script),
+            "--request-timeout-seconds",
+            str(endpoint_timeout),
+            "--season",
+            self.nba_stack_probe_season,
+        ]
+        try:
+            result = run_command(
+                cmd,
+                timeout=process_limit,
+                capture_output=True,
+                check=False,
+                termination_grace=NBA_PROBE_TERMINATION_GRACE_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            self.nba_probe_status = "stack_timeout"
+            self.nba_probe_diagnostic = "NBA discovery stack probe timed out"
+            print(f"::warning::{self.nba_probe_diagnostic}")
+            return False
+
+        payload: object = None
+        output_lines = (result.stdout or "").splitlines()
+        if output_lines:
+            try:
+                payload = json.loads(output_lines[-1][:4096])
+            except json.JSONDecodeError:
+                payload = None
+        if result.returncode != 0:
+            if not isinstance(payload, dict):
+                self.nba_probe_status = "stack_runtime_error"
+                self.nba_probe_diagnostic = (
+                    "NBA discovery stack probe failed without a valid child attestation"
+                )
+                raise ActionError("nba_stack_runtime_error", self.nba_probe_diagnostic)
+
+            endpoint = self._safe_stack_probe_token(payload.get("endpoint"), "unknown")
+            failure_kind = self._safe_stack_probe_token(payload.get("failure_kind"), "unknown")
+            error_type = self._safe_stack_probe_token(payload.get("error_type"), "ProbeFailed")
+            if (
+                payload.get("status") != "failed"
+                or endpoint not in NBA_STACK_PROBE_ENDPOINTS
+                or failure_kind not in NBA_STACK_PROBE_FAILURE_KINDS
+                or error_type not in NBA_STACK_PROBE_ERROR_TYPES
+            ):
+                self.nba_probe_status = "stack_invalid_attestation"
+                self.nba_probe_diagnostic = (
+                    "NBA discovery stack probe returned invalid failure attestation"
+                )
+                raise ActionError("nba_stack_invalid_attestation", self.nba_probe_diagnostic)
+
+            self.nba_probe_diagnostic = (
+                f"NBA discovery stack probe failed at {endpoint} ({error_type})"
+            )[:NBA_STACK_PROBE_DIAGNOSTIC_MAX_CHARS]
+            if failure_kind == "exception" and error_type in NBA_STACK_PROBE_TRANSPORT_ERROR_TYPES:
+                self.nba_probe_status = "stack_transport_failed"
+                print(f"::warning::{self.nba_probe_diagnostic}")
+                return False
+            if (
+                failure_kind in {"empty", "invalid_values", "missing_columns"}
+                or error_type in NBA_STACK_PROBE_CONTRACT_ERROR_TYPES
+            ):
+                self.nba_probe_status = "stack_contract_error"
+                raise ActionError("nba_stack_contract_error", self.nba_probe_diagnostic)
+
+            self.nba_probe_status = "stack_runtime_error"
+            raise ActionError("nba_stack_runtime_error", self.nba_probe_diagnostic)
+
+        if not isinstance(payload, dict) or payload.get("status") != "passed":
+            self.nba_probe_status = "stack_invalid_attestation"
+            self.nba_probe_diagnostic = "NBA discovery stack probe returned invalid attestation"
+            raise ActionError("nba_stack_invalid_attestation", self.nba_probe_diagnostic)
+        endpoints = payload.get("endpoints")
+        if not isinstance(endpoints, dict):
+            self.nba_probe_status = "stack_invalid_attestation"
+            self.nba_probe_diagnostic = "NBA discovery stack probe returned invalid attestation"
+            raise ActionError("nba_stack_invalid_attestation", self.nba_probe_diagnostic)
+        row_counts: dict[str, int] = {}
+        for endpoint in ("common_all_players", "league_game_log"):
+            endpoint_payload = endpoints.get(endpoint)
+            rows = endpoint_payload.get("rows") if isinstance(endpoint_payload, dict) else None
+            if isinstance(rows, bool) or not isinstance(rows, int) or rows <= 0:
+                self.nba_probe_status = "stack_invalid_attestation"
+                self.nba_probe_diagnostic = "NBA discovery stack probe returned invalid attestation"
+                raise ActionError("nba_stack_invalid_attestation", self.nba_probe_diagnostic)
+            row_counts[endpoint] = rows
+
+        self.nba_probe_status = "passed"
+        self.nba_probe_diagnostic = (
+            "NBA discovery stack passed "
+            f"(common_all_players={row_counts['common_all_players']} rows, "
+            f"league_game_log={row_counts['league_game_log']} rows)"
+        )[:NBA_STACK_PROBE_DIAGNOSTIC_MAX_CHARS]
+        print("::notice::NBA discovery stack probe passed")
+        return True
+
+    def verify_connection(
+        self,
+        interface: str,
+        *,
+        attempt_deadline: float | None = None,
+    ) -> bool:
+        self.verification_failure = ""
         route_ok = True
         if self.require_full_tunnel:
-            route_ok = self.route_uses_interface("default", interface) or (
-                self.route_uses_interface("0.0.0.0/1", interface)
-                and self.route_uses_interface("128.0.0.0/1", interface)
+            route_ok = self.route_uses_interface(
+                "default", interface, attempt_deadline=attempt_deadline
+            ) or (
+                self.route_uses_interface("0.0.0.0/1", interface, attempt_deadline=attempt_deadline)
+                and self.route_uses_interface(
+                    "128.0.0.0/1", interface, attempt_deadline=attempt_deadline
+                )
             )
         if not route_ok:
+            self.verification_failure = "route"
             return False
         if not self.retry_http_get(
             "VPN verification probe",
             self.verify_file,
             self.verify_url,
-            "--max-time",
-            "10",
+            attempt_deadline=attempt_deadline,
+            request_timeout=10.0,
         ):
+            self.verification_failure = "exit_ip"
             return False
         try:
             payload = json.loads(self.verify_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
+            self.verification_failure = "exit_ip"
             return False
         exit_ip = str(payload.get("ip") or "").strip()
         if not exit_ip:
+            self.verification_failure = "exit_ip"
             return False
         if self.baseline_ip and exit_ip == self.baseline_ip:
+            self.verification_failure = "exit_ip"
+            return False
+        if not self.probe_nba_stats(attempt_deadline=attempt_deadline):
+            self.verification_failure = "nba_probe"
+            return False
+        if not self.probe_nba_discovery_stack(attempt_deadline=attempt_deadline):
+            self.verification_failure = "nba_probe"
             return False
         self.exit_ip = exit_ip
         return True
@@ -582,8 +1016,16 @@ class NordVpnConnectAction:
     def attempt_server(self, server: str, technology: str) -> bool:
         print(f"::notice::Attempting NordVPN server {server} over {technology}")
         self.append_unique(self.attempted_servers, server)
+        self.verification_failure = ""
+        attempt_deadline = min(time.monotonic() + self.connect_timeout, self.deadline)
         config_path = self.work_dir / f"{server}.ovpn"
-        for path in (self.pid_file, self.verify_file, self.log_file, config_path):
+        for path in (
+            self.pid_file,
+            self.verify_file,
+            self.nba_probe_file,
+            self.log_file,
+            config_path,
+        ):
             with suppress(FileNotFoundError):
                 path.unlink()
 
@@ -591,6 +1033,7 @@ class NordVpnConnectAction:
             f"NordVPN OpenVPN config download for {server} ({technology})",
             config_path,
             self.config_url(server, technology),
+            attempt_deadline=attempt_deadline,
         ):
             self.append_unique(self.failed_servers, server)
             print(f"::warning::Skipping server {server} because the configuration download failed")
@@ -637,8 +1080,8 @@ class NordVpnConnectAction:
             log_handle.close()
 
         self.make_workdir_readable()
-        attempt_deadline = min(time.monotonic() + self.connect_timeout, self.deadline)
         auth_failed = False
+        nba_probe_failed = False
 
         while time.monotonic() < attempt_deadline:
             if self.openvpn_process is None:
@@ -671,26 +1114,43 @@ class NordVpnConnectAction:
                 if self.pid_file.exists()
                 else ""
             )
-            if pid and self.pid_alive(pid) and self.initialization_complete():
-                interface = self.get_interface()
-                if interface and self.verify_connection(interface):
+            if (
+                pid
+                and self.pid_alive(pid, attempt_deadline=attempt_deadline)
+                and self.initialization_complete()
+            ):
+                interface = self.get_interface(attempt_deadline=attempt_deadline)
+                if interface and self.verify_connection(
+                    interface,
+                    attempt_deadline=attempt_deadline,
+                ):
                     self.server = server
                     self.interface = interface
                     self.pid = pid
                     self.status = "connected"
                     return True
+                if self.verification_failure == "nba_probe":
+                    nba_probe_failed = True
+                    break
 
-            time.sleep(min(2.0, max(0.5, attempt_deadline - time.monotonic())))
+            time.sleep(min(2.0, max(0.0, attempt_deadline - time.monotonic())))
 
         self.append_unique(self.failed_servers, server)
         if auth_failed:
             self.cleanup_openvpn()
             return False
 
-        print(
-            f"::warning::VPN verification failed for {server} over {technology}; "
-            "trying the next recommended server"
-        )
+        if nba_probe_failed:
+            print(
+                f"::warning::NBA probes rejected {server} over {technology} "
+                f"({self.nba_probe_status}: {self.nba_probe_diagnostic}); "
+                "quarantining it for this run and trying the next recommended server"
+            )
+        else:
+            print(
+                f"::warning::VPN verification failed for {server} over {technology}; "
+                "trying the next recommended server"
+            )
         self.make_workdir_readable()
         if self.log_file.exists():
             run_quiet(["sudo", "tail", "-20", str(self.log_file)], timeout=10)
@@ -733,15 +1193,16 @@ class NordVpnConnectAction:
                     except ActionError as exc:
                         attempted_network = True
                         self.status = exc.status
-                        print(
-                            "::warning::"
-                            f"{exc.message}; trying the next recommended server if budget remains"
-                        )
                         self.make_workdir_readable()
                         self.cleanup_openvpn()
                         if exc.status in {"vpn_connect_timeout", "vpn_network_error"} and (
                             self.remaining_budget() > 0
                         ):
+                            print(
+                                "::warning::"
+                                f"{exc.message}; trying the next recommended server "
+                                "if budget remains"
+                            )
                             continue
                         raise
                     attempted_network = True
@@ -784,6 +1245,8 @@ class NordVpnConnectAction:
     def finalize(self) -> None:
         self.cleanup_sensitive()
         write_output("status", self.status)
+        write_output("nba-probe-status", self.nba_probe_status)
+        write_output("nba-probe-diagnostic", self.nba_probe_diagnostic)
         write_output("attempted-servers-json", json.dumps(self.attempted_servers))
         write_output("failed-servers-json", json.dumps(self.failed_servers))
 
@@ -796,6 +1259,8 @@ def main() -> int:
     except ActionError as exc:
         if action is None:
             write_output("status", exc.status)
+            write_output("nba-probe-status", "not_run")
+            write_output("nba-probe-diagnostic", "NBA Stats probe did not run")
             write_output("attempted-servers-json", "[]")
             write_output("failed-servers-json", "[]")
             print(f"::error::{exc.message}")
@@ -809,6 +1274,8 @@ def main() -> int:
         message = f"NordVPN action crashed unexpectedly: {exc}"
         if action is None:
             write_output("status", "vpn_network_error")
+            write_output("nba-probe-status", "not_run")
+            write_output("nba-probe-diagnostic", "NBA Stats probe did not run")
             write_output("attempted-servers-json", "[]")
             write_output("failed-servers-json", "[]")
             print(f"::error::{message}")
