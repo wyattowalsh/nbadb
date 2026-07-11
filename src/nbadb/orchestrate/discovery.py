@@ -3,12 +3,11 @@ from __future__ import annotations
 import asyncio
 import random
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol, cast
 
 import polars as pl
 from aiolimiter import AsyncLimiter
 from loguru import logger
-from nba_api.stats.library.http import NBAStatsHTTP
 
 from nbadb.core.config import get_settings
 from nbadb.core.errors import ExtractionError, NbaDbError, TransientError
@@ -30,12 +29,33 @@ class _PatternProgress(Protocol):
     def advance_pattern(self, *, success: bool = True) -> None: ...
 
 
+class _TimeoutAwareExtractor(Protocol):
+    _request_timeout_override: int | None
+
+
 _RETRY_ATTEMPTS = 3
 _RETRY_DELAY = 2.0  # seconds between retries
 _DISCOVERY_CONCURRENCY = 10
 _CONCURRENT_DISCOVERY_ATTEMPTS_CAP = 1
 _CONCURRENT_DISCOVERY_TIMEOUT = (3.05, 10.0)
-_SERIAL_DISCOVERY_RECOVERY_WAVES = 2
+_RECOVERY_DISCOVERY_TIMEOUT = (3.05, 30.0)
+_BROAD_OUTAGE_CANARY_ATTEMPTS_CAP = 3
+
+type _DiscoveryFailureKind = Literal["transport", "response", "permanent", "no_data"]
+
+
+class _DiscoveryResponseError(Exception):
+    """Retryable failure proving that a discovery response cannot cover its scope."""
+
+
+def _is_positive_request_timeout(value: object) -> bool:
+    if isinstance(value, (int, float)):
+        return value > 0
+    return (
+        isinstance(value, tuple)
+        and len(value) == 2
+        and all(isinstance(part, (int, float)) and part > 0 for part in value)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +65,7 @@ class GameDiscoveryResult:
     requested_combos: frozenset[tuple[str, str]]
     covered_combos: frozenset[tuple[str, str]]
     frames_by_combo: dict[tuple[str, str], pl.DataFrame] = field(default_factory=dict)
+    failures_by_combo: dict[tuple[str, str], _DiscoveryFailureKind] = field(default_factory=dict)
 
     @property
     def is_complete(self) -> bool:
@@ -56,15 +77,33 @@ class PlayerTeamSeasonDiscoveryResult:
     params: list[dict[str, int | str]]
     requested_pairs: frozenset[tuple[str, str]]
     covered_pairs: frozenset[tuple[str, str]]
+    failures_by_pair: dict[tuple[str, str], _DiscoveryFailureKind] = field(default_factory=dict)
 
     @property
     def is_complete(self) -> bool:
         return self.requested_pairs <= self.covered_pairs
 
 
-def _reset_nba_stats_session() -> None:
-    """Drop the shared nba_api session so recovery starts from a fresh client."""
-    NBAStatsHTTP.set_session(None)
+@dataclass(frozen=True, slots=True)
+class PlayerIdDiscoveryResult:
+    ids: list[int]
+    requested_season: str | None
+    source: str | None = None
+    failure_kind: _DiscoveryFailureKind | None = None
+    failures_by_source: dict[str, _DiscoveryFailureKind] = field(default_factory=dict)
+
+    @property
+    def is_complete(self) -> bool:
+        return self.failure_kind is None
+
+
+def _dominant_failure_kind(
+    failures: dict[str, _DiscoveryFailureKind],
+) -> _DiscoveryFailureKind:
+    for failure_kind in ("permanent", "transport", "response", "no_data"):
+        if failure_kind in failures.values():
+            return failure_kind
+    return "no_data"
 
 
 def _season_start_year(season: str | None) -> int | None:
@@ -96,6 +135,10 @@ def _filter_player_year_window(df: pl.DataFrame, season: str | None) -> tuple[pl
 async def _extract_with_retry(
     extractor: object,
     label: str,
+    validate: Callable[[pl.DataFrame], pl.DataFrame] | None = None,
+    attempt_offset: int = 0,
+    attempt_total: int | None = None,
+    /,
     *,
     thread_pool: ThreadPoolExecutor | None = None,
     attempts: int | None = None,
@@ -109,56 +152,79 @@ async def _extract_with_retry(
     dispatched to that pool via ``loop.run_in_executor``, reusing the
     same ``ThreadPoolExecutor`` that :class:`ExtractorRunner` owns.
     Falls back to ``asyncio.to_thread`` when no pool is given.
+
+    The optional validator runs inside the retry loop, so malformed responses
+    consume real attempts. The offset and total keep attempt logs truthful when
+    one configured budget spans the concurrent fast pass and serial recovery.
     """
     import polars as pl
 
     attempts = _RETRY_ATTEMPTS if attempts is None else max(1, attempts)
     base_delay = _RETRY_DELAY if base_delay is None else base_delay
+    attempt_offset = max(0, attempt_offset)
+    attempt_total = max(attempt_offset + attempts, attempt_total or attempts)
+    request_kwargs = dict(kwargs)
+    request_timeout = request_kwargs.get("timeout")
+    if not _is_positive_request_timeout(request_timeout):
+        request_timeout = _RECOVERY_DISCOVERY_TIMEOUT
+        request_kwargs["timeout"] = request_timeout
+    if hasattr(extractor, "_request_timeout_override"):
+        read_timeout = (
+            request_timeout[-1] if isinstance(request_timeout, tuple) else request_timeout
+        )
+        if isinstance(read_timeout, (int, float)) and read_timeout > 0:
+            cast("_TimeoutAwareExtractor", extractor)._request_timeout_override = max(
+                1, int(read_timeout)
+            )
 
     for attempt in range(1, attempts + 1):
         try:
             loop = asyncio.get_running_loop()
             if rate_limiter is None:
                 df: pl.DataFrame = await loop.run_in_executor(
-                    thread_pool, lambda: _sync_extract(extractor, **kwargs)
+                    thread_pool, lambda: _sync_extract(extractor, **request_kwargs)
                 )
             else:
                 async with rate_limiter:
                     df = await loop.run_in_executor(
-                        thread_pool, lambda: _sync_extract(extractor, **kwargs)
+                        thread_pool, lambda: _sync_extract(extractor, **request_kwargs)
                     )
-            return df
+            return validate(df) if validate is not None else df
         except Exception as exc:
-            if isinstance(exc, TransientError):
-                retryable = True
-            elif isinstance(exc, NbaDbError):
+            if isinstance(exc, NbaDbError) and not isinstance(exc, TransientError):
                 raise
-            elif is_retryable_error(exc):
-                retryable = True
-            else:
+            retryable = isinstance(exc, (_DiscoveryResponseError, TransientError)) or (
+                is_retryable_error(exc)
+            )
+            if not retryable:
                 raise ExtractionError(f"{label}: extraction failed") from exc
 
-            if not retryable:
-                raise
+            overall_attempt = attempt_offset + attempt
+            failure = (
+                f"response shape: {exc}"
+                if isinstance(exc, _DiscoveryResponseError)
+                else type(exc).__name__
+            )
             if attempt < attempts:
                 delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
                 logger.warning(
                     "{}: attempt {}/{} failed ({}), retrying in {:.0f}s",
                     label,
-                    attempt,
-                    attempts,
-                    type(exc).__name__,
+                    overall_attempt,
+                    attempt_total,
+                    failure,
                     delay,
                 )
                 await asyncio.sleep(delay)
             else:
                 logger.error(
-                    "{}: all {} attempts failed: {}",
+                    "{}: attempt {}/{} failed ({})",
                     label,
-                    attempts,
-                    type(exc).__name__,
+                    overall_attempt,
+                    attempt_total,
+                    failure,
                 )
-                if isinstance(exc, TransientError):
+                if isinstance(exc, (_DiscoveryResponseError, TransientError)):
                     raise
                 raise TransientError(f"{label}: transient extraction failure") from exc
     return pl.DataFrame()  # unreachable, satisfies type checker
@@ -209,12 +275,16 @@ class EntityDiscovery:
         if season_types is None:
             season_types = ["Regular Season"]
 
-        extractor_cls = self._registry.get("league_game_log")
-
-        combos = [(s, st) for s in seasons for st in season_types]
+        combos = list(
+            dict.fromkeys(
+                (season, season_type) for season in seasons for season_type in season_types
+            )
+        )
+        requested_combos = frozenset(combos)
         if on_progress is not None:
             on_progress.start_pattern(f"game discovery ({len(combos)} combos)", len(combos))
 
+        extractor_cls = self._registry.get("league_game_log")
         semaphore = asyncio.Semaphore(self._discovery_concurrency)
 
         async def _fetch(
@@ -224,57 +294,90 @@ class EntityDiscovery:
             progress: _PatternProgress | None,
             use_semaphore: bool,
             phase: str,
-            attempts: int | None = None,
-        ) -> tuple[tuple[str, str], pl.DataFrame | None, bool]:
+            attempts: int,
+            attempt_offset: int,
+        ) -> tuple[tuple[str, str], pl.DataFrame | None, _DiscoveryFailureKind | None]:
             label = f"league_game_log({season}, {season_type})"
 
-            async def _run() -> tuple[tuple[str, str], pl.DataFrame | None, bool]:
+            def _validate_response(df: pl.DataFrame) -> pl.DataFrame:
+                required_columns = {"game_id", "game_date"}
+                missing_columns = required_columns - set(df.columns)
+                if missing_columns:
+                    raise _DiscoveryResponseError(
+                        f"missing required columns {sorted(missing_columns)}"
+                    )
+                if df.schema["game_id"] != pl.String:
+                    raise _DiscoveryResponseError("game_id must be String")
+                if df.schema["game_date"].base_type() not in {
+                    pl.String,
+                    pl.Date,
+                    pl.Datetime,
+                }:
+                    raise _DiscoveryResponseError("game_date must be String, Date, or Datetime")
+                if df.get_column("game_id").null_count() or (
+                    not df.is_empty()
+                    and df.select(pl.col("game_id").str.strip_chars().eq("").any()).item()
+                ):
+                    raise _DiscoveryResponseError("game_id must contain non-empty values")
+                if df.get_column("game_date").null_count():
+                    raise _DiscoveryResponseError("game_date must not contain nulls")
+                if (
+                    df.schema["game_date"] == pl.String
+                    and not df.is_empty()
+                    and df.select(pl.col("game_date").str.strip_chars().eq("").any()).item()
+                ):
+                    raise _DiscoveryResponseError("game_date must contain non-empty values")
+                return df
+
+            async def _run() -> tuple[
+                tuple[str, str], pl.DataFrame | None, _DiscoveryFailureKind | None
+            ]:
                 logger.info("{} game IDs: {}", phase, label)
-                if phase == "recovering":
-                    _reset_nba_stats_session()
                 extractor = extractor_cls()
                 request_params: dict[str, object] = {
                     "season": season,
                     "season_type": season_type,
+                    "timeout": (
+                        _RECOVERY_DISCOVERY_TIMEOUT
+                        if phase == "recovering"
+                        else _CONCURRENT_DISCOVERY_TIMEOUT
+                    ),
                 }
-                if phase != "recovering":
-                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT
                 try:
                     df = await _extract_with_retry(
                         extractor,
                         label,
+                        _validate_response,
+                        attempt_offset,
+                        self._retry_attempts,
                         thread_pool=self._thread_pool,
-                        attempts=(
-                            attempts
-                            if attempts is not None
-                            else (
-                                self._retry_attempts
-                                if phase == "recovering"
-                                else self._concurrent_retry_attempts
-                            )
-                        ),
+                        attempts=attempts,
                         base_delay=self._retry_delay,
                         rate_limiter=self._rate_limiter,
                         **request_params,
                     )
-                except NbaDbError as exc:
-                    message = (
-                        "failed to recover game log for {}: {}"
-                        if phase == "recovering"
-                        else "failed to extract game log for {}: {}"
-                    )
-                    logger.error(message, label, type(exc).__name__)
+                except _DiscoveryResponseError:
+                    failure: _DiscoveryFailureKind = "response"
+                except TransientError:
+                    failure = "transport"
+                except NbaDbError:
+                    failure = "permanent"
+                else:
                     if progress is not None:
-                        progress.advance_pattern(success=False)
-                    return (season, season_type), None, False
+                        progress.advance_pattern(success=True)
+                    if phase == "recovering":
+                        logger.info("recovered game log for {}", label)
+                    return (season, season_type), df, None
 
                 if progress is not None:
-                    progress.advance_pattern(success=True)
-                if phase == "recovering":
-                    logger.info("recovered game log for {}", label)
-                if df.is_empty():
-                    return (season, season_type), df, True
-                return (season, season_type), df, True
+                    progress.advance_pattern(success=False)
+                logger.error(
+                    "{} game log failed for {} ({})",
+                    phase,
+                    label,
+                    failure,
+                )
+                return (season, season_type), None, failure
 
             if not use_semaphore:
                 return await _run()
@@ -290,100 +393,129 @@ class EntityDiscovery:
                     progress=on_progress,
                     use_semaphore=True,
                     phase="discovering",
+                    attempts=self._concurrent_retry_attempts,
+                    attempt_offset=0,
                 )
                 for season, season_type in combos
             ]
         )
 
         combo_frames: dict[tuple[str, str], pl.DataFrame] = {
-            combo: df for combo, df, success in initial_results if success and df is not None
+            combo: df
+            for combo, df, failure in initial_results
+            if failure is None and df is not None
         }
-        failed_combos = [combo for combo, _df, success in initial_results if not success]
+        failures: dict[tuple[str, str], _DiscoveryFailureKind] = {}
+        for combo, _df, failure in initial_results:
+            if failure is not None:
+                failures[combo] = failure
 
-        if failed_combos:
-            unresolved_combos = failed_combos
-            total_recovered = 0
-            remaining_recovery_attempts = self._retry_attempts
+        retryable_combos = [
+            combo for combo in combos if failures.get(combo) in {"transport", "response"}
+        ]
+        remaining_attempts = {
+            combo: self._retry_attempts - self._concurrent_retry_attempts
+            for combo in retryable_combos
+        }
 
-            for wave in range(1, _SERIAL_DISCOVERY_RECOVERY_WAVES + 1):
-                if not unresolved_combos or remaining_recovery_attempts <= 0:
-                    break
-
-                wave_attempts = max(
-                    1,
-                    remaining_recovery_attempts - (_SERIAL_DISCOVERY_RECOVERY_WAVES - wave),
+        broad_failure_kinds = set(failures.values())
+        broad_systemic_failure = (
+            len(combos) > 1
+            and len(failures) == len(combos)
+            and len(broad_failure_kinds) == 1
+            and broad_failure_kinds <= {"transport", "response"}
+        )
+        if broad_systemic_failure and remaining_attempts[retryable_combos[0]] > 0:
+            canary = retryable_combos[0]
+            systemic_failure_kind = failures[canary]
+            canary_attempts = min(
+                _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
+                remaining_attempts[canary],
+            )
+            logger.warning(
+                ("checking broad game discovery {} failure with {} bounded canary attempts: {}"),
+                systemic_failure_kind,
+                canary_attempts,
+                canary,
+            )
+            _combo, df, failure = await _fetch(
+                *canary,
+                progress=None,
+                use_semaphore=False,
+                phase="canary",
+                attempts=canary_attempts,
+                attempt_offset=self._concurrent_retry_attempts,
+            )
+            remaining_attempts[canary] -= canary_attempts
+            if failure is None and df is not None:
+                combo_frames[canary] = df
+                failures.pop(canary, None)
+                retryable_combos.remove(canary)
+            elif failure == "permanent":
+                failures[canary] = failure
+                retryable_combos.remove(canary)
+            elif failure in {"transport", "response"}:
+                failures[canary] = failure
+                logger.error(
+                    (
+                        "game discovery {} canary failed; skipping recovery for {} "
+                        "systemically affected scopes"
+                    ),
+                    failure,
+                    len(retryable_combos),
                 )
-                remaining_recovery_attempts -= wave_attempts
+                retryable_combos = []
+            elif failure is not None:
+                failures[canary] = failure
 
-                if wave == 1:
-                    logger.warning(
-                        "retrying {} failed game discovery combos sequentially ({} attempts each)",
-                        len(unresolved_combos),
-                        wave_attempts,
-                    )
-                    progress_label = f"game discovery recovery ({len(unresolved_combos)} combos)"
-                else:
-                    logger.warning(
-                        (
-                            "retrying {} unrecovered game discovery combos sequentially "
-                            "(wave {}/{}, {} attempts each)"
-                        ),
-                        len(unresolved_combos),
-                        wave,
-                        _SERIAL_DISCOVERY_RECOVERY_WAVES,
-                        wave_attempts,
-                    )
-                    progress_label = (
-                        f"game discovery recovery wave {wave} ({len(unresolved_combos)} combos)"
-                    )
-
-                if on_progress is not None:
-                    on_progress.start_pattern(progress_label, len(unresolved_combos))
-
-                next_unresolved: list[tuple[str, str]] = []
-                for season, season_type in unresolved_combos:
-                    _combo, df, success = await _fetch(
-                        season,
-                        season_type,
-                        progress=on_progress,
-                        use_semaphore=False,
-                        phase="recovering",
-                        attempts=wave_attempts,
-                    )
-                    if success:
-                        total_recovered += 1
-                        if df is not None:
-                            combo_frames[(season, season_type)] = df
-                    else:
-                        next_unresolved.append((season, season_type))
-
-                unresolved_combos = next_unresolved
-                if not unresolved_combos:
-                    logger.info(
-                        "recovered all {} failed game discovery combos",
-                        total_recovered,
-                    )
-                elif wave < _SERIAL_DISCOVERY_RECOVERY_WAVES:
-                    logger.warning(
-                        "game discovery recovery wave {} left {} unresolved combos",
-                        wave,
-                        len(unresolved_combos),
-                    )
-
-            if unresolved_combos:
-                logger.warning(
-                    "game discovery finished with {} unrecovered combo failures: {}",
-                    len(unresolved_combos),
-                    unresolved_combos,
+        recovery_combos = [
+            combo for combo in retryable_combos if remaining_attempts.get(combo, 0) > 0
+        ]
+        if recovery_combos:
+            logger.warning(
+                "retrying {} failed game discovery combos sequentially within remaining budgets",
+                len(recovery_combos),
+            )
+            if on_progress is not None:
+                on_progress.start_pattern(
+                    f"game discovery recovery ({len(recovery_combos)} combos)",
+                    len(recovery_combos),
                 )
+
+            for season, season_type in recovery_combos:
+                combo = (season, season_type)
+                attempts = remaining_attempts[combo]
+                _combo, df, failure = await _fetch(
+                    season,
+                    season_type,
+                    progress=on_progress,
+                    use_semaphore=False,
+                    phase="recovering",
+                    attempts=attempts,
+                    attempt_offset=self._retry_attempts - attempts,
+                )
+                if failure is None and df is not None:
+                    combo_frames[combo] = df
+                    failures.pop(combo, None)
+                elif failure is not None:
+                    failures[combo] = failure
+
+        unresolved_combos = [combo for combo in combos if combo not in combo_frames]
+        if unresolved_combos:
+            logger.warning(
+                "game discovery finished with {} unrecovered combo failures: {}",
+                len(unresolved_combos),
+                unresolved_combos,
+            )
 
         if not combo_frames:
             logger.warning("no game discovery combos completed successfully")
             return GameDiscoveryResult(
                 game_ids=[],
                 raw=pl.DataFrame(),
-                requested_combos=frozenset(combos),
+                requested_combos=requested_combos,
                 covered_combos=frozenset(),
+                failures_by_combo=dict(failures),
             )
 
         non_empty_frames = [df for df in combo_frames.values() if not df.is_empty()]
@@ -403,15 +535,13 @@ class EntityDiscovery:
             len(combo_frames),
             len(combos),
         )
-        covered_combos = {combo for combo in combos if combo not in failed_combos}
-        if failed_combos:
-            covered_combos = {combo for combo in combos if combo not in unresolved_combos}
         return GameDiscoveryResult(
             game_ids=game_ids,
             raw=combined,
-            requested_combos=frozenset(combos),
-            covered_combos=frozenset(covered_combos),
+            requested_combos=requested_combos,
+            covered_combos=frozenset(combo_frames),
             frames_by_combo=combo_frames,
+            failures_by_combo=dict(failures),
         )
 
     async def discover_game_ids(
@@ -482,9 +612,9 @@ class EntityDiscovery:
         self,
         endpoint: str,
         staging_key: str,
-        season: str,
+        season: str | None,
         params: dict[str, object],
-    ) -> list[int] | None:
+    ) -> PlayerIdDiscoveryResult:
         extractor_cls = self._registry.get(endpoint)
         extractor = extractor_cls()
 
@@ -498,35 +628,68 @@ class EntityDiscovery:
                 rate_limiter=self._rate_limiter,
                 **params,
             )
+        except _DiscoveryResponseError:
+            failure_kind: _DiscoveryFailureKind = "response"
+        except TransientError:
+            failure_kind = "transport"
         except NbaDbError as exc:
+            failure_kind = "permanent"
             logger.error(
                 "failed to discover {} IDs for {}: {}",
                 staging_key,
-                season,
+                season or "all seasons",
                 type(exc).__name__,
             )
-            return None
+        else:
+            failure_kind = "no_data"
+            if df.is_empty():
+                logger.warning("no {} data returned for {}", staging_key, season or "all seasons")
+            elif "person_id" not in df.columns:
+                failure_kind = "response"
+                logger.warning(
+                    "{} missing person_id column for {}",
+                    staging_key,
+                    season or "all seasons",
+                )
+            else:
+                filtered, usable = _filter_player_year_window(df, season)
+                if not usable:
+                    failure_kind = "response"
+                    logger.warning(
+                        "{} has no usable from_year/to_year metadata for {}; "
+                        "cannot season-scope IDs",
+                        staging_key,
+                        season,
+                    )
+                else:
+                    entity_ids: list[int] = (
+                        filtered.get_column("person_id").unique().sort().to_list()
+                    )
+                    if entity_ids:
+                        logger.info(
+                            "discovered {} {} IDs for {}",
+                            len(entity_ids),
+                            staging_key,
+                            season or "all seasons",
+                        )
+                        return PlayerIdDiscoveryResult(
+                            ids=entity_ids,
+                            requested_season=season,
+                            source=staging_key,
+                        )
+                    logger.warning(
+                        "no season-scoped {} IDs returned for {}",
+                        staging_key,
+                        season or "all seasons",
+                    )
 
-        if df.is_empty():
-            logger.warning("no {} data returned for {}", staging_key, season)
-            return []
-
-        if "person_id" not in df.columns:
-            logger.warning("{} missing person_id column for {}", staging_key, season)
-            return None
-
-        filtered, usable = _filter_player_year_window(df, season)
-        if not usable:
-            logger.warning(
-                "{} has no usable from_year/to_year metadata for {}; cannot season-scope IDs",
-                staging_key,
-                season,
-            )
-            return None
-
-        entity_ids: list[int] = filtered.get_column("person_id").unique().sort().to_list()
-        logger.info("discovered {} {} IDs for {}", len(entity_ids), staging_key, season)
-        return entity_ids
+        return PlayerIdDiscoveryResult(
+            ids=[],
+            requested_season=season,
+            source=staging_key,
+            failure_kind=failure_kind,
+            failures_by_source={staging_key: failure_kind},
+        )
 
     async def discover_player_ids(self, season: str | None = None) -> list[int]:
         """Get active player IDs from common_all_players."""
@@ -547,47 +710,62 @@ class EntityDiscovery:
             filter_fn=_active_only,
         )
 
-    async def discover_all_player_ids(self, season: str | None = None) -> list[int]:
-        """Get ALL player IDs (active + historical) from common_all_players.
+    async def discover_all_player_ids_result(
+        self,
+        season: str | None = None,
+    ) -> PlayerIdDiscoveryResult:
+        """Get structured ALL-player discovery evidence for one season or all history.
 
         Use this for ``run_init()`` to ensure historical players are included
-        in player-level extraction.
+        in player-level extraction. The legacy list-returning method delegates
+        here so existing callers retain their interface.
         """
-        if season:
-            common_ids = await self._discover_season_player_ids_from_endpoint(
-                endpoint="common_all_players",
-                staging_key="common_all_players",
-                season=season,
-                params={
-                    "allow_static_fallback": False,
-                    "timeout": _CONCURRENT_DISCOVERY_TIMEOUT,
-                },
-            )
-            if common_ids is not None:
-                return common_ids
-
-            logger.warning(
-                "falling back to player_index for season-scoped player discovery ({})",
-                season,
-            )
-            player_index_ids = await self._discover_season_player_ids_from_endpoint(
-                endpoint="player_index",
-                staging_key="player_index",
-                season=season,
-                params={"season": season, "timeout": _CONCURRENT_DISCOVERY_TIMEOUT},
-            )
-            if player_index_ids is not None:
-                return player_index_ids
-
-            logger.error("failed to season-scope player discovery for {}", season)
-            return []
-
-        return await self._discover_entity_ids(
+        common_result = await self._discover_season_player_ids_from_endpoint(
             endpoint="common_all_players",
             staging_key="common_all_players",
-            id_column="person_id",
-            params={},
+            season=season,
+            params={
+                **({"allow_static_fallback": False} if season else {}),
+                "timeout": _CONCURRENT_DISCOVERY_TIMEOUT,
+            },
         )
+        if common_result.is_complete or common_result.failure_kind == "no_data" or not season:
+            return common_result
+
+        logger.warning(
+            "falling back to player_index for season-scoped player discovery ({})",
+            season,
+        )
+        player_index_result = await self._discover_season_player_ids_from_endpoint(
+            endpoint="player_index",
+            staging_key="player_index",
+            season=season,
+            params={"season": season, "timeout": _CONCURRENT_DISCOVERY_TIMEOUT},
+        )
+        if player_index_result.is_complete:
+            return player_index_result
+
+        failures_by_source = {
+            **common_result.failures_by_source,
+            **player_index_result.failures_by_source,
+        }
+        failure_kind = _dominant_failure_kind(failures_by_source)
+        logger.error(
+            "failed to season-scope player discovery for {} ({})",
+            season,
+            failure_kind,
+        )
+        return PlayerIdDiscoveryResult(
+            ids=[],
+            requested_season=season,
+            failure_kind=failure_kind,
+            failures_by_source=failures_by_source,
+        )
+
+    async def discover_all_player_ids(self, season: str | None = None) -> list[int]:
+        """Get ALL player IDs while preserving the historical list-returning API."""
+        result = await self.discover_all_player_ids_result(season=season)
+        return result.ids
 
     async def discover_all_player_ids_by_season(self, seasons: list[str]) -> dict[str, list[int]]:
         """Get historical player IDs for many seasons from one player directory call.
@@ -668,7 +846,13 @@ class EntityDiscovery:
                 requested_pairs=frozenset(),
                 covered_pairs=frozenset(),
             )
-        resolved_season_types = list(season_types or ["Regular Season"])
+        unique_seasons = list(dict.fromkeys(seasons))
+        resolved_season_types = list(dict.fromkeys(season_types or ["Regular Season"]))
+        requested_pairs = frozenset(
+            (season, season_type)
+            for season in unique_seasons
+            for season_type in resolved_season_types
+        )
 
         extractor_cls = self._registry.get("common_all_players")
         semaphore = asyncio.Semaphore(self._discovery_concurrency)
@@ -678,60 +862,19 @@ class EntityDiscovery:
             *,
             use_semaphore: bool,
             phase: str,
-            attempts: int | None = None,
-        ) -> tuple[str, pl.DataFrame | None, bool]:
+            attempts: int,
+            attempt_offset: int,
+        ) -> tuple[str, pl.DataFrame | None, _DiscoveryFailureKind | None]:
             label = f"common_all_players({season})"
 
-            async def _run() -> tuple[str, pl.DataFrame | None, bool]:
-                logger.info("{} player/team pairs: {}", phase, label)
-                if phase == "recovering":
-                    _reset_nba_stats_session()
-                extractor = extractor_cls()
-                request_params: dict[str, object] = {"season": season}
-                if phase != "recovering":
-                    request_params["timeout"] = _CONCURRENT_DISCOVERY_TIMEOUT
-                try:
-                    df = await _extract_with_retry(
-                        extractor,
-                        label,
-                        thread_pool=self._thread_pool,
-                        attempts=(
-                            attempts
-                            if attempts is not None
-                            else (
-                                self._retry_attempts
-                                if phase == "recovering"
-                                else self._concurrent_retry_attempts
-                            )
-                        ),
-                        base_delay=self._retry_delay,
-                        rate_limiter=self._rate_limiter,
-                        **request_params,
-                    )
-                except NbaDbError as exc:
-                    message = (
-                        "failed to recover player/team pairs for {}: {}"
-                        if phase == "recovering"
-                        else "failed to discover player/team pairs for {}: {}"
-                    )
-                    logger.error(message, label, type(exc).__name__)
-                    return season, None, False
-
-                if phase == "recovering":
-                    logger.info("recovered player/team pairs for {}", label)
+            def _validate_response(df: pl.DataFrame) -> pl.DataFrame:
                 if df.is_empty():
-                    logger.warning("no common_all_players data returned for {}", season)
-                    return season, None, False
+                    raise _DiscoveryResponseError("empty player directory response")
 
                 required = {"person_id", "team_id"}
                 missing = required - set(df.columns)
                 if missing:
-                    logger.warning(
-                        "common_all_players missing columns {} for {}",
-                        sorted(missing),
-                        season,
-                    )
-                    return season, None, False
+                    raise _DiscoveryResponseError(f"missing columns {sorted(missing)}")
 
                 normalized = (
                     df.select(
@@ -747,10 +890,51 @@ class EntityDiscovery:
                     .unique()
                 )
                 if normalized.is_empty():
-                    logger.warning("no valid player/team pairs returned for {}", season)
-                    return season, None, False
+                    raise _DiscoveryResponseError("no valid player/team pairs")
+                return normalized
 
-                return season, normalized, True
+            async def _run() -> tuple[str, pl.DataFrame | None, _DiscoveryFailureKind | None]:
+                logger.info("{} player/team pairs: {}", phase, label)
+                extractor = extractor_cls()
+                request_params: dict[str, object] = {
+                    "season": season,
+                    "timeout": (
+                        _RECOVERY_DISCOVERY_TIMEOUT
+                        if phase == "recovering"
+                        else _CONCURRENT_DISCOVERY_TIMEOUT
+                    ),
+                }
+                try:
+                    df = await _extract_with_retry(
+                        extractor,
+                        label,
+                        _validate_response,
+                        attempt_offset,
+                        self._retry_attempts,
+                        thread_pool=self._thread_pool,
+                        attempts=attempts,
+                        base_delay=self._retry_delay,
+                        rate_limiter=self._rate_limiter,
+                        **request_params,
+                    )
+                except _DiscoveryResponseError:
+                    failure: _DiscoveryFailureKind = "response"
+                except TransientError:
+                    failure = "transport"
+                except NbaDbError:
+                    failure = "permanent"
+                else:
+                    if phase == "recovering":
+                        logger.info("recovered player/team pairs for {}", label)
+                    return season, df, None
+
+                logger.error(
+                    "{} player/team discovery failed for {} ({})",
+                    phase,
+                    label,
+                    failure,
+                )
+                return season, None, failure
 
             if not use_semaphore:
                 return await _run()
@@ -764,96 +948,129 @@ class EntityDiscovery:
                     season,
                     use_semaphore=True,
                     phase="discovering",
+                    attempts=self._concurrent_retry_attempts,
+                    attempt_offset=0,
                 )
-                for season in seasons
+                for season in unique_seasons
             ]
         )
 
         season_frames: dict[str, pl.DataFrame] = {
-            season: df for season, df, success in initial_results if success and df is not None
+            season: df
+            for season, df, failure in initial_results
+            if failure is None and df is not None
         }
-        failed_seasons = [season for season, _df, success in initial_results if not success]
+        failures: dict[str, _DiscoveryFailureKind] = {}
+        for season, _df, failure in initial_results:
+            if failure is not None:
+                failures[season] = failure
 
-        if failed_seasons:
-            unresolved_seasons = failed_seasons
-            total_recovered = 0
-            remaining_recovery_attempts = self._retry_attempts
+        retryable_seasons = [
+            season
+            for season in unique_seasons
+            if season in failures and failures[season] != "permanent"
+        ]
+        remaining_attempts = {
+            season: self._retry_attempts - self._concurrent_retry_attempts
+            for season in retryable_seasons
+        }
 
-            for wave in range(1, _SERIAL_DISCOVERY_RECOVERY_WAVES + 1):
-                if not unresolved_seasons or remaining_recovery_attempts <= 0:
-                    break
-
-                wave_attempts = max(
-                    1,
-                    remaining_recovery_attempts - (_SERIAL_DISCOVERY_RECOVERY_WAVES - wave),
+        broad_failure_kinds = set(failures.values())
+        broad_systemic_failure = (
+            len(unique_seasons) > 1
+            and len(failures) == len(unique_seasons)
+            and len(broad_failure_kinds) == 1
+            and broad_failure_kinds <= {"transport", "response"}
+        )
+        if broad_systemic_failure and remaining_attempts[retryable_seasons[0]] > 0:
+            canary = retryable_seasons[0]
+            systemic_failure_kind = failures[canary]
+            canary_attempts = min(
+                _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
+                remaining_attempts[canary],
+            )
+            logger.warning(
+                (
+                    "checking broad player/team discovery {} failure with "
+                    "{} bounded canary attempts: {}"
+                ),
+                systemic_failure_kind,
+                canary_attempts,
+                canary,
+            )
+            _season, df, failure = await _fetch(
+                canary,
+                use_semaphore=False,
+                phase="canary",
+                attempts=canary_attempts,
+                attempt_offset=self._concurrent_retry_attempts,
+            )
+            remaining_attempts[canary] -= canary_attempts
+            if failure is None and df is not None:
+                season_frames[canary] = df
+                failures.pop(canary, None)
+                retryable_seasons.remove(canary)
+            elif failure == "permanent":
+                failures[canary] = failure
+                retryable_seasons.remove(canary)
+            elif failure in {"transport", "response"}:
+                failures[canary] = failure
+                logger.error(
+                    (
+                        "player/team discovery {} canary failed; "
+                        "skipping recovery for {} systemically affected scopes"
+                    ),
+                    failure,
+                    len(retryable_seasons),
                 )
-                remaining_recovery_attempts -= wave_attempts
+                retryable_seasons = []
+            elif failure is not None:
+                failures[canary] = failure
 
-                if wave == 1:
-                    logger.warning(
-                        (
-                            "retrying {} failed player/team discovery seasons "
-                            "sequentially ({} attempts each)"
-                        ),
-                        len(unresolved_seasons),
-                        wave_attempts,
-                    )
-                else:
-                    logger.warning(
-                        (
-                            "retrying {} unrecovered player/team discovery seasons "
-                            "sequentially (wave {}/{}, {} attempts each)"
-                        ),
-                        len(unresolved_seasons),
-                        wave,
-                        _SERIAL_DISCOVERY_RECOVERY_WAVES,
-                        wave_attempts,
-                    )
-
-                next_unresolved: list[str] = []
-                for season in unresolved_seasons:
-                    _season, df, success = await _fetch(
-                        season,
-                        use_semaphore=False,
-                        phase="recovering",
-                        attempts=wave_attempts,
-                    )
-                    if success:
-                        total_recovered += 1
-                        if df is not None:
-                            season_frames[season] = df
-                    else:
-                        next_unresolved.append(season)
-
-                unresolved_seasons = next_unresolved
-                if not unresolved_seasons:
-                    logger.info(
-                        "recovered all {} failed player/team discovery seasons",
-                        total_recovered,
-                    )
-                elif wave < _SERIAL_DISCOVERY_RECOVERY_WAVES:
-                    logger.warning(
-                        "player/team discovery recovery wave {} left {} unresolved seasons",
-                        wave,
-                        len(unresolved_seasons),
-                    )
-
-            if unresolved_seasons:
-                logger.warning(
-                    "player/team discovery finished with {} unrecovered seasons: {}",
-                    len(unresolved_seasons),
-                    unresolved_seasons,
+        recovery_seasons = [
+            season for season in retryable_seasons if remaining_attempts.get(season, 0) > 0
+        ]
+        if recovery_seasons:
+            logger.warning(
+                (
+                    "retrying {} failed player/team discovery seasons sequentially "
+                    "within remaining budgets"
+                ),
+                len(recovery_seasons),
+            )
+            for season in recovery_seasons:
+                attempts = remaining_attempts[season]
+                _season, df, failure = await _fetch(
+                    season,
+                    use_semaphore=False,
+                    phase="recovering",
+                    attempts=attempts,
+                    attempt_offset=self._retry_attempts - attempts,
                 )
+                if failure is None and df is not None:
+                    season_frames[season] = df
+                    failures.pop(season, None)
+                elif failure is not None:
+                    failures[season] = failure
+
+        unresolved_seasons = [season for season in unique_seasons if season not in season_frames]
+        if unresolved_seasons:
+            logger.warning(
+                "player/team discovery finished with {} unrecovered seasons: {}",
+                len(unresolved_seasons),
+                unresolved_seasons,
+            )
 
         if not season_frames:
             return PlayerTeamSeasonDiscoveryResult(
                 params=[],
-                requested_pairs=frozenset(
-                    (season, season_type)
-                    for season in seasons
-                    for season_type in resolved_season_types
-                ),
+                requested_pairs=requested_pairs,
                 covered_pairs=frozenset(),
+                failures_by_pair={
+                    (season, season_type): failure
+                    for season, failure in failures.items()
+                    for season_type in resolved_season_types
+                },
             )
 
         non_empty_frames = [df for df in season_frames.values() if not df.is_empty()]
@@ -874,14 +1091,17 @@ class EntityDiscovery:
         successful_seasons = sorted(season_frames)
         return PlayerTeamSeasonDiscoveryResult(
             params=params,
-            requested_pairs=frozenset(
-                (season, season_type) for season in seasons for season_type in resolved_season_types
-            ),
+            requested_pairs=requested_pairs,
             covered_pairs=frozenset(
                 (season, season_type)
                 for season in successful_seasons
                 for season_type in resolved_season_types
             ),
+            failures_by_pair={
+                (season, season_type): failure
+                for season, failure in failures.items()
+                for season_type in resolved_season_types
+            },
         )
 
     async def discover_player_team_season_params(

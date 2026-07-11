@@ -308,7 +308,9 @@ class Orchestrator:
         duckdb_path = self._settings.duckdb_path
         if not isinstance(duckdb_path, Path):
             return PlayerTeamSeasonWorkloadStore.from_duckdb_path(None)
-        return PlayerTeamSeasonWorkloadStore.from_duckdb_path(duckdb_path)
+        store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(duckdb_path)
+        store.promote_legacy_v3()
+        return store
 
     def _discovery_artifacts(self) -> DiscoveryArtifactStore:
         duckdb_path = self._settings.duckdb_path
@@ -350,10 +352,11 @@ class Orchestrator:
         discovery: _DiscoveryService,
         *,
         seasons: list[str],
+        refresh: bool = False,
     ) -> list[int]:
         artifacts = self._discovery_artifacts()
         scope = DiscoveryArtifactScope(kind="current_team_ids", seasons=tuple(seasons))
-        cached = artifacts.load_ids(scope)
+        cached = [] if refresh else artifacts.load_ids(scope)
         if cached:
             return cached
         discovered = await discovery.discover_current_team_ids()
@@ -499,6 +502,26 @@ class Orchestrator:
             requested_pairs=requested_pairs,
             covered_pairs=frozenset(covered_pairs),
         )
+
+    @staticmethod
+    def _require_complete_game_discovery(
+        result: GameDiscoveryResult,
+        *,
+        requested_combos: frozenset[tuple[str, str]] | None = None,
+    ) -> None:
+        required_combos = result.requested_combos if requested_combos is None else requested_combos
+        explicitly_covered = result.requested_combos & result.covered_combos
+        concrete_frames = frozenset(result.frames_by_combo)
+        if required_combos <= explicitly_covered and required_combos <= concrete_frames:
+            return
+        missing_combos = sorted(required_combos - explicitly_covered)
+        missing_frames = sorted(required_combos - concrete_frames)
+        details = []
+        if missing_combos:
+            details.append(f"missing season/season_type combos: {missing_combos}")
+        if missing_frames:
+            details.append(f"missing exact combo frames: {missing_frames}")
+        raise InitDiscoveryCoverageError([f"incomplete game discovery; {'; '.join(details)}"])
 
     @staticmethod
     def _require_complete_player_team_discovery(
@@ -823,6 +846,7 @@ class Orchestrator:
         include_teams: bool = True,
         include_dates: bool = True,
         require_complete: bool = False,
+        require_complete_games: bool = False,
         refresh_mutable_entities: bool = False,
     ) -> tuple[list[str], list[int], list[int], list[str], pl.DataFrame]:
         """Discover game/player/team IDs and game dates in parallel.
@@ -835,13 +859,17 @@ class Orchestrator:
         all players are discovered (active + retired). When
         *refresh_mutable_entities* is True and the active season is in scope,
         game and player caches are bypassed so monthly refreshes cannot freeze a
-        mid-season inventory.
+        mid-season inventory. *require_complete_games* applies the game coverage
+        gate without requiring non-empty player and team discovery results.
         """
         import polars as pl
 
         pp = self._progress
         artifacts = self._discovery_artifacts()
         resolved_season_types = tuple(season_types or ["Regular Season"])
+        requested_game_combos = frozenset(
+            (season, season_type) for season in seasons for season_type in resolved_season_types
+        )
         refresh_current_scope = refresh_mutable_entities and current_season() in seasons
 
         discovery_tasks: list[Awaitable[object]] = []
@@ -959,7 +987,7 @@ class Orchestrator:
 
         if isinstance(_game_result, Exception):
             bound_log.warning("discover_game_ids failed: {}", type(_game_result).__name__)
-            if require_complete and include_games:
+            if (require_complete or require_complete_games) and include_games:
                 raise InitDiscoveryCoverageError(
                     [f"discover_game_ids failed: {type(_game_result).__name__}"]
                 )
@@ -972,19 +1000,57 @@ class Orchestrator:
         else:
             game_discovery_result = _game_result
             assert isinstance(game_discovery_result, GameDiscoveryResult)
-            if require_complete and not game_discovery_result.is_complete:
-                missing = sorted(
-                    game_discovery_result.requested_combos - game_discovery_result.covered_combos
-                )
-                raise InitDiscoveryCoverageError(
-                    [f"incomplete game discovery; missing season/season_type combos: {missing}"]
+            if require_complete or require_complete_games:
+                self._require_complete_game_discovery(
+                    game_discovery_result,
+                    requested_combos=requested_game_combos,
                 )
             game_ids = game_discovery_result.game_ids
             game_log_df = game_discovery_result.raw
-            if game_discovery_result.is_complete:
-                artifacts.upsert_game_log_combo_frames(
-                    game_discovery_result.frames_by_combo,
-                    provenance="discovery",
+            persistable_combos = (
+                requested_game_combos
+                & game_discovery_result.requested_combos
+                & game_discovery_result.covered_combos
+            )
+            persistable_frames = {
+                combo: frame
+                for combo, frame in game_discovery_result.frames_by_combo.items()
+                if combo in persistable_combos
+            }
+            runtime_frames = [persistable_frames[combo] for combo in sorted(persistable_frames)]
+            if runtime_frames:
+                game_log_df = (
+                    runtime_frames[0].clone()
+                    if len(runtime_frames) == 1
+                    else pl.concat(runtime_frames, how="diagonal_relaxed")
+                )
+                game_ids = sorted(
+                    {
+                        str(value)
+                        for value in game_log_df.get_column("game_id").drop_nulls().to_list()
+                    }
+                )
+            else:
+                game_ids = []
+                game_log_df = pl.DataFrame()
+            aggregate_complete = (
+                bool(requested_game_combos)
+                and game_discovery_result.requested_combos == requested_game_combos
+                and requested_game_combos <= game_discovery_result.covered_combos
+                and requested_game_combos == frozenset(persistable_frames)
+            )
+            artifacts.upsert_game_log_combo_frames(
+                persistable_frames,
+                provenance="discovery" if aggregate_complete else "partial-discovery",
+            )
+            if aggregate_complete:
+                aggregate_frames = [
+                    persistable_frames[combo] for combo in sorted(requested_game_combos)
+                ]
+                aggregate_game_log = (
+                    aggregate_frames[0].clone()
+                    if len(aggregate_frames) == 1
+                    else pl.concat(aggregate_frames, how="diagonal_relaxed")
                 )
                 artifacts.upsert_frame(
                     DiscoveryArtifactScope(
@@ -992,7 +1058,7 @@ class Orchestrator:
                         seasons=tuple(seasons),
                         season_types=resolved_season_types,
                     ),
-                    game_log_df,
+                    aggregate_game_log,
                     provenance="discovery",
                 )
             else:
@@ -1001,12 +1067,8 @@ class Orchestrator:
                         "persisting {} covered game discovery combos individually "
                         "and skipping aggregate cache for requested scope {}"
                     ),
-                    len(game_discovery_result.covered_combos),
+                    len(persistable_frames),
                     sorted(game_discovery_result.requested_combos),
-                )
-                artifacts.upsert_game_log_combo_frames(
-                    game_discovery_result.frames_by_combo,
-                    provenance="partial-discovery",
                 )
             if pp is not None:
                 pp.log_discovery("games", len(game_ids))
@@ -1625,6 +1687,12 @@ class Orchestrator:
                 [season],
                 season_types=daily_season_types,
             )
+            self._require_complete_game_discovery(
+                game_result,
+                requested_combos=frozenset(
+                    (season, season_type) for season_type in daily_season_types
+                ),
+            )
             game_ids = game_result.game_ids
             game_log_df = game_result.raw
 
@@ -1653,7 +1721,11 @@ class Orchestrator:
             # -- 2. Discover active players + teams for lightweight refresh
             player_ids = await discovery.discover_player_ids()
             team_ids = await discovery.discover_team_ids()
-            current_team_ids = await self._discover_current_team_ids(discovery, seasons=[season])
+            current_team_ids = await self._discover_current_team_ids(
+                discovery,
+                seasons=[season],
+                refresh=True,
+            )
             player_team_result = await self._discover_player_team_season_result(
                 discovery,
                 seasons=[season],
@@ -1782,9 +1854,14 @@ class Orchestrator:
                 seasons,
                 bound_log,
                 season_types=monthly_season_types,
+                require_complete_games=True,
                 refresh_mutable_entities=True,
             )
-            current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
+            current_team_ids = await self._discover_current_team_ids(
+                discovery,
+                seasons=seasons,
+                refresh=True,
+            )
             player_team_result = await self._discover_player_team_season_result(
                 discovery,
                 seasons=seasons,

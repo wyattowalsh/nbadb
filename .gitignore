@@ -97,6 +97,9 @@ tmp-model-audit*/
 session*.txt
 sesh*.txt
 scripts/
+!.github/scripts/
+!.github/scripts/probe_discovery_transport.py
+!.github/scripts/verify_discovery_bundle.py
 !chat/skills/**/scripts/
 !chat/skills/**/scripts/*.py
 .opencode/
