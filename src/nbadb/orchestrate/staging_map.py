@@ -47,6 +47,7 @@ _ALL_SEASON_TYPES: SupportedSeasonTypes = tuple(season_type.value for season_typ
 _PLAYOFF_SEASON_TYPES: SupportedSeasonTypes = (
     SeasonType.REGULAR.value,
     SeasonType.PLAYOFFS.value,
+    SeasonType.PRE_SEASON.value,
 )
 _SEASON_TYPE_VALUE_SET: frozenset[str] = frozenset(_ALL_SEASON_TYPES)
 _ALL_STAR_SEASON_TYPE_PARAM_KEYS: frozenset[str] = frozenset(
@@ -844,7 +845,7 @@ STAGING_MAP: list[StagingEntry] = [
     StagingEntry("matchups_rollup", "stg_matchups_rollup", "season"),
     # defense_hub index 0 covered by stg_defense_hub_stat1 in Phase 4 multi-result section
     StagingEntry("shot_chart_league_wide", "stg_shot_chart_league_wide", "season"),
-    # Requires group_id (lineup ID) — not available in season-pattern sweep
+    # nba_api documents GROUP_ID=0 as the constructible season-wide default.
     StagingEntry(
         "shot_chart_lineup",
         "stg_shot_chart_lineup",
@@ -898,7 +899,7 @@ STAGING_MAP: list[StagingEntry] = [
     # class and kwargs, causing redundant API calls).
     StagingEntry("player_game_logs", "stg_player_game_logs", "season"),
     StagingEntry("player_index", "stg_player_index", "season"),
-    # Requires group_id (lineup ID) — not available in season-pattern sweep
+    # nba_api documents GROUP_ID=0 as the constructible season-wide default.
     StagingEntry(
         "shot_chart_lineup_detail",
         "stg_shot_chart_lineup_detail",
@@ -1204,7 +1205,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     # Extractor-only aliases (player)
     StagingEntry(
@@ -1386,7 +1387,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_and_players_vs",
@@ -1395,7 +1396,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     # Extractor-only aliases (team)
     StagingEntry(
@@ -1405,7 +1406,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry("team_game_log", "stg_team_game_log", "team_season"),
     StagingEntry("team_year_by_year_stats", "stg_team_year_by_year_stats", "team"),
@@ -2277,7 +2278,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2286,7 +2287,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=1,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2295,7 +2296,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=2,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2304,7 +2305,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=3,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2313,7 +2314,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=4,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2322,7 +2323,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=5,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2331,7 +2332,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=6,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2340,7 +2341,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=7,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2349,7 +2350,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=8,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "player_vs_player",
@@ -2358,7 +2359,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=9,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     # TeamVsPlayer (9 sets)
     StagingEntry(
@@ -2368,7 +2369,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2377,7 +2378,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=1,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2386,7 +2387,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=2,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2395,7 +2396,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=3,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2404,7 +2405,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=4,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2413,7 +2414,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=5,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2422,7 +2423,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=6,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2431,7 +2432,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=7,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_vs_player",
@@ -2440,7 +2441,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=8,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     # TeamAndPlayersVsPlayers (5 sets)
     StagingEntry(
@@ -2450,7 +2451,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=0,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_and_players_vs",
@@ -2459,7 +2460,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=1,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_and_players_vs",
@@ -2468,7 +2469,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=2,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_and_players_vs",
@@ -2477,7 +2478,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=3,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     StagingEntry(
         "team_and_players_vs",
@@ -2486,7 +2487,7 @@ STAGING_MAP: list[StagingEntry] = [
         result_set_index=4,
         use_multi=True,
         season_type_capability="supported",
-        supported_season_types=_ALL_SEASON_TYPES,
+        supported_season_types=_PLAYOFF_SEASON_TYPES,
     ),
     # TeamPlayerOnOffDetails (3 sets)
     StagingEntry(

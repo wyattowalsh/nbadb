@@ -287,10 +287,6 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
         "historical-season-league-dash-pt-defend-regular-season-playoffs-pre-season-all-star-"
         "2013-2020" in lanes_by_id
     )
-    assert (
-        "historical-season-league-game-log-regular-season-playoffs-pre-season-all-star-2018-2025"
-        in lanes_by_id
-    )
     assert all(
         lane.season_types
         == (
@@ -301,10 +297,7 @@ def test_build_default_manifest_uses_support_window_thresholds() -> None:
         )
         for lane in season_lanes
     )
-    assert {lane.endpoints for lane in season_lanes} == {
-        ("league_dash_pt_defend",),
-        ("league_game_log",),
-    }
+    assert {lane.endpoints for lane in season_lanes} == {("league_dash_pt_defend",)}
     assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in season_lanes)
 
     cross_product_lanes = [lane for lane in lanes if lane.lane_kind == "cross_product"]
@@ -328,7 +321,7 @@ def test_chunk_profiles_preserve_coverage_and_contract_blocks() -> None:
         _support_row("scoreboard_v3", ["date"], 1946),
         _support_row("box_score_traditional", ["game"], 1996),
         _support_row(
-            "league_game_log",
+            "league_dash_pt_defend",
             ["season"],
             1946,
             season_type_contract_status="supported",
@@ -534,7 +527,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     direct_parallel_expr = (
         "max-parallel: ${{ fromJSON("
         "needs.preflight.outputs.effective-network-mode == 'direct' "
-        "&& inputs.direct_parallelism || inputs.vpn_parallelism) }}"
+        "&& inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source "
+        "== 'token' && '1' || inputs.vpn_parallelism)) }}"
     )
     assert direct_parallel_expr in workflow
     assert '-f network_mode="$NETWORK_MODE"' in workflow
@@ -1039,7 +1033,7 @@ def test_build_default_manifest_uses_cost_aware_reference_grouping() -> None:
     ]
 
 
-def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
+def test_build_default_manifest_rejects_selected_discovery_owned_endpoint() -> None:
     rows = [
         _support_row(
             "league_game_log",
@@ -1055,19 +1049,24 @@ def test_build_default_manifest_keeps_selected_endpoints_scoped() -> None:
         ),
     ]
 
-    lanes = build_default_manifest(
-        support_matrix_rows=rows,
-        selected_endpoints=["league_game_log"],
-    )
+    with pytest.raises(ValueError, match="discovery-seed-owned"):
+        build_default_manifest(
+            support_matrix_rows=rows,
+            selected_endpoints=["league_game_log"],
+        )
 
-    assert lanes[0].lane_id == (
-        "historical-season-league-game-log-regular-season-playoffs-pre-season-all-star-1946-1953"
-    )
-    assert lanes[-1].lane_id == (
-        "historical-season-league-game-log-regular-season-playoffs-pre-season-all-star-2018-2025"
-    )
-    assert len(lanes) == 10
-    assert all((lane.season_end - lane.season_start + 1) <= 8 for lane in lanes)
+
+def test_build_default_manifest_rejects_mixed_discovery_owned_selection() -> None:
+    rows = [
+        _support_row("league_game_log", ["season"], 1946),
+        _support_row("player_game_logs_v2", ["player_season"], 1946),
+    ]
+
+    with pytest.raises(ValueError, match="discovery-seed-owned.*league_game_log"):
+        build_default_manifest(
+            support_matrix_rows=rows,
+            selected_endpoints=["league_game_log", "player_game_logs_v2"],
+        )
 
 
 def test_build_default_manifest_uses_density_to_shrink_cross_product_bands() -> None:
@@ -1128,7 +1127,7 @@ def test_build_default_manifest_rejects_zero_match_filters() -> None:
         )
 
 
-def test_build_default_manifest_skips_blocked_cross_product_endpoints() -> None:
+def test_build_default_manifest_skips_excluded_cross_product_endpoints() -> None:
     rows = [
         _support_row(
             "video_details",
@@ -1140,7 +1139,7 @@ def test_build_default_manifest_skips_blocked_cross_product_endpoints() -> None:
             "team_vs_player",
             ["player_team_season"],
             1946,
-            season_type_contract_status="blocked",
+            season_type_contract_status="supported",
         ),
     ]
 
@@ -1150,13 +1149,13 @@ def test_build_default_manifest_skips_blocked_cross_product_endpoints() -> None:
     assert all("team_vs_player" not in lane.endpoints for lane in lanes)
 
 
-def test_build_default_manifest_rejects_blocked_only_selection() -> None:
+def test_build_default_manifest_rejects_excluded_cross_product_only_selection() -> None:
     rows = [
         _support_row(
             "team_vs_player",
             ["player_team_season"],
             1946,
-            season_type_contract_status="blocked",
+            season_type_contract_status="supported",
         )
     ]
 
@@ -1169,6 +1168,84 @@ def test_build_default_manifest_rejects_full_extraction_excluded_only_selection(
 
     with pytest.raises(ValueError, match="produced no runnable lanes"):
         build_default_manifest(support_matrix_rows=rows)
+
+
+def test_build_default_manifest_projects_canonical_families_to_concrete_routes() -> None:
+    rows = [
+        _support_row(
+            "player_game_logs_v2",
+            ["season", "player_season"],
+            1946,
+            season_type_contract_status="supported",
+        ),
+        _support_row(
+            "player_streak_finder",
+            ["season", "player_season"],
+            1946,
+        ),
+    ]
+    rows[0]["support_windows"] = [
+        {
+            "staging_key": "stg_player_game_logs",
+            "param_pattern": "season",
+            "min_season": None,
+            "deprecated_after": None,
+            "season_type_capability": "supported",
+            "supported_season_types": [
+                "Regular Season",
+                "Playoffs",
+                "Pre Season",
+                "All Star",
+            ],
+        },
+        {
+            "staging_key": "stg_player_game_logs_v2",
+            "param_pattern": "player_season",
+            "min_season": None,
+            "deprecated_after": None,
+            "season_type_capability": "supported",
+            "supported_season_types": [
+                "Regular Season",
+                "Playoffs",
+                "Pre Season",
+                "All Star",
+            ],
+        },
+    ]
+    rows[1]["support_windows"] = [
+        {
+            "staging_key": "stg_player_game_streak_finder",
+            "param_pattern": "season",
+            "min_season": None,
+            "deprecated_after": None,
+            "season_type_capability": "not_applicable",
+            "supported_season_types": [],
+        },
+        {
+            "staging_key": "stg_player_streak_finder",
+            "param_pattern": "player_season",
+            "min_season": None,
+            "deprecated_after": None,
+            "season_type_capability": "not_applicable",
+            "supported_season_types": [],
+        },
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    validate_manifest(lanes)
+
+    routes = {
+        (endpoint_name, pattern)
+        for lane in lanes
+        for endpoint_name in lane.endpoints
+        for pattern in lane.patterns
+    }
+    assert {
+        ("player_game_logs", "season"),
+        ("player_game_logs_v2", "player_season"),
+        ("player_game_streak_finder", "season"),
+        ("player_streak_finder", "player_season"),
+    } <= routes
 
 
 def test_build_default_manifest_allows_scoreboard_v2_with_documented_gaps() -> None:
@@ -1231,7 +1308,6 @@ def test_build_default_manifest_skips_support_rule_contract_blocked_lanes(
         ("schedule_int", 2000),
         ("ist_standings", 2021),
         ("playoff_picture", 1970),
-        ("player_streak_finder", 1970),
     ],
 )
 def test_build_default_manifest_excludes_known_season_contract_gaps_from_initial_plan(
@@ -1299,6 +1375,31 @@ def test_build_default_manifest_isolates_season_endpoint_contract_windows() -> N
     assert min(lane.season_start for lane in lanes_by_endpoint["ist_standings"]) == 2021
     assert "player_career_by_college" not in lanes_by_endpoint
     assert "team_game_streak_finder" not in lanes_by_endpoint
+
+
+@pytest.mark.parametrize(
+    ("endpoint_name", "expected_first_supported_season"),
+    [
+        ("home_page_leaders", 1950),
+        ("home_page_v2", 1950),
+        ("league_dash_player_bio_stats", 1950),
+        ("player_game_streak_finder", 1970),
+    ],
+)
+def test_concrete_alias_routes_inherit_canonical_support_windows(
+    endpoint_name: str,
+    expected_first_supported_season: int,
+) -> None:
+    rows = [_support_row(endpoint_name, ["season"], 1946)]
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        selected_endpoints=[endpoint_name],
+    )
+
+    assert min(lane.season_start for lane in lanes if lane.season_start is not None) == (
+        expected_first_supported_season
+    )
 
 
 @pytest.mark.parametrize(
@@ -3011,6 +3112,95 @@ def test_validate_manifest_allows_explicit_direct_active_lane() -> None:
             )
         ]
     )
+
+
+def test_validate_manifest_rejects_explicit_excluded_endpoint() -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-player-vs-player-2024",
+        lane_index=0,
+        lane_name="Player vs player",
+        lane_kind="cross_product",
+        season_start=2024,
+        season_end=2024,
+        patterns=("player_team_season",),
+        season_types=("Regular Season",),
+        endpoints=("player_vs_player",),
+        timeout_seconds=7_200,
+    )
+
+    with pytest.raises(ValueError, match="endpoints are excluded.*player_vs_player"):
+        validate_manifest([lane])
+
+
+def test_validate_manifest_rejects_discovery_owned_endpoint_lane() -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-league-game-log-2024",
+        lane_index=0,
+        lane_name="League game log",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("season",),
+        season_types=("Regular Season",),
+        endpoints=("league_game_log",),
+        timeout_seconds=7_200,
+    )
+
+    with pytest.raises(ValueError, match="owned by discovery_seed"):
+        validate_manifest([lane])
+
+
+def test_validate_manifest_rejects_alias_pattern_without_runtime_route() -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-player-game-logs-v2-2024",
+        lane_index=0,
+        lane_name="Player game logs",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("season",),
+        season_types=("Regular Season",),
+        endpoints=("player_game_logs_v2",),
+        timeout_seconds=7_200,
+    )
+
+    with pytest.raises(ValueError, match="no executable planner route.*season"):
+        validate_manifest([lane])
+
+
+def test_validate_manifest_rejects_mixed_supported_and_unsupported_patterns() -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-player-game-logs-v2-mixed-2024",
+        lane_index=0,
+        lane_name="Player game logs mixed",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("season", "player_season"),
+        season_types=("Regular Season",),
+        endpoints=("player_game_logs_v2",),
+        timeout_seconds=7_200,
+    )
+
+    with pytest.raises(ValueError, match="no executable planner route.*season"):
+        validate_manifest([lane])
+
+
+def test_validate_manifest_rejects_unknown_pattern_on_endpointless_lane() -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-unknown-pattern-2024",
+        lane_index=0,
+        lane_name="Unknown pattern",
+        lane_kind="historical",
+        season_start=2024,
+        season_end=2024,
+        patterns=("not_a_pattern",),
+        endpoints=(),
+        timeout_seconds=7_200,
+    )
+
+    with pytest.raises(ValueError, match="unknown extraction patterns: not_a_pattern"):
+        validate_manifest([lane])
 
 
 def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: Path) -> None:

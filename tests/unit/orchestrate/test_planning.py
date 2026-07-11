@@ -1,11 +1,123 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from nbadb.orchestrate.planning import build_extraction_plan
+from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
+from nbadb.core.types import SeasonType
+from nbadb.orchestrate.extraction_contract import (
+    FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
+    contract_blocking_rules_for_lane,
+)
+from nbadb.orchestrate.full_extraction_control import build_default_manifest, validate_manifest
+from nbadb.orchestrate.planning import (
+    PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS,
+    build_extraction_plan,
+    executable_endpoint_routes,
+)
+from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.staging_map import STAGING_MAP, get_by_pattern
 
 _GET_BY_PATTERN = "nbadb.orchestrate.planning.get_by_pattern"
 _DEFAULT_SEASON_TYPES = ("Regular Season", "Playoffs")
+
+
+def test_player_team_season_routes_are_plannable_or_explicitly_excluded() -> None:
+    routed_endpoints = {entry.endpoint_name for entry in get_by_pattern("player_team_season")}
+
+    assert routed_endpoints <= (
+        PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS | FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT.keys()
+    )
+
+
+def test_full_manifest_has_a_runtime_route_for_every_active_endpoint() -> None:
+    project_root = Path(__file__).resolve().parents[3]
+    support_rows = EndpointCoverageGenerator(
+        project_root=project_root,
+        staging_entries=list(STAGING_MAP),
+    ).build_artifacts()["support_matrix"]
+    lanes = build_default_manifest(support_matrix_rows=support_rows)
+    validate_manifest(lanes)
+
+    seasons = season_range()
+    season_types = [season_type.value for season_type in SeasonType]
+    workload_params = [
+        {
+            "player_id": 1,
+            "team_id": 1,
+            "season": season,
+            "season_type": season_type,
+        }
+        for season in seasons
+        for season_type in season_types
+    ]
+    plan = build_extraction_plan(
+        seasons=seasons,
+        game_ids=["001"],
+        player_ids=[1],
+        team_ids=[1],
+        current_team_ids=[1],
+        game_dates=["2025-01-01"],
+        player_team_season_params=workload_params,
+        season_types=season_types,
+    )
+    routes = {(entry.endpoint_name, item.pattern) for item in plan for entry in item.entries}
+    capability_routes = executable_endpoint_routes()
+    scheduled_routes = {
+        (endpoint_name, pattern)
+        for lane in lanes
+        if not lane.resume_only
+        for endpoint_name in lane.endpoints
+        for pattern in lane.patterns
+    }
+    unresolved = [
+        (lane.lane_id, endpoint_name, lane.patterns)
+        for lane in lanes
+        if not lane.resume_only
+        for endpoint_name in lane.endpoints
+        if not any((endpoint_name, pattern) in routes for pattern in lane.patterns)
+    ]
+    end_year = int(seasons[-1][:4])
+
+    def has_supported_scope(endpoint_name: str, pattern: str) -> bool:
+        if pattern in {"static", "player", "team"}:
+            return not contract_blocking_rules_for_lane(
+                endpoints=(endpoint_name,),
+                patterns=(pattern,),
+                season_start=None,
+                season_end=None,
+            )
+        return any(
+            not contract_blocking_rules_for_lane(
+                endpoints=(endpoint_name,),
+                patterns=(pattern,),
+                season_start=year,
+                season_end=year,
+            )
+            for year in range(1946, end_year + 1)
+        )
+
+    expected_scheduled_routes = {
+        (endpoint_name, pattern)
+        for endpoint_name, pattern in capability_routes
+        if endpoint_name not in FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT
+        and has_supported_scope(endpoint_name, pattern)
+    }
+
+    assert len(lanes) > 256
+    assert routes == capability_routes
+    assert unresolved == []
+    assert expected_scheduled_routes - scheduled_routes == set()
+    assert {
+        ("home_page_leaders", "season"),
+        ("home_page_v2", "season"),
+        ("player_game_logs", "season"),
+        ("player_game_logs_v2", "player_season"),
+        ("player_game_streak_finder", "season"),
+        ("player_streak_finder", "player_season"),
+        ("shot_chart_lineup_detail", "season"),
+        ("team_year_by_year_stats", "team"),
+    } <= scheduled_routes
 
 
 def _entry(

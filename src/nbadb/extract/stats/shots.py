@@ -104,7 +104,7 @@ class ShotChartLineupExtractor(BaseExtractor):
     async def extract(self, **params: Any) -> pl.DataFrame:
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        group_id: str = params.get("group_id", "")
+        group_id: str | int = params.get("group_id", 0)
         context_measure: str = params.get("context_measure", "FGA")
         return self._from_nba_api(
             ShotChartLineupDetail,
@@ -117,7 +117,7 @@ class ShotChartLineupExtractor(BaseExtractor):
     async def extract_all(self, **params: Any) -> list[pl.DataFrame]:
         season: str = params.get("season", current_season())
         season_type: str = params.get("season_type", "Regular Season")
-        group_id: str = params.get("group_id", "")
+        group_id: str | int = params.get("group_id", 0)
         context_measure: str = params.get("context_measure", "FGA")
         return self._from_nba_api_multi(
             ShotChartLineupDetail,

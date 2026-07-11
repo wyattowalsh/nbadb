@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
-from nbadb.core.types import SeasonType
 from nbadb.orchestrate.staging_map import STAGING_MAP
 
 
@@ -41,7 +40,7 @@ def test_team_support_matrix_family_chunk_is_complete() -> None:
         assert row["input_schema_missing_staging_keys"] == [], endpoint_name
         assert row["output_schema_missing_tables"] == [], endpoint_name
 
-    expected_supported_season_types = [season_type.value for season_type in SeasonType]
+    expected_supported_season_types = ["Regular Season", "Playoffs", "Pre Season"]
     for endpoint_name in ("team_and_players_vs", "team_vs_player"):
         row = rows[endpoint_name]
         assert row["season_type_contract_status"] == "supported", endpoint_name
@@ -49,3 +48,9 @@ def test_team_support_matrix_family_chunk_is_complete() -> None:
             endpoint_name
         )
         assert row["contract_gaps"] == [], endpoint_name
+
+    extraction_rows = {row["endpoint_name"]: row for row in artifacts["extraction_matrix"]}
+    for endpoint_name in ("team_and_players_vs", "team_vs_player"):
+        row = extraction_rows[endpoint_name]
+        assert row["extractability_status"] == "excluded", endpoint_name
+        assert row["exclusion"]["classification"] == "contract_not_modeled_yet", endpoint_name

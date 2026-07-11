@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from nbadb.core.types import SeasonType
 from nbadb.orchestrate.staging_map import (
     STAGING_MAP,
     StagingEntry,
@@ -342,7 +341,7 @@ class TestStagingMap:
 
         assert entries
         capabilities = {entry.endpoint_name: entry.season_type_capability for entry in entries}
-        supported_season_types = tuple(season_type.value for season_type in SeasonType)
+        supported_season_types = ("Regular Season", "Playoffs", "Pre Season")
 
         assert {
             endpoint_name: capability

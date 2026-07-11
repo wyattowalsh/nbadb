@@ -15,11 +15,14 @@ import duckdb
 from nbadb.core.types import SeasonType
 from nbadb.orchestrate.execution_policy import build_execution_policy
 from nbadb.orchestrate.extraction_contract import (
+    DISCOVERY_SEED_OWNED_ENDPOINTS,
     FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
     FinalLaneOutcome,
     contract_blocking_rules_for_lane,
 )
+from nbadb.orchestrate.planning import PATTERN_PRIORITY, executable_endpoint_routes
 from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.workload_profile import (
     WorkloadPlanningSnapshot,
     build_workload_planning_snapshot,
@@ -499,6 +502,72 @@ def _current_end_year() -> int:
     return int(season_range()[-1][:4])
 
 
+def _runtime_support_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Project canonical coverage rows onto concrete planner endpoint routes."""
+
+    entries_by_staging_key = {entry.staging_key: entry for entry in STAGING_MAP}
+    projected: list[dict[str, Any]] = []
+    for row in rows:
+        raw_windows = row.get("support_windows")
+        if not isinstance(raw_windows, list) or not raw_windows:
+            projected.append(row)
+            continue
+
+        grouped_windows: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for raw_window in raw_windows:
+            if not isinstance(raw_window, dict):
+                msg = "Support-matrix support_windows entries must be objects"
+                raise ValueError(msg)
+            window = dict(raw_window)
+            staging_key = str(window.get("staging_key", "")).strip()
+            entry = entries_by_staging_key.get(staging_key)
+            if entry is None:
+                msg = f"Support-matrix staging key has no runtime route: {staging_key or '<empty>'}"
+                raise ValueError(msg)
+            declared_pattern = str(window.get("param_pattern", "")).strip()
+            if declared_pattern != entry.param_pattern:
+                msg = (
+                    f"Support-matrix route mismatch for {staging_key}: "
+                    f"declared {declared_pattern or '<empty>'}, runtime {entry.param_pattern}"
+                )
+                raise ValueError(msg)
+            grouped_windows.setdefault((entry.endpoint_name, entry.param_pattern), []).append(
+                window
+            )
+
+        for (endpoint_name, pattern), windows in sorted(grouped_windows.items()):
+            capabilities = {
+                str(window.get("season_type_capability", "not_applicable")) for window in windows
+            }
+            supported_types = {
+                tuple(str(value) for value in window.get("supported_season_types", []))
+                for window in windows
+            }
+            min_seasons = {window.get("min_season") for window in windows}
+            deprecated_after = {window.get("deprecated_after") for window in windows}
+            if any(
+                len(values) != 1
+                for values in (capabilities, supported_types, min_seasons, deprecated_after)
+            ):
+                msg = (
+                    f"Support-matrix windows disagree for concrete route {endpoint_name}/{pattern}"
+                )
+                raise ValueError(msg)
+
+            runtime_row = dict(row)
+            runtime_row.update(
+                endpoint_name=endpoint_name,
+                param_patterns=[pattern],
+                staging_keys=sorted(str(window["staging_key"]) for window in windows),
+                support_windows=windows,
+                earliest_supported_season=next(iter(min_seasons)),
+                season_type_contract_status=next(iter(capabilities)),
+                declared_supported_season_types=list(next(iter(supported_types))),
+            )
+            projected.append(runtime_row)
+    return projected
+
+
 def _patterns_for_endpoints(
     rows: list[dict[str, Any]],
     endpoints: list[str] | None,
@@ -538,6 +607,7 @@ def _runnable_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         row
         for row in rows
         if str(row.get("endpoint_name", "")) not in FULL_EXTRACTION_EXCLUDED_ENDPOINTS
+        and str(row.get("endpoint_name", "")) not in DISCOVERY_SEED_OWNED_ENDPOINTS
     ]
 
 
@@ -1101,7 +1171,37 @@ def _adaptive_split_season_band(
 
 def validate_manifest(lanes: list[FullExtractionLane]) -> None:
     errors: list[str] = []
+    executable_routes = executable_endpoint_routes()
+    executable_patterns = frozenset(PATTERN_PRIORITY)
     for lane in lanes:
+        unknown_patterns = sorted(set(lane.patterns) - executable_patterns)
+        if unknown_patterns:
+            errors.append(
+                f"{lane.lane_id}: unknown extraction patterns: {', '.join(unknown_patterns)}"
+            )
+        excluded_endpoints = sorted(set(lane.endpoints) & FULL_EXTRACTION_EXCLUDED_ENDPOINTS.keys())
+        if excluded_endpoints:
+            errors.append(
+                f"{lane.lane_id}: endpoints are excluded from full extraction: "
+                f"{', '.join(excluded_endpoints)}"
+            )
+        discovery_owned_endpoints = sorted(set(lane.endpoints) & DISCOVERY_SEED_OWNED_ENDPOINTS)
+        if discovery_owned_endpoints:
+            errors.append(
+                f"{lane.lane_id}: endpoints are owned by discovery_seed and must not "
+                f"be scheduled as extraction lanes: {', '.join(discovery_owned_endpoints)}"
+            )
+        for endpoint_name in lane.endpoints:
+            unsupported_patterns = sorted(
+                pattern
+                for pattern in lane.patterns
+                if (endpoint_name, pattern) not in executable_routes
+            )
+            if unsupported_patterns:
+                errors.append(
+                    f"{lane.lane_id}: endpoint {endpoint_name} has no executable planner "
+                    f"route for patterns {', '.join(unsupported_patterns)}"
+                )
         if (lane.season_start is None) != (lane.season_end is None):
             errors.append(f"{lane.lane_id}: season_start/season_end must both be set or both empty")
         if lane.timeout_seconds <= 0:
@@ -1205,18 +1305,31 @@ def build_default_manifest(
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
 ) -> list[FullExtractionLane]:
     chunk_profile = _validate_chunk_profile(chunk_profile)
-    endpoint_patterns = _patterns_for_endpoints(support_matrix_rows, selected_endpoints)
+    runtime_support_rows = _runtime_support_rows(support_matrix_rows)
+    selected_discovery_endpoints = sorted(
+        set(selected_endpoints or ()) & DISCOVERY_SEED_OWNED_ENDPOINTS
+    )
+    if selected_discovery_endpoints:
+        msg = (
+            "Selected full-extraction endpoints are discovery-seed-owned and cannot be "
+            "scheduled as matrix lanes: " + ", ".join(selected_discovery_endpoints)
+        )
+        raise ValueError(msg)
+
+    endpoint_patterns = _patterns_for_endpoints(runtime_support_rows, selected_endpoints)
     if selected_patterns is not None:
         requested_patterns = set(selected_patterns)
     elif endpoint_patterns is not None:
         requested_patterns = endpoint_patterns
     else:
         requested_patterns = {
-            str(pattern) for row in support_matrix_rows for pattern in row.get("param_patterns", [])
+            str(pattern)
+            for row in runtime_support_rows
+            for pattern in row.get("param_patterns", [])
         }
 
     filtered_rows = _selected_rows(
-        support_matrix_rows,
+        runtime_support_rows,
         selected_patterns=requested_patterns,
         selected_endpoints=selected_endpoints,
     )

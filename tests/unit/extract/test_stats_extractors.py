@@ -195,6 +195,7 @@ from nbadb.extract.stats.shots import (
     ShotChartDetailExtractor,
     ShotChartLeagueWideExtractor,
     ShotChartLineupDetailExtractor,
+    ShotChartLineupExtractor,
 )
 
 # ── standings ───────────────────────────────────────────────────────────────
@@ -1617,6 +1618,30 @@ class TestScheduleIntExtractor:
         result = await ext.extract(season="2023-24")
 
         assert result.get_column("game_id").to_list() == ["0012300001"]
+
+
+@pytest.mark.asyncio
+async def test_shot_chart_lineup_alias_uses_documented_default_group_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    extractor = ShotChartLineupExtractor()
+    captured: list[dict[str, object]] = []
+
+    def _single(_endpoint_cls: type, **kwargs: object) -> pl.DataFrame:
+        captured.append(kwargs)
+        return pl.DataFrame()
+
+    def _multi(_endpoint_cls: type, **kwargs: object) -> list[pl.DataFrame]:
+        captured.append(kwargs)
+        return [pl.DataFrame(), pl.DataFrame()]
+
+    monkeypatch.setattr(extractor, "_from_nba_api", _single)
+    monkeypatch.setattr(extractor, "_from_nba_api_multi", _multi)
+
+    await extractor.extract(season="2024-25")
+    await extractor.extract_all(season="2024-25")
+
+    assert [kwargs["group_id"] for kwargs in captured] == [0, 0]
 
 
 # Per-endpoint param overrides — only entries that differ from the category default.

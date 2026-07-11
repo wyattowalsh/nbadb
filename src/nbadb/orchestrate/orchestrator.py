@@ -14,6 +14,7 @@ from loguru import logger
 
 from nbadb.core.config import NbaDbSettings, get_settings
 from nbadb.core.db import DBManager
+from nbadb.core.errors import ExtractionError
 from nbadb.core.types import SeasonType
 from nbadb.extract.registry import registry as _global_registry
 from nbadb.load.multi import create_multi_loader
@@ -24,12 +25,20 @@ from nbadb.orchestrate.discovery import (
 )
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope, DiscoveryArtifactStore
 from nbadb.orchestrate.execution_policy import endpoint_family
+from nbadb.orchestrate.extraction_contract import (
+    DISCOVERY_SEED_ENDPOINT_PATTERNS,
+    DISCOVERY_SEED_OWNED_ENDPOINTS,
+)
 from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
 from nbadb.orchestrate.extractor_runner import ExtractorRunner, PatternExtractionResult
 from nbadb.orchestrate.init_coverage import InitDiscoveryCoverageError
 from nbadb.orchestrate.journal import PipelineJournal
 from nbadb.orchestrate.live_snapshot import LiveSnapshotWarehouse
-from nbadb.orchestrate.planning import ExtractionPlanItem, build_extraction_plan
+from nbadb.orchestrate.planning import (
+    ExtractionPlanItem,
+    build_extraction_plan,
+    executable_endpoint_routes,
+)
 from nbadb.orchestrate.seasons import (
     current_season,
     recent_seasons,
@@ -87,6 +96,33 @@ def _apply_player_shard(player_ids: list[int]) -> list[int]:
         for offset, player_id in enumerate(player_ids)
         if offset % shard_count == shard_index
     ]
+
+
+def _require_requested_endpoint_routes(
+    requested_endpoints: set[str],
+    *,
+    requested_patterns: set[str] | None = None,
+    discovery_backed_endpoints: frozenset[str] = frozenset(),
+) -> None:
+    routes = executable_endpoint_routes()
+    missing: list[str] = []
+    for endpoint_name in sorted(requested_endpoints):
+        if endpoint_name in discovery_backed_endpoints:
+            endpoint_patterns = set(DISCOVERY_SEED_ENDPOINT_PATTERNS.get(endpoint_name, ()))
+        else:
+            endpoint_patterns = {
+                pattern for endpoint, pattern in routes if endpoint == endpoint_name
+            }
+        unsupported_patterns = sorted((requested_patterns or set()) - endpoint_patterns)
+        if not endpoint_patterns:
+            missing.append(endpoint_name)
+        elif unsupported_patterns:
+            missing.append(f"{endpoint_name} ({', '.join(unsupported_patterns)})")
+    if missing:
+        raise ExtractionError(
+            "Backfill planning has no executable route for requested endpoint(s): "
+            + ", ".join(missing)
+        )
 
 
 def _group_exact_pairs(
@@ -2264,6 +2300,9 @@ class Orchestrator:
                     requested_patterns.add("game")
             else:
                 requested_patterns = None
+            if endpoints and set(endpoints) & DISCOVERY_SEED_OWNED_ENDPOINTS:
+                requested_patterns = set(requested_patterns or ())
+                requested_patterns.add("game")
             needs_games = requested_patterns is None or bool({"game", "date"} & requested_patterns)
             needs_players = requested_patterns is None or bool(
                 {"player", "player_season"} & requested_patterns
@@ -2275,6 +2314,14 @@ class Orchestrator:
             needs_player_team_season = (
                 requested_patterns is None or "player_team_season" in requested_patterns
             )
+            if endpoints:
+                _require_requested_endpoint_routes(
+                    set(endpoints),
+                    requested_patterns=set(patterns) if patterns else None,
+                    discovery_backed_endpoints=(
+                        DISCOVERY_SEED_OWNED_ENDPOINTS if needs_games else frozenset()
+                    ),
+                )
 
             # -- 1. Entity discovery (scoped to requested seasons) -----
             if pp is not None:

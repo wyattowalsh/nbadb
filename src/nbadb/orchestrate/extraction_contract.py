@@ -86,6 +86,64 @@ class EndpointSupportRule:
 
 FULL_EXTRACTION_EXCLUSIONS: tuple[ExtractionExclusion, ...] = (
     ExtractionExclusion(
+        endpoint_name="player_vs_player",
+        classification="contract_not_modeled_yet",
+        reason=(
+            "PlayerVsPlayer requires both PlayerID and VsPlayerID, but the durable "
+            "player-team-season workload records affiliations rather than observed "
+            "player matchup pairs. Expanding affiliations into every possible pair "
+            "would be quadratic and would not represent an evidence-backed matchup."
+        ),
+        owner="orchestrate",
+        revalidation_path=(
+            "Build a durable observed player-matchup workload from game, rotation, or "
+            "lineup evidence, then add a dedicated planner route and completeness gate."
+        ),
+    ),
+    ExtractionExclusion(
+        endpoint_name="team_vs_player",
+        classification="contract_not_modeled_yet",
+        reason=(
+            "TeamVsPlayer requires TeamID and VsPlayerID. The current "
+            "player-team-season workload does not identify which player comparison "
+            "targets are semantically valid for each team and season."
+        ),
+        owner="orchestrate",
+        revalidation_path=(
+            "Define and persist an observed team-player matchup workload, then add a "
+            "dedicated planner route and parameter-level completeness accounting."
+        ),
+    ),
+    ExtractionExclusion(
+        endpoint_name="team_and_players_vs",
+        classification="contract_not_modeled_yet",
+        reason=(
+            "TeamAndPlayersVsPlayers requires two team IDs plus two lineups of up to "
+            "five player IDs. Player-team-season affiliations cannot reconstruct valid "
+            "opposing lineup combinations without game or rotation evidence."
+        ),
+        owner="orchestrate",
+        revalidation_path=(
+            "Build a durable observed lineup-matchup workload from game and rotation "
+            "data, then add a dedicated planner route and completeness gate."
+        ),
+    ),
+    ExtractionExclusion(
+        endpoint_name="team_and_players_vs_players",
+        classification="contract_not_modeled_yet",
+        reason=(
+            "The extractor-only TeamAndPlayersVsPlayers alias currently supplies one "
+            "team and two player IDs, while nba_api requires two team IDs and ten "
+            "player slots. It cannot construct the upstream request, and the current "
+            "affiliation workload cannot supply evidence-backed opposing lineups."
+        ),
+        owner="orchestrate",
+        revalidation_path=(
+            "Route the alias through the canonical observed lineup-matchup workload "
+            "once that workload and its completeness contract are implemented."
+        ),
+    ),
+    ExtractionExclusion(
         endpoint_name="team_historical_leaders",
         classification="upstream_bug_blocked",
         reason=(
@@ -102,6 +160,35 @@ FULL_EXTRACTION_EXCLUSIONS: tuple[ExtractionExclusion, ...] = (
 
 FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT: dict[str, ExtractionExclusion] = {
     exclusion.endpoint_name: exclusion for exclusion in FULL_EXTRACTION_EXCLUSIONS
+}
+
+# These endpoints are persisted by centralized discovery rather than by an extract
+# matrix lane. Scheduling them again would allocate a runner without producing an
+# endpoint journal call.
+DISCOVERY_SEED_ENDPOINT_PATTERNS: dict[str, frozenset[str]] = {
+    "league_game_log": frozenset({"season", "game"}),
+}
+DISCOVERY_SEED_OWNED_ENDPOINTS = frozenset(DISCOVERY_SEED_ENDPOINT_PATTERNS)
+
+# Coverage canonicalization can merge alternate extractor wrappers that still have
+# distinct staging surfaces. Concrete routes inherit the canonical family's support
+# windows so aliases cannot fan out into seasons the upstream contract blocks.
+FULL_EXTRACTION_CONTRACT_ALIASES: dict[str, str] = {
+    "home_page_leaders": "homepage_leaders",
+    "home_page_v2": "homepage_v2",
+    "league_dash_player_bio_stats": "league_dash_player_bio",
+    "player_career_by_college_rollup": "player_college_rollup",
+    "player_dashboard_game_splits": "player_dash_game_splits",
+    "player_dashboard_general_splits": "player_dash_general_splits",
+    "player_dashboard_last_n_games": "player_dash_last_n_games",
+    "player_dashboard_shooting_splits": "player_dash_shooting_splits",
+    "player_dashboard_team_performance": "player_dash_team_perf",
+    "player_dashboard_year_over_year": "player_dash_yoy",
+    "player_game_logs": "player_game_logs_v2",
+    "player_game_streak_finder": "player_streak_finder",
+    "shot_chart_lineup_detail": "shot_chart_lineup",
+    "team_and_players_vs_players": "team_and_players_vs",
+    "team_year_by_year_stats": "team_year_by_year",
 }
 
 EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS: tuple[str, ...] = (
@@ -950,14 +1037,21 @@ def matching_support_rules(
     rules: tuple[EndpointSupportRule, ...] | None = None,
 ) -> tuple[EndpointSupportRule, ...]:
     support_rules = FULL_EXTRACTION_SUPPORT_RULES if rules is None else rules
+    endpoint_names = {
+        endpoint_name,
+        FULL_EXTRACTION_CONTRACT_ALIASES.get(endpoint_name, endpoint_name),
+    }
     return tuple(
         rule
         for rule in support_rules
-        if rule.matches(
-            endpoint_name=endpoint_name,
-            patterns=patterns,
-            season_start=season_start,
-            season_end=season_end,
+        if any(
+            rule.matches(
+                endpoint_name=candidate,
+                patterns=patterns,
+                season_start=season_start,
+                season_end=season_end,
+            )
+            for candidate in endpoint_names
         )
     )
 

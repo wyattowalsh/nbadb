@@ -10,6 +10,7 @@ import duckdb
 import polars as pl
 import pytest
 
+from nbadb.core.errors import ExtractionError
 from nbadb.orchestrate.discovery import GameDiscoveryResult, PlayerTeamSeasonDiscoveryResult
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope
 from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
@@ -20,6 +21,7 @@ from nbadb.orchestrate.orchestrator import (
     Orchestrator,
     PipelineResult,
     _apply_player_shard,
+    _require_requested_endpoint_routes,
 )
 from nbadb.orchestrate.planning import ExtractionPlanItem
 from nbadb.orchestrate.staging_batches import StagingBatchStore
@@ -2310,6 +2312,83 @@ class TestPersistStagingToDuckdb:
 
 
 class TestRunBackfill:
+    def test_requested_endpoint_must_have_a_concrete_route(self):
+        with pytest.raises(ExtractionError, match="player_vs_player"):
+            _require_requested_endpoint_routes({"player_vs_player"})
+
+    def test_discovery_backed_endpoint_satisfies_the_plan_contract(self):
+        _require_requested_endpoint_routes(
+            {"league_game_log"},
+            discovery_backed_endpoints=frozenset({"league_game_log"}),
+        )
+
+    def test_discovery_backed_endpoint_rejects_unrelated_pattern(self):
+        with pytest.raises(ExtractionError, match="league_game_log.*player"):
+            _require_requested_endpoint_routes(
+                {"league_game_log"},
+                requested_patterns={"player"},
+                discovery_backed_endpoints=frozenset({"league_game_log"}),
+            )
+
+    @pytest.mark.parametrize(
+        ("endpoint_name", "pattern"),
+        [
+            ("box_score_traditional", "game"),
+            ("video_details", "player_team_season"),
+        ],
+    )
+    def test_executable_route_accepts_typed_zero_row_workload(
+        self,
+        endpoint_name: str,
+        pattern: str,
+    ):
+        _require_requested_endpoint_routes(
+            {endpoint_name},
+            requested_patterns={pattern},
+        )
+
+    def test_requested_endpoint_rejects_unsupported_mixed_pattern(self):
+        with pytest.raises(ExtractionError, match="player_game_logs_v2.*season"):
+            _require_requested_endpoint_routes(
+                {"player_game_logs_v2"},
+                requested_patterns={"player_season", "season"},
+            )
+
+    def test_run_backfill_fails_before_extraction_when_endpoint_plan_is_empty(self):
+        orch, _db, _journal = _build_orchestrator_with_mocks()
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_player_team_season_params_result.return_value = (
+            _player_team_discovery_result(
+                params=[
+                    {
+                        "player_id": 201566,
+                        "team_id": 1610612737,
+                        "season": "2024-25",
+                        "season_type": "Regular Season",
+                    }
+                ]
+            )
+        )
+        mock_runner = _mock_runner()
+
+        with (
+            patch(_DISCOVERY, return_value=mock_discovery),
+            patch(_REGISTRY),
+            patch.object(orch, "_build_runner", return_value=mock_runner),
+            patch("nbadb.orchestrate.orchestrator.build_extraction_plan", return_value=[]),
+            pytest.raises(ExtractionError, match="player_vs_player"),
+        ):
+            asyncio.run(
+                orch.run_backfill(
+                    seasons=["2024-25"],
+                    endpoints=["player_vs_player"],
+                    extract_only=True,
+                    season_types=["Regular Season"],
+                )
+            )
+
+        mock_runner.run_pattern_result.assert_not_called()
+
     def test_run_backfill_endpoint_scope_skips_unneeded_game_discovery(self):
         orch, _db, _journal = _build_orchestrator_with_mocks()
 

@@ -173,6 +173,33 @@ class ExtractionPlanItem:
         return len(self.entries) * len(self.params)
 
 
+def executable_entries_by_pattern() -> dict[str, list[StagingEntry]]:
+    """Return planner-owned endpoint routes independent of workload cardinality."""
+
+    entries = {pattern: get_by_pattern(pattern) for pattern in PATTERN_PRIORITY}
+    entries["season"] = [
+        entry for entry in entries["season"] if entry.endpoint_name != "league_game_log"
+    ]
+    entries["player_team_season"] = [
+        entry
+        for entry in entries["player_team_season"]
+        if entry.endpoint_name in PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS
+        and _season_type_capability(entry) == "supported"
+        and _supported_season_types(entry)
+    ]
+    return entries
+
+
+def executable_endpoint_routes() -> frozenset[tuple[str, str]]:
+    """Return every concrete endpoint/pattern pair the planner can emit."""
+
+    return frozenset(
+        (entry.endpoint_name, pattern)
+        for pattern, entries in executable_entries_by_pattern().items()
+        for entry in entries
+    )
+
+
 def build_extraction_plan(
     *,
     seasons: list[str],
@@ -194,8 +221,9 @@ def build_extraction_plan(
     """
 
     plan: list[ExtractionPlanItem] = []
+    entries_by_pattern = executable_entries_by_pattern()
 
-    static_entries = get_by_pattern("static")
+    static_entries = entries_by_pattern["static"]
     if include_static and static_entries:
         plan.append(
             ExtractionPlanItem(
@@ -207,7 +235,7 @@ def build_extraction_plan(
             )
         )
 
-    season_entries = [e for e in get_by_pattern("season") if e.endpoint_name != "league_game_log"]
+    season_entries = entries_by_pattern["season"]
     if season_entries and seasons:
         for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
             season_entries, season_types
@@ -229,7 +257,7 @@ def build_extraction_plan(
                 )
             )
 
-    game_entries = get_by_pattern("game")
+    game_entries = entries_by_pattern["game"]
     if game_entries and game_ids:
         plan.append(
             ExtractionPlanItem(
@@ -241,7 +269,7 @@ def build_extraction_plan(
             )
         )
 
-    player_entries = get_by_pattern("player")
+    player_entries = entries_by_pattern["player"]
     if player_entries and player_ids:
         plan.append(
             ExtractionPlanItem(
@@ -253,7 +281,7 @@ def build_extraction_plan(
             )
         )
 
-    team_entries = get_by_pattern("team")
+    team_entries = entries_by_pattern["team"]
     if team_entries and team_ids:
         general_team_entries = [
             entry
@@ -285,7 +313,7 @@ def build_extraction_plan(
                 )
             )
 
-    player_season_entries = get_by_pattern("player_season")
+    player_season_entries = entries_by_pattern["player_season"]
     if player_season_entries and player_ids and seasons:
         for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
             player_season_entries, season_types
@@ -307,7 +335,7 @@ def build_extraction_plan(
                 )
             )
 
-    team_season_entries = get_by_pattern("team_season")
+    team_season_entries = entries_by_pattern["team_season"]
     if team_season_entries and team_ids and seasons:
         for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
             team_season_entries, season_types
@@ -329,17 +357,10 @@ def build_extraction_plan(
                 )
             )
 
-    player_team_season_entries = get_by_pattern("player_team_season")
+    player_team_season_entries = entries_by_pattern["player_team_season"]
     if player_team_season_entries and player_team_season_params:
-        supported_cross_product_entries = [
-            entry
-            for entry in player_team_season_entries
-            if entry.endpoint_name in PLAYER_TEAM_SEASON_WORKLOAD_ENDPOINTS
-            and _season_type_capability(entry) == "supported"
-            and _supported_season_types(entry)
-        ]
         for grouped_entries, start_year, grouped_season_types in _group_historical_entries(
-            supported_cross_product_entries,
+            player_team_season_entries,
             season_types,
         ):
             grouped_params = _filter_cross_product_params(
@@ -359,7 +380,7 @@ def build_extraction_plan(
                 )
             )
 
-    date_entries = get_by_pattern("date")
+    date_entries = entries_by_pattern["date"]
     if date_entries and game_dates:
         plan.append(
             ExtractionPlanItem(
