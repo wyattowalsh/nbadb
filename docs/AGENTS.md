@@ -4,7 +4,7 @@
 
 - **Fumadocs 16** (fumadocs-core 16.10.6, fumadocs-mdx 15.0.13, fumadocs-ui 16.10.6)
 - **Next.js 16.2.9** with App Router
-- **pnpm 11.9.0** (package manager)
+- **pnpm 11.11.0** (package manager)
 - **Tailwind CSS v4.3.1** (v4 `@theme` syntax, no `tailwind.config.js`)
 - **Mermaid 11** for diagrams (client-side rendering via custom component)
 - **DuckDB-WASM** for in-browser SQL playground
