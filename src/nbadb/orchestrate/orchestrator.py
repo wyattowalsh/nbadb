@@ -89,6 +89,28 @@ def _apply_player_shard(player_ids: list[int]) -> list[int]:
     ]
 
 
+def _group_exact_pairs(
+    pairs: set[tuple[str, str]] | frozenset[tuple[str, str]],
+    *,
+    seasons: list[str],
+    season_types: list[str],
+) -> tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]:
+    """Group seasons with identical required season types without widening pairs."""
+    seasons_by_types: dict[tuple[str, ...], list[str]] = {}
+    for season in dict.fromkeys(seasons):
+        exact_types = tuple(
+            season_type
+            for season_type in dict.fromkeys(season_types)
+            if (season, season_type) in pairs
+        )
+        if exact_types:
+            seasons_by_types.setdefault(exact_types, []).append(season)
+    return tuple(
+        (tuple(grouped_seasons), exact_types)
+        for exact_types, grouped_seasons in seasons_by_types.items()
+    )
+
+
 @dataclass
 class PipelineResult:
     """Outcome of a pipeline run."""
@@ -344,10 +366,149 @@ class Orchestrator:
         *,
         seasons: list[str],
         season_types: list[str],
+        run_mode: str = "init",
     ) -> PlayerTeamSeasonDiscoveryResult:
-        return await discovery.discover_player_team_season_params_result(
-            seasons,
+        requested_pairs = frozenset(
+            (season, season_type) for season in seasons for season_type in season_types
+        )
+        mutable_pairs = (
+            frozenset((seasons[-1], season_type) for season_type in season_types)
+            if seasons and run_mode in {"daily", "monthly"}
+            else frozenset()
+        )
+        store = self._player_team_season_workloads()
+        artifact_path = store.artifact_path
+        manifest_path = store.manifest_path
+        cache_files_present = (
+            artifact_path is not None
+            and artifact_path.is_file()
+            and manifest_path is not None
+            and manifest_path.is_file()
+        )
+        cached_pairs: set[tuple[str, str]] = set()
+        if cache_files_present:
+            coverage = store.load_coverage(
+                seasons=seasons,
+                season_types=season_types,
+            )
+            cached_pairs = coverage.covered_pairs - mutable_pairs
+            if coverage.invalid_pairs:
+                logger.info(
+                    (
+                        "player/team workload cache has invalid pair evidence; "
+                        "using live discovery: {}"
+                    ),
+                    sorted(coverage.invalid_pairs),
+                )
+            if requested_pairs <= cached_pairs:
+                logger.info(
+                    "reusing player/team workload cache for all {} requested season/type pairs",
+                    len(requested_pairs),
+                )
+                return PlayerTeamSeasonDiscoveryResult(
+                    params=store.load_params(
+                        seasons=seasons,
+                        season_types=season_types,
+                    ),
+                    requested_pairs=requested_pairs,
+                    covered_pairs=requested_pairs,
+                )
+        elif (
+            artifact_path is not None
+            and artifact_path.exists()
+            or manifest_path is not None
+            and manifest_path.exists()
+        ):
+            logger.info("player/team workload cache files are incomplete; using live discovery")
+
+        live_required_pairs = requested_pairs - cached_pairs
+        grouped_live_scopes = _group_exact_pairs(
+            live_required_pairs,
+            seasons=seasons,
             season_types=season_types,
+        )
+        logger.info(
+            (
+                "using live player/team discovery for {} {} pair(s) "
+                "across {} exact scope(s) in {} mode"
+            ),
+            len(live_required_pairs),
+            "mutable or uncached" if mutable_pairs else "uncached",
+            len(grouped_live_scopes),
+            run_mode,
+        )
+        retained_cached_pairs = cached_pairs - set(live_required_pairs)
+        cached_params = (
+            store.load_params(
+                seasons=seasons,
+                season_types=season_types,
+            )
+            if retained_cached_pairs
+            else []
+        )
+        merged_params: dict[tuple[int, int, str, str], dict[str, int | str]] = {}
+        for raw_param in cached_params:
+            pair = (str(raw_param["season"]), str(raw_param["season_type"]))
+            if pair not in retained_cached_pairs:
+                continue
+            key = (
+                int(raw_param["player_id"]),
+                int(raw_param["team_id"]),
+                pair[0],
+                pair[1],
+            )
+            merged_params[key] = {
+                "player_id": key[0],
+                "team_id": key[1],
+                "season": key[2],
+                "season_type": key[3],
+            }
+
+        covered_pairs = set(retained_cached_pairs)
+        for live_seasons, live_season_types in grouped_live_scopes:
+            expected_pairs = {
+                (season, season_type)
+                for season in live_seasons
+                for season_type in live_season_types
+            }
+            live_result = await discovery.discover_player_team_season_params_result(
+                list(live_seasons),
+                season_types=list(live_season_types),
+            )
+            live_covered_pairs = expected_pairs & set(live_result.covered_pairs)
+            covered_pairs.update(live_covered_pairs)
+            for raw_param in live_result.params:
+                pair = (str(raw_param["season"]), str(raw_param["season_type"]))
+                if pair not in live_covered_pairs:
+                    continue
+                key = (
+                    int(raw_param["player_id"]),
+                    int(raw_param["team_id"]),
+                    pair[0],
+                    pair[1],
+                )
+                merged_params[key] = {
+                    "player_id": key[0],
+                    "team_id": key[1],
+                    "season": key[2],
+                    "season_type": key[3],
+                }
+
+        return PlayerTeamSeasonDiscoveryResult(
+            params=[merged_params[key] for key in sorted(merged_params)],
+            requested_pairs=requested_pairs,
+            covered_pairs=frozenset(covered_pairs),
+        )
+
+    @staticmethod
+    def _require_complete_player_team_discovery(
+        result: PlayerTeamSeasonDiscoveryResult,
+    ) -> None:
+        if result.is_complete:
+            return
+        missing_pairs = sorted(result.requested_pairs - result.covered_pairs)
+        raise InitDiscoveryCoverageError(
+            [f"incomplete player-team-season discovery; missing pairs: {missing_pairs}"]
         )
 
     def _run_live_snapshot_upkeep(self, *, run_mode: str) -> tuple[int, int]:
@@ -662,6 +823,7 @@ class Orchestrator:
         include_teams: bool = True,
         include_dates: bool = True,
         require_complete: bool = False,
+        refresh_mutable_entities: bool = False,
     ) -> tuple[list[str], list[int], list[int], list[str], pl.DataFrame]:
         """Discover game/player/team IDs and game dates in parallel.
 
@@ -670,13 +832,17 @@ class Orchestrator:
             (game_ids, player_ids, team_ids, game_dates, game_log_df)
 
         When *include_historical_players* is True (used by run_init),
-        all players are discovered (active + retired).
+        all players are discovered (active + retired). When
+        *refresh_mutable_entities* is True and the active season is in scope,
+        game and player caches are bypassed so monthly refreshes cannot freeze a
+        mid-season inventory.
         """
         import polars as pl
 
         pp = self._progress
         artifacts = self._discovery_artifacts()
         resolved_season_types = tuple(season_types or ["Regular Season"])
+        refresh_current_scope = refresh_mutable_entities and current_season() in seasons
 
         discovery_tasks: list[Awaitable[object]] = []
         game_index: int | None = None
@@ -689,7 +855,9 @@ class Orchestrator:
                 seasons=tuple(seasons),
                 season_types=resolved_season_types,
             )
-            cached_game_log = artifacts.load_game_log_frame(game_scope)
+            cached_game_log = (
+                None if refresh_current_scope else artifacts.load_game_log_frame(game_scope)
+            )
             if cached_game_log is not None:
                 game_ids = (
                     cached_game_log.get_column("game_id").unique().sort().to_list()
@@ -733,7 +901,7 @@ class Orchestrator:
                 season_types=(),
                 variant="historical" if include_historical_players else "active",
             )
-            cached_player_ids = artifacts.load_ids(player_scope)
+            cached_player_ids = [] if refresh_current_scope else artifacts.load_ids(player_scope)
             if not cached_player_ids and include_historical_players and len(seasons) > 1:
                 season_cached_player_ids = artifacts.load_ids_for_seasons(
                     kind="player_ids_all",
@@ -1303,6 +1471,7 @@ class Orchestrator:
                     discovery,
                     seasons=seasons,
                     season_types=season_types,
+                    run_mode="init",
                 )
             )
             (
@@ -1312,13 +1481,7 @@ class Orchestrator:
             ) = await asyncio.gather(entity_task, current_team_task, player_team_task)
             if not current_team_ids:
                 raise InitDiscoveryCoverageError(["current-team discovery returned no ids"])
-            if not player_team_result.is_complete:
-                missing_pairs = sorted(
-                    player_team_result.requested_pairs - player_team_result.covered_pairs
-                )
-                raise InitDiscoveryCoverageError(
-                    [f"incomplete player-team-season discovery; missing pairs: {missing_pairs}"]
-                )
+            self._require_complete_player_team_discovery(player_team_result)
             player_team_season_params = self._persist_player_team_season_workloads(
                 player_team_result.params,
                 seasons=seasons,
@@ -1495,7 +1658,9 @@ class Orchestrator:
                 discovery,
                 seasons=[season],
                 season_types=daily_season_types,
+                run_mode="daily",
             )
+            self._require_complete_player_team_discovery(player_team_result)
             player_team_season_params = self._persist_player_team_season_workloads(
                 player_team_result.params,
                 seasons=[season],
@@ -1613,14 +1778,20 @@ class Orchestrator:
             # -- 1. Discover entities (parallel) --- uses shared helper
             monthly_season_types = list(DEFAULT_SEASON_TYPES)
             game_ids, player_ids, team_ids, game_dates, game_log_df = await self._discover_entities(
-                discovery, seasons, bound_log, season_types=monthly_season_types
+                discovery,
+                seasons,
+                bound_log,
+                season_types=monthly_season_types,
+                refresh_mutable_entities=True,
             )
             current_team_ids = await self._discover_current_team_ids(discovery, seasons=seasons)
             player_team_result = await self._discover_player_team_season_result(
                 discovery,
                 seasons=seasons,
                 season_types=monthly_season_types,
+                run_mode="monthly",
             )
+            self._require_complete_player_team_discovery(player_team_result)
             player_team_season_params = self._persist_player_team_season_workloads(
                 player_team_result.params,
                 seasons=seasons,
@@ -1853,7 +2024,9 @@ class Orchestrator:
                 discovery,
                 seasons=seasons,
                 season_types=_full_st,
+                run_mode="retry",
             )
+            self._require_complete_player_team_discovery(player_team_result)
             player_team_season_params = self._persist_player_team_season_workloads(
                 player_team_result.params,
                 seasons=seasons,
@@ -2053,7 +2226,9 @@ class Orchestrator:
                     discovery,
                     seasons=effective_seasons,
                     season_types=season_types,
+                    run_mode="backfill",
                 )
+                self._require_complete_player_team_discovery(player_team_result)
                 player_team_season_params = self._persist_player_team_season_workloads(
                     player_team_result.params,
                     seasons=effective_seasons,

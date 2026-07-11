@@ -384,6 +384,7 @@ class FullExtractionChainState:
     previous_checkpoint_artifact_name: str = ""
     previous_checkpoint_generation: int = 0
     previous_checkpoint_coverage_hash: str = ""
+    scheduler_rotation_cursor: int = 0
     iteration_budget: int = 0
 
     def to_payload(self) -> dict[str, Any]:
@@ -398,6 +399,7 @@ class FullExtractionChainState:
             "previous_checkpoint_artifact_name": self.previous_checkpoint_artifact_name,
             "previous_checkpoint_generation": self.previous_checkpoint_generation,
             "previous_checkpoint_coverage_hash": self.previous_checkpoint_coverage_hash,
+            "scheduler_rotation_cursor": self.scheduler_rotation_cursor,
             "iteration_budget": self.iteration_budget,
         }
 
@@ -465,6 +467,10 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
         ),
         previous_checkpoint_coverage_hash=_normalize_scalar_string(
             raw_chain_state.get("previous_checkpoint_coverage_hash")
+        ),
+        scheduler_rotation_cursor=(
+            int(raw_chain_state.get("scheduler_rotation_cursor") or 0)
+            % len(SCHEDULER_QUEUE_SEQUENCE)
         ),
         iteration_budget=int(raw_chain_state.get("iteration_budget") or 0),
     )
@@ -954,18 +960,13 @@ def _schedule_lanes(
     chunk_profile: str,
     planning_snapshot: WorkloadPlanningSnapshot | None = None,
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
+    rotation_cursor: int = 0,
 ) -> list[FullExtractionLane]:
     chunk_profile = _validate_chunk_profile(chunk_profile)
     annotated = [
         _annotate_lane(lane, chunk_profile=chunk_profile, planning_snapshot=planning_snapshot)
         for lane in lanes
     ]
-    if chunk_profile == "standard":
-        return [
-            replace(lane, lane_index=index, planned_wave=index // max_matrix_lanes)
-            for index, lane in enumerate(annotated)
-        ]
-
     resume_only = [lane for lane in annotated if lane.resume_only]
     active = [lane for lane in annotated if not lane.resume_only]
 
@@ -991,7 +992,7 @@ def _schedule_lanes(
         queue.sort(key=sort_key)
 
     scheduled: list[FullExtractionLane] = []
-    sequence_index = 0
+    sequence_index = rotation_cursor % len(SCHEDULER_QUEUE_SEQUENCE)
     while any(queues.values()):
         wave_size = min(max_matrix_lanes, sum(len(queue) for queue in queues.values()))
         family_cap = max(1, math.ceil(wave_size * 0.25))
@@ -1637,6 +1638,7 @@ def manifest_payload(
         "iteration_budget": resolved_chain_state.iteration_budget,
         "scheduler_diagnostics": {
             "max_matrix_lanes": max_matrix_lanes,
+            "rotation_cursor": resolved_chain_state.scheduler_rotation_cursor,
             "queue_counts": {
                 name: sum(1 for lane in active_lanes if _lane_scheduler_queue(lane) == name)
                 for name in ("fresh", "partial", "retry", "infrastructure")
@@ -1973,6 +1975,29 @@ def _metadata_progress(payload: dict[str, Any]) -> tuple[int, int]:
     return completed_calls, rows_persisted
 
 
+def _support_rule_fingerprints(raw_rules: Any) -> tuple[str, ...] | None:
+    if not isinstance(raw_rules, list):
+        return None
+
+    fingerprints: list[str] = []
+    for raw_rule in raw_rules:
+        if not isinstance(raw_rule, dict):
+            return None
+        fingerprints.append(json.dumps(raw_rule, sort_keys=True, separators=(",", ":")))
+    return tuple(sorted(fingerprints))
+
+
+def _metadata_support_rules_match(
+    payload: dict[str, Any],
+    expected_rules: tuple[dict[str, Any], ...],
+) -> bool:
+    if not expected_rules:
+        return False
+    reported = _support_rule_fingerprints(payload.get("support_rules"))
+    expected = _support_rule_fingerprints(list(expected_rules))
+    return reported is not None and reported == expected
+
+
 def _metadata_failure_class(payload: dict[str, Any], *, raw_status: str) -> str:
     failure_class = str(payload.get("failure_class") or "").strip()
     if failure_class:
@@ -2096,9 +2121,10 @@ def lane_outcome_from_metadata(
             )
         )
     )
+    support_rules_attested = _metadata_support_rules_match(payload, lane_contract_rules)
 
     if metadata_status == "contract_blocked":
-        return "contract_blocked"
+        return "contract_blocked" if support_rules_attested else "pipeline_failure"
     if (
         rows_persisted == 0
         and lane_contract_rules
@@ -2109,6 +2135,8 @@ def lane_outcome_from_metadata(
             or metadata_status == "pipeline_failure"
         )
     ):
+        if _int_metadata_value(payload.get("metadata_schema_version")) >= 3:
+            return "contract_blocked" if support_rules_attested else "pipeline_failure"
         return "contract_blocked"
     if metadata_status == "needs_resume":
         return "needs_resume"
@@ -2380,6 +2408,16 @@ def build_resume_manifest(
         ]
     )
     previous_state = chain_state or FullExtractionChainState()
+    dispatched_lane_count = sum(
+        1
+        for lane in lanes
+        if not lane.resume_only
+        and attempted_lane_ids is not None
+        and lane.lane_id in attempted_lane_ids
+    )
+    next_scheduler_cursor = (
+        previous_state.scheduler_rotation_cursor + dispatched_lane_count
+    ) % len(SCHEDULER_QUEUE_SEQUENCE)
     replacing_checkpoint = bool(latest_checkpoint_run_id and latest_checkpoint_artifact_name)
     merged_artifact_run_ids = _normalize_server_list(
         [
@@ -2392,6 +2430,7 @@ def build_resume_manifest(
         next_lanes,
         chunk_profile=profile,
         max_matrix_lanes=max_matrix_lanes,
+        rotation_cursor=next_scheduler_cursor,
     )
     checkpoint_generation = (
         int(latest_checkpoint_generation)
@@ -2434,6 +2473,7 @@ def build_resume_manifest(
             if replacing_checkpoint
             else previous_state.previous_checkpoint_coverage_hash
         ),
+        scheduler_rotation_cursor=next_scheduler_cursor,
         iteration_budget=previous_state.iteration_budget,
     )
 
@@ -2455,6 +2495,8 @@ def build_resume_manifest(
             "durable_state_lane_count": sum(
                 1 for lane in next_lanes if lane.state_artifact_run_id and not lane.resume_only
             ),
+            "scheduler_dispatched_lane_count": dispatched_lane_count,
+            "scheduler_rotation_cursor": next_scheduler_cursor,
         },
     )
 
@@ -2573,16 +2615,29 @@ def _merge_database_paths(
     *,
     db_paths: list[Path],
     output_dir: Path,
+    base_database_path: Path | None = None,
 ) -> dict[str, Any]:
     db_paths = sorted(path for path in db_paths if path.is_file())
-    if not db_paths:
+    if base_database_path is not None and not base_database_path.is_file():
+        msg = f"Base database was not available to merge: {base_database_path}"
+        raise FileNotFoundError(msg)
+    if not db_paths and base_database_path is None:
         msg = "No lane databases were available to merge"
         raise FileNotFoundError(msg)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     target_path = output_dir / "nba.duckdb"
-    if target_path.exists():
-        target_path.unlink()
+    working_path = output_dir / ".nba.duckdb.tmp"
+    working_wal_path = Path(f"{working_path}.wal")
+    if base_database_path is not None and base_database_path.resolve() == target_path.resolve():
+        msg = "Checkpoint roll-forward output must differ from the previous checkpoint"
+        raise ValueError(msg)
+    for stale_path in (working_path, working_wal_path):
+        with suppress(FileNotFoundError):
+            stale_path.unlink()
+
+    if base_database_path is not None:
+        shutil.copy2(base_database_path, working_path)
 
     def quote_identifier(identifier: str) -> str:
         return '"' + identifier.replace('"', '""') + '"'
@@ -2630,18 +2685,43 @@ def _merge_database_paths(
             raise RuntimeError(msg)
         return int(row[0])
 
-    target = duckdb.connect(str(target_path))
-    attached_aliases: list[str] = []
-    merge_failed = False
     merged_tables = 0
     table_reports: dict[str, dict[str, Any]] = {}
     journal_report: dict[str, Any] = {
         "source_rows": 0,
         "inserted_rows": 0,
         "duplicate_rows": 0,
+        "replaced_base_rows": 0,
+        "delete_batch_count": 0,
+        "insert_batch_count": 0,
         "source_count": 0,
         "per_source": [],
     }
+
+    summary = {
+        "merged_database_count": len(db_paths) + int(base_database_path is not None),
+        "merged_delta_database_count": len(db_paths),
+        "base_database_copied": base_database_path is not None,
+        "copy_fast_path": base_database_path is not None and not db_paths,
+        "merged_table_operations": merged_tables,
+        "output_path": str(target_path),
+        "table_reports": table_reports,
+        "journal_report": journal_report,
+    }
+    if not db_paths:
+        working_path.replace(target_path)
+        return summary
+
+    target = duckdb.connect(str(working_path))
+    target_database_row = target.execute("SELECT current_database()").fetchone()
+    if target_database_row is None:
+        target.close()
+        msg = f"Could not resolve target database name for {working_path}"
+        raise RuntimeError(msg)
+    target_database = str(target_database_row[0])
+    attached_aliases: list[str] = []
+    journal_source_aliases: list[str] = []
+    merge_failed = False
 
     try:
         for index, db_path in enumerate(db_paths):
@@ -2652,23 +2732,154 @@ def _merge_database_paths(
         target.execute("BEGIN TRANSACTION")
         try:
             for alias, db_path in zip(attached_aliases, db_paths, strict=True):
+                if not table_exists(target, alias, "_extraction_journal"):
+                    continue
+                source_schema = table_schema(target, alias, "_extraction_journal")
+                if not table_exists(target, target_database, "_extraction_journal"):
+                    target.execute(
+                        "CREATE TABLE main._extraction_journal AS "
+                        f"SELECT * FROM {alias}._extraction_journal WHERE FALSE"
+                    )
+                target_schema = table_schema(
+                    target,
+                    target_database,
+                    "_extraction_journal",
+                )
+                if target_schema != source_schema:
+                    msg = (
+                        "Schema mismatch while merging _extraction_journal "
+                        f"from {db_path}: expected {target_schema}, got {source_schema}"
+                    )
+                    raise ValueError(msg)
+                if any(column_name == "__merge_source_order" for column_name, _ in source_schema):
+                    msg = (
+                        "Reserved merge column __merge_source_order exists in "
+                        f"_extraction_journal from {db_path}"
+                    )
+                    raise ValueError(msg)
+                journal_source_aliases.append(alias)
+
+            if journal_source_aliases:
+                source_order_by_alias = {
+                    alias: index for index, alias in enumerate(attached_aliases)
+                }
+                journal_union = " UNION ALL ".join(
+                    (
+                        f"SELECT *, {source_order_by_alias[alias]}::INTEGER "
+                        f"AS __merge_source_order FROM {alias}._extraction_journal"
+                    )
+                    for alias in journal_source_aliases
+                )
+                target.execute(
+                    f"""
+                    CREATE TEMP TABLE _delta_journal_winners AS
+                    SELECT * EXCLUDE (__merge_rank)
+                    FROM (
+                        SELECT
+                            *,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY endpoint, params
+                                ORDER BY __merge_source_order DESC
+                            ) AS __merge_rank
+                        FROM ({journal_union}) AS delta_rows
+                    ) AS ranked_rows
+                    WHERE __merge_rank = 1
+                    """
+                )
+
+                for alias, db_path in zip(attached_aliases, db_paths, strict=True):
+                    if alias not in journal_source_aliases:
+                        continue
+                    source_order = source_order_by_alias[alias]
+                    source_rows = row_count(
+                        target,
+                        f"SELECT COUNT(*) FROM {alias}._extraction_journal",
+                    )
+                    winning_rows = row_count(
+                        target,
+                        "SELECT COUNT(*) FROM _delta_journal_winners "
+                        "WHERE __merge_source_order = ?",
+                        [source_order],
+                    )
+                    duplicate_rows = max(source_rows - winning_rows, 0)
+                    journal_report["source_rows"] += source_rows
+                    journal_report["duplicate_rows"] += duplicate_rows
+                    journal_report["source_count"] += 1
+                    journal_report["per_source"].append(
+                        {
+                            "database_path": str(db_path),
+                            "source_rows": source_rows,
+                            "inserted_rows": winning_rows,
+                            "duplicate_rows": duplicate_rows,
+                        }
+                    )
+
+                if base_database_path is not None:
+                    before_rows = row_count(
+                        target,
+                        "SELECT COUNT(*) FROM main._extraction_journal",
+                    )
+                    target.execute(
+                        """
+                        DELETE FROM main._extraction_journal AS dst
+                        WHERE EXISTS (
+                            SELECT 1
+                            FROM _delta_journal_winners AS src
+                            WHERE dst.endpoint = src.endpoint
+                              AND dst.params IS NOT DISTINCT FROM src.params
+                        )
+                        """
+                    )
+                    after_rows = row_count(
+                        target,
+                        "SELECT COUNT(*) FROM main._extraction_journal",
+                    )
+                    journal_report["replaced_base_rows"] = before_rows - after_rows
+                    journal_report["delete_batch_count"] = 1
+
+                journal_columns = [
+                    column_name
+                    for column_name, _data_type in table_schema(
+                        target,
+                        target_database,
+                        "_extraction_journal",
+                    )
+                ]
+                quoted_journal_columns = ", ".join(
+                    quote_identifier(column_name) for column_name in journal_columns
+                )
+                target.execute(
+                    f"""
+                    INSERT INTO main._extraction_journal ({quoted_journal_columns})
+                    SELECT {quoted_journal_columns}
+                    FROM _delta_journal_winners
+                    ORDER BY endpoint, params, __merge_source_order
+                    """
+                )
+                journal_report["inserted_rows"] = row_count(
+                    target,
+                    "SELECT COUNT(*) FROM _delta_journal_winners",
+                )
+                journal_report["insert_batch_count"] = 1
+
+            for alias, db_path in zip(attached_aliases, db_paths, strict=True):
                 tables = [
                     row[0]
                     for row in target.execute(
                         "SELECT table_name FROM duckdb_tables() "
                         f"WHERE database_name = '{alias}' AND schema_name = 'main' "
-                        "AND table_name LIKE 'stg_%'"
+                        "AND table_name LIKE 'stg_%' ORDER BY table_name"
                     ).fetchall()
                 ]
                 for table_name in tables:
                     quoted_table = quote_identifier(table_name)
                     source_schema = table_schema(target, alias, table_name)
-                    if not table_exists(target, "nba", table_name):
+                    if not table_exists(target, target_database, table_name):
                         target.execute(
                             f"CREATE TABLE main.{quoted_table} AS "
                             f"SELECT * FROM {alias}.{quoted_table} WHERE FALSE"
                         )
-                    target_schema = table_schema(target, "nba", table_name)
+                    target_schema = table_schema(target, target_database, table_name)
                     if target_schema != source_schema:
                         msg = (
                             f"Schema mismatch while merging {table_name} from {db_path}: "
@@ -2681,7 +2892,7 @@ def _merge_database_paths(
                     target.execute(
                         f"INSERT INTO main.{quoted_table} "
                         f"SELECT * FROM {alias}.{quoted_table} "
-                        f"EXCEPT SELECT * FROM main.{quoted_table}"
+                        f"EXCEPT ALL SELECT * FROM main.{quoted_table}"
                     )
                     after_rows = row_count(target, f"SELECT COUNT(*) FROM main.{quoted_table}")
                     inserted_rows = after_rows - before_rows
@@ -2710,53 +2921,6 @@ def _merge_database_paths(
                     )
                     merged_tables += 1
 
-                if table_exists(target, alias, "_extraction_journal"):
-                    source_schema = table_schema(target, alias, "_extraction_journal")
-                    if not table_exists(target, "nba", "_extraction_journal"):
-                        target.execute(
-                            "CREATE TABLE main._extraction_journal AS "
-                            f"SELECT * FROM {alias}._extraction_journal WHERE FALSE"
-                        )
-                    target_schema = table_schema(target, "nba", "_extraction_journal")
-                    if target_schema != source_schema:
-                        msg = (
-                            "Schema mismatch while merging _extraction_journal "
-                            f"from {db_path}: expected {target_schema}, got {source_schema}"
-                        )
-                        raise ValueError(msg)
-                    source_rows = row_count(
-                        target,
-                        f"SELECT COUNT(*) FROM {alias}._extraction_journal",
-                    )
-                    before_rows = row_count(target, "SELECT COUNT(*) FROM main._extraction_journal")
-                    target.execute(
-                        f"""
-                        INSERT INTO main._extraction_journal
-                        SELECT src.*
-                        FROM {alias}._extraction_journal AS src
-                        WHERE NOT EXISTS (
-                            SELECT 1
-                            FROM main._extraction_journal AS dst
-                            WHERE dst.endpoint = src.endpoint
-                              AND dst.params IS NOT DISTINCT FROM src.params
-                        )
-                        """
-                    )
-                    after_rows = row_count(target, "SELECT COUNT(*) FROM main._extraction_journal")
-                    inserted_rows = after_rows - before_rows
-                    duplicate_rows = max(source_rows - inserted_rows, 0)
-                    journal_report["source_rows"] += source_rows
-                    journal_report["inserted_rows"] += inserted_rows
-                    journal_report["duplicate_rows"] += duplicate_rows
-                    journal_report["source_count"] += 1
-                    journal_report["per_source"].append(
-                        {
-                            "database_path": str(db_path),
-                            "source_rows": source_rows,
-                            "inserted_rows": inserted_rows,
-                            "duplicate_rows": duplicate_rows,
-                        }
-                    )
             target.execute("COMMIT")
         except Exception:
             with suppress(Exception):
@@ -2772,16 +2936,13 @@ def _merge_database_paths(
         with suppress(Exception):
             target.close()
         if merge_failed:
-            with suppress(FileNotFoundError):
-                target_path.unlink()
+            for failed_path in (working_path, working_wal_path):
+                with suppress(FileNotFoundError):
+                    failed_path.unlink()
 
-    return {
-        "merged_database_count": len(db_paths),
-        "merged_table_operations": merged_tables,
-        "output_path": str(target_path),
-        "table_reports": table_reports,
-        "journal_report": journal_report,
-    }
+    working_path.replace(target_path)
+    summary["merged_table_operations"] = merged_tables
+    return summary
 
 
 def merge_lane_databases(
@@ -2801,6 +2962,90 @@ def _read_json_file(path: Path | None) -> dict[str, Any]:
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _is_sha256(value: str) -> bool:
+    return len(value) == 64 and all(character in "0123456789abcdef" for character in value.lower())
+
+
+def _checkpoint_lane_coverage_hashes(
+    lanes_by_id: dict[str, FullExtractionLane],
+    lane_ids: set[str],
+) -> dict[str, str]:
+    return {
+        lane_id: _coverage_hash_for_lane(lanes_by_id[lane_id])
+        for lane_id in sorted(lane_ids & set(lanes_by_id))
+    }
+
+
+def _validate_previous_checkpoint_report(
+    *,
+    previous_db_path: Path,
+    previous_report_path: Path | None,
+    previous_report: dict[str, Any],
+    lanes_by_id: dict[str, FullExtractionLane],
+) -> tuple[set[str], list[str], dict[str, str]]:
+    if previous_report_path is None or not previous_report_path.is_file() or not previous_report:
+        msg = "Previous checkpoint database has no readable checkpoint report"
+        raise ValueError(msg)
+
+    reported_database_sha256 = str(previous_report.get("database_sha256") or "").strip()
+    if len(reported_database_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in reported_database_sha256.lower()
+    ):
+        msg = "Previous checkpoint report is missing a valid database_sha256"
+        raise ValueError(msg)
+    actual_database_sha256 = _file_sha256(previous_db_path)
+    if actual_database_sha256 != reported_database_sha256.lower():
+        msg = "Previous checkpoint database digest does not match its report"
+        raise ValueError(msg)
+
+    raw_lane_ids = previous_report.get("included_lane_ids")
+    if not isinstance(raw_lane_ids, list):
+        msg = "Previous checkpoint report included_lane_ids must be a list"
+        raise ValueError(msg)
+    included_lane_ids = {str(value).strip() for value in raw_lane_ids if str(value).strip()}
+
+    raw_coverage_hashes = previous_report.get("included_lane_coverage_hashes")
+    if not isinstance(raw_coverage_hashes, dict):
+        msg = "Previous checkpoint report is missing included_lane_coverage_hashes"
+        raise ValueError(msg)
+    coverage_hashes = {
+        str(lane_id).strip(): str(coverage_hash).strip().lower()
+        for lane_id, coverage_hash in raw_coverage_hashes.items()
+        if str(lane_id).strip()
+    }
+    unexpected_hash_ids = set(coverage_hashes) - included_lane_ids
+    if unexpected_hash_ids:
+        msg = "Previous checkpoint report has coverage hashes for non-included lanes: " + ", ".join(
+            sorted(unexpected_hash_ids)
+        )
+        raise ValueError(msg)
+
+    for lane_id in sorted(included_lane_ids & set(lanes_by_id)):
+        expected_hash = _coverage_hash_for_lane(lanes_by_id[lane_id])
+        reported_hash = coverage_hashes.get(lane_id, "")
+        if reported_hash != expected_hash:
+            msg = (
+                "Previous checkpoint lane coverage identity mismatch for "
+                f"{lane_id}: expected {expected_hash}, got {reported_hash or 'missing'}"
+            )
+            raise ValueError(msg)
+
+    raw_run_ids = previous_report.get("included_run_ids", [])
+    if not isinstance(raw_run_ids, list):
+        msg = "Previous checkpoint report included_run_ids must be a list"
+        raise ValueError(msg)
+    included_run_ids = [str(value) for value in raw_run_ids if str(value).strip()]
+    return included_lane_ids, included_run_ids, coverage_hashes
 
 
 def _first_database_path(root: Path | None) -> Path | None:
@@ -2850,6 +3095,562 @@ def _metadata_complete_lane_ids(metadata: dict[str, dict[str, Any]]) -> set[str]
     }
 
 
+def _metadata_sequence(payload: dict[str, Any], field: str) -> tuple[str, ...]:
+    raw_value = payload.get(field)
+    if isinstance(raw_value, list):
+        return tuple(str(value) for value in raw_value if str(value))
+    if isinstance(raw_value, str):
+        return tuple(value for value in raw_value.split(",") if value)
+    return ()
+
+
+def _metadata_lane_contract_errors(
+    payload: dict[str, Any],
+    lane: FullExtractionLane,
+    *,
+    strict: bool,
+) -> list[str]:
+    errors: list[str] = []
+    scalar_fields: tuple[tuple[str, str], ...] = (
+        ("lane_id", lane.lane_id),
+        ("lane_name", lane.lane_name),
+        ("lane_kind", lane.lane_kind),
+    )
+    for metadata_field, expected in scalar_fields:
+        if metadata_field not in payload:
+            if strict:
+                errors.append(f"metadata_{metadata_field}_missing")
+            continue
+        actual = str(payload.get(metadata_field) or "")
+        if actual != expected:
+            errors.append(f"metadata_{metadata_field}_mismatch")
+
+    if "lane_index" in payload:
+        if _int_metadata_value(payload.get("lane_index")) != lane.lane_index:
+            errors.append("metadata_lane_index_mismatch")
+    elif strict:
+        errors.append("metadata_lane_index_missing")
+
+    sequence_fields: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("patterns", lane.patterns),
+        ("season_types", lane.season_types),
+        ("endpoints", lane.endpoints),
+    )
+    for metadata_field, expected in sequence_fields:
+        if metadata_field not in payload:
+            if strict:
+                errors.append(f"metadata_{metadata_field}_missing")
+            continue
+        if _metadata_sequence(payload, metadata_field) != expected:
+            errors.append(f"metadata_{metadata_field}_mismatch")
+
+    season_fields: tuple[tuple[str, int | None], ...] = (
+        ("season_start", lane.season_start),
+        ("season_end", lane.season_end),
+    )
+    for metadata_field, expected in season_fields:
+        if metadata_field not in payload:
+            if strict:
+                errors.append(f"metadata_{metadata_field}_missing")
+            continue
+        if _optional_int(payload.get(metadata_field)) != expected:
+            errors.append(f"metadata_{metadata_field}_mismatch")
+    return errors
+
+
+def _journal_values(params_json: str) -> set[str]:
+    try:
+        payload = json.loads(params_json)
+    except json.JSONDecodeError:
+        return {params_json}
+
+    values: set[str] = set()
+    stack: list[Any] = [payload]
+    while stack:
+        value = stack.pop()
+        if isinstance(value, dict):
+            stack.extend(value.values())
+        elif isinstance(value, list):
+            stack.extend(value)
+        else:
+            values.add(str(value))
+    return values
+
+
+_JOURNAL_PARAMETER_KEYS_BY_PATTERN: dict[str, tuple[str, ...]] = {
+    "game": ("game_id",),
+    "date": ("game_date",),
+    "player": ("player_id",),
+    "team": ("team_id",),
+    "player_season": ("player_id", "season"),
+    "team_season": ("team_id", "season"),
+    "player_team_season": ("player_id", "team_id", "season"),
+    "season": ("season",),
+}
+_JOURNAL_PARAMETER_COVERAGE_PATTERNS = frozenset(
+    {
+        "game",
+        "date",
+        "player",
+        "player_season",
+        "team_season",
+        "player_team_season",
+    }
+)
+# Reference team endpoints intentionally mix all-team and current-team workloads.
+# Their manifest unit is still attested, but their team-id sets are not interchangeable.
+_JOURNAL_COVERAGE_ERROR_SAMPLE_LIMIT = 5
+_GAME_ID_SEASON_TYPES: dict[str, str] = {
+    "001": SeasonType.PRE_SEASON.value,
+    "002": SeasonType.REGULAR.value,
+    "003": SeasonType.ALL_STAR.value,
+    "004": SeasonType.PLAYOFFS.value,
+}
+
+
+def _journal_params_payload(params_json: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(params_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _journal_param_value(params: dict[str, Any], key: str) -> str | None:
+    value = params.get(key)
+    if value is None or value == "":
+        return None
+    return str(value)
+
+
+def _journal_game_date_season_year(raw_value: str) -> int | None:
+    date_value = raw_value.split("T", 1)[0].split(" ", 1)[0]
+    pieces = date_value.split("-")
+    if len(pieces) == 3 and len(pieces[0]) == 4:
+        year_raw, month_raw = pieces[0], pieces[1]
+    else:
+        pieces = date_value.split("/")
+        if len(pieces) != 3 or len(pieces[2]) != 4:
+            return None
+        month_raw, year_raw = pieces[0], pieces[2]
+    try:
+        year = int(year_raw)
+        month = int(month_raw)
+    except ValueError:
+        return None
+    if not 1 <= month <= 12:
+        return None
+    return year if month >= 7 else year - 1
+
+
+def _journal_param_season_year(params: dict[str, Any]) -> int | None:
+    season = _journal_param_value(params, "season")
+    if season is not None:
+        try:
+            return int(season[:4])
+        except ValueError:
+            return None
+
+    game_id = _journal_param_value(params, "game_id")
+    if game_id is not None and len(game_id) >= 5 and game_id[3:5].isdigit():
+        season_suffix = int(game_id[3:5])
+        return 2000 + season_suffix if season_suffix <= 30 else 1900 + season_suffix
+
+    game_date = _journal_param_value(params, "game_date")
+    if game_date is not None:
+        return _journal_game_date_season_year(game_date)
+    return None
+
+
+def _journal_param_season_type(params: dict[str, Any]) -> str | None:
+    season_type = _journal_param_value(params, "season_type")
+    if season_type is not None:
+        return season_type
+    game_id = _journal_param_value(params, "game_id")
+    if game_id is None:
+        return None
+    return _GAME_ID_SEASON_TYPES.get(game_id[:3])
+
+
+def _journal_params_cover_manifest_unit(
+    params: dict[str, Any],
+    *,
+    pattern: str,
+    season_year: int | None,
+    season_type: str | None,
+) -> bool:
+    required_keys = _JOURNAL_PARAMETER_KEYS_BY_PATTERN.get(pattern, ())
+    if any(_journal_param_value(params, key) is None for key in required_keys):
+        return False
+    if season_year is not None and _journal_param_season_year(params) != season_year:
+        return False
+    actual_season_type = _journal_param_season_type(params)
+    if season_type is not None:
+        return actual_season_type == season_type
+    if pattern in SEASON_TYPE_GROUPABLE_PATTERNS:
+        return _journal_param_value(params, "season_type") is None
+    return True
+
+
+def _journal_params_in_lane_scope(
+    params: dict[str, Any],
+    *,
+    lane: FullExtractionLane,
+    pattern: str,
+) -> bool:
+    required_keys = _JOURNAL_PARAMETER_KEYS_BY_PATTERN.get(pattern, ())
+    if any(_journal_param_value(params, key) is None for key in required_keys):
+        return False
+
+    if lane.season_start is not None and lane.season_end is not None:
+        season_year = _journal_param_season_year(params)
+        if season_year is None or not lane.season_start <= season_year <= lane.season_end:
+            return False
+
+    actual_season_type = _journal_param_season_type(params)
+    if lane.season_types:
+        return actual_season_type in lane.season_types
+    if pattern in SEASON_TYPE_GROUPABLE_PATTERNS:
+        return _journal_param_value(params, "season_type") is None
+    return True
+
+
+def _journal_parameter_identity(
+    params: dict[str, Any],
+    *,
+    lane: FullExtractionLane,
+    pattern: str,
+) -> tuple[Any, ...] | None:
+    if not _journal_params_in_lane_scope(params, lane=lane, pattern=pattern):
+        return None
+
+    season_type = _journal_param_season_type(params) if lane.season_types else ""
+    if pattern == "game":
+        return (
+            _journal_param_season_year(params),
+            season_type,
+            _journal_param_value(params, "game_id"),
+        )
+    if pattern == "date":
+        return (
+            _journal_param_season_year(params),
+            season_type,
+            _journal_param_value(params, "game_date"),
+        )
+    if pattern == "player":
+        return (_journal_param_value(params, "player_id"),)
+    if pattern == "player_season":
+        return (
+            _journal_param_season_year(params),
+            season_type,
+            _journal_param_value(params, "player_id"),
+        )
+    if pattern == "team_season":
+        return (
+            _journal_param_season_year(params),
+            season_type,
+            _journal_param_value(params, "team_id"),
+        )
+    if pattern == "player_team_season":
+        return (
+            _journal_param_season_year(params),
+            season_type,
+            _journal_param_value(params, "player_id"),
+            _journal_param_value(params, "team_id"),
+        )
+    return None
+
+
+def _journal_coverage_label(
+    *,
+    endpoint: str,
+    pattern: str,
+    season: int | None = None,
+    season_type: str = "",
+    parameter_unit: tuple[Any, ...] | None = None,
+) -> str:
+    return json.dumps(
+        {
+            "endpoint": endpoint,
+            "parameter_unit": parameter_unit,
+            "pattern": pattern,
+            "season": season,
+            "season_type": season_type,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _journal_missing_coverage_error(
+    prefix: str,
+    *,
+    missing_count: int,
+    samples: list[str],
+) -> str:
+    sample_payload = "|".join(samples)
+    return f"{prefix}:{missing_count}:{sample_payload}"
+
+
+def _current_journal_manifest_coverage_errors(
+    lane: FullExtractionLane,
+    parsed_rows: list[tuple[str, str, dict[str, Any]]],
+) -> list[str]:
+    """Require successful journal evidence for every manifest coverage unit."""
+    done_params_by_endpoint: dict[str, list[dict[str, Any]]] = {}
+    for endpoint, status, params in parsed_rows:
+        if status == "done":
+            done_params_by_endpoint.setdefault(endpoint, []).append(params)
+
+    missing_count = 0
+    samples: list[str] = []
+    for coverage_unit in _coverage_units_for_lane(lane):
+        endpoint = str(coverage_unit["endpoint"])
+        pattern = str(coverage_unit["pattern"])
+        season = coverage_unit["season"]
+        season_type = str(coverage_unit["season_type"] or "")
+        if any(
+            _journal_params_cover_manifest_unit(
+                params,
+                pattern=pattern,
+                season_year=season,
+                season_type=season_type or None,
+            )
+            for params in done_params_by_endpoint.get(endpoint, [])
+        ):
+            continue
+        missing_count += 1
+        if len(samples) < _JOURNAL_COVERAGE_ERROR_SAMPLE_LIMIT:
+            samples.append(
+                _journal_coverage_label(
+                    endpoint=endpoint,
+                    pattern=pattern,
+                    season=season,
+                    season_type=season_type,
+                )
+            )
+
+    if not missing_count:
+        return []
+    return [
+        _journal_missing_coverage_error(
+            "journal_missing_manifest_coverage",
+            missing_count=missing_count,
+            samples=samples,
+        )
+    ]
+
+
+def _current_journal_parameter_coverage_errors(
+    lane: FullExtractionLane,
+    parsed_rows: list[tuple[str, str, dict[str, Any]]],
+) -> list[str]:
+    """Require every concrete discovery unit in the journal to be successful."""
+    missing_count = 0
+    samples: list[str] = []
+    lane_rows = [row for row in parsed_rows if row[0] in lane.endpoints]
+
+    for pattern in lane.patterns:
+        if pattern not in _JOURNAL_PARAMETER_COVERAGE_PATTERNS:
+            continue
+
+        done_units_by_endpoint: dict[str, set[tuple[Any, ...]]] = {
+            endpoint: set() for endpoint in lane.endpoints
+        }
+        for endpoint, status, params in lane_rows:
+            if status != "done" or endpoint not in done_units_by_endpoint:
+                continue
+            identity = _journal_parameter_identity(params, lane=lane, pattern=pattern)
+            if identity is not None:
+                done_units_by_endpoint[endpoint].add(identity)
+
+        required_units: set[tuple[Any, ...]] = set()
+        if pattern in {"player", "player_season", "team_season"}:
+            id_key = "team_id" if pattern == "team_season" else "player_id"
+            entity_ids = {
+                value
+                for _endpoint, _status, params in lane_rows
+                if (value := _journal_param_value(params, id_key)) is not None
+            }
+            if pattern == "player":
+                required_units = {(entity_id,) for entity_id in entity_ids}
+            else:
+                season_types = lane.season_types or ("",)
+                if lane.season_start is not None and lane.season_end is not None:
+                    required_units = {
+                        (season, season_type, entity_id)
+                        for season in range(lane.season_start, lane.season_end + 1)
+                        for season_type in season_types
+                        for entity_id in entity_ids
+                    }
+        else:
+            for _endpoint, _status, params in lane_rows:
+                identity = _journal_parameter_identity(params, lane=lane, pattern=pattern)
+                if identity is not None:
+                    required_units.add(identity)
+
+        for endpoint in lane.endpoints:
+            missing_units = required_units - done_units_by_endpoint.get(endpoint, set())
+            missing_count += len(missing_units)
+            for parameter_unit in sorted(missing_units, key=str):
+                if len(samples) >= _JOURNAL_COVERAGE_ERROR_SAMPLE_LIMIT:
+                    break
+                samples.append(
+                    _journal_coverage_label(
+                        endpoint=endpoint,
+                        pattern=pattern,
+                        parameter_unit=parameter_unit,
+                    )
+                )
+
+    if not missing_count:
+        return []
+    return [
+        _journal_missing_coverage_error(
+            "journal_missing_parameter_coverage",
+            missing_count=missing_count,
+            samples=samples,
+        )
+    ]
+
+
+def _legacy_journal_contract_errors(
+    lane: FullExtractionLane,
+    done_params_by_endpoint: dict[str, list[str]],
+) -> list[str]:
+    if lane.season_start is None or lane.season_end is None:
+        return []
+
+    errors: list[str] = []
+    season_types: tuple[str | None, ...] = lane.season_types or (None,)
+    for endpoint in lane.endpoints:
+        params_values = [
+            _journal_values(params_json)
+            for params_json in done_params_by_endpoint.get(endpoint, [])
+        ]
+        for season_year in range(lane.season_start, lane.season_end + 1):
+            season_tokens = _season_year_tokens(season_year)
+            for season_type in season_types:
+                if any(
+                    bool(values & season_tokens) and (season_type is None or season_type in values)
+                    for values in params_values
+                ):
+                    continue
+                season_label = f"{season_year}-{str(season_year + 1)[-2:]}"
+                suffix = f":{season_type}" if season_type is not None else ""
+                errors.append(f"legacy_journal_contract_missing:{endpoint}:{season_label}{suffix}")
+    return errors
+
+
+def _lane_database_journal_errors(
+    db_path: Path,
+    lane: FullExtractionLane,
+    *,
+    require_complete_contract_evidence: bool,
+) -> list[str]:
+    try:
+        conn = duckdb.connect(str(db_path), read_only=True)
+    except Exception as exc:
+        return [f"database_unreadable:{type(exc).__name__}"]
+
+    try:
+        columns = {
+            str(row[0])
+            for row in conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'main'
+                  AND table_name = '_extraction_journal'
+                """
+            ).fetchall()
+        }
+        required_columns = {"endpoint", "params", "status"}
+        if not required_columns <= columns:
+            missing = ",".join(sorted(required_columns - columns))
+            return [f"journal_missing_columns:{missing}"]
+        rows = conn.execute("SELECT endpoint, params, status FROM _extraction_journal").fetchall()
+    except Exception as exc:
+        return [f"journal_unreadable:{type(exc).__name__}"]
+    finally:
+        conn.close()
+
+    errors: list[str] = []
+    status_counts: dict[str, int] = {}
+    done_params_by_endpoint: dict[str, list[str]] = {}
+    parsed_rows: list[tuple[str, str, dict[str, Any]]] = []
+    invalid_params_by_endpoint: dict[str, int] = {}
+    for endpoint, params, status in rows:
+        endpoint_name = str(endpoint)
+        params_json = str(params or "")
+        normalized_status = str(status or "")
+        status_counts[normalized_status] = status_counts.get(normalized_status, 0) + 1
+        if normalized_status == "done":
+            done_params_by_endpoint.setdefault(endpoint_name, []).append(params_json)
+        params_payload = _journal_params_payload(params_json)
+        if params_payload is not None:
+            parsed_rows.append((endpoint_name, normalized_status, params_payload))
+        elif require_complete_contract_evidence and endpoint_name in lane.endpoints:
+            invalid_params_by_endpoint[endpoint_name] = (
+                invalid_params_by_endpoint.get(endpoint_name, 0) + 1
+            )
+
+    if not done_params_by_endpoint:
+        errors.append("journal_has_no_done_calls")
+    for status, count in sorted(status_counts.items()):
+        if status != "done" and count:
+            errors.append(f"journal_nonterminal_status:{status or 'empty'}:{count}")
+    missing_endpoints = sorted(set(lane.endpoints) - set(done_params_by_endpoint))
+    if missing_endpoints:
+        errors.append("journal_missing_endpoints:" + ",".join(missing_endpoints))
+    for endpoint, count in sorted(invalid_params_by_endpoint.items()):
+        errors.append(f"journal_invalid_params_json:{endpoint}:{count}")
+    if require_complete_contract_evidence:
+        errors.extend(_current_journal_manifest_coverage_errors(lane, parsed_rows))
+        errors.extend(_current_journal_parameter_coverage_errors(lane, parsed_rows))
+    else:
+        errors.extend(_legacy_journal_contract_errors(lane, done_params_by_endpoint))
+    return errors
+
+
+def _validate_current_lane_artifact(
+    *,
+    lane: FullExtractionLane,
+    metadata: dict[str, Any],
+    db_path: Path,
+) -> list[str]:
+    schema_version = _int_metadata_value(metadata.get("metadata_schema_version"))
+    strict = schema_version >= 3
+    errors = _metadata_lane_contract_errors(metadata, lane, strict=strict)
+    actual_database_sha256 = _file_sha256(db_path)
+    if strict:
+        expected_coverage_hash = _coverage_hash_for_lane(lane)
+        metadata_coverage_hash = str(metadata.get("coverage_units_hash") or "").strip().lower()
+        if metadata_coverage_hash != expected_coverage_hash:
+            errors.append("metadata_coverage_units_hash_mismatch")
+
+        metadata_database_sha256 = str(metadata.get("database_sha256") or "").strip().lower()
+        if not _is_sha256(metadata_database_sha256):
+            errors.append("metadata_database_sha256_missing_or_invalid")
+        elif metadata_database_sha256 != actual_database_sha256:
+            errors.append("metadata_database_sha256_mismatch")
+
+        state_artifact = metadata.get("state_artifact")
+        state_payload = state_artifact if isinstance(state_artifact, dict) else {}
+        state_digest = str(state_payload.get("sha256") or "").strip().lower()
+        if state_digest and state_digest != actual_database_sha256:
+            errors.append("metadata_state_artifact_sha256_mismatch")
+
+    errors.extend(
+        _lane_database_journal_errors(
+            db_path,
+            lane,
+            require_complete_contract_evidence=strict,
+        )
+    )
+    return errors
+
+
 def _metadata_contract_blocked_lane_ids(
     metadata: dict[str, dict[str, Any]],
     lanes_by_id: dict[str, FullExtractionLane],
@@ -2880,6 +3681,55 @@ def _lane_artifact_database_paths(
                     matched_lane_ids.add(lane_id)
                 break
     return matched_paths, matched_lane_ids
+
+
+def _attested_current_lane_artifacts(
+    *,
+    artifacts_dir: Path,
+    complete_lane_ids: set[str],
+    metadata: dict[str, dict[str, Any]],
+    lanes_by_id: dict[str, FullExtractionLane],
+) -> tuple[list[Path], set[str], dict[str, list[str]]]:
+    failures: dict[str, list[str]] = {}
+    if not complete_lane_ids:
+        return [], set(), failures
+
+    candidates: dict[str, list[Path]] = {lane_id: [] for lane_id in complete_lane_ids}
+    ordered_lane_ids = sorted(complete_lane_ids, key=lambda lane_id: len(lane_id), reverse=True)
+    if artifacts_dir.exists():
+        for db_path in sorted(artifacts_dir.rglob("nba.duckdb")):
+            parent_name = db_path.parent.name
+            for lane_id in ordered_lane_ids:
+                if parent_name.endswith(lane_id) or f"-{lane_id}" in parent_name:
+                    candidates[lane_id].append(db_path)
+                    break
+
+    attested_paths: list[Path] = []
+    attested_lane_ids: set[str] = set()
+    for lane_id in sorted(complete_lane_ids):
+        lane = lanes_by_id.get(lane_id)
+        if lane is None:
+            failures[lane_id] = ["lane_not_in_manifest"]
+            continue
+        lane_candidates = candidates.get(lane_id, [])
+        if not lane_candidates:
+            failures[lane_id] = ["lane_database_missing"]
+            continue
+        if len(lane_candidates) != 1:
+            failures[lane_id] = [f"lane_database_ambiguous:{len(lane_candidates)}"]
+            continue
+        db_path = lane_candidates[0]
+        errors = _validate_current_lane_artifact(
+            lane=lane,
+            metadata=metadata[lane_id],
+            db_path=db_path,
+        )
+        if errors:
+            failures[lane_id] = errors
+            continue
+        attested_paths.append(db_path)
+        attested_lane_ids.add(lane_id)
+    return attested_paths, attested_lane_ids, failures
 
 
 def _legacy_cross_product_spans(lane_ids: set[str]) -> set[tuple[str, int, int]]:
@@ -2930,10 +3780,12 @@ def _season_year_tokens(season_year: int) -> set[str]:
 
 
 def _journal_params_match_season(params_json: str, season_year: int) -> bool:
-    try:
-        payload = json.loads(params_json)
-    except json.JSONDecodeError:
+    payload = _journal_params_payload(params_json)
+    if payload is None:
         return any(token in params_json for token in _season_year_tokens(season_year))
+
+    if _journal_param_season_year(payload) == season_year:
+        return True
 
     tokens = _season_year_tokens(season_year)
     stack: list[Any] = [payload]
@@ -3063,36 +3915,44 @@ def build_checkpoint_database(
     previous_report = _read_json_file(previous_checkpoint_report_path)
     complete_current_lane_ids = _metadata_complete_lane_ids(metadata)
     contract_blocked_lane_ids = _metadata_contract_blocked_lane_ids(metadata, lanes_by_id)
-    current_db_paths, current_included_lane_ids = _lane_artifact_database_paths(
+    (
+        current_db_paths,
+        current_included_lane_ids,
+        current_lane_attestation_failures,
+    ) = _attested_current_lane_artifacts(
         artifacts_dir=lane_artifacts_dir,
-        lane_ids=complete_current_lane_ids,
+        complete_lane_ids=complete_current_lane_ids,
+        metadata=metadata,
+        lanes_by_id=lanes_by_id,
     )
     skipped_complete_lane_ids = sorted(complete_current_lane_ids - current_included_lane_ids)
-    db_paths: list[Path] = []
-    db_paths.extend(current_db_paths)
     previous_db_path = _first_database_path(previous_checkpoint_dir)
-    previous_included_lane_ids = (
-        {str(value) for value in previous_report.get("included_lane_ids", []) if str(value).strip()}
-        if previous_db_path is not None
-        else set()
-    )
-    previous_run_ids = (
-        [str(value) for value in previous_report.get("included_run_ids", []) if str(value).strip()]
-        if previous_db_path is not None
-        else []
-    )
+    previous_included_lane_ids: set[str] = set()
+    previous_run_ids: list[str] = []
+    previous_coverage_hashes: dict[str, str] = {}
+    if previous_db_path is not None:
+        (
+            previous_included_lane_ids,
+            previous_run_ids,
+            previous_coverage_hashes,
+        ) = _validate_previous_checkpoint_report(
+            previous_db_path=previous_db_path,
+            previous_report_path=previous_checkpoint_report_path,
+            previous_report=previous_report,
+            lanes_by_id=lanes_by_id,
+        )
     compatible_previous_lane_ids = _compatible_previous_checkpoint_lane_ids(
         lanes,
         previous_included_lane_ids=previous_included_lane_ids,
         previous_db_path=previous_db_path,
     )
-    if previous_db_path is not None:
-        # Merge current lanes first so newer journal rows win when endpoint/params collide.
-        db_paths.append(previous_db_path)
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    if db_paths:
-        merge_summary = _merge_database_paths(db_paths=db_paths, output_dir=output_dir)
+    if current_db_paths or previous_db_path is not None:
+        merge_summary = _merge_database_paths(
+            db_paths=current_db_paths,
+            output_dir=output_dir,
+            base_database_path=previous_db_path,
+        )
         checkpoint_db_path = Path(str(merge_summary["output_path"]))
         table_row_counts, journal_row_count = _database_row_counts(checkpoint_db_path)
         merge_mode = "checkpoint"
@@ -3118,8 +3978,13 @@ def build_checkpoint_database(
     missing_lane_ids = sorted(non_contract_lane_ids - effective_included_lane_ids)
     included_lanes = [lane for lane in lanes if lane.lane_id in effective_included_lane_ids]
     coverage_fingerprint = _coverage_fingerprint(included_lanes)
+    included_lane_coverage_hashes = {
+        **previous_coverage_hashes,
+        **_checkpoint_lane_coverage_hashes(lanes_by_id, effective_included_lane_ids),
+    }
     checkpoint_generation = int(previous_report.get("checkpoint_generation") or 0) + 1
     included_run_ids = list(dict.fromkeys([*previous_run_ids, *([run_id] if run_id else [])]))
+    database_sha256 = _file_sha256(Path(output_path)) if output_path else ""
     report = {
         "chain_id": chain_id,
         "run_id": run_id,
@@ -3127,6 +3992,7 @@ def build_checkpoint_database(
         "checkpoint_generation": checkpoint_generation,
         "previous_checkpoint_generation": int(previous_report.get("checkpoint_generation") or 0),
         "included_lane_ids": sorted(included_lane_ids),
+        "included_lane_coverage_hashes": included_lane_coverage_hashes,
         "compatible_previous_lane_ids": sorted(compatible_previous_lane_ids),
         "included_run_ids": included_run_ids,
         "complete_lane_count": len(effective_included_lane_ids),
@@ -3135,13 +4001,21 @@ def build_checkpoint_database(
         "skipped_lane_count": len(skipped_complete_lane_ids),
         "missing_lane_ids": missing_lane_ids,
         "skipped_complete_lane_ids": skipped_complete_lane_ids,
+        "attested_current_lane_ids": sorted(current_included_lane_ids),
+        "current_lane_attestation_failures": current_lane_attestation_failures,
         "coverage_fingerprint": coverage_fingerprint,
         "table_row_counts": table_row_counts,
         "journal_row_count": journal_row_count,
         "merge_mode": merge_mode,
         "merge_summary": merge_summary,
         "output_path": output_path,
-        "terminal_ready": not missing_lane_ids and bool(effective_included_lane_ids),
+        "database_sha256": database_sha256,
+        "terminal_ready": (
+            not missing_lane_ids
+            and bool(effective_included_lane_ids)
+            and bool(database_sha256)
+            and set(effective_included_lane_ids) <= set(included_lane_coverage_hashes)
+        ),
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -3162,7 +4036,15 @@ def merge_final_database(
     checkpoint_db_path = _first_database_path(checkpoint_dir)
     if checkpoint_report and checkpoint_db_path is not None:
         if checkpoint_report.get("terminal_ready") is True:
-            if manifest_path is not None and manifest_path.exists():
+            reported_database_sha256 = str(checkpoint_report.get("database_sha256") or "").strip()
+            actual_database_sha256 = _file_sha256(checkpoint_db_path)
+            if reported_database_sha256 != actual_database_sha256:
+                fallback_reason = (
+                    "checkpoint database digest mismatch: "
+                    f"expected {reported_database_sha256 or 'missing'}, "
+                    f"got {actual_database_sha256}"
+                )
+            elif manifest_path is not None and manifest_path.exists():
                 manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
                 expected_hash = _coverage_fingerprint(list(manifest.lanes))
                 actual_hash = str(checkpoint_report.get("coverage_fingerprint") or "")
@@ -3242,6 +4124,7 @@ def _command_plan(args: argparse.Namespace) -> int:
             list(manifest.lanes),
             chunk_profile=args.chunk_profile or _manifest_chunk_profile(manifest.lanes),
             max_matrix_lanes=args.max_matrix_lanes,
+            rotation_cursor=manifest.chain_state.scheduler_rotation_cursor,
         )
         chain_state = manifest.chain_state
 

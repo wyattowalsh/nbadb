@@ -64,6 +64,7 @@ def _set_required_env(monkeypatch: pytest.MonkeyPatch, summary_path: Path) -> No
         "VPN_EXIT_IP": "216.183.125.141",
         "VPN_ATTEMPTED_SERVERS_JSON": '["us11547.nordvpn.com"]',
         "VPN_FAILED_SERVERS_JSON": "[]",
+        "COVERAGE_UNITS_HASH": "b" * 64,
     }
     for key, value in values.items():
         monkeypatch.setenv(key, value)
@@ -115,6 +116,129 @@ def test_build_payload_uses_duckdb_fallback_when_timeout_summary_is_missing(
     assert payload["telemetry"]["zero_row_reason"] == ""
     assert payload["telemetry"]["db_telemetry"]["running_calls"] == 1
     assert payload["vpn"]["attempted_servers"] == ["us11547.nordvpn.com"]
+
+
+def test_build_payload_accepts_complete_zero_row_done_calls(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "complete")
+    monkeypatch.setenv("ENDPOINTS", "scoreboard_v2,box_score_summary")
+    monkeypatch.chdir(tmp_path)
+
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    con = duckdb.connect(str(db_path))
+    con.execute(
+        "create table _extraction_journal "
+        "(endpoint varchar, params varchar, status varchar, rows_extracted bigint)"
+    )
+    con.execute(
+        "insert into _extraction_journal values "
+        "('scoreboard_v2', '{}', 'done', 0), "
+        "('box_score_summary', '{}', 'done', 0)"
+    )
+    con.close()
+
+    payload = module.build_payload()
+
+    assert payload["metadata_schema_version"] == 3
+    assert payload["status"] == "complete"
+    assert payload["coverage_units_hash"] == "b" * 64
+    assert len(payload["database_sha256"]) == 64
+    assert payload["database_sha256"] == payload["state_artifact"]["sha256"]
+    assert payload["telemetry"]["rows_persisted"] == 0
+    assert payload["telemetry"]["zero_row_reason"] == "expected_empty"
+    assert payload["telemetry"]["completion_evidence_errors"] == []
+    assert payload["telemetry"]["db_telemetry"]["done_endpoints"] == [
+        "box_score_summary",
+        "scoreboard_v2",
+    ]
+
+
+def test_build_payload_rejects_complete_without_readable_database(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "complete")
+    monkeypatch.chdir(tmp_path)
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["database_sha256"] == ""
+    assert payload["telemetry"]["completion_evidence_errors"] == [
+        "database_unreadable",
+        "journal_missing",
+        "no_completed_journal_calls",
+        "missing_endpoint_evidence:scoreboard_v2",
+        "database_sha256_missing_or_invalid",
+    ]
+
+
+def test_build_payload_rejects_complete_with_running_journal_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "complete")
+    monkeypatch.chdir(tmp_path)
+
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    con = duckdb.connect(str(db_path))
+    con.execute(
+        "create table _extraction_journal "
+        "(endpoint varchar, params varchar, status varchar, rows_extracted bigint)"
+    )
+    con.execute(
+        "insert into _extraction_journal values "
+        "('scoreboard_v2', '{}', 'done', 0), "
+        "('scoreboard_v2', '{\"retry\": true}', 'running', 0)"
+    )
+    con.close()
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["telemetry"]["completion_evidence_errors"] == ["running_journal_calls"]
+
+
+def test_build_payload_rejects_complete_without_every_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    summary_path = tmp_path / "artifacts" / "extraction" / "extract-summary.json"
+    _set_required_env(monkeypatch, summary_path)
+    monkeypatch.setenv("STATUS", "complete")
+    monkeypatch.setenv("ENDPOINTS", "scoreboard_v2,box_score_summary")
+    monkeypatch.chdir(tmp_path)
+
+    db_path = tmp_path / "data" / "nbadb" / "nba.duckdb"
+    db_path.parent.mkdir(parents=True)
+    con = duckdb.connect(str(db_path))
+    con.execute(
+        "create table _extraction_journal "
+        "(endpoint varchar, params varchar, status varchar, rows_extracted bigint)"
+    )
+    con.execute("insert into _extraction_journal values ('scoreboard_v2', '{}', 'done', 0)")
+    con.close()
+
+    payload = module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["telemetry"]["completion_evidence_errors"] == [
+        "missing_endpoint_evidence:box_score_summary"
+    ]
 
 
 def test_build_payload_marks_zero_row_timeout_resumable(

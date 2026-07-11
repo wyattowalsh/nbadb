@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     from nbadb.orchestrate.planning import PlanParams
 
-_ARTIFACT_VERSION = 2
+_ARTIFACT_VERSION = 3
 _ARTIFACT_KIND = "player_team_season_workload"
 _ARTIFACT_SUFFIX = ".player-team-season-workload.parquet"
 _MANIFEST_SUFFIX = ".player-team-season-workload.json"
@@ -35,6 +35,7 @@ _SCHEMA = {
 class PlayerTeamSeasonWorkloadCoverage:
     counts_by_pair: dict[tuple[str, str], int]
     covered_pairs: set[tuple[str, str]]
+    invalid_pairs: set[tuple[str, str]]
 
 
 class PlayerTeamSeasonWorkloadStore:
@@ -109,9 +110,9 @@ class PlayerTeamSeasonWorkloadStore:
 
         atomic_write_path(artifact_path, combined.write_parquet)
 
-        manifest = self._read_manifest(repair=True)
-        previous_pairs = self._manifest_pairs(manifest)
-        covered_pairs_list = sorted((previous_pairs - target_pairs) | target_pairs)
+        self._read_manifest(repair=True)
+        pair_evidence = self._frame_pair_evidence(combined)
+        covered_pairs_list = sorted(pair_evidence)
         manifest_payload = {
             "artifact_version": _ARTIFACT_VERSION,
             "artifact_kind": _ARTIFACT_KIND,
@@ -119,7 +120,11 @@ class PlayerTeamSeasonWorkloadStore:
             "updated_at": datetime.now(UTC).isoformat(),
             "total_params": self._drop_sentinels(combined).height,
             "covered_pairs": [
-                {"season": season, "season_type": season_type}
+                {
+                    "season": season,
+                    "season_type": season_type,
+                    "row_count": pair_evidence[(season, season_type)][0],
+                }
                 for season, season_type in covered_pairs_list
             ],
             "covered_seasons": sorted({season for season, _season_type in covered_pairs_list}),
@@ -155,33 +160,48 @@ class PlayerTeamSeasonWorkloadStore:
         season_types: list[str] | None = None,
     ) -> PlayerTeamSeasonWorkloadCoverage:
         manifest = self._read_manifest(repair=False)
-        all_pairs = self._manifest_pairs(manifest)
-        filtered_pairs = {
-            pair
-            for pair in all_pairs
+        declared_counts = self._manifest_pair_counts(manifest)
+        filtered_counts = {
+            pair: count
+            for pair, count in declared_counts.items()
             if (seasons is None or pair[0] in seasons)
             and (season_types is None or pair[1] in season_types)
         }
 
-        frame = self._filtered_frame(seasons=seasons, season_types=season_types)
-        if frame is None or frame.is_empty():
+        frame = self._artifact_frame(seasons=seasons, season_types=season_types)
+        if frame is None:
             return PlayerTeamSeasonWorkloadCoverage(
                 counts_by_pair={},
-                covered_pairs=filtered_pairs,
+                covered_pairs=set(),
+                invalid_pairs=set(filtered_counts),
             )
 
-        grouped = (
-            frame.group_by(["season", "season_type"])
-            .len(name="count")
-            .sort(["season", "season_type"])
-        )
-        counts_by_pair = {
-            (str(row["season"]), str(row["season_type"])): int(row["count"])
-            for row in grouped.to_dicts()
-        }
+        artifact_evidence = self._frame_pair_evidence(frame)
+        counts_by_pair: dict[tuple[str, str], int] = {}
+        covered_pairs: set[tuple[str, str]] = set()
+        invalid_pairs: set[tuple[str, str]] = set()
+        for pair, declared_count in filtered_counts.items():
+            actual_count, sentinel_count = artifact_evidence.get(pair, (0, 0))
+            if declared_count is None:
+                valid = (actual_count > 0 and sentinel_count == 0) or (
+                    actual_count == 0 and sentinel_count == 1
+                )
+            else:
+                valid = actual_count == declared_count and (
+                    (declared_count > 0 and sentinel_count == 0)
+                    or (declared_count == 0 and sentinel_count == 1)
+                )
+            if not valid:
+                invalid_pairs.add(pair)
+                continue
+            covered_pairs.add(pair)
+            if actual_count:
+                counts_by_pair[pair] = actual_count
+
         return PlayerTeamSeasonWorkloadCoverage(
             counts_by_pair=counts_by_pair,
-            covered_pairs=filtered_pairs,
+            covered_pairs=covered_pairs,
+            invalid_pairs=invalid_pairs,
         )
 
     def _filtered_frame(
@@ -258,14 +278,14 @@ class PlayerTeamSeasonWorkloadStore:
             return {}
 
         real_params = self._drop_sentinels(frame)
-        grouped = (
-            frame.group_by(["season", "season_type"])
-            .len(name="count")
-            .sort(["season", "season_type"])
-        )
+        pair_evidence = self._frame_pair_evidence(frame)
         covered_pairs = [
-            {"season": str(row["season"]), "season_type": str(row["season_type"])}
-            for row in grouped.to_dicts()
+            {
+                "season": season,
+                "season_type": season_type,
+                "row_count": pair_evidence[(season, season_type)][0],
+            }
+            for season, season_type in sorted(pair_evidence)
         ]
         if not covered_pairs and frame.is_empty():
             return {}
@@ -285,11 +305,13 @@ class PlayerTeamSeasonWorkloadStore:
         }
 
     @staticmethod
-    def _manifest_pairs(manifest: dict[str, object]) -> set[tuple[str, str]]:
+    def _manifest_pair_counts(
+        manifest: dict[str, object],
+    ) -> dict[tuple[str, str], int | None]:
         rows = manifest.get("covered_pairs", [])
         if not isinstance(rows, list):
-            return set()
-        pairs: set[tuple[str, str]] = set()
+            return {}
+        pairs: dict[tuple[str, str], int | None] = {}
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -298,7 +320,19 @@ class PlayerTeamSeasonWorkloadStore:
             season_type = mapping.get("season_type")
             if season is None or season_type is None:
                 continue
-            pairs.add((str(season), str(season_type)))
+            raw_count = mapping.get("row_count")
+            if raw_count is None:
+                row_count = None
+            elif isinstance(raw_count, int | str) and not isinstance(raw_count, bool):
+                try:
+                    row_count = int(raw_count)
+                except ValueError:
+                    row_count = -1
+            else:
+                row_count = -1
+            if row_count is not None and row_count < 0:
+                row_count = -1
+            pairs[(str(season), str(season_type))] = row_count
         return pairs
 
     @staticmethod
@@ -343,6 +377,34 @@ class PlayerTeamSeasonWorkloadStore:
             return set()
         grouped = frame.group_by(["season", "season_type"]).len(name="count")
         return {(str(row["season"]), str(row["season_type"])) for row in grouped.to_dicts()}
+
+    @staticmethod
+    def _frame_pair_evidence(
+        frame: pl.DataFrame,
+    ) -> dict[tuple[str, str], tuple[int, int]]:
+        if frame.is_empty():
+            return {}
+        grouped = (
+            frame.with_columns(
+                (
+                    (pl.col("player_id") == _COVERED_SENTINEL_PLAYER_ID)
+                    & (pl.col("team_id") == _COVERED_SENTINEL_TEAM_ID)
+                ).alias("_is_covered_sentinel")
+            )
+            .group_by(["season", "season_type"])
+            .agg(
+                (~pl.col("_is_covered_sentinel")).sum().alias("row_count"),
+                pl.col("_is_covered_sentinel").sum().alias("sentinel_count"),
+            )
+            .sort(["season", "season_type"])
+        )
+        return {
+            (str(row["season"]), str(row["season_type"])): (
+                int(row["row_count"]),
+                int(row["sentinel_count"]),
+            )
+            for row in grouped.to_dicts()
+        }
 
     @staticmethod
     def _sentinel_frame(pairs: set[tuple[str, str]]) -> pl.DataFrame:

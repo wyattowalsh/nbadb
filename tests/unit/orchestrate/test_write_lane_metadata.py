@@ -57,6 +57,7 @@ def _set_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, status: str) ->
         "SEASON_TYPES": "Regular Season",
         "SEASON_START": "2020",
         "SEASON_END": "2020",
+        "COVERAGE_UNITS_HASH": "b" * 64,
     }
     for key, value in values.items():
         monkeypatch.setenv(key, value)
@@ -81,7 +82,7 @@ def test_metadata_v2_records_durable_progress_and_artifact(
 
     payload = metadata_module.build_payload()
 
-    assert payload["metadata_schema_version"] == 2
+    assert payload["metadata_schema_version"] == 3
     assert payload["status"] == "needs_resume"
     assert payload["failure_class"] == "timeout_progress"
     assert payload["progress"]["completed_calls"] == 1
@@ -95,6 +96,8 @@ def test_metadata_v2_records_durable_progress_and_artifact(
         "retention_days": 30,
     }
     assert len(payload["state_artifact"]["sha256"]) == 64
+    assert payload["coverage_units_hash"] == "b" * 64
+    assert payload["database_sha256"] == payload["state_artifact"]["sha256"]
 
 
 def test_zero_progress_timeout_is_stalled_not_running_progress(

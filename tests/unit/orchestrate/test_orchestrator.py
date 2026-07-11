@@ -53,6 +53,7 @@ _JOURNAL = "nbadb.orchestrate.orchestrator.PipelineJournal"
 _REGISTRY = "nbadb.orchestrate.orchestrator._global_registry"
 _DISCOVERY = "nbadb.orchestrate.orchestrator.EntityDiscovery"
 _RUNNER = "nbadb.orchestrate.orchestrator.ExtractorRunner"
+_ALL_SEASON_TYPES = ("Regular Season", "Playoffs", "Pre Season", "All Star")
 _TRANSFORMERS = "nbadb.orchestrate.orchestrator.discover_all_transformers"
 _PIPELINE = "nbadb.orchestrate.orchestrator.TransformPipeline"
 _LOADER = "nbadb.orchestrate.orchestrator.create_multi_loader"
@@ -242,6 +243,64 @@ class TestDiscoverEntities:
         assert game_dates == ["2024-10-22"]
         assert game_log_df.shape == (1, 2)
         mock_discovery.discover_game_ids_result.assert_not_called()
+
+    def test_refresh_mutable_entities_bypasses_current_season_game_and_player_caches(
+        self, tmp_path
+    ):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        bound_log = MagicMock()
+        artifact_store = orch._discovery_artifacts()
+        artifact_store.upsert_frame(
+            DiscoveryArtifactScope(
+                kind="league_game_log",
+                seasons=("2024-25",),
+                season_types=("Regular Season",),
+            ),
+            pl.DataFrame({"game_id": ["old"], "game_date": ["2024-10-22"]}),
+            provenance="stale-test-cache",
+        )
+        artifact_store.upsert_ids(
+            DiscoveryArtifactScope(
+                kind="player_ids_active",
+                seasons=("2024-25",),
+                variant="active",
+            ),
+            [1],
+            provenance="stale-test-cache",
+        )
+        live_frame = pl.DataFrame({"game_id": ["new"], "game_date": ["2025-01-02"]})
+        discovery = AsyncMock()
+        discovery.discover_game_ids_result.return_value = GameDiscoveryResult(
+            game_ids=["new"],
+            raw=live_frame,
+            requested_combos=frozenset({("2024-25", "Regular Season")}),
+            covered_combos=frozenset({("2024-25", "Regular Season")}),
+            frames_by_combo={("2024-25", "Regular Season"): live_frame},
+        )
+        discovery.discover_player_ids.return_value = [1, 2]
+        discovery.discover_game_dates.return_value = ["2025-01-02"]
+
+        with patch(_CURRENT_SEASON, return_value="2024-25"):
+            game_ids, player_ids, _team_ids, game_dates, game_log_df = asyncio.run(
+                orch._discover_entities(
+                    discovery,
+                    ["2024-25"],
+                    bound_log,
+                    season_types=["Regular Season"],
+                    include_teams=False,
+                    refresh_mutable_entities=True,
+                )
+            )
+
+        assert game_ids == ["new"]
+        assert player_ids == [1, 2]
+        assert game_dates == ["2025-01-02"]
+        assert game_log_df.to_dicts() == live_frame.to_dicts()
+        discovery.discover_game_ids_result.assert_awaited_once()
+        discovery.discover_player_ids.assert_awaited_once()
+        discovery.discover_game_dates.assert_awaited_once()
 
     def test_historical_single_season_player_discovery_is_season_scoped(self, tmp_path):
         settings = _mock_settings()
@@ -457,6 +516,434 @@ class TestDiscoverEntities:
 
         assert cached is not None
         assert cached.to_dicts() == [{"game_id": "001", "game_date": "2024-10-22"}]
+
+
+class TestPlayerTeamWorkloadCache:
+    def test_reuses_cache_when_every_requested_pair_is_explicitly_covered(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [],
+            seasons=["2024-25"],
+            season_types=["Regular Season"],
+            covered_pairs={("2024-25", "Regular Season")},
+        )
+        discovery = AsyncMock()
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["2024-25"],
+                season_types=["Regular Season"],
+                run_mode="init",
+            )
+        )
+
+        assert result.params == []
+        assert result.requested_pairs == {("2024-25", "Regular Season")}
+        assert result.covered_pairs == result.requested_pairs
+        discovery.discover_player_team_season_params_result.assert_not_called()
+
+    def test_partial_cache_retains_live_discovery_fallback(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [
+                {
+                    "player_id": 1,
+                    "team_id": 10,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=["2024-25"],
+            season_types=["Regular Season"],
+            covered_pairs={("2024-25", "Regular Season")},
+        )
+        discovery = AsyncMock()
+        live_result = _player_team_discovery_result(
+            params=[
+                {
+                    "player_id": 2,
+                    "team_id": 20,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=("2025-26",),
+            season_types=("Regular Season",),
+        )
+        discovery.discover_player_team_season_params_result.return_value = live_result
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["2024-25", "2025-26"],
+                season_types=["Regular Season"],
+            )
+        )
+
+        assert result.params == [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
+        ]
+        assert result.is_complete
+        discovery.discover_player_team_season_params_result.assert_awaited_once_with(
+            ["2025-26"],
+            season_types=["Regular Season"],
+        )
+
+    def test_sparse_diagonal_cache_misses_fetch_only_exact_pairs(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        seasons = ["2024-25", "2025-26"]
+        season_types = ["Regular Season", "Playoffs"]
+        cached_pairs = {
+            ("2024-25", "Playoffs"),
+            ("2025-26", "Regular Season"),
+        }
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [
+                {
+                    "player_id": 1,
+                    "team_id": 10,
+                    "season": "2024-25",
+                    "season_type": "Playoffs",
+                },
+                {
+                    "player_id": 4,
+                    "team_id": 40,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                },
+            ],
+            seasons=seasons,
+            season_types=season_types,
+            covered_pairs=cached_pairs,
+        )
+        live_params = {
+            ("2024-25", "Regular Season"): {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            ("2025-26", "Playoffs"): {
+                "player_id": 3,
+                "team_id": 30,
+                "season": "2025-26",
+                "season_type": "Playoffs",
+            },
+        }
+        discovered_pair_calls: list[frozenset[tuple[str, str]]] = []
+
+        async def discover_exact_pairs(
+            requested_seasons: list[str],
+            *,
+            season_types: list[str],
+        ) -> PlayerTeamSeasonDiscoveryResult:
+            requested_pairs = frozenset(
+                (season, season_type)
+                for season in requested_seasons
+                for season_type in season_types
+            )
+            discovered_pair_calls.append(requested_pairs)
+            assert len(requested_pairs) == 1
+            pair = next(iter(requested_pairs))
+            return PlayerTeamSeasonDiscoveryResult(
+                params=[live_params[pair]],
+                requested_pairs=requested_pairs,
+                covered_pairs=requested_pairs,
+            )
+
+        discovery = AsyncMock()
+        discovery.discover_player_team_season_params_result.side_effect = discover_exact_pairs
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=seasons,
+                season_types=season_types,
+            )
+        )
+
+        assert result.is_complete
+        assert {(param["season"], param["season_type"]) for param in result.params} == {
+            *cached_pairs,
+            *live_params,
+        }
+        assert discovered_pair_calls == [
+            frozenset({("2024-25", "Regular Season")}),
+            frozenset({("2025-26", "Playoffs")}),
+        ]
+        assert discovery.discover_player_team_season_params_result.await_count == 2
+
+    def test_manifest_only_cache_retains_live_discovery_fallback(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [
+                {
+                    "player_id": 1,
+                    "team_id": 10,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=["2024-25"],
+            season_types=["Regular Season"],
+            covered_pairs={("2024-25", "Regular Season")},
+        )
+        assert store.artifact_path is not None
+        assert store.manifest_path is not None
+        store.artifact_path.unlink()
+        assert store.manifest_path.is_file()
+        discovery = AsyncMock()
+        live_result = _player_team_discovery_result(
+            seasons=("2024-25",),
+            season_types=("Regular Season",),
+        )
+        discovery.discover_player_team_season_params_result.return_value = live_result
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["2024-25"],
+                season_types=["Regular Season"],
+            )
+        )
+
+        assert result == live_result
+        discovery.discover_player_team_season_params_result.assert_awaited_once_with(
+            ["2024-25"],
+            season_types=["Regular Season"],
+        )
+
+    def test_parquet_only_cache_retains_live_discovery_fallback(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [],
+            seasons=["2024-25"],
+            season_types=["Regular Season"],
+            covered_pairs={("2024-25", "Regular Season")},
+        )
+        assert store.artifact_path is not None
+        assert store.manifest_path is not None
+        store.manifest_path.unlink()
+        assert store.artifact_path.is_file()
+        discovery = AsyncMock()
+        live_result = _player_team_discovery_result(
+            seasons=("2024-25",),
+            season_types=("Regular Season",),
+        )
+        discovery.discover_player_team_season_params_result.return_value = live_result
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["2024-25"],
+                season_types=["Regular Season"],
+            )
+        )
+
+        assert result == live_result
+        discovery.discover_player_team_season_params_result.assert_awaited_once_with(
+            ["2024-25"],
+            season_types=["Regular Season"],
+        )
+
+    def test_invalid_nonzero_cache_pair_forces_live_discovery(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [
+                {
+                    "player_id": 1,
+                    "team_id": 10,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=["2024-25"],
+            season_types=["Regular Season"],
+        )
+        assert store.artifact_path is not None
+        pl.read_parquet(store.artifact_path).head(0).write_parquet(store.artifact_path)
+        discovery = AsyncMock()
+        live_result = _player_team_discovery_result(
+            params=[
+                {
+                    "player_id": 2,
+                    "team_id": 20,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=("2024-25",),
+            season_types=("Regular Season",),
+        )
+        discovery.discover_player_team_season_params_result.return_value = live_result
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["2024-25"],
+                season_types=["Regular Season"],
+                run_mode="init",
+            )
+        )
+
+        assert result == live_result
+        discovery.discover_player_team_season_params_result.assert_awaited_once_with(
+            ["2024-25"],
+            season_types=["Regular Season"],
+        )
+
+    @pytest.mark.parametrize("run_mode", ["daily", "monthly"])
+    def test_refresh_modes_do_not_reuse_latest_season_cache(self, tmp_path, run_mode):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [
+                {
+                    "player_id": 1,
+                    "team_id": 10,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=["2025-26"],
+            season_types=["Regular Season"],
+        )
+        discovery = AsyncMock()
+        live_result = _player_team_discovery_result(
+            params=[
+                {
+                    "player_id": 2,
+                    "team_id": 20,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                }
+            ],
+            seasons=("2025-26",),
+            season_types=("Regular Season",),
+        )
+        discovery.discover_player_team_season_params_result.return_value = live_result
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["2025-26"],
+                season_types=["Regular Season"],
+                run_mode=run_mode,
+            )
+        )
+
+        assert result == live_result
+        discovery.discover_player_team_season_params_result.assert_awaited_once()
+
+    def test_monthly_reuses_older_pair_and_refreshes_latest_pair(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        store.upsert(
+            [
+                {
+                    "player_id": 1,
+                    "team_id": 10,
+                    "season": "2024-25",
+                    "season_type": "Regular Season",
+                },
+                {
+                    "player_id": 2,
+                    "team_id": 20,
+                    "season": "2025-26",
+                    "season_type": "Regular Season",
+                },
+            ],
+            seasons=["2024-25", "2025-26"],
+            season_types=["Regular Season"],
+        )
+        discovery = AsyncMock()
+        discovery.discover_player_team_season_params_result.return_value = (
+            _player_team_discovery_result(
+                params=[
+                    {
+                        "player_id": 3,
+                        "team_id": 30,
+                        "season": "2025-26",
+                        "season_type": "Regular Season",
+                    }
+                ],
+                seasons=("2025-26",),
+                season_types=("Regular Season",),
+            )
+        )
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["2024-25", "2025-26"],
+                season_types=["Regular Season"],
+                run_mode="monthly",
+            )
+        )
+
+        assert result.params == [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 3,
+                "team_id": 30,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
+        ]
+        assert result.is_complete
+        discovery.discover_player_team_season_params_result.assert_awaited_once_with(
+            ["2025-26"],
+            season_types=["Regular Season"],
+        )
+
+    def test_incomplete_refresh_result_fails_closed(self):
+        result = _player_team_discovery_result(
+            seasons=("2025-26",),
+            season_types=("Regular Season",),
+            covered_pairs=frozenset(),
+        )
+
+        with pytest.raises(InitDiscoveryCoverageError, match="missing pairs"):
+            Orchestrator._require_complete_player_team_discovery(result)
 
 
 class TestPlayerSharding:
@@ -1156,7 +1643,7 @@ class TestRunInit:
         mock_discovery.discover_current_team_ids.return_value = [1610612737]
         mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         mock_runner = _mock_runner()
@@ -1196,7 +1683,7 @@ class TestRunInit:
         mock_discovery.discover_current_team_ids.return_value = [1610612737]
         mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         mock_runner = _mock_runner()
@@ -1240,7 +1727,7 @@ class TestRunInit:
         mock_discovery.discover_current_team_ids.return_value = [1610612737]
         mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         recovered_raw = {"stg_box_score_traditional": pl.DataFrame({"game_id": ["0022400001"]})}
@@ -1286,7 +1773,7 @@ class TestRunInit:
         mock_discovery.discover_current_team_ids.return_value = [1610612737]
         mock_discovery.discover_game_dates.return_value = ["2024-10-22"]
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         mock_runner = _mock_runner(
@@ -2218,7 +2705,7 @@ class TestRunFull:
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_game_dates.return_value = []
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         mock_runner = _mock_runner(skipped=0)
@@ -2262,7 +2749,7 @@ class TestRunFull:
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_game_dates.return_value = ["2026-02-28"]
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         recovered_raw = {
@@ -2304,7 +2791,7 @@ class TestRunFull:
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_game_dates.return_value = []
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         mock_runner = _mock_runner()
@@ -2347,7 +2834,7 @@ class TestRunFull:
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_game_dates.return_value = []
         mock_discovery.discover_player_team_season_params_result.return_value = (
-            _player_team_discovery_result()
+            _player_team_discovery_result(season_types=_ALL_SEASON_TYPES)
         )
 
         mock_runner = _mock_runner(

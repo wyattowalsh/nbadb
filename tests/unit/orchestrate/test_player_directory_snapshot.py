@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from nbadb.orchestrate.player_directory_snapshot import player_ids_by_season_from_snapshot
+from nbadb.orchestrate.player_directory_snapshot import (
+    SNAPSHOT_COMPLETE_THROUGH_SEASON,
+    player_ids_by_season_from_snapshot,
+)
 
 
 def test_player_directory_snapshot_covers_historical_seed_window() -> None:
@@ -14,3 +17,12 @@ def test_player_directory_snapshot_covers_historical_seed_window() -> None:
         "1964-65": 117,
     }
     assert "bad-season" not in ids_by_season
+
+
+def test_player_directory_snapshot_stops_at_declared_complete_season() -> None:
+    ids_by_season = player_ids_by_season_from_snapshot(
+        [SNAPSHOT_COMPLETE_THROUGH_SEASON, "2026-27"]
+    )
+
+    assert SNAPSHOT_COMPLETE_THROUGH_SEASON in ids_by_season
+    assert "2026-27" not in ids_by_season

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 SNAPSHOT_SOURCE = "nba_api CommonAllPlayers"
 SNAPSHOT_NBA_API_VERSION = "1.11.4"
+SNAPSHOT_COMPLETE_THROUGH_SEASON = "2025-26"
+SNAPSHOT_COMPLETE_THROUGH_YEAR = 2025
 
 PLAYER_YEAR_WINDOWS: tuple[tuple[int, int, int], ...] = (
     (2, 1983, 1996),
@@ -5217,7 +5219,7 @@ def player_ids_by_season_from_snapshot(seasons: list[str]) -> dict[str, list[int
     ids_by_season: dict[str, list[int]] = {}
     for season in sorted({season for season in seasons if season}):
         start_year = _season_start_year(season)
-        if start_year is None:
+        if start_year is None or start_year > SNAPSHOT_COMPLETE_THROUGH_YEAR:
             continue
         ids = sorted(
             person_id

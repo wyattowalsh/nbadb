@@ -81,6 +81,38 @@ def test_discovery_artifact_store_reuses_combo_scoped_game_logs_for_narrower_sco
     assert loaded.to_dicts() == [{"game_id": "001", "game_date": "2024-10-22"}]
 
 
+def test_game_log_cache_requires_every_exact_combo_including_zero_row_combos(tmp_path) -> None:
+    store = DiscoveryArtifactStore.from_duckdb_path(tmp_path / "planner.duckdb")
+    regular_scope = DiscoveryArtifactScope(
+        kind="league_game_log",
+        seasons=("2024-25",),
+        season_types=("Regular Season",),
+    )
+    playoffs_scope = DiscoveryArtifactScope(
+        kind="league_game_log",
+        seasons=("2024-25",),
+        season_types=("Playoffs",),
+    )
+    requested_scope = DiscoveryArtifactScope(
+        kind="league_game_log",
+        seasons=("2024-25",),
+        season_types=("Regular Season", "Playoffs"),
+    )
+    store.upsert_frame(
+        regular_scope,
+        pl.DataFrame({"game_id": ["001"], "game_date": ["2024-10-22"]}),
+        provenance="test",
+    )
+
+    assert store.load_game_log_frame(requested_scope) is None
+
+    store.upsert_frame(playoffs_scope, pl.DataFrame(), provenance="test-zero-row")
+    loaded = store.load_game_log_frame(requested_scope)
+
+    assert loaded is not None
+    assert loaded.to_dicts() == [{"game_id": "001", "game_date": "2024-10-22"}]
+
+
 def test_discovery_artifact_store_returns_none_when_unavailable() -> None:
     store = DiscoveryArtifactStore.from_duckdb_path(None)
     scope = DiscoveryArtifactScope(kind="league_game_log")

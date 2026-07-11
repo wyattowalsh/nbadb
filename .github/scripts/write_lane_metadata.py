@@ -64,9 +64,29 @@ def _has_table(con: Any, table_name: str) -> bool:
     )
 
 
+def _table_columns(con: Any, table_name: str) -> set[str]:
+    return {
+        str(row[0])
+        for row in con.execute(
+            """
+            select column_name
+            from information_schema.columns
+            where table_schema = 'main' and table_name = ?
+            """,
+            [table_name],
+        ).fetchall()
+    }
+
+
 def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
     if not db_path.exists():
-        return {"source_path": str(db_path), "error": "missing"}
+        return {
+            "source_path": str(db_path),
+            "readable": False,
+            "journal_present": False,
+            "done_endpoints": [],
+            "error": "missing",
+        }
 
     try:
         import duckdb
@@ -75,6 +95,8 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
 
     telemetry: dict[str, Any] = {
         "source_path": str(db_path),
+        "readable": False,
+        "journal_present": False,
         "planned_calls": 0,
         "journal_skips": 0,
         "failed_calls": 0,
@@ -84,6 +106,7 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
         "tables_persisted": 0,
         "rows_persisted": 0,
         "journal_rows_extracted": 0,
+        "done_endpoints": [],
         "staging_rows_persisted": 0,
         "staging_tables": {},
         "error": "",
@@ -91,7 +114,16 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
     con: Any | None = None
     try:
         con = duckdb.connect(str(db_path), read_only=True)
+        telemetry["readable"] = True
         if _has_table(con, "_extraction_journal"):
+            telemetry["journal_present"] = True
+            journal_columns = _table_columns(con, "_extraction_journal")
+            required_columns = {"status", "rows_extracted"}
+            if not required_columns <= journal_columns:
+                missing = sorted(required_columns - journal_columns)
+                raise ValueError(
+                    "_extraction_journal is missing required columns: " + ", ".join(missing)
+                )
             journal_rows = con.execute(
                 """
                 select
@@ -131,6 +163,18 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
                 telemetry["completed_calls"] = int(telemetry["done_calls"]) + int(
                     telemetry["journal_skips"]
                 )
+            if "endpoint" in journal_columns:
+                telemetry["done_endpoints"] = [
+                    str(row[0])
+                    for row in con.execute(
+                        """
+                        select distinct endpoint
+                        from _extraction_journal
+                        where status = 'done'
+                        order by endpoint
+                        """
+                    ).fetchall()
+                ]
 
         staging_tables = con.execute(
             """
@@ -251,6 +295,39 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _is_sha256(value: str) -> bool:
+    return len(value) == 64 and all(character in "0123456789abcdef" for character in value.lower())
+
+
+def _completion_evidence_errors(
+    *,
+    db_telemetry: dict[str, Any],
+    expected_endpoints: list[str],
+    coverage_units_hash: str,
+    database_sha256: str,
+) -> list[str]:
+    errors: list[str] = []
+    if not db_telemetry.get("readable") or db_telemetry.get("error"):
+        errors.append("database_unreadable")
+    if not db_telemetry.get("journal_present"):
+        errors.append("journal_missing")
+    if _int_value(db_telemetry.get("failed_calls")):
+        errors.append("failed_journal_calls")
+    if _int_value(db_telemetry.get("running_calls")):
+        errors.append("running_journal_calls")
+    if _int_value(db_telemetry.get("done_calls")) < 1:
+        errors.append("no_completed_journal_calls")
+    done_endpoints = {str(value) for value in db_telemetry.get("done_endpoints", [])}
+    missing_endpoints = sorted(set(expected_endpoints) - done_endpoints)
+    if missing_endpoints:
+        errors.append("missing_endpoint_evidence:" + ",".join(missing_endpoints))
+    if not _is_sha256(coverage_units_hash):
+        errors.append("coverage_units_hash_missing_or_invalid")
+    if not _is_sha256(database_sha256):
+        errors.append("database_sha256_missing_or_invalid")
+    return errors
+
+
 def _progress_fingerprint(*, completed_calls: int, rows_persisted: int) -> str:
     payload = json.dumps(
         {"completed_calls": completed_calls, "rows_persisted": rows_persisted},
@@ -269,10 +346,11 @@ def _final_outcome(
     journal_skips: int,
     running_calls: int,
     support_rules: list[dict[str, Any]],
+    completion_evidence_errors: list[str],
 ) -> str:
     if raw_status == "complete":
-        return "complete"
-    if raw_status in {"complete", "needs_resume", "contract_blocked", "pipeline_failure"}:
+        return "pipeline_failure" if completion_evidence_errors else "complete"
+    if raw_status in {"needs_resume", "contract_blocked", "pipeline_failure"}:
         return raw_status
     if rows_persisted == 0 and failed_calls > 0 and support_rules:
         return "contract_blocked"
@@ -365,8 +443,17 @@ def build_payload() -> dict[str, Any]:
             season_end=season_end,
         )
     ]
+    db_path = Path("data/nbadb/nba.duckdb")
+    database_sha256 = _sha256(db_path) if db_path.is_file() else ""
+    coverage_units_hash = os.environ.get("COVERAGE_UNITS_HASH", "").strip().lower()
     running_calls = _int_value(db_telemetry.get("running_calls"))
     completed_calls = _int_value(db_telemetry.get("completed_calls"))
+    completion_evidence_errors = _completion_evidence_errors(
+        db_telemetry=db_telemetry,
+        expected_endpoints=endpoints,
+        coverage_units_hash=coverage_units_hash,
+        database_sha256=database_sha256,
+    )
     final_outcome = _final_outcome(
         raw_status=raw_status,
         effective_network_mode=effective_network_mode,
@@ -375,6 +462,7 @@ def build_payload() -> dict[str, Any]:
         journal_skips=journal_skips,
         running_calls=running_calls,
         support_rules=support_rules,
+        completion_evidence_errors=completion_evidence_errors,
     )
     error_diagnostics = _error_diagnostics(extract_summary)
     failure_class = _failure_class(
@@ -406,10 +494,9 @@ def build_payload() -> dict[str, Any]:
         else:
             zero_row_reason = "unknown"
 
-    db_path = Path("data/nbadb/nba.duckdb")
     state_artifact_name = f"extraction-lane-{os.environ['CHAIN_ID']}-{os.environ['LANE_ID']}"
     return {
-        "metadata_schema_version": 2,
+        "metadata_schema_version": 3,
         "chain_id": os.environ["CHAIN_ID"],
         "iteration": os.environ["ITERATION"],
         "lane_id": os.environ["LANE_ID"],
@@ -418,6 +505,8 @@ def build_payload() -> dict[str, Any]:
         "lane_kind": os.environ["KIND"],
         "source_ref": os.environ["SOURCE_REF"],
         "source_sha": os.environ["SOURCE_SHA"],
+        "coverage_units_hash": coverage_units_hash,
+        "database_sha256": database_sha256,
         "status": final_outcome,
         "raw_status": raw_status,
         "cache_hit": os.environ["CACHE_HIT"],
@@ -459,7 +548,7 @@ def build_payload() -> dict[str, Any]:
         "state_artifact": {
             "run_id": os.environ.get("GITHUB_RUN_ID", ""),
             "name": state_artifact_name,
-            "sha256": _sha256(db_path) if db_path.is_file() else "",
+            "sha256": database_sha256,
             "required": final_outcome != "complete",
             "retention_days": 7 if final_outcome == "complete" else 30,
         },
@@ -482,6 +571,7 @@ def build_payload() -> dict[str, Any]:
             "circuit_breaker_endpoints": extract_summary.get("circuit_breaker_endpoints", []),
             "rate_degradation_events": extract_summary.get("rate_degradation_events", []),
             "extract_summary_parse_error": extract_summary_parse_error,
+            "completion_evidence_errors": completion_evidence_errors,
             "db_telemetry": db_telemetry,
         },
         "extract_summary": extract_summary,
