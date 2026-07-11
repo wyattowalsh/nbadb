@@ -151,12 +151,12 @@ PY
 
 The full extraction workflow reduces each lane to one final outcome in `lane-metadata.json`:
 
-| Outcome            | Meaning                                                                                            | Next action                                        |
-| ------------------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `complete`         | The lane extracted successfully.                                                                   | Preserve it as `resume_only` in the next manifest. |
-| `needs_resume`     | The lane timed out or stopped after persisted DuckDB or journal progress.                          | Keep it active and reuse its cache/journal state.  |
-| `contract_blocked` | The endpoint scope is documented as unsupported by upstream/runtime evidence.                      | Skip retry, keep it in `extraction-audit.json`.    |
-| `pipeline_failure` | Artifacts, VPN/auth, manifest/control-plane, unclassified extract, or secret-safety checks failed. | Fail red and fix before redispatch.                |
+| Outcome            | Meaning                                                                                         | Next action                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `complete`         | The lane extracted successfully.                                                                | Preserve it as `resume_only` in the next manifest.                   |
+| `needs_resume`     | The lane timed out or stopped after persisted DuckDB, journal, or staging progress.             | Keep it active and reuse cache or durable lane state.                |
+| `contract_blocked` | The endpoint scope is documented as unsupported by upstream/runtime evidence.                   | Skip retry, keep it in `extraction-audit.json`.                      |
+| `pipeline_failure` | Classified extraction, VPN, runner, artifact, manifest/control-plane, or secret-safety failure. | Retry only within the failure-class budget or fix before redispatch. |
 
 ### 2) Inspect the chain artifact
 
@@ -173,18 +173,35 @@ PY
 
 ### 3) Understand chunk profiles and checkpoints
 
-Fresh GitHub Actions full-extraction runs default to `balanced-small`, which keeps
-full coverage but narrows high-risk temporal lanes before dispatch. Use `standard`
-only when you need the older broader lane shape, and use `micro` when repeated
-provider, timeout, or terminal-merge failures make one-season chunks worth the
-extra Actions overhead.
+Fresh GitHub Actions full-extraction runs default to `standard`. It preserves the
+same coverage fingerprint as the smaller profiles while reducing runner setup,
+VPN connection, artifact, and checkpoint overhead. Durable incomplete-lane state
+makes these broader shards resume-safe. Use `balanced-small` after repeated
+endpoint timeouts, and reserve `micro` for isolating a provider or contract failure
+to one-season chunks.
 
 Each iteration now builds a cumulative checkpoint artifact named
 `full-extraction-checkpoint-<chain_id>-iter-<iteration>`. The next manifest carries
 that checkpoint pointer forward, so redispatched runs can merge the previous
 checkpoint with only the newly completed lane databases. Terminal merge consumes
-the checkpoint first and falls back to lane artifacts only if the checkpoint
-report is missing, non-terminal, or coverage-mismatched.
+the checkpoint first. Artifact fallback is an explicit recovery path, not the
+default terminal merge path, because it can silently rebuild from incomplete or
+stale lane output if used casually.
+
+Incomplete lanes upload a longer-retained durable state artifact with their
+DuckDB file when available. The next iteration prefers a usable cache restore,
+then validates and falls back to that durable state artifact before restarting a
+lane clean. Lane metadata records the restore source, progress counters,
+failure class, root error type, and state artifact pointer so retry decisions are
+traceable.
+
+`matrix_batch_size` controls how many lane jobs enter one workflow iteration and
+defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
+`vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
+therefore API pressure. The scheduler rotates fresh, partial-progress, retry, and
+infrastructure lanes while applying an endpoint-family cap when another family is
+available. This keeps runners fed and avoids checkpoint barriers between tiny
+batches without letting one hot failure family monopolize every runner.
 
 When VPN bootstrap is down, dispatch a narrow smoke run with
 `network_mode=direct`, `direct_parallelism=1`, `chunk_profile=micro`, and a low
@@ -222,8 +239,8 @@ PY
   children, while the season and cross-product patterns split by their lane
   policy span.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
-- Treat any `pipeline_failure` as a control-plane failure. Check for missing metadata, missing VPN diagnostics, auth/VPN failures, manifest errors, and unclassified zero-row extract errors before relaunch. Use `retry_pipeline_failures=true` only after classifying the lane as retryable or accepting the explicit recovery risk.
-- If checkpoint promotion fails but lane artifacts still exist, let the merge fallback rebuild the terminal database from the chain's recorded artifact run IDs. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
+- Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
+- If checkpoint promotion fails, fix or regenerate the checkpoint before terminal merge. Use lane-artifact fallback only as an explicit recovery decision after confirming the chain's recorded artifact run ids and coverage fingerprint. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
 
 ## Docs-autogen artifacts (`docs/content/docs/*` + `docs/lib/generated/*`)
 
@@ -255,13 +272,14 @@ uv run nbadb docs-autogen --docs-root docs/content/docs
 
 ## Kaggle and common CLI/CI misses
 
-| Command or area                    | Symptom                                      | Fix                                                                                        |
-| ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `uv sync`                          | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                        |
-| `uv run nbadb download` / `upload` | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct |
-| `nbadb scan --report-path ...`     | `database not found`                         | Initialize or download the dataset before running quality checks                           |
-| `actions/upload-artifact`          | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects           |
-| docs install/build step            | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                         |
+| Command or area                       | Symptom                                      | Fix                                                                                                                                                           |
+| ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uv sync`                             | Resolver / lock mismatch                     | Regenerate the lock, rerun sync, and commit the lockfile CI expects                                                                                           |
+| `uv run nbadb download` / `upload`    | Download or upload failure                   | Ensure Kaggle credentials are available to the environment and the dataset slug is correct                                                                    |
+| `uv run nbadb upload --verify-remote` | Remote publish stays pending                 | Inspect `logs/kaggle/kaggle-upload-manifest.json`; do not re-upload until the `publication` block proves whether Kaggle exposed the staged publication marker |
+| `nbadb scan --report-path ...`        | `database not found`                         | Initialize or download the dataset before running quality checks                                                                                              |
+| `actions/upload-artifact`             | “No files were found with the provided path” | Verify the upstream command wrote exactly the artifact path the workflow expects                                                                              |
+| docs install/build step               | lockfile or dependency drift                 | Refresh docs dependencies and commit the matching lockfile changes                                                                                            |
 
 ## Best next move after a fix
 

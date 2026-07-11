@@ -122,7 +122,7 @@ uv run nbadb lint-sql                              # SQLFluff lint on transforme
 uv run nbadb metadata --data-dir data/nbadb --output dataset-metadata.json  # Generate Kaggle metadata JSON
 uv run nbadb journal-summary                       # Pipeline telemetry for docs admin
 uv run nbadb download                             # Pull latest Kaggle dataset
-uv run nbadb upload --data-dir data/nbadb -m "Automated update"  # Validate bundle and push dataset to Kaggle
+uv run nbadb upload --data-dir data/nbadb -m "Automated update" --verify-remote  # Validate, push, and read back Kaggle bundle
 
 # Docs
 uv run nbadb docs-autogen --docs-root docs/content/docs   # Regenerate docs artifacts

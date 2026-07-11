@@ -129,13 +129,15 @@ Long-running GitHub Actions full extraction uses the same ELT stages, but wraps
 extraction in smaller temporal lanes and durable checkpoint aggregation. The
 checkpoint is the recovery boundary: each redispatch only needs the previous
 checkpoint plus newly completed lane databases, and terminal merge consumes the
-checkpoint before falling back to raw lane artifacts.
+checkpoint before export. Incomplete lanes can also carry durable DuckDB state
+artifacts into the next iteration when the cache is missing or unusable.
 
 ```mermaid
 flowchart TD
     Plan["Plan lanes\nchunk_profile"] --> ExtractMatrix["Extract lane matrix"]
-    ExtractMatrix --> LaneMetadata["Lane metadata\noutcomes + rows"]
-    LaneMetadata --> LaneControl["Lane control\nnext manifest"]
+    ExtractMatrix --> LaneMetadata["Lane metadata\noutcomes + failure class + progress"]
+    LaneMetadata --> LaneState["Durable lane state\ncache or artifact"]
+    LaneState --> LaneControl["Lane control\nfair next manifest"]
     LaneControl --> Checkpoint["Checkpoint aggregate\nnba.duckdb"]
     Checkpoint --> Decision{"Active lanes remain?"}
     Decision -->|yes| Dispatch["Dispatch next iteration\nmanifest handoff"]

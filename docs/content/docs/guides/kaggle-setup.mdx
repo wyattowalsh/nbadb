@@ -139,7 +139,7 @@ uv run nbadb export --data-dir data/nbadb
 uv run nbadb scan --data-dir data/nbadb --fail-on error --report-path artifacts/health/local/scan-report.json
 uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata.json
 uv run python -m json.tool data/nbadb/dataset-metadata.json >/dev/null
-uv run nbadb upload --data-dir data/nbadb --message "Describe this publish"
+uv run nbadb upload --data-dir data/nbadb --message "Describe this publish" --verify-remote
 uv run python -m json.tool logs/kaggle/kaggle-upload-manifest.json >/dev/null
 ```
 
@@ -160,7 +160,8 @@ uv run nbadb metadata --data-dir data/nbadb --output data/nbadb/dataset-metadata
 - The metadata generator uses the configured Kaggle dataset slug as the dataset `id`.
 - Pass `--data-dir` when you want the root metadata file to reflect a concrete export directory before commit or upload.
 - Upload-time metadata generation validates CSV headers against the generated resource schema field order and fails fast on drift.
-- The current upload path validates local metadata/resources, stages only declared files and directories into a temporary upload root, rejects symlinks/path traversal, records a staged-tree fingerprint in `logs/kaggle/kaggle-upload-manifest.json`, and then hands that staged bundle to `kagglehub`.
+- Use `--verify-remote` for CI or release publishes. It first checks whether Kaggle already exposes the staged bundle identity, uploads at most once, then polls a small publication marker until its validated resource hashes match or `--remote-timeout` expires. `--remote-poll-interval` controls the polling cadence without repeatedly downloading the full dataset.
+- The current upload path validates local metadata/resources, stages only declared files and directories plus the generated publication marker into a temporary upload root, rejects symlinks/path traversal, records staged-tree and remote marker readback identities in `logs/kaggle/kaggle-upload-manifest.json`, and then hands that staged bundle to `kagglehub`.
 
 <Callout type="warn">
   Treat `dataset-metadata.json` as the generated source of truth for the Kaggle

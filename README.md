@@ -72,8 +72,8 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 > # Query with natural language
 > nbadb ask "who led the league in scoring last season"
 >
-> # Upload to Kaggle
-> nbadb upload
+> # Upload to Kaggle and verify the published bundle
+> nbadb upload --verify-remote
 > ```
 
 ## ⌨️ CLI Reference
@@ -88,7 +88,7 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 | `nbadb migrate`                 | Run schema migrations                                                            |
 | `nbadb scan --fail-on error`    | Hard assurance gate for missing data, gaps, and quality issues                   |
 | `nbadb export`                  | Re-export DuckDB → SQLite / Parquet / CSV                                        |
-| `nbadb upload`                  | Stage declared resources, validate the bundle, and push the dataset to Kaggle    |
+| `nbadb upload`                  | Stage declared resources, validate the bundle, push to Kaggle, and optionally verify remote readback |
 | `nbadb download`                | Pull the Kaggle dataset and seed local DuckDB                                    |
 | `nbadb extract-completeness`    | Report coverage gaps; with an upstream checkout, generate `nba_api` contracts    |
 | `nbadb endpoint-support-matrix` | Report strict endpoint support + warehouse contract coverage                     |
