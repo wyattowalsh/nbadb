@@ -1,0 +1,11 @@
+paths:
+  .github/workflows/daily-update.yml:
+    ignore:
+      # GitHub added concurrency.queue before actionlint released schema support.
+      - 'unexpected key "queue" for "concurrency" section'
+  .github/workflows/full-extraction.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'
+  .github/workflows/monthly-update.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'

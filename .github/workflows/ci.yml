@@ -15,6 +15,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Install pinned actionlint
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          install_dir="$RUNNER_TEMP/actionlint"
+          curl \
+            --fail \
+            --location \
+            --retry 3 \
+            --retry-all-errors \
+            --show-error \
+            --silent \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          mkdir -p "$install_dir"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$install_dir" actionlint
+          echo "$install_dir" >> "$GITHUB_PATH"
+      - name: Run actionlint on all workflows
+        run: actionlint
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -139,7 +168,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [lint, metadata, typecheck]
+    needs: [workflow-lint, lint, metadata, typecheck]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0

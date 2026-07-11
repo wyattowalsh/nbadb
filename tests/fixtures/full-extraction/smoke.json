@@ -1,0 +1,32 @@
+{
+  "chain_id": "fixture-chain",
+  "publish": false,
+  "terminal_replay": {
+    "source_run_id": "987654",
+    "checkpoint_generation": 1,
+    "checkpoint_artifact_name": "full-extraction-checkpoint-fixture-chain-iter-1"
+  },
+  "manifest": {
+    "lanes": [
+      {
+        "lane_id": "reference-static-fixture",
+        "lane_kind": "reference",
+        "lane_name": "Reference Static Fixture",
+        "season_start": null,
+        "season_end": null,
+        "patterns": ["static"],
+        "season_types": [],
+        "endpoints": ["franchise_history"],
+        "timeout_seconds": 1800
+      }
+    ]
+  },
+  "staging_rows": [
+    [1, "alpha"],
+    [2, "beta"]
+  ],
+  "journal": {
+    "endpoint": "franchise_history",
+    "params": "{}"
+  }
+}

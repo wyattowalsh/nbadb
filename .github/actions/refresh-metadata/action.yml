@@ -14,6 +14,10 @@ inputs:
     description: Commit message to use when metadata changes.
     required: false
     default: "chore: regenerate dataset-metadata.json"
+  push-ref:
+    description: Branch name that receives the metadata commit; defaults to the repository default branch.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -30,10 +34,37 @@ runs:
     - name: Commit refreshed metadata
       if: ${{ inputs.commit == 'true' }}
       shell: bash
+      env:
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        PUSH_REF_INPUT: ${{ inputs.push-ref }}
       run: |
+        set -euo pipefail
+        push_ref="${PUSH_REF_INPUT:-$DEFAULT_BRANCH}"
+        if [ -z "$push_ref" ] || [[ "$push_ref" == refs/* ]] || \
+          ! git check-ref-format --branch "$push_ref" >/dev/null 2>&1; then
+          echo "::error::push-ref must be a valid branch name, got '$push_ref'"
+          exit 1
+        fi
+
+        remote_ref="refs/heads/${push_ref}"
+        tracking_ref="refs/remotes/origin/metadata-push-target"
+        fetch_args=(--no-tags --no-recurse-submodules)
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          fetch_args+=(--unshallow)
+        fi
+        git fetch "${fetch_args[@]}" origin "+${remote_ref}:${tracking_ref}"
+
+        source_commit="$(git rev-parse HEAD^{commit})"
+        target_commit="$(git rev-parse "${tracking_ref}^{commit}")"
+        if ! git merge-base --is-ancestor "$target_commit" "$source_commit"; then
+          echo "::error::Metadata push would not be a fast-forward: ${remote_ref} is at ${target_commit}, checked-out source is ${source_commit}"
+          exit 1
+        fi
+
         git diff --quiet -- dataset-metadata.json && exit 0
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add dataset-metadata.json
-        git commit -m "${{ inputs.commit-message }}"
-        git push
+        git commit -m "$COMMIT_MESSAGE"
+        git push origin "HEAD:${remote_ref}"

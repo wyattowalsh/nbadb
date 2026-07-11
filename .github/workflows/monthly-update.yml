@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 240
     concurrency:
       group: nbadb-kaggle-publish
+      queue: max
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -30,6 +31,21 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync
+      - name: Require default branch for Kaggle publication
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::Kaggle publication requires the default branch '$DEFAULT_BRANCH'; got '$GITHUB_REF_NAME'"
+            exit 1
+          fi
+      - name: Restore Kaggle publication reconciliation state
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: logs/kaggle/kaggle-publication-state.json
+          key: nbadb-kaggle-publication-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            nbadb-kaggle-publication-state-
       - name: Generate monthly health inventory
         run: |
           output_path="${GITHUB_WORKSPACE}/artifacts/health/monthly/dependency-inventory.json"
@@ -70,23 +86,45 @@ jobs:
           report-dir: artifacts/health/monthly
           fail-on: error
       - name: Export data
+        id: export
         if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
         run: uv run nbadb export
       - name: Refresh checked-in metadata
+        id: metadata
         if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
         uses: ./.github/actions/refresh-metadata
+        with:
+          push-ref: ${{ github.event.repository.default_branch }}
       - name: Upload to Kaggle
-        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
+        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success' && steps.metadata.outcome == 'success'
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: uv run nbadb upload --verify-remote --remote-timeout 900 --remote-poll-interval 15
+      - name: Detect Kaggle publication reconciliation state
+        id: kaggle_publication_state
+        if: always()
+        run: |
+          if [ -f logs/kaggle/kaggle-publication-state.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Persist Kaggle publication reconciliation state
+        if: ${{ always() && steps.kaggle_publication_state.outputs.exists == 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: logs/kaggle/kaggle-publication-state.json
+          key: nbadb-kaggle-publication-state-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Upload Kaggle publication receipt
-        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'
+        if: always() && steps.monthly.outcome == 'success' && steps.scan.outcome == 'success' && steps.export.outcome == 'success' && steps.metadata.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: monthly-kaggle-publication-receipt
-          path: logs/kaggle/kaggle-upload-manifest.json
+          path: |
+            logs/kaggle/kaggle-upload-manifest.json
+            logs/kaggle/kaggle-publication-state.json
           if-no-files-found: warn
           retention-days: 30
       - name: Assert extraction and scan passed
@@ -94,6 +132,8 @@ jobs:
         env:
           MONTHLY_OUTCOME: ${{ steps.monthly.outcome }}
           SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          EXPORT_OUTCOME: ${{ steps.export.outcome }}
+          METADATA_OUTCOME: ${{ steps.metadata.outcome }}
         run: |
           if [ "$MONTHLY_OUTCOME" != "success" ]; then
             echo "::error::Monthly extraction did not pass: ${MONTHLY_OUTCOME:-unknown}"
@@ -101,6 +141,14 @@ jobs:
           fi
           if [ "$SCAN_OUTCOME" != "success" ]; then
             echo "::error::Monthly scan did not pass: ${SCAN_OUTCOME:-skipped}"
+            exit 1
+          fi
+          if [ "$EXPORT_OUTCOME" != "success" ]; then
+            echo "::error::Monthly export did not pass: ${EXPORT_OUTCOME:-skipped}"
+            exit 1
+          fi
+          if [ "$METADATA_OUTCOME" != "success" ]; then
+            echo "::error::Monthly metadata refresh did not pass: ${METADATA_OUTCOME:-skipped}"
             exit 1
           fi
       - name: Disconnect VPN

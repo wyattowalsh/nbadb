@@ -1,4 +1,5 @@
 name: Full Extraction
+run-name: Full Extraction chain=${{ inputs.chain_id || github.run_id }} iteration=${{ inputs.iteration }}
 
 on:
   workflow_dispatch:
@@ -108,8 +109,12 @@ on:
         description: "Force re-extraction of done entries"
         type: boolean
         default: false
+      publish:
+        description: "Publish terminal metadata and Kaggle artifacts after assurance passes"
+        type: boolean
+        default: true
       chain_id:
-        description: "Chain identifier (auto-set on first iteration)"
+        description: "Chain identifier (auto-set on fresh runs; required for artifact handoff)"
         type: string
         default: ""
       workflow_ref:
@@ -154,14 +159,87 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: full-extraction-chain-${{ inputs.chain_id || github.run_id }}-iteration-${{ inputs.iteration }}
   cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────
 #  plan → lane extract(matrix) → lane control/checkpoint → dispatch next or merge
 # ─────────────────────────────────────────────────────────────────
 jobs:
+  workflow_guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Verify immutable workflow definition
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH: ${{ inputs.publish }}
+          WORKFLOW_DEFINITION_SHA: ${{ github.workflow_sha }}
+          WORKFLOW_PATH: .github/workflows/full-extraction.yml
+        run: |
+          set -euo pipefail
+          if ! [[ "$WORKFLOW_SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::workflow_sha must resolve to a full 40-character commit SHA"
+            exit 1
+          fi
+          if ! git check-ref-format --branch "$WORKFLOW_SOURCE_REF" >/dev/null 2>&1; then
+            echo "::error::workflow_ref must name a valid branch, got '$WORKFLOW_SOURCE_REF'"
+            exit 1
+          fi
+
+          source_commit="$(git rev-parse "${WORKFLOW_SOURCE_SHA}^{commit}")"
+          checked_out_commit="$(git rev-parse HEAD)"
+          if [ "${WORKFLOW_SOURCE_SHA,,}" != "$source_commit" ] || [ "$checked_out_commit" != "$source_commit" ]; then
+            echo "::error::Pinned source checkout mismatch: expected $source_commit, got $checked_out_commit"
+            exit 1
+          fi
+
+          trusted_branch_ref="refs/remotes/origin/trusted-workflow-source"
+          git fetch --no-tags --no-recurse-submodules origin \
+            "+refs/heads/${WORKFLOW_SOURCE_REF}:${trusted_branch_ref}"
+          trusted_branch_commit="$(git rev-parse "${trusted_branch_ref}^{commit}")"
+          if ! git merge-base --is-ancestor "$source_commit" "$trusted_branch_commit"; then
+            echo "::error::workflow_sha $source_commit is not an ancestor of trusted workflow_ref branch '$WORKFLOW_SOURCE_REF' at $trusted_branch_commit"
+            exit 1
+          fi
+
+          if [ "$PUBLISH" = "true" ]; then
+            if [ -z "$DEFAULT_BRANCH" ] || ! git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null 2>&1; then
+              echo "::error::Repository default branch is missing or invalid"
+              exit 1
+            fi
+            default_branch_ref="refs/remotes/origin/trusted-default-branch"
+            git fetch --no-tags --no-recurse-submodules origin \
+              "+refs/heads/${DEFAULT_BRANCH}:${default_branch_ref}"
+            default_branch_commit="$(git rev-parse "${default_branch_ref}^{commit}")"
+            if ! git merge-base --is-ancestor "$source_commit" "$default_branch_commit"; then
+              echo "::error::publish=true requires workflow_sha $source_commit to be an ancestor of default branch '$DEFAULT_BRANCH' at $default_branch_commit"
+              exit 1
+            fi
+          fi
+
+          source_blob="$(git rev-parse "${source_commit}:${WORKFLOW_PATH}")"
+          definition_blob="$(gh api \
+            --method GET \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/contents/${WORKFLOW_PATH}" \
+            -f "ref=${WORKFLOW_DEFINITION_SHA}" \
+            --jq '.sha')"
+          if [ -z "$definition_blob" ] || [ "$definition_blob" != "$source_blob" ]; then
+            echo "::error::Workflow definition drift detected: ${WORKFLOW_PATH} at runtime workflow SHA ${WORKFLOW_DEFINITION_SHA} does not match workflow_source_sha ${source_commit}"
+            exit 1
+          fi
+
   plan:
+    needs: workflow_guard
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -324,6 +402,7 @@ jobs:
         if: ${{ always() && inputs.lane_manifest_json == '' && inputs.lane_manifest_run_id == '' && inputs.resume_source_run_id == '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: full-extraction-endpoint-coverage-${{ env.ACTIVE_CHAIN_ID }}
           path: artifacts/endpoint-coverage/
           if-no-files-found: ignore
@@ -370,6 +449,10 @@ jobs:
               echo "::error::lane_manifest_run_id and lane_manifest_artifact_name must be provided together"
               exit 1
             fi
+            if [ -z "$REQUESTED_CHAIN_ID" ]; then
+              echo "::error::lane_manifest_run_id requires chain_id so workflow concurrency and discovery artifacts retain the original chain identity"
+              exit 1
+            fi
             mkdir -p "$RUNNER_TEMP/lane-manifest-input"
             gh run download "$LANE_MANIFEST_RUN_ID" \
               --repo "${{ github.repository }}" \
@@ -381,6 +464,60 @@ jobs:
               find "$RUNNER_TEMP/lane-manifest-input" -maxdepth 4 -type f -print || true
               exit 1
             fi
+            MANIFEST_PATH="$manifest_path" \
+              ARTIFACT_NAME="$LANE_MANIFEST_ARTIFACT_NAME" \
+              REQUESTED_CHAIN_ID="$REQUESTED_CHAIN_ID" \
+              python - <<'PY'
+          # MANUAL_HANDOFF_CHAIN_VERIFIER
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          requested = os.environ["REQUESTED_CHAIN_ID"]
+          artifact_name = os.environ["ARTIFACT_NAME"]
+          chain_state = manifest.get("chain_state", {})
+          manifest_ids = {
+              str(value).strip()
+              for value in (
+                  manifest.get("chain_id"),
+                  chain_state.get("chain_id") if isinstance(chain_state, dict) else None,
+              )
+              if str(value or "").strip()
+          }
+          mismatched_ids = sorted(value for value in manifest_ids if value != requested)
+          if mismatched_ids:
+              print(
+                  "::error::Manifest chain identity does not match requested chain_id "
+                  f"{requested!r}: {mismatched_ids}"
+              )
+              raise SystemExit(1)
+
+          initial_name = f"full-extraction-manifest-{requested}"
+          chained_name = re.fullmatch(
+              rf"full-extraction-next-manifest-{re.escape(requested)}-iter-[1-9][0-9]*",
+              artifact_name,
+          )
+          standard_name = artifact_name.startswith(
+              ("full-extraction-manifest-", "full-extraction-next-manifest-")
+          )
+          if standard_name and artifact_name != initial_name and chained_name is None:
+              print(
+                  "::error::Manifest artifact name does not match requested chain_id "
+                  f"{requested!r}: {artifact_name!r}"
+              )
+              raise SystemExit(1)
+          if not manifest_ids and artifact_name != initial_name and chained_name is None:
+              print(
+                  "::error::Unable to verify original chain identity from the manifest "
+                  f"or artifact name {artifact_name!r}"
+              )
+              raise SystemExit(1)
+          print(f"Verified manual manifest handoff for chain {requested}")
+          PY
             cp "$manifest_path" artifacts/full-extraction/input-manifest.json
             args+=(--lane-manifest-path artifacts/full-extraction/input-manifest.json)
           elif [ -n "$RESUME_SOURCE_RUN_ID" ]; then
@@ -491,6 +628,7 @@ jobs:
       - name: Upload lane manifest
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: |
             artifacts/full-extraction/manifest.json
@@ -503,9 +641,67 @@ jobs:
           retention-days: 7
           compression-level: 6
 
+  publication_preflight:
+    needs: workflow_guard
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Fail fast on Kaggle publication readiness
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_REF_NAME: ${{ github.ref_name }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          WORKFLOW_SOURCE_REF: ${{ env.WORKFLOW_SOURCE_REF }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_REF_NAME" != "$DEFAULT_BRANCH" ] || [ "$WORKFLOW_SOURCE_REF" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::publish=true requires the default branch '$DEFAULT_BRANCH'; event_ref='$EVENT_REF_NAME' workflow_source_ref='$WORKFLOW_SOURCE_REF'"
+            exit 1
+          fi
+          if [ -z "${KAGGLE_USERNAME:-}" ] || [ -z "${KAGGLE_KEY:-}" ]; then
+            echo "::error::KAGGLE_USERNAME and KAGGLE_KEY are required when publish=true"
+            exit 1
+          fi
+          uv run python - <<'PY'
+          from nbadb.kaggle.client import KaggleClient
+
+          try:
+              result = KaggleClient().publication_preflight()
+          except Exception as exc:
+              print(
+                  "::error::Kaggle publication preflight failed "
+                  f"({type(exc).__name__})"
+              )
+              raise SystemExit(1) from None
+          if result.get("acceptable") is not True:
+              raise SystemExit("Kaggle publication preflight was not acceptable")
+          version = result.get("version")
+          if isinstance(version, bool) or not isinstance(version, int) or version <= 0:
+              raise SystemExit("Kaggle publication preflight did not resolve an exact version")
+          print(f"Kaggle publication preflight passed at exact remote version {version}")
+          PY
+
   preflight:
-    needs: plan
-    if: ${{ needs.plan.outputs.lane-count != '0' }}
+    needs: [plan, publication_preflight]
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.matrix-lane-count != '0' && (!inputs.publish || needs.publication_preflight.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -662,10 +858,11 @@ jobs:
 
   discovery_seed:
     needs: [plan, preflight]
-    if: ${{ needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' }}
+    if: ${{ needs.plan.outputs.matrix-lane-count != '0' && needs.preflight.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -688,6 +885,87 @@ jobs:
           name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
           path: plan-artifact/
 
+      - name: Restore prior discovery artifacts
+        if: ${{ inputs.lane_manifest_run_id != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRIOR_RUN_ID: ${{ inputs.lane_manifest_run_id }}
+          DISCOVERY_ARTIFACT_NAME: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
+        run: |
+          mkdir -p prior-discovery-artifact data/nbadb
+          if ! gh run download "$PRIOR_RUN_ID" \
+            --repo "${{ github.repository }}" \
+            --name "$DISCOVERY_ARTIFACT_NAME" \
+            --dir prior-discovery-artifact; then
+            echo "::warning::Prior discovery artifact is unavailable; seeding this wave from scratch"
+            exit 0
+          fi
+
+          artifact_dir="$(find prior-discovery-artifact -type d -name nba.discovery-artifacts -print -quit)"
+          if [ -n "$artifact_dir" ]; then
+            rm -rf data/nbadb/nba.discovery-artifacts
+            cp -R "$artifact_dir" data/nbadb/nba.discovery-artifacts
+          fi
+
+          workload_parquet="$(find prior-discovery-artifact -type f -name nba.player-team-season-workload.parquet -print -quit)"
+          workload_manifest="$(find prior-discovery-artifact -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+          if [ -n "$workload_parquet" ] && [ -n "$workload_manifest" ]; then
+            cp "$workload_parquet" data/nbadb/nba.player-team-season-workload.parquet
+            cp "$workload_manifest" data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+          elif [ -n "$workload_parquet" ] || [ -n "$workload_manifest" ]; then
+            echo "::warning::Prior player/team workload artifact is incomplete; ignoring it"
+            rm -f \
+              data/nbadb/nba.player-team-season-workload.parquet \
+              data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+          fi
+
+      - name: Configure discovery seed concurrency
+        env:
+          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
+          SEED_REQUEST_PROFILE: ${{ inputs.concurrency }}
+        run: |
+          if [ "$EFFECTIVE_NETWORK_MODE" = "direct" ]; then
+            seed_concurrency=2
+          else
+            case "$SEED_REQUEST_PROFILE" in
+              conservative) seed_concurrency=4 ;;
+              moderate) seed_concurrency=6 ;;
+              aggressive) seed_concurrency=8 ;;
+              *)
+                echo "::error::Unsupported discovery seed concurrency profile: $SEED_REQUEST_PROFILE"
+                exit 1
+                ;;
+            esac
+          fi
+          {
+            echo "NBADB_DISCOVERY_CONCURRENCY=$seed_concurrency"
+            echo "NBADB_DISCOVERY_SEED_CONCURRENCY=$seed_concurrency"
+          } >> "$GITHUB_ENV"
+          echo "::notice::Discovery seed concurrency: $seed_concurrency ($EFFECTIVE_NETWORK_MODE)"
+
+      - name: Connect NordVPN tunnel for discovery seeding
+        id: vpn
+        if: ${{ needs.preflight.outputs.effective-network-mode == 'vpn' }}
+        timeout-minutes: 6
+        env:
+          OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
+          OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
+          NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          LANE_INDEX: "0"
+          SERVER_LIMIT: "6"
+          FALLBACK_TECHNOLOGY: "openvpn_tcp"
+          CONNECT_TIMEOUT_SECONDS: "30"
+          OVERALL_TIMEOUT_SECONDS: "300"
+          QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
+        run: |
+          set +e
+          bash .github/scripts/run_with_deadline.sh \
+            360 \
+            15 \
+            python3 .github/actions/nordvpn-connect/supervise.py
+          rc=$?
+          exit "$rc"
+
       - name: Seed discovery artifacts
         run: |
           mkdir -p artifacts/discovery data/nbadb
@@ -706,13 +984,40 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
           path: |
             data/nbadb/nba.discovery-artifacts/
+            data/nbadb/nba.player-team-season-workload.parquet
+            data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
             artifacts/discovery/discovery-seed-summary.json
           if-no-files-found: ignore
           retention-days: 7
           compression-level: 6
+
+      - name: Upload discovery seed VPN diagnostics
+        if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: discovery-seed-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}
+          path: |
+            ${{ runner.temp }}/nordvpn/openvpn.log
+            ${{ runner.temp }}/nordvpn/openvpn.pid
+            ${{ runner.temp }}/nordvpn/vpn-exit-ip.json
+            ${{ runner.temp }}/nordvpn/baseline-ip.json
+            ${{ runner.temp }}/nordvpn/*.ovpn
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
+
+      - name: Disconnect discovery seed VPN
+        if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' }}
+        uses: ./.github/actions/nordvpn-disconnect
+        with:
+          pid: ${{ steps.vpn.outputs.pid }}
+          pid-file: ${{ steps.vpn.outputs.pid-file }}
+          work-dir: ${{ steps.vpn.outputs.work-dir }}
 
   extract:
     needs: [plan, preflight, discovery_seed]
@@ -720,7 +1025,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
-      actions: write
+      actions: read
       contents: read
     strategy:
       fail-fast: false
@@ -748,17 +1053,6 @@ jobs:
         with:
           name: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
           path: discovery-artifact/
-
-      - name: Install discovery artifacts
-        run: |
-          mkdir -p data/nbadb
-          artifact_dir="$(find discovery-artifact -type d -name nba.discovery-artifacts -print -quit)"
-          if [ -n "$artifact_dir" ]; then
-            rm -rf data/nbadb/nba.discovery-artifacts
-            cp -R "$artifact_dir" data/nbadb/nba.discovery-artifacts
-          else
-            echo "::notice::No seeded discovery artifact directory found"
-          fi
 
       # ── Restore state from previous iteration ──
       - name: Restore extraction state
@@ -891,6 +1185,33 @@ jobs:
             echo "restore-usable=$restore_usable"
             echo "restart-mode=$restart_mode"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Install discovery artifacts after state restore
+        run: |
+          mkdir -p data/nbadb
+          artifact_dir="$(find discovery-artifact -type d -name nba.discovery-artifacts -print -quit)"
+          if [ -n "$artifact_dir" ]; then
+            rm -rf data/nbadb/nba.discovery-artifacts
+            cp -R "$artifact_dir" data/nbadb/nba.discovery-artifacts
+          else
+            echo "::notice::No seeded discovery artifact directory found"
+          fi
+
+          workload_parquet="$(find discovery-artifact -type f -name nba.player-team-season-workload.parquet -print -quit)"
+          workload_manifest="$(find discovery-artifact -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+          if [ -n "$workload_parquet" ] || [ -n "$workload_manifest" ]; then
+            if [ -z "$workload_parquet" ] || [ -z "$workload_manifest" ]; then
+              echo "::error::Seeded player/team workload artifact is incomplete"
+              exit 1
+            fi
+            rm -f \
+              data/nbadb/nba.player-team-season-workload.parquet \
+              data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+            cp "$workload_parquet" data/nbadb/nba.player-team-season-workload.parquet
+            cp "$workload_manifest" data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+          else
+            echo "::notice::No seeded player/team workload artifact found"
+          fi
 
       - name: Show lane info
         env:
@@ -1205,6 +1526,7 @@ jobs:
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
           ENDPOINTS: ${{ matrix.endpoints }}
+          COVERAGE_UNITS_HASH: ${{ matrix.coverage_units_hash }}
           SEASON_START: ${{ matrix.season_start }}
           SEASON_END: ${{ matrix.season_end }}
           PARENT_LANE_ID: ${{ matrix.parent_lane_id }}
@@ -1242,6 +1564,7 @@ jobs:
         if: ${{ always() && steps.lane_metadata.outputs.final-outcome == 'complete' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
             data/nbadb/*.duckdb
@@ -1254,6 +1577,7 @@ jobs:
         if: ${{ always() && steps.lane_metadata.outputs.final-outcome != 'complete' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
             data/nbadb/*.duckdb
@@ -1266,6 +1590,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
             artifacts/extraction/lane-metadata.json
@@ -1277,6 +1602,7 @@ jobs:
         if: ${{ always() && needs.preflight.outputs.effective-network-mode == 'vpn' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: extraction-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
             ${{ runner.temp }}/nordvpn/openvpn.log
@@ -1298,23 +1624,234 @@ jobs:
           work-dir: ${{ steps.vpn.outputs.work-dir }}
 
   # ─────────────────────────────────────────────────────────────
-  #  Merge the cumulative checkpoint once all lanes are complete
+  #  Replay a prior terminal checkpoint without rebuilding it
   # ─────────────────────────────────────────────────────────────
-  merge:
-    needs: [plan, preflight, extract, lane_control, checkpoint]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0' }}
+  terminal_replay:
+    needs: [plan, publication_preflight]
+    if: ${{ always() && inputs.resume_source_run_id != '' && needs.plan.result == 'success' && (!inputs.publish || needs.publication_preflight.result == 'success') && needs.plan.outputs.lane-count != '0' && needs.plan.outputs.active-lane-count == '0' && needs.plan.outputs.matrix-lane-count == '0' }}
     runs-on: ubuntu-latest
-    concurrency:
-      group: nbadb-kaggle-publish
-      cancel-in-progress: false
-    timeout-minutes: 360
+    timeout-minutes: 20
     permissions:
-      actions: write
-      contents: write
+      actions: read
+      contents: read
+    outputs:
+      artifact-name: ${{ steps.replay.outputs.artifact_name }}
+      checkpoint-generation: ${{ steps.replay.outputs.checkpoint_generation }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Download zero-active manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: full-extraction-manifest-${{ env.ACTIVE_CHAIN_ID }}
+          path: plan-artifact/
+
+      - name: Resolve exact source checkpoint artifact
+        id: source_checkpoint
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::resume_source_run_id must be a numeric GitHub Actions run ID"
+            exit 1
+          fi
+
+          artifacts_path="$RUNNER_TEMP/source-run-artifacts.json"
+          gh api \
+            --method GET \
+            --paginate \
+            --slurp \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts?per_page=100" \
+            > "$artifacts_path"
+
+          ARTIFACTS_PATH="$artifacts_path" python - <<'PY'
+          # TERMINAL_REPLAY_ARTIFACT_RESOLVER
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          pages = json.loads(Path(os.environ["ARTIFACTS_PATH"]).read_text(encoding="utf-8"))
+          chain_id = os.environ["CHAIN_ID"]
+          pattern = re.compile(
+              rf"^full-extraction-checkpoint-{re.escape(chain_id)}-iter-([1-9][0-9]*)$"
+          )
+          matches = []
+          for page in pages:
+              for artifact in page.get("artifacts", []):
+                  name = str(artifact.get("name") or "")
+                  match = pattern.fullmatch(name)
+                  if match is not None and artifact.get("expired") is not True:
+                      matches.append((name, int(match.group(1))))
+
+          if len(matches) != 1:
+              names = ", ".join(name for name, _generation in matches) or "none"
+              print(
+                  "::error::Terminal replay requires exactly one unexpired source "
+                  f"checkpoint artifact; found {len(matches)}: {names}"
+              )
+              raise SystemExit(1)
+
+          artifact_name, generation = matches[0]
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"artifact_name={artifact_name}\n")
+              handle.write(f"checkpoint_generation={generation}\n")
+          PY
+
+      - name: Download exact source checkpoint
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+          SOURCE_CHECKPOINT_ARTIFACT: ${{ steps.source_checkpoint.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p source-checkpoint
+          gh run download "$SOURCE_RUN_ID" \
+            --repo "${{ github.repository }}" \
+            --name "$SOURCE_CHECKPOINT_ARTIFACT" \
+            --dir source-checkpoint
+
+      - name: Attest terminal replay inputs
+        id: replay
+        env:
+          CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          EXPECTED_CHECKPOINT_GENERATION: ${{ steps.source_checkpoint.outputs.checkpoint_generation }}
+          SOURCE_CHECKPOINT_ARTIFACT: ${{ steps.source_checkpoint.outputs.artifact_name }}
+          SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p terminal-replay-inputs/checkpoint artifacts/full-extraction
+          manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
+          checkpoint_report="$(find source-checkpoint -name checkpoint-report.json -type f -print -quit)"
+          checkpoint_database="$(find source-checkpoint -name nba.duckdb -type f -print -quit)"
+          if [ -z "$manifest_path" ] || [ -z "$checkpoint_report" ] || [ -z "$checkpoint_database" ]; then
+            echo "::error::Terminal replay inputs are incomplete"
+            find plan-artifact source-checkpoint -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+
+          MANIFEST_PATH="$manifest_path" \
+            CHECKPOINT_REPORT_PATH="$checkpoint_report" \
+            CHECKPOINT_DATABASE_PATH="$checkpoint_database" \
+            python - <<'PY'
+          # TERMINAL_REPLAY_ATTESTATION
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          manifest_path = Path(os.environ["MANIFEST_PATH"])
+          report_path = Path(os.environ["CHECKPOINT_REPORT_PATH"])
+          database_path = Path(os.environ["CHECKPOINT_DATABASE_PATH"])
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          expected_generation = int(os.environ["EXPECTED_CHECKPOINT_GENERATION"])
+          expected_coverage = str(manifest.get("coverage_fingerprint") or "")
+
+          failures: list[str] = []
+          if int(manifest.get("lane_count", 0)) <= 0:
+              failures.append("zero-active replay manifest has no lanes")
+          if int(manifest.get("active_lane_count", -1)) != 0:
+              failures.append("zero-active replay manifest has active lanes")
+          if int(manifest.get("matrix_lane_count", -1)) != 0:
+              failures.append("zero-active replay manifest has matrix lanes")
+          if report.get("terminal_ready") is not True:
+              failures.append("source checkpoint is not terminal-ready")
+          if int(report.get("active_lane_count", -1)) != 0:
+              failures.append("source checkpoint still has active lanes")
+          if str(report.get("chain_id") or "") != os.environ["CHAIN_ID"]:
+              failures.append("source checkpoint chain identity does not match")
+          if str(report.get("run_id") or "") != os.environ["SOURCE_RUN_ID"]:
+              failures.append("source checkpoint run identity does not match")
+          if int(report.get("checkpoint_generation", 0)) != expected_generation:
+              failures.append("source checkpoint generation does not match its artifact name")
+          if not expected_coverage or str(report.get("coverage_fingerprint") or "") != expected_coverage:
+              failures.append("source checkpoint coverage fingerprint does not match")
+          if int(report.get("complete_lane_count", 0)) <= 0:
+              failures.append("source checkpoint contains no completed lanes")
+
+          manifest_lane_hashes = {
+              str(lane.get("lane_id") or ""): str(lane.get("coverage_units_hash") or "")
+              for lane in manifest.get("lanes", [])
+          }
+          report_lane_hashes = {
+              str(lane_id): str(coverage_hash)
+              for lane_id, coverage_hash in dict(
+                  report.get("included_lane_coverage_hashes", {})
+              ).items()
+          }
+          mismatched_lane_hashes = sorted(
+              lane_id
+              for lane_id, coverage_hash in manifest_lane_hashes.items()
+              if not lane_id
+              or not coverage_hash
+              or report_lane_hashes.get(lane_id) != coverage_hash
+          )
+          if mismatched_lane_hashes:
+              failures.append(
+                  "source checkpoint lane coverage hashes do not match: "
+                  + ", ".join(mismatched_lane_hashes)
+              )
+          if report.get("current_lane_attestation_failures"):
+              failures.append("source checkpoint records lane attestation failures")
+
+          expected_digest = str(report.get("database_sha256") or "")
+          digest = hashlib.sha256()
+          with database_path.open("rb") as handle:
+              for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          if expected_digest != digest.hexdigest():
+              failures.append("source checkpoint database SHA-256 does not match")
+
+          if failures:
+              for failure in failures:
+                  print(f"::error::{failure}")
+              raise SystemExit(1)
+          PY
+
+          cp "$manifest_path" terminal-replay-inputs/terminal-manifest.json
+          cp "$checkpoint_report" terminal-replay-inputs/checkpoint/checkpoint-report.json
+          cp "$checkpoint_database" terminal-replay-inputs/checkpoint/nba.duckdb
+          artifact_name="full-extraction-terminal-replay-${ACTIVE_CHAIN_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "artifact_name=$artifact_name"
+            echo "checkpoint_generation=${EXPECTED_CHECKPOINT_GENERATION}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload attested terminal replay inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: ${{ steps.replay.outputs.artifact_name }}
+          path: terminal-replay-inputs/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  # ─────────────────────────────────────────────────────────────
+  #  Merge the cumulative checkpoint once all lanes are complete
+  # ─────────────────────────────────────────────────────────────
+  merge:
+    needs: [plan, preflight, extract, terminal_replay, lane_control, checkpoint]
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.lane-count != '0' && ((needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0') || needs.terminal_replay.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      final-data-artifact-name: nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-${{ github.run_attempt }}
+      final-data-artifact-id: ${{ steps.assured_data.outputs.artifact-id }}
+      final-data-artifact-digest: ${{ steps.assured_data.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
           ref: ${{ env.WORKFLOW_SOURCE_SHA }}
 
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
@@ -1327,25 +1864,49 @@ jobs:
 
       - run: uv sync
 
-      - name: Download terminal manifest
+      - name: Download terminal manifest from completed lanes
+        if: ${{ needs.terminal_replay.result != 'success' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: ${{ needs.lane_control.outputs.artifact-name }}
           path: next-manifest-artifact/
 
-      - name: Download terminal checkpoint
+      - name: Download terminal checkpoint from completed lanes
+        if: ${{ needs.terminal_replay.result != 'success' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: ${{ needs.checkpoint.outputs.artifact-name }}
           path: checkpoint-artifact/
 
+      - name: Download replayed terminal checkpoint
+        if: ${{ needs.terminal_replay.result == 'success' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: ${{ needs.terminal_replay.outputs.artifact-name }}
+          path: replay-terminal-artifact/
+
       - name: Prepare checkpoint-first merge
+        env:
+          TERMINAL_REPLAYED: ${{ needs.terminal_replay.result == 'success' }}
         run: |
-          mkdir -p lanes artifacts/full-extraction
-          manifest_path="$(find next-manifest-artifact \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
+          mkdir -p lanes artifacts/full-extraction checkpoint-artifact
+          if [ "$TERMINAL_REPLAYED" = "true" ]; then
+            manifest_path="$(find replay-terminal-artifact -name terminal-manifest.json -type f -print -quit)"
+            replay_report="$(find replay-terminal-artifact -name checkpoint-report.json -type f -print -quit)"
+            replay_database="$(find replay-terminal-artifact -name nba.duckdb -type f -print -quit)"
+            if [ -z "$replay_report" ] || [ -z "$replay_database" ]; then
+              echo "::error::Replayed terminal artifact did not contain its attested checkpoint"
+              find replay-terminal-artifact -maxdepth 6 -type f -print || true
+              exit 1
+            fi
+            cp "$replay_report" checkpoint-artifact/checkpoint-report.json
+            cp "$replay_database" checkpoint-artifact/nba.duckdb
+          else
+            manifest_path="$(find next-manifest-artifact \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
+          fi
           if [ -z "$manifest_path" ]; then
-            echo "::error::Terminal manifest artifact did not contain next-manifest.json or manifest.json"
-            find next-manifest-artifact -maxdepth 4 -type f -print || true
+            echo "::error::Terminal manifest artifact did not contain a usable manifest"
+            find next-manifest-artifact replay-terminal-artifact -maxdepth 6 -type f -print 2>/dev/null || true
             exit 1
           fi
           cp "$manifest_path" artifacts/full-extraction/merge-manifest.json
@@ -1382,7 +1943,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Scan, export, upload — only when all lanes completed
+      # Scan and export assurance always run once all lanes complete.
       - name: Scan data quality
         id: scan
         uses: ./.github/actions/scan-report
@@ -1394,8 +1955,180 @@ jobs:
       - name: Export all formats
         run: uv run nbadb export
 
+      - name: Upload assured final data artifact
+        id: assured_data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            data/nbadb/*.duckdb
+            data/nbadb/*.sqlite
+            data/nbadb/parquet/
+            data/nbadb/csv/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Record non-publishing canary outcome
+        if: ${{ inputs.publish == false }}
+        run: |
+          {
+            echo "## Publication"
+            echo ""
+            echo "**Publish requested:** false"
+            echo ""
+            echo "Terminal merge, transform, scan, and export assurance completed."
+            echo "Metadata commit/push: skipped."
+            echo "Kaggle upload: skipped."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload final database
+        if: ${{ always() && inputs.publish == false }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: nbadb-full-extraction-${{ env.ACTIVE_CHAIN_ID }}
+          path: |
+            data/nbadb/*.duckdb
+            data/nbadb/*.sqlite
+            data/nbadb/parquet/
+            data/nbadb/csv/
+          if-no-files-found: ignore
+          retention-days: 30
+          compression-level: 0
+
+  # ─────────────────────────────────────────────────────────────
+  #  Publish only after terminal assurance has produced exact data
+  # ─────────────────────────────────────────────────────────────
+  publish:
+    needs: [plan, publication_preflight, merge]
+    if: ${{ inputs.publish && needs.publication_preflight.result == 'success' && needs.merge.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: nbadb-kaggle-publish
+      queue: max
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - run: uv sync
+
+      - name: Download exact assured data artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: ${{ needs.merge.outputs.final-data-artifact-name }}
+          path: data/nbadb/
+
+      - name: Validate assured data artifact identity
+        env:
+          ARTIFACT_DIGEST: ${{ needs.merge.outputs.final-data-artifact-digest }}
+          ARTIFACT_ID: ${{ needs.merge.outputs.final-data-artifact-id }}
+          ARTIFACT_NAME: ${{ needs.merge.outputs.final-data-artifact-name }}
+          EXPECTED_ARTIFACT_NAME: nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          if [ "$ARTIFACT_NAME" != "$EXPECTED_ARTIFACT_NAME" ]; then
+            echo "::error::Assured artifact identity mismatch: expected '$EXPECTED_ARTIFACT_NAME', got '$ARTIFACT_NAME'"
+            exit 1
+          fi
+          if ! [[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]] || [ -z "$ARTIFACT_DIGEST" ]; then
+            echo "::error::Assured artifact is missing its immutable artifact ID or digest"
+            exit 1
+          fi
+          test -f data/nbadb/nba.duckdb
+          test -f data/nbadb/nba.sqlite
+          test -d data/nbadb/parquet
+          test -d data/nbadb/csv
+
+      - name: Restore Kaggle publication reconciliation state
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: logs/kaggle/kaggle-publication-state.json
+          key: nbadb-kaggle-publication-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            nbadb-kaggle-publication-state-
+
+      - name: Validate Kaggle publication readiness
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_REF_NAME: ${{ github.ref_name }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          WORKFLOW_SOURCE_REF: ${{ env.WORKFLOW_SOURCE_REF }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_REF_NAME" != "$DEFAULT_BRANCH" ] || [ "$WORKFLOW_SOURCE_REF" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::publish=true requires the default branch '$DEFAULT_BRANCH'; event_ref='$EVENT_REF_NAME' workflow_source_ref='$WORKFLOW_SOURCE_REF'"
+            exit 1
+          fi
+          if [ -z "${KAGGLE_USERNAME:-}" ] || [ -z "${KAGGLE_KEY:-}" ]; then
+            echo "::error::KAGGLE_USERNAME and KAGGLE_KEY are required when publish=true"
+            exit 1
+          fi
+
+          uv run python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          from nbadb.kaggle.client import KaggleClient
+
+          try:
+              client = KaggleClient()
+              result = client.publication_preflight()
+          except Exception as exc:
+              print(
+                  "::error::Kaggle publication preflight failed "
+                  f"({type(exc).__name__})"
+              )
+              raise SystemExit(1) from None
+
+          if not isinstance(result, dict):
+              print("::error::Kaggle publication preflight returned an invalid result")
+              raise SystemExit(1)
+
+          acceptable = result.get("acceptable")
+          version = result.get("version")
+          state = str(result.get("state") or "").strip()
+          if acceptable is not True:
+              print("::error::Kaggle publication preflight was not acceptable")
+              raise SystemExit(1)
+          if isinstance(version, bool) or not isinstance(version, int) or version <= 0:
+              print("::error::Kaggle publication preflight did not resolve a positive exact version")
+              raise SystemExit(1)
+          if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", state) is None:
+              print("::error::Kaggle publication preflight returned an invalid state")
+              raise SystemExit(1)
+
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("## Kaggle Publication Preflight\n")
+              handle.write("**Acceptable:** `true`\n")
+              handle.write(f"**State:** `{state}`\n")
+              handle.write(f"**Exact remote version:** `{version}`\n")
+          PY
+
       - name: Refresh checked-in metadata
         uses: ./.github/actions/refresh-metadata
+        with:
+          data-dir: data/nbadb
+          push-ref: ${{ github.event.repository.default_branch }}
 
       - name: Upload to Kaggle
         env:
@@ -1409,10 +2142,42 @@ jobs:
             --remote-poll-interval 15 \
             -m "Full extraction chain=${ACTIVE_CHAIN_ID} source=${WORKFLOW_SOURCE_SHA} coverage=${{ needs.plan.outputs.coverage-fingerprint }}"
 
+      - name: Detect Kaggle publication reconciliation state
+        id: kaggle_publication_state
+        if: always()
+        run: |
+          if [ -f logs/kaggle/kaggle-publication-state.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Kaggle publication state was not created"
+          fi
+
+      - name: Persist Kaggle publication reconciliation state
+        if: ${{ always() && steps.kaggle_publication_state.outputs.exists == 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: logs/kaggle/kaggle-publication-state.json
+          key: nbadb-kaggle-publication-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload Kaggle publication receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          overwrite: true
+          name: full-extraction-kaggle-publication-receipt-${{ env.ACTIVE_CHAIN_ID }}
+          path: |
+            logs/kaggle/kaggle-upload-manifest.json
+            logs/kaggle/kaggle-publication-state.json
+          if-no-files-found: ignore
+          retention-days: 30
+          compression-level: 6
+
       - name: Upload final database
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: nbadb-full-extraction-${{ env.ACTIVE_CHAIN_ID }}
           path: |
             data/nbadb/*.duckdb
@@ -1420,6 +2185,8 @@ jobs:
             data/nbadb/parquet/
             data/nbadb/csv/
             logs/kaggle/kaggle-upload-manifest.json
+            logs/kaggle/kaggle-publication-state.json
+          if-no-files-found: ignore
           retention-days: 30
           compression-level: 0
 
@@ -1432,7 +2199,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      actions: write
+      actions: read
       contents: read
     outputs:
       active-lane-count: ${{ steps.next_manifest.outputs.active_lane_count }}
@@ -1702,6 +2469,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: ${{ steps.next_manifest.outputs.artifact_name || format('full-extraction-next-manifest-{0}-iter-{1}', env.ACTIVE_CHAIN_ID, inputs.iteration) }}
           path: |
             artifacts/full-extraction/current-manifest.json
@@ -1721,6 +2489,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: full-extraction-vpn-quarantine-${{ env.ACTIVE_CHAIN_ID }}
           path: artifacts/full-extraction/vpn-quarantine.json
           if-no-files-found: ignore
@@ -1830,6 +2599,7 @@ jobs:
         env:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           CHECKPOINT_ARTIFACT_NAME: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
+          LANE_CONTROL_ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
         run: |
           mkdir -p data/nbadb-checkpoint artifacts/full-extraction
           checkpoint_manifest="$(find lane-control-artifact -name next-manifest.json -type f -print -quit)"
@@ -1870,12 +2640,44 @@ jobs:
                   encoding="utf-8"
               )
           )
+          lane_control_active_lane_count = int(
+              os.environ["LANE_CONTROL_ACTIVE_LANE_COUNT"]
+          )
+          checkpoint_active_lane_count = int(report.get("active_lane_count", -1))
+          terminal_ready = report.get("terminal_ready") is True
+          complete_lane_count = int(report.get("complete_lane_count", 0))
+          checkpoint_output = Path(str(report.get("output_path") or ""))
+
+          failures: list[str] = []
+          if checkpoint_active_lane_count != lane_control_active_lane_count:
+              failures.append(
+                  "Lane-control/checkpoint remaining-count disagreement: "
+                  f"lane_control={lane_control_active_lane_count}, "
+                  f"checkpoint={checkpoint_active_lane_count}"
+              )
+          if lane_control_active_lane_count == 0 and not terminal_ready:
+              failures.append(
+                  "Lane control reported no remaining lanes but the checkpoint is not terminal-ready"
+              )
+          if lane_control_active_lane_count > 0 and terminal_ready:
+              failures.append(
+                  "Lane control reported remaining lanes but the checkpoint is terminal-ready"
+              )
+          if complete_lane_count > 0 and not checkpoint_output.is_file():
+              failures.append(
+                  "Checkpoint report includes completed lanes but its database is missing"
+              )
+          if failures:
+              for failure in failures:
+                  print(f"::error::{failure}")
+              raise SystemExit(1)
+
           output_pairs = {
               "artifact_name": os.environ["CHECKPOINT_ARTIFACT_NAME"],
               "checkpoint_generation": report.get("checkpoint_generation", 0),
               "coverage_fingerprint": report.get("coverage_fingerprint", ""),
-              "terminal_ready": str(bool(report.get("terminal_ready"))).lower(),
-              "active_lane_count": report.get("active_lane_count", 0),
+              "terminal_ready": str(terminal_ready).lower(),
+              "active_lane_count": checkpoint_active_lane_count,
           }
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               for key, value in output_pairs.items():
@@ -1911,6 +2713,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
+          overwrite: true
           name: ${{ needs.lane_control.outputs.checkpoint-artifact-name }}
           path: |
             data/nbadb-checkpoint/nba.duckdb
@@ -1926,14 +2729,83 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   dispatch_next:
     needs: [plan, preflight, lane_control, checkpoint]
-    if: ${{ always() && !cancelled() && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count != '0' }}
+    if: ${{ always() && !cancelled() && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count != '0' && needs.checkpoint.outputs.active-lane-count == needs.lane_control.outputs.active-lane-count && needs.checkpoint.outputs.terminal-ready == 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: full-extraction-dispatch-${{ inputs.chain_id || github.run_id }}-iteration-${{ inputs.iteration }}
+      cancel-in-progress: false
     permissions:
       actions: write
       contents: read
+    outputs:
+      child-run-id: ${{ steps.dispatch.outputs.child_run_id }}
+      child-run-url: ${{ steps.dispatch.outputs.child_run_url }}
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ env.WORKFLOW_SOURCE_SHA }}
+
+      - name: Verify redispatch workflow definition
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH: ${{ inputs.publish }}
+          WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
+          WORKFLOW_PATH: .github/workflows/full-extraction.yml
+        run: |
+          set -euo pipefail
+          if ! [[ "$WORKFLOW_SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::workflow_sha must remain a full 40-character commit SHA before redispatch"
+            exit 1
+          fi
+          if ! git check-ref-format --branch "$WORKFLOW_REF" >/dev/null 2>&1; then
+            echo "::error::workflow_ref must remain a valid branch before redispatch"
+            exit 1
+          fi
+
+          source_commit="$(git rev-parse "${WORKFLOW_SOURCE_SHA}^{commit}")"
+          checked_out_commit="$(git rev-parse HEAD)"
+          if [ "${WORKFLOW_SOURCE_SHA,,}" != "$source_commit" ] || [ "$checked_out_commit" != "$source_commit" ]; then
+            echo "::error::Pinned source checkout mismatch before redispatch: expected $source_commit, got $checked_out_commit"
+            exit 1
+          fi
+
+          trusted_branch_ref="refs/remotes/origin/trusted-redispatch-source"
+          git fetch --no-tags --no-recurse-submodules origin \
+            "+refs/heads/${WORKFLOW_REF}:${trusted_branch_ref}"
+          trusted_branch_commit="$(git rev-parse "${trusted_branch_ref}^{commit}")"
+          if ! git merge-base --is-ancestor "$source_commit" "$trusted_branch_commit"; then
+            echo "::error::Pinned workflow_sha $source_commit is no longer an ancestor of workflow_ref '$WORKFLOW_REF' at $trusted_branch_commit"
+            exit 1
+          fi
+
+          if [ "$PUBLISH" = "true" ]; then
+            default_branch_ref="refs/remotes/origin/trusted-redispatch-default"
+            git fetch --no-tags --no-recurse-submodules origin \
+              "+refs/heads/${DEFAULT_BRANCH}:${default_branch_ref}"
+            default_branch_commit="$(git rev-parse "${default_branch_ref}^{commit}")"
+            if ! git merge-base --is-ancestor "$source_commit" "$default_branch_commit"; then
+              echo "::error::publish=true requires pinned workflow_sha $source_commit to remain an ancestor of default branch '$DEFAULT_BRANCH' at $default_branch_commit"
+              exit 1
+            fi
+          fi
+
+          source_blob="$(git rev-parse "${source_commit}:${WORKFLOW_PATH}")"
+          dispatch_blob="$(gh api \
+            --method GET \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/contents/${WORKFLOW_PATH}" \
+            -f "ref=${WORKFLOW_REF}" \
+            --jq '.sha')"
+          if [ -z "$dispatch_blob" ] || [ "$dispatch_blob" != "$source_blob" ]; then
+            echo "::error::Workflow definition drift detected: ${WORKFLOW_PATH} at redispatch ref ${WORKFLOW_REF} does not match workflow_source_sha ${source_commit}"
+            exit 1
+          fi
+
       - name: Dispatch next iteration
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WORKFLOW_REF: ${{ env.WORKFLOW_SOURCE_REF }}
@@ -1951,30 +2823,101 @@ jobs:
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
+          PUBLISH: ${{ inputs.publish }}
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
           ARTIFACT_NAME: ${{ needs.lane_control.outputs.artifact-name }}
           ITERATION_BUDGET: ${{ needs.lane_control.outputs.iteration-budget }}
+          CHILD_POLL_ATTEMPTS: "12"
+          CHILD_POLL_INTERVAL_SECONDS: "5"
         run: |
-          current=$ITERATION
+          set -euo pipefail
+          if ! [[ "$ITERATION" =~ ^[0-9]+$ ]] || [ "$ITERATION" -lt 1 ]; then
+            echo "::error::iteration must be a positive integer, got '$ITERATION'"
+            exit 1
+          fi
+          current="$ITERATION"
           next=$((current + 1))
           next_concurrency="$CONCURRENCY"
 
-          max="$MAX_ITERATIONS"
-          if [ "$max" = "auto" ]; then
-            max="$ITERATION_BUDGET"
-          fi
-          if ! [[ "$max" =~ ^[0-9]+$ ]] || [ "$max" -lt 1 ]; then
+          max_input="$MAX_ITERATIONS"
+          if [ "$max_input" = "auto" ]; then
+            if ! [[ "$ITERATION_BUDGET" =~ ^[0-9]+$ ]] || [ "$ITERATION_BUDGET" -lt 1 ]; then
+              echo "::error::Auto iteration budget must be a positive integer, got '$ITERATION_BUDGET'"
+              exit 1
+            fi
+            effective_max="$ITERATION_BUDGET"
+          elif [[ "$max_input" =~ ^[0-9]+$ ]] && [ "$max_input" -ge 1 ]; then
+            effective_max="$max_input"
+          else
             echo "::error::max_iterations must be 'auto' or a positive integer, got '$MAX_ITERATIONS'"
             exit 1
           fi
 
-          if [ "$next" -gt "$max" ]; then
-            echo "::error::Reached max iterations ($max) with incomplete extraction; next-manifest and checkpoint artifacts were uploaded for manual resume."
+          if [ "$next" -gt "$effective_max" ]; then
+            echo "::error::Reached max iterations ($effective_max) with incomplete extraction; next-manifest and checkpoint artifacts were uploaded for manual resume."
             exit 1
           fi
 
-          echo "::notice::Some lanes incomplete — triggering iteration $next/$max at $next_concurrency concurrency (chain $CHAIN_ID)"
+          next_run_name="Full Extraction chain=${CHAIN_ID} iteration=${next}"
+          runs_path="$RUNNER_TEMP/full-extraction-run-pages.json"
+          existing_child_run_ids_path="$RUNNER_TEMP/full-extraction-existing-child-run-ids.json"
+          gh api \
+            --method GET \
+            --paginate \
+            --slurp \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
+            -f "event=workflow_dispatch" \
+            -f "per_page=100" \
+            > "$runs_path"
+          duplicate_runs="$(
+            RUNS_PATH="$runs_path" \
+              EXISTING_CHILD_RUN_IDS_PATH="$existing_child_run_ids_path" \
+              EXPECTED_RUN_NAME="$next_run_name" \
+              python - <<'PY'
+          # CHILD_RUN_PRECHECK
+          import json
+          import os
+          from pathlib import Path
+
+          pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
+          expected_run_name = os.environ["EXPECTED_RUN_NAME"]
+          matches = sorted(
+              (
+                  run
+                  for page in pages
+                  for run in page.get("workflow_runs", [])
+                  if str(run.get("display_title") or "") == expected_run_name
+              ),
+              key=lambda run: int(run.get("id") or 0),
+          )
+          existing_ids = [str(run.get("id") or "") for run in matches]
+          Path(os.environ["EXISTING_CHILD_RUN_IDS_PATH"]).write_text(
+              json.dumps(existing_ids, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          blockers = [
+              run
+              for run in matches
+              if str(run.get("status") or "") != "completed"
+              or str(run.get("conclusion") or "") == "success"
+              or not str(run.get("conclusion") or "")
+          ]
+          print(
+              ", ".join(
+                  f"{run.get('id')}:{run.get('status')}:{run.get('conclusion')}:{run.get('html_url')}"
+                  for run in blockers
+              )
+          )
+          PY
+          )"
+          if [ -n "$duplicate_runs" ]; then
+            echo "::error::Refusing duplicate redispatch for chain $CHAIN_ID iteration $next; existing run(s): $duplicate_runs"
+            exit 1
+          fi
+
+          echo "::notice::Some lanes incomplete — triggering iteration $next/$effective_max at $next_concurrency concurrency (chain $CHAIN_ID; max_iterations=$MAX_ITERATIONS)"
           gh workflow run full-extraction.yml \
             --repo "${{ github.repository }}" \
             --ref "$WORKFLOW_REF" \
@@ -1988,12 +2931,148 @@ jobs:
             -f network_mode="$NETWORK_MODE" \
             -f chunk_profile="$CHUNK_PROFILE" \
             -f iteration="$next" \
-            -f max_iterations="$max" \
+            -f max_iterations="$MAX_ITERATIONS" \
             -f backfill_endpoints="$BACKFILL_ENDPOINTS" \
             -f backfill_patterns="$BACKFILL_PATTERNS" \
             -f force_reextract=false \
+            -f publish="$PUBLISH" \
             -f chain_id="$CHAIN_ID" \
             -f workflow_ref="$WORKFLOW_REF" \
             -f workflow_sha="$WORKFLOW_SHA" \
             -f lane_manifest_run_id="${{ github.run_id }}" \
             -f lane_manifest_artifact_name="$ARTIFACT_NAME"
+
+          child_run_path="$RUNNER_TEMP/full-extraction-child-run.json"
+          child_found=false
+          for attempt in $(seq 1 "$CHILD_POLL_ATTEMPTS"); do
+            gh api \
+              --method GET \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/actions/workflows/full-extraction.yml/runs" \
+              -f "event=workflow_dispatch" \
+              -f "per_page=100" \
+              > "$runs_path"
+
+            set +e
+            RUNS_PATH="$runs_path" \
+              CHILD_RUN_PATH="$child_run_path" \
+              EXISTING_CHILD_RUN_IDS_PATH="$existing_child_run_ids_path" \
+              EXPECTED_RUN_NAME="$next_run_name" \
+              python - <<'PY'
+          # CHILD_RUN_MATCHER
+          import json
+          import os
+          from pathlib import Path
+
+          pages = json.loads(Path(os.environ["RUNS_PATH"]).read_text(encoding="utf-8"))
+          expected_run_name = os.environ["EXPECTED_RUN_NAME"]
+          existing_ids = set(
+              json.loads(
+                  Path(os.environ["EXISTING_CHILD_RUN_IDS_PATH"]).read_text(encoding="utf-8")
+              )
+          )
+          matches = sorted(
+              (
+                  run
+                  for page in pages
+                  for run in page.get("workflow_runs", [])
+                  if str(run.get("display_title") or "") == expected_run_name
+                  and str(run.get("id") or "") not in existing_ids
+              ),
+              key=lambda run: str(run.get("id") or ""),
+          )
+          if len(matches) > 1:
+              details = ", ".join(
+                  f"{run.get('id')}:{run.get('status')}:{run.get('html_url')}"
+                  for run in matches
+              )
+              print(
+                  f"::error::Self-dispatch created {len(matches)} exact-title child runs "
+                  f"for {expected_run_name!r}: {details}"
+              )
+              raise SystemExit(2)
+          if not matches:
+              raise SystemExit(1)
+
+          child = matches[0]
+          child_run_id = str(child.get("id") or "").strip()
+          child_run_url = str(child.get("html_url") or "").strip()
+          if not child_run_id.isdigit() or not child_run_url:
+              print(
+                  "::error::Exact-title child run is missing a valid id or URL: "
+                  f"{child!r}"
+              )
+              raise SystemExit(3)
+          Path(os.environ["CHILD_RUN_PATH"]).write_text(
+              json.dumps(
+                  {
+                      "display_title": expected_run_name,
+                      "id": child_run_id,
+                      "url": child_run_url,
+                  },
+                  indent=2,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+            poll_status=$?
+            set -e
+
+            case "$poll_status" in
+              0)
+                child_found=true
+                break
+                ;;
+              1)
+                echo "::notice::Waiting for exact-title child run $next_run_name (attempt $attempt/$CHILD_POLL_ATTEMPTS)"
+                ;;
+              2)
+                exit 1
+                ;;
+              *)
+                echo "::error::Unable to validate self-dispatched child run (matcher exit $poll_status)"
+                exit 1
+                ;;
+            esac
+            if [ "$attempt" -lt "$CHILD_POLL_ATTEMPTS" ]; then
+              sleep "$CHILD_POLL_INTERVAL_SECONDS"
+            fi
+          done
+
+          if [ "$child_found" != "true" ]; then
+            echo "::error::Self-dispatch child run was not visible after $CHILD_POLL_ATTEMPTS attempts for exact title: $next_run_name"
+            exit 1
+          fi
+
+          child_run_id="$(CHILD_RUN_PATH="$child_run_path" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["id"])
+          PY
+          )"
+          child_run_url="$(CHILD_RUN_PATH="$child_run_path" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          print(json.loads(Path(os.environ["CHILD_RUN_PATH"]).read_text())["url"])
+          PY
+          )"
+          {
+            echo "child_run_id=$child_run_id"
+            echo "child_run_url=$child_run_url"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Full Extraction Redispatch"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Child run ID | \`$child_run_id\` |"
+            echo "| Child run | [$next_run_name]($child_run_url) |"
+            echo "| Publish | \`$PUBLISH\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
