@@ -14,6 +14,14 @@ inputs:
     description: NordVPN access token used to fetch OpenVPN credentials.
     required: false
     default: ""
+  require-token-auth:
+    description: Require token-derived service credentials and fail closed if derivation fails.
+    required: false
+    default: "false"
+  configured-auth-prevalidated:
+    description: Whether an upstream gate already proved the configured service credentials.
+    required: false
+    default: "false"
   lane-index:
     description: Zero-based lane index used to deterministically choose the first recommended server.
     required: false
@@ -26,6 +34,18 @@ inputs:
     description: Number of recommended servers to fetch for selection and fallback.
     required: false
     default: "4"
+  auth-rejection-limit:
+    description: Maximum authentication rejections before pausing a server sweep.
+    required: false
+    default: "3"
+  auth-recovery-rounds:
+    description: Bounded cooldown rounds after transient authentication-capacity failures.
+    required: false
+    default: "2"
+  auth-recovery-base-delay-seconds:
+    description: Base cooldown multiplied by the authentication recovery round.
+    required: false
+    default: "10"
   quarantined-servers-json:
     description: JSON array of NordVPN server hostnames to avoid for this chain.
     required: false
@@ -108,6 +128,9 @@ outputs:
   status:
     description: Connection result code.
     value: ${{ steps.connect.outputs.status }}
+  auth-source:
+    description: Non-secret credential source that established the accepted tunnel.
+    value: ${{ steps.connect.outputs.auth-source }}
   nba-probe-status:
     description: Final NBA Stats API probe result code.
     value: ${{ steps.connect.outputs.nba-probe-status }}
@@ -133,9 +156,14 @@ runs:
         OPENVPN_USER: ${{ inputs.openvpn-user }}
         OPENVPN_PASSWORD: ${{ inputs.openvpn-password }}
         NORDVPN_TOKEN: ${{ inputs.nordvpn-token }}
+        REQUIRE_TOKEN_AUTH: ${{ inputs.require-token-auth }}
+        CONFIGURED_AUTH_PREVALIDATED: ${{ inputs.configured-auth-prevalidated }}
         LANE_INDEX: ${{ inputs.lane-index }}
         SHARD_INDEX: ${{ inputs.shard-index }}
         SERVER_LIMIT: ${{ inputs.server-limit }}
+        AUTH_REJECTION_LIMIT: ${{ inputs.auth-rejection-limit }}
+        AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}
+        AUTH_RECOVERY_BASE_DELAY_SECONDS: ${{ inputs.auth-recovery-base-delay-seconds }}
         QUARANTINED_SERVERS_JSON: ${{ inputs.quarantined-servers-json }}
         COUNTRY_ID: ${{ inputs.country-id }}
         TECHNOLOGY: ${{ inputs.technology }}

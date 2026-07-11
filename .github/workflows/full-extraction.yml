@@ -159,7 +159,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: full-extraction-chain-${{ inputs.chain_id || github.run_id }}-iteration-${{ inputs.iteration }}
+  group: ${{ inputs.network_mode == 'direct' && format('full-extraction-direct-{0}-{1}', inputs.chain_id || github.run_id, inputs.iteration) || 'nbadb-vpn-full-extraction' }}
+  queue: max
   cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────
@@ -708,6 +709,7 @@ jobs:
       contents: read
     outputs:
       effective-network-mode: ${{ steps.network_mode.outputs.effective-network-mode }}
+      vpn-auth-source: ${{ steps.vpn.outputs.auth-source }}
       vpn-quarantined-servers-json: ${{ steps.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -802,12 +804,24 @@ jobs:
         env:
           REQUESTED_NETWORK_MODE: ${{ inputs.network_mode }}
           VPN_STATUS: ${{ steps.vpn.outputs.status }}
+          VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}
           VPN_SERVER: ${{ steps.vpn.outputs.server }}
           VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
         run: |
           requested="${REQUESTED_NETWORK_MODE:-vpn}"
           status="${VPN_STATUS:-unknown}"
+          auth_source="${VPN_AUTH_SOURCE:-}"
           effective="$requested"
+
+          if [ "$status" = "connected" ]; then
+            case "$auth_source" in
+              configured|token) ;;
+              *)
+                echo "::error::VPN connected without a valid credential-source attestation"
+                exit 1
+                ;;
+            esac
+          fi
 
           if [ "$requested" = "direct" ]; then
             effective="direct"
@@ -878,11 +892,15 @@ jobs:
         env:
           EFFECTIVE_NETWORK_MODE: ${{ steps.network_mode.outputs.effective-network-mode }}
           REQUESTED_NETWORK_MODE: ${{ inputs.network_mode }}
+          VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}
         run: |
           {
             echo "## Network Preflight"
             echo "**Requested network mode:** ${REQUESTED_NETWORK_MODE:-vpn}"
             echo "**Effective network mode:** ${EFFECTIVE_NETWORK_MODE:-vpn}"
+            if [ "${EFFECTIVE_NETWORK_MODE:-vpn}" = "vpn" ]; then
+              echo "**Validated VPN credential source:** ${VPN_AUTH_SOURCE:-unknown}"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Disconnect preflight VPN
@@ -1024,6 +1042,8 @@ jobs:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          REQUIRE_TOKEN_AUTH: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && 'true' || 'false' }}
+          CONFIGURED_AUTH_PREVALIDATED: ${{ needs.preflight.outputs.vpn-auth-source == 'configured' && 'true' || 'false' }}
           LANE_INDEX: "0"
           SERVER_LIMIT: "6"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
@@ -1133,7 +1153,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && inputs.direct_parallelism || inputs.vpn_parallelism) }}
+      max-parallel: ${{ fromJSON(needs.preflight.outputs.effective-network-mode == 'direct' && inputs.direct_parallelism || (needs.preflight.outputs.vpn-auth-source == 'token' && '1' || inputs.vpn_parallelism)) }}
       matrix: ${{ fromJSON(needs.plan.outputs.extract-matrix) }}
 
     steps:
@@ -1392,6 +1412,8 @@ jobs:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
+          REQUIRE_TOKEN_AUTH: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && 'true' || 'false' }}
+          CONFIGURED_AUTH_PREVALIDATED: ${{ needs.preflight.outputs.vpn-auth-source == 'configured' && 'true' || 'false' }}
           LANE_INDEX: ${{ matrix.lane_index }}
           # Give active extract lanes a broader recommendation pool so the chain
           # does not burn an iteration on a few bad NordVPN hosts.
@@ -2999,7 +3021,7 @@ jobs:
           DIRECT_REQUEST_PROFILE: ${{ inputs.direct_request_profile }}
           DIRECT_TIMEOUT_CAP_MINUTES: ${{ inputs.direct_timeout_cap_minutes }}
           RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
-          NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode == 'direct' && 'direct' || inputs.network_mode }}
+          NETWORK_MODE: ${{ inputs.network_mode }}
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints }}
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}

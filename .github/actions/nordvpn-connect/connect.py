@@ -220,11 +220,15 @@ class NordVpnConnectAction:
         ).resolve()
         self.baseline_file = self.work_dir / "baseline-ip.json"
         self.auth_file = self.work_dir / "vpn-auth.txt"
+        self.token_auth_file = self.work_dir / "nordvpn-token.netrc"
 
         self.selector_index = env_int("LANE_INDEX", env_int("SHARD_INDEX", 0), minimum=0)
         self.server_limit = env_int("SERVER_LIMIT", 4, minimum=1)
         self.connect_timeout = env_int("CONNECT_TIMEOUT_SECONDS", 90, minimum=30)
         self.overall_timeout = env_int("OVERALL_TIMEOUT_SECONDS", 300, minimum=30)
+        self.auth_rejection_limit = env_int("AUTH_REJECTION_LIMIT", 3, minimum=1)
+        self.auth_recovery_rounds = env_int("AUTH_RECOVERY_ROUNDS", 2, minimum=0)
+        self.auth_recovery_base_delay = env_int("AUTH_RECOVERY_BASE_DELAY_SECONDS", 10, minimum=0)
         if self.overall_timeout < self.connect_timeout:
             raise ActionError(
                 "vpn_network_error",
@@ -257,6 +261,12 @@ class NordVpnConnectAction:
         self.quarantined_servers = parse_quarantined_servers(
             os.environ.get("QUARANTINED_SERVERS_JSON", "[]")
         )
+        self.require_token_auth = (
+            os.environ.get("REQUIRE_TOKEN_AUTH", "false").strip().lower() == "true"
+        )
+        self.configured_auth_prevalidated = (
+            os.environ.get("CONFIGURED_AUTH_PREVALIDATED", "false").strip().lower() == "true"
+        )
 
         self.status = "vpn_network_error"
         self.baseline_ip = ""
@@ -268,6 +278,10 @@ class NordVpnConnectAction:
         self.failed_servers: list[str] = []
         self.openvpn_process: subprocess.Popen[str] | None = None
         self.auth_source = ""
+        self.auth_validated = self.configured_auth_prevalidated
+        self.last_attempt_auth_failed = False
+        self.technology_selection_offsets: dict[str, int] = {}
+        self.technology_cursor = 0
         probes_enabled = self.nba_probe_enabled or self.nba_stack_probe_enabled
         self.nba_probe_status = "not_run" if probes_enabled else "disabled"
         self.nba_probe_diagnostic = (
@@ -288,6 +302,25 @@ class NordVpnConnectAction:
     def command_timeout(self, *, cap: float) -> float:
         self.ensure_budget("command")
         return max(1.0, min(cap, self.remaining_budget()))
+
+    def sleep_with_budget(
+        self,
+        label: str,
+        seconds: float,
+        *,
+        minimum_after: float = 5.0,
+    ) -> bool:
+        if self.remaining_budget() <= seconds + minimum_after:
+            print(
+                f"::warning::Skipping {label.lower()} because it would leave less than "
+                f"{self.format_seconds(minimum_after)}s for the next operation"
+            )
+            return False
+        if seconds <= 0:
+            return True
+        print(f"::notice::{label}; waiting {self.format_seconds(seconds)}s")
+        time.sleep(seconds)
+        return True
 
     def append_unique(self, values: list[str], value: str) -> None:
         if value and value not in values:
@@ -332,7 +365,7 @@ class NordVpnConnectAction:
         if not self.work_dir.is_dir():
             return
         run_quiet(["sudo", "chmod", "a+rx", str(self.work_dir)], timeout=10)
-        private_paths = {self.auth_file, self.creds_file}
+        private_paths = {self.auth_file, self.creds_file, self.token_auth_file}
         for path in self.work_dir.iterdir():
             if path in private_paths:
                 run_quiet(["sudo", "chmod", "600", str(path)], timeout=10)
@@ -342,6 +375,7 @@ class NordVpnConnectAction:
     def cleanup_sensitive(self) -> None:
         for path in (
             self.creds_file,
+            self.token_auth_file,
             self.servers_file,
             self.verify_file,
             self.nba_probe_file,
@@ -383,6 +417,7 @@ class NordVpnConnectAction:
         *extra_args: str,
         attempt_deadline: float | None = None,
         request_timeout: float = 30.0,
+        non_retryable_http_codes: frozenset[str] = frozenset(),
     ) -> bool:
         attempts = 3
         for attempt in range(1, attempts + 1):
@@ -432,6 +467,9 @@ class NordVpnConnectAction:
 
             if ok:
                 return True
+            if result is not None and http_code in non_retryable_http_codes:
+                print(f"::error::{label} failed ({status_text}); response is not retryable")
+                return False
             if attempt == attempts:
                 print(f"::error::{label} failed after {attempt} attempts ({status_text})")
                 return False
@@ -585,13 +623,24 @@ class NordVpnConnectAction:
                 "vpn_auth_failure",
                 "NORDVPN_TOKEN is required to derive replacement OpenVPN credentials",
             )
-        if not self.retry_http_get(
-            "NordVPN credentials request",
-            self.creds_file,
-            "https://api.nordvpn.com/v1/users/services/credentials",
-            "-u",
-            f"token:{token}",
-        ):
+        self.token_auth_file.write_text(
+            f"machine api.nordvpn.com\nlogin token\npassword {token}\n",
+            encoding="utf-8",
+        )
+        self.token_auth_file.chmod(0o600)
+        try:
+            fetched = self.retry_http_get(
+                "NordVPN credentials request",
+                self.creds_file,
+                "https://api.nordvpn.com/v1/users/services/credentials",
+                "--netrc-file",
+                str(self.token_auth_file),
+                non_retryable_http_codes=frozenset({"401", "403"}),
+            )
+        finally:
+            with suppress(FileNotFoundError):
+                self.token_auth_file.unlink()
+        if not fetched:
             raise ActionError(
                 "vpn_auth_failure",
                 "Failed to fetch NordVPN OpenVPN credentials",
@@ -617,12 +666,12 @@ class NordVpnConnectAction:
         self.auth_file.chmod(0o600)
         self.auth_source = source
 
-    def prepare_auth(self, *, prefer_token: bool = False) -> None:
+    def prepare_auth(self, *, require_token: bool = False) -> None:
         openvpn_user = os.environ.get("OPENVPN_USER", "").strip()
         openvpn_password = os.environ.get("OPENVPN_PASSWORD", "").strip()
         token = os.environ.get("NORDVPN_TOKEN", "").strip()
 
-        if prefer_token:
+        if require_token:
             user, password = self.fetch_token_auth()
             print("::notice::Using token-derived OpenVPN tunnel credentials")
             self.write_auth_file(user, password, source="token")
@@ -650,7 +699,7 @@ class NordVpnConnectAction:
 
     def switch_to_token_auth_after_rejection(self) -> bool:
         token = os.environ.get("NORDVPN_TOKEN", "").strip()
-        if self.auth_source != "configured" or not token:
+        if self.auth_source != "configured" or not token or self.auth_validated:
             return False
         print(
             "::warning::Configured OpenVPN credentials were rejected; "
@@ -660,7 +709,7 @@ class NordVpnConnectAction:
         for path in (self.log_file, self.pid_file):
             with suppress(FileNotFoundError):
                 path.unlink()
-        self.prepare_auth(prefer_token=True)
+        self.prepare_auth(require_token=True)
         return True
 
     def recommendation_servers(self, technology: str) -> list[str]:
@@ -698,7 +747,8 @@ class NordVpnConnectAction:
             print(f"::warning::All recommended NordVPN servers are excluded for {technology}")
             return []
 
-        start_index = self.selector_index % len(filtered)
+        selection_offset = self.technology_selection_offsets.get(technology, 0)
+        start_index = (self.selector_index + selection_offset) % len(filtered)
         return [filtered[(start_index + offset) % len(filtered)] for offset in range(len(filtered))]
 
     def config_url(self, server: str, technology: str) -> str:
@@ -1016,6 +1066,7 @@ class NordVpnConnectAction:
     def attempt_server(self, server: str, technology: str) -> bool:
         print(f"::notice::Attempting NordVPN server {server} over {technology}")
         self.append_unique(self.attempted_servers, server)
+        self.last_attempt_auth_failed = False
         self.verification_failure = ""
         attempt_deadline = min(time.monotonic() + self.connect_timeout, self.deadline)
         config_path = self.work_dir / f"{server}.ovpn"
@@ -1088,21 +1139,23 @@ class NordVpnConnectAction:
                 break
             if self.auth_failed_in_log():
                 auth_failed = True
+                self.last_attempt_auth_failed = True
                 print(
                     "::warning::NordVPN rejected the OpenVPN credentials "
-                    f"for {server} over {technology}; trying the next recommended server"
+                    f"for {server} over {technology}; checking another recommended server"
                 )
                 break
             process_rc = self.openvpn_process.poll()
             if process_rc is not None:
-                self.append_unique(self.failed_servers, server)
                 if self.auth_failed_in_log():
                     auth_failed = True
+                    self.last_attempt_auth_failed = True
                     print(
                         "::warning::NordVPN rejected the OpenVPN credentials "
-                        f"for {server} over {technology}; trying the next recommended server"
+                        f"for {server} over {technology}; checking another recommended server"
                     )
                     break
+                self.append_unique(self.failed_servers, server)
                 raise ActionError(
                     "vpn_connect_timeout",
                     f"OpenVPN exited early for {server} over {technology} "
@@ -1119,6 +1172,7 @@ class NordVpnConnectAction:
                 and self.pid_alive(pid, attempt_deadline=attempt_deadline)
                 and self.initialization_complete()
             ):
+                self.auth_validated = True
                 interface = self.get_interface(attempt_deadline=attempt_deadline)
                 if interface and self.verify_connection(
                     interface,
@@ -1135,10 +1189,11 @@ class NordVpnConnectAction:
 
             time.sleep(min(2.0, max(0.0, attempt_deadline - time.monotonic())))
 
-        self.append_unique(self.failed_servers, server)
         if auth_failed:
             self.cleanup_openvpn()
             return False
+
+        self.append_unique(self.failed_servers, server)
 
         if nba_probe_failed:
             print(
@@ -1161,16 +1216,22 @@ class NordVpnConnectAction:
         self.prepare_workdir()
         self.install_dependencies()
         self.determine_baseline_ip()
-        self.prepare_auth()
+        self.prepare_auth(require_token=self.require_token_auth)
 
         retried_token_credentials = False
+        auth_recovery_round = 0
         while True:
             technologies = [self.technology]
             if self.fallback_technology:
                 technologies.append(self.fallback_technology)
+            if len(technologies) > 1:
+                cursor = self.technology_cursor % len(technologies)
+                technologies = technologies[cursor:] + technologies[:cursor]
 
             saw_auth_failure = False
+            auth_rejection_count = 0
             attempted_network = False
+            stop_auth_sweep = False
             for technology in technologies:
                 self.ensure_budget("technology selection")
                 servers = self.recommendation_servers(technology)
@@ -1206,21 +1267,45 @@ class NordVpnConnectAction:
                             continue
                         raise
                     attempted_network = True
-                    if self.auth_failed_in_log():
+                    if self.last_attempt_auth_failed:
                         saw_auth_failure = True
+                        auth_rejection_count += 1
+                        self.technology_selection_offsets[technology] = (
+                            self.technology_selection_offsets.get(technology, 0) + 1
+                        )
+                        if auth_rejection_count >= self.auth_rejection_limit:
+                            print(
+                                "::warning::Reached the bounded authentication-rejection "
+                                f"limit ({self.auth_rejection_limit}); pausing this server sweep"
+                            )
+                            stop_auth_sweep = True
+                            break
+                if stop_auth_sweep:
+                    break
 
             if self.remaining_budget() <= 0:
                 raise ActionError(
                     "vpn_connect_timeout",
                     "VPN tunnel timed out before a verified connection was established",
                 )
-            if (
-                saw_auth_failure
-                and not retried_token_credentials
-                and self.switch_to_token_auth_after_rejection()
-            ):
+            if saw_auth_failure and not retried_token_credentials:
                 retried_token_credentials = True
-                continue
+                if self.switch_to_token_auth_after_rejection():
+                    continue
+
+            if saw_auth_failure and auth_recovery_round < self.auth_recovery_rounds:
+                auth_recovery_round += 1
+                self.technology_cursor += 1
+                delay = (
+                    self.auth_recovery_base_delay * auth_recovery_round + self.selector_index % 3
+                )
+                if self.sleep_with_budget(
+                    f"Authentication recovery round {auth_recovery_round}/"
+                    f"{self.auth_recovery_rounds}",
+                    delay,
+                    minimum_after=float(self.connect_timeout),
+                ):
+                    continue
 
             self.make_workdir_readable()
             if self.log_file.exists():
@@ -1229,8 +1314,8 @@ class NordVpnConnectAction:
             if saw_auth_failure:
                 raise ActionError(
                     "vpn_auth_failure",
-                    "NordVPN rejected the OpenVPN credentials on every attempted "
-                    "recommended server",
+                    "NordVPN rejected the active OpenVPN credentials after bounded "
+                    "server and capacity recovery",
                 )
             if not attempted_network:
                 raise ActionError(
@@ -1245,6 +1330,7 @@ class NordVpnConnectAction:
     def finalize(self) -> None:
         self.cleanup_sensitive()
         write_output("status", self.status)
+        write_output("auth-source", self.auth_source if self.status == "connected" else "")
         write_output("nba-probe-status", self.nba_probe_status)
         write_output("nba-probe-diagnostic", self.nba_probe_diagnostic)
         write_output("attempted-servers-json", json.dumps(self.attempted_servers))
@@ -1259,6 +1345,7 @@ def main() -> int:
     except ActionError as exc:
         if action is None:
             write_output("status", exc.status)
+            write_output("auth-source", "")
             write_output("nba-probe-status", "not_run")
             write_output("nba-probe-diagnostic", "NBA Stats probe did not run")
             write_output("attempted-servers-json", "[]")
@@ -1274,6 +1361,7 @@ def main() -> int:
         message = f"NordVPN action crashed unexpectedly: {exc}"
         if action is None:
             write_output("status", "vpn_network_error")
+            write_output("auth-source", "")
             write_output("nba-probe-status", "not_run")
             write_output("nba-probe-diagnostic", "NBA Stats probe did not run")
             write_output("attempted-servers-json", "[]")

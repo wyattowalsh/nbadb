@@ -101,6 +101,7 @@ def main() -> int:
             terminate_tree(child.pid)
             kill_matching_processes(str(Path(os.environ.get("RUNNER_TEMP", "")) / "nordvpn"))
             append_output("status", "vpn_connect_timeout")
+            append_output("auth-source", "")
             append_output("nba-probe-status", "timeout")
             append_output(
                 "nba-probe-diagnostic",

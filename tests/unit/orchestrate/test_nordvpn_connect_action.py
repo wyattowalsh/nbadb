@@ -157,13 +157,55 @@ def test_retry_http_get_honors_attempt_and_overall_deadlines(
     assert kwargs["termination_grace"] == module.NBA_PROBE_TERMINATION_GRACE_SECONDS
 
 
+def test_retry_http_get_does_not_retry_explicitly_terminal_http_status(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    calls: list[list[str]] = []
+
+    def _fake_run_command(cmd: list[str], **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "401", "")
+
+    monkeypatch.setattr(module, "run_command", _fake_run_command)
+
+    assert not action.retry_http_get(
+        "credential request",
+        tmp_path / "response.json",
+        "https://example.test/credentials",
+        non_retryable_http_codes=frozenset({"401", "403"}),
+    )
+    assert len(calls) == 1
+
+
+def test_sleep_with_budget_reserves_a_viable_follow_up_operation(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    sleeps: list[float] = []
+    monkeypatch.setattr(module.time, "sleep", sleeps.append)
+
+    monkeypatch.setattr(action, "remaining_budget", lambda: 11.5)
+    assert not action.sleep_with_budget("Recovery", 10, minimum_after=5)
+    assert sleeps == []
+
+    monkeypatch.setattr(action, "remaining_budget", lambda: 16.0)
+    assert action.sleep_with_budget("Recovery", 10, minimum_after=5)
+    assert sleeps == [10]
+
+
 def test_verification_helpers_honor_attempt_and_overall_deadlines(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
 ) -> None:
     module = _load_module()
     action = module.NordVpnConnectAction()
-    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 120.0)
     monkeypatch.setattr(module.time, "monotonic", lambda: 100.0)
     calls: list[tuple[list[str], dict[str, object]]] = []
 
@@ -636,7 +678,7 @@ def test_verify_connection_keeps_full_tunnel_gate_before_network_probes(
     assert route_checks == ["default", "0.0.0.0/1"]
 
 
-def test_action_metadata_exposes_nba_probe_contract() -> None:
+def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     metadata = ACTION_METADATA_PATH.read_text(encoding="utf-8")
 
     assert "nba-probe-enabled:" in metadata
@@ -648,6 +690,11 @@ def test_action_metadata_exposes_nba_probe_contract() -> None:
     assert "nba-stack-probe-season:" in metadata
     assert "nba-probe-status:" in metadata
     assert "nba-probe-diagnostic:" in metadata
+    assert "require-token-auth:" in metadata
+    assert "configured-auth-prevalidated:" in metadata
+    assert "auth-rejection-limit:" in metadata
+    assert "auth-recovery-rounds:" in metadata
+    assert "auth-source:" in metadata
     assert "NBA_PROBE_ENABLED: ${{ inputs.nba-probe-enabled }}" in metadata
     assert "NBA_PROBE_URL: ${{ inputs.nba-probe-url }}" in metadata
     assert "NBA_PROBE_TIMEOUT_SECONDS: ${{ inputs.nba-probe-timeout-seconds }}" in metadata
@@ -656,6 +703,10 @@ def test_action_metadata_exposes_nba_probe_contract() -> None:
         "NBA_STACK_PROBE_TIMEOUT_SECONDS: ${{ inputs.nba-stack-probe-timeout-seconds }}" in metadata
     )
     assert "NBA_STACK_PROBE_SEASON: ${{ inputs.nba-stack-probe-season }}" in metadata
+    assert "REQUIRE_TOKEN_AUTH: ${{ inputs.require-token-auth }}" in metadata
+    assert "CONFIGURED_AUTH_PREVALIDATED: ${{ inputs.configured-auth-prevalidated }}" in metadata
+    assert "AUTH_REJECTION_LIMIT: ${{ inputs.auth-rejection-limit }}" in metadata
+    assert "AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}" in metadata
 
 
 def test_pid_alive_returns_false_when_probe_times_out(
@@ -713,6 +764,7 @@ def test_make_workdir_readable_keeps_auth_material_private(
     action.work_dir.mkdir(parents=True, exist_ok=True)
     action.auth_file.write_text("user\npassword\n", encoding="utf-8")
     action.creds_file.write_text("{}", encoding="utf-8")
+    action.token_auth_file.write_text("token\n", encoding="utf-8")
     action.log_file.write_text("log\n", encoding="utf-8")
     config_path = action.work_dir / "us1001.nordvpn.com.ovpn"
     config_path.write_text("client\n", encoding="utf-8")
@@ -726,6 +778,7 @@ def test_make_workdir_readable_keeps_auth_material_private(
     assert ["sudo", "chmod", "a+rx", str(action.work_dir)] in calls
     assert ["sudo", "chmod", "600", str(action.auth_file)] in calls
     assert ["sudo", "chmod", "600", str(action.creds_file)] in calls
+    assert ["sudo", "chmod", "600", str(action.token_auth_file)] in calls
     assert ["sudo", "chmod", "a+rX", str(action.log_file)] in calls
     assert ["sudo", "chmod", "a+rX", str(config_path)] in calls
 
@@ -735,10 +788,12 @@ def test_finalize_preserves_auth_file_for_connected_tunnel(runner_env: Path) -> 
     action = module.NordVpnConnectAction()
     action.work_dir.mkdir(parents=True, exist_ok=True)
     action.status = "connected"
+    action.auth_source = "configured"
 
     for path in (
         action.auth_file,
         action.creds_file,
+        action.token_auth_file,
         action.servers_file,
         action.verify_file,
         action.baseline_file,
@@ -749,9 +804,11 @@ def test_finalize_preserves_auth_file_for_connected_tunnel(runner_env: Path) -> 
 
     assert action.auth_file.exists()
     assert not action.creds_file.exists()
+    assert not action.token_auth_file.exists()
     assert not action.servers_file.exists()
     assert not action.verify_file.exists()
     assert not action.baseline_file.exists()
+    assert _read_outputs(runner_env)["auth-source"] == "configured"
 
 
 def test_finalize_removes_auth_file_when_tunnel_not_connected(runner_env: Path) -> None:
@@ -759,11 +816,13 @@ def test_finalize_removes_auth_file_when_tunnel_not_connected(runner_env: Path) 
     action = module.NordVpnConnectAction()
     action.work_dir.mkdir(parents=True, exist_ok=True)
     action.status = "vpn_network_error"
+    action.auth_source = "configured"
     action.auth_file.write_text("user\npassword\n", encoding="utf-8")
 
     action.finalize()
 
     assert not action.auth_file.exists()
+    assert _read_outputs(runner_env)["auth-source"] == ""
 
 
 def test_run_command_kills_timed_out_process_groups(
@@ -812,6 +871,7 @@ def test_main_writes_bounded_outputs_for_init_time_action_failure(
     assert rc == 1
     assert _read_outputs(runner_env) == {
         "status": "vpn_network_error",
+        "auth-source": "",
         "nba-probe-status": "not_run",
         "nba-probe-diagnostic": "NBA Stats probe did not run",
         "attempted-servers-json": "[]",
@@ -841,6 +901,7 @@ def test_main_writes_outputs_for_action_failure_after_initialization(
     assert rc == 1
     assert _read_outputs(runner_env) == {
         "status": "vpn_auth_failure",
+        "auth-source": "",
         "nba-probe-status": "not_run",
         "nba-probe-diagnostic": "NBA probes have not run",
         "attempted-servers-json": "[]",
@@ -870,6 +931,7 @@ def test_main_writes_outputs_for_unexpected_exception(
     assert rc == 1
     assert _read_outputs(runner_env) == {
         "status": "vpn_network_error",
+        "auth-source": "",
         "nba-probe-status": "not_run",
         "nba-probe-diagnostic": "NBA probes have not run",
         "attempted-servers-json": "[]",
@@ -899,10 +961,14 @@ def test_switch_to_token_auth_after_configured_credentials_rejected(
         output_path: Path,
         url: str,
         *extra_args: str,
+        **kwargs,
     ) -> bool:
         assert label == "NordVPN credentials request"
         assert url == "https://api.nordvpn.com/v1/users/services/credentials"
-        assert extra_args == ("-u", "token:valid-token")
+        assert extra_args == ("--netrc-file", str(action.token_auth_file))
+        assert "valid-token" not in extra_args
+        assert kwargs["non_retryable_http_codes"] == frozenset({"401", "403"})
+        assert "password valid-token" in action.token_auth_file.read_text(encoding="utf-8")
         output_path.write_text(
             json.dumps({"username": "token-user", "password": "token-password"}),
             encoding="utf-8",
@@ -915,6 +981,7 @@ def test_switch_to_token_auth_after_configured_credentials_rejected(
     assert action.switch_to_token_auth_after_rejection() is True
     assert action.auth_source == "token"
     assert action.auth_file.read_text(encoding="utf-8") == "token-user\ntoken-password\n"
+    assert not action.token_auth_file.exists()
     assert not action.log_file.exists()
     assert not action.pid_file.exists()
 
@@ -1017,8 +1084,8 @@ def test_run_quarantines_nba_blocked_server_and_falls_back(
         "prepare_auth",
         "make_workdir_readable",
     ):
-        monkeypatch.setattr(action, method_name, lambda: None)
-    monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
+        monkeypatch.setattr(action, method_name, lambda **kwargs: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 120.0)
     monkeypatch.setattr(
         action,
         "recommendation_servers",
@@ -1125,7 +1192,7 @@ def test_run_stops_on_fatal_stack_failure_without_rotating_or_quarantining(
         "prepare_auth",
         "make_workdir_readable",
     ):
-        monkeypatch.setattr(action, method_name, lambda: None)
+        monkeypatch.setattr(action, method_name, lambda **kwargs: None)
     monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
     monkeypatch.setattr(action, "cleanup_openvpn", lambda: None)
     monkeypatch.setattr(
@@ -1199,7 +1266,8 @@ def test_attempt_server_classifies_auth_failure_when_openvpn_exits_early(
     monkeypatch.setattr(module.subprocess, "Popen", _fake_popen)
 
     assert action.attempt_server("us1001.nordvpn.com", "openvpn_udp") is False
-    assert action.failed_servers == ["us1001.nordvpn.com"]
+    assert action.last_attempt_auth_failed is True
+    assert action.failed_servers == []
 
 
 def test_run_reports_auth_failure_after_all_recommended_servers_reject_credentials(
@@ -1212,18 +1280,161 @@ def test_run_reports_auth_failure_after_all_recommended_servers_reject_credentia
     monkeypatch.setattr(action, "prepare_workdir", lambda: None)
     monkeypatch.setattr(action, "install_dependencies", lambda: None)
     monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
-    monkeypatch.setattr(action, "prepare_auth", lambda: None)
+    monkeypatch.setattr(action, "prepare_auth", lambda **kwargs: None)
     monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
     monkeypatch.setattr(action, "remaining_budget", lambda: 60.0)
     monkeypatch.setattr(action, "cleanup_openvpn", lambda: None)
+    action.auth_recovery_rounds = 0
+    action.auth_rejection_limit = 1
     monkeypatch.setattr(action, "recommendation_servers", lambda technology: ["us1001.nordvpn.com"])
-    monkeypatch.setattr(action, "attempt_server", lambda server, technology: False)
-    monkeypatch.setattr(action, "auth_failed_in_log", lambda: True)
+
+    def _reject_auth(server: str, technology: str) -> bool:
+        action.last_attempt_auth_failed = True
+        return False
+
+    monkeypatch.setattr(action, "attempt_server", _reject_auth)
 
     with pytest.raises(module.ActionError) as excinfo:
         action.run()
 
     assert excinfo.value.status == "vpn_auth_failure"
+
+
+def test_run_retries_prevalidated_configured_auth_after_capacity_cooldown(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv("OPENVPN_USER", "validated-user")
+    monkeypatch.setenv("OPENVPN_PASSWORD", "validated-password")
+    monkeypatch.setenv("NORDVPN_TOKEN", "must-not-be-used")
+    monkeypatch.setenv("CONFIGURED_AUTH_PREVALIDATED", "true")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_rejection_limit = 3
+    action.auth_recovery_rounds = 1
+    action.auth_recovery_base_delay = 0
+    action.fallback_technology = ""
+
+    def _unexpected_token_auth() -> tuple[str, str]:
+        raise AssertionError("prevalidated auth used token fallback")
+
+    monkeypatch.setattr(action, "fetch_token_auth", _unexpected_token_auth)
+
+    monkeypatch.setattr(action, "prepare_workdir", lambda: None)
+    monkeypatch.setattr(action, "install_dependencies", lambda: None)
+    monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 120.0)
+    monkeypatch.setattr(
+        action,
+        "recommendation_servers",
+        lambda technology: [f"us100{index}.nordvpn.com" for index in range(1, 5)],
+    )
+    waits: list[tuple[str, float, dict[str, float]]] = []
+    monkeypatch.setattr(
+        action,
+        "sleep_with_budget",
+        lambda label, seconds, **kwargs: waits.append((label, seconds, kwargs)) or True,
+    )
+
+    attempts: list[str] = []
+
+    def _attempt(server: str, technology: str) -> bool:
+        attempts.append(server)
+        if len(attempts) <= 3:
+            action.last_attempt_auth_failed = True
+            return False
+        action.last_attempt_auth_failed = False
+        action.server = server
+        action.interface = "tun0"
+        action.exit_ip = "2.2.2.2"
+        action.pid = "12345"
+        action.status = "connected"
+        return True
+
+    monkeypatch.setattr(action, "attempt_server", _attempt)
+
+    assert action.run() == 0
+    assert attempts == [
+        "us1001.nordvpn.com",
+        "us1002.nordvpn.com",
+        "us1003.nordvpn.com",
+        "us1001.nordvpn.com",
+    ]
+    assert waits == [("Authentication recovery round 1/1", 0, {"minimum_after": 90.0})]
+    assert action.auth_source == "configured"
+    assert action.auth_file.read_text(encoding="utf-8") == ("validated-user\nvalidated-password\n")
+    assert action.technology_cursor == 1
+    action.finalize()
+    assert _read_outputs(runner_env)["auth-source"] == "configured"
+
+
+def test_auth_recovery_covers_untried_servers_and_alternates_protocols(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_source = "configured"
+    action.auth_validated = True
+    action.server_limit = 6
+    action.auth_rejection_limit = 3
+    action.auth_recovery_rounds = 2
+    action.auth_recovery_base_delay = 0
+
+    monkeypatch.setattr(action, "prepare_workdir", lambda: None)
+    monkeypatch.setattr(action, "install_dependencies", lambda: None)
+    monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
+    monkeypatch.setattr(action, "prepare_auth", lambda **kwargs: None)
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 500.0)
+    monkeypatch.setattr(
+        action,
+        "sleep_with_budget",
+        lambda label, seconds, **kwargs: True,
+    )
+
+    servers = [f"us100{index}.nordvpn.com" for index in range(1, 7)]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        **kwargs,
+    ) -> bool:
+        assert label.startswith("NordVPN server recommendations request")
+        output_path.write_text(
+            json.dumps([{"hostname": server} for server in servers]),
+            encoding="utf-8",
+        )
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+    attempts: list[tuple[str, str]] = []
+
+    def _reject_auth(server: str, technology: str) -> bool:
+        attempts.append((technology, server))
+        action.last_attempt_auth_failed = True
+        return False
+
+    monkeypatch.setattr(action, "attempt_server", _reject_auth)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.run()
+
+    assert excinfo.value.status == "vpn_auth_failure"
+    assert attempts == [
+        *[("openvpn_udp", server) for server in servers[:3]],
+        *[("openvpn_tcp", server) for server in servers[:3]],
+        *[("openvpn_udp", server) for server in servers[3:]],
+    ]
+    assert action.technology_selection_offsets == {
+        "openvpn_udp": 6,
+        "openvpn_tcp": 3,
+    }
 
 
 def test_install_dependencies_skips_when_tools_are_already_present(
@@ -1283,7 +1494,7 @@ def test_run_continues_to_next_server_after_per_server_connect_timeout(
     monkeypatch.setattr(action, "prepare_workdir", lambda: None)
     monkeypatch.setattr(action, "install_dependencies", lambda: None)
     monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
-    monkeypatch.setattr(action, "prepare_auth", lambda: None)
+    monkeypatch.setattr(action, "prepare_auth", lambda **kwargs: None)
     monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
     cleanup_calls: list[str] = []
     monkeypatch.setattr(action, "cleanup_openvpn", lambda: cleanup_calls.append("cleanup"))

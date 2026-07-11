@@ -114,6 +114,7 @@ def test_supervisor_timeout_writes_nba_probe_outputs(monkeypatch, tmp_path: Path
     assert killed_patterns == [str(tmp_path / "runner" / "nordvpn")]
     assert output_path.read_text(encoding="utf-8").splitlines() == [
         "status=vpn_connect_timeout",
+        "auth-source=",
         "nba-probe-status=timeout",
         "nba-probe-diagnostic=NBA probes did not complete before the VPN action deadline",
         "attempted-servers-json=[]",

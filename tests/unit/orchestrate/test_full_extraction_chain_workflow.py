@@ -462,16 +462,25 @@ def test_redispatch_precheck_blocks_active_and_successful_runs(tmp_path: pathlib
     assert "201:completed:success" in result.stdout
 
 
-def test_workflow_concurrency_is_chain_iteration_scoped() -> None:
+def test_workflow_concurrency_serializes_vpn_chains_but_not_direct_chains() -> None:
     workflow = _workflow_text()
     workflow_concurrency = workflow.split("\nconcurrency:\n", 1)[1].split("\njobs:\n", 1)[0]
 
-    assert (
-        "group: full-extraction-chain-${{ inputs.chain_id || github.run_id }}-"
-        "iteration-${{ inputs.iteration }}"
-    ) in workflow_concurrency
+    assert "inputs.network_mode == 'direct'" in workflow_concurrency
+    assert "full-extraction-direct-{0}-{1}" in workflow_concurrency
+    assert "inputs.chain_id || github.run_id" in workflow_concurrency
+    assert "'nbadb-vpn-full-extraction'" in workflow_concurrency
     assert "github.ref" not in workflow_concurrency
+    assert "queue: max" in workflow_concurrency
     assert "cancel-in-progress: false" in workflow_concurrency
+
+
+def test_redispatch_preserves_requested_auto_network_mode() -> None:
+    dispatch = _job_block(_workflow_text(), "dispatch_next")
+
+    assert "NETWORK_MODE: ${{ inputs.network_mode }}" in dispatch
+    assert "NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode" not in dispatch
+    assert '-f network_mode="$NETWORK_MODE"' in dispatch
 
 
 def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
@@ -1266,7 +1275,7 @@ def test_planner_output_drives_exact_discovery_scope_cardinality(
             "season_end": 2022,
             "patterns": ["player_team_season"],
             "season_types": ["Regular Season"],
-            "endpoints": ["player_dashboard_by_year_over_year"],
+            "endpoints": ["video_details"],
             "timeout_seconds": 6300,
         },
         {
@@ -1275,7 +1284,7 @@ def test_planner_output_drives_exact_discovery_scope_cardinality(
             "season_start": 2020,
             "season_end": 2021,
             "patterns": ["player_season"],
-            "endpoints": ["player_career_stats"],
+            "endpoints": ["player_game_logs_v2"],
             "timeout_seconds": 4800,
         },
     ]
@@ -1429,6 +1438,70 @@ def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
     assert output_path.read_text(encoding="utf-8") == (
         'vpn-quarantined-servers-json=["us1.nordvpn.com","us2.nordvpn.com","us3.nordvpn.com"]\n'
     )
+
+
+def test_preflight_auth_attestation_controls_downstream_vpn_recovery() -> None:
+    workflow = _workflow_text()
+    preflight = _job_block(workflow, "preflight")
+    seed = _job_block(workflow, "discovery_seed")
+    extract = _job_block(workflow, "extract")
+
+    assert "vpn-auth-source: ${{ steps.vpn.outputs.auth-source }}" in preflight
+    assert "**Validated VPN credential source:** ${VPN_AUTH_SOURCE:-unknown}" in preflight
+    assert "VPN connected without a valid credential-source attestation" in preflight
+
+    require_token = (
+        "REQUIRE_TOKEN_AUTH: ${{ needs.preflight.outputs.vpn-auth-source == 'token' "
+        "&& 'true' || 'false' }}"
+    )
+    configured_prevalidated = (
+        "CONFIGURED_AUTH_PREVALIDATED: ${{ needs.preflight.outputs.vpn-auth-source "
+        "== 'configured' && 'true' || 'false' }}"
+    )
+    for job in (seed, extract):
+        assert require_token in job
+        assert configured_prevalidated in job
+
+    assert "needs.preflight.outputs.vpn-auth-source == 'token' && '1'" in extract
+
+
+def test_network_mode_resolution_rejects_unattested_connected_tunnels(
+    tmp_path: pathlib.Path,
+) -> None:
+    preflight = _job_block(_workflow_text(), "preflight")
+    step = _step_block(preflight, "Resolve effective network mode")
+    assert "VPN_AUTH_SOURCE: ${{ steps.vpn.outputs.auth-source }}" in step
+    script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+    cases = (
+        ("vpn", "connected", "configured", 0, "effective-network-mode=vpn\n"),
+        ("vpn", "connected", "token", 0, "effective-network-mode=vpn\n"),
+        ("vpn", "connected", "", 1, ""),
+        ("vpn", "connected", "unknown", 1, ""),
+        ("auto", "vpn_auth_failure", "", 0, "effective-network-mode=direct\n"),
+        ("direct", "unknown", "", 0, "effective-network-mode=direct\n"),
+    )
+
+    for index, (requested, status, auth_source, expected_rc, expected_output) in enumerate(cases):
+        output_path = tmp_path / f"network-mode-{index}.txt"
+        output_path.touch()
+        result = subprocess.run(
+            ["bash", "-c", "set -euo pipefail\n" + script],
+            check=False,
+            capture_output=True,
+            env={
+                **os.environ,
+                "REQUESTED_NETWORK_MODE": requested,
+                "VPN_STATUS": status,
+                "VPN_AUTH_SOURCE": auth_source,
+                "VPN_SERVER": "us1001.nordvpn.com",
+                "VPN_EXIT_IP": "192.0.2.1",
+                "GITHUB_OUTPUT": str(output_path),
+            },
+            text=True,
+        )
+
+        assert result.returncode == expected_rc, result.stderr or result.stdout
+        assert output_path.read_text(encoding="utf-8") == expected_output
 
 
 def test_effective_preflight_quarantine_is_persisted_into_the_next_manifest(
