@@ -141,10 +141,16 @@ missing or unusable.
 
 ```mermaid
 flowchart TD
-    Plan["Plan standard lanes\nweighted 5:3:1:1 queues"] --> Discovery["Central discovery seed\nexact current-wave scopes"]
+    Plan["Plan standard lanes\nweighted 5:3:1:1 queues"] --> VpnGate{"Route + changed IP + JSON +\ninstalled discovery canaries pass?"}
+    VpnGate -->|no| RotateVpn["Reject server\nrecord + try next"]
+    RotateVpn --> VpnGate
+    VpnGate -->|yes| Discovery["Central discovery seed\nexact current-wave scopes"]
     Discovery --> ScopeGate{"Every required scope\nexplicitly covered?"}
-    ScopeGate -->|no| Stop["Fail closed\nno matrix fan-out"]
-    ScopeGate -->|yes| ExtractMatrix["Extract lane matrix"]
+    ScopeGate -->|no| Recovery["Run/attempt recovery artifact\nno lane strikes or child"]
+    Recovery --> Stop["Fail closed\nno matrix fan-out"]
+    ScopeGate -->|yes| BundleGate{"Manifest requirements + every\ngeneration attestation valid?"}
+    BundleGate -->|no| Recovery
+    BundleGate -->|yes| ExtractMatrix["Extract lane matrix"]
     ExtractMatrix --> LaneMetadata["Lane metadata\noutcomes + failure class + progress"]
     LaneMetadata --> LaneState["Durable lane state\ncache or artifact"]
     LaneState --> LaneControl["Lane control\nweighted next manifest"]
@@ -163,7 +169,14 @@ flowchart TD
     PublishChoice -->|yes| Publish["FIFO writer job\nmetadata + Kaggle readback"]
 ```
 
-The discovery seed uses one VPN tunnel when VPN mode is effective and requests
+The discovery seed uses one VPN tunnel when VPN mode is effective. Tunnel selection
+requires a full route, a changed exit IP, a strict `TeamYears` result-set response,
+and bounded `common_all_players` plus `league_game_log` canaries through the installed
+`nbadb`/`nba_api` stack. The player canary requires positive player/team membership.
+A generic-internet-only or endpoint-blocked tunnel is
+rejected, recorded, excluded from fallback technologies, disconnected, and replaced.
+Preflight failures join the effective chain quarantine before fan-out and are persisted
+into each child manifest. The seed requests
 only the season/season-type combinations in the current matrix. It restores the
 prior chain's discovery artifact from the exact manifest source run, merges new
 scope evidence, refreshes every requested active-season player/game/workload scope
@@ -171,7 +184,19 @@ scope evidence, refreshes every requested active-season player/game/workload sco
 and publishes the cumulative artifact. Stable historical scopes remain cacheable. If the prior artifact is
 unavailable, it reseeds from scratch before applying the same gate. Missing scopes
 stop the workflow; explicit zero-row results count only when the corresponding
-combination is recorded as covered.
+combination is recorded as covered. Typed zero-row game/workload scopes are valid;
+empty player-ID scopes are not. Immutable content-addressed discovery and workload
+Parquet generations are published through atomic manifest pointers that bind scope or
+pairs, schema, row counts, sentinel semantics, and SHA-256. The 90-minute soft deadline
+checkpoints an atomic schema-v2 summary; a 95-minute process watchdog preserves upload
+headroom before the 120-minute job timeout. The summary is bound to the exact lane
+manifest, and the verifier independently derives its required units before reloading
+every requested scope/generation before canonical upload and after lane installation.
+Incomplete state uses a distinct
+run/attempt-scoped recovery artifact; a later seed may resume its validated exact
+scopes, but the bundle must pass complete seeding and verification before extraction
+can consume it canonically. `lane_control` does not run after seed failure, so
+unattempted lanes cannot receive false retries.
 
 Checkpoint generations are immutable copy-plus-delta artifacts. Even a zero-delta
 iteration creates a distinct database copy rather than republishing or mutating

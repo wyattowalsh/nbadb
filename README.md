@@ -206,6 +206,19 @@ season/season-type scopes, carries those artifacts forward by chain and source
 run, refreshes active-season player/game/workload evidence, and blocks matrix
 fan-out when any required scope remains unproven. Aggregate-only player waves still
 refresh the active season, and sparse player-team misses are fetched as exact pairs.
+VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
+strict NBA result-set probe, and installed-stack player/game discovery canaries pass.
+The player canary also requires a positive player/team membership row.
+NBA-blocked servers are rejected across fallback technologies and carried from
+preflight into both the current lane quarantine and child manifests. Discovery uses
+hard request timeouts, a bounded homogeneous-outage canary, a 90-minute soft deadline,
+a 95-minute process watchdog, atomic coverage summaries, and content-addressed
+discovery/workload Parquet generations whose manifest pointers bind scope or pairs,
+schema, row counts, and SHA-256. A complete bundle is checked against the exact
+lane-manifest digest and independently reloaded before upload and after lane download.
+Partial state is retained under a run/attempt-scoped
+recovery name; it can seed a retry, but it cannot spend lane retries, trigger child
+dispatch, or become canonical without passing the full seed and verifier gates.
 Each
 checkpoint generation copies the previous database into a new output before
 applying attested current lane deltas, preserving legitimate duplicate

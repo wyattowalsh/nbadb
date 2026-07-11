@@ -196,6 +196,18 @@ centralizes game/date, player-ID, and player-team-season discovery behind one VP
 tunnel when VPN mode is effective. Seasons are grouped only when they share the
 same season-type set, so the seed does not invent a broader cross product.
 
+VPN acceptance is endpoint-aware. The action first proves the full tunnel route
+and a changed public IP, validates a non-empty `TeamYears` result set, then runs
+bounded `common_all_players` and `league_game_log` canaries through the installed
+`nbadb`/`nba_api` extraction stack. The player canary requires both IDs and at least
+one row with positive player/team membership. Inspect
+`nba-probe-status`, `nba-probe-diagnostic`, `attempted-servers-json`, and
+`failed-servers-json`. A server that passes a generic IP probe but times out or
+returns malformed NBA content is disconnected and added to the failed-server list
+before the next recommendation is tried. Runtime failures are excluded from every
+fallback technology, and preflight failures are carried into the effective chain
+quarantine before discovery/lane fan-out and persisted into child manifests.
+
 On chained runs, the seed job downloads
 `full-extraction-discovery-artifacts-<chain_id>` from the exact
 `lane_manifest_run_id`, adds the current wave's missing scopes, and republishes the
@@ -212,6 +224,29 @@ player-team/type pairs are always rediscovered; historical scopes remain reusabl
 An aggregate-only player wave still performs one targeted active-season refresh.
 Sparse missing/invalid player-team pairs are grouped by identical type sets, so
 live fallback does not refetch the surrounding Cartesian rectangle.
+
+The seed gives every request a hard timeout and uses a three-attempt bounded canary
+instead of retrying hundreds of scopes when every fast-pass call reports the same
+transport or response-shape failure. It writes an atomic schema-v2 summary before
+network work and after each completed result. Its 90-minute soft deadline is backed by
+a 95-minute process watchdog, reserving upload time before the 120-minute job cap even
+when a dependency ignores cancellation. Canonical
+`full-extraction-discovery-artifacts-<chain_id>` uploads are success-only and
+contain atomic manifest pointers to immutable content-addressed discovery and workload
+Parquet generations; each pointer binds exact scope/pairs, schema, row counts, sentinel
+semantics, and SHA-256. The schema-v2 summary binds the exact lane-manifest digest. A
+standalone verifier independently derives required units from that manifest and reloads
+every requested player scope, game combination, and workload generation before upload
+and after each lane installs the downloaded bundle.
+Incomplete work is retained separately as
+`full-extraction-discovery-recovery-<chain_id>-run-<run_id>-attempt-<attempt>`.
+A later seed can restore the latest recovery bundle from the exact manifest source
+run and reuse only artifacts that pass their integrity/schema checks. Valid exact
+single-season v1 player/game artifacts are promoted to the current format; aggregate
+v1 artifacts are rejected. Recovery state never becomes canonical until the current
+seed proves complete coverage and the bundle verifier passes. If the seed fails,
+`lane_control` is skipped: no missing lane metadata is synthesized, no retry counters
+advance, and no child iteration is dispatched.
 
 Each iteration builds a cumulative checkpoint artifact named
 `full-extraction-checkpoint-<chain_id>-iter-<iteration>`. The next manifest carries
@@ -313,7 +348,9 @@ PY
   policy span.
 - Do not retry `contract_blocked` lanes. Add or update support rules only when endpoint analysis or local probes supply evidence and a revalidation command.
 - Treat `pipeline_failure` by failure class. Transport, VPN, runner-infrastructure, response-contract, timeout-progress, and timeout-stalled lanes have bounded retry budgets; application failures should normally be fixed before relaunch. Set `retry_pipeline_failures=false` when you want an audit-only run that stops instead of retrying classed failures.
-- If discovery seeding fails, read `artifacts/discovery/discovery-seed-summary.json` and repair only the listed `missing_seasons`, `missing_combos`, or `missing_pairs`. Do not bypass the seed dependency or treat a broader partial cache as proof of an exact missing scope.
+- If discovery seeding fails, download the run/attempt-scoped discovery recovery artifact and inspect `artifacts/discovery/discovery-seed-summary.json`. Repair only the exact `missing_units` player seasons/scopes, game combinations, or player-team-season pairs. Keep the recovery name distinct; resume it only through `lane_manifest_run_id`, which reruns integrity, exact-coverage, and canonical bundle gates. Do not treat a broader aggregate cache as proof of an exact missing scope.
+- If `nba-probe-status` is `timeout`, `http_error`, `request_failed`, `invalid_content`, `stack_timeout`, `stack_transport_failed`, or `stack_budget_exhausted`, treat that server as NBA-blocked even when its exit-IP probe passed. Confirm the server appears in `failed-servers-json`; do not start discovery on that tunnel.
+- If `nba-probe-status` is `stack_unavailable`, `stack_runtime_error`, `stack_contract_error`, or `stack_invalid_attestation`, stop and fix the checked-out runtime or contract. These are host-independent fatal failures and must not rotate through or quarantine healthy VPN servers.
 - If checkpoint promotion fails, fix or regenerate the checkpoint before terminal merge. Use lane-artifact fallback only as an explicit recovery decision after confirming the chain's recorded artifact run ids and coverage fingerprint. If both checkpoint and lane artifacts are missing, relaunch from the latest `full-extraction-next-manifest-*` artifact rather than starting from scratch.
 - If redispatch reports an existing exact chain/iteration run, inspect that run instead of enqueueing another copy. If the numeric iteration budget is exhausted while work remains, resume manually from the uploaded next-manifest and checkpoint artifacts after deciding whether to raise the cap.
 
