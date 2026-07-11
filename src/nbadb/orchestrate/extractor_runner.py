@@ -13,6 +13,11 @@ from aiolimiter import AsyncLimiter
 from loguru import logger
 
 from nbadb.core.errors import ExtractionError, NbaDbError, TransientError
+from nbadb.core.extraction_failures import (
+    classify_error_name,
+    classify_exception,
+    root_error_type,
+)
 from nbadb.extract.base import BaseExtractor, is_retryable_error
 from nbadb.orchestrate.execution_policy import endpoint_family
 from nbadb.orchestrate.resilience import _AdaptiveThrottle, _CircuitBreaker, _LatencyTracker
@@ -151,6 +156,11 @@ class _FailedExtraction:
     params_json: str
     error: str
     status: Literal["failure", "deferred_failure", "unexpected"] = "failure"
+    failure_class: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.failure_class:
+            object.__setattr__(self, "failure_class", classify_error_name(self.error))
 
 
 @dataclass(frozen=True, slots=True)
@@ -825,7 +835,9 @@ class ExtractorRunner:
                     type(result).__name__,
                 )
                 pattern_result.failure_count += 1
-                pattern_result.errors.append(f"task_exception:{type(result).__name__}")
+                pattern_result.errors.append(
+                    f"task_exception[{classify_exception(result)}:{root_error_type(result)}]"
+                )
                 continue
             if result is None:
                 pattern_result.failure_count += 1
@@ -843,7 +855,8 @@ class ExtractorRunner:
                 else:
                     pattern_result.failure_count += 1
                 pattern_result.errors.append(
-                    f"{result.endpoint_name}[{result.params_json}]: {result.error}"
+                    f"{result.endpoint_name}[{result.params_json}]: "
+                    f"[{result.failure_class}:{result.error}]"
                 )
                 continue
             if isinstance(result, _ExtractionTaskResult):
@@ -1021,7 +1034,7 @@ class ExtractorRunner:
     @staticmethod
     def _is_retryable(exc: Exception) -> bool:
         """Return True if the exception is transient and worth retrying."""
-        return isinstance(exc, TransientError) or is_retryable_error(exc)
+        return is_retryable_error(exc)
 
     def _should_delay_replay(
         self,
@@ -1215,7 +1228,7 @@ class ExtractorRunner:
 
         # All retries exhausted
         duration = time.perf_counter() - t0
-        exc_name = type(last_exc).__name__ if last_exc else "Unknown"
+        exc_name = root_error_type(last_exc) if last_exc else "Unknown"
         if self._should_delay_replay(
             endpoint_name,
             params,
@@ -1264,6 +1277,9 @@ class ExtractorRunner:
                 params_json,
                 exc_name,
                 status="deferred_failure" if late_recovery_replay else "failure",
+                failure_class=(
+                    classify_exception(last_exc) if last_exc is not None else "application"
+                ),
             )
         return None
 

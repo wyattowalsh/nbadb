@@ -12,6 +12,7 @@ import polars as pl
 from loguru import logger
 
 from nbadb.core.errors import ValidationError as NbaDbValidationError
+from nbadb.core.extraction_failures import is_transport_error
 from nbadb.extract.raw_schema_registry import get_raw_schema
 
 _CAMEL_RE = re.compile(r"([a-z0-9])([A-Z])")
@@ -356,21 +357,6 @@ _SEASON_TYPE_KEYS = (
     "season_type_all_star_nullable",
 )
 
-_RETRYABLE_ERROR_NAMES = frozenset(
-    {
-        "ReadTimeout",
-        "ConnectTimeout",
-        "ConnectionError",
-        "ConnectionResetError",
-        "SSLError",
-        "JSONDecodeError",
-        "ChunkedEncodingError",
-        "RemoteDisconnected",
-        "KeyError",
-        "ArrowTypeError",
-    }
-)
-
 
 def _extract_season_type(kwargs: dict[str, Any]) -> str | None:
     """Extract the season_type value from nba_api kwargs.
@@ -411,7 +397,7 @@ def _canonicalize_endpoint_column_name(
 
 def is_retryable_error(exc: Exception) -> bool:
     """Return True if *exc* looks transient and worth retrying."""
-    return type(exc).__name__ in _RETRYABLE_ERROR_NAMES
+    return is_transport_error(exc)
 
 
 def _coerce_snapshot_at(value: object | None) -> datetime:

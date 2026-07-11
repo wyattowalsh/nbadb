@@ -49,7 +49,6 @@ class TransientError(NbaDbError):
     - API timeouts (ReadTimeout, ConnectTimeout)
     - Rate limiting (HTTP 429)
     - Temporary network issues (ConnectionError, RemoteDisconnected)
-    - Temporary data issues (JSONDecodeError)
 
     Users can implement retry logic for these errors.
     """

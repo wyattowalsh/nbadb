@@ -169,7 +169,7 @@ class TestExtractSingle:
         assert result is None
         call_args = journal.record_failure.call_args
         error_msg = call_args[0][2]
-        assert error_msg == "TransientError"
+        assert error_msg == "ConnectionError"
         assert "secret" not in error_msg
 
     @pytest.mark.asyncio
@@ -269,7 +269,7 @@ class TestExtractMulti:
         result = await runner._extract_multi("ep_multi", entries, {"season": "2024-25"})
         assert result is None
         error_msg = journal.record_failure.call_args[0][2]
-        assert error_msg == "ExtractionError"
+        assert error_msg == "TimeoutError"
         assert "secret" not in error_msg
 
     @pytest.mark.asyncio
@@ -754,7 +754,7 @@ class TestRunPattern:
         journal.record_failure.assert_called_once_with(
             endpoint_name,
             '{"game_date": "02/11/1968"}',
-            "TransientError",
+            "ConnectionError",
         )
         mock_sleep.assert_awaited_once_with(1.0)
 
@@ -777,7 +777,7 @@ class TestRunPattern:
         journal.record_failure.assert_called_once_with(
             "video_status",
             '{"game_date": "02/11/1968"}',
-            "TransientError",
+            "ConnectionError",
         )
         mock_sleep.assert_not_awaited()
 
@@ -1169,7 +1169,7 @@ class TestSyncExtractAll:
 class TestIsRetryable:
     @pytest.mark.parametrize(
         "exc_type",
-        [ConnectionError, ConnectionResetError, KeyError],
+        [ConnectionError, ConnectionResetError],
     )
     def test_retryable_exceptions(self, exc_type):
         assert ExtractorRunner._is_retryable(exc_type("msg")) is True
@@ -1191,7 +1191,7 @@ class TestIsRetryable:
         import json
 
         exc = json.JSONDecodeError("msg", "doc", 0)
-        assert ExtractorRunner._is_retryable(exc) is True
+        assert ExtractorRunner._is_retryable(exc) is False
 
 
 # ---------------------------------------------------------------------------

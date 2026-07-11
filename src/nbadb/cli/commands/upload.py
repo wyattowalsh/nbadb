@@ -19,9 +19,19 @@ def upload(
     verify_remote: bool = typer.Option(
         False,
         "--verify-remote",
-        help=(
-            "Download the latest Kaggle dataset after upload and verify bundle fingerprint parity."
-        ),
+        help=("Read back the latest Kaggle publication marker and verify exact bundle identity."),
+    ),
+    remote_timeout: float = typer.Option(
+        900.0,
+        "--remote-timeout",
+        min=0.0,
+        help="Seconds to wait for the uploaded Kaggle version to become readable.",
+    ),
+    remote_poll_interval: float = typer.Option(
+        15.0,
+        "--remote-poll-interval",
+        min=0.1,
+        help="Seconds between Kaggle remote verification attempts.",
     ),
 ) -> None:
     """Push data to Kaggle."""
@@ -35,6 +45,8 @@ def upload(
             settings.data_dir,
             version_notes=message,
             verify_remote=verify_remote,
+            remote_timeout_seconds=remote_timeout,
+            remote_poll_interval_seconds=remote_poll_interval,
         )
     except Exception as exc:
         typer.echo(f"Upload failed: {type(exc).__name__}: {exc}", err=True)

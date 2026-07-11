@@ -175,23 +175,46 @@ def test_upload_passes_data_dir_message_and_orders_metadata(tmp_path: Path) -> N
 
     assert result.exit_code == 0, result.output
     client.ensure_metadata.assert_called_once_with(tmp_path)
-    client.upload.assert_called_once_with(tmp_path, version_notes="test run", verify_remote=False)
+    client.upload.assert_called_once_with(
+        tmp_path,
+        version_notes="test run",
+        verify_remote=False,
+        remote_timeout_seconds=900.0,
+        remote_poll_interval_seconds=15.0,
+    )
     assert client.method_calls[0].args == (tmp_path,)
     assert client.method_calls[0][0] == "ensure_metadata"
     assert client.method_calls[1][0] == "upload"
 
 
 def test_upload_passes_verify_remote_flag(tmp_path: Path) -> None:
-    """--verify-remote requests a post-upload Kaggle readback check."""
+    """--verify-remote requests a post-upload Kaggle marker readback check."""
     with patch(_KAGGLE_CLIENT) as mock_cls:
         client = mock_cls.return_value
         result = runner.invoke(
             app,
-            ["upload", "--data-dir", str(tmp_path), "--message", "test run", "--verify-remote"],
+            [
+                "upload",
+                "--data-dir",
+                str(tmp_path),
+                "--message",
+                "test run",
+                "--verify-remote",
+                "--remote-timeout",
+                "30",
+                "--remote-poll-interval",
+                "2",
+            ],
         )
 
     assert result.exit_code == 0, result.output
-    client.upload.assert_called_once_with(tmp_path, version_notes="test run", verify_remote=True)
+    client.upload.assert_called_once_with(
+        tmp_path,
+        version_notes="test run",
+        verify_remote=True,
+        remote_timeout_seconds=30.0,
+        remote_poll_interval_seconds=2.0,
+    )
 
 
 # ---------------------------------------------------------------------------

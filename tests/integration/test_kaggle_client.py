@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import sqlite3
@@ -176,6 +177,7 @@ class TestKaggleClientUpload:
             assert staged_dir != data_dir
             assert (staged_dir / "dataset-metadata.json").is_file()
             assert (staged_dir / "nba.sqlite").is_file()
+            assert (staged_dir / "nbadb-publication.json").is_file()
             assert not (staged_dir / "private-not-declared.txt").exists()
 
         with patch("kagglehub.dataset_upload", side_effect=inspect_staged_upload) as mock_up:
@@ -185,6 +187,7 @@ class TestKaggleClientUpload:
             assert mock_up.call_args.kwargs["version_notes"] == "test upload"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded"
+        assert manifest["publication"]["result"] == "uploaded_unverified"
         assert manifest["preflight"]["resource_count"] == 1
         assert manifest["preflight"]["resources"][0]["database_validation"] == {
             "engine": "sqlite",
@@ -373,7 +376,10 @@ class TestKaggleClientUpload:
             "row_group_count": 1,
             "columns": ["player_id", "points"],
         }
-        assert manifest["post_upload"]["file_count"] == 3
+        assert manifest["post_upload"]["file_count"] == 4
+        assert any(
+            file["path"] == "nbadb-publication.json" for file in manifest["post_upload"]["files"]
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_rejects_corrupt_parquet_resource(
@@ -757,38 +763,9 @@ class TestKaggleClientUpload:
         data_dir = tmp_path / "data"
         _write_upload_bundle(data_dir)
         uploaded_dir = tmp_path / "uploaded"
-        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
-        from nbadb.kaggle.client import KaggleClient
-
-        def capture_upload(**kwargs: object) -> None:
-            shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
-
-        client = KaggleClient()
-        with (
-            patch("kagglehub.dataset_upload", side_effect=capture_upload),
-            patch("kagglehub.dataset_download", return_value=str(uploaded_dir)) as mock_download,
-        ):
-            manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
-
-        mock_download.assert_called_once()
-        assert mock_download.call_args.args == ("wyattowalsh/basketball",)
-        assert mock_download.call_args.kwargs["force_download"] is True
-        assert "output_dir" in mock_download.call_args.kwargs
-        assert "path" not in mock_download.call_args.kwargs
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        assert manifest["status"] == "uploaded_remote_verified"
-        assert (
-            manifest["remote_readback"]["fingerprint"]
-            == manifest["preflight"]["staged"]["fingerprint"]
-        )
-
-    @patch("nbadb.kaggle.client.get_settings")
-    def test_upload_verify_remote_falls_back_for_older_kagglehub_download_shapes(
-        self, mock_settings: MagicMock, tmp_path: Path
-    ) -> None:
-        data_dir = tmp_path / "data"
-        _write_upload_bundle(data_dir)
-        uploaded_dir = tmp_path / "uploaded"
+        stale_dir = tmp_path / "stale"
+        stale_dir.mkdir()
+        (stale_dir / "old.txt").write_text("old", encoding="utf-8")
         mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
         from nbadb.kaggle.client import KaggleClient
 
@@ -800,29 +777,203 @@ class TestKaggleClientUpload:
             patch("kagglehub.dataset_upload", side_effect=capture_upload),
             patch(
                 "kagglehub.dataset_download",
-                side_effect=[
-                    TypeError("output_dir unsupported"),
-                    TypeError("path unsupported"),
-                    str(uploaded_dir),
-                ],
+                side_effect=[str(stale_dir), str(uploaded_dir)],
             ) as mock_download,
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
-        assert mock_download.call_count == 3
-        first_call, second_call, third_call = mock_download.call_args_list
-        assert first_call.args == ("wyattowalsh/basketball",)
-        assert first_call.kwargs["force_download"] is True
-        assert "output_dir" in first_call.kwargs
-        assert "path" not in first_call.kwargs
-        assert second_call.args == ("wyattowalsh/basketball",)
-        assert second_call.kwargs["force_download"] is True
-        assert "path" in second_call.kwargs
-        assert "output_dir" not in second_call.kwargs
-        assert third_call.args == ("wyattowalsh/basketball",)
-        assert third_call.kwargs == {}
+        assert mock_download.call_count == 2
+        assert all(
+            call.args == ("wyattowalsh/basketball",) for call in mock_download.call_args_list
+        )
+        assert all(call.kwargs["force_download"] is True for call in mock_download.call_args_list)
+        assert all(
+            call.kwargs["path"] == "nbadb-publication.json" for call in mock_download.call_args_list
+        )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded_remote_verified"
+        assert (
+            manifest["remote_readback"]["bundle_fingerprint"]
+            == manifest["preflight"]["fingerprint"]
+        )
+        assert manifest["remote_readback"]["verification_mode"] == "publication_marker"
+        assert manifest["publication"]["upload_attempts"] == 1
+        assert manifest["publication"]["verification_attempts"] == 1
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_verify_remote_downloads_only_publication_marker(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        uploaded_dir = tmp_path / "uploaded"
+        stale_dir = tmp_path / "stale"
+        stale_dir.mkdir()
+        (stale_dir / "old.txt").write_text("old", encoding="utf-8")
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient
+
+        def capture_upload(**kwargs: object) -> None:
+            shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
+
+        client = KaggleClient()
+        with (
+            patch("kagglehub.dataset_upload", side_effect=capture_upload),
+            patch(
+                "kagglehub.dataset_download",
+                side_effect=[str(stale_dir), str(uploaded_dir)],
+            ) as mock_download,
+        ):
+            manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
+
+        assert mock_download.call_count == 2
+        for call in mock_download.call_args_list:
+            assert call.args == ("wyattowalsh/basketball",)
+            assert call.kwargs["path"] == "nbadb-publication.json"
+            assert call.kwargs["force_download"] is True
+            assert "output_dir" in call.kwargs
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "uploaded_remote_verified"
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_matching_remote_marker_skips_duplicate_upload(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        remote_dir = tmp_path / "remote"
+        remote_dir.mkdir()
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        preflight = client._snapshot_upload_bundle(data_dir)
+        client._stage_upload_bundle(data_dir, remote_dir, preflight)
+        data_tree = client._expected_staged_tree_snapshot(preflight, remote_dir)
+        publish_key = hashlib.sha256(
+            f"wyattowalsh/basketball:{preflight['fingerprint']}".encode()
+        ).hexdigest()[:20]
+        marker = client._publication_marker_payload(
+            preflight=preflight,
+            publish_key=publish_key,
+            data_tree_fingerprint=data_tree["fingerprint"],
+        )
+        client._write_publication_marker(remote_dir, marker)
+
+        with (
+            patch("kagglehub.dataset_upload") as mock_upload,
+            patch("kagglehub.dataset_download", return_value=str(remote_dir)),
+        ):
+            manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
+
+        mock_upload.assert_not_called()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "reconciled_existing_remote"
+        assert manifest["publication"]["result"] == "reconciled_existing_remote"
+        assert manifest["publication"]["upload_attempts"] == 0
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_verify_remote_polls_stale_latest_until_match(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        stale_dir = tmp_path / "stale"
+        stale_dir.mkdir()
+        (stale_dir / "old.txt").write_text("old", encoding="utf-8")
+        uploaded_dir = tmp_path / "cache" / "versions" / "7"
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient
+
+        def capture_upload(**kwargs: object) -> None:
+            shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
+
+        client = KaggleClient()
+        with (
+            patch("kagglehub.dataset_upload", side_effect=capture_upload) as mock_upload,
+            patch(
+                "kagglehub.dataset_download",
+                side_effect=[str(stale_dir), str(stale_dir), str(uploaded_dir)],
+            ) as mock_download,
+            patch.object(client, "_sleep") as mock_sleep,
+        ):
+            manifest_path = client.upload(
+                data_dir=data_dir,
+                verify_remote=True,
+                remote_timeout_seconds=30,
+                remote_poll_interval_seconds=1,
+            )
+
+        mock_upload.assert_called_once()
+        assert mock_download.call_count == 3
+        mock_sleep.assert_called_once_with(1)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["publication"]["verification_attempts"] == 2
+        assert manifest["publication"]["resolved_version"] == 7
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_ambiguous_transport_error_reconciles_without_second_upload(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        stale_dir = tmp_path / "stale"
+        stale_dir.mkdir()
+        (stale_dir / "old.txt").write_text("old", encoding="utf-8")
+        uploaded_dir = tmp_path / "uploaded"
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient
+
+        def accepted_then_timed_out(**kwargs: object) -> None:
+            shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
+            raise TimeoutError("ambiguous response")
+
+        client = KaggleClient()
+        with (
+            patch("kagglehub.dataset_upload", side_effect=accepted_then_timed_out) as mock_upload,
+            patch(
+                "kagglehub.dataset_download",
+                side_effect=[str(stale_dir), str(uploaded_dir)],
+            ),
+        ):
+            manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
+
+        mock_upload.assert_called_once()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "uploaded_remote_verified"
+        assert manifest["publication"]["result"] == "reconciled_after_upload_error"
+        assert manifest["publication"]["upload_attempts"] == 1
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_remote_timeout_records_reconciliation_required(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        stale_dir = tmp_path / "stale"
+        stale_dir.mkdir()
+        (stale_dir / "old.txt").write_text("old", encoding="utf-8")
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
+
+        client = KaggleClient()
+        with (
+            patch("kagglehub.dataset_upload") as mock_upload,
+            patch("kagglehub.dataset_download", return_value=str(stale_dir)),
+            pytest.raises(KagglePublicationPendingError),
+        ):
+            client.upload(
+                data_dir=data_dir,
+                verify_remote=True,
+                remote_timeout_seconds=0,
+            )
+
+        mock_upload.assert_called_once()
+        manifest_path = tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "publication_reconciliation_required"
+        assert manifest["publication"]["upload_attempts"] == 1
+        assert manifest["publication"]["verification_attempts"] == 1
 
 
 class TestKaggleClientEnsureMetadata:

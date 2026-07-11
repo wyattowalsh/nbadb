@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -12,7 +13,16 @@ from typing import Any, cast
 from loguru import logger
 
 from nbadb.core.config import get_settings
+from nbadb.core.extraction_failures import classify_exception
 from nbadb.core.types import validate_sql_identifier
+
+PUBLICATION_MARKER_NAME = "nbadb-publication.json"
+
+
+class KagglePublicationPendingError(RuntimeError):
+    def __init__(self, message: str, publication: dict[str, Any]) -> None:
+        self.publication = publication
+        super().__init__(message)
 
 
 class KaggleClient:
@@ -111,6 +121,8 @@ class KaggleClient:
         data_dir: Path | None = None,
         version_notes: str = "Automated update via nbadb",
         verify_remote: bool = False,
+        remote_timeout_seconds: float = 900.0,
+        remote_poll_interval_seconds: float = 15.0,
     ) -> Path:
         """Upload dataset to Kaggle after validating the local upload bundle."""
         import kagglehub
@@ -122,6 +134,12 @@ class KaggleClient:
         if not upload_dir.is_dir():
             msg = f"Data path is not a directory: {upload_dir}"
             raise NotADirectoryError(msg)
+        if remote_timeout_seconds < 0:
+            msg = "remote_timeout_seconds must be >= 0"
+            raise ValueError(msg)
+        if remote_poll_interval_seconds <= 0:
+            msg = "remote_poll_interval_seconds must be > 0"
+            raise ValueError(msg)
 
         preflight = self._snapshot_upload_bundle(upload_dir)
         with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-upload-") as temp_dir:
@@ -139,9 +157,35 @@ class KaggleClient:
                     error=self._redacted_error(exc),
                 )
                 raise
-            expected_staged = self._expected_staged_tree_snapshot(preflight, staged_dir)
+            expected_data_tree = self._expected_staged_tree_snapshot(preflight, staged_dir)
+            preflight["staged"] = staged
+            publish_key = hashlib.sha256(
+                f"{self._dataset}:{preflight['fingerprint']}".encode()
+            ).hexdigest()[:20]
+            publication_marker = self._publication_marker_payload(
+                preflight=preflight,
+                publish_key=publish_key,
+                data_tree_fingerprint=expected_data_tree["fingerprint"],
+            )
+            self._write_publication_marker(staged_dir, publication_marker)
+            staged = self._snapshot_tree(staged_dir)
+            expected_staged = self._expected_staged_tree_snapshot(
+                preflight,
+                staged_dir,
+                publication_marker=publication_marker,
+            )
             preflight["staged"] = staged
             preflight["expected_staged"] = expected_staged
+            publication: dict[str, Any] = {
+                "publish_key": publish_key,
+                "expected_fingerprint": expected_staged["fingerprint"],
+                "expected_bundle_fingerprint": preflight["fingerprint"],
+                "verification_mode": "publication_marker",
+                "upload_attempts": 0,
+                "verification_attempts": 0,
+                "observations": [],
+                "result": "pending",
+            }
             if staged["fingerprint"] != expected_staged["fingerprint"]:
                 self._write_upload_manifest(
                     data_dir=upload_dir,
@@ -180,29 +224,85 @@ class KaggleClient:
                 msg = "Kaggle upload source bundle changed before upload"
                 raise RuntimeError(msg)
 
+            if verify_remote:
+                try:
+                    with tempfile.TemporaryDirectory(
+                        prefix="nbadb-kaggle-baseline-"
+                    ) as baseline_dir:
+                        baseline_marker, baseline_version = (
+                            self._download_remote_publication_marker(Path(baseline_dir))
+                        )
+                except Exception as exc:
+                    publication["baseline"] = {"error": self._redacted_error(exc)}
+                else:
+                    baseline_matches = self._publication_marker_matches(
+                        baseline_marker,
+                        expected=publication_marker,
+                    )
+                    publication["baseline"] = {
+                        "publish_key": baseline_marker.get("publish_key"),
+                        "bundle_fingerprint": baseline_marker.get("bundle_fingerprint"),
+                        "version": baseline_version,
+                        "matches_expected": baseline_matches,
+                    }
+                    if baseline_matches:
+                        publication.update(
+                            {
+                                "result": "reconciled_existing_remote",
+                                "resolved_version": baseline_version,
+                                "verification_attempts": 1,
+                            }
+                        )
+                        manifest_path = self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="reconciled_existing_remote",
+                            preflight=preflight,
+                            post_upload=staged,
+                            remote_readback={
+                                **baseline_marker,
+                                "verification_mode": "publication_marker",
+                                "verification_attempts": 1,
+                                "verification_elapsed_seconds": 0.0,
+                                "resolved_version": baseline_version,
+                            },
+                            publication=publication,
+                        )
+                        logger.info("Kaggle already exposes the staged bundle; upload skipped")
+                        return manifest_path
+
             manifest_path = self._write_upload_manifest(
                 data_dir=upload_dir,
                 staged_dir=staged_dir,
                 version_notes=version_notes,
                 status="preflight_passed",
                 preflight=preflight,
+                publication=publication,
             )
+            upload_error: Exception | None = None
             try:
+                publication["upload_attempts"] = 1
                 kagglehub.dataset_upload(
                     handle=self._dataset,
                     local_dataset_dir=str(staged_dir),
                     version_notes=version_notes,
                 )
             except Exception as exc:
-                self._write_upload_manifest(
-                    data_dir=upload_dir,
-                    staged_dir=staged_dir,
-                    version_notes=version_notes,
-                    status="upload_failed",
-                    preflight=preflight,
-                    error=self._redacted_error(exc),
-                )
-                raise
+                upload_error = exc
+                publication["upload_error"] = self._redacted_error(exc)
+                if not verify_remote or classify_exception(exc) != "transport_transient":
+                    publication["result"] = "upload_failed"
+                    self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="upload_failed",
+                        preflight=preflight,
+                        publication=publication,
+                        error=self._redacted_error(exc),
+                    )
+                    raise
 
             post_upload = self._snapshot_tree(staged_dir)
             if post_upload["fingerprint"] != staged["fingerprint"]:
@@ -213,6 +313,7 @@ class KaggleClient:
                     status="post_upload_mismatch_remote_may_exist",
                     preflight=preflight,
                     post_upload=post_upload,
+                    publication=publication,
                 )
                 msg = (
                     "Kaggle upload bundle changed during upload; the remote Kaggle "
@@ -223,18 +324,31 @@ class KaggleClient:
             remote_readback = None
             if verify_remote:
                 try:
-                    remote_readback = self._verify_remote_upload(expected_staged)
-                except Exception as exc:
+                    remote_readback = self._verify_remote_upload(
+                        publication_marker,
+                        timeout_seconds=remote_timeout_seconds,
+                        poll_interval_seconds=remote_poll_interval_seconds,
+                        publication=publication,
+                    )
+                except KagglePublicationPendingError as exc:
+                    publication = exc.publication
+                    publication["result"] = "publication_reconciliation_required"
                     self._write_upload_manifest(
                         data_dir=upload_dir,
                         staged_dir=staged_dir,
                         version_notes=version_notes,
-                        status="remote_readback_failed",
+                        status="publication_reconciliation_required",
                         preflight=preflight,
                         post_upload=post_upload,
+                        publication=publication,
                         error=self._redacted_error(exc),
                     )
                     raise
+                publication["result"] = (
+                    "reconciled_after_upload_error" if upload_error is not None else "verified"
+                )
+            else:
+                publication["result"] = "uploaded_unverified"
 
             manifest_path = self._write_upload_manifest(
                 data_dir=upload_dir,
@@ -244,6 +358,7 @@ class KaggleClient:
                 preflight=preflight,
                 post_upload=post_upload,
                 remote_readback=remote_readback,
+                publication=publication,
             )
         logger.info(f"Uploaded dataset from {upload_dir}")
         logger.info(f"Wrote Kaggle upload manifest to {manifest_path}")
@@ -457,13 +572,14 @@ class KaggleClient:
         preflight: dict[str, Any],
         post_upload: dict[str, Any] | None = None,
         remote_readback: dict[str, Any] | None = None,
+        publication: dict[str, Any] | None = None,
         error: str | None = None,
     ) -> Path:
         manifest_dir = self._settings.log_dir / "kaggle"
         manifest_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = manifest_dir / "kaggle-upload-manifest.json"
         manifest: dict[str, Any] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "generated_at": datetime.now(UTC).isoformat(),
             "status": status,
             "dataset": self._dataset,
@@ -476,6 +592,8 @@ class KaggleClient:
             manifest["post_upload"] = post_upload
         if remote_readback is not None:
             manifest["remote_readback"] = remote_readback
+        if publication is not None:
+            manifest["publication"] = publication
         if error is not None:
             manifest["error"] = error
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -610,6 +728,8 @@ class KaggleClient:
     def _expected_staged_tree_snapshot(
         preflight: dict[str, Any],
         root: Path,
+        *,
+        publication_marker: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         files: list[dict[str, Any]] = [
             {
@@ -637,6 +757,15 @@ class KaggleClient:
                             "sha256": file_inventory["sha256"],
                         }
                     )
+        if publication_marker is not None:
+            marker_bytes = KaggleClient._publication_marker_bytes(publication_marker)
+            files.append(
+                {
+                    "path": PUBLICATION_MARKER_NAME,
+                    "bytes": len(marker_bytes),
+                    "sha256": hashlib.sha256(marker_bytes).hexdigest(),
+                }
+            )
         files = sorted(files, key=lambda file_inventory: file_inventory["path"])
         fingerprint_source = json.dumps(files, sort_keys=True, separators=(",", ":"))
         return {
@@ -646,6 +775,68 @@ class KaggleClient:
             "files": files,
             "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
         }
+
+    def _publication_marker_payload(
+        self,
+        *,
+        preflight: dict[str, Any],
+        publish_key: str,
+        data_tree_fingerprint: str,
+    ) -> dict[str, Any]:
+        resources = [
+            {
+                "path": resource["path"],
+                "kind": resource["kind"],
+                "bytes": resource["bytes"],
+                "sha256": resource["sha256"],
+                **(
+                    {"file_count": resource["file_count"]}
+                    if resource["kind"] == "directory"
+                    else {}
+                ),
+            }
+            for resource in preflight["resources"]
+        ]
+        return {
+            "schema_version": 1,
+            "dataset": self._dataset,
+            "publish_key": publish_key,
+            "bundle_fingerprint": preflight["fingerprint"],
+            "data_tree_fingerprint": data_tree_fingerprint,
+            "metadata_sha256": preflight["metadata_sha256"],
+            "resource_count": preflight["resource_count"],
+            "resource_bytes": preflight["resource_bytes"],
+            "resources": resources,
+        }
+
+    @staticmethod
+    def _publication_marker_bytes(marker: dict[str, Any]) -> bytes:
+        return (json.dumps(marker, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+    @classmethod
+    def _write_publication_marker(cls, staged_dir: Path, marker: dict[str, Any]) -> Path:
+        marker_path = staged_dir / PUBLICATION_MARKER_NAME
+        marker_path.write_bytes(cls._publication_marker_bytes(marker))
+        return marker_path
+
+    @staticmethod
+    def _publication_marker_matches(
+        observed: dict[str, Any],
+        *,
+        expected: dict[str, Any],
+    ) -> bool:
+        identity_fields = (
+            "schema_version",
+            "dataset",
+            "publish_key",
+            "bundle_fingerprint",
+            "data_tree_fingerprint",
+            "metadata_sha256",
+            "resource_count",
+            "resource_bytes",
+            "resources",
+        )
+        return all(observed.get(field) == expected.get(field) for field in identity_fields)
 
     def _snapshot_tree(self, root: Path) -> dict[str, Any]:
         files: list[dict[str, Any]] = []
@@ -866,32 +1057,125 @@ class KaggleClient:
             )
             raise ValueError(msg)
 
-    def _verify_remote_upload(self, expected_staged: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _monotonic() -> float:
+        return time.monotonic()
+
+    @staticmethod
+    def _sleep(seconds: float) -> None:
+        time.sleep(seconds)
+
+    @staticmethod
+    def _resolved_version(path: Path) -> int | None:
+        parts = path.parts
+        for index, part in enumerate(parts[:-1]):
+            if part != "versions":
+                continue
+            try:
+                return int(parts[index + 1])
+            except ValueError:
+                return None
+        return None
+
+    def _download_remote_publication_marker(
+        self,
+        download_root: Path,
+    ) -> tuple[dict[str, Any], int | None]:
         import kagglehub
 
-        with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-readback-") as temp_dir:
-            download_root = Path(temp_dir)
+        downloaded = kagglehub.dataset_download(
+            self._dataset,
+            path=PUBLICATION_MARKER_NAME,
+            output_dir=str(download_root),
+            force_download=True,
+        )
+        remote_path = Path(downloaded)
+        marker_path = (
+            remote_path if remote_path.is_file() else remote_path / PUBLICATION_MARKER_NAME
+        )
+        if not marker_path.is_file():
+            candidates = list(remote_path.rglob(PUBLICATION_MARKER_NAME))
+            if len(candidates) != 1:
+                msg = "Kaggle remote publication marker is missing or ambiguous"
+                raise FileNotFoundError(msg)
+            marker_path = candidates[0]
+        try:
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            msg = "Kaggle remote publication marker is not valid JSON"
+            raise ValueError(msg) from exc
+        if not isinstance(marker, dict):
+            msg = "Kaggle remote publication marker must be a JSON object"
+            raise ValueError(msg)
+        return marker, self._resolved_version(marker_path)
+
+    def _verify_remote_upload(
+        self,
+        expected_marker: dict[str, Any],
+        *,
+        timeout_seconds: float = 900.0,
+        poll_interval_seconds: float = 15.0,
+        publication: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if publication is None:
+            publication = {}
+        observations = list(publication.get("observations") or [])
+        started = self._monotonic()
+        attempt = 0
+        while True:
+            attempt += 1
+            observation: dict[str, Any] = {"attempt": attempt}
             try:
-                downloaded = kagglehub.dataset_download(
-                    self._dataset,
-                    output_dir=str(download_root),
-                    force_download=True,
-                )
-            except TypeError:
-                try:
-                    downloaded = kagglehub.dataset_download(
-                        self._dataset,
-                        path=str(download_root),
-                        force_download=True,
+                with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-readback-") as temp_dir:
+                    remote_marker, version = self._download_remote_publication_marker(
+                        Path(temp_dir)
                     )
-                except TypeError:
-                    downloaded = kagglehub.dataset_download(self._dataset)
-            remote_path = Path(downloaded)
-            remote_snapshot = self._snapshot_tree(remote_path)
-            if remote_snapshot["fingerprint"] != expected_staged["fingerprint"]:
-                msg = "Kaggle remote readback bundle does not match uploaded staged inventory"
-                raise RuntimeError(msg)
-            return remote_snapshot
+            except Exception as exc:
+                observation["error"] = self._redacted_error(exc)
+            else:
+                marker_matches = self._publication_marker_matches(
+                    remote_marker,
+                    expected=expected_marker,
+                )
+                observation.update(
+                    {
+                        "publish_key": remote_marker.get("publish_key"),
+                        "bundle_fingerprint": remote_marker.get("bundle_fingerprint"),
+                        "matches_expected": marker_matches,
+                        "version": version,
+                    }
+                )
+                if observation["matches_expected"]:
+                    elapsed = max(0.0, self._monotonic() - started)
+                    observations.append(observation)
+                    publication.update(
+                        {
+                            "verification_attempts": attempt,
+                            "verification_elapsed_seconds": round(elapsed, 3),
+                            "resolved_version": version,
+                            "observations": observations,
+                        }
+                    )
+                    return {
+                        **remote_marker,
+                        "verification_mode": "publication_marker",
+                        "verification_attempts": attempt,
+                        "verification_elapsed_seconds": round(elapsed, 3),
+                        "resolved_version": version,
+                    }
+            observations.append(observation)
+            elapsed = max(0.0, self._monotonic() - started)
+            publication.update(
+                {
+                    "verification_attempts": attempt,
+                    "verification_elapsed_seconds": round(elapsed, 3),
+                    "observations": observations,
+                }
+            )
+            if elapsed >= timeout_seconds:
+                msg = "Kaggle publication did not expose the expected bundle before the deadline"
+                raise KagglePublicationPendingError(msg, publication)
+            self._sleep(min(poll_interval_seconds, timeout_seconds - elapsed))
 
     @staticmethod
     def _redacted_error(exc: Exception) -> str:

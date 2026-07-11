@@ -16,6 +16,9 @@ jobs:
   daily:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    concurrency:
+      group: nbadb-kaggle-publish
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -79,7 +82,15 @@ jobs:
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: uv run nbadb upload
+        run: uv run nbadb upload --verify-remote --remote-timeout 900 --remote-poll-interval 15
+      - name: Upload Kaggle publication receipt
+        if: always() && steps.daily.outcome == 'success' && steps.scan.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: daily-kaggle-publication-receipt
+          path: logs/kaggle/kaggle-upload-manifest.json
+          if-no-files-found: warn
+          retention-days: 30
       - name: Assert extraction and scan passed
         if: always()
         env:
