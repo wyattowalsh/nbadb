@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from nbadb.core.extraction_failures import classify_error_name
 from nbadb.orchestrate.extraction_contract import contract_blocking_rules_for_lane
+
+_ERROR_MARKER_RE = re.compile(
+    r"\[(transport_transient|response_contract|application):([A-Za-z][A-Za-z0-9_]*)\]"
+)
 
 
 def _int_value(value: object, default: int = 0) -> int:
@@ -71,6 +79,8 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
         "journal_skips": 0,
         "failed_calls": 0,
         "running_calls": 0,
+        "done_calls": 0,
+        "completed_calls": 0,
         "tables_persisted": 0,
         "rows_persisted": 0,
         "journal_rows_extracted": 0,
@@ -100,6 +110,8 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
                     ) as failed_calls,
                     coalesce(sum(case when status = 'running' then 1 else 0 end), 0)
                         as running_calls,
+                    coalesce(sum(case when status = 'done' then 1 else 0 end), 0)
+                        as done_calls,
                     coalesce(
                         sum(case when status = 'done' then rows_extracted else 0 end),
                         0
@@ -113,8 +125,12 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
                     telemetry["journal_skips"],
                     telemetry["failed_calls"],
                     telemetry["running_calls"],
+                    telemetry["done_calls"],
                     telemetry["journal_rows_extracted"],
                 ) = [int(value or 0) for value in journal_rows]
+                telemetry["completed_calls"] = int(telemetry["done_calls"]) + int(
+                    telemetry["journal_skips"]
+                )
 
         staging_tables = con.execute(
             """
@@ -153,6 +169,95 @@ def _load_extract_summary(summary_path: Path) -> tuple[dict[str, Any], str]:
     except json.JSONDecodeError as exc:
         return {}, str(exc)
     return summary if isinstance(summary, dict) else {}, ""
+
+
+def _error_diagnostics(extract_summary: dict[str, Any]) -> dict[str, Any]:
+    result = extract_summary.get("result")
+    result_payload = result if isinstance(result, dict) else {}
+    errors = result_payload.get("errors")
+    error_values = errors if isinstance(errors, list) else []
+    class_counts: Counter[str] = Counter()
+    root_counts: Counter[str] = Counter()
+    for raw_error in error_values:
+        error = str(raw_error)
+        marker = _ERROR_MARKER_RE.search(error)
+        if marker is not None:
+            failure_class, root_type = marker.groups()
+        else:
+            tail = error.rsplit(": ", maxsplit=1)[-1]
+            root_type = re.split(r"[^A-Za-z0-9_]", tail, maxsplit=1)[0] or "Unknown"
+            failure_class = classify_error_name(error)
+            if failure_class == "application":
+                failure_class = classify_error_name(root_type)
+        class_counts[failure_class] += 1
+        root_counts[root_type] += 1
+
+    class_precedence = {
+        "application": 3,
+        "response_contract": 2,
+        "transport_transient": 1,
+    }
+    dominant_class = max(
+        class_counts,
+        key=lambda key: (class_counts[key], class_precedence.get(key, 0), key),
+        default="",
+    )
+    dominant_root = max(
+        root_counts,
+        key=lambda key: (root_counts[key], key),
+        default="",
+    )
+    return {
+        "failure_class": dominant_class,
+        "failure_class_counts": dict(sorted(class_counts.items())),
+        "root_error_type": dominant_root,
+        "root_error_type_counts": dict(sorted(root_counts.items())),
+    }
+
+
+def _failure_class(
+    *,
+    raw_status: str,
+    final_outcome: str,
+    vpn_status: str,
+    completed_calls: int,
+    rows_persisted: int,
+    running_calls: int,
+    diagnostics: dict[str, Any],
+) -> str:
+    if final_outcome == "contract_blocked":
+        return "contract_blocked"
+    if final_outcome == "complete":
+        return ""
+    if raw_status in {"cancelled", "cancellation_no_metadata"}:
+        return "runner_infrastructure"
+    if vpn_status in {"vpn_auth_failure", "vpn_connect_timeout"}:
+        return "vpn_egress"
+    if raw_status in {"extract-timeout", "timeout_with_persisted_progress", "needs_resume"}:
+        return "timeout_progress" if completed_calls or rows_persisted else "timeout_stalled"
+    diagnostic_class = str(diagnostics.get("failure_class") or "")
+    if diagnostic_class:
+        return diagnostic_class
+    if raw_status == "extract-error" and running_calls > 0:
+        return "runner_infrastructure"
+    return "application"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _progress_fingerprint(*, completed_calls: int, rows_persisted: int) -> str:
+    payload = json.dumps(
+        {"completed_calls": completed_calls, "rows_persisted": rows_persisted},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _final_outcome(
@@ -261,6 +366,7 @@ def build_payload() -> dict[str, Any]:
         )
     ]
     running_calls = _int_value(db_telemetry.get("running_calls"))
+    completed_calls = _int_value(db_telemetry.get("completed_calls"))
     final_outcome = _final_outcome(
         raw_status=raw_status,
         effective_network_mode=effective_network_mode,
@@ -269,6 +375,16 @@ def build_payload() -> dict[str, Any]:
         journal_skips=journal_skips,
         running_calls=running_calls,
         support_rules=support_rules,
+    )
+    error_diagnostics = _error_diagnostics(extract_summary)
+    failure_class = _failure_class(
+        raw_status=raw_status,
+        final_outcome=final_outcome,
+        vpn_status=vpn_status,
+        completed_calls=completed_calls,
+        rows_persisted=rows_persisted,
+        running_calls=running_calls,
+        diagnostics=error_diagnostics,
     )
 
     zero_row_reason = ""
@@ -279,8 +395,10 @@ def build_payload() -> dict[str, Any]:
             zero_row_reason = "contract_blocked"
         elif final_outcome == "pipeline_failure" and raw_status == "extract-timeout":
             zero_row_reason = "zero_progress_timeout"
-        elif journal_skips > 0 or _int_value(db_telemetry.get("running_calls")) > 0:
+        elif journal_skips > 0 or completed_calls > 0:
             zero_row_reason = "zero_row_progress"
+        elif running_calls > 0:
+            zero_row_reason = "running_without_durable_progress"
         elif failed_calls > 0:
             zero_row_reason = "contract_gap"
         elif effective_network_mode == "direct":
@@ -288,7 +406,10 @@ def build_payload() -> dict[str, Any]:
         else:
             zero_row_reason = "unknown"
 
+    db_path = Path("data/nbadb/nba.duckdb")
+    state_artifact_name = f"extraction-lane-{os.environ['CHAIN_ID']}-{os.environ['LANE_ID']}"
     return {
+        "metadata_schema_version": 2,
         "chain_id": os.environ["CHAIN_ID"],
         "iteration": os.environ["ITERATION"],
         "lane_id": os.environ["LANE_ID"],
@@ -303,6 +424,7 @@ def build_payload() -> dict[str, Any]:
         "restore_source": os.environ["RESTORE_SOURCE"],
         "restore_usable": os.environ["RESTORE_USABLE"].lower() == "true",
         "restart_mode": os.environ["RESTART_MODE"],
+        "restore_error": os.environ.get("RESTORE_ERROR", ""),
         "resume_only": resume_only,
         "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
         "effective_timeout_seconds": int(os.environ["EFFECTIVE_TIMEOUT_SECONDS"]),
@@ -322,6 +444,25 @@ def build_payload() -> dict[str, Any]:
         "parent_lane_id": os.environ.get("PARENT_LANE_ID", ""),
         "split_generation": int(os.environ.get("SPLIT_GENERATION") or 0),
         "support_rules": support_rules,
+        "failure_class": failure_class,
+        "failure_class_counts": error_diagnostics["failure_class_counts"],
+        "root_error_type": error_diagnostics["root_error_type"],
+        "root_error_type_counts": error_diagnostics["root_error_type_counts"],
+        "progress": {
+            "completed_calls": completed_calls,
+            "rows_persisted": rows_persisted,
+            "fingerprint": _progress_fingerprint(
+                completed_calls=completed_calls,
+                rows_persisted=rows_persisted,
+            ),
+        },
+        "state_artifact": {
+            "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+            "name": state_artifact_name,
+            "sha256": _sha256(db_path) if db_path.is_file() else "",
+            "required": final_outcome != "complete",
+            "retention_days": 7 if final_outcome == "complete" else 30,
+        },
         "artifact_requirements": {
             "lane_metadata": final_outcome != "complete",
             "vpn_diagnostics": (
@@ -334,6 +475,7 @@ def build_payload() -> dict[str, Any]:
             "planned_calls": planned_calls,
             "journal_skips": journal_skips,
             "failed_calls": failed_calls,
+            "completed_calls": completed_calls,
             "tables_persisted": tables_persisted,
             "rows_persisted": rows_persisted,
             "zero_row_reason": zero_row_reason,

@@ -347,8 +347,9 @@ def test_build_payload_marks_running_extract_error_resumable_from_duckdb(
 
     assert payload["status"] == "needs_resume"
     assert payload["raw_status"] == "extract-error"
+    assert payload["failure_class"] == "runner_infrastructure"
     assert payload["telemetry"]["rows_persisted"] == 0
-    assert payload["telemetry"]["zero_row_reason"] == "zero_row_progress"
+    assert payload["telemetry"]["zero_row_reason"] == "running_without_durable_progress"
     assert payload["telemetry"]["db_telemetry"]["running_calls"] == 1
 
 

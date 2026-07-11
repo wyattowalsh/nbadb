@@ -22,6 +22,15 @@ on:
           - "4"
           - "5"
           - "6"
+      matrix_batch_size:
+        description: "Lane jobs admitted per iteration; max-parallel controls simultaneous runners"
+        type: choice
+        default: "256"
+        options:
+          - "64"
+          - "128"
+          - "192"
+          - "256"
       direct_parallelism:
         description: "Max simultaneous direct/no-VPN extract lanes"
         type: choice
@@ -74,7 +83,7 @@ on:
       chunk_profile:
         description: "Temporal lane chunk sizing profile"
         type: choice
-        default: "balanced-small"
+        default: "standard"
         options:
           - standard
           - balanced-small
@@ -84,9 +93,9 @@ on:
         type: string
         default: "1"
       max_iterations:
-        description: "Max self-chain iterations (safety limit)"
+        description: "Max self-chain iterations (auto = capacity-derived safety budget)"
         type: string
-        default: "32"
+        default: "auto"
       backfill_endpoints:
         description: "Comma-separated endpoints to backfill (empty = all)"
         type: string
@@ -130,7 +139,7 @@ on:
       retry_pipeline_failures:
         description: "Retry pipeline-failure lanes during resume-source planning"
         type: boolean
-        default: false
+        default: true
 
 env:
   NBADB_DATA_DIR: data/nbadb
@@ -168,6 +177,8 @@ jobs:
       chunk-profile: ${{ steps.manifest.outputs.chunk-profile }}
       coverage-fingerprint: ${{ steps.manifest.outputs.coverage-fingerprint }}
       planned-wave-count: ${{ steps.manifest.outputs.planned-wave-count }}
+      iteration-budget: ${{ steps.manifest.outputs.iteration-budget }}
+      max-matrix-lanes: ${{ steps.manifest.outputs.max-matrix-lanes }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -333,10 +344,14 @@ jobs:
           BACKFILL_PATTERNS: ${{ inputs.backfill_patterns }}
           CHUNK_PROFILE: ${{ env.FULL_EXTRACTION_CHUNK_PROFILE }}
           RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
+          MATRIX_BATCH_SIZE: ${{ inputs.matrix_batch_size }}
+          ITERATION: ${{ inputs.iteration }}
         run: |
           mkdir -p artifacts/full-extraction
           args=(
             plan
+            --iteration "$ITERATION"
+            --max-matrix-lanes "$MATRIX_BATCH_SIZE"
             --output-path artifacts/full-extraction/manifest.json
           )
           if [ -n "$INPUT_LANE_MANIFEST_JSON" ]; then
@@ -394,6 +409,8 @@ jobs:
               --metadata-dir "$RUNNER_TEMP/resume-source/metadata"
               --completed-artifact-run-id "$RESUME_SOURCE_RUN_ID"
               --chunk-profile "$CHUNK_PROFILE"
+              --iteration "$ITERATION"
+              --max-matrix-lanes "$MATRIX_BATCH_SIZE"
               --allow-missing-attempted-metadata
               --output-path artifacts/full-extraction/resume-source-manifest.json
             )
@@ -434,6 +451,10 @@ jobs:
               handle.write(f"chunk-profile={manifest.get('chunk_profile', '')}\n")
               handle.write(f"coverage-fingerprint={manifest.get('coverage_fingerprint', '')}\n")
               handle.write(f"planned-wave-count={manifest.get('planned_wave_count', 0)}\n")
+              handle.write(f"iteration-budget={manifest.get('iteration_budget', 0)}\n")
+              handle.write(
+                  f"max-matrix-lanes={manifest.get('scheduler_diagnostics', {}).get('max_matrix_lanes', 0)}\n"
+              )
           PY
 
       - name: Plan summary
@@ -454,6 +475,7 @@ jobs:
               handle.write(f"**Chunk profile:** {manifest.get('chunk_profile', '')}\n")
               handle.write(f"**Coverage fingerprint:** `{manifest.get('coverage_fingerprint', '')}`\n")
               handle.write(f"**Planned waves:** {manifest.get('planned_wave_count', 0)}\n")
+              handle.write(f"**Iteration budget:** {manifest.get('iteration_budget', 0)}\n")
               for lane in lanes:
                   season_range = "n/a"
                   if lane.get("season_start") is not None and lane.get("season_end") is not None:
@@ -749,15 +771,84 @@ jobs:
             ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-
             ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.parent_lane_id }}-
 
+      - name: Restore durable lane state artifact
+        id: state_artifact_restore
+        if: ${{ matrix.state_artifact_run_id != '' && matrix.state_artifact_name != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATE_ARTIFACT_RUN_ID: ${{ matrix.state_artifact_run_id }}
+          STATE_ARTIFACT_NAME: ${{ matrix.state_artifact_name }}
+          STATE_ARTIFACT_DIGEST: ${{ matrix.state_artifact_digest }}
+        run: |
+          if [ -f data/nbadb/nba.duckdb ]; then
+            if uv run python -c "
+              import duckdb
+
+              conn = duckdb.connect('data/nbadb/nba.duckdb', read_only=True)
+              try:
+                  tables = {
+                      row[0]
+                      for row in conn.execute(
+                          \"SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main'\"
+                      ).fetchall()
+                  }
+              finally:
+                  conn.close()
+
+              usable = '_extraction_journal' in tables or any(
+                  table_name.startswith('stg_') for table_name in tables
+              )
+              raise SystemExit(0 if usable else 1)
+            "; then
+              echo "restored=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::A usable cache candidate exists; durable artifact fallback was not needed"
+              exit 0
+            fi
+            echo "::warning::Cache candidate is unusable; trying durable artifact fallback"
+            rm -f data/nbadb/*.duckdb data/nbadb/*.duckdb.*
+          fi
+
+          mkdir -p "$RUNNER_TEMP/lane-state-artifact" data/nbadb
+          if ! gh run download "$STATE_ARTIFACT_RUN_ID" \
+            --repo "${{ github.repository }}" \
+            --name "$STATE_ARTIFACT_NAME" \
+            --dir "$RUNNER_TEMP/lane-state-artifact"; then
+            echo "::warning::State artifact $STATE_ARTIFACT_NAME is unavailable; restarting clean"
+            echo "restored=false" >> "$GITHUB_OUTPUT"
+            echo "restore-error=artifact-unavailable" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          state_db="$(find "$RUNNER_TEMP/lane-state-artifact" -name nba.duckdb -type f -print -quit)"
+          if [ -z "$state_db" ]; then
+            echo "::warning::State artifact $STATE_ARTIFACT_NAME did not contain nba.duckdb"
+            echo "restored=false" >> "$GITHUB_OUTPUT"
+            echo "restore-error=database-missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "$STATE_ARTIFACT_DIGEST" ]; then
+            actual_digest="$(shasum -a 256 "$state_db" | awk '{print $1}')"
+            if [ "$actual_digest" != "$STATE_ARTIFACT_DIGEST" ]; then
+              echo "::warning::State artifact digest mismatch for $STATE_ARTIFACT_NAME; restarting clean"
+              echo "restored=false" >> "$GITHUB_OUTPUT"
+              echo "restore-error=digest-mismatch" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          cp "$state_db" data/nbadb/nba.duckdb
+          echo "restored=true" >> "$GITHUB_OUTPUT"
+
       - name: Assess restored state
         id: restore_state
         env:
           CACHE_HIT: ${{ steps.restore.outputs.cache-hit }}
+          STATE_ARTIFACT_RESTORED: ${{ steps.state_artifact_restore.outputs.restored }}
         run: |
           mkdir -p data/nbadb
           restore_source="none"
           if [ "$CACHE_HIT" = "true" ]; then
             restore_source="exact"
+          elif [ "$STATE_ARTIFACT_RESTORED" = "true" ]; then
+            restore_source="artifact"
           elif [ -f data/nbadb/nba.duckdb ]; then
             restore_source="fallback"
           fi
@@ -821,6 +912,7 @@ jobs:
           RESTORE_SOURCE: ${{ steps.restore_state.outputs.restore-source }}
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable }}
           RESTART_MODE: ${{ steps.restore_state.outputs.restart-mode }}
+          RESTORE_ERROR: ${{ steps.state_artifact_restore.outputs.restore-error }}
         run: |
           echo "::notice::Lane $LANE_ID (#$LANE_INDEX, $KIND) — $NAME — iteration $ITERATION"
           echo "::notice::Chain $CHAIN_ID — source ref $WORKFLOW_REF @ $WORKFLOW_SHA"
@@ -1106,6 +1198,7 @@ jobs:
           RESTORE_SOURCE: ${{ steps.restore_state.outputs.restore-source || 'none' }}
           RESTORE_USABLE: ${{ steps.restore_state.outputs.restore-usable || 'false' }}
           RESTART_MODE: ${{ steps.restore_state.outputs.restart-mode || 'clean-restart' }}
+          RESTORE_ERROR: ${{ steps.state_artifact_restore.outputs.restore-error || '' }}
           RESUME_ONLY: ${{ matrix.resume_only }}
           TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
           EFFECTIVE_TIMEOUT_SECONDS: ${{ steps.extract.outputs.effective-timeout-seconds || matrix.timeout_seconds }}
@@ -1145,8 +1238,8 @@ jobs:
           key: ${{ env.CACHE_KEY }}-${{ env.WORKFLOW_SOURCE_REF }}-${{ env.WORKFLOW_SOURCE_SHA }}-${{ env.ACTIVE_CHAIN_ID }}-lane-${{ matrix.lane_id }}-iter-${{ inputs.iteration }}
 
       # ── Upload lane artifact ──
-      - name: Upload lane artifact
-        if: always()
+      - name: Upload complete lane artifact
+        if: ${{ always() && steps.lane_metadata.outputs.final-outcome == 'complete' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
@@ -1157,6 +1250,18 @@ jobs:
           retention-days: 7
           compression-level: 0
 
+      - name: Upload incomplete lane state artifact
+        if: ${{ always() && steps.lane_metadata.outputs.final-outcome != 'complete' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
+          path: |
+            data/nbadb/*.duckdb
+            data/nbadb/*.duckdb.*
+          if-no-files-found: ignore
+          retention-days: 30
+          compression-level: 0
+
       - name: Upload lane metadata
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -1165,7 +1270,7 @@ jobs:
           path: |
             artifacts/extraction/lane-metadata.json
             artifacts/extraction/extract-summary.json
-          retention-days: 7
+          retention-days: 30
           compression-level: 6
 
       - name: Upload VPN diagnostics
@@ -1192,20 +1297,6 @@ jobs:
           pid-file: ${{ steps.vpn.outputs.pid-file }}
           work-dir: ${{ steps.vpn.outputs.work-dir }}
 
-      - name: Fail incomplete lane after artifacts
-        if: ${{ always() && steps.lane_metadata.outputs.final-outcome == 'pipeline_failure' }}
-        env:
-          LANE_ID: ${{ matrix.lane_id }}
-          STATUS: ${{ steps.lane_metadata.outputs.final-outcome }}
-          RAW_STATUS: ${{ steps.lane_status.outputs.status }}
-          EXTRACT_STATUS: ${{ steps.extract.outputs.status || 'not-run' }}
-          EXTRACT_EXIT_CODE: ${{ steps.extract.outputs.exit-code || '' }}
-          VPN_STATUS: ${{ steps.vpn.outputs.status || (needs.preflight.outputs.effective-network-mode == 'direct' && 'direct-no-vpn' || 'unknown') }}
-          EFFECTIVE_NETWORK_MODE: ${{ needs.preflight.outputs.effective-network-mode }}
-        run: |
-          echo "::error::Lane $LANE_ID ended in pipeline_failure: status=$STATUS raw_status=$RAW_STATUS extract_status=$EXTRACT_STATUS exit_code=${EXTRACT_EXIT_CODE:-n/a} vpn_status=$VPN_STATUS network_mode=${EFFECTIVE_NETWORK_MODE:-vpn}"
-          exit 1
-
   # ─────────────────────────────────────────────────────────────
   #  Merge the cumulative checkpoint once all lanes are complete
   # ─────────────────────────────────────────────────────────────
@@ -1213,7 +1304,10 @@ jobs:
     needs: [plan, preflight, extract, lane_control, checkpoint]
     if: ${{ always() && !cancelled() && needs.plan.outputs.lane-count != '0' && needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    concurrency:
+      group: nbadb-kaggle-publish
+      cancel-in-progress: false
+    timeout-minutes: 360
     permissions:
       actions: write
       contents: write
@@ -1245,10 +1339,7 @@ jobs:
           name: ${{ needs.checkpoint.outputs.artifact-name }}
           path: checkpoint-artifact/
 
-      - name: Download chained lane artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIVE_CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+      - name: Prepare checkpoint-first merge
         run: |
           mkdir -p lanes artifacts/full-extraction
           manifest_path="$(find next-manifest-artifact \( -name next-manifest.json -o -name manifest.json \) -type f -print -quit)"
@@ -1258,51 +1349,7 @@ jobs:
             exit 1
           fi
           cp "$manifest_path" artifacts/full-extraction/merge-manifest.json
-
-          run_ids="$(python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          manifest = json.loads(Path("artifacts/full-extraction/merge-manifest.json").read_text(encoding="utf-8"))
-          seen = set()
-          ordered = []
-          for value in manifest.get("chain_state", {}).get("artifact_run_ids", []):
-              run_id = str(value).strip()
-              if run_id and run_id not in seen:
-                  seen.add(run_id)
-                  ordered.append(run_id)
-          current = os.environ["GITHUB_RUN_ID"]
-          if current not in seen:
-              ordered.append(current)
-          print(" ".join(ordered))
-          PY
-          )"
-
-          for run_id in $run_ids; do
-            echo "Downloading lane artifacts from run $run_id"
-            if ! gh run download "$run_id" \
-              --repo "${{ github.repository }}" \
-              --pattern "extraction-lane-${ACTIVE_CHAIN_ID}-*" \
-              --dir "lanes/run-${run_id}"; then
-              echo "::warning::No lane artifacts downloaded from run $run_id"
-            fi
-          done
-
-          lane_count="$(find lanes -path '*extraction-lane-*' -type d | wc -l | tr -d ' ')"
-          if [ "$lane_count" -eq 0 ]; then
-            echo "::warning::No extraction lane artifacts were available; checkpoint merge must succeed"
-          else
-            echo "Downloaded $lane_count lane artifact directories"
-          fi
-
-      - name: List downloaded lanes
-        run: |
-          echo "Downloaded lanes:"
-          for d in lanes/run-*/extraction-lane-*; do
-            echo "  $d:"
-            ls -lh "$d/" 2>/dev/null || echo "    (empty)"
-          done
+          echo "Terminal merge will use the verified cumulative checkpoint only."
 
       - name: Merge lane databases
         run: |
@@ -1354,7 +1401,13 @@ jobs:
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-        run: uv run nbadb upload --data-dir data/nbadb -m "Full extraction $(date +%Y-%m-%d)"
+        run: |
+          uv run nbadb upload \
+            --data-dir data/nbadb \
+            --verify-remote \
+            --remote-timeout 900 \
+            --remote-poll-interval 15 \
+            -m "Full extraction chain=${ACTIVE_CHAIN_ID} source=${WORKFLOW_SOURCE_SHA} coverage=${{ needs.plan.outputs.coverage-fingerprint }}"
 
       - name: Upload final database
         if: always()
@@ -1366,6 +1419,7 @@ jobs:
             data/nbadb/*.sqlite
             data/nbadb/parquet/
             data/nbadb/csv/
+            logs/kaggle/kaggle-upload-manifest.json
           retention-days: 30
           compression-level: 0
 
@@ -1387,6 +1441,7 @@ jobs:
       split-lane-count: ${{ steps.next_manifest.outputs.split_lane_count }}
       artifact-name: ${{ steps.next_manifest.outputs.artifact_name }}
       checkpoint-artifact-name: ${{ steps.next_manifest.outputs.checkpoint_artifact_name }}
+      iteration-budget: ${{ steps.next_manifest.outputs.iteration_budget }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -1422,17 +1477,8 @@ jobs:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           CHECKPOINT_ARTIFACT_NAME: full-extraction-checkpoint-${{ env.ACTIVE_CHAIN_ID }}-iter-${{ inputs.iteration }}
           RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
+          MATRIX_BATCH_SIZE: ${{ inputs.matrix_batch_size }}
         run: |
-          current=$ITERATION
-          max=$MAX_ITERATIONS
-          next=$((current + 1))
-
-          if [ "$next" -gt "$max" ]; then
-            echo "::error::Reached max iterations ($max) with incomplete extraction."
-            echo "::error::Re-trigger manually after fixing the underlying shard failures."
-            # Keep building/uploading resume artifacts so a manual resume can start from here.
-          fi
-
           mkdir -p artifacts/full-extraction
           manifest_path="$(find plan-artifact -name manifest.json -type f -print -quit)"
           if [ -z "$manifest_path" ]; then
@@ -1449,6 +1495,9 @@ jobs:
             --latest-checkpoint-run-id "${{ github.run_id }}"
             --latest-checkpoint-artifact-name "$CHECKPOINT_ARTIFACT_NAME"
             --latest-checkpoint-generation "$ITERATION"
+            --iteration "$ITERATION"
+            --max-matrix-lanes "$MATRIX_BATCH_SIZE"
+            --allow-missing-attempted-metadata
             --output-path artifacts/full-extraction/next-manifest.json
           )
           if [ "$RETRY_PIPELINE_FAILURES" = "true" ]; then
@@ -1497,6 +1546,8 @@ jobs:
               "split_lane_count": int(summary.get("split_lane_count", 0)),
               "outcome_counts": summary.get("outcome_counts", {}),
               "failure_reason_counts": summary.get("failure_reason_counts", {}),
+              "failure_class_counts": summary.get("failure_class_counts", {}),
+              "iteration_budget": int(payload.get("iteration_budget", 0)),
               "redispatch_payload_bytes": len(redispatch_json.encode("utf-8")),
               "next_iteration": int(os.environ["ITERATION"]) + 1,
           }
@@ -1519,6 +1570,9 @@ jobs:
                       + json.dumps(report["outcome_counts"], sort_keys=True),
                       "failure_reason_counts="
                       + json.dumps(report["failure_reason_counts"], sort_keys=True),
+                      "failure_class_counts="
+                      + json.dumps(report["failure_class_counts"], sort_keys=True),
+                      f"iteration_budget={report['iteration_budget']}",
                       f"redispatch_payload_bytes={report['redispatch_payload_bytes']}",
                       f"artifact_name={artifact_name}",
                       f"checkpoint_artifact_name={report['checkpoint_artifact_name']}",
@@ -1660,7 +1714,7 @@ jobs:
             artifacts/full-extraction/chain-dispatch.json
             artifacts/full-extraction/vpn-quarantine.json
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 30
           compression-level: 6
 
       - name: Upload VPN quarantine artifact
@@ -1864,7 +1918,7 @@ jobs:
             artifacts/full-extraction/checkpoint.stdout.json
             artifacts/full-extraction/checkpoint-manifest.json
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 30
           compression-level: 0
 
   # ─────────────────────────────────────────────────────────────
@@ -1888,6 +1942,7 @@ jobs:
           MAX_ITERATIONS: ${{ inputs.max_iterations }}
           CONCURRENCY: ${{ inputs.concurrency }}
           VPN_PARALLELISM: ${{ inputs.vpn_parallelism }}
+          MATRIX_BATCH_SIZE: ${{ inputs.matrix_batch_size }}
           DIRECT_PARALLELISM: ${{ inputs.direct_parallelism }}
           DIRECT_REQUEST_PROFILE: ${{ inputs.direct_request_profile }}
           DIRECT_TIMEOUT_CAP_MINUTES: ${{ inputs.direct_timeout_cap_minutes }}
@@ -1899,11 +1954,20 @@ jobs:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
           ARTIFACT_NAME: ${{ needs.lane_control.outputs.artifact-name }}
+          ITERATION_BUDGET: ${{ needs.lane_control.outputs.iteration-budget }}
         run: |
           current=$ITERATION
-          max=$MAX_ITERATIONS
           next=$((current + 1))
           next_concurrency="$CONCURRENCY"
+
+          max="$MAX_ITERATIONS"
+          if [ "$max" = "auto" ]; then
+            max="$ITERATION_BUDGET"
+          fi
+          if ! [[ "$max" =~ ^[0-9]+$ ]] || [ "$max" -lt 1 ]; then
+            echo "::error::max_iterations must be 'auto' or a positive integer, got '$MAX_ITERATIONS'"
+            exit 1
+          fi
 
           if [ "$next" -gt "$max" ]; then
             echo "::error::Reached max iterations ($max) with incomplete extraction; next-manifest and checkpoint artifacts were uploaded for manual resume."
@@ -1916,6 +1980,7 @@ jobs:
             --ref "$WORKFLOW_REF" \
             -f concurrency="$next_concurrency" \
             -f vpn_parallelism="$VPN_PARALLELISM" \
+            -f matrix_batch_size="$MATRIX_BATCH_SIZE" \
             -f direct_parallelism="$DIRECT_PARALLELISM" \
             -f direct_request_profile="$DIRECT_REQUEST_PROFILE" \
             -f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES" \

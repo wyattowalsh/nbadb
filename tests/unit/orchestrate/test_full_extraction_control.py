@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ from nbadb.orchestrate.extraction_contract import (
 from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
+    _schedule_lanes,
     build_checkpoint_database,
     build_default_manifest,
     build_metadata_audit,
@@ -341,7 +343,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     max_iterations_block = _workflow_input_block(workflow, "max_iterations")
 
     assert "chunk_profile:" in workflow
-    assert 'default: "balanced-small"' in chunk_profile_block
+    assert 'default: "standard"' in chunk_profile_block
     assert "network_mode:" in workflow
     assert "direct_parallelism:" in workflow
     assert 'default: "2"' in direct_parallelism_block
@@ -371,7 +373,12 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "checkpoint:" in workflow
     assert "dispatch_next:" in workflow
     assert "chain:" not in workflow
-    assert 'default: "32"' in max_iterations_block
+    assert 'default: "auto"' in max_iterations_block
+    matrix_batch_size_block = _workflow_input_block(workflow, "matrix_batch_size")
+    assert 'default: "256"' in matrix_batch_size_block
+    assert '- "64"' in matrix_batch_size_block
+    assert '- "256"' in matrix_batch_size_block
+    assert "queue_depth:" not in workflow
 
     assert "discovery_seed:" in workflow
     assert "full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}" in workflow
@@ -394,6 +401,8 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert '--previous-checkpoint-report-path "$previous_report"' in workflow
     assert "--checkpoint-dir checkpoint-artifact" in workflow
     assert "--checkpoint-report-path checkpoint-artifact/checkpoint-report.json" in workflow
+    assert "Prepare checkpoint-first merge" in workflow
+    assert "Download chained lane artifacts" not in workflow
     assert "needs.preflight.outputs.effective-network-mode == 'direct'" in workflow
     assert '--chunk-profile "$CHUNK_PROFILE"' in workflow
     assert "RETRY_PIPELINE_FAILURES" in workflow
@@ -419,6 +428,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}" in lane_control_block
     assert "resume_args=(" in lane_control_block
     assert 'full_extraction_control "${resume_args[@]}"' in lane_control_block
+    assert "--allow-missing-attempted-metadata" in lane_control_block
     direct_parallel_expr = (
         "max-parallel: ${{ fromJSON("
         "needs.preflight.outputs.effective-network-mode == 'direct' "
@@ -430,7 +440,9 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert '-f direct_request_profile="$DIRECT_REQUEST_PROFILE"' in workflow
     assert '-f direct_timeout_cap_minutes="$DIRECT_TIMEOUT_CAP_MINUTES"' in workflow
     assert '-f retry_pipeline_failures="$RETRY_PIPELINE_FAILURES"' in workflow
+    assert '-f matrix_batch_size="$MATRIX_BATCH_SIZE"' in workflow
     assert '-f chunk_profile="$CHUNK_PROFILE"' in workflow
+    assert "--verify-remote" in workflow
 
 
 def test_scheduled_update_workflows_publish_only_after_green_extract_and_scan() -> None:
@@ -443,11 +455,15 @@ def test_scheduled_update_workflows_publish_only_after_green_extract_and_scan() 
     assert "Assert extraction and scan passed" in daily
     assert "Daily extraction did not pass" in daily
     assert "Daily scan did not pass" in daily
+    assert "--verify-remote" in daily
+    assert "group: nbadb-kaggle-publish" in daily
     assert "steps.monthly.outcome == 'success' && steps.scan.outcome == 'success'" in monthly
     assert "steps.monthly.outcome != 'skipped'" not in monthly
     assert "Assert extraction and scan passed" in monthly
     assert "Monthly extraction did not pass" in monthly
     assert "Monthly scan did not pass" in monthly
+    assert "--verify-remote" in monthly
+    assert "group: nbadb-kaggle-publish" in monthly
 
 
 def test_ci_endpoint_contract_uses_installed_nba_api_version() -> None:
@@ -1281,6 +1297,8 @@ def test_build_resume_manifest_marks_completed_lanes_resume_only(tmp_path: Path)
         "pipeline_failure_retry_count": 0,
         "outcome_counts": {"complete": 1, "needs_resume": 1},
         "failure_reason_counts": {"needs_resume": 1},
+        "failure_class_counts": {"timeout_stalled": 1},
+        "durable_state_lane_count": 0,
     }
 
 
@@ -1586,6 +1604,58 @@ def test_build_resume_manifest_allows_missing_attempted_metadata_for_manual_resu
     assert summary["active_lane_count"] == 1
     assert summary["outcome_counts"] == {"needs_resume": 1}
     assert summary["failure_reason_counts"] == {"missing-metadata": 1}
+
+
+def test_build_resume_manifest_carries_durable_state_and_progress(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-season-2020",
+        lane_index=0,
+        lane_name="Historical season 2020",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2020,
+        patterns=("season",),
+        endpoints=("draft_history",),
+        timeout_seconds=3600,
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "lane.json").write_text(
+        json.dumps(
+            {
+                "metadata_schema_version": 2,
+                "lane_id": lane.lane_id,
+                "status": "needs_resume",
+                "raw_status": "extract-timeout",
+                "failure_class": "timeout_progress",
+                "vpn": {"status": "connected"},
+                "progress": {"completed_calls": 12, "rows_persisted": 55},
+                "telemetry": {"rows_persisted": 55},
+                "state_artifact": {
+                    "run_id": "12345",
+                    "name": "extraction-lane-chain-lane",
+                    "sha256": "a" * 64,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    next_lanes, _state, summary = build_resume_manifest([lane], metadata_dir)
+
+    assert len(next_lanes) == 1
+    resumed = next_lanes[0]
+    assert resumed.attempt_count == 1
+    assert resumed.last_failure_class == "timeout_progress"
+    assert resumed.last_completed_calls == 12
+    assert resumed.last_rows_persisted == 55
+    assert resumed.zero_progress_streak == 0
+    assert resumed.state_artifact_run_id == "12345"
+    assert resumed.state_artifact_name == "extraction-lane-chain-lane"
+    assert resumed.state_artifact_digest == "a" * 64
+    assert summary["durable_state_lane_count"] == 1
+    assert summary["outcome_counts"] == {"needs_resume": 1}
+    assert summary["failure_reason_counts"] == {"extract-timeout": 1}
 
 
 def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
@@ -2905,6 +2975,7 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
     assert manifest.chain_state == FullExtractionChainState(
         vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com"),
         artifact_run_ids=("12345",),
+        iteration_budget=3,
     )
     assert manifest.lanes[0].lane_id == "reference-static"
     assert manifest.matrix_lane_ids == frozenset({"reference-static"})
@@ -2957,6 +3028,101 @@ def test_manifest_payload_caps_github_matrix_to_active_wave() -> None:
     ]
 
 
+def test_v3_scheduler_guarantees_weighted_queue_slots() -> None:
+    lanes: list[FullExtractionLane] = []
+    queue_specs = {
+        "fresh": (20, {}),
+        "partial": (10, {"attempt_count": 1, "last_completed_calls": 2}),
+        "retry": (
+            10,
+            {
+                "attempt_count": 1,
+                "last_failure_reason": "pipeline_failure",
+                "last_failure_class": "response_contract",
+            },
+        ),
+        "infrastructure": (
+            5,
+            {
+                "attempt_count": 1,
+                "last_failure_reason": "missing-metadata",
+                "last_failure_class": "runner_infrastructure",
+            },
+        ),
+    }
+    for queue_name, (count, overrides) in queue_specs.items():
+        for index in range(count):
+            lanes.append(
+                FullExtractionLane(
+                    lane_id=f"{queue_name}-{index:02d}",
+                    lane_index=len(lanes),
+                    lane_name=f"{queue_name} {index}",
+                    lane_kind="historical",
+                    season_start=2020,
+                    season_end=2020,
+                    patterns=("season",),
+                    endpoints=(f"endpoint_{queue_name}_{index}",),
+                    timeout_seconds=3600,
+                    **overrides,
+                )
+            )
+
+    scheduled = _schedule_lanes(
+        lanes,
+        chunk_profile="balanced-small",
+        max_matrix_lanes=10,
+    )
+    first_wave = scheduled[:10]
+
+    assert sum(lane.lane_id.startswith("fresh-") for lane in first_wave) == 5
+    assert sum(lane.lane_id.startswith("partial-") for lane in first_wave) == 3
+    assert sum(lane.lane_id.startswith("retry-") for lane in first_wave) == 1
+    assert sum(lane.lane_id.startswith("infrastructure-") for lane in first_wave) == 1
+
+
+def test_manifest_v3_computes_capacity_iteration_budget() -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id=f"lane-{index:03d}",
+            lane_index=index,
+            lane_name=f"Lane {index}",
+            lane_kind="historical",
+            season_start=2020,
+            season_end=2020,
+            patterns=("season",),
+            timeout_seconds=3600,
+        )
+        for index in range(100)
+    ]
+
+    payload = manifest_payload(lanes, max_matrix_lanes=10, current_iteration=7)
+
+    assert payload["manifest_version"] == 3
+    assert payload["minimum_remaining_wave_count"] == 10
+    assert payload["suggested_remaining_wave_count"] == 13
+    assert payload["iteration_budget"] == 20
+    assert payload["scheduler_diagnostics"]["queue_counts"] == {
+        "fresh": 100,
+        "partial": 0,
+        "retry": 0,
+        "infrastructure": 0,
+    }
+
+
+def test_scheduler_uses_configured_matrix_batch_for_planned_waves() -> None:
+    rows = [_support_row("scoreboard_v2", ["date"], 1946)]
+
+    lanes = build_default_manifest(
+        support_matrix_rows=rows,
+        chunk_profile="micro",
+        max_matrix_lanes=10,
+    )
+    payload = manifest_payload(lanes, max_matrix_lanes=10)
+
+    assert payload["planned_wave_count"] == math.ceil(len(lanes) / 10)
+    assert all(lane.planned_wave == lane.lane_index // 10 for lane in lanes)
+
+
 def test_redispatch_manifest_payload_round_trips() -> None:
     lanes = [
         FullExtractionLane(
@@ -3001,6 +3167,9 @@ def test_redispatch_manifest_payload_round_trips() -> None:
             failure_streak=2,
             last_failure_reason="extract-timeout",
             coverage_units_hash=manifest.lanes[0].coverage_units_hash,
+            attempt_count=1,
+            class_failure_streak=2,
+            last_failure_class="timeout_stalled",
         ),
     )
 
@@ -3128,6 +3297,7 @@ def test_metadata_audit_summarizes_status_and_zero_row_lanes(tmp_path: Path) -> 
             "status": "contract_blocked",
             "raw_status": "extract-error",
             "reason": "contract_blocked",
+            "failure_class": "",
             "endpoints": ["box_score_summary"],
         }
     ]
@@ -3297,6 +3467,7 @@ def test_full_extraction_no_network_terminal_checkpoint_simulator(tmp_path: Path
         manifest_path=manifest_path,
         checkpoint_dir=checkpoint_dir,
         checkpoint_report_path=checkpoint_report_path,
+        allow_artifact_fallback=True,
     )
 
     assert final_report["merge_mode"] == "checkpoint"
@@ -3874,12 +4045,22 @@ def test_merge_final_database_falls_back_on_checkpoint_mismatch(tmp_path: Path) 
         journal_rows=[("franchise_history", "{}")],
     )
 
+    with pytest.raises(RuntimeError, match="Terminal checkpoint validation failed"):
+        merge_final_database(
+            artifacts_dir=lane_artifacts_dir,
+            output_dir=tmp_path / "rejected",
+            manifest_path=manifest_path,
+            checkpoint_dir=checkpoint_dir,
+            checkpoint_report_path=checkpoint_report_path,
+        )
+
     summary = merge_final_database(
         artifacts_dir=lane_artifacts_dir,
         output_dir=tmp_path / "final",
         manifest_path=manifest_path,
         checkpoint_dir=checkpoint_dir,
         checkpoint_report_path=checkpoint_report_path,
+        allow_artifact_fallback=True,
     )
 
     assert summary["merge_mode"] == "lane_artifacts"
@@ -4100,6 +4281,7 @@ def test_full_extraction_terminal_control_plane_handoff_e2e(
     assert next_manifest.chain_state == FullExtractionChainState(
         vpn_quarantined_servers=("us111.nordvpn.com",),
         artifact_run_ids=("26385964741", "26480824507"),
+        iteration_budget=3,
     )
     assert [lane.lane_id for lane in next_manifest.lanes] == [
         completed_reference.lane_id,
@@ -4295,6 +4477,7 @@ def test_full_extraction_nonterminal_redispatch_handoff_e2e(tmp_path: Path) -> N
     assert next_chain_state == FullExtractionChainState(
         vpn_quarantined_servers=("us001.nordvpn.com", "us002.nordvpn.com"),
         artifact_run_ids=("26480824507",),
+        iteration_budget=4,
     )
 
     child_lanes = [lane for lane in next_lanes if lane.parent_lane_id == timeout_lane.lane_id]
@@ -4364,9 +4547,13 @@ def test_resume_manifest_preserves_and_updates_checkpoint_state(tmp_path: Path) 
     )
 
     assert next_chain_state == FullExtractionChainState(
-        artifact_run_ids=("old-run", "new-run"),
+        artifact_run_ids=("new-run",),
         latest_checkpoint_run_id="new-run",
         latest_checkpoint_artifact_name="checkpoint-new",
         latest_checkpoint_generation=2,
         latest_checkpoint_coverage_hash="new-hash",
+        previous_checkpoint_run_id="old-run",
+        previous_checkpoint_artifact_name="checkpoint-old",
+        previous_checkpoint_generation=1,
+        previous_checkpoint_coverage_hash="old-hash",
     )

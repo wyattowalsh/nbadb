@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import shutil
 from contextlib import suppress
 from dataclasses import asdict, dataclass, field, replace
@@ -27,11 +28,32 @@ from nbadb.orchestrate.workload_profile import (
 )
 
 DEFAULT_HISTORICAL_START = 1946
-MAX_CONSECUTIVE_FAILURES = 3
+MANIFEST_VERSION = 3
 MAX_WORKFLOW_DISPATCH_JSON_CHARS = 60_000
 MAX_GITHUB_MATRIX_LANES = 256
+SCHEDULER_QUEUE_SEQUENCE = (
+    "fresh",
+    "fresh",
+    "fresh",
+    "fresh",
+    "fresh",
+    "partial",
+    "partial",
+    "partial",
+    "retry",
+    "infrastructure",
+)
+FAILURE_RETRY_BUDGETS: dict[str, int] = {
+    "transport_transient": 3,
+    "response_contract": 2,
+    "application": 1,
+    "vpn_egress": 3,
+    "runner_infrastructure": 3,
+    "timeout_progress": 0,
+    "timeout_stalled": 2,
+}
 CHUNK_PROFILES = frozenset({"standard", "balanced-small", "micro"})
-DEFAULT_CHUNK_PROFILE = "balanced-small"
+DEFAULT_CHUNK_PROFILE = "standard"
 SPLITTABLE_TIMEOUT_STATUSES = frozenset(
     {"needs_resume", "extract-timeout", "timeout_with_persisted_progress"}
 )
@@ -249,6 +271,16 @@ class FullExtractionLane:
     coverage_units_hash: str = ""
     schedule_priority: float = 0.0
     planned_wave: int = 0
+    attempt_count: int = 0
+    class_failure_streak: int = 0
+    zero_progress_streak: int = 0
+    last_failure_class: str = ""
+    last_completed_calls: int = 0
+    last_rows_persisted: int = 0
+    next_eligible_iteration: int = 0
+    state_artifact_run_id: str = ""
+    state_artifact_name: str = ""
+    state_artifact_digest: str = ""
 
     def to_workflow_dict(self) -> dict[str, Any]:
         return {
@@ -273,6 +305,16 @@ class FullExtractionLane:
             "coverage_units_hash": self.coverage_units_hash,
             "schedule_priority": f"{self.schedule_priority:.3f}",
             "planned_wave": self.planned_wave,
+            "attempt_count": self.attempt_count,
+            "class_failure_streak": self.class_failure_streak,
+            "zero_progress_streak": self.zero_progress_streak,
+            "last_failure_class": self.last_failure_class,
+            "last_completed_calls": self.last_completed_calls,
+            "last_rows_persisted": self.last_rows_persisted,
+            "next_eligible_iteration": self.next_eligible_iteration,
+            "state_artifact_run_id": self.state_artifact_run_id,
+            "state_artifact_name": self.state_artifact_name,
+            "state_artifact_digest": self.state_artifact_digest,
         }
 
 
@@ -338,6 +380,11 @@ class FullExtractionChainState:
     latest_checkpoint_artifact_name: str = ""
     latest_checkpoint_generation: int = 0
     latest_checkpoint_coverage_hash: str = ""
+    previous_checkpoint_run_id: str = ""
+    previous_checkpoint_artifact_name: str = ""
+    previous_checkpoint_generation: int = 0
+    previous_checkpoint_coverage_hash: str = ""
+    iteration_budget: int = 0
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -347,6 +394,11 @@ class FullExtractionChainState:
             "latest_checkpoint_artifact_name": self.latest_checkpoint_artifact_name,
             "latest_checkpoint_generation": self.latest_checkpoint_generation,
             "latest_checkpoint_coverage_hash": self.latest_checkpoint_coverage_hash,
+            "previous_checkpoint_run_id": self.previous_checkpoint_run_id,
+            "previous_checkpoint_artifact_name": self.previous_checkpoint_artifact_name,
+            "previous_checkpoint_generation": self.previous_checkpoint_generation,
+            "previous_checkpoint_coverage_hash": self.previous_checkpoint_coverage_hash,
+            "iteration_budget": self.iteration_budget,
         }
 
 
@@ -402,6 +454,19 @@ def _normalize_chain_state(raw_chain_state: Any) -> FullExtractionChainState:
         latest_checkpoint_coverage_hash=_normalize_scalar_string(
             raw_chain_state.get("latest_checkpoint_coverage_hash")
         ),
+        previous_checkpoint_run_id=_normalize_scalar_string(
+            raw_chain_state.get("previous_checkpoint_run_id")
+        ),
+        previous_checkpoint_artifact_name=_normalize_scalar_string(
+            raw_chain_state.get("previous_checkpoint_artifact_name")
+        ),
+        previous_checkpoint_generation=int(
+            raw_chain_state.get("previous_checkpoint_generation") or 0
+        ),
+        previous_checkpoint_coverage_hash=_normalize_scalar_string(
+            raw_chain_state.get("previous_checkpoint_coverage_hash")
+        ),
+        iteration_budget=int(raw_chain_state.get("iteration_budget") or 0),
     )
 
 
@@ -836,12 +901,26 @@ def _coverage_fingerprint(lanes: list[FullExtractionLane] | tuple[FullExtraction
 
 
 def _lane_schedule_priority(lane: FullExtractionLane) -> float:
-    failure_bonus = 1_000_000.0 if lane.last_failure_reason or lane.split_generation else 0.0
+    progress_bonus = 25_000.0 if lane.last_completed_calls or lane.last_rows_persisted else 0.0
     tier_bonus = THROUGHPUT_TIER_SEVERITY.get(lane.throughput_tier, 0) * 100_000.0
     family_bonus = FAMILY_PRIORITY.get(lane.endpoint_family, 0) * 1_000.0
     cost_bonus = lane.estimated_lane_cost * 100.0
     season_bonus = 0.0 if lane.season_start is None else max(0, 3_000 - lane.season_start)
-    return failure_bonus + tier_bonus + family_bonus + cost_bonus + season_bonus
+    return progress_bonus + tier_bonus + family_bonus + cost_bonus + season_bonus
+
+
+def _lane_scheduler_queue(lane: FullExtractionLane) -> str:
+    if lane.attempt_count == 0 and not lane.last_failure_reason:
+        return "fresh"
+    if lane.last_failure_class in {"runner_infrastructure", "vpn_egress"}:
+        return "infrastructure"
+    if (
+        lane.last_completed_calls > 0
+        or lane.last_rows_persisted > 0
+        or lane.last_failure_class == "timeout_progress"
+    ):
+        return "partial"
+    return "retry"
 
 
 def _annotate_lane(
@@ -889,8 +968,9 @@ def _schedule_lanes(
 
     resume_only = [lane for lane in annotated if lane.resume_only]
     active = [lane for lane in annotated if not lane.resume_only]
-    active.sort(
-        key=lambda lane: (
+
+    def sort_key(lane: FullExtractionLane) -> tuple[Any, ...]:
+        return (
             -lane.schedule_priority,
             -lane.estimated_lane_cost,
             -THROUGHPUT_TIER_SEVERITY.get(lane.throughput_tier, 0),
@@ -898,8 +978,63 @@ def _schedule_lanes(
             lane.season_start if lane.season_start is not None else 9999,
             lane.lane_id,
         )
-    )
-    ordered = [*active, *resume_only]
+
+    queues: dict[str, list[FullExtractionLane]] = {
+        "fresh": [],
+        "partial": [],
+        "retry": [],
+        "infrastructure": [],
+    }
+    for lane in active:
+        queues[_lane_scheduler_queue(lane)].append(lane)
+    for queue in queues.values():
+        queue.sort(key=sort_key)
+
+    scheduled: list[FullExtractionLane] = []
+    sequence_index = 0
+    while any(queues.values()):
+        wave_size = min(max_matrix_lanes, sum(len(queue) for queue in queues.values()))
+        family_cap = max(1, math.ceil(wave_size * 0.25))
+        family_counts: dict[str, int] = {}
+        wave: list[FullExtractionLane] = []
+        while len(wave) < wave_size and any(queues.values()):
+            preferred = SCHEDULER_QUEUE_SEQUENCE[sequence_index % len(SCHEDULER_QUEUE_SEQUENCE)]
+            sequence_index += 1
+            queue_order = [
+                preferred,
+                *(name for name in SCHEDULER_QUEUE_SEQUENCE if name != preferred),
+            ]
+            queue_order = list(dict.fromkeys(queue_order))
+            uncapped_family_available = any(
+                family_counts.get(candidate.endpoint_family or "default", 0) < family_cap
+                for queue in queues.values()
+                for candidate in queue
+            )
+            selected_queue = ""
+            selected_index = -1
+            for queue_name in queue_order:
+                queue = queues[queue_name]
+                for candidate_index, candidate in enumerate(queue):
+                    family = candidate.endpoint_family or "default"
+                    if family_counts.get(family, 0) < family_cap or not uncapped_family_available:
+                        selected_queue = queue_name
+                        selected_index = candidate_index
+                        break
+                if selected_queue:
+                    break
+            if not selected_queue:
+                selected_queue = min(
+                    (name for name, queue in queues.items() if queue),
+                    key=lambda name: sort_key(queues[name][0]),
+                )
+                selected_index = 0
+            lane = queues[selected_queue].pop(selected_index)
+            family = lane.endpoint_family or "default"
+            family_counts[family] = family_counts.get(family, 0) + 1
+            wave.append(lane)
+        scheduled.extend(wave)
+
+    ordered = [*scheduled, *resume_only]
     return [
         replace(lane, lane_index=index, planned_wave=index // max_matrix_lanes)
         for index, lane in enumerate(ordered)
@@ -974,6 +1109,14 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
             errors.append(f"{lane.lane_id}: failure_streak must be >= 0")
         if lane.split_generation < 0:
             errors.append(f"{lane.lane_id}: split_generation must be >= 0")
+        if lane.attempt_count < 0:
+            errors.append(f"{lane.lane_id}: attempt_count must be >= 0")
+        if lane.class_failure_streak < 0:
+            errors.append(f"{lane.lane_id}: class_failure_streak must be >= 0")
+        if lane.zero_progress_streak < 0:
+            errors.append(f"{lane.lane_id}: zero_progress_streak must be >= 0")
+        if lane.last_completed_calls < 0 or lane.last_rows_persisted < 0:
+            errors.append(f"{lane.lane_id}: persisted progress counters must be >= 0")
         max_span = _max_span_for_lane(lane)
         span = _season_span(lane.season_start, lane.season_end)
         if not lane.resume_only and max_span is not None and span > max_span:
@@ -983,6 +1126,23 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
         raise ValueError(msg)
 
 
+def _legacy_failure_class(reason: str) -> str:
+    normalized = reason.strip().lower().replace("_", "-")
+    if not normalized:
+        return ""
+    if "missing-metadata" in normalized or normalized in {"cancelled", "cancellation-no-metadata"}:
+        return "runner_infrastructure"
+    if normalized in {"vpn-auth-failure", "vpn-connect-timeout"}:
+        return "vpn_egress"
+    if "timeout" in normalized:
+        return "timeout_stalled"
+    # Legacy v2 metadata flattened provider and parser errors into pipeline_failure.
+    # Keep those lanes retryable once so v3 metadata can capture the real cause.
+    if normalized == "pipeline-failure":
+        return "transport_transient"
+    return "application"
+
+
 def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
     patterns = tuple(str(pattern) for pattern in raw.get("patterns", []) if str(pattern))
     season_types = tuple(str(value) for value in raw.get("season_types", []) if str(value))
@@ -990,6 +1150,8 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
     season_start = raw.get("season_start")
     season_end = raw.get("season_end")
 
+    last_failure_reason = str(raw.get("last_failure_reason") or "")
+    inferred_attempt_count = 1 if last_failure_reason else 0
     lane = FullExtractionLane(
         lane_id=str(raw["lane_id"]),
         lane_index=lane_index,
@@ -1004,7 +1166,7 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         resume_only=bool(raw.get("resume_only", False)),
         timeout_seconds=int(raw.get("timeout_seconds") or 7_200),
         failure_streak=int(raw.get("failure_streak") or 0),
-        last_failure_reason=str(raw.get("last_failure_reason") or ""),
+        last_failure_reason=last_failure_reason,
         parent_lane_id=str(raw.get("parent_lane_id") or ""),
         split_generation=int(raw.get("split_generation") or 0),
         chunk_profile=str(raw.get("chunk_profile") or "standard"),
@@ -1014,6 +1176,18 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         coverage_units_hash=str(raw.get("coverage_units_hash") or ""),
         schedule_priority=float(raw.get("schedule_priority") or 0.0),
         planned_wave=int(raw.get("planned_wave") or 0),
+        attempt_count=int(raw.get("attempt_count") or inferred_attempt_count),
+        class_failure_streak=int(raw.get("class_failure_streak") or raw.get("failure_streak") or 0),
+        zero_progress_streak=int(raw.get("zero_progress_streak") or 0),
+        last_failure_class=str(
+            raw.get("last_failure_class") or _legacy_failure_class(last_failure_reason)
+        ),
+        last_completed_calls=int(raw.get("last_completed_calls") or 0),
+        last_rows_persisted=int(raw.get("last_rows_persisted") or 0),
+        next_eligible_iteration=int(raw.get("next_eligible_iteration") or 0),
+        state_artifact_run_id=str(raw.get("state_artifact_run_id") or ""),
+        state_artifact_name=str(raw.get("state_artifact_name") or ""),
+        state_artifact_digest=str(raw.get("state_artifact_digest") or ""),
     )
     if not lane.coverage_units_hash:
         lane = replace(lane, coverage_units_hash=_coverage_hash_for_lane(lane))
@@ -1027,6 +1201,7 @@ def build_default_manifest(
     selected_endpoints: list[str] | None = None,
     planning_snapshot: WorkloadPlanningSnapshot | None = None,
     chunk_profile: str = "standard",
+    max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
 ) -> list[FullExtractionLane]:
     chunk_profile = _validate_chunk_profile(chunk_profile)
     endpoint_patterns = _patterns_for_endpoints(support_matrix_rows, selected_endpoints)
@@ -1331,6 +1506,7 @@ def build_default_manifest(
         lanes,
         chunk_profile=chunk_profile,
         planning_snapshot=planning_snapshot,
+        max_matrix_lanes=max_matrix_lanes,
     )
 
 
@@ -1420,11 +1596,26 @@ def manifest_payload(
     *,
     chain_state: FullExtractionChainState | None = None,
     max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
+    current_iteration: int = 1,
 ) -> dict[str, Any]:
+    if max_matrix_lanes < 1 or max_matrix_lanes > MAX_GITHUB_MATRIX_LANES:
+        msg = (
+            f"max_matrix_lanes must be between 1 and {MAX_GITHUB_MATRIX_LANES}, "
+            f"got {max_matrix_lanes}"
+        )
+        raise ValueError(msg)
     lane_dicts = [_lane_payload(lane) for lane in lanes]
     active_lanes = [lane for lane in lanes if not lane.resume_only]
     matrix_lanes = active_lanes[:max_matrix_lanes]
     deferred_lane_count = max(0, len(active_lanes) - len(matrix_lanes))
+    minimum_remaining_waves = math.ceil(len(active_lanes) / max_matrix_lanes)
+    suggested_remaining_waves = math.ceil(minimum_remaining_waves * 1.25)
+    resolved_chain_state = chain_state or FullExtractionChainState()
+    if resolved_chain_state.iteration_budget <= current_iteration and active_lanes:
+        resolved_chain_state = replace(
+            resolved_chain_state,
+            iteration_budget=current_iteration + max(2, suggested_remaining_waves),
+        )
     chunk_profiles = sorted({lane.chunk_profile for lane in lanes if lane.chunk_profile})
     coverage_fingerprint = _coverage_fingerprint(lanes)
     wave_summary = _lane_cost_summary(active_lanes, dimension="wave")
@@ -1432,7 +1623,7 @@ def manifest_payload(
     family_summary = _lane_cost_summary(active_lanes, dimension="family")
     tier_summary = _lane_cost_summary(active_lanes, dimension="tier")
     return {
-        "manifest_version": 2,
+        "manifest_version": MANIFEST_VERSION,
         "chunk_profile": chunk_profiles[0] if len(chunk_profiles) == 1 else "mixed",
         "coverage_fingerprint": coverage_fingerprint,
         "lane_count": len(lanes),
@@ -1441,8 +1632,15 @@ def manifest_payload(
         "matrix_lane_count": len(matrix_lanes),
         "deferred_lane_count": deferred_lane_count,
         "planned_wave_count": max((lane.planned_wave for lane in lanes), default=0) + 1,
+        "minimum_remaining_wave_count": minimum_remaining_waves,
+        "suggested_remaining_wave_count": suggested_remaining_waves,
+        "iteration_budget": resolved_chain_state.iteration_budget,
         "scheduler_diagnostics": {
             "max_matrix_lanes": max_matrix_lanes,
+            "queue_counts": {
+                name: sum(1 for lane in active_lanes if _lane_scheduler_queue(lane) == name)
+                for name in ("fresh", "partial", "retry", "infrastructure")
+            },
             "active_wave_count": len(wave_summary),
             "wave_cost_summary": wave_summary,
             "pattern_cost_summary": pattern_summary,
@@ -1462,7 +1660,7 @@ def manifest_payload(
             )[:10]
         ],
         "lanes": lane_dicts,
-        "chain_state": (chain_state or FullExtractionChainState()).to_payload(),
+        "chain_state": resolved_chain_state.to_payload(),
         "github_matrix": {"include": [lane.to_workflow_dict() for lane in matrix_lanes]},
     }
 
@@ -1505,6 +1703,26 @@ def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[st
             payload.pop("schedule_priority", None)
         if not lane.planned_wave:
             payload.pop("planned_wave", None)
+        if not lane.attempt_count:
+            payload.pop("attempt_count", None)
+        if not lane.class_failure_streak:
+            payload.pop("class_failure_streak", None)
+        if not lane.zero_progress_streak:
+            payload.pop("zero_progress_streak", None)
+        if not lane.last_failure_class:
+            payload.pop("last_failure_class", None)
+        if not lane.last_completed_calls:
+            payload.pop("last_completed_calls", None)
+        if not lane.last_rows_persisted:
+            payload.pop("last_rows_persisted", None)
+        if not lane.next_eligible_iteration:
+            payload.pop("next_eligible_iteration", None)
+        if not lane.state_artifact_run_id:
+            payload.pop("state_artifact_run_id", None)
+        if not lane.state_artifact_name:
+            payload.pop("state_artifact_name", None)
+        if not lane.state_artifact_digest:
+            payload.pop("state_artifact_digest", None)
     return payload
 
 
@@ -1665,6 +1883,8 @@ def _split_lane_by_segments(
                     season_types=season_types,
                     resume_only=False,
                     failure_streak=0,
+                    class_failure_streak=0,
+                    zero_progress_streak=0,
                     last_failure_reason=f"split-from-{reason}",
                     parent_lane_id=parent_lane_id,
                     split_generation=lane.split_generation + 1,
@@ -1732,6 +1952,104 @@ def _metadata_has_required_noncomplete_artifacts(payload: dict[str, Any]) -> boo
         return False
     vpn_payload = payload.get("vpn")
     return isinstance(vpn_payload, dict)
+
+
+def _metadata_progress(payload: dict[str, Any]) -> tuple[int, int]:
+    progress = payload.get("progress")
+    telemetry = payload.get("telemetry")
+    progress_payload = progress if isinstance(progress, dict) else {}
+    telemetry_payload = telemetry if isinstance(telemetry, dict) else {}
+    db_telemetry = telemetry_payload.get("db_telemetry")
+    db_payload = db_telemetry if isinstance(db_telemetry, dict) else {}
+    completed_calls = _int_metadata_value(
+        progress_payload.get("completed_calls")
+        or telemetry_payload.get("completed_calls")
+        or db_payload.get("completed_calls")
+        or telemetry_payload.get("journal_skips")
+    )
+    rows_persisted = _int_metadata_value(
+        progress_payload.get("rows_persisted") or telemetry_payload.get("rows_persisted")
+    )
+    return completed_calls, rows_persisted
+
+
+def _metadata_failure_class(payload: dict[str, Any], *, raw_status: str) -> str:
+    failure_class = str(payload.get("failure_class") or "").strip()
+    if failure_class:
+        return failure_class
+    vpn_payload = payload.get("vpn")
+    vpn_status = (
+        str(vpn_payload.get("status") or "").strip() if isinstance(vpn_payload, dict) else ""
+    )
+    if raw_status in {"cancelled", "cancellation_no_metadata", "missing-metadata"}:
+        return "runner_infrastructure"
+    if raw_status in {"vpn_auth_failure", "vpn_connect_timeout"} or vpn_status in {
+        "vpn_auth_failure",
+        "vpn_connect_timeout",
+    }:
+        return "vpn_egress"
+    if raw_status in SPLITTABLE_TIMEOUT_STATUSES:
+        completed_calls, rows_persisted = _metadata_progress(payload)
+        return "timeout_progress" if completed_calls or rows_persisted else "timeout_stalled"
+    if raw_status == "extract-error":
+        # Metadata v1 flattened root causes. Preserve one bounded retry so the
+        # v2 producer can emit a diagnostic class on the next attempt.
+        return "transport_transient"
+    return "application"
+
+
+def _metadata_state_artifact(payload: dict[str, Any]) -> tuple[str, str, str]:
+    artifact = payload.get("state_artifact")
+    artifact_payload = artifact if isinstance(artifact, dict) else {}
+    return (
+        _normalize_scalar_string(artifact_payload.get("run_id")),
+        _normalize_scalar_string(artifact_payload.get("name")),
+        _normalize_scalar_string(artifact_payload.get("sha256")),
+    )
+
+
+def _retry_budget_exhausted(failure_class: str, streak: int) -> bool:
+    budget = FAILURE_RETRY_BUDGETS.get(failure_class, 1)
+    return budget > 0 and streak >= budget
+
+
+def _retry_lane_from_metadata(
+    lane: FullExtractionLane,
+    payload: dict[str, Any],
+    *,
+    outcome: str,
+    current_iteration: int,
+) -> FullExtractionLane:
+    completed_calls, rows_persisted = _metadata_progress(payload)
+    progress_increased = (
+        completed_calls > lane.last_completed_calls or rows_persisted > lane.last_rows_persisted
+    )
+    raw_status = str(payload.get("raw_status") or payload.get("status") or outcome).strip()
+    failure_class = _metadata_failure_class(payload, raw_status=raw_status)
+    if outcome == "needs_resume" and progress_increased:
+        failure_class = "timeout_progress"
+    previous_failure_class = lane.last_failure_class or _legacy_failure_class(
+        lane.last_failure_reason
+    )
+    previous_class_streak = lane.class_failure_streak or lane.failure_streak
+    class_streak = previous_class_streak + 1 if previous_failure_class == failure_class else 1
+    zero_progress_streak = 0 if progress_increased else lane.zero_progress_streak + 1
+    state_run_id, state_name, state_digest = _metadata_state_artifact(payload)
+    cooldown = 1 if failure_class in {"transport_transient", "response_contract"} else 0
+    return replace(
+        lane,
+        resume_only=False,
+        attempt_count=lane.attempt_count + 1,
+        class_failure_streak=class_streak,
+        zero_progress_streak=zero_progress_streak,
+        last_failure_class=failure_class,
+        last_completed_calls=max(lane.last_completed_calls, completed_calls),
+        last_rows_persisted=max(lane.last_rows_persisted, rows_persisted),
+        next_eligible_iteration=current_iteration + cooldown,
+        state_artifact_run_id=state_run_id or lane.state_artifact_run_id,
+        state_artifact_name=state_name or lane.state_artifact_name,
+        state_artifact_digest=state_digest or lane.state_artifact_digest,
+    )
 
 
 def lane_outcome_from_metadata(
@@ -1806,13 +2124,11 @@ def lane_outcome_from_metadata(
     ):
         return "needs_resume"
 
-    if raw_status == "extract-error" and (
-        rows_persisted > 0 or journal_skips > 0 or running_calls > 0
-    ):
+    if raw_status == "extract-error" and (rows_persisted > 0 or journal_skips > 0):
         return "needs_resume"
     if raw_status in SPLITTABLE_TIMEOUT_STATUSES:
         return "needs_resume"
-    if raw_status == "cancelled" and (rows_persisted > 0 or journal_skips > 0 or running_calls > 0):
+    if raw_status == "cancelled" and (rows_persisted > 0 or journal_skips > 0):
         return "needs_resume"
     return "pipeline_failure"
 
@@ -1831,6 +2147,8 @@ def build_resume_manifest(
     latest_checkpoint_artifact_name: str | None = None,
     latest_checkpoint_generation: int | None = None,
     latest_checkpoint_coverage_hash: str | None = None,
+    current_iteration: int = 1,
+    max_matrix_lanes: int = MAX_GITHUB_MATRIX_LANES,
 ) -> tuple[list[FullExtractionLane], FullExtractionChainState, dict[str, Any]]:
     metadata = _metadata_by_lane(metadata_dir)
     next_lanes: list[FullExtractionLane] = []
@@ -1839,6 +2157,7 @@ def build_resume_manifest(
     deferred = 0
     outcome_counts: dict[str, int] = {}
     failure_reason_counts: dict[str, int] = {}
+    failure_class_counts: dict[str, int] = {}
     split_lane_count = 0
     contract_blocked = 0
     blocked_lanes: list[FullExtractionLane] = []
@@ -1864,9 +2183,35 @@ def build_resume_manifest(
             and (attempted_lane_ids is None or lane.lane_id in attempted_lane_ids)
         )
         if missing_attempted_metadata:
+            infrastructure_streak = (
+                lane.class_failure_streak + 1
+                if lane.last_failure_class == "runner_infrastructure"
+                else 1
+            )
+            retry_lane = replace(
+                lane,
+                resume_only=False,
+                attempt_count=lane.attempt_count + 1,
+                failure_streak=(
+                    lane.failure_streak + 1 if lane.last_failure_reason == "missing-metadata" else 1
+                ),
+                class_failure_streak=infrastructure_streak,
+                zero_progress_streak=lane.zero_progress_streak + 1,
+                last_failure_reason="missing-metadata",
+                last_failure_class="runner_infrastructure",
+                next_eligible_iteration=current_iteration,
+            )
+            failure_class_counts["runner_infrastructure"] = (
+                failure_class_counts.get("runner_infrastructure", 0) + 1
+            )
+            if _retry_budget_exhausted("runner_infrastructure", infrastructure_streak):
+                blocked_lanes.append(retry_lane)
+                next_lanes.append(retry_lane)
+                active += 1
+                continue
             if _lane_exceeds_policy(lane):
                 child_lanes = _split_legacy_oversized_lane(
-                    lane,
+                    retry_lane,
                     reason="missing-metadata-profile-oversized",
                 )
                 next_lanes.extend(child_lanes)
@@ -1877,13 +2222,7 @@ def build_resume_manifest(
                 )
                 outcome_counts["needs_resume"] = outcome_counts.get("needs_resume", 0) + 1
                 continue
-            next_lanes.append(
-                replace(
-                    lane,
-                    resume_only=False,
-                    last_failure_reason="missing-metadata",
-                )
-            )
+            next_lanes.append(retry_lane)
             active += 1
             failure_reason_counts["missing-metadata"] = (
                 failure_reason_counts.get("missing-metadata", 0) + 1
@@ -1926,7 +2265,14 @@ def build_resume_manifest(
                     lane,
                     resume_only=True,
                     failure_streak=0,
+                    class_failure_streak=0,
+                    zero_progress_streak=0,
                     last_failure_reason="",
+                    last_failure_class="",
+                    next_eligible_iteration=0,
+                    state_artifact_run_id="",
+                    state_artifact_name="",
+                    state_artifact_digest="",
                 )
             )
             resumed += 1
@@ -1936,25 +2282,34 @@ def build_resume_manifest(
             continue
         failure_reason = str(payload.get("raw_status") or raw_status or status)
         failure_reason_counts[failure_reason] = failure_reason_counts.get(failure_reason, 0) + 1
+        failure_class = _metadata_failure_class(payload, raw_status=failure_reason)
+        failure_class_counts[failure_class] = failure_class_counts.get(failure_class, 0) + 1
         if status == "pipeline_failure":
             if not allow_pipeline_failures:
                 pipeline_failures.append(f"{lane.lane_id} ({failure_reason})")
                 continue
             failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
             retry_lane = replace(
-                lane,
-                resume_only=False,
+                _retry_lane_from_metadata(
+                    lane,
+                    payload,
+                    outcome=status,
+                    current_iteration=current_iteration,
+                ),
                 failure_streak=failure_streak,
                 last_failure_reason=status,
             )
-            if failure_streak >= MAX_CONSECUTIVE_FAILURES:
+            if _retry_budget_exhausted(
+                retry_lane.last_failure_class,
+                retry_lane.class_failure_streak,
+            ):
                 blocked_lanes.append(retry_lane)
                 next_lanes.append(retry_lane)
                 active += 1
                 continue
             if _lane_exceeds_policy(lane):
                 child_lanes = _split_legacy_oversized_lane(
-                    lane,
+                    retry_lane,
                     reason=f"pipeline-failure-{failure_reason}",
                 )
                 next_lanes.extend(child_lanes)
@@ -1966,26 +2321,37 @@ def build_resume_manifest(
             active += 1
             pipeline_failure_retries += 1
             continue
+        retry_lane = _retry_lane_from_metadata(
+            lane,
+            payload,
+            outcome=status,
+            current_iteration=current_iteration,
+        )
         if _status_allows_legacy_split(status) and _lane_exceeds_policy(lane):
-            child_lanes = _split_legacy_oversized_lane(lane, reason=f"legacy-oversized-{status}")
+            child_lanes = _split_legacy_oversized_lane(
+                retry_lane,
+                reason=f"legacy-oversized-{status}",
+            )
             next_lanes.extend(child_lanes)
             split_lane_count += len(child_lanes)
             active += len(child_lanes)
             continue
         if status in SPLITTABLE_TIMEOUT_STATUSES and _timeout_lane_can_split(lane):
-            child_lanes = _split_timeout_lane(lane, reason=status)
+            child_lanes = _split_timeout_lane(retry_lane, reason=status)
             next_lanes.extend(child_lanes)
             split_lane_count += len(child_lanes)
             active += len(child_lanes)
             continue
         failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
         next_lane = replace(
-            lane,
-            resume_only=False,
+            retry_lane,
             failure_streak=failure_streak,
             last_failure_reason=status,
         )
-        if status != "needs_resume" and failure_streak >= MAX_CONSECUTIVE_FAILURES:
+        if _retry_budget_exhausted(
+            next_lane.last_failure_class,
+            next_lane.class_failure_streak,
+        ):
             blocked_lanes.append(next_lane)
         next_lanes.append(next_lane)
         active += 1
@@ -2013,15 +2379,20 @@ def build_resume_manifest(
             *_metadata_quarantined_servers(metadata),
         ]
     )
+    previous_state = chain_state or FullExtractionChainState()
+    replacing_checkpoint = bool(latest_checkpoint_run_id and latest_checkpoint_artifact_name)
     merged_artifact_run_ids = _normalize_server_list(
         [
-            *(chain_state.artifact_run_ids if chain_state is not None else ()),
+            *(() if replacing_checkpoint else previous_state.artifact_run_ids),
             *([completed_artifact_run_id] if completed_artifact_run_id else []),
         ]
     )
     profile = profile_override or _manifest_chunk_profile(next_lanes or lanes)
-    next_lanes = _schedule_lanes(next_lanes, chunk_profile=profile)
-    previous_state = chain_state or FullExtractionChainState()
+    next_lanes = _schedule_lanes(
+        next_lanes,
+        chunk_profile=profile,
+        max_matrix_lanes=max_matrix_lanes,
+    )
     checkpoint_generation = (
         int(latest_checkpoint_generation)
         if latest_checkpoint_generation is not None
@@ -2043,6 +2414,27 @@ def build_resume_manifest(
             _normalize_scalar_string(latest_checkpoint_coverage_hash)
             or previous_state.latest_checkpoint_coverage_hash
         ),
+        previous_checkpoint_run_id=(
+            previous_state.latest_checkpoint_run_id
+            if replacing_checkpoint
+            else previous_state.previous_checkpoint_run_id
+        ),
+        previous_checkpoint_artifact_name=(
+            previous_state.latest_checkpoint_artifact_name
+            if replacing_checkpoint
+            else previous_state.previous_checkpoint_artifact_name
+        ),
+        previous_checkpoint_generation=(
+            previous_state.latest_checkpoint_generation
+            if replacing_checkpoint
+            else previous_state.previous_checkpoint_generation
+        ),
+        previous_checkpoint_coverage_hash=(
+            previous_state.latest_checkpoint_coverage_hash
+            if replacing_checkpoint
+            else previous_state.previous_checkpoint_coverage_hash
+        ),
+        iteration_budget=previous_state.iteration_budget,
     )
 
     return (
@@ -2059,6 +2451,10 @@ def build_resume_manifest(
             "pipeline_failure_retry_count": pipeline_failure_retries,
             "outcome_counts": outcome_counts,
             "failure_reason_counts": failure_reason_counts,
+            "failure_class_counts": failure_class_counts,
+            "durable_state_lane_count": sum(
+                1 for lane in next_lanes if lane.state_artifact_run_id and not lane.resume_only
+            ),
         },
     )
 
@@ -2069,6 +2465,8 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
     kind_counts: dict[str, dict[str, int]] = {}
     endpoint_counts: dict[str, dict[str, int]] = {}
     vpn_status_counts: dict[str, int] = {}
+    failure_class_counts: dict[str, int] = {}
+    root_error_type_counts: dict[str, int] = {}
     zero_row_lanes: list[dict[str, Any]] = []
     blockers: list[dict[str, Any]] = []
     contract_blocked_lanes: list[dict[str, Any]] = []
@@ -2076,6 +2474,8 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
     total_rows = 0
     total_failed_calls = 0
     total_journal_skips = 0
+    total_completed_calls = 0
+    durable_state_lane_count = 0
 
     for lane_id, payload in sorted(metadata.items()):
         status = str(lane_outcome_from_metadata(payload))
@@ -2085,6 +2485,18 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
         kind_bucket[status] = kind_bucket.get(status, 0) + 1
         vpn_status = str(payload.get("vpn_status") or "unknown")
         vpn_status_counts[vpn_status] = vpn_status_counts.get(vpn_status, 0) + 1
+        failure_class = str(payload.get("failure_class") or "").strip()
+        if failure_class:
+            failure_class_counts[failure_class] = failure_class_counts.get(failure_class, 0) + 1
+        raw_root_counts = payload.get("root_error_type_counts")
+        if isinstance(raw_root_counts, dict):
+            for error_type, count in raw_root_counts.items():
+                root_error_type_counts[str(error_type)] = root_error_type_counts.get(
+                    str(error_type), 0
+                ) + _int_metadata_value(count)
+        state_artifact = payload.get("state_artifact")
+        if isinstance(state_artifact, dict) and state_artifact.get("run_id"):
+            durable_state_lane_count += 1
 
         endpoints = payload.get("endpoints", [])
         if not isinstance(endpoints, list):
@@ -2095,9 +2507,11 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
         rows = int(telemetry.get("rows_persisted") or 0)
         failed_calls = int(telemetry.get("failed_calls") or 0)
         journal_skips = int(telemetry.get("journal_skips") or 0)
+        completed_calls, _ = _metadata_progress(payload)
         total_rows += rows
         total_failed_calls += failed_calls
         total_journal_skips += journal_skips
+        total_completed_calls += completed_calls
 
         for endpoint in endpoints:
             endpoint_name = str(endpoint)
@@ -2111,6 +2525,7 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
                     "status": status,
                     "raw_status": str(payload.get("raw_status") or ""),
                     "reason": str(telemetry.get("zero_row_reason") or "unknown"),
+                    "failure_class": failure_class,
                     "endpoints": endpoints,
                 }
             )
@@ -2121,6 +2536,8 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
             "kind": kind,
             "rows_persisted": rows,
             "failed_calls": failed_calls,
+            "failure_class": failure_class,
+            "root_error_type": str(payload.get("root_error_type") or ""),
         }
         if status == "contract_blocked":
             blocker["support_rules"] = payload.get("support_rules", [])
@@ -2138,9 +2555,13 @@ def build_metadata_audit(metadata_dir: Path) -> dict[str, Any]:
         "kind_status_counts": kind_counts,
         "endpoint_status_counts": endpoint_counts,
         "vpn_status_counts": vpn_status_counts,
+        "failure_class_counts": failure_class_counts,
+        "root_error_type_counts": root_error_type_counts,
         "rows_persisted": total_rows,
         "failed_calls": total_failed_calls,
         "journal_skips": total_journal_skips,
+        "completed_calls": total_completed_calls,
+        "durable_state_lane_count": durable_state_lane_count,
         "zero_row_lanes": zero_row_lanes,
         "contract_blocked_lanes": contract_blocked_lanes,
         "pipeline_failure_lanes": pipeline_failure_lanes,
@@ -2734,6 +3155,7 @@ def merge_final_database(
     manifest_path: Path | None = None,
     checkpoint_dir: Path | None = None,
     checkpoint_report_path: Path | None = None,
+    allow_artifact_fallback: bool = False,
 ) -> dict[str, Any]:
     fallback_reason = ""
     checkpoint_report = _read_json_file(checkpoint_report_path)
@@ -2780,6 +3202,10 @@ def merge_final_database(
     elif checkpoint_report_path is not None or checkpoint_dir is not None:
         fallback_reason = "checkpoint database or report missing"
 
+    checkpoint_requested = checkpoint_report_path is not None or checkpoint_dir is not None
+    if not allow_artifact_fallback and checkpoint_requested:
+        msg = f"Terminal checkpoint validation failed: {fallback_reason}"
+        raise RuntimeError(msg)
     lane_summary = merge_lane_databases(artifacts_dir=artifacts_dir, output_dir=output_dir)
     lane_summary["merge_mode"] = "lane_artifacts"
     lane_summary["fallback_reason"] = fallback_reason
@@ -2808,17 +3234,24 @@ def _command_plan(args: argparse.Namespace) -> int:
             selected_endpoints=_parse_csv(args.backfill_endpoints),
             planning_snapshot=planning_snapshot,
             chunk_profile=chunk_profile,
+            max_matrix_lanes=args.max_matrix_lanes,
         )
         chain_state = FullExtractionChainState()
     else:
         lanes = _schedule_lanes(
             list(manifest.lanes),
             chunk_profile=args.chunk_profile or _manifest_chunk_profile(manifest.lanes),
+            max_matrix_lanes=args.max_matrix_lanes,
         )
         chain_state = manifest.chain_state
 
     validate_manifest(lanes)
-    payload = manifest_payload(lanes, chain_state=chain_state)
+    payload = manifest_payload(
+        lanes,
+        chain_state=chain_state,
+        max_matrix_lanes=args.max_matrix_lanes,
+        current_iteration=args.iteration,
+    )
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
     args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(payload))
@@ -2844,9 +3277,16 @@ def _command_resume(args: argparse.Namespace) -> int:
         latest_checkpoint_artifact_name=args.latest_checkpoint_artifact_name,
         latest_checkpoint_generation=args.latest_checkpoint_generation,
         latest_checkpoint_coverage_hash=args.latest_checkpoint_coverage_hash,
+        current_iteration=args.iteration,
+        max_matrix_lanes=args.max_matrix_lanes,
     )
     validate_manifest(next_lanes)
-    payload = manifest_payload(next_lanes, chain_state=next_chain_state)
+    payload = manifest_payload(
+        next_lanes,
+        chain_state=next_chain_state,
+        max_matrix_lanes=args.max_matrix_lanes,
+        current_iteration=args.iteration,
+    )
     payload["resume_summary"] = summary
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
     args.output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -2861,6 +3301,7 @@ def _command_merge(args: argparse.Namespace) -> int:
         manifest_path=args.manifest_path,
         checkpoint_dir=args.checkpoint_dir,
         checkpoint_report_path=args.checkpoint_report_path,
+        allow_artifact_fallback=args.allow_artifact_fallback,
     )
     print(json.dumps(summary))
     return 0
@@ -2902,6 +3343,8 @@ def _build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--backfill-endpoints", type=str, default=None)
     plan.add_argument("--duckdb-path", type=Path, default=None)
     plan.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
+    plan.add_argument("--max-matrix-lanes", type=int, default=MAX_GITHUB_MATRIX_LANES)
+    plan.add_argument("--iteration", type=int, default=1)
     plan.add_argument("--output-path", type=Path, required=True)
     plan.set_defaults(func=_command_plan)
 
@@ -2917,6 +3360,8 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--chunk-profile", choices=sorted(CHUNK_PROFILES), default=None)
     resume.add_argument("--allow-missing-attempted-metadata", action="store_true")
     resume.add_argument("--allow-pipeline-failures", action="store_true")
+    resume.add_argument("--max-matrix-lanes", type=int, default=MAX_GITHUB_MATRIX_LANES)
+    resume.add_argument("--iteration", type=int, default=1)
     resume.add_argument("--output-path", type=Path, required=True)
     resume.set_defaults(func=_command_resume)
 
@@ -2938,6 +3383,7 @@ def _build_parser() -> argparse.ArgumentParser:
     merge.add_argument("--manifest-path", type=Path, default=None)
     merge.add_argument("--checkpoint-dir", type=Path, default=None)
     merge.add_argument("--checkpoint-report-path", type=Path, default=None)
+    merge.add_argument("--allow-artifact-fallback", action="store_true")
     merge.set_defaults(func=_command_merge)
 
     audit = subparsers.add_parser("audit", help="Summarize lane metadata for extraction audit.")
