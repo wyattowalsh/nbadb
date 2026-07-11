@@ -190,6 +190,25 @@ waves may exceed exactly 25% and diversity can override the preferred queue. Ins
 `scheduler_diagnostics.queue_counts`, the cost summaries, and `top_cost_lanes` in
 the manifest when the first wave is surprising.
 
+Manifest generation also enforces parameter-level executability. The schema-backed
+`player_vs_player`, `team_vs_player`, `team_and_players_vs`, and the extractor-only
+`team_and_players_vs_players` alias are currently `contract_not_modeled_yet` for
+historical fan-out: the durable
+player-team-season workload contains affiliations, not observed comparison pairs or
+two opposing lineups. Creating a Cartesian product would be both quadratic and
+semantically unproven. The three canonical families remain visible in coverage
+artifacts with revalidation paths; the extractor-only alias is represented by the
+canonical `team_and_players_vs` staging windows and its own extraction exclusion.
+All four concrete names are omitted from fresh manifests and cause an old explicit
+manifest to fail during planning before network preflight.
+
+`league_game_log` is a first-class discovery-seed output and is therefore absent
+from the extract matrix. Canonical coverage rows can describe multiple alternate
+wrappers, so manifest generation resolves each support window's staging key back to
+its concrete runtime endpoint and parameter pattern. For example, both
+`player_game_logs`/`season` and `player_game_logs_v2`/`player_season` are scheduled;
+the canonical family name is never substituted for a different concrete route.
+
 Before lane fan-out, one `discovery_seed` job derives the exact season and
 season-type combinations required by the current `github_matrix.include`. It
 centralizes game/date, player-ID, and player-team-season discovery behind one VPN
@@ -202,11 +221,21 @@ bounded `common_all_players` and `league_game_log` canaries through the installe
 `nbadb`/`nba_api` extraction stack. The player canary requires both IDs and at least
 one row with positive player/team membership. Inspect
 `nba-probe-status`, `nba-probe-diagnostic`, `attempted-servers-json`, and
-`failed-servers-json`. A server that passes a generic IP probe but times out or
-returns malformed NBA content is disconnected and added to the failed-server list
-before the next recommendation is tried. Runtime failures are excluded from every
-fallback technology, and preflight failures are carried into the effective chain
-quarantine before discovery/lane fan-out and persisted into child manifests.
+`failed-servers-json`. Preflight also emits `auth-source`; discovery and extract
+jobs reuse the source that actually passed instead of replacing proven configured
+credentials after a transient lane rejection. A server that passes a generic IP
+probe but times out or returns malformed NBA content is disconnected and added to
+the failed-server list before the next recommendation is tried. Runtime failures are
+excluded from every fallback technology, and preflight failures are carried into the
+effective chain quarantine before discovery/lane fan-out and persisted into child
+manifests.
+An OpenVPN `AUTH_FAILED` response is not enough to classify a server as unhealthy:
+the connector limits each rejection sweep, rotates the lane-specific starting
+server and preferred protocol, and performs bounded cooldown rounds only when a full
+follow-up attempt still fits inside the action deadline. HTTP 401/403 responses fail
+immediately instead of being retried as transport faults. If preflight succeeds only
+with token-derived credentials, the extract matrix is forced to one active lane so
+independent runners never race the credential endpoint.
 
 On chained runs, the seed job downloads
 `full-extraction-discovery-artifacts-<chain_id>` from the exact
@@ -282,7 +311,16 @@ traceable.
 `matrix_batch_size` controls how many lane jobs enter one workflow iteration and
 defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
-therefore API pressure.
+therefore API pressure. VPN mode defaults to three simultaneous lanes. Each active
+lane runs on a separate GitHub-hosted runner and rotates to a lane-specific NordVPN
+server, but all lanes still consume the same account's connection allowance. Only
+one VPN/auto full-extraction workflow can run at a time; direct-mode chains retain
+chain/iteration-scoped concurrency. Token-derived mode further caps the matrix at one
+active lane.
+[NordVPN documents ten simultaneous devices and requires different protocols when
+multiple devices use the same server](https://support.nordvpn.com/hc/en-us/articles/19476515228305-How-many-devices-can-I-use-with-NordVPN),
+so raise `vpn_parallelism` only when the account has enough unused slots and the
+selected server/protocol combinations remain distinct.
 
 With `max_iterations=auto`, the manifest carries a numeric `iteration_budget` and
 extends it from remaining matrix capacity when the current budget is exhausted.
@@ -291,11 +329,13 @@ iterations can refresh the safety budget rather than freezing an older derived
 limit. Before `gh workflow run`, the dispatch job queries all paginated
 workflow-dispatch runs and refuses an active or successful display-title match for
 `Full Extraction chain=<chain_id> iteration=<next>`. The job-level concurrency key
-serializes dispatch attempts for the current chain iteration as an additional
-guard. Workflow-level concurrency is scoped to chain plus iteration. Active or
-successful exact-title children block redispatch, but failed/cancelled historical
-runs are recorded and excluded when acknowledging the one newly created child run
-ID and URL. Upload-artifact steps use
+serializes dispatch attempts for the current chain iteration as an additional guard.
+VPN/auto workflow concurrency is a repository-wide FIFO queue so separate chains
+cannot consume the same account slots concurrently or displace an already-pending
+child; direct workflows remain scoped to chain plus iteration. Active or successful
+exact-title children block redispatch, but
+failed/cancelled historical runs are recorded and excluded when acknowledging the
+one newly created child run ID and URL. Upload-artifact steps use
 overwrite semantics so rerun jobs can replace their prior logical artifacts.
 
 The pinned `workflow_sha` must be a full commit on the trusted `workflow_ref` branch;

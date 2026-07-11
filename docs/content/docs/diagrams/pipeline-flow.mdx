@@ -213,8 +213,10 @@ next run while the manifest's numeric budget enforces and, when needed, extends 
 safety cap from remaining matrix capacity. The dispatcher searches paginated
 workflow runs for the exact next `chain=<id> iteration=<n>` title, blocks active or
 successful matches, records failed/cancelled history as retryable, and then requires
-exactly one newly visible child run. Workflow-level concurrency uses both chain and
-iteration, so the parent cannot hold the child's concurrency slot.
+exactly one newly visible child run. Direct-mode workflow concurrency uses chain and
+iteration, so the parent cannot hold the child's slot. VPN/auto chains instead share
+a repository-wide FIFO concurrency queue, preventing account-slot overlap without
+allowing a newer pending chain to displace an already-queued child.
 
 The pinned source SHA must be an ancestor of its trusted branch. A zero-active
 resume can attest and replay the source run's terminal checkpoint without rebuilding

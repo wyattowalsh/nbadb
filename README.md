@@ -35,7 +35,9 @@ For the current public contract, use the generated docs surfaces: **[Schema Refe
 
 ## 🏀 Data Coverage
 
-nbadb covers the **1946-47 season to present** wherever `nba_api` exposes historical data, with current seasons auto-updated by the daily pipeline.
+nbadb covers the **1946-47 season to present** for executable `nba_api` contracts,
+with current seasons auto-updated by the daily pipeline and every upstream-unavailable,
+blocked, or not-yet-modeled contract classified explicitly rather than silently omitted.
 
 Trust floor: preserve and improve full historical `nba_api` coverage for every year available per endpoint. If an endpoint/year/season-type combination is unavailable upstream or blocked by a known contract gap, classify it explicitly in coverage reports and support matrices instead of silently dropping it.
 
@@ -46,12 +48,12 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 
 ## 📦 Output Formats
 
-| Format  | Path         | Description                                                      |
-| ------- | ------------ | ---------------------------------------------------------------- |
+| Format  | Path         | Description                                                        |
+| ------- | ------------ | ------------------------------------------------------------------ |
 | DuckDB  | `nba.duckdb` | Canonical analytics engine — columnar storage and fast SQL queries |
 | SQLite  | `nba.sqlite` | Kaggle preview-friendly portable relational database               |
-| Parquet | `parquet/`   | Zstd-compressed columnar files, partitioned by season            |
-| CSV     | `csv/`       | Universal flat files for any tool                                |
+| Parquet | `parquet/`   | Zstd-compressed columnar files, partitioned by season              |
+| CSV     | `csv/`       | Universal flat files for any tool                                  |
 
 ## 🚀 Quick Start
 
@@ -78,33 +80,33 @@ Trust floor: preserve and improve full historical `nba_api` coverage for every y
 
 ## ⌨️ CLI Reference
 
-| Command                         | Description                                                                      |
-| ------------------------------- | -------------------------------------------------------------------------------- |
-| `nbadb init`                    | Local full historical build                                                      |
-| `nbadb daily`                   | Current-season refresh plus automatic live snapshot append when games are active |
-| `nbadb monthly`                 | Last-3-seasons refresh plus automatic live snapshot append when games are active |
-| `nbadb backfill`                | Recovery and targeted historical repair                                          |
-| `nbadb live-snapshot`           | Manually append a live snapshot for active or explicit game ids                  |
-| `nbadb migrate`                 | Run schema migrations                                                            |
-| `nbadb scan --fail-on error`    | Hard assurance gate for missing data, gaps, and quality issues                   |
-| `nbadb export`                  | Re-export DuckDB → SQLite / Parquet / CSV                                        |
-| `nbadb upload`                  | Stage declared resources, validate the bundle, push to Kaggle, and optionally verify exact-version remote readback |
-| `nbadb download`                | Pull the Kaggle dataset and seed local DuckDB                                    |
-| `nbadb extract-completeness`    | Report coverage gaps; with an upstream checkout, generate `nba_api` contracts    |
-| `nbadb endpoint-support-matrix` | Report strict endpoint support + warehouse contract coverage                     |
-| `nbadb endpoint-adequacy-scorecard` | Generate endpoint adequacy scorecard artifacts                               |
-| `nbadb audit-models`            | Generate end-to-end model + result-table audit artifacts                         |
-| `nbadb schema-annotation-audit` | Generate schema annotation, route, and field fate audit artifacts                |
-| `nbadb table-year-coverage`     | Generate table/year coverage summary artifacts                                   |
-| `nbadb docs-autogen`            | Regenerate generator-owned schema, data dictionary, ER, and lineage artifacts    |
-| `nbadb schema [TABLE]`          | Show schema for a table or list all star tables                                  |
-| `nbadb status`                  | Pipeline status, row counts, and watermarks                                      |
-| `nbadb journal-summary`         | Export pipeline telemetry summary artifacts                                      |
-| `nbadb ask QUESTION`            | Natural-language query interface (read-only)                                     |
-| `nbadb chat`                    | AI-powered Chainlit chat interface backed by the local DuckDB warehouse          |
-| `nbadb full`                    | Fill gaps and retry failed extractions (deprecated—use `backfill` instead)       |
-| `nbadb lint-sql`                | Lint SQL in transformers against SQLFluff rules                                  |
-| `nbadb metadata`                | Generate Kaggle metadata JSON                                                    |
+| Command                             | Description                                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `nbadb init`                        | Local full historical build                                                                                        |
+| `nbadb daily`                       | Current-season refresh plus automatic live snapshot append when games are active                                   |
+| `nbadb monthly`                     | Last-3-seasons refresh plus automatic live snapshot append when games are active                                   |
+| `nbadb backfill`                    | Recovery and targeted historical repair                                                                            |
+| `nbadb live-snapshot`               | Manually append a live snapshot for active or explicit game ids                                                    |
+| `nbadb migrate`                     | Run schema migrations                                                                                              |
+| `nbadb scan --fail-on error`        | Hard assurance gate for missing data, gaps, and quality issues                                                     |
+| `nbadb export`                      | Re-export DuckDB → SQLite / Parquet / CSV                                                                          |
+| `nbadb upload`                      | Stage declared resources, validate the bundle, push to Kaggle, and optionally verify exact-version remote readback |
+| `nbadb download`                    | Pull the Kaggle dataset and seed local DuckDB                                                                      |
+| `nbadb extract-completeness`        | Report coverage gaps; with an upstream checkout, generate `nba_api` contracts                                      |
+| `nbadb endpoint-support-matrix`     | Report strict endpoint support + warehouse contract coverage                                                       |
+| `nbadb endpoint-adequacy-scorecard` | Generate endpoint adequacy scorecard artifacts                                                                     |
+| `nbadb audit-models`                | Generate end-to-end model + result-table audit artifacts                                                           |
+| `nbadb schema-annotation-audit`     | Generate schema annotation, route, and field fate audit artifacts                                                  |
+| `nbadb table-year-coverage`         | Generate table/year coverage summary artifacts                                                                     |
+| `nbadb docs-autogen`                | Regenerate generator-owned schema, data dictionary, ER, and lineage artifacts                                      |
+| `nbadb schema [TABLE]`              | Show schema for a table or list all star tables                                                                    |
+| `nbadb status`                      | Pipeline status, row counts, and watermarks                                                                        |
+| `nbadb journal-summary`             | Export pipeline telemetry summary artifacts                                                                        |
+| `nbadb ask QUESTION`                | Natural-language query interface (read-only)                                                                       |
+| `nbadb chat`                        | AI-powered Chainlit chat interface backed by the local DuckDB warehouse                                            |
+| `nbadb full`                        | Fill gaps and retry failed extractions (deprecated—use `backfill` instead)                                         |
+| `nbadb lint-sql`                    | Lint SQL in transformers against SQLFluff rules                                                                    |
+| `nbadb metadata`                    | Generate Kaggle metadata JSON                                                                                      |
 
 Run `nbadb --help` or `nbadb <command> --help` for full option details.
 
@@ -206,11 +208,28 @@ season/season-type scopes, carries those artifacts forward by chain and source
 run, refreshes active-season player/game/workload evidence, and blocks matrix
 fan-out when any required scope remains unproven. Aggregate-only player waves still
 refresh the active season, and sparse player-team misses are fetched as exact pairs.
+The manifest is generated only from executable parameter contracts. The comparison
+surfaces `player_vs_player`, `team_vs_player`, `team_and_players_vs`, and its
+extractor-only `team_and_players_vs_players` alias remain schema-backed and
+documented, but are classified as `contract_not_modeled_yet` for
+historical fan-out because the current affiliation workload cannot supply observed
+player pairs or opposing lineups. They are not replaced with synthetic Cartesian
+requests, and restored manifests that still schedule them fail before VPN preflight.
+`league_game_log` is owned by the centralized discovery seed instead of redundant
+extract lanes. Canonical coverage rows that combine alternate wrappers are projected
+back to every concrete endpoint/pattern route before lane generation, preserving each
+distinct staging surface without scheduling endpoint-name aliases as zero-work jobs.
 VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
 strict NBA result-set probe, and installed-stack player/game discovery canaries pass.
 The player canary also requires a positive player/team membership row.
 NBA-blocked servers are rejected across fallback technologies and carried from
-preflight into both the current lane quarantine and child manifests. Discovery uses
+preflight into both the current lane quarantine and child manifests. Authentication
+rejections remain separate from server-health quarantine: downstream jobs reuse the
+credential source proven by preflight, pause after bounded rejection sweeps, and
+rotate servers and protocols only after a budgeted cooldown. VPN lane parallelism
+defaults to three while preserving a separate runner and selected server per active
+lane. Token-derived extraction is serialized, and VPN/auto full-extraction workflows
+cannot overlap another VPN-backed full chain. Discovery uses
 hard request timeouts, a bounded homogeneous-outage canary, a 90-minute soft deadline,
 a 95-minute process watchdog, atomic coverage summaries, and content-addressed
 discovery/workload Parquet generations whose manifest pointers bind scope or pairs,
