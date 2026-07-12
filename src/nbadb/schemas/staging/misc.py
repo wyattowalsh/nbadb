@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import pandera.polars as pa
+import polars as pl
+from pandera.errors import SchemaError
 
+from nbadb.core.types import VIDEO_CONTEXT_MEASURES, SeasonType
 from nbadb.schemas.base import BaseSchema
 
 
@@ -1371,11 +1374,110 @@ class _OpenPassthroughSchema(BaseSchema):
         return pa.DataFrameModel.validate.__func__(cls, data, *args, **kwargs)
 
 
-class StagingVideoDetailsSchema(_OpenPassthroughSchema):
+class _VideoDetailsPassthroughSchema(_OpenPassthroughSchema):
+    result_set_name: str = pa.Field(
+        nullable=False,
+        metadata={
+            "source": "nba_api.response.resultSets.name",
+            "description": "Dynamic upstream result-set discriminator",
+        },
+    )
+    result_set_index: int = pa.Field(
+        nullable=False,
+        ge=0,
+        metadata={
+            "source": "nba_api.response.resultSets.index",
+            "description": "Stable response-order result-set discriminator",
+        },
+    )
+    context_measure: str = pa.Field(
+        nullable=False,
+        isin=VIDEO_CONTEXT_MEASURES,
+        metadata={
+            "source": "VideoDetails.ContextMeasure request",
+            "description": "Requested video event measure",
+        },
+    )
+    context_measure_provenance: str = pa.Field(
+        nullable=False,
+        isin=["docs", "docs,runtime"],
+        metadata={
+            "source": "nbadb.core.types.VIDEO_CONTEXT_MEASURE_PROVENANCE",
+            "description": "Pinned nba_api sources declaring the context measure",
+        },
+    )
+    season_type_provenance: str = pa.Field(
+        nullable=False,
+        isin=["docs,runtime", "runtime"],
+        metadata={
+            "source": "nbadb.core.types.VIDEO_SEASON_TYPE_PROVENANCE",
+            "description": "Pinned nba_api sources declaring the season type",
+        },
+    )
+    nba_api_contract_version: str = pa.Field(
+        nullable=False,
+        isin=["1.11.4"],
+        metadata={
+            "source": "nbadb.core.types.NBA_API_VIDEO_CONTEXT_MEASURE_VERSION",
+            "description": "nba_api version used to derive the video request contract",
+        },
+    )
+    request_player_id: int = pa.Field(
+        nullable=False,
+        gt=0,
+        metadata={
+            "source": "VideoDetails.PlayerID request",
+            "description": "Player identifier used for the request",
+            "fk_ref": "staging_player.player_id",
+        },
+    )
+    request_team_id: int = pa.Field(
+        nullable=False,
+        gt=0,
+        metadata={
+            "source": "VideoDetails.TeamID request",
+            "description": "Team identifier used for the request",
+            "fk_ref": "staging_team.team_id",
+        },
+    )
+    request_season: str = pa.Field(
+        nullable=False,
+        metadata={
+            "source": "VideoDetails.Season request",
+            "description": "Season used for the request",
+        },
+    )
+    request_season_type: str = pa.Field(
+        nullable=False,
+        isin=tuple(season_type.value for season_type in SeasonType),
+        metadata={
+            "source": "VideoDetails.SeasonType request",
+            "description": "Season type used for the request",
+        },
+    )
+
+    @classmethod
+    def validate(cls, data, *args, **kwargs):
+        schema = cls.to_schema()
+        if isinstance(data, (pl.DataFrame, pl.LazyFrame)):
+            columns = (
+                data.collect_schema().names() if isinstance(data, pl.LazyFrame) else data.columns
+            )
+            missing = sorted(set(schema.columns) - set(columns))
+            if missing:
+                raise SchemaError(
+                    schema,
+                    data,
+                    f"missing required video contract columns: {missing}",
+                )
+        return super().validate(data, *args, **kwargs)
+
+
+class StagingVideoDetailsSchema(_VideoDetailsPassthroughSchema):
     pass
 
 
-class StagingVideoDetailsAssetSchema(_OpenPassthroughSchema):
+class StagingVideoDetailsAssetSchema(_VideoDetailsPassthroughSchema):
     pass
 
 

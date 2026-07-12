@@ -9,10 +9,13 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import duckdb
 from loguru import logger
+
+if TYPE_CHECKING:
+    from nbadb.transform.base import BaseTransformer
 
 
 class ScanCategory(StrEnum):
@@ -114,10 +117,12 @@ class ScanReport:
     def to_markdown(self) -> str:
         """Render report as GitHub-flavored markdown for step summaries."""
         s = self.summary()
-        if s["error"] == 0:
-            status = ":white_check_mark: **All clear**"
-        else:
+        if s["error"]:
             status = f":x: **{s['error']} error(s)**"
+        elif s["warning"]:
+            status = f":warning: **{s['warning']} warning(s)**"
+        else:
+            status = ":white_check_mark: **All clear**"
 
         lines = [
             "## Data Scan Report",
@@ -217,6 +222,7 @@ class DataScanner:
         self._report = ScanReport()
         self._tables_cache: list[str] | None = None
         self._columns_cache: dict[str, list[tuple[str, str]]] = {}
+        self._transformers_cache: list[BaseTransformer] | None = None
 
     # ── public API ────────────────────────────────────────────────
 
@@ -231,6 +237,9 @@ class DataScanner:
         self._report = ScanReport()
         self._tables_cache = None
         self._columns_cache = {}
+        self._transformers_cache = None
+
+        self._assure_transformer_discovery()
 
         active = categories if categories else [c.value for c in ScanCategory]
 
@@ -333,6 +342,35 @@ class DataScanner:
     def _add(self, finding: ScanFinding) -> None:
         self._report.findings.append(finding)
 
+    def _assure_transformer_discovery(self) -> None:
+        """Cache a complete runtime universe or record a hard assurance error."""
+        self._report.checks_run += 1
+        try:
+            from nbadb.orchestrate.transformers import (
+                discover_all_transformers,
+                require_complete_transformer_universe,
+            )
+
+            transformers = discover_all_transformers()
+            require_complete_transformer_universe(transformers, include_live=True)
+        except Exception as exc:
+            logger.error("scanner: transformer discovery assurance failed: {}", exc)
+            self._add(
+                ScanFinding(
+                    category=ScanCategory.MISSING_TABLE,
+                    severity=ScanSeverity.ERROR,
+                    table="transform_outputs",
+                    check="transformer_discovery_failed",
+                    message=f"Transformer discovery assurance failed: {exc}",
+                    details={
+                        "error_type": type(exc).__name__,
+                        "required_contract": "exact_schema_backed_output_universe",
+                    },
+                )
+            )
+            return
+        self._transformers_cache = transformers
+
     # ── category 1: missing / empty tables ────────────────────────
 
     def _batch_row_counts(self, tables: list[str]) -> dict[str, int]:
@@ -384,13 +422,9 @@ class DataScanner:
                 self._report.tables_scanned += 1
 
         # 2. Transform outputs
-        try:
-            from nbadb.orchestrate.transformers import discover_all_transformers
-
-            transformers = discover_all_transformers()
-        except Exception as exc:
-            logger.warning("scanner: cannot discover transformers: {}", exc)
-            transformers = []
+        transformers = self._transformers_cache
+        if transformers is None:
+            return
 
         tf_map = {
             tf.output_table: tf
@@ -421,8 +455,23 @@ class DataScanner:
                             severity=ScanSeverity.WARNING,
                             table=out,
                             check="empty_transform_table",
-                            message=f"Transform output {out} exists but is empty",
-                            details={"row_count": 0, "depends_on": tf.depends_on},
+                            message=(
+                                f"Transform output {out} exists but is empty; "
+                                "no unconditional nonempty contract is established"
+                            ),
+                            details={
+                                "row_count": 0,
+                                "depends_on": tf.depends_on,
+                                "hard_nonempty_policy": (
+                                    "conditional_on_dim_game_coverage"
+                                    if out in self._GAME_COVERAGE_TABLES
+                                    else "not_established"
+                                ),
+                                "policy_limitation": (
+                                    "No repo-backed unconditional nonempty contract exists; "
+                                    "empty transform outputs remain warnings."
+                                ),
+                            },
                         )
                     )
                 self._report.tables_scanned += 1

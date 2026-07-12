@@ -40,7 +40,12 @@ def test_team_support_matrix_family_chunk_is_complete() -> None:
         assert row["input_schema_missing_staging_keys"] == [], endpoint_name
         assert row["output_schema_missing_tables"] == [], endpoint_name
 
-    expected_supported_season_types = ["Regular Season", "Playoffs", "Pre Season"]
+    expected_supported_season_types = [
+        "Regular Season",
+        "Playoffs",
+        "Pre Season",
+        "PlayIn",
+    ]
     for endpoint_name in ("team_and_players_vs", "team_vs_player"):
         row = rows[endpoint_name]
         assert row["season_type_contract_status"] == "supported", endpoint_name

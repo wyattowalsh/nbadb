@@ -48,6 +48,7 @@ _PLAYOFF_SEASON_TYPES: SupportedSeasonTypes = (
     SeasonType.REGULAR.value,
     SeasonType.PLAYOFFS.value,
     SeasonType.PRE_SEASON.value,
+    SeasonType.PLAY_IN.value,
 )
 _SEASON_TYPE_VALUE_SET: frozenset[str] = frozenset(_ALL_SEASON_TYPES)
 _ALL_STAR_SEASON_TYPE_PARAM_KEYS: frozenset[str] = frozenset(
@@ -1285,12 +1286,14 @@ STAGING_MAP: list[StagingEntry] = [
         "stg_video_details",
         "player_team_season",
         season_type_capability="supported",
+        supported_season_types=_ALL_SEASON_TYPES,
     ),
     StagingEntry(
         "video_details_asset",
         "stg_video_details_asset",
         "player_team_season",
         season_type_capability="supported",
+        supported_season_types=_ALL_SEASON_TYPES,
     ),
     StagingEntry("player_game_streak_finder", "stg_player_game_streak_finder", "season"),
     # Team-level additions

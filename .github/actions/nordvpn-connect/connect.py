@@ -985,9 +985,11 @@ class NordVpnConnectAction:
         excluded_servers = {*self.quarantined_servers, *self.failed_servers}
         attempted_servers = self.attempted_servers_by_technology.setdefault(technology, set())
         preferred: list[str] = []
-        preferred_slot = self.selector_index % self.preferred_server_slot_count
-        if preferred_slot < len(self.preferred_servers):
-            preferred_server = self.preferred_servers[preferred_slot]
+        preferred_lane = self.selector_index
+        if preferred_lane < self.preferred_server_slot_count and preferred_lane < len(
+            self.preferred_servers
+        ):
+            preferred_server = self.preferred_servers[preferred_lane]
             if (
                 preferred_server not in excluded_servers
                 and preferred_server not in attempted_servers
@@ -998,7 +1000,7 @@ class NordVpnConnectAction:
         if recommendation_count <= 0:
             print(
                 "::notice::Selected one previously NBA-verified server for "
-                f"parallel slot {preferred_slot} over {technology}"
+                f"logical lane {preferred_lane} over {technology}"
             )
             return preferred
 

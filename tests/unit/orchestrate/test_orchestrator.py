@@ -11,12 +11,14 @@ import polars as pl
 import pytest
 
 from nbadb.core.errors import ExtractionError
+from nbadb.core.types import VIDEO_CONTEXT_MEASURES
 from nbadb.orchestrate.discovery import GameDiscoveryResult, PlayerTeamSeasonDiscoveryResult
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope
 from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
 from nbadb.orchestrate.extractor_runner import PatternExtractionResult
 from nbadb.orchestrate.init_coverage import InitDiscoveryCoverageError
 from nbadb.orchestrate.orchestrator import (
+    DEFAULT_SEASON_TYPES,
     ExtractionOutcome,
     Orchestrator,
     PipelineResult,
@@ -25,6 +27,7 @@ from nbadb.orchestrate.orchestrator import (
 )
 from nbadb.orchestrate.planning import ExtractionPlanItem
 from nbadb.orchestrate.staging_batches import StagingBatchStore
+from nbadb.orchestrate.transformers import TransformerDiscoveryError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -55,8 +58,9 @@ _JOURNAL = "nbadb.orchestrate.orchestrator.PipelineJournal"
 _REGISTRY = "nbadb.orchestrate.orchestrator._global_registry"
 _DISCOVERY = "nbadb.orchestrate.orchestrator.EntityDiscovery"
 _RUNNER = "nbadb.orchestrate.orchestrator.ExtractorRunner"
-_ALL_SEASON_TYPES = ("Regular Season", "Playoffs", "Pre Season", "All Star")
+_ALL_SEASON_TYPES = DEFAULT_SEASON_TYPES
 _TRANSFORMERS = "nbadb.orchestrate.orchestrator.discover_all_transformers"
+_VALIDATE_TRANSFORMERS = "nbadb.orchestrate.orchestrator.require_complete_transformer_universe"
 _PIPELINE = "nbadb.orchestrate.orchestrator.TransformPipeline"
 _LOADER = "nbadb.orchestrate.orchestrator.create_multi_loader"
 _GET_BY_PATTERN = "nbadb.orchestrate.planning.get_by_pattern"
@@ -1256,6 +1260,19 @@ class TestInitDb:
 
 
 class TestTransformAndLoad:
+    @pytest.mark.parametrize("transformers", [[], [SimpleNamespace(output_table="dim_game")]])
+    def test_zero_or_partial_discovery_fails_before_pipeline(self, transformers):
+        orch, db, journal = _build_orchestrator_with_mocks()
+
+        with (
+            patch(_TRANSFORMERS, return_value=transformers),
+            patch(_PIPELINE) as mock_pipeline,
+            pytest.raises(TransformerDiscoveryError, match="incomplete historical"),
+        ):
+            orch._transform_and_load(db, {}, journal)
+
+        mock_pipeline.assert_not_called()
+
     def test_loads_non_empty_outputs(self):
         orch, db, journal = _build_orchestrator_with_mocks()
 
@@ -1268,6 +1285,7 @@ class TestTransformAndLoad:
 
         with (
             patch(_TRANSFORMERS, return_value=[]),
+            patch(_VALIDATE_TRANSFORMERS),
             patch(_PIPELINE, return_value=mock_pipeline),
             patch(_LOADER, return_value=mock_loader),
             patch(_CURRENT_SEASON, return_value="2024-25"),
@@ -1292,6 +1310,7 @@ class TestTransformAndLoad:
 
         with (
             patch(_TRANSFORMERS, return_value=[]),
+            patch(_VALIDATE_TRANSFORMERS),
             patch(_PIPELINE, return_value=mock_pipeline),
             patch(_LOADER, return_value=mock_loader),
             patch(_CURRENT_SEASON, return_value="2024-25"),
@@ -1316,6 +1335,7 @@ class TestTransformAndLoad:
 
         with (
             patch(_TRANSFORMERS, return_value=[]),
+            patch(_VALIDATE_TRANSFORMERS),
             patch(_PIPELINE, return_value=mock_pipeline),
             patch(_LOADER, return_value=mock_loader),
             patch(_CURRENT_SEASON, return_value="2024-25"),
@@ -1723,6 +1743,20 @@ class TestExtractAllPatterns:
             }
             return mapping.get(pattern, [])
 
+        player_team_season_params = [
+            {
+                "player_id": 201939,
+                "team_id": 1610612744,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2544,
+                "team_id": 1610612747,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
+        ]
         with patch(_GET_BY_PATTERN, side_effect=_entries):
             outcome = asyncio.run(
                 orch._extract_all_patterns(
@@ -1732,6 +1766,7 @@ class TestExtractAllPatterns:
                     player_ids=[],
                     team_ids=[],
                     game_dates=[],
+                    player_team_season_params=player_team_season_params,
                     game_log_df=pl.DataFrame(),
                 )
             )
@@ -1786,6 +1821,20 @@ class TestExtractAllPatterns:
             }
             return mapping.get(pattern, [])
 
+        player_team_season_params = [
+            {
+                "player_id": 201939,
+                "team_id": 1610612744,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
+                "player_id": 2544,
+                "team_id": 1610612747,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            },
+        ]
         with patch(_GET_BY_PATTERN, side_effect=_entries):
             outcome = asyncio.run(
                 orch._extract_all_patterns(
@@ -1795,20 +1844,7 @@ class TestExtractAllPatterns:
                     player_ids=[201939, 2544],
                     team_ids=[1610612744],
                     game_dates=[],
-                    player_team_season_params=[
-                        {
-                            "player_id": 201939,
-                            "team_id": 1610612744,
-                            "season": "2024-25",
-                            "season_type": "Regular Season",
-                        },
-                        {
-                            "player_id": 2544,
-                            "team_id": 1610612747,
-                            "season": "2025-26",
-                            "season_type": "Regular Season",
-                        },
-                    ],
+                    player_team_season_params=player_team_season_params,
                     game_log_df=pl.DataFrame(),
                 )
             )
@@ -1862,18 +1898,9 @@ class TestExtractAllPatterns:
         runner.run_pattern_result.assert_any_await(
             "player_team_season",
             [
-                {
-                    "player_id": 201939,
-                    "team_id": 1610612744,
-                    "season": "2024-25",
-                    "season_type": "Regular Season",
-                },
-                {
-                    "player_id": 2544,
-                    "team_id": 1610612747,
-                    "season": "2025-26",
-                    "season_type": "Regular Season",
-                },
+                {**params, "context_measure": context_measure}
+                for params in player_team_season_params
+                for context_measure in VIDEO_CONTEXT_MEASURES
             ],
             player_team_season_entries,
             on_progress=None,
@@ -2517,12 +2544,12 @@ class TestRunDaily:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -2563,25 +2590,20 @@ class TestRunDaily:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = [201566]
         mock_discovery.discover_team_ids.return_value = [1610612737]
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
         mock_runner = _mock_runner(skipped=0)
         mock_extract = AsyncMock(return_value=ExtractionOutcome(raw={}))
-        expected_season_types = [
-            "Regular Season",
-            "Playoffs",
-            "Pre Season",
-            "All Star",
-        ]
+        expected_season_types = list(_ALL_SEASON_TYPES)
 
         with (
             patch(_CURRENT_SEASON, return_value="2025-26"),
@@ -2650,12 +2672,12 @@ class TestRunDaily:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -2690,14 +2712,14 @@ class TestRunDaily:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -2742,14 +2764,14 @@ class TestRunDaily:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -2803,14 +2825,14 @@ class TestRunDaily:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -2864,7 +2886,7 @@ class TestRunMonthly:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2023-24", "2024-25", "2025-26"),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = [201566]
         mock_discovery.discover_team_ids.return_value = [1610612737]
@@ -2872,7 +2894,7 @@ class TestRunMonthly:
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2023-24", "2024-25", "2025-26"),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -2903,12 +2925,9 @@ class TestRunMonthly:
 
         assert isinstance(result, PipelineResult)
         assert result.tables_updated == 1
-        assert mock_discovery.discover_game_ids_result.await_args.kwargs["season_types"] == [
-            "Regular Season",
-            "Playoffs",
-            "Pre Season",
-            "All Star",
-        ]
+        assert mock_discovery.discover_game_ids_result.await_args.kwargs["season_types"] == list(
+            _ALL_SEASON_TYPES
+        )
         mock_current_teams.assert_awaited_once_with(
             mock_discovery,
             seasons=["2023-24", "2024-25", "2025-26"],
@@ -2950,7 +2969,7 @@ class TestRunMonthly:
         mock_discovery = AsyncMock()
         mock_discovery.discover_game_ids_result.return_value = _game_discovery_result(
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
@@ -2958,7 +2977,7 @@ class TestRunMonthly:
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -2992,7 +3011,7 @@ class TestRunMonthly:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
@@ -3000,7 +3019,7 @@ class TestRunMonthly:
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
 
@@ -3047,7 +3066,7 @@ class TestRunMonthly:
             game_ids=["0022400001"],
             game_log_df=game_log_df,
             seasons=("2025-26",),
-            season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            season_types=_ALL_SEASON_TYPES,
         )
         mock_discovery.discover_player_ids.return_value = []
         mock_discovery.discover_team_ids.return_value = []
@@ -3055,7 +3074,7 @@ class TestRunMonthly:
         mock_discovery.discover_player_team_season_params_result.return_value = (
             _player_team_discovery_result(
                 seasons=("2025-26",),
-                season_types=("Regular Season", "Playoffs", "Pre Season", "All Star"),
+                season_types=_ALL_SEASON_TYPES,
             )
         )
         mock_runner = _mock_runner(

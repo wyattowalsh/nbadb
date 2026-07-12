@@ -10,6 +10,8 @@ from typing import Any
 
 from nbadb.core.extraction_failures import classify_error_name
 from nbadb.orchestrate.extraction_contract import contract_blocking_rules_for_lane
+from nbadb.orchestrate.seasons import season_string
+from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 
 _ERROR_MARKER_RE = re.compile(
     r"\[(transport_transient|response_contract|application):([A-Za-z][A-Za-z0-9_]*)\]"
@@ -205,6 +207,113 @@ def _duckdb_telemetry(db_path: Path) -> dict[str, Any]:
     return telemetry
 
 
+def _checkpoint_duckdb(db_path: Path) -> None:
+    """Fold committed WAL state into the attested standalone database file."""
+    if not db_path.is_file():
+        return
+    if db_path.is_symlink():
+        raise RuntimeError(f"DuckDB snapshot must be a regular file: {db_path}")
+
+    import duckdb
+
+    con = duckdb.connect(str(db_path))
+    try:
+        con.execute("CHECKPOINT")
+    finally:
+        con.close()
+
+    wal_path = Path(f"{db_path}.wal")
+    if wal_path.exists() and wal_path.stat().st_size:
+        raise RuntimeError(f"DuckDB WAL remains nonempty after checkpoint: {wal_path}")
+    wal_path.unlink(missing_ok=True)
+
+
+def _player_team_season_workload_contract(
+    db_path: Path,
+    *,
+    patterns: list[str],
+    season_start: int | None,
+    season_end: int | None,
+    season_types: list[str],
+) -> dict[str, Any] | None:
+    if "player_team_season" not in patterns:
+        return None
+    if patterns != ["player_team_season"]:
+        raise ValueError("player_team_season workload contract requires an isolated pattern lane")
+    if season_start is None or season_end is None or season_start > season_end:
+        raise ValueError("player_team_season lane requires a valid season range")
+    if not season_types:
+        raise ValueError("player_team_season lane requires explicit season types")
+
+    seasons = [season_string(year) for year in range(season_start, season_end + 1)]
+    requested_pair_set = {
+        (season, season_type) for season in seasons for season_type in season_types
+    }
+    store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(db_path)
+    integrity = store.integrity_attestation()
+    if integrity is None:
+        raise ValueError("player_team_season workload sidecars are missing or invalid")
+
+    coverage = store.load_coverage(seasons=seasons, season_types=season_types)
+    if coverage.invalid_pairs:
+        raise ValueError(
+            "player_team_season workload has invalid requested pairs: "
+            f"{sorted(coverage.invalid_pairs)}"
+        )
+    missing_pairs = requested_pair_set - coverage.covered_pairs
+    if missing_pairs:
+        raise ValueError(
+            f"player_team_season workload does not cover requested pairs: {sorted(missing_pairs)}"
+        )
+
+    base_units: list[list[int | str]] = []
+    actual_counts: Counter[tuple[str, str]] = Counter()
+    for params in store.load_params(seasons=seasons, season_types=season_types):
+        season = str(params["season"])
+        season_type = str(params["season_type"])
+        pair = (season, season_type)
+        if pair not in requested_pair_set:
+            raise ValueError(f"player_team_season workload row is outside lane scope: {pair}")
+        try:
+            season_year = int(season[:4])
+            player_id = int(params["player_id"])
+            team_id = int(params["team_id"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("player_team_season workload identity is invalid") from exc
+        if season_string(season_year) != season or player_id <= 0 or team_id <= 0:
+            raise ValueError("player_team_season workload identity is invalid")
+        base_units.append([season_year, season_type, player_id, team_id])
+        actual_counts[pair] += 1
+
+    base_units.sort()
+    if len(base_units) != len({tuple(unit) for unit in base_units}):
+        raise ValueError("player_team_season workload contains duplicate base identities")
+
+    requested_pairs: list[dict[str, Any]] = []
+    for season, season_type in sorted(requested_pair_set):
+        row_count = int(coverage.counts_by_pair.get((season, season_type), 0))
+        if actual_counts[(season, season_type)] != row_count:
+            raise ValueError(
+                f"player_team_season workload pair count mismatch for {season}/{season_type}"
+            )
+        requested_pairs.append(
+            {"season": season, "season_type": season_type, "row_count": row_count}
+        )
+
+    serialized_units = json.dumps(
+        base_units,
+        separators=(",", ":"),
+        sort_keys=False,
+    ).encode()
+    return {
+        "integrity": integrity,
+        "requested_pairs": requested_pairs,
+        "expected_base_unit_count": len(base_units),
+        "expected_base_units_sha256": hashlib.sha256(serialized_units).hexdigest(),
+        "expected_empty": not base_units,
+    }
+
+
 def _load_extract_summary(summary_path: Path) -> tuple[dict[str, Any], str]:
     if not summary_path.exists():
         return {}, ""
@@ -305,21 +414,22 @@ def _completion_evidence_errors(
     expected_endpoints: list[str],
     coverage_units_hash: str,
     database_sha256: str,
+    expected_empty: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     if not db_telemetry.get("readable") or db_telemetry.get("error"):
         errors.append("database_unreadable")
-    if not db_telemetry.get("journal_present"):
+    if not expected_empty and not db_telemetry.get("journal_present"):
         errors.append("journal_missing")
     if _int_value(db_telemetry.get("failed_calls")):
         errors.append("failed_journal_calls")
     if _int_value(db_telemetry.get("running_calls")):
         errors.append("running_journal_calls")
-    if _int_value(db_telemetry.get("done_calls")) < 1:
+    if not expected_empty and _int_value(db_telemetry.get("done_calls")) < 1:
         errors.append("no_completed_journal_calls")
     done_endpoints = {str(value) for value in db_telemetry.get("done_endpoints", [])}
     missing_endpoints = sorted(set(expected_endpoints) - done_endpoints)
-    if missing_endpoints:
+    if missing_endpoints and not expected_empty:
         errors.append("missing_endpoint_evidence:" + ",".join(missing_endpoints))
     if not _is_sha256(coverage_units_hash):
         errors.append("coverage_units_hash_missing_or_invalid")
@@ -341,6 +451,7 @@ def _final_outcome(
     *,
     raw_status: str,
     effective_network_mode: str,
+    completed_calls: int,
     rows_persisted: int,
     failed_calls: int,
     journal_skips: int,
@@ -355,7 +466,7 @@ def _final_outcome(
     if rows_persisted == 0 and failed_calls > 0 and support_rules:
         return "contract_blocked"
     if raw_status == "extract-error" and (
-        rows_persisted > 0 or journal_skips > 0 or running_calls > 0
+        completed_calls > 0 or rows_persisted > 0 or journal_skips > 0 or running_calls > 0
     ):
         return "needs_resume"
     if (
@@ -414,7 +525,9 @@ def build_payload() -> dict[str, Any]:
         else 0
     )
 
-    db_telemetry = _duckdb_telemetry(Path("data/nbadb/nba.duckdb"))
+    db_path = Path("data/nbadb/nba.duckdb")
+    _checkpoint_duckdb(db_path)
+    db_telemetry = _duckdb_telemetry(db_path)
     if not rows_persisted:
         rows_persisted = _int_value(db_telemetry.get("rows_persisted"))
     if not tables_persisted:
@@ -429,6 +542,7 @@ def build_payload() -> dict[str, Any]:
     raw_status = os.environ["STATUS"]
     endpoints = _csv_values(os.environ.get("ENDPOINTS", ""))
     patterns = _csv_values(os.environ.get("PATTERNS", ""))
+    season_types = _csv_values(os.environ.get("SEASON_TYPES", ""))
     season_start_raw = os.environ.get("SEASON_START", "")
     season_end_raw = os.environ.get("SEASON_END", "")
     season_start = _int_value(season_start_raw, default=0) or None
@@ -443,7 +557,14 @@ def build_payload() -> dict[str, Any]:
             season_end=season_end,
         )
     ]
-    db_path = Path("data/nbadb/nba.duckdb")
+    workload_contract = _player_team_season_workload_contract(
+        db_path,
+        patterns=patterns,
+        season_start=season_start,
+        season_end=season_end,
+        season_types=season_types,
+    )
+    expected_empty = bool(workload_contract and workload_contract["expected_empty"])
     database_sha256 = _sha256(db_path) if db_path.is_file() else ""
     coverage_units_hash = os.environ.get("COVERAGE_UNITS_HASH", "").strip().lower()
     running_calls = _int_value(db_telemetry.get("running_calls"))
@@ -453,10 +574,12 @@ def build_payload() -> dict[str, Any]:
         expected_endpoints=endpoints,
         coverage_units_hash=coverage_units_hash,
         database_sha256=database_sha256,
+        expected_empty=expected_empty,
     )
     final_outcome = _final_outcome(
         raw_status=raw_status,
         effective_network_mode=effective_network_mode,
+        completed_calls=completed_calls,
         rows_persisted=rows_persisted,
         failed_calls=failed_calls,
         journal_skips=journal_skips,
@@ -495,6 +618,10 @@ def build_payload() -> dict[str, Any]:
             zero_row_reason = "unknown"
 
     state_artifact_name = f"extraction-lane-{os.environ['CHAIN_ID']}-{os.environ['LANE_ID']}"
+    if final_outcome != "complete":
+        state_artifact_name = (
+            os.environ.get("RECOVERY_ARTIFACT_NAME", "").strip() or state_artifact_name
+        )
     return {
         "metadata_schema_version": 3,
         "chain_id": os.environ["CHAIN_ID"],
@@ -507,6 +634,8 @@ def build_payload() -> dict[str, Any]:
         "source_sha": os.environ["SOURCE_SHA"],
         "coverage_units_hash": coverage_units_hash,
         "database_sha256": database_sha256,
+        "expected_empty": expected_empty,
+        "workload_contract": workload_contract,
         "status": final_outcome,
         "raw_status": raw_status,
         "cache_hit": os.environ["CACHE_HIT"],
@@ -526,8 +655,9 @@ def build_payload() -> dict[str, Any]:
         "direct_egress_reason": direct_egress_reason,
         "vpn_status": vpn_status,
         "patterns": patterns,
-        "season_types": _csv_values(os.environ.get("SEASON_TYPES", "")),
+        "season_types": season_types,
         "endpoints": endpoints,
+        "context_measures": _csv_values(os.environ.get("CONTEXT_MEASURES", "")),
         "season_start": season_start_raw,
         "season_end": season_end_raw,
         "parent_lane_id": os.environ.get("PARENT_LANE_ID", ""),
@@ -587,13 +717,83 @@ def build_payload() -> dict[str, Any]:
 
 
 def main() -> int:
-    Path("artifacts/extraction").mkdir(parents=True, exist_ok=True)
+    output_dir = Path("artifacts/extraction")
+    output_dir.mkdir(parents=True, exist_ok=True)
     payload = build_payload()
-    Path("artifacts/extraction/lane-metadata.json").write_text(
+    db_path = Path("data/nbadb/nba.duckdb")
+    wal_path = Path(f"{db_path}.wal")
+    metadata_path = output_dir / "lane-metadata.json"
+    attestation_path = output_dir / "lane-state-attestation.json"
+    attestation_path.unlink(missing_ok=True)
+    temporary_path = metadata_path.with_suffix(".json.tmp")
+    temporary_path.write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
+    temporary_path.replace(metadata_path)
+    if metadata_path.is_symlink() or not metadata_path.is_file():
+        raise RuntimeError(f"Lane metadata was not created as a regular file: {metadata_path}")
+
+    database_sha256 = str(payload.get("database_sha256", ""))
+    telemetry = payload.get("telemetry")
+    telemetry_payload = telemetry if isinstance(telemetry, dict) else {}
+    db_telemetry = telemetry_payload.get("db_telemetry")
+    db_payload = db_telemetry if isinstance(db_telemetry, dict) else {}
+    expected_empty_complete = bool(
+        payload.get("status") == "complete" and payload.get("expected_empty") is True
+    )
+    attestation_error = ""
+    if Path("artifacts/extraction/lane-state-untrusted").exists():
+        attestation_error = "restored lane state was rejected as untrusted"
+    elif not re.fullmatch(r"[0-9a-f]{64}", database_sha256):
+        attestation_error = "missing valid DuckDB SHA-256"
+    elif db_path.is_symlink() or not db_path.is_file():
+        attestation_error = "snapshot is not a regular DuckDB file"
+    elif wal_path.exists():
+        attestation_error = "DuckDB WAL remains after checkpoint"
+    elif _sha256(db_path) != database_sha256:
+        attestation_error = "DuckDB changed after its SHA-256 was computed"
+    elif not db_payload.get("readable") or db_payload.get("error"):
+        attestation_error = "DuckDB telemetry is not readable and clean"
+    elif not db_payload.get("journal_present") and not expected_empty_complete:
+        attestation_error = "DuckDB extraction journal is missing"
+    elif (
+        payload["status"] != "complete" and not os.environ.get("RECOVERY_ARTIFACT_NAME", "").strip()
+    ):
+        attestation_error = "incomplete snapshot is missing its recovery artifact name"
+    elif not re.fullmatch(r"[0-9a-f]{64}", str(payload.get("coverage_units_hash", ""))):
+        attestation_error = "coverage-units hash is missing or invalid"
+    elif not all(
+        str(payload.get(key) or "").strip() for key in ("source_sha", "chain_id", "lane_id")
+    ):
+        attestation_error = "source, chain, or lane identity is missing"
+
+    if attestation_error:
+        print(f"Lane snapshot not attested: {attestation_error}")
+        return 0
+
+    attestation = {
+        "schema_version": 1,
+        "source_sha": str(payload["source_sha"]),
+        "chain_id": str(payload["chain_id"]),
+        "lane_id": str(payload["lane_id"]),
+        "coverage_units_hash": str(payload["coverage_units_hash"]),
+        "database_sha256": database_sha256,
+        "expected_empty": bool(payload.get("expected_empty") is True),
+    }
+    temporary_attestation_path = attestation_path.with_suffix(".json.tmp")
+    temporary_attestation_path.write_text(
+        json.dumps(attestation, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary_attestation_path.replace(attestation_path)
+    if attestation_path.is_symlink() or not attestation_path.is_file():
+        raise RuntimeError(
+            f"Lane-state attestation was not created as a regular file: {attestation_path}"
+        )
+
     append_output("final-outcome", str(payload["status"]))
+    append_output("snapshot-attested", "true")
     return 0
 
 

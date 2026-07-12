@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import duckdb
 import pytest
 
+from nbadb.core.types import VIDEO_CONTEXT_MEASURES, SeasonType
 from nbadb.orchestrate.extraction_contract import (
     EARLY_1946_1949_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
     EARLY_SEASON_CONTRACT_BLOCKED_ENDPOINTS,
@@ -24,13 +25,17 @@ from nbadb.orchestrate.full_extraction_control import (
     FullExtractionChainState,
     FullExtractionLane,
     _coverage_hash_for_lane,
+    _coverage_units_for_lane,
     _file_sha256,
     _merge_database_paths,
+    _retry_budget_exhausted,
     _schedule_lanes,
+    _workload_scope_contract,
     build_checkpoint_database,
     build_default_manifest,
     build_metadata_audit,
     build_resume_manifest,
+    lane_outcome_from_metadata,
     manifest_payload,
     merge_final_database,
     merge_lane_databases,
@@ -42,6 +47,8 @@ from nbadb.orchestrate.full_extraction_control import (
 from nbadb.orchestrate.full_extraction_control import (
     main as full_extraction_main,
 )
+from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 from nbadb.orchestrate.workload_profile import (
     EndpointWorkloadProfile,
     WorkloadPlanningSnapshot,
@@ -110,6 +117,13 @@ def _write_metadata(
             "db_telemetry": {"running_calls": running_calls},
         },
     }
+    if rows_persisted > 0:
+        payload["state_artifact"] = {
+            "run_id": "12345",
+            "name": f"extraction-lane-chain-{lane_id}",
+            "sha256": "a" * 64,
+            "required": True,
+        }
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
 
@@ -119,30 +133,54 @@ def _write_attested_metadata(
     lane: FullExtractionLane,
     database_path: Path,
     lane_name: str | None = None,
+    workload_contract: dict[str, object] | None = None,
 ) -> None:
-    path.write_text(
-        json.dumps(
-            {
-                "metadata_schema_version": 3,
-                "lane_id": lane.lane_id,
-                "lane_index": lane.lane_index,
-                "lane_name": lane_name or lane.lane_name,
-                "lane_kind": lane.lane_kind,
-                "status": "complete",
-                "raw_status": "complete",
-                "patterns": list(lane.patterns),
-                "season_types": list(lane.season_types),
-                "endpoints": list(lane.endpoints),
-                "season_start": "" if lane.season_start is None else str(lane.season_start),
-                "season_end": "" if lane.season_end is None else str(lane.season_end),
-                "coverage_units_hash": _coverage_hash_for_lane(lane),
-                "database_sha256": _file_sha256(database_path),
-                "state_artifact": {"sha256": _file_sha256(database_path)},
-            }
-        )
-        + "\n",
-        encoding="utf-8",
+    payload: dict[str, object] = {
+        "metadata_schema_version": 3,
+        "lane_id": lane.lane_id,
+        "lane_index": lane.lane_index,
+        "lane_name": lane_name or lane.lane_name,
+        "lane_kind": lane.lane_kind,
+        "status": "complete",
+        "raw_status": "complete",
+        "patterns": list(lane.patterns),
+        "season_types": list(lane.season_types),
+        "context_measures": list(lane.context_measures),
+        "endpoints": list(lane.endpoints),
+        "season_start": "" if lane.season_start is None else str(lane.season_start),
+        "season_end": "" if lane.season_end is None else str(lane.season_end),
+        "coverage_units_hash": _coverage_hash_for_lane(lane),
+        "database_sha256": _file_sha256(database_path),
+        "state_artifact": {"sha256": _file_sha256(database_path)},
+    }
+    if workload_contract is not None:
+        payload["workload_contract"] = workload_contract
+    path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+
+def _write_workload_contract(
+    tmp_path: Path,
+    *,
+    lane: FullExtractionLane,
+    params: list[dict[str, object]],
+) -> tuple[Path, PlayerTeamSeasonWorkloadStore, dict[str, object]]:
+    workload_dir = tmp_path / "workload"
+    workload_dir.mkdir(exist_ok=True)
+    anchor_path = workload_dir / "nba.duckdb"
+    store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(anchor_path)
+    seasons = season_range(int(lane.season_start), int(lane.season_end))
+    covered_pairs = {
+        (season, season_type) for season in seasons for season_type in lane.season_types
+    }
+    store.upsert(
+        params,  # type: ignore[arg-type]
+        seasons=seasons,
+        season_types=list(lane.season_types),
+        covered_pairs=covered_pairs,
     )
+    _units, contract, errors = _workload_scope_contract(lane, store)
+    assert errors == []
+    return anchor_path, store, contract
 
 
 def _build_attested_lane_checkpoint(
@@ -150,6 +188,7 @@ def _build_attested_lane_checkpoint(
     *,
     lane: FullExtractionLane,
     journal_rows: list[tuple[str, str]],
+    workload_params: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest_payload([lane])), encoding="utf-8")
@@ -162,12 +201,38 @@ def _build_attested_lane_checkpoint(
         beta_rows=[],
         journal_rows=journal_rows,
     )
+    workload_duckdb_path: Path | None = None
+    workload_contract: dict[str, object] | None = None
+    if set(lane.patterns) == {"player_team_season"}:
+        if workload_params is None:
+            inferred: dict[tuple[int, int, str, str], dict[str, object]] = {}
+            for _endpoint, params_json in journal_rows:
+                params = json.loads(params_json)
+                key = (
+                    int(params["player_id"]),
+                    int(params["team_id"]),
+                    str(params["season"]),
+                    str(params["season_type"]),
+                )
+                inferred[key] = {
+                    "player_id": key[0],
+                    "team_id": key[1],
+                    "season": key[2],
+                    "season_type": key[3],
+                }
+            workload_params = list(inferred.values())
+        workload_duckdb_path, _store, workload_contract = _write_workload_contract(
+            tmp_path,
+            lane=lane,
+            params=workload_params,
+        )
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
     _write_attested_metadata(
         metadata_dir / "lane.json",
         lane=lane,
         database_path=database_path,
+        workload_contract=workload_contract,
     )
     return build_checkpoint_database(
         manifest_path=manifest_path,
@@ -175,6 +240,7 @@ def _build_attested_lane_checkpoint(
         lane_artifacts_dir=tmp_path / "lanes",
         output_dir=tmp_path / "checkpoint",
         report_path=tmp_path / "checkpoint-report.json",
+        workload_duckdb_path=workload_duckdb_path,
     )
 
 
@@ -193,11 +259,12 @@ def _write_lane_db(
         "completed_at TIMESTAMP, rows_extracted BIGINT, error_message VARCHAR, retry_count INTEGER"
         ")"
     )
-    conn.executemany(
-        "INSERT INTO _extraction_journal VALUES "
-        "(?, ?, 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, NULL, 0)",
-        journal_rows,
-    )
+    if journal_rows:
+        conn.executemany(
+            "INSERT INTO _extraction_journal VALUES "
+            "(?, ?, 'done', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, NULL, 0)",
+            journal_rows,
+        )
     conn.close()
 
 
@@ -209,6 +276,7 @@ def _write_checkpoint_report(
     included_lane_ids: list[str] | None = None,
     included_run_ids: list[str] | None = None,
     checkpoint_generation: int = 1,
+    workload_integrity: dict[str, object] | None = None,
 ) -> None:
     lanes = lanes or []
     lane_ids = included_lane_ids or [lane.lane_id for lane in lanes]
@@ -222,6 +290,7 @@ def _write_checkpoint_report(
                 },
                 "included_run_ids": included_run_ids or ["old-run"],
                 "database_sha256": _file_sha256(database_path),
+                "workload_integrity": workload_integrity,
             }
         )
         + "\n",
@@ -478,7 +547,7 @@ def test_full_extraction_workflow_wires_chunk_profiles_and_checkpoints() -> None
     assert "seed_discovery_artifacts.py" in workflow
     assert "needs: [plan, preflight, discovery_seed]" in workflow
     assert "needs.discovery_seed.result == 'success'" in workflow
-    assert "needs: [plan, preflight, extract, lane_control]" in workflow
+    assert "needs: [plan, preflight, discovery_seed, extract, lane_control]" in workflow
     assert (
         "needs: [plan, preflight, extract, terminal_replay, lane_control, checkpoint]" in workflow
     )
@@ -957,10 +1026,54 @@ def test_build_default_manifest_isolates_cross_product_endpoints() -> None:
         "player_index",
         "video_details",
     }
-    assert {lane.lane_id.split("-regular-season", 1)[0] for lane in cross_product_lanes} == {
-        "cross-product-player-index",
-        "cross-product-video-details",
-    }
+    assert {
+        lane.lane_id.split("-regular-season", 1)[0]
+        for lane in cross_product_lanes
+        if lane.endpoints == ("player_index",)
+    } == {"cross-product-player-index"}
+    video_lanes = [lane for lane in cross_product_lanes if lane.endpoints == ("video_details",)]
+    assert video_lanes
+    assert all("-ctx-" in lane.lane_id for lane in video_lanes)
+    assert all(1 <= len(lane.context_measures) <= 3 for lane in video_lanes)
+    assert {
+        context_measure for lane in video_lanes for context_measure in lane.context_measures
+    } == set(VIDEO_CONTEXT_MEASURES)
+
+
+def test_build_default_manifest_partitions_play_in_at_2019_boundary() -> None:
+    rows = [
+        _support_row(
+            "video_details",
+            ["player_team_season"],
+            1946,
+            season_type_contract_status="supported",
+            declared_supported_season_types=[season_type.value for season_type in SeasonType],
+        )
+    ]
+
+    lanes = build_default_manifest(support_matrix_rows=rows)
+    video_lanes = [lane for lane in lanes if lane.endpoints == ("video_details",)]
+
+    assert video_lanes
+    assert all(
+        SeasonType.PLAY_IN.value not in lane.season_types
+        for lane in video_lanes
+        if lane.season_end is not None and lane.season_end < 2019
+    )
+    assert all(
+        SeasonType.PLAY_IN.value in lane.season_types
+        for lane in video_lanes
+        if lane.season_start is not None and lane.season_start >= 2019
+    )
+    assert all(
+        not (
+            unit["season_type"] == SeasonType.PLAY_IN.value
+            and isinstance(unit["season"], int)
+            and unit["season"] < 2019
+        )
+        for lane in video_lanes
+        for unit in _coverage_units_for_lane(lane)
+    )
 
 
 def test_build_default_manifest_isolates_timeout_prone_reference_team_endpoints() -> None:
@@ -1105,14 +1218,16 @@ def test_build_default_manifest_uses_density_to_shrink_cross_product_bands() -> 
         planning_snapshot=planning_snapshot,
     )
 
-    cross_product_lanes = sorted(
-        (lane for lane in lanes if lane.lane_kind == "cross_product"),
-        key=lambda lane: (lane.season_start or 0, lane.season_end or 0),
+    cross_product_spans = sorted(
+        {
+            (lane.season_start, lane.season_end)
+            for lane in lanes
+            if lane.lane_kind == "cross_product"
+        }
     )
-    assert cross_product_lanes[0].season_start == 1946
-    assert cross_product_lanes[0].season_end == 1946
-    assert cross_product_lanes[1].season_start == 1947
-    assert cross_product_lanes[1].season_end < 1954
+    assert cross_product_spans[0] == (1946, 1946)
+    assert cross_product_spans[1][0] == 1947
+    assert cross_product_spans[1][1] < 1954
 
 
 def test_build_default_manifest_rejects_zero_match_filters() -> None:
@@ -1902,7 +2017,9 @@ def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
     assert [child.season_end for child in next_lanes] == [1997, 2001, 2005]
     assert all(child.parent_lane_id == lane.lane_id for child in next_lanes)
     assert all(child.split_generation == 1 for child in next_lanes)
-    assert all(child.failure_streak == 0 for child in next_lanes)
+    assert all(child.failure_streak == 1 for child in next_lanes)
+    assert all(child.class_failure_streak == 1 for child in next_lanes)
+    assert all(child.last_failure_class == "timeout_progress" for child in next_lanes)
     assert summary["active_lane_count"] == 3
     assert summary["split_lane_count"] == 3
     assert summary["outcome_counts"] == {"needs_resume": 1}
@@ -3225,6 +3342,12 @@ def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: 
                     ],
                 },
                 "telemetry": {"rows_persisted": 3, "failed_calls": 0},
+                "state_artifact": {
+                    "run_id": "12345",
+                    "name": "extraction-lane-chain-reference-static",
+                    "sha256": "a" * 64,
+                    "required": True,
+                },
             }
         )
         + "\n",
@@ -3280,7 +3403,7 @@ def test_manifest_payload_and_normalize_manifest_preserve_chain_state() -> None:
     assert manifest.chain_state == FullExtractionChainState(
         vpn_quarantined_servers=("us101.nordvpn.com", "us202.nordvpn.com"),
         artifact_run_ids=("12345",),
-        iteration_budget=3,
+        iteration_budget=8,
     )
     assert manifest.lanes[0].lane_id == "reference-static"
     assert manifest.matrix_lane_ids == frozenset({"reference-static"})
@@ -3491,14 +3614,121 @@ def test_manifest_v3_computes_capacity_iteration_budget() -> None:
 
     assert payload["manifest_version"] == 3
     assert payload["minimum_remaining_wave_count"] == 10
-    assert payload["suggested_remaining_wave_count"] == 13
-    assert payload["iteration_budget"] == 20
+    assert payload["suggested_remaining_wave_count"] == 80
+    assert payload["iteration_budget"] == 86
     assert payload["scheduler_diagnostics"]["queue_counts"] == {
         "fresh": 100,
         "partial": 0,
         "retry": 0,
         "infrastructure": 0,
     }
+
+
+def test_manifest_v3_never_extends_an_existing_auto_iteration_budget() -> None:
+    lane = FullExtractionLane(
+        lane_id="lane-001",
+        lane_index=0,
+        lane_name="Lane 1",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2020,
+        patterns=("season",),
+        timeout_seconds=3600,
+    )
+
+    payload = manifest_payload(
+        [lane],
+        chain_state=FullExtractionChainState(iteration_budget=8),
+        current_iteration=8,
+    )
+
+    assert payload["active_lane_count"] == 1
+    assert payload["iteration_budget"] == 8
+
+
+def test_iteration_budget_accounts_for_matrix_wide_retry_credits() -> None:
+    lanes = [
+        FullExtractionLane(
+            lane_id=f"reference-{index:03d}",
+            lane_index=index,
+            lane_name=f"Reference {index}",
+            lane_kind="reference",
+            season_start=None,
+            season_end=None,
+            patterns=("static",),
+            timeout_seconds=1800,
+        )
+        for index in range(512)
+    ]
+
+    payload = manifest_payload(lanes, max_matrix_lanes=256)
+
+    assert payload["minimum_remaining_wave_count"] == 2
+    assert payload["scheduler_diagnostics"]["remaining_dispatch_credits"] == 4096
+    assert payload["scheduler_diagnostics"]["maximum_retry_depth"] == 8
+    assert payload["suggested_remaining_wave_count"] == 16
+    assert payload["iteration_budget"] == 16
+
+
+def test_timeout_progress_retry_budget_is_bounded() -> None:
+    assert _retry_budget_exhausted("timeout_progress", 7) is False
+    assert _retry_budget_exhausted("timeout_progress", 8) is True
+
+
+def test_retry_budget_is_checked_before_timeout_split(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="historical-game-budget-2020-2023",
+        lane_index=0,
+        lane_name="Historical game budget 2020-2023",
+        lane_kind="historical",
+        season_start=2020,
+        season_end=2023,
+        patterns=("game",),
+        endpoints=("box_score_summary",),
+        timeout_seconds=7200,
+        class_failure_streak=7,
+        last_failure_class="timeout_progress",
+    )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_metadata(
+        metadata_dir / "lane.json",
+        lane_id=lane.lane_id,
+        status="extract-timeout",
+        rows_persisted=1,
+        endpoints=list(lane.endpoints),
+        patterns=list(lane.patterns),
+        season_start=lane.season_start,
+        season_end=lane.season_end,
+    )
+
+    with pytest.raises(ValueError, match="chain safety cap"):
+        build_resume_manifest([lane], metadata_dir)
+
+
+def test_zero_row_completed_calls_are_resumable_only_with_attested_state() -> None:
+    payload = {
+        "status": "extract-error",
+        "raw_status": "extract-error",
+        "vpn": {"status": "connected"},
+        "progress": {"completed_calls": 12, "rows_persisted": 0},
+        "telemetry": {
+            "rows_persisted": 0,
+            "journal_skips": 0,
+            "db_telemetry": {"running_calls": 0},
+        },
+        "state_artifact": {
+            "run_id": "12345",
+            "name": "extraction-lane-chain-lane",
+            "sha256": "a" * 64,
+            "required": True,
+        },
+    }
+
+    assert lane_outcome_from_metadata(payload) == "needs_resume"
+
+    payload.pop("state_artifact")
+    assert lane_outcome_from_metadata(payload) == "pipeline_failure"
 
 
 def test_scheduler_uses_configured_matrix_batch_for_planned_waves() -> None:
@@ -4377,14 +4607,17 @@ def test_checkpoint_rejects_schema_v3_journal_missing_workload_unit(
         season_end=2020,
         patterns=("player_team_season",),
         season_types=("Regular Season",),
+        context_measures=("PTS",),
         endpoints=("video_details", "video_details_asset"),
         timeout_seconds=5400,
     )
     first_workload = (
-        '{"player_id": 1, "team_id": 10, "season": "2020-21", "season_type": "Regular Season"}'
+        '{"context_measure": "PTS", "player_id": 1, "team_id": 10, '
+        '"season": "2020-21", "season_type": "Regular Season"}'
     )
     second_workload = (
-        '{"player_id": 2, "team_id": 20, "season": "2020-21", "season_type": "Regular Season"}'
+        '{"context_measure": "PTS", "player_id": 2, "team_id": 20, '
+        '"season": "2020-21", "season_type": "Regular Season"}'
     )
 
     report = _build_attested_lane_checkpoint(
@@ -4400,6 +4633,136 @@ def test_checkpoint_rejects_schema_v3_journal_missing_workload_unit(
     failures = report["current_lane_attestation_failures"][lane.lane_id]
     assert report["terminal_ready"] is False
     assert not any(error.startswith("journal_missing_manifest_coverage:") for error in failures)
+    assert any(error.startswith("journal_missing_parameter_coverage:1:") for error in failures)
+
+
+def test_checkpoint_rejects_workload_unit_absent_from_entire_journal(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-player-index-2024",
+        lane_index=0,
+        lane_name="Cross product player index 2024",
+        lane_kind="cross_product",
+        season_start=2024,
+        season_end=2024,
+        patterns=("player_team_season",),
+        season_types=(SeasonType.REGULAR.value,),
+        endpoints=("player_index",),
+        timeout_seconds=5400,
+    )
+    first = {
+        "player_id": 1,
+        "team_id": 10,
+        "season": "2024-25",
+        "season_type": SeasonType.REGULAR.value,
+    }
+    second = {
+        "player_id": 2,
+        "team_id": 20,
+        "season": "2024-25",
+        "season_type": SeasonType.REGULAR.value,
+    }
+
+    report = _build_attested_lane_checkpoint(
+        tmp_path,
+        lane=lane,
+        journal_rows=[("player_index", json.dumps(first))],
+        workload_params=[first, second],
+    )
+
+    failures = report["current_lane_attestation_failures"][lane.lane_id]
+    assert report["terminal_ready"] is False
+    assert any(error.startswith("journal_missing_parameter_coverage:1:") for error in failures)
+
+
+def test_checkpoint_accepts_attested_empty_workload_scope(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-player-index-empty-2024",
+        lane_index=0,
+        lane_name="Cross product player index empty 2024",
+        lane_kind="cross_product",
+        season_start=2024,
+        season_end=2024,
+        patterns=("player_team_season",),
+        season_types=(SeasonType.REGULAR.value,),
+        endpoints=("player_index",),
+        timeout_seconds=5400,
+    )
+
+    report = _build_attested_lane_checkpoint(
+        tmp_path,
+        lane=lane,
+        journal_rows=[],
+        workload_params=[],
+    )
+
+    assert report["terminal_ready"] is True
+    assert report["workload_contract_errors"] == []
+    assert report["workload_integrity"] is not None
+
+
+def test_checkpoint_accepts_attested_empty_pair_within_populated_lane(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-player-index-mixed-2023-2024",
+        lane_index=0,
+        lane_name="Cross product player index mixed 2023-2024",
+        lane_kind="cross_product",
+        season_start=2023,
+        season_end=2024,
+        patterns=("player_team_season",),
+        season_types=(SeasonType.REGULAR.value,),
+        endpoints=("player_index",),
+        timeout_seconds=5400,
+    )
+    populated = {
+        "player_id": 1,
+        "team_id": 10,
+        "season": "2023-24",
+        "season_type": SeasonType.REGULAR.value,
+    }
+
+    report = _build_attested_lane_checkpoint(
+        tmp_path,
+        lane=lane,
+        journal_rows=[("player_index", json.dumps(populated))],
+        workload_params=[populated],
+    )
+
+    assert report["terminal_ready"] is True
+    assert report["current_lane_attestation_failures"] == {}
+
+
+def test_checkpoint_rejects_video_lane_missing_a_context_measure(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-video-context-adversarial-2024",
+        lane_index=0,
+        lane_name="Cross product video context adversarial 2024",
+        lane_kind="cross_product",
+        season_start=2024,
+        season_end=2024,
+        patterns=("player_team_season",),
+        season_types=(SeasonType.REGULAR.value,),
+        context_measures=("PTS", "AST"),
+        endpoints=("video_details",),
+        timeout_seconds=5400,
+    )
+    pts_only = (
+        '{"context_measure": "PTS", "player_id": 1, "team_id": 10, '
+        '"season": "2024-25", "season_type": "Regular Season"}'
+    )
+
+    report = _build_attested_lane_checkpoint(
+        tmp_path,
+        lane=lane,
+        journal_rows=[("video_details", pts_only)],
+    )
+
+    failures = report["current_lane_attestation_failures"][lane.lane_id]
+    assert report["terminal_ready"] is False
+    assert any(error.startswith("journal_missing_manifest_coverage:1:") for error in failures)
     assert any(error.startswith("journal_missing_parameter_coverage:1:") for error in failures)
 
 
@@ -5111,6 +5474,11 @@ def test_checkpoint_database_maps_legacy_cross_product_lane_ids(
             timeout_seconds=6300,
         ),
     ]
+    workload_duckdb_path, workload_store, _workload_contract = _write_workload_contract(
+        tmp_path,
+        lane=lanes[0],
+        params=[],
+    )
     manifest_path = tmp_path / "next-manifest.json"
     manifest_path.write_text(json.dumps(manifest_payload(lanes)) + "\n", encoding="utf-8")
 
@@ -5131,6 +5499,7 @@ def test_checkpoint_database_maps_legacy_cross_product_lane_ids(
         previous_report_path,
         database_path=previous_checkpoint_dir / "nba.duckdb",
         included_lane_ids=[legacy_lane_id],
+        workload_integrity=workload_store.integrity_attestation(),
     )
 
     metadata_dir = tmp_path / "metadata"
@@ -5143,6 +5512,7 @@ def test_checkpoint_database_maps_legacy_cross_product_lane_ids(
         previous_checkpoint_report_path=previous_report_path,
         output_dir=tmp_path / "checkpoint",
         report_path=tmp_path / "checkpoint-report.json",
+        workload_duckdb_path=workload_duckdb_path,
         chain_id="chain",
         run_id="current-run",
     )
@@ -5664,7 +6034,7 @@ def test_full_extraction_terminal_control_plane_handoff_e2e(
         vpn_quarantined_servers=("us111.nordvpn.com",),
         artifact_run_ids=("26385964741", "26480824507"),
         scheduler_rotation_cursor=3,
-        iteration_budget=3,
+        iteration_budget=8,
     )
     assert [lane.lane_id for lane in next_manifest.lanes] == [
         completed_reference.lane_id,
@@ -5836,6 +6206,12 @@ def test_full_extraction_nonterminal_redispatch_handoff_e2e(tmp_path: Path) -> N
                     "journal_skips": 0,
                     "db_telemetry": {"running_calls": 0},
                 },
+                "state_artifact": {
+                    "run_id": "12345",
+                    "name": f"extraction-lane-chain-{timeout_lane.lane_id}",
+                    "sha256": "a" * 64,
+                    "required": True,
+                },
             }
         )
         + "\n",
@@ -5861,7 +6237,7 @@ def test_full_extraction_nonterminal_redispatch_handoff_e2e(tmp_path: Path) -> N
         vpn_quarantined_servers=("us001.nordvpn.com", "us002.nordvpn.com"),
         artifact_run_ids=("26480824507",),
         scheduler_rotation_cursor=2,
-        iteration_budget=4,
+        iteration_budget=36,
     )
 
     child_lanes = [lane for lane in next_lanes if lane.parent_lane_id == timeout_lane.lane_id]

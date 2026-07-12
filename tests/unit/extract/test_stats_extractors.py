@@ -1852,6 +1852,11 @@ class TestExtractMethodCoverage:
                     payload={"leaders": [{"PLAYERID": 1, "GRAVITYSCORE": 1.5}]}
                 ),
             )
+        elif cls in {VideoDetailsExtractor, VideoDetailsAssetExtractor}:
+            monkeypatch.setattr(
+                "nbadb.extract.stats.misc._extract_video_result_sets",
+                lambda *_args, **_kwargs: dummy_df,
+            )
         else:
             monkeypatch.setattr(ext, "_from_nba_api", _fake)
         params = _get_params(endpoint_name, category)

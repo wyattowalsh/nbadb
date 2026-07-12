@@ -46,5 +46,6 @@ def test_misc_static_playoff_shot_support_matrix_gaps_are_closed() -> None:
         "Regular Season",
         "Playoffs",
         "Pre Season",
+        "PlayIn",
         "All Star",
     ]

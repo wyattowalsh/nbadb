@@ -22,6 +22,7 @@ def test_build_command_includes_lane_filters(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("SEASON_END", "1963")
     monkeypatch.setenv("PATTERNS", "season")
     monkeypatch.setenv("SEASON_TYPES", "Regular Season,Playoffs")
+    monkeypatch.setenv("CONTEXT_MEASURES", "PTS,AST")
     monkeypatch.setenv("BACKFILL_ENDPOINTS", "league_dash_player_stats")
     monkeypatch.setenv("FORCE_REEXTRACT", "true")
     monkeypatch.setenv("EXTRACT_SUMMARY_PATH", "artifacts/extraction/extract-summary.json")
@@ -40,6 +41,8 @@ def test_build_command_includes_lane_filters(monkeypatch: pytest.MonkeyPatch) ->
         "season",
         "--season-types",
         "Regular Season,Playoffs",
+        "--context-measures",
+        "PTS,AST",
         "--endpoint",
         "league_dash_player_stats",
         "--summary-path",

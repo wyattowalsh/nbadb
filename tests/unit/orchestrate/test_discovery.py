@@ -12,6 +12,7 @@ import polars as pl
 import pytest
 
 from nbadb.core.errors import ExtractionError, TransientError
+from nbadb.core.types import PLAY_IN_UPSTREAM_UNAVAILABLE_REASON, SeasonType
 from nbadb.orchestrate.discovery import (
     _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
     _CONCURRENT_DISCOVERY_TIMEOUT,
@@ -437,11 +438,11 @@ class TestDiscoverPlayerTeamSeasonParams:
         season_frames = {
             "2024-25": pl.DataFrame(
                 {
-                    "person_id": [1, 2, 2, 3],
-                    "team_id": [10, 20, 20, 0],
+                    "player_id": [1, 2, 2, 2, 3],
+                    "team_id": [10, 20, 20, 21, 0],
                 }
             ),
-            "2025-26": pl.DataFrame({"person_id": [4], "team_id": [30]}),
+            "2025-26": pl.DataFrame({"player_id": [4], "team_id": [30]}),
         }
 
         class _Ext:
@@ -471,11 +472,50 @@ class TestDiscoverPlayerTeamSeasonParams:
                 "season_type": "Regular Season",
             },
             {
+                "player_id": 2,
+                "team_id": 21,
+                "season": "2024-25",
+                "season_type": "Regular Season",
+            },
+            {
                 "player_id": 4,
                 "team_id": 30,
                 "season": "2025-26",
                 "season_type": "Regular Season",
             },
+        ]
+        reg.get.assert_called_once_with("player_game_logs")
+
+    async def test_classifies_pre_play_in_scope_without_requesting_it(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        calls: list[tuple[str, str]] = []
+
+        def _side_effect(*_args, **kwargs):
+            calls.append((kwargs["season"], kwargs["season_type"]))
+            return pl.DataFrame({"player_id": [1], "team_id": [10]})
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            result = await EntityDiscovery(reg).discover_player_team_season_params_result(
+                ["2018-19", "2019-20"],
+                season_types=[SeasonType.PLAY_IN.value],
+            )
+
+        assert calls == [("2019-20", SeasonType.PLAY_IN.value)]
+        assert result.covered_pairs == result.requested_pairs
+        assert result.upstream_unavailable_pairs == {
+            ("2018-19", SeasonType.PLAY_IN.value): PLAY_IN_UPSTREAM_UNAVAILABLE_REASON
+        }
+        assert result.params == [
+            {
+                "player_id": 1,
+                "team_id": 10,
+                "season": "2019-20",
+                "season_type": SeasonType.PLAY_IN.value,
+            }
         ]
 
     async def test_returns_empty_on_failure(self):
@@ -492,7 +532,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             result = await disc.discover_player_team_season_params(["2024-25"])
         assert result == []
 
-    async def test_result_treats_empty_player_discovery_as_uncovered(self):
+    async def test_result_treats_typed_empty_workload_scope_as_covered(self):
         class _Ext:
             pass
 
@@ -501,7 +541,7 @@ class TestDiscoverPlayerTeamSeasonParams:
 
         with patch(
             "nbadb.orchestrate.discovery._sync_extract",
-            return_value=pl.DataFrame({"person_id": [], "team_id": []}),
+            return_value=pl.DataFrame(schema={"player_id": pl.Int64, "team_id": pl.Int64}),
         ):
             disc = EntityDiscovery(reg)
             result = await disc.discover_player_team_season_params_result(
@@ -510,8 +550,11 @@ class TestDiscoverPlayerTeamSeasonParams:
             )
 
         assert result.params == []
-        assert result.covered_pairs == frozenset()
-        assert result.is_complete is False
+        assert result.covered_pairs == {
+            ("2024-25", "Regular Season"),
+            ("2024-25", "Playoffs"),
+        }
+        assert result.is_complete is True
 
     async def test_result_treats_filtered_empty_player_discovery_as_uncovered(self):
         class _Ext:
@@ -522,7 +565,7 @@ class TestDiscoverPlayerTeamSeasonParams:
 
         with patch(
             "nbadb.orchestrate.discovery._sync_extract",
-            return_value=pl.DataFrame({"person_id": [1], "team_id": [0]}),
+            return_value=pl.DataFrame({"player_id": [1], "team_id": [0]}),
         ):
             disc = EntityDiscovery(reg)
             result = await disc.discover_player_team_season_params_result(
@@ -544,7 +587,7 @@ class TestDiscoverPlayerTeamSeasonParams:
         def _side_effect(*_args, **kwargs):
             if kwargs["season"] == "2025-26":
                 raise ConnectionError("fail")
-            return pl.DataFrame({"person_id": [1], "team_id": [10]})
+            return pl.DataFrame({"player_id": [1], "team_id": [10]})
 
         with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
             disc = EntityDiscovery(reg)
@@ -576,7 +619,7 @@ class TestDiscoverPlayerTeamSeasonParams:
                 raise ConnectionError("fail")
             return pl.DataFrame(
                 {
-                    "person_id": [1 if season == "2024-25" else 2],
+                    "player_id": [1 if season == "2024-25" else 2],
                     "team_id": [10 if season == "2024-25" else 20],
                 }
             )
@@ -624,10 +667,10 @@ class TestDiscoverPlayerTeamSeasonParams:
     ):
         season_frames = {
             "2024-25": [
-                pl.DataFrame({"person_id": [1]}),
-                pl.DataFrame({"person_id": [1], "team_id": [10]}),
+                pl.DataFrame({"player_id": [1]}),
+                pl.DataFrame({"player_id": [1], "team_id": [10]}),
             ],
-            "2025-26": [pl.DataFrame({"person_id": [2], "team_id": [20]})],
+            "2025-26": [pl.DataFrame({"player_id": [2], "team_id": [20]})],
         }
         call_counts: dict[str, int] = {}
 
@@ -674,7 +717,7 @@ class TestDiscoverPlayerTeamSeasonParams:
                 raise ConnectionError("fail")
             return pl.DataFrame(
                 {
-                    "person_id": [1 if season == "2024-25" else 2],
+                    "player_id": [1 if season == "2024-25" else 2],
                     "team_id": [10 if season == "2024-25" else 20],
                 }
             )
@@ -723,7 +766,7 @@ class TestDiscoverPlayerTeamSeasonParams:
                 raise ConnectionError("fail")
             return pl.DataFrame(
                 {
-                    "person_id": [1 if season == "2024-25" else 2],
+                    "player_id": [1 if season == "2024-25" else 2],
                     "team_id": [10 if season == "2024-25" else 20],
                 }
             )
@@ -773,7 +816,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             season = kwargs["season"]
             with lock:
                 calls.append(season)
-                is_fast_pass = len(calls) <= len(seasons)
+                is_fast_pass = len(calls) <= len(seasons) * 2
                 active += 1
                 max_active = max(max_active, active)
             try:
@@ -813,10 +856,10 @@ class TestDiscoverPlayerTeamSeasonParams:
         assert result.covered_pairs == frozenset()
         assert Counter(calls) == Counter(
             {
-                "2021-22": 1 + _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
-                "2022-23": 1,
-                "2023-24": 1,
-                "2024-25": 1,
+                "2021-22": 2 + _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
+                "2022-23": 2,
+                "2023-24": 2,
+                "2024-25": 2,
             }
         )
         assert result.failures_by_pair == {
@@ -833,7 +876,7 @@ class TestDiscoverPlayerTeamSeasonParams:
 
         def _side_effect(*_args, **kwargs):
             calls.append(kwargs["season"])
-            return pl.DataFrame({"person_id": [1]})
+            return pl.DataFrame({"player_id": [1]})
 
         class _Ext:
             pass
@@ -873,10 +916,10 @@ class TestDiscoverPlayerTeamSeasonParams:
             season = kwargs["season"]
             calls[season] += 1
             if season in response_seasons:
-                return pl.DataFrame({"person_id": [1]})
+                return pl.DataFrame({"player_id": [1]})
             if calls[season] == 1:
                 raise ConnectionError("transport outage")
-            return pl.DataFrame({"person_id": [1], "team_id": [10]})
+            return pl.DataFrame({"player_id": [1], "team_id": [10]})
 
         class _Ext:
             pass
@@ -942,7 +985,7 @@ class TestDiscoverPlayerTeamSeasonParams:
 
         def _side_effect(*_args, **kwargs):
             call_kwargs.append(dict(kwargs))
-            return pl.DataFrame({"person_id": [1]})
+            return pl.DataFrame({"player_id": [1]})
 
         class _Ext:
             pass
@@ -976,7 +1019,7 @@ class TestDiscoverPlayerTeamSeasonParams:
             call_kwargs.append(dict(kwargs))
             if len(call_kwargs) <= 2:
                 raise ConnectionError("fail")
-            return pl.DataFrame({"person_id": [1], "team_id": [10]})
+            return pl.DataFrame({"player_id": [1], "team_id": [10]})
 
         class _Ext:
             pass
@@ -1015,7 +1058,7 @@ class TestDiscoverPlayerTeamSeasonParams:
         reg.get.return_value = _Ext
         with patch(
             "nbadb.orchestrate.discovery._sync_extract",
-            return_value=pl.DataFrame({"person_id": [1], "team_id": [10]}),
+            return_value=pl.DataFrame({"player_id": [1], "team_id": [10]}),
         ):
             disc = EntityDiscovery(reg)
             result = await disc.discover_player_team_season_params(
@@ -1088,6 +1131,39 @@ class TestDiscoverTeamIds:
 
 
 class TestDiscoverGameIds:
+    async def test_classifies_pre_play_in_scope_as_typed_zero_without_request(self):
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        covered = MagicMock()
+        calls: list[tuple[str, str]] = []
+
+        def _side_effect(*_args, **kwargs):
+            calls.append((kwargs["season"], kwargs["season_type"]))
+            return pl.DataFrame({"game_id": ["0051900001"], "game_date": ["2020-08-15"]})
+
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            result = await EntityDiscovery(reg).discover_game_ids_result(
+                ["2018-19", "2019-20"],
+                season_types=[SeasonType.PLAY_IN.value],
+                on_combo_covered=covered,
+            )
+
+        unavailable = ("2018-19", SeasonType.PLAY_IN.value)
+        assert calls == [("2019-20", SeasonType.PLAY_IN.value)]
+        assert result.covered_combos == result.requested_combos
+        assert result.upstream_unavailable_combos == {
+            unavailable: PLAY_IN_UPSTREAM_UNAVAILABLE_REASON
+        }
+        assert result.frames_by_combo[unavailable].schema == {
+            "game_id": pl.String,
+            "game_date": pl.String,
+        }
+        assert result.frames_by_combo[unavailable].is_empty()
+        assert covered.call_count == 2
+
     async def test_returns_unique_sorted_game_ids(self):
         df = pl.DataFrame(
             {

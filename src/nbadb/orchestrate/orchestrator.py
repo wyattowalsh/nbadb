@@ -38,6 +38,7 @@ from nbadb.orchestrate.planning import (
     ExtractionPlanItem,
     build_extraction_plan,
     executable_endpoint_routes,
+    resolve_video_context_measures,
 )
 from nbadb.orchestrate.seasons import (
     current_season,
@@ -54,6 +55,7 @@ from nbadb.orchestrate.staging_batches import (
 from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.transformers import (
     discover_all_transformers,
+    require_complete_transformer_universe,
 )
 from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
 from nbadb.transform.pipeline import TransformPipeline
@@ -603,6 +605,7 @@ class Orchestrator:
 
         # Transform
         transformers = discover_all_transformers(include_live=False)
+        require_complete_transformer_universe(transformers, include_live=False)
         pipeline = TransformPipeline(db.duckdb)
         pipeline.register_all(transformers)
         n_transformers = len(transformers)
@@ -1183,6 +1186,7 @@ class Orchestrator:
         game_log_df: pl.DataFrame,
         include_static: bool = True,
         season_types: list[str] | None = None,
+        context_measures: list[str] | None = None,
         skip_items: set[tuple[str, str]] | None = None,
         run_mode: str | None = None,
         journal: PipelineJournal | None = None,
@@ -1231,6 +1235,7 @@ class Orchestrator:
                 player_team_season_params=player_team_season_params,
                 include_static=include_static,
                 season_types=season_types,
+                context_measures=context_measures,
             )
 
         # Compute total extraction tasks for the progress bar
@@ -2218,6 +2223,7 @@ class Orchestrator:
         extract_only: bool = False,
         transform_only: bool = False,
         season_types: list[str] | None = None,
+        context_measures: list[str] | None = None,
     ) -> PipelineResult:
         """Targeted backfill with optional force re-extraction.
 
@@ -2238,7 +2244,11 @@ class Orchestrator:
             Skip extraction, re-run transforms from DuckDB staging.
         season_types
             Defaults to the full supported season-type universe.
+        context_measures
+            Optional video context-measure filter. Defaults to all supported measures.
         """
+        if context_measures is not None:
+            context_measures = list(resolve_video_context_measures(context_measures))
         season_types = self._resolved_season_types(season_types)
 
         bound_log = cast("_BoundLogger", logger.bind(run_mode="backfill"))
@@ -2374,6 +2384,7 @@ class Orchestrator:
                 game_dates=game_dates,
                 player_team_season_params=player_team_season_params,
                 season_types=season_types,
+                context_measures=context_measures,
             )
 
             # Filter plan items by endpoint/pattern if user requested
@@ -2425,6 +2436,7 @@ class Orchestrator:
                 game_log_df=game_log_df,
                 include_static=True,
                 season_types=season_types,
+                context_measures=context_measures,
                 run_mode="backfill",
                 journal=journal,
                 progress_store=self._extraction_progress(),

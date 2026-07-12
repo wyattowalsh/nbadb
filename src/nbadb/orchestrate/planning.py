@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from nbadb.core.types import (
+    VIDEO_CONTEXT_MEASURES,
+    classify_season_type_availability,
+)
 from nbadb.orchestrate.staging_map import StagingEntry, get_by_pattern
 
 type PlanParams = dict[str, int | str]
@@ -101,6 +105,7 @@ def _build_historical_params(
         for params in base_params
         for season in seasons
         for season_type in season_types
+        if _season_type_is_available(season, season_type)
     ]
 
 
@@ -136,6 +141,56 @@ def _param_season_year(params: PlanParams) -> int | None:
         return None
 
 
+def _season_type_is_available(season: str, season_type: str) -> bool:
+    try:
+        season_start_year = int(season[:4])
+    except (TypeError, ValueError):
+        return True
+    return classify_season_type_availability(season_start_year, season_type) == "supported"
+
+
+def _deduplicate_params(params: list[PlanParams]) -> list[PlanParams]:
+    deduplicated: list[PlanParams] = []
+    seen: set[tuple[tuple[str, int | str], ...]] = set()
+    for param_set in params:
+        key = tuple(sorted(param_set.items()))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduplicated.append(param_set)
+    return deduplicated
+
+
+def resolve_video_context_measures(
+    context_measures: list[str] | None,
+) -> tuple[str, ...]:
+    """Validate and resolve an optional video context-measure filter."""
+
+    if context_measures is None:
+        return VIDEO_CONTEXT_MEASURES
+    if not context_measures:
+        msg = "context_measures cannot be empty when explicitly provided"
+        raise ValueError(msg)
+
+    invalid = sorted(set(context_measures) - set(VIDEO_CONTEXT_MEASURES))
+    if invalid:
+        msg = f"Unknown video context measure(s): {', '.join(invalid)}"
+        raise ValueError(msg)
+
+    return tuple(dict.fromkeys(context_measures))
+
+
+def _expand_video_context_measures(
+    params: list[PlanParams],
+    context_measures: tuple[str, ...],
+) -> list[PlanParams]:
+    return [
+        {**param_set, "context_measure": context_measure}
+        for param_set in _deduplicate_params(params)
+        for context_measure in context_measures
+    ]
+
+
 def _filter_cross_product_params(
     params: list[PlanParams],
     *,
@@ -147,10 +202,18 @@ def _filter_cross_product_params(
         season_year = _param_season_year(param_set)
         if season_year is not None and season_year < start_year:
             continue
-        if season_types and str(param_set.get("season_type", "")) not in season_types:
+        season_type = str(param_set.get("season_type", ""))
+        if season_types and season_type not in season_types:
+            continue
+        if (
+            season_year is not None
+            and season_type
+            and classify_season_type_availability(season_year, season_type)
+            == "upstream_unavailable"
+        ):
             continue
         filtered.append(param_set)
-    return filtered
+    return _deduplicate_params(filtered)
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +274,7 @@ def build_extraction_plan(
     player_team_season_params: list[PlanParams] | None = None,
     include_static: bool = True,
     season_types: list[str] | None = None,
+    context_measures: list[str] | None = None,
 ) -> list[ExtractionPlanItem]:
     """Build the pattern execution plan for a pipeline run.
 
@@ -220,6 +284,7 @@ def build_extraction_plan(
     generated workload; production entries otherwise start at 1946.
     """
 
+    resolved_context_measures = resolve_video_context_measures(context_measures)
     plan: list[ExtractionPlanItem] = []
     entries_by_pattern = executable_entries_by_pattern()
 
@@ -375,7 +440,10 @@ def build_extraction_plan(
                     label=_label_with_contract("player x team x season", grouped_season_types),
                     pattern="player_team_season",
                     entries=grouped_entries,
-                    params=grouped_params,
+                    params=_expand_video_context_measures(
+                        grouped_params,
+                        resolved_context_measures,
+                    ),
                     priority=PATTERN_PRIORITY["player_team_season"],
                 )
             )

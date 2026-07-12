@@ -450,6 +450,8 @@ def _run_pipeline(
             )
         except Exception as exc:
             logger.debug("Failed to write requested summary JSON: {}", exc)
+    if result.failed_loads:
+        raise typer.Exit(1)
     if result.failed_extractions and result.tables_updated == 0 and result.rows_total == 0:
         raise typer.Exit(1)  # Complete failure — nothing extracted
     # Partial failure — data was extracted, continue with warnings already printed

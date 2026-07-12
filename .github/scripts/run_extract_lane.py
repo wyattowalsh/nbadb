@@ -79,6 +79,7 @@ def build_command() -> list[str]:
     season_end = os.environ.get("SEASON_END", "").strip()
     patterns = os.environ.get("PATTERNS", "").strip()
     season_types = os.environ.get("SEASON_TYPES", "").strip()
+    context_measures = os.environ.get("CONTEXT_MEASURES", "").strip()
     endpoints = os.environ.get("BACKFILL_ENDPOINTS", "").strip()
     summary_path = os.environ.get("EXTRACT_SUMMARY_PATH", "").strip()
     force_reextract = os.environ.get("FORCE_REEXTRACT", "").strip().lower() == "true"
@@ -89,6 +90,8 @@ def build_command() -> list[str]:
         cmd.extend(["--pattern", patterns])
     if season_types:
         cmd.extend(["--season-types", season_types])
+    if context_measures:
+        cmd.extend(["--context-measures", context_measures])
     if endpoints:
         cmd.extend(["--endpoint", endpoints])
     if summary_path:

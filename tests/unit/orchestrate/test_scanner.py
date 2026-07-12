@@ -16,6 +16,8 @@ from nbadb.orchestrate.scanner import (
 if TYPE_CHECKING:
     import duckdb
 
+_VALIDATOR = "nbadb.orchestrate.transformers.require_complete_transformer_universe"
+
 # ── fixtures ──────────────────────────────────────────────────────
 
 
@@ -89,6 +91,7 @@ class TestMissingTableChecks:
                 "nbadb.orchestrate.transformers.discover_all_transformers",
                 return_value=[],
             ),
+            patch(_VALIDATOR),
         ):
             scanner = DataScanner(conn)
             report = scanner.scan(categories=[ScanCategory.MISSING_TABLE])
@@ -110,6 +113,7 @@ class TestMissingTableChecks:
                 "nbadb.orchestrate.transformers.discover_all_transformers",
                 return_value=[],
             ),
+            patch(_VALIDATOR),
         ):
             scanner = DataScanner(conn)
             report = scanner.scan(categories=[ScanCategory.MISSING_TABLE])
@@ -130,6 +134,7 @@ class TestMissingTableChecks:
                 "nbadb.orchestrate.transformers.discover_all_transformers",
                 return_value=[stub],
             ),
+            patch(_VALIDATOR),
         ):
             scanner = DataScanner(conn)
             report = scanner.scan(categories=[ScanCategory.MISSING_TABLE])
@@ -149,11 +154,76 @@ class TestMissingTableChecks:
                 "nbadb.orchestrate.transformers.discover_all_transformers",
                 return_value=[_stub_transformer("dim_game")],
             ),
+            patch(_VALIDATOR),
         ):
             scanner = DataScanner(conn)
             report = scanner.scan(categories=[ScanCategory.MISSING_TABLE])
 
         assert len(report.findings) == 0
+
+    @pytest.mark.parametrize("category", [ScanCategory.MISSING_TABLE, ScanCategory.CROSS_TABLE])
+    @pytest.mark.parametrize("outputs", [[], ["dim_game"]])
+    def test_zero_or_partial_transformer_discovery_is_an_error(self, conn, outputs, category):
+        transformers = [_stub_transformer(output) for output in outputs]
+        with (
+            patch(
+                "nbadb.orchestrate.staging_map.get_all_staging_keys",
+                return_value=[],
+            ),
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                return_value=transformers,
+            ),
+        ):
+            report = DataScanner(conn).scan(categories=[category])
+
+        errors = report.filter(severity=ScanSeverity.ERROR)
+        assert len(errors) == 1
+        assert errors[0].check == "transformer_discovery_failed"
+        assert errors[0].details == {
+            "error_type": "TransformerDiscoveryError",
+            "required_contract": "exact_schema_backed_output_universe",
+        }
+
+    def test_transformer_discovery_exception_is_an_error_finding(self, conn):
+        with (
+            patch(
+                "nbadb.orchestrate.staging_map.get_all_staging_keys",
+                return_value=[],
+            ),
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                side_effect=RuntimeError("synthetic import failure"),
+            ),
+        ):
+            report = DataScanner(conn).scan(categories=[ScanCategory.MISSING_TABLE])
+
+        errors = report.filter(severity=ScanSeverity.ERROR)
+        assert len(errors) == 1
+        assert errors[0].check == "transformer_discovery_failed"
+        assert "synthetic import failure" in errors[0].message
+
+    def test_empty_transform_reports_nonempty_policy_limitation(self, conn):
+        conn.execute("CREATE TABLE fact_optional (id INTEGER)")
+        transformer = _stub_transformer("fact_optional", ["stg_optional"])
+        with (
+            patch(
+                "nbadb.orchestrate.staging_map.get_all_staging_keys",
+                return_value=[],
+            ),
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                return_value=[transformer],
+            ),
+            patch(_VALIDATOR),
+        ):
+            report = DataScanner(conn).scan(categories=[ScanCategory.MISSING_TABLE])
+
+        warning = report.filter(severity=ScanSeverity.WARNING)[0]
+        assert warning.check == "empty_transform_table"
+        assert "no unconditional nonempty contract" in warning.message
+        assert warning.details["hard_nonempty_policy"] == "not_established"
+        assert "No repo-backed unconditional" in warning.details["policy_limitation"]
 
 
 # ── cross-table checks ───────────────────────────────────────────
@@ -501,6 +571,7 @@ class TestScanFiltering:
                 "nbadb.orchestrate.transformers.discover_all_transformers",
                 return_value=[],
             ),
+            patch(_VALIDATOR),
         ):
             scanner = DataScanner(conn)
             report = scanner.scan(categories=[ScanCategory.MISSING_TABLE])
@@ -610,6 +681,24 @@ class TestToMarkdown:
         assert "Cross-Table Gaps" in md
         assert "`fact_test`" in md
         assert "`fact_box`" in md
+
+    def test_warning_report_is_not_labeled_all_clear(self):
+        report = ScanReport(
+            findings=[
+                ScanFinding(
+                    category="missing_table",
+                    severity="warning",
+                    table="fact_optional",
+                    check="empty_transform_table",
+                    message="fact_optional is empty",
+                )
+            ]
+        )
+
+        md = report.to_markdown()
+
+        assert "1 warning(s)" in md
+        assert "All clear" not in md
 
     def test_truncation(self):
         """More than MAX findings per category are truncated."""

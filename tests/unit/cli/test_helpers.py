@@ -257,6 +257,44 @@ def test_run_pipeline_non_tty_success() -> None:
         assert call_args[0][1] == fake_result
 
 
+def test_run_pipeline_non_tty_failed_load_exits_one_after_partial_success() -> None:
+    fake_result = PipelineResult(
+        tables_updated=3,
+        rows_total=100,
+        duration_seconds=1.0,
+        failed_loads=1,
+    )
+
+    async def fake_run(orch):
+        return fake_result
+
+    class FakeOrchCls:
+        def __init__(self, **kwargs):
+            pass
+
+    with (
+        patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
+        patch(
+            "nbadb.cli.commands._helpers.asyncio.run",
+            side_effect=_asyncio_run_returning(fake_result),
+        ),
+        patch("nbadb.cli.commands._helpers._print_result") as mock_print,
+        patch("nbadb.cli.commands._helpers._setup_logging"),
+    ):
+        mock_stdout.isatty.return_value = False
+        with pytest.raises(typer.Exit) as exc_info:
+            _run_pipeline(
+                "test",
+                fake_run,
+                _build_settings(),
+                verbose=False,
+                orchestrator_cls=FakeOrchCls,
+            )
+
+    assert exc_info.value.exit_code == 1
+    mock_print.assert_called_once()
+
+
 def test_run_pipeline_non_tty_exception_raises_exit() -> None:
     """Non-TTY pipeline raises typer.Exit(1) on exception."""
 
@@ -420,6 +458,36 @@ def test_run_pipeline_tui_path_success() -> None:
         call_args = mock_print.call_args
         assert call_args[0][0] == "test"
         assert call_args[0][1] == fake_result
+
+
+def test_run_pipeline_tui_failed_load_exits_one_after_partial_success() -> None:
+    fake_result = PipelineResult(
+        tables_updated=2,
+        rows_total=50,
+        duration_seconds=0.5,
+        failed_loads=1,
+    )
+
+    async def fake_run(orch):
+        return fake_result
+
+    with (
+        patch("nbadb.cli.commands._helpers.sys.stdout") as mock_stdout,
+        patch("nbadb.cli.commands._helpers._print_result") as mock_print,
+        patch("nbadb.cli.tui.run_with_tui", return_value=(fake_result, None, None)),
+    ):
+        mock_stdout.isatty.return_value = True
+        with pytest.raises(typer.Exit) as exc_info:
+            _run_pipeline(
+                "test",
+                fake_run,
+                _build_settings(),
+                verbose=False,
+                orchestrator_cls=type("FakeOrch", (), {}),
+            )
+
+    assert exc_info.value.exit_code == 1
+    mock_print.assert_called_once()
 
 
 def test_run_pipeline_tui_path_error() -> None:

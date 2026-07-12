@@ -92,6 +92,29 @@ def _patch_scanner(report: ScanReport):
 
 
 class TestFailOn:
+    def test_zero_transformer_discovery_fails_category_filtered_hard_scan(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        db_path = tmp_path / "nbadb" / "nba.duckdb"
+        _make_db(db_path)
+
+        with (
+            patch("nbadb.cli.commands.scan._build_settings") as mock_settings,
+            patch(
+                "nbadb.orchestrate.transformers.discover_all_transformers",
+                return_value=[],
+            ),
+        ):
+            mock_settings.return_value.duckdb_path = db_path
+            result = runner.invoke(
+                app,
+                ["scan", "--category", "cross_table", "--fail-on", "error"],
+            )
+
+        assert result.exit_code == 1
+        assert "Transformer discovery assurance failed" in result.output
+
     def test_exits_1_on_errors(self, tmp_path: Path) -> None:
         db_path = tmp_path / "nbadb" / "nba.duckdb"
         _make_db(db_path)

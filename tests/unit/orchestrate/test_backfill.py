@@ -197,9 +197,9 @@ class TestBackfillPlannerGaps:
         # The strict historical contract now expects every declared season type.
         league_gaps = [g for g in report.gaps if g.endpoint == "league_game_log"]
         assert len(league_gaps) == 1
-        assert league_gaps[0].expected == 4
+        assert league_gaps[0].expected == 5
         assert league_gaps[0].actual == 1
-        assert league_gaps[0].missing == 3
+        assert league_gaps[0].missing == 4
 
     def test_no_gap_when_complete(
         self,
@@ -221,6 +221,11 @@ class TestBackfillPlannerGaps:
             journal,
             "league_game_log",
             {"season": "2024-25", "season_type": "Pre Season"},
+        )
+        _seed_done(
+            journal,
+            "league_game_log",
+            {"season": "2024-25", "season_type": "PlayIn"},
         )
         _seed_done(
             journal,

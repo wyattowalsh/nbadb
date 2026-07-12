@@ -681,7 +681,7 @@ def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
     assert "openvpn_tcp" in requested_urls[0]
 
 
-def test_recommendations_assign_distinct_verified_servers_by_parallel_slot(
+def test_recommendations_assign_distinct_verified_servers_by_initial_lane_index(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
 ) -> None:
@@ -720,21 +720,120 @@ def test_recommendations_assign_distinct_verified_servers_by_parallel_slot(
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
 
     action.selector_index = 0
-    slot_zero = action.recommendation_servers("openvpn_udp")
+    lane_zero = action.recommendation_servers("openvpn_udp")
     action.selector_index = 1
-    slot_one = action.recommendation_servers("openvpn_udp")
+    lane_one = action.recommendation_servers("openvpn_udp")
     action.selector_index = 2
-    slot_two = action.recommendation_servers("openvpn_udp")
+    lane_two = action.recommendation_servers("openvpn_udp")
 
-    assert slot_zero[0] == "us2001.nordvpn.com"
-    assert slot_one[0] == "us2002.nordvpn.com"
-    assert set(slot_two).isdisjoint(action.preferred_servers)
-    assert len(slot_zero) == len(slot_one) == 2
-    assert 1 <= len(slot_two) <= 2
+    assert lane_zero[0] == "us2001.nordvpn.com"
+    assert lane_one[0] == "us2002.nordvpn.com"
+    assert set(lane_two).isdisjoint(action.preferred_servers)
+    assert len(lane_zero) == len(lane_one) == 2
+    assert 1 <= len(lane_two) <= 2
 
     action.quarantined_servers = ("us2001.nordvpn.com",)
     action.selector_index = 0
     assert "us2001.nordvpn.com" not in action.recommendation_servers("openvpn_udp")
+
+
+def test_recommendations_do_not_wrap_preferred_host_for_out_of_order_lane_start(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 2
+    action.server_pool_size = 8
+    action.preferred_servers = ("us2001.nordvpn.com", "us2002.nordvpn.com")
+    action.preferred_server_slot_count = 3
+    candidates = [
+        {
+            "hostname": hostname,
+            "status": "online",
+            "station": f"192.0.{index}.1",
+            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+        }
+        for index, hostname in enumerate(
+            (*action.preferred_servers, *(f"us300{index}.nordvpn.com" for index in range(1, 7))),
+            start=1,
+        )
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(json.dumps(candidates), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    action.selector_index = 0
+    active_lane = action.recommendation_servers("openvpn_udp")
+    action.selector_index = 3
+    out_of_order_lane = action.recommendation_servers("openvpn_udp")
+
+    assert active_lane[0] == "us2001.nordvpn.com"
+    assert out_of_order_lane
+    assert set(out_of_order_lane).isdisjoint(action.preferred_servers)
+    assert len(out_of_order_lane) <= action.server_limit
+
+
+def test_recommendations_use_deduplicated_preferred_pool_for_lane_assignments(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    monkeypatch.setenv(
+        "PREFERRED_SERVERS_JSON",
+        '["us2001.nordvpn.com", "us2001.nordvpn.com", "us2002.nordvpn.com"]',
+    )
+    monkeypatch.setenv("PREFERRED_SERVER_SLOT_COUNT", "3")
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 1
+    action.server_pool_size = 5
+    candidates = [
+        {
+            "hostname": hostname,
+            "status": "online",
+            "station": f"198.51.100.{index}",
+            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+        }
+        for index, hostname in enumerate(
+            (*action.preferred_servers, "us3001.nordvpn.com", "us3002.nordvpn.com"),
+            start=1,
+        )
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(json.dumps(candidates), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.preferred_servers == ("us2001.nordvpn.com", "us2002.nordvpn.com")
+
+    action.selector_index = 0
+    lane_zero = action.recommendation_servers("openvpn_udp")
+    action.selector_index = 1
+    lane_one = action.recommendation_servers("openvpn_udp")
+    action.selector_index = 2
+    lane_two = action.recommendation_servers("openvpn_udp")
+
+    assert lane_zero == ["us2001.nordvpn.com"]
+    assert lane_one == ["us2002.nordvpn.com"]
+    assert lane_two
+    assert set(lane_two).isdisjoint(action.preferred_servers)
 
 
 def test_recommendations_expand_cached_inventory_after_cross_protocol_failures(
@@ -987,6 +1086,9 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "auth-rejection-limit:" in metadata
     assert "auth-recovery-rounds:" in metadata
     assert "server-pool-size:" in metadata
+    assert "preferred-servers-json:" in metadata
+    assert "preferred-server-slot-count:" in metadata
+    assert "assignments never wrap" in metadata
     assert "auth-source:" in metadata
     assert "NBA_PROBE_ENABLED: ${{ inputs.nba-probe-enabled }}" in metadata
     assert "NBA_PROBE_URL: ${{ inputs.nba-probe-url }}" in metadata
@@ -1001,6 +1103,8 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "AUTH_REJECTION_LIMIT: ${{ inputs.auth-rejection-limit }}" in metadata
     assert "AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}" in metadata
     assert "SERVER_POOL_SIZE: ${{ inputs.server-pool-size }}" in metadata
+    assert "PREFERRED_SERVERS_JSON: ${{ inputs.preferred-servers-json }}" in metadata
+    assert "PREFERRED_SERVER_SLOT_COUNT: ${{ inputs.preferred-server-slot-count }}" in metadata
 
 
 def test_pid_alive_returns_false_when_probe_times_out(

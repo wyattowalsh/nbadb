@@ -12,7 +12,12 @@ from typing import Any
 
 import duckdb
 
-from nbadb.core.types import SeasonType
+from nbadb.core.types import (
+    PLAY_IN_FIRST_SEASON_START_YEAR,
+    VIDEO_CONTEXT_MEASURES,
+    SeasonType,
+    classify_season_type_availability,
+)
 from nbadb.orchestrate.execution_policy import build_execution_policy
 from nbadb.orchestrate.extraction_contract import (
     DISCOVERY_SEED_OWNED_ENDPOINTS,
@@ -23,6 +28,10 @@ from nbadb.orchestrate.extraction_contract import (
 from nbadb.orchestrate.planning import PATTERN_PRIORITY, executable_endpoint_routes
 from nbadb.orchestrate.seasons import season_range
 from nbadb.orchestrate.staging_map import STAGING_MAP
+from nbadb.orchestrate.workload_contract import (
+    PlayerTeamSeasonWorkloadIntegrityAttestation,
+    PlayerTeamSeasonWorkloadStore,
+)
 from nbadb.orchestrate.workload_profile import (
     WorkloadPlanningSnapshot,
     build_workload_planning_snapshot,
@@ -52,7 +61,7 @@ FAILURE_RETRY_BUDGETS: dict[str, int] = {
     "application": 1,
     "vpn_egress": 3,
     "runner_infrastructure": 3,
-    "timeout_progress": 0,
+    "timeout_progress": 8,
     "timeout_stalled": 2,
 }
 CHUNK_PROFILES = frozenset({"standard", "balanced-small", "micro"})
@@ -82,6 +91,8 @@ HISTORICAL_PATTERNS = frozenset({"season", "game", "date", "player_season", "tea
 REFERENCE_PATTERNS = frozenset({"static", "player", "team"})
 REFERENCE_PATTERN_ORDER = ("static", "team", "player")
 CROSS_PRODUCT_PATTERNS = frozenset({"player_team_season"})
+VIDEO_ENDPOINTS = frozenset({"video_details", "video_details_asset"})
+VIDEO_CONTEXT_MEASURES_PER_LANE = 3
 SEASON_TYPE_GROUPABLE_PATTERNS = SEASON_TYPE_PATTERNS | CROSS_PRODUCT_PATTERNS
 DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
 HISTORICAL_MAX_SPAN_BY_PATTERN: dict[str, int] = {
@@ -259,6 +270,7 @@ class FullExtractionLane:
     season_end: int | None
     patterns: tuple[str, ...]
     season_types: tuple[str, ...] = ()
+    context_measures: tuple[str, ...] = ()
     endpoints: tuple[str, ...] = ()
     use_vpn: bool = True
     resume_only: bool = False
@@ -295,6 +307,7 @@ class FullExtractionLane:
             "season_end": "" if self.season_end is None else str(self.season_end),
             "patterns": ",".join(self.patterns),
             "season_types": ",".join(self.season_types),
+            "context_measures": ",".join(self.context_measures),
             "endpoints": ",".join(self.endpoints),
             "use_vpn": self.use_vpn,
             "resume_only": self.resume_only,
@@ -622,11 +635,13 @@ def _historical_thresholds(rows: list[dict[str, Any]], requested_patterns: set[s
         earliest = row.get("earliest_supported_season")
         if earliest is None:
             thresholds.add(DEFAULT_HISTORICAL_START)
-            continue
-        try:
-            thresholds.add(int(earliest))
-        except (TypeError, ValueError):
-            thresholds.add(DEFAULT_HISTORICAL_START)
+        else:
+            try:
+                thresholds.add(int(earliest))
+            except (TypeError, ValueError):
+                thresholds.add(DEFAULT_HISTORICAL_START)
+        if SeasonType.PLAY_IN.value in _declared_supported_season_types(row):
+            thresholds.add(PLAY_IN_FIRST_SEASON_START_YEAR)
     if not thresholds:
         thresholds.add(DEFAULT_HISTORICAL_START)
     return sorted(thresholds)
@@ -642,6 +657,76 @@ def _season_type_slug(season_types: tuple[str, ...]) -> str:
     if not season_types:
         return "no-season-type"
     return "-".join(value.lower().replace(" ", "-") for value in season_types)
+
+
+def _context_measure_slug(context_measures: tuple[str, ...]) -> str:
+    if not context_measures:
+        return "all-contexts"
+    return "-".join(value.lower().replace("_", "-") for value in context_measures)
+
+
+def _available_season_types_for_band(
+    season_types: tuple[str, ...],
+    *,
+    start: int,
+    end: int,
+) -> tuple[str, ...]:
+    if SeasonType.PLAY_IN.value not in season_types:
+        return season_types
+    if start < PLAY_IN_FIRST_SEASON_START_YEAR <= end:
+        msg = f"season band {start}-{end} crosses the PlayIn availability boundary"
+        raise ValueError(msg)
+    if end < PLAY_IN_FIRST_SEASON_START_YEAR:
+        return tuple(
+            season_type for season_type in season_types if season_type != SeasonType.PLAY_IN.value
+        )
+    return season_types
+
+
+def _season_type_availability_bands(
+    season_types: tuple[str, ...],
+    *,
+    start: int,
+    end: int,
+) -> list[tuple[int, int, tuple[str, ...]]]:
+    boundaries = [(start, end)]
+    if SeasonType.PLAY_IN.value in season_types and start < PLAY_IN_FIRST_SEASON_START_YEAR <= end:
+        boundaries = [
+            (start, PLAY_IN_FIRST_SEASON_START_YEAR - 1),
+            (PLAY_IN_FIRST_SEASON_START_YEAR, end),
+        ]
+    return [
+        (band_start, band_end, available_types)
+        for band_start, band_end in boundaries
+        if (
+            available_types := _available_season_types_for_band(
+                season_types,
+                start=band_start,
+                end=band_end,
+            )
+        )
+        or not season_types
+    ]
+
+
+def _context_measure_groups(endpoints: tuple[str, ...]) -> list[tuple[str, ...]]:
+    if not endpoints or not set(endpoints) <= VIDEO_ENDPOINTS:
+        return [()]
+    return [
+        VIDEO_CONTEXT_MEASURES[index : index + VIDEO_CONTEXT_MEASURES_PER_LANE]
+        for index in range(0, len(VIDEO_CONTEXT_MEASURES), VIDEO_CONTEXT_MEASURES_PER_LANE)
+    ]
+
+
+def _context_measures_for_endpoint(
+    lane: FullExtractionLane,
+    *,
+    endpoint: str,
+    pattern: str,
+) -> tuple[str, ...]:
+    if endpoint not in VIDEO_ENDPOINTS or pattern != "player_team_season":
+        return ("",)
+    return lane.context_measures or VIDEO_CONTEXT_MEASURES
 
 
 def _lane_slug(value: str) -> str:
@@ -945,18 +1030,33 @@ def _coverage_units_for_lane(lane: FullExtractionLane) -> list[dict[str, Any]]:
         seasons = (None,)
     else:
         seasons = tuple(range(lane.season_start, lane.season_end + 1))
-    return [
-        {
-            "endpoint": endpoint,
-            "pattern": pattern,
-            "season_type": season_type,
-            "season": season,
-        }
-        for endpoint in endpoints
-        for pattern in patterns
-        for season_type in season_types
-        for season in seasons
-    ]
+    units: list[dict[str, Any]] = []
+    for endpoint in endpoints:
+        for pattern in patterns:
+            for season_type in season_types:
+                for season in seasons:
+                    if (
+                        season is not None
+                        and season_type
+                        and classify_season_type_availability(season, season_type)
+                        == "upstream_unavailable"
+                    ):
+                        continue
+                    for context_measure in _context_measures_for_endpoint(
+                        lane,
+                        endpoint=endpoint,
+                        pattern=pattern,
+                    ):
+                        units.append(
+                            {
+                                "endpoint": endpoint,
+                                "pattern": pattern,
+                                "season_type": season_type,
+                                "season": season,
+                                "context_measure": context_measure,
+                            }
+                        )
+    return units
 
 
 def _hash_payload(payload: Any) -> str:
@@ -1012,7 +1112,14 @@ def _annotate_lane(
         planning_snapshot=planning_snapshot,
     )
     span = max(1, _season_span(lane.season_start, lane.season_end))
-    estimated_lane_cost = endpoint_cost_value * span
+    context_multiplier = max(
+        (
+            len(_context_measures_for_endpoint(lane, endpoint=endpoint, pattern=pattern or ""))
+            for endpoint in lane.endpoints
+        ),
+        default=1,
+    )
+    estimated_lane_cost = endpoint_cost_value * span * context_multiplier
     annotated = replace(
         lane,
         chunk_profile=chunk_profile,
@@ -1174,6 +1281,14 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
     executable_routes = executable_endpoint_routes()
     executable_patterns = frozenset(PATTERN_PRIORITY)
     for lane in lanes:
+        unknown_context_measures = sorted(set(lane.context_measures) - set(VIDEO_CONTEXT_MEASURES))
+        if unknown_context_measures:
+            errors.append(
+                f"{lane.lane_id}: unknown video context measures: "
+                f"{', '.join(unknown_context_measures)}"
+            )
+        if lane.context_measures and not set(lane.endpoints) <= VIDEO_ENDPOINTS:
+            errors.append(f"{lane.lane_id}: context measures require video-only endpoint lanes")
         unknown_patterns = sorted(set(lane.patterns) - executable_patterns)
         if unknown_patterns:
             errors.append(
@@ -1247,6 +1362,7 @@ def _legacy_failure_class(reason: str) -> str:
 def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
     patterns = tuple(str(pattern) for pattern in raw.get("patterns", []) if str(pattern))
     season_types = tuple(str(value) for value in raw.get("season_types", []) if str(value))
+    context_measures = tuple(str(value) for value in raw.get("context_measures", []) if str(value))
     endpoints = tuple(str(value) for value in raw.get("endpoints", []) if str(value))
     season_start = raw.get("season_start")
     season_end = raw.get("season_end")
@@ -1262,6 +1378,7 @@ def _normalize_lane(raw: dict[str, Any], lane_index: int) -> FullExtractionLane:
         season_end=_optional_int(season_end),
         patterns=patterns,
         season_types=season_types,
+        context_measures=context_measures,
         endpoints=endpoints,
         use_vpn=bool(raw.get("use_vpn", True)),
         resume_only=bool(raw.get("resume_only", False)),
@@ -1457,16 +1574,24 @@ def build_default_manifest(
                                     max_span=profile_max_span,
                                 )
                             ):
+                                lane_season_types = _available_season_types_for_band(
+                                    season_types,
+                                    start=band_start,
+                                    end=band_end,
+                                )
+                                if season_types and not lane_season_types:
+                                    continue
                                 endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
                                 lane_id = (
                                     f"historical-{pattern}{endpoint_component}-"
-                                    f"{_season_type_slug(season_types)}-{band_start}-{band_end}"
+                                    f"{_season_type_slug(lane_season_types)}-"
+                                    f"{band_start}-{band_end}"
                                 )
                                 lane_name = f"Historical {pattern} {band_start}-{band_end}"
                                 if endpoints and endpoint_slug:
                                     lane_name = f"{lane_name} ({', '.join(endpoints)})"
-                                if season_types:
-                                    lane_name = f"{lane_name} ({', '.join(season_types)})"
+                                if lane_season_types:
+                                    lane_name = f"{lane_name} ({', '.join(lane_season_types)})"
                                 appended = _append_lane_if_supported(
                                     lanes,
                                     FullExtractionLane(
@@ -1477,7 +1602,7 @@ def build_default_manifest(
                                         season_start=band_start,
                                         season_end=band_end,
                                         patterns=(pattern,),
-                                        season_types=season_types,
+                                        season_types=lane_season_types,
                                         endpoints=endpoints,
                                         use_vpn=True,
                                         resume_only=False,
@@ -1551,7 +1676,17 @@ def build_default_manifest(
                     start=DEFAULT_HISTORICAL_START,
                     end=end_year,
                 )
-                for supported_start, supported_end in supported_bands:
+                availability_bands = [
+                    availability_band
+                    for supported_start, supported_end in supported_bands
+                    for availability_band in _season_type_availability_bands(
+                        season_types,
+                        start=supported_start,
+                        end=supported_end,
+                    )
+                ]
+                context_measure_groups = _context_measure_groups(endpoints)
+                for supported_start, supported_end, lane_season_types in availability_bands:
                     supported_costs = {
                         year: cross_product_costs[year]
                         for year in range(supported_start, supported_end + 1)
@@ -1581,36 +1716,54 @@ def build_default_manifest(
                             ),
                         )
                     ):
-                        endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
-                        lane_name = f"Cross Product Historical {band_start}-{band_end}"
-                        if endpoints and endpoint_slug:
-                            lane_name = f"{lane_name} ({', '.join(endpoints)})"
-                        appended = _append_lane_if_supported(
-                            lanes,
-                            FullExtractionLane(
-                                lane_id=(
-                                    f"cross-product{endpoint_component}-"
-                                    f"{_season_type_slug(season_types)}-"
-                                    f"{band_start}-{band_end}"
+                        for context_index, context_measures in enumerate(
+                            context_measure_groups,
+                            start=1,
+                        ):
+                            endpoint_component = f"-{endpoint_slug}" if endpoint_slug else ""
+                            context_component = (
+                                f"-ctx-{context_index:02d}" if context_measures else ""
+                            )
+                            lane_name = f"Cross Product Historical {band_start}-{band_end}"
+                            if endpoints and endpoint_slug:
+                                lane_name = f"{lane_name} ({', '.join(endpoints)})"
+                            if context_measures:
+                                lane_name = (
+                                    f"{lane_name} (contexts "
+                                    f"{context_index}/{len(context_measure_groups)}: "
+                                    f"{', '.join(context_measures)})"
+                                )
+                            appended = _append_lane_if_supported(
+                                lanes,
+                                FullExtractionLane(
+                                    lane_id=(
+                                        f"cross-product{endpoint_component}{context_component}-"
+                                        f"{_season_type_slug(lane_season_types)}-"
+                                        f"{band_start}-{band_end}"
+                                    ),
+                                    lane_index=lane_index,
+                                    lane_name=lane_name,
+                                    lane_kind="cross_product",
+                                    season_start=band_start,
+                                    season_end=band_end,
+                                    patterns=patterns,
+                                    season_types=lane_season_types,
+                                    context_measures=context_measures,
+                                    endpoints=endpoints,
+                                    use_vpn=True,
+                                    resume_only=False,
+                                    timeout_seconds=(
+                                        19_800
+                                        if context_measures
+                                        else _cross_product_timeout_seconds(
+                                            band_start,
+                                            band_end,
+                                        )
+                                    ),
                                 ),
-                                lane_index=lane_index,
-                                lane_name=lane_name,
-                                lane_kind="cross_product",
-                                season_start=band_start,
-                                season_end=band_end,
-                                patterns=patterns,
-                                season_types=season_types,
-                                endpoints=endpoints,
-                                use_vpn=True,
-                                resume_only=False,
-                                timeout_seconds=_cross_product_timeout_seconds(
-                                    band_start,
-                                    band_end,
-                                ),
-                            ),
-                        )
-                        if appended:
-                            lane_index += 1
+                            )
+                            if appended:
+                                lane_index += 1
 
     if not lanes:
         msg = "Selected full-extraction filters produced no runnable lanes"
@@ -1705,6 +1858,24 @@ def _lane_cost_summary(
     )
 
 
+def _maximum_retry_leaf_count(lane: FullExtractionLane) -> int:
+    """Return a conservative upper bound for descendants created by timeout splitting."""
+    if not (_timeout_lane_can_split(lane) or _lane_exceeds_policy(lane)):
+        return 1
+    season_leaves = _season_span(lane.season_start, lane.season_end)
+    season_type_leaves = max(1, len(lane.season_types))
+    context_leaves = max(1, len(lane.context_measures))
+    return season_leaves * season_type_leaves * context_leaves
+
+
+def _remaining_dispatch_credits(lane: FullExtractionLane) -> int:
+    """Bound remaining attempts without assuming which failure class a fresh lane will hit."""
+    if lane.last_failure_class:
+        budget = FAILURE_RETRY_BUDGETS.get(lane.last_failure_class, 1)
+        return max(1, budget - lane.class_failure_streak)
+    return max(1, max(FAILURE_RETRY_BUDGETS.values(), default=1))
+
+
 def manifest_payload(
     lanes: list[FullExtractionLane],
     *,
@@ -1723,12 +1894,22 @@ def manifest_payload(
     matrix_lanes = active_lanes[:max_matrix_lanes]
     deferred_lane_count = max(0, len(active_lanes) - len(matrix_lanes))
     minimum_remaining_waves = math.ceil(len(active_lanes) / max_matrix_lanes)
-    suggested_remaining_waves = math.ceil(minimum_remaining_waves * 1.25)
+    remaining_dispatch_credits = sum(
+        _remaining_dispatch_credits(lane) * _maximum_retry_leaf_count(lane) for lane in active_lanes
+    )
+    maximum_retry_depth = max(
+        (_remaining_dispatch_credits(lane) for lane in active_lanes),
+        default=0,
+    )
+    suggested_remaining_waves = max(
+        maximum_retry_depth,
+        math.ceil(remaining_dispatch_credits / max_matrix_lanes),
+    )
     resolved_chain_state = chain_state or FullExtractionChainState()
-    if resolved_chain_state.iteration_budget <= current_iteration and active_lanes:
+    if resolved_chain_state.iteration_budget < 1 and active_lanes:
         resolved_chain_state = replace(
             resolved_chain_state,
-            iteration_budget=current_iteration + max(2, suggested_remaining_waves),
+            iteration_budget=current_iteration - 1 + max(1, suggested_remaining_waves),
         )
     chunk_profiles = sorted({lane.chunk_profile for lane in lanes if lane.chunk_profile})
     coverage_fingerprint = _coverage_fingerprint(lanes)
@@ -1751,6 +1932,8 @@ def manifest_payload(
         "iteration_budget": resolved_chain_state.iteration_budget,
         "scheduler_diagnostics": {
             "max_matrix_lanes": max_matrix_lanes,
+            "maximum_retry_depth": maximum_retry_depth,
+            "remaining_dispatch_credits": remaining_dispatch_credits,
             "rotation_cursor": resolved_chain_state.scheduler_rotation_cursor,
             "queue_counts": {
                 name: sum(1 for lane in active_lanes if _lane_scheduler_queue(lane) == name)
@@ -1790,6 +1973,8 @@ def _lane_payload(lane: FullExtractionLane, *, compact: bool = False) -> dict[st
         payload.pop("lane_index", None)
         if not lane.season_types:
             payload.pop("season_types", None)
+        if not lane.context_measures:
+            payload.pop("context_measures", None)
         if not lane.endpoints:
             payload.pop("endpoints", None)
         if lane.use_vpn is True:
@@ -1922,7 +2107,7 @@ def _timeout_lane_can_split(lane: FullExtractionLane) -> bool:
         return False
     if _season_span(lane.season_start, lane.season_end) > 1:
         return True
-    return len(lane.season_types) > 1
+    return len(lane.season_types) > 1 or len(lane.context_measures) > 1
 
 
 def _timeout_split_bands(lane: FullExtractionLane) -> list[tuple[int, int]]:
@@ -1997,9 +2182,6 @@ def _split_lane_by_segments(
                     season_end=end,
                     season_types=season_types,
                     resume_only=False,
-                    failure_streak=0,
-                    class_failure_streak=0,
-                    zero_progress_streak=0,
                     last_failure_reason=f"split-from-{reason}",
                     parent_lane_id=parent_lane_id,
                     split_generation=lane.split_generation + 1,
@@ -2021,6 +2203,30 @@ def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullEx
             season_type_groups=[(season_type,) for season_type in lane.season_types],
             reason=reason,
         )
+    if (
+        lane.season_start is not None
+        and lane.season_end is not None
+        and _season_span(lane.season_start, lane.season_end) == 1
+        and len(lane.context_measures) > 1
+    ):
+        parent_lane_id = lane.parent_lane_id or lane.lane_id
+        return [
+            replace(
+                lane,
+                lane_id=(
+                    f"{_lane_slug(parent_lane_id)}-split-"
+                    f"{lane.season_start}-{lane.season_end}-"
+                    f"{_context_measure_slug((context_measure,))}"
+                ),
+                lane_name=f"{lane.lane_name} ({context_measure})",
+                context_measures=(context_measure,),
+                resume_only=False,
+                last_failure_reason=f"split-from-{reason}",
+                parent_lane_id=parent_lane_id,
+                split_generation=lane.split_generation + 1,
+            )
+            for context_measure in lane.context_measures
+        ]
     return _split_lane_by_bands(lane, bands=_timeout_split_bands(lane), reason=reason)
 
 
@@ -2066,7 +2272,22 @@ def _metadata_has_required_noncomplete_artifacts(payload: dict[str, Any]) -> boo
     if not payload:
         return False
     vpn_payload = payload.get("vpn")
-    return isinstance(vpn_payload, dict)
+    if not isinstance(vpn_payload, dict):
+        return False
+
+    completed_calls, rows_persisted = _metadata_progress(payload)
+    if completed_calls < 1 and rows_persisted < 1:
+        return True
+
+    run_id, name, digest = _metadata_state_artifact(payload)
+    artifact = payload.get("state_artifact")
+    return (
+        isinstance(artifact, dict)
+        and artifact.get("required") is not False
+        and bool(run_id)
+        and bool(name)
+        and _is_sha256(digest)
+    )
 
 
 def _metadata_progress(payload: dict[str, Any]) -> tuple[int, int]:
@@ -2211,6 +2432,7 @@ def lane_outcome_from_metadata(
         telemetry = {}
     rows_persisted = _int_metadata_value(telemetry.get("rows_persisted"))
     journal_skips = _int_metadata_value(telemetry.get("journal_skips"))
+    completed_calls, _ = _metadata_progress(payload)
     running_calls = _int_metadata_value(
         (telemetry.get("db_telemetry") or {}).get("running_calls")
         if isinstance(telemetry.get("db_telemetry"), dict)
@@ -2265,7 +2487,9 @@ def lane_outcome_from_metadata(
     ):
         return "needs_resume"
 
-    if raw_status == "extract-error" and (rows_persisted > 0 or journal_skips > 0):
+    if raw_status == "extract-error" and (
+        completed_calls > 0 or rows_persisted > 0 or journal_skips > 0
+    ):
         return "needs_resume"
     if raw_status in SPLITTABLE_TIMEOUT_STATUSES:
         return "needs_resume"
@@ -2462,12 +2686,25 @@ def build_resume_manifest(
             active += 1
             pipeline_failure_retries += 1
             continue
-        retry_lane = _retry_lane_from_metadata(
-            lane,
-            payload,
-            outcome=status,
-            current_iteration=current_iteration,
+        failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
+        retry_lane = replace(
+            _retry_lane_from_metadata(
+                lane,
+                payload,
+                outcome=status,
+                current_iteration=current_iteration,
+            ),
+            failure_streak=failure_streak,
+            last_failure_reason=status,
         )
+        if _retry_budget_exhausted(
+            retry_lane.last_failure_class,
+            retry_lane.class_failure_streak,
+        ):
+            blocked_lanes.append(retry_lane)
+            next_lanes.append(retry_lane)
+            active += 1
+            continue
         if _status_allows_legacy_split(status) and _lane_exceeds_policy(lane):
             child_lanes = _split_legacy_oversized_lane(
                 retry_lane,
@@ -2483,18 +2720,7 @@ def build_resume_manifest(
             split_lane_count += len(child_lanes)
             active += len(child_lanes)
             continue
-        failure_streak = lane.failure_streak + 1 if lane.last_failure_reason == status else 1
-        next_lane = replace(
-            retry_lane,
-            failure_streak=failure_streak,
-            last_failure_reason=status,
-        )
-        if _retry_budget_exhausted(
-            next_lane.last_failure_class,
-            next_lane.class_failure_streak,
-        ):
-            blocked_lanes.append(next_lane)
-        next_lanes.append(next_lane)
+        next_lanes.append(retry_lane)
         active += 1
 
     if pipeline_failures:
@@ -3105,6 +3331,7 @@ def _validate_previous_checkpoint_report(
     previous_report_path: Path | None,
     previous_report: dict[str, Any],
     lanes_by_id: dict[str, FullExtractionLane],
+    expected_workload_integrity: PlayerTeamSeasonWorkloadIntegrityAttestation | None = None,
 ) -> tuple[set[str], list[str], dict[str, str]]:
     if previous_report_path is None or not previous_report_path.is_file() or not previous_report:
         msg = "Previous checkpoint database has no readable checkpoint report"
@@ -3119,6 +3346,13 @@ def _validate_previous_checkpoint_report(
     actual_database_sha256 = _file_sha256(previous_db_path)
     if actual_database_sha256 != reported_database_sha256.lower():
         msg = "Previous checkpoint database digest does not match its report"
+        raise ValueError(msg)
+
+    if (
+        expected_workload_integrity is not None
+        and previous_report.get("workload_integrity") != expected_workload_integrity
+    ):
+        msg = "Previous checkpoint workload generation does not match the active discovery contract"
         raise ValueError(msg)
 
     raw_lane_ids = previous_report.get("included_lane_ids")
@@ -3247,11 +3481,12 @@ def _metadata_lane_contract_errors(
     sequence_fields: tuple[tuple[str, tuple[str, ...]], ...] = (
         ("patterns", lane.patterns),
         ("season_types", lane.season_types),
+        ("context_measures", lane.context_measures),
         ("endpoints", lane.endpoints),
     )
     for metadata_field, expected in sequence_fields:
         if metadata_field not in payload:
-            if strict:
+            if strict and (metadata_field != "context_measures" or expected):
                 errors.append(f"metadata_{metadata_field}_missing")
             continue
         if _metadata_sequence(payload, metadata_field) != expected:
@@ -3318,7 +3553,15 @@ _GAME_ID_SEASON_TYPES: dict[str, str] = {
     "002": SeasonType.REGULAR.value,
     "003": SeasonType.ALL_STAR.value,
     "004": SeasonType.PLAYOFFS.value,
+    "005": SeasonType.PLAY_IN.value,
 }
+
+
+def _journal_required_keys(pattern: str, *, endpoint: str) -> tuple[str, ...]:
+    keys = _JOURNAL_PARAMETER_KEYS_BY_PATTERN.get(pattern, ())
+    if endpoint in VIDEO_ENDPOINTS and pattern == "player_team_season":
+        return (*keys, "context_measure")
+    return keys
 
 
 def _journal_params_payload(params_json: str) -> dict[str, Any] | None:
@@ -3334,6 +3577,16 @@ def _journal_param_value(params: dict[str, Any], key: str) -> str | None:
     if value is None or value == "":
         return None
     return str(value)
+
+
+def _journal_param_int(params: dict[str, Any], key: str) -> int | None:
+    value = _journal_param_value(params, key)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
 def _journal_game_date_season_year(raw_value: str) -> int | None:
@@ -3388,30 +3641,41 @@ def _journal_param_season_type(params: dict[str, Any]) -> str | None:
 def _journal_params_cover_manifest_unit(
     params: dict[str, Any],
     *,
+    endpoint: str,
     pattern: str,
     season_year: int | None,
     season_type: str | None,
+    context_measure: str | None,
 ) -> bool:
-    required_keys = _JOURNAL_PARAMETER_KEYS_BY_PATTERN.get(pattern, ())
+    required_keys = _journal_required_keys(pattern, endpoint=endpoint)
     if any(_journal_param_value(params, key) is None for key in required_keys):
         return False
     if season_year is not None and _journal_param_season_year(params) != season_year:
         return False
     actual_season_type = _journal_param_season_type(params)
     if season_type is not None:
-        return actual_season_type == season_type
-    if pattern in SEASON_TYPE_GROUPABLE_PATTERNS:
-        return _journal_param_value(params, "season_type") is None
-    return True
+        if actual_season_type != season_type:
+            return False
+    elif (
+        pattern in SEASON_TYPE_GROUPABLE_PATTERNS
+        and _journal_param_value(params, "season_type") is not None
+    ):
+        return False
+    if context_measure is not None:
+        return _journal_param_value(params, "context_measure") == context_measure
+    return (
+        endpoint not in VIDEO_ENDPOINTS or _journal_param_value(params, "context_measure") is None
+    )
 
 
 def _journal_params_in_lane_scope(
     params: dict[str, Any],
     *,
+    endpoint: str,
     lane: FullExtractionLane,
     pattern: str,
 ) -> bool:
-    required_keys = _JOURNAL_PARAMETER_KEYS_BY_PATTERN.get(pattern, ())
+    required_keys = _journal_required_keys(pattern, endpoint=endpoint)
     if any(_journal_param_value(params, key) is None for key in required_keys):
         return False
 
@@ -3422,19 +3686,35 @@ def _journal_params_in_lane_scope(
 
     actual_season_type = _journal_param_season_type(params)
     if lane.season_types:
-        return actual_season_type in lane.season_types
-    if pattern in SEASON_TYPE_GROUPABLE_PATTERNS:
-        return _journal_param_value(params, "season_type") is None
+        if actual_season_type not in lane.season_types:
+            return False
+    elif (
+        pattern in SEASON_TYPE_GROUPABLE_PATTERNS
+        and _journal_param_value(params, "season_type") is not None
+    ):
+        return False
+    if endpoint in VIDEO_ENDPOINTS and pattern == "player_team_season":
+        return _journal_param_value(params, "context_measure") in _context_measures_for_endpoint(
+            lane,
+            endpoint=endpoint,
+            pattern=pattern,
+        )
     return True
 
 
 def _journal_parameter_identity(
     params: dict[str, Any],
     *,
+    endpoint: str,
     lane: FullExtractionLane,
     pattern: str,
 ) -> tuple[Any, ...] | None:
-    if not _journal_params_in_lane_scope(params, lane=lane, pattern=pattern):
+    if not _journal_params_in_lane_scope(
+        params,
+        endpoint=endpoint,
+        lane=lane,
+        pattern=pattern,
+    ):
         return None
 
     season_type = _journal_param_season_type(params) if lane.season_types else ""
@@ -3465,12 +3745,15 @@ def _journal_parameter_identity(
             _journal_param_value(params, "team_id"),
         )
     if pattern == "player_team_season":
-        return (
+        identity = (
             _journal_param_season_year(params),
             season_type,
-            _journal_param_value(params, "player_id"),
-            _journal_param_value(params, "team_id"),
+            _journal_param_int(params, "player_id"),
+            _journal_param_int(params, "team_id"),
         )
+        if endpoint in VIDEO_ENDPOINTS:
+            return (*identity, _journal_param_value(params, "context_measure"))
+        return identity
     return None
 
 
@@ -3480,11 +3763,13 @@ def _journal_coverage_label(
     pattern: str,
     season: int | None = None,
     season_type: str = "",
+    context_measure: str = "",
     parameter_unit: tuple[Any, ...] | None = None,
 ) -> str:
     return json.dumps(
         {
             "endpoint": endpoint,
+            "context_measure": context_measure,
             "parameter_unit": parameter_unit,
             "pattern": pattern,
             "season": season,
@@ -3505,9 +3790,87 @@ def _journal_missing_coverage_error(
     return f"{prefix}:{missing_count}:{sample_payload}"
 
 
+def _workload_base_units_sha256(units: set[tuple[int, str, int, int]]) -> str:
+    payload = [list(unit) for unit in sorted(units)]
+    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _workload_scope_contract(
+    lane: FullExtractionLane,
+    workload_store: PlayerTeamSeasonWorkloadStore | None,
+) -> tuple[set[tuple[int, str, int, int]] | None, dict[str, Any], list[str]]:
+    if "player_team_season" not in lane.patterns:
+        return None, {}, []
+    if set(lane.patterns) != {"player_team_season"}:
+        return None, {}, ["workload_contract_mixed_patterns"]
+    if lane.season_start is None or lane.season_end is None or not lane.season_types:
+        return None, {}, ["workload_contract_scope_missing"]
+    if workload_store is None:
+        return None, {}, ["workload_contract_unavailable"]
+
+    integrity = workload_store.integrity_attestation()
+    if integrity is None:
+        return None, {}, ["workload_contract_integrity_unavailable"]
+
+    seasons = season_range(lane.season_start, lane.season_end)
+    season_types = list(lane.season_types)
+    requested_pairs = {(season, season_type) for season in seasons for season_type in season_types}
+    coverage = workload_store.load_coverage(
+        seasons=seasons,
+        season_types=season_types,
+    )
+    errors: list[str] = []
+    invalid_pairs = requested_pairs & coverage.invalid_pairs
+    missing_pairs = requested_pairs - coverage.covered_pairs
+    if invalid_pairs:
+        errors.append(
+            "workload_contract_invalid_pairs:"
+            + ",".join(f"{season}:{season_type}" for season, season_type in sorted(invalid_pairs))
+        )
+    if missing_pairs:
+        errors.append(
+            "workload_contract_missing_pairs:"
+            + ",".join(f"{season}:{season_type}" for season, season_type in sorted(missing_pairs))
+        )
+    if errors:
+        return None, {}, errors
+
+    params = workload_store.load_params(
+        seasons=seasons,
+        season_types=season_types,
+    )
+    units = {
+        (
+            int(str(param["season"]).split("-", 1)[0]),
+            str(param["season_type"]),
+            int(param["player_id"]),
+            int(param["team_id"]),
+        )
+        for param in params
+    }
+    contract = {
+        "integrity": integrity,
+        "requested_pairs": [
+            {
+                "season": season,
+                "season_type": season_type,
+                "row_count": int(coverage.counts_by_pair.get((season, season_type), 0)),
+            }
+            for season, season_type in sorted(requested_pairs)
+        ],
+        "expected_base_unit_count": len(units),
+        "expected_base_units_sha256": _workload_base_units_sha256(units),
+        "expected_empty": not units,
+    }
+    return units, contract, []
+
+
 def _current_journal_manifest_coverage_errors(
     lane: FullExtractionLane,
     parsed_rows: list[tuple[str, str, dict[str, Any]]],
+    *,
+    expected_workload_base_units: set[tuple[int, str, int, int]] | None = None,
+    zero_workload_pairs: set[tuple[int, str]] | None = None,
 ) -> list[str]:
     """Require successful journal evidence for every manifest coverage unit."""
     done_params_by_endpoint: dict[str, list[dict[str, Any]]] = {}
@@ -3522,12 +3885,21 @@ def _current_journal_manifest_coverage_errors(
         pattern = str(coverage_unit["pattern"])
         season = coverage_unit["season"]
         season_type = str(coverage_unit["season_type"] or "")
+        if (
+            pattern == "player_team_season"
+            and season is not None
+            and (int(season), season_type) in (zero_workload_pairs or set())
+        ):
+            continue
+        context_measure = str(coverage_unit["context_measure"] or "")
         if any(
             _journal_params_cover_manifest_unit(
                 params,
+                endpoint=endpoint,
                 pattern=pattern,
                 season_year=season,
                 season_type=season_type or None,
+                context_measure=context_measure or None,
             )
             for params in done_params_by_endpoint.get(endpoint, [])
         ):
@@ -3540,6 +3912,7 @@ def _current_journal_manifest_coverage_errors(
                     pattern=pattern,
                     season=season,
                     season_type=season_type,
+                    context_measure=context_measure,
                 )
             )
 
@@ -3557,6 +3930,8 @@ def _current_journal_manifest_coverage_errors(
 def _current_journal_parameter_coverage_errors(
     lane: FullExtractionLane,
     parsed_rows: list[tuple[str, str, dict[str, Any]]],
+    *,
+    expected_workload_base_units: set[tuple[int, str, int, int]] | None = None,
 ) -> list[str]:
     """Require every concrete discovery unit in the journal to be successful."""
     missing_count = 0
@@ -3573,7 +3948,12 @@ def _current_journal_parameter_coverage_errors(
         for endpoint, status, params in lane_rows:
             if status != "done" or endpoint not in done_units_by_endpoint:
                 continue
-            identity = _journal_parameter_identity(params, lane=lane, pattern=pattern)
+            identity = _journal_parameter_identity(
+                params,
+                endpoint=endpoint,
+                lane=lane,
+                pattern=pattern,
+            )
             if identity is not None:
                 done_units_by_endpoint[endpoint].add(identity)
 
@@ -3596,14 +3976,52 @@ def _current_journal_parameter_coverage_errors(
                         for season_type in season_types
                         for entity_id in entity_ids
                     }
-        else:
-            for _endpoint, _status, params in lane_rows:
-                identity = _journal_parameter_identity(params, lane=lane, pattern=pattern)
+        elif pattern != "player_team_season":
+            for endpoint, _status, params in lane_rows:
+                identity = _journal_parameter_identity(
+                    params,
+                    endpoint=endpoint,
+                    lane=lane,
+                    pattern=pattern,
+                )
                 if identity is not None:
                     required_units.add(identity)
 
         for endpoint in lane.endpoints:
-            missing_units = required_units - done_units_by_endpoint.get(endpoint, set())
+            endpoint_required_units = required_units
+            if pattern == "player_team_season":
+                base_units: set[tuple[Any, ...]] = (
+                    set(expected_workload_base_units)
+                    if expected_workload_base_units is not None
+                    else {
+                        (
+                            _journal_param_season_year(params),
+                            _journal_param_season_type(params) if lane.season_types else "",
+                            _journal_param_int(params, "player_id"),
+                            _journal_param_int(params, "team_id"),
+                        )
+                        for row_endpoint, _status, params in lane_rows
+                        if _journal_params_in_lane_scope(
+                            params,
+                            endpoint=row_endpoint,
+                            lane=lane,
+                            pattern=pattern,
+                        )
+                    }
+                )
+                if endpoint in VIDEO_ENDPOINTS:
+                    endpoint_required_units = {
+                        (*base_unit, context_measure)
+                        for base_unit in base_units
+                        for context_measure in _context_measures_for_endpoint(
+                            lane,
+                            endpoint=endpoint,
+                            pattern=pattern,
+                        )
+                    }
+                else:
+                    endpoint_required_units = base_units
+            missing_units = endpoint_required_units - done_units_by_endpoint.get(endpoint, set())
             missing_count += len(missing_units)
             for parameter_unit in sorted(missing_units, key=str):
                 if len(samples) >= _JOURNAL_COVERAGE_ERROR_SAMPLE_LIMIT:
@@ -3660,7 +4078,23 @@ def _lane_database_journal_errors(
     lane: FullExtractionLane,
     *,
     require_complete_contract_evidence: bool,
+    workload_store: PlayerTeamSeasonWorkloadStore | None = None,
 ) -> list[str]:
+    expected_workload_base_units, workload_contract, workload_errors = (
+        _workload_scope_contract(lane, workload_store)
+        if require_complete_contract_evidence
+        else (None, {}, [])
+    )
+    empty_workload_only = (
+        not workload_errors
+        and expected_workload_base_units == set()
+        and set(lane.patterns) == {"player_team_season"}
+    )
+    zero_workload_pairs = {
+        (int(str(pair["season"]).split("-", 1)[0]), str(pair["season_type"]))
+        for pair in workload_contract.get("requested_pairs", [])
+        if isinstance(pair, dict) and int(pair.get("row_count") or 0) == 0
+    }
     try:
         conn = duckdb.connect(str(db_path), read_only=True)
     except Exception as exc:
@@ -3688,7 +4122,7 @@ def _lane_database_journal_errors(
     finally:
         conn.close()
 
-    errors: list[str] = []
+    errors: list[str] = list(workload_errors)
     status_counts: dict[str, int] = {}
     done_params_by_endpoint: dict[str, list[str]] = {}
     parsed_rows: list[tuple[str, str, dict[str, Any]]] = []
@@ -3708,19 +4142,34 @@ def _lane_database_journal_errors(
                 invalid_params_by_endpoint.get(endpoint_name, 0) + 1
             )
 
-    if not done_params_by_endpoint:
+    if not done_params_by_endpoint and not empty_workload_only:
         errors.append("journal_has_no_done_calls")
     for status, count in sorted(status_counts.items()):
         if status != "done" and count:
             errors.append(f"journal_nonterminal_status:{status or 'empty'}:{count}")
-    missing_endpoints = sorted(set(lane.endpoints) - set(done_params_by_endpoint))
+    missing_endpoints = (
+        [] if empty_workload_only else sorted(set(lane.endpoints) - set(done_params_by_endpoint))
+    )
     if missing_endpoints:
         errors.append("journal_missing_endpoints:" + ",".join(missing_endpoints))
     for endpoint, count in sorted(invalid_params_by_endpoint.items()):
         errors.append(f"journal_invalid_params_json:{endpoint}:{count}")
     if require_complete_contract_evidence:
-        errors.extend(_current_journal_manifest_coverage_errors(lane, parsed_rows))
-        errors.extend(_current_journal_parameter_coverage_errors(lane, parsed_rows))
+        errors.extend(
+            _current_journal_manifest_coverage_errors(
+                lane,
+                parsed_rows,
+                expected_workload_base_units=expected_workload_base_units,
+                zero_workload_pairs=zero_workload_pairs,
+            )
+        )
+        errors.extend(
+            _current_journal_parameter_coverage_errors(
+                lane,
+                parsed_rows,
+                expected_workload_base_units=expected_workload_base_units,
+            )
+        )
     else:
         errors.extend(_legacy_journal_contract_errors(lane, done_params_by_endpoint))
     return errors
@@ -3731,6 +4180,7 @@ def _validate_current_lane_artifact(
     lane: FullExtractionLane,
     metadata: dict[str, Any],
     db_path: Path,
+    workload_store: PlayerTeamSeasonWorkloadStore | None = None,
 ) -> list[str]:
     schema_version = _int_metadata_value(metadata.get("metadata_schema_version"))
     strict = schema_version >= 3
@@ -3754,11 +4204,20 @@ def _validate_current_lane_artifact(
         if state_digest and state_digest != actual_database_sha256:
             errors.append("metadata_state_artifact_sha256_mismatch")
 
+        _expected_units, expected_workload_contract, workload_errors = _workload_scope_contract(
+            lane, workload_store
+        )
+        if not workload_errors and expected_workload_contract:
+            metadata_workload_contract = metadata.get("workload_contract")
+            if metadata_workload_contract != expected_workload_contract:
+                errors.append("metadata_workload_contract_mismatch")
+
     errors.extend(
         _lane_database_journal_errors(
             db_path,
             lane,
             require_complete_contract_evidence=strict,
+            workload_store=workload_store,
         )
     )
     return errors
@@ -3802,6 +4261,7 @@ def _attested_current_lane_artifacts(
     complete_lane_ids: set[str],
     metadata: dict[str, dict[str, Any]],
     lanes_by_id: dict[str, FullExtractionLane],
+    workload_store: PlayerTeamSeasonWorkloadStore | None = None,
 ) -> tuple[list[Path], set[str], dict[str, list[str]]]:
     failures: dict[str, list[str]] = {}
     if not complete_lane_ids:
@@ -3836,6 +4296,7 @@ def _attested_current_lane_artifacts(
             lane=lane,
             metadata=metadata[lane_id],
             db_path=db_path,
+            workload_store=workload_store,
         )
         if errors:
             failures[lane_id] = errors
@@ -4018,12 +4479,27 @@ def build_checkpoint_database(
     report_path: Path,
     previous_checkpoint_dir: Path | None = None,
     previous_checkpoint_report_path: Path | None = None,
+    workload_duckdb_path: Path | None = None,
     chain_id: str = "",
     run_id: str = "",
 ) -> dict[str, Any]:
     manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
     lanes = list(manifest.lanes)
     lanes_by_id = {lane.lane_id: lane for lane in lanes}
+    requires_workload_contract = any("player_team_season" in lane.patterns for lane in lanes)
+    workload_store = (
+        PlayerTeamSeasonWorkloadStore.from_duckdb_path(workload_duckdb_path)
+        if workload_duckdb_path is not None
+        else None
+    )
+    workload_integrity = (
+        workload_store.integrity_attestation() if workload_store is not None else None
+    )
+    workload_contract_errors = (
+        ["workload_contract_integrity_unavailable"]
+        if requires_workload_contract and workload_integrity is None
+        else []
+    )
     metadata = _metadata_by_lane(metadata_dir)
     previous_report = _read_json_file(previous_checkpoint_report_path)
     complete_current_lane_ids = _metadata_complete_lane_ids(metadata)
@@ -4037,6 +4513,7 @@ def build_checkpoint_database(
         complete_lane_ids=complete_current_lane_ids,
         metadata=metadata,
         lanes_by_id=lanes_by_id,
+        workload_store=workload_store,
     )
     skipped_complete_lane_ids = sorted(complete_current_lane_ids - current_included_lane_ids)
     previous_db_path = _first_database_path(previous_checkpoint_dir)
@@ -4053,6 +4530,9 @@ def build_checkpoint_database(
             previous_report_path=previous_checkpoint_report_path,
             previous_report=previous_report,
             lanes_by_id=lanes_by_id,
+            expected_workload_integrity=(
+                workload_integrity if requires_workload_contract else None
+            ),
         )
     compatible_previous_lane_ids = _compatible_previous_checkpoint_lane_ids(
         lanes,
@@ -4123,11 +4603,14 @@ def build_checkpoint_database(
         "merge_summary": merge_summary,
         "output_path": output_path,
         "database_sha256": database_sha256,
+        "workload_integrity": workload_integrity,
+        "workload_contract_errors": workload_contract_errors,
         "terminal_ready": (
             not missing_lane_ids
             and bool(effective_included_lane_ids)
             and bool(database_sha256)
             and set(effective_included_lane_ids) <= set(included_lane_coverage_hashes)
+            and not workload_contract_errors
         ),
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -4312,6 +4795,7 @@ def _command_checkpoint(args: argparse.Namespace) -> int:
         report_path=args.report_path,
         previous_checkpoint_dir=args.previous_checkpoint_dir,
         previous_checkpoint_report_path=args.previous_checkpoint_report_path,
+        workload_duckdb_path=args.workload_duckdb_path,
         chain_id=args.chain_id,
         run_id=args.run_id,
     )
@@ -4367,6 +4851,7 @@ def _build_parser() -> argparse.ArgumentParser:
     checkpoint.add_argument("--artifacts-dir", type=Path, required=True)
     checkpoint.add_argument("--previous-checkpoint-dir", type=Path, default=None)
     checkpoint.add_argument("--previous-checkpoint-report-path", type=Path, default=None)
+    checkpoint.add_argument("--workload-duckdb-path", type=Path, default=None)
     checkpoint.add_argument("--output-dir", type=Path, required=True)
     checkpoint.add_argument("--report-path", type=Path, required=True)
     checkpoint.add_argument("--chain-id", type=str, default="")

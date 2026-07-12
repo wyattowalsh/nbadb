@@ -187,6 +187,10 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
     checkpoint = _job_block(workflow, "checkpoint")
     dispatch = _job_block(workflow, "dispatch_next")
 
+    assert "needs: [plan, preflight, discovery_seed, extract, lane_control]" in checkpoint
+    assert "Download discovery workload contract" in checkpoint
+    assert "full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}" in checkpoint
+    assert '--workload-duckdb-path "$workload_duckdb_path"' in checkpoint
     assert (
         "LANE_CONTROL_ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}"
     ) in checkpoint
@@ -286,14 +290,14 @@ def test_discovery_artifact_upload_is_success_only_and_fail_closed() -> None:
     )
 
 
-def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped(
-    tmp_path: pathlib.Path,
-) -> None:
+def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None:
     workflow = _workflow_text()
     extract = _job_block(workflow, "extract")
     metadata_step = _step_block(extract, "Write lane metadata")
     complete_upload = _step_block(extract, "Upload complete lane artifact")
     recovery_upload = _step_block(extract, "Upload incomplete lane state artifact")
+    metadata_upload = _step_block(extract, "Upload lane metadata")
+    diagnostic_upload = _step_block(extract, "Upload diagnostics-only lane snapshot")
     checkpoint_download = _step_block(
         _job_block(workflow, "checkpoint"),
         "Download current lane artifacts",
@@ -308,36 +312,29 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped(
     assert recovery_name in metadata_step
     assert recovery_name in recovery_upload
     assert complete_name not in recovery_upload
+    assert "steps.lane_metadata.outcome == 'success'" in complete_upload
+    assert "steps.lane_metadata.outputs.snapshot-attested == 'true'" in complete_upload
+    assert "if-no-files-found: error" in complete_upload
+    assert "steps.lane_metadata.outcome == 'success'" in recovery_upload
+    assert "steps.lane_metadata.outputs.snapshot-attested == 'true'" in recovery_upload
     assert "steps.lane_metadata.outputs.final-outcome != 'complete'" in recovery_upload
+    assert "if-no-files-found: error" in recovery_upload
+    assert "steps.lane_metadata.outcome == 'success'" in metadata_upload
+    assert "steps.lane_metadata.outputs.snapshot-attested == 'true'" in metadata_upload
+    assert "steps.lane_metadata.outcome != 'success'" in diagnostic_upload
+    assert "steps.lane_metadata.outputs.snapshot-attested != 'true'" in diagnostic_upload
+    assert "extraction-lane-diagnostics-only-" in diagnostic_upload
+    assert "data/nbadb/nba.duckdb" in diagnostic_upload
+    assert "data/nbadb/nba.duckdb.wal" in diagnostic_upload
+    assert "lane-state-attestation.json" in complete_upload
+    assert "lane-state-attestation.json" in recovery_upload
+    assert "lane-state-attestation.json" in metadata_upload
+    assert "lane-state-attestation.json" in diagnostic_upload
+    assert "lane-state-untrusted" in diagnostic_upload
+    assert complete_name not in diagnostic_upload
+    assert recovery_name not in diagnostic_upload
     assert '--pattern "extraction-lane-${ACTIVE_CHAIN_ID}-*"' in checkpoint_download
     assert "extraction-lane-recovery-" not in checkpoint_download
-
-    rewrite = _embedded_python(metadata_step, "RECOVERY_ARTIFACT_METADATA_REWRITE")
-    metadata_path = tmp_path / "artifacts" / "extraction" / "lane-metadata.json"
-    metadata_path.parent.mkdir(parents=True)
-    runtime_recovery_name = "extraction-lane-recovery-chain-lane-run-123-attempt-2"
-    for status, expected_name in (
-        ("needs_resume", runtime_recovery_name),
-        ("cancelled", runtime_recovery_name),
-        ("complete", "extraction-lane-chain-lane"),
-    ):
-        metadata_path.write_text(
-            json.dumps(
-                {
-                    "status": status,
-                    "state_artifact": {"name": "extraction-lane-chain-lane"},
-                }
-            ),
-            encoding="utf-8",
-        )
-        result = _run_python(
-            rewrite,
-            cwd=tmp_path,
-            env={"RECOVERY_ARTIFACT_NAME": runtime_recovery_name},
-        )
-        assert result.returncode == 0, result.stderr or result.stdout
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        assert metadata["state_artifact"]["name"] == expected_name
 
 
 def test_redispatch_preserves_auto_and_enforces_numeric_iteration_cap() -> None:
@@ -844,6 +841,7 @@ def test_publish_workflows_require_default_branch_and_complete_export_metadata()
         job = _job_block(path.read_text(encoding="utf-8"), job_name)
         branch_guard = _step_block(job, "Require default branch for Kaggle publication")
         upload = _step_block(job, "Upload to Kaggle")
+        metadata_commit = _step_block(job, "Refresh checked-in metadata")
         receipt = _step_block(job, "Upload Kaggle publication receipt")
         assertion = _step_block(job, "Assert extraction and scan passed")
 
@@ -856,8 +854,18 @@ def test_publish_workflows_require_default_branch_and_complete_export_metadata()
         ):
             assert prerequisite in upload
             assert prerequisite in receipt
+        assert "id: upload" in upload
+        assert "timeout-minutes: 75" in upload
+        assert "--data-dir data/nbadb" in upload
+        assert "--remote-timeout 3600" in upload
+        assert "steps.upload.outcome == 'success'" in metadata_commit
+        assert "data-dir: data/nbadb" in metadata_commit
+        assert job.index("Upload to Kaggle") < job.index("Refresh checked-in metadata")
+        assert "steps.upload.outcome != 'skipped'" in receipt
         assert "EXPORT_OUTCOME: ${{ steps.export.outcome }}" in assertion
         assert "METADATA_OUTCOME: ${{ steps.metadata.outcome }}" in assertion
+        assert "UPLOAD_OUTCOME: ${{ steps.upload.outcome }}" in assertion
+        assert "METADATA_COMMIT_OUTCOME: ${{ steps.metadata_commit.outcome }}" in assertion
 
 
 def test_kaggle_publication_preflight_fails_before_lane_fanout_and_rechecks_at_publish() -> None:
@@ -1635,7 +1643,6 @@ def test_seeded_discovery_artifacts_are_installed_after_state_restore() -> None:
     extract = _job_block(workflow, "extract")
     ordered_steps = [
         "- name: Download discovery artifacts",
-        "- name: Restore extraction state",
         "- name: Restore durable lane state artifact",
         "- name: Assess restored state",
         "- name: Install discovery artifacts after state restore",
@@ -1667,8 +1674,46 @@ def test_seeded_discovery_artifacts_are_installed_after_state_restore() -> None:
     assert '--manifest-path "$manifest_path"' in installed_verify
     assert "--duckdb-path data/nbadb/nba.duckdb" in installed_verify
     assert extract.index("mapfile -t workload_parquets") > extract.index(
-        "- name: Restore extraction state"
+        "- name: Restore durable lane state artifact"
     )
+
+
+def test_durable_lane_restore_requires_exact_attested_database() -> None:
+    workflow = _workflow_text()
+    extract = _job_block(workflow, "extract")
+    restore = _step_block(extract, "Restore durable lane state artifact")
+    assess = _step_block(extract, "Assess restored state")
+
+    assert 'if [ -z "$STATE_ARTIFACT_RUN_ID" ] ||' in restore
+    assert "Run ID, name, and digest are all required" in restore
+    assert restore.count(".github/scripts/validate_lane_state.py") == 1
+    assert restore.count('--expected-sha256 "$STATE_ARTIFACT_DIGEST"') == 1
+    assert restore.count("--require-journal") == 1
+    assert "--attestation-path" in restore
+    assert "--expected-source-sha" in restore
+    assert "--expected-chain-id" in restore
+    assert "--expected-lane-id" in restore
+    assert "--expected-coverage-units-hash" in restore
+    assert "--allow-attested-empty" in restore
+    assert "Required state artifact $STATE_ARTIFACT_NAME is unavailable" in restore
+    assert "must contain exactly one nba.duckdb" in restore
+    assert "python -c" not in restore
+    assert "STATE_ARTIFACT_REQUIRED:" in assess
+    assert ".github/scripts/validate_lane_state.py" in assess
+    assert "Required durable lane state was not restored" in assess
+    assert "Fresh lane contains unexpected unattested DuckDB state" in assess
+    assert "artifacts/extraction/lane-state-untrusted" in assess
+    assert "durable lane state failed exact validation" in assess
+    assert "python -c" not in assess
+    assert "Restore exact completed lane state" not in extract
+    assert "Save exact completed lane state" not in extract
+    assert "actions/cache/restore@" not in extract
+    assert "actions/cache/save@" not in extract
+    assert "matrix.parent_lane_id" not in restore
+    assert "Restore extraction state" not in extract
+    assert "Save extraction state" not in extract
+    assert "CACHE_KEY: full-extraction-state" not in workflow
+    assert "LANE_STATE_CACHE_KEY" not in workflow
 
 
 def test_discovery_seed_vpn_lifecycle_is_mode_gated_and_always_cleaned_up() -> None:

@@ -79,6 +79,7 @@ def test_player_support_matrix_family_chunk() -> None:
             "Regular Season",
             "Playoffs",
             "Pre Season",
+            "PlayIn",
             "All Star",
         ], endpoint_name
 
@@ -94,6 +95,7 @@ def test_player_support_matrix_family_chunk() -> None:
         "Regular Season",
         "Playoffs",
         "Pre Season",
+        "PlayIn",
         "All Star",
     ]
 

@@ -10,6 +10,7 @@ from nbadb.cli.app import app
 from nbadb.cli.commands._helpers import _build_settings, _open_db_readonly, _run_pipeline
 from nbadb.cli.options import DataDirOption, VerboseOption  # noqa: TC001
 from nbadb.orchestrate import Orchestrator
+from nbadb.orchestrate.planning import resolve_video_context_measures
 
 backfill_app = typer.Typer(
     name="backfill",
@@ -55,6 +56,13 @@ SeasonTypesOption = Annotated[
             "Comma-separated season types for historical season-aware patterns "
             "(e.g. 'Regular Season,Playoffs')"
         ),
+    ),
+]
+ContextMeasuresOption = Annotated[
+    str | None,
+    typer.Option(
+        "--context-measures",
+        help="Comma-separated video context measures (e.g. 'PTS,AST,REB')",
     ),
 ]
 OutputFormatOption = Annotated[
@@ -123,6 +131,16 @@ def _parse_csv(raw: str | None) -> list[str] | None:
     return [s.strip() for s in raw.split(",") if s.strip()]
 
 
+def _parse_context_measures(raw: str | None) -> list[str] | None:
+    parsed = _parse_csv(raw)
+    if parsed is None:
+        return None
+    try:
+        return list(resolve_video_context_measures(parsed))
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--context-measures") from None
+
+
 # ── subcommands ──────────────────────────────────────────────────
 
 
@@ -133,6 +151,7 @@ def run(
     endpoint: EndpointOption = None,
     pattern: PatternOption = None,
     season_types: SeasonTypesOption = None,
+    context_measures: ContextMeasuresOption = None,
     force: bool = typer.Option(False, "--force", help="Reset done entries to re-extract"),
     extract_only: bool = typer.Option(False, "--extract-only", help="Skip transform+load"),
     transform_only: bool = typer.Option(
@@ -150,6 +169,7 @@ def run(
     parsed_endpoints = _parse_csv(endpoint)
     parsed_patterns = _parse_csv(pattern)
     parsed_season_types = _parse_csv(season_types)
+    parsed_context_measures = _parse_context_measures(context_measures)
 
     if extract_only and transform_only:
         typer.echo("Cannot use --extract-only and --transform-only together", err=True)
@@ -176,6 +196,7 @@ def run(
             extract_only=extract_only,
             transform_only=transform_only,
             season_types=parsed_season_types,
+            context_measures=parsed_context_measures,
         ),
         settings,
         verbose,

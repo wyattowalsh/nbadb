@@ -39,7 +39,12 @@ def test_final_exception_endpoints_are_support_matrix_complete() -> None:
         assert row["input_schema_missing_staging_keys"] == [], endpoint_name
         assert row["output_schema_missing_tables"] == [], endpoint_name
 
-    expected_supported_season_types = ["Regular Season", "Playoffs", "Pre Season"]
+    expected_supported_season_types = [
+        "Regular Season",
+        "Playoffs",
+        "Pre Season",
+        "PlayIn",
+    ]
     assert rows["player_vs_player"]["season_type_contract_status"] == "supported"
     assert (
         rows["player_vs_player"]["declared_supported_season_types"]

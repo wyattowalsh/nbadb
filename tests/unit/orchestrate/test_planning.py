@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from nbadb.core.endpoint_coverage import EndpointCoverageGenerator
-from nbadb.core.types import SeasonType
+from nbadb.core.types import VIDEO_CONTEXT_MEASURES, SeasonType
 from nbadb.orchestrate.extraction_contract import (
     FULL_EXTRACTION_EXCLUSIONS_BY_ENDPOINT,
     contract_blocking_rules_for_lane,
@@ -201,7 +201,7 @@ class TestBuildExtractionPlan:
 
         assert [item.pattern for item in plan] == ["season"]
 
-    def test_builds_cross_product_patterns_and_player_team_season_passthrough(self) -> None:
+    def test_builds_cross_product_patterns_and_expands_video_context_measures(self) -> None:
         player_season_entries = [_entry("player_game_log")]
         team_season_entries = [_entry("team_game_log")]
         player_team_season_entries = [_entry("video_details")]
@@ -262,7 +262,70 @@ class TestBuildExtractionPlan:
             {"team_id": 1610612744, "season": "2025-26", "season_type": "Regular Season"},
             {"team_id": 1610612744, "season": "2025-26", "season_type": "Playoffs"},
         ]
-        assert by_pattern["player_team_season"].params == params
+        video_params = by_pattern["player_team_season"].params
+        assert len(video_params) == len(params) * len(VIDEO_CONTEXT_MEASURES)
+        assert by_pattern["player_team_season"].task_count == len(video_params)
+        assert {str(item["context_measure"]) for item in video_params} == set(
+            VIDEO_CONTEXT_MEASURES
+        )
+        assert {
+            (
+                item["player_id"],
+                item["team_id"],
+                item["season"],
+                item["season_type"],
+            )
+            for item in video_params
+        } == {
+            (
+                item["player_id"],
+                item["team_id"],
+                item["season"],
+                item["season_type"],
+            )
+            for item in params
+        }
+
+    def test_video_workload_deduplicates_and_classifies_pre_play_in_scopes(self) -> None:
+        video_entries = [
+            _entry(
+                "video_details",
+                supported_season_types=(SeasonType.PLAY_IN.value,),
+            )
+        ]
+        unavailable = {
+            "player_id": 1,
+            "team_id": 10,
+            "season": "2018-19",
+            "season_type": SeasonType.PLAY_IN.value,
+        }
+        available = {
+            "player_id": 2,
+            "team_id": 20,
+            "season": "2019-20",
+            "season_type": SeasonType.PLAY_IN.value,
+        }
+
+        with patch(
+            _GET_BY_PATTERN,
+            side_effect=lambda pattern: video_entries if pattern == "player_team_season" else [],
+        ):
+            plan = build_extraction_plan(
+                seasons=["2018-19", "2019-20"],
+                game_ids=[],
+                player_ids=[],
+                team_ids=[],
+                game_dates=[],
+                player_team_season_params=[unavailable, available, dict(available)],
+                season_types=[SeasonType.PLAY_IN.value],
+            )
+
+        assert len(plan) == 1
+        assert len(plan[0].params) == len(VIDEO_CONTEXT_MEASURES)
+        assert {
+            (item["player_id"], item["team_id"], item["season"], item["season_type"])
+            for item in plan[0].params
+        } == {(2, 20, "2019-20", SeasonType.PLAY_IN.value)}
 
     def test_honors_explicit_season_types(self) -> None:
         season_entries = [_entry("league_game_log"), _entry("league_standings")]

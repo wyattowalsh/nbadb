@@ -55,11 +55,11 @@ inputs:
     required: false
     default: "[]"
   preferred-servers-json:
-    description: JSON array of previously NBA-verified NordVPN hosts assigned ahead of fresh recommendations.
+    description: Deduplicated JSON array of previously NBA-verified hosts; item N is reserved only for logical lane index N and all items are excluded from fresh recommendations.
     required: false
     default: "[]"
   preferred-server-slot-count:
-    description: Parallel slot count used to assign at most one distinct preferred host to each lane slot.
+    description: Maximum number of initial logical lane indexes eligible for one-to-one preferred-host assignment; assignments never wrap and later lanes use fresh recommendations.
     required: false
     default: "1"
   country-id:

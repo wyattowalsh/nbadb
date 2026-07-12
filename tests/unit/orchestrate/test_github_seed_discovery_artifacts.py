@@ -80,8 +80,8 @@ def test_first_matrix_exact_scopes_match_current_manifest_cardinality(
     )
     manifest = {"github_matrix": {"include": [*game_lanes, *cross_lanes]}}
 
-    assert 8 * 58 * 4 + 48 * 4 == 2_048
-    assert len(module.game_discovery_pairs(manifest)) == 232
+    assert 8 * 58 * 5 + 48 * 5 == 2_560
+    assert len(module.game_discovery_pairs(manifest)) == 290
     assert 4 * 56 + 44 == 268
     workload_pairs = module.player_team_season_pairs(manifest)
     assert len(workload_pairs) == 56

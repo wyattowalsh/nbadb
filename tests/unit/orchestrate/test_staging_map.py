@@ -316,10 +316,23 @@ class TestStagingMap:
                 "Regular Season",
                 "Playoffs",
                 "Pre Season",
+                "PlayIn",
                 "All Star",
             ),
-            "stg_player_game_log": ("Regular Season", "Playoffs", "Pre Season", "All Star"),
-            "stg_team_game_log": ("Regular Season", "Playoffs", "Pre Season", "All Star"),
+            "stg_player_game_log": (
+                "Regular Season",
+                "Playoffs",
+                "Pre Season",
+                "PlayIn",
+                "All Star",
+            ),
+            "stg_team_game_log": (
+                "Regular Season",
+                "Playoffs",
+                "Pre Season",
+                "PlayIn",
+                "All Star",
+            ),
         }
         for staging_key, expected_season_types in supported_entries.items():
             entry = historical_entries[staging_key]
@@ -341,7 +354,7 @@ class TestStagingMap:
 
         assert entries
         capabilities = {entry.endpoint_name: entry.season_type_capability for entry in entries}
-        supported_season_types = ("Regular Season", "Playoffs", "Pre Season")
+        supported_season_types = ("Regular Season", "Playoffs", "Pre Season", "PlayIn")
 
         assert {
             endpoint_name: capability
@@ -365,6 +378,16 @@ class TestStagingMap:
             entry = next(entry for entry in entries if entry.endpoint_name == endpoint_name)
             assert entry.season_type_capability == "supported"
             assert entry.supported_season_types == supported_season_types
+
+        for endpoint_name in ("video_details", "video_details_asset"):
+            entry = next(entry for entry in entries if entry.endpoint_name == endpoint_name)
+            assert entry.supported_season_types == (
+                "Regular Season",
+                "Playoffs",
+                "Pre Season",
+                "PlayIn",
+                "All Star",
+            )
 
     def test_problem_endpoints_route_to_runnable_or_blocked_patterns(self) -> None:
         expected_patterns = {
