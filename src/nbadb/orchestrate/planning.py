@@ -435,18 +435,23 @@ def build_extraction_plan(
             )
             if not grouped_params:
                 continue
-            plan.append(
-                ExtractionPlanItem(
-                    label=_label_with_contract("player x team x season", grouped_season_types),
-                    pattern="player_team_season",
-                    entries=grouped_entries,
-                    params=_expand_video_context_measures(
-                        grouped_params,
-                        resolved_context_measures,
-                    ),
-                    priority=PATTERN_PRIORITY["player_team_season"],
-                )
+            expanded_params = _expand_video_context_measures(
+                grouped_params,
+                resolved_context_measures,
             )
+            for entry in grouped_entries:
+                plan.append(
+                    ExtractionPlanItem(
+                        label=_label_with_contract(
+                            f"player x team x season ({entry.endpoint_name})",
+                            grouped_season_types,
+                        ),
+                        pattern="player_team_season",
+                        entries=[entry],
+                        params=expanded_params,
+                        priority=PATTERN_PRIORITY["player_team_season"],
+                    )
+                )
 
     date_entries = entries_by_pattern["date"]
     if date_entries and game_dates:

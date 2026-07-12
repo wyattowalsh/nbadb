@@ -27,6 +27,7 @@ from nba_api.stats.endpoints._base import Endpoint
 from nba_api.stats.endpoints.videoeventsasset import VideoEventsAsset
 from nba_api.stats.library.http import NBAStatsHTTP
 
+from nbadb.core.errors import ExtractionError, TransientError
 from nbadb.core.types import (
     NBA_API_VIDEO_CONTEXT_MEASURE_VERSION,
     VIDEO_CONTEXT_MEASURE_PROVENANCE,
@@ -116,11 +117,24 @@ def _preserve_provenance_columns(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _standard_video_result_set(payload: dict[Any, Any]) -> pl.DataFrame | None:
+    if "headers" not in payload and "rowSet" not in payload:
+        return None
+
     headers = payload.get("headers")
     rows = payload.get("rowSet", payload.get("data"))
     if not isinstance(headers, list) or not isinstance(rows, list):
-        return None
-    pdf = Endpoint.DataSet(data={"headers": headers, "data": rows}).get_data_frame()
+        msg = "malformed standard video result set: headers and rows must be lists"
+        raise ExtractionError(msg)
+    if not all(isinstance(header, str) for header in headers):
+        msg = "malformed standard video result set: headers must be strings"
+        raise ExtractionError(msg)
+    if not all(isinstance(row, list | tuple) and len(row) == len(headers) for row in rows):
+        msg = "malformed standard video result set: row widths must match headers"
+        raise ExtractionError(msg)
+
+    pdf = Endpoint.DataSet(
+        data={"headers": headers, "data": [list(row) for row in rows]}
+    ).get_data_frame()
     return _safe_from_pandas(pdf)
 
 
@@ -134,7 +148,7 @@ def _dynamic_video_result_set(payload: object) -> pl.DataFrame | None:
     if not payload:
         return pl.DataFrame()
     if all(isinstance(row, dict) for row in payload):
-        return pl.DataFrame(payload)
+        return pl.DataFrame(payload, strict=False, infer_schema_length=None)
     if all(isinstance(row, list | tuple) for row in payload):
         rows: list[list[object]] = []
         for row in payload:
@@ -144,15 +158,170 @@ def _dynamic_video_result_set(payload: object) -> pl.DataFrame | None:
         columns = [f"value_{index}" for index in range(width)]
         padded_rows = [row + [None] * (width - len(row)) for row in rows]
         return pl.DataFrame(padded_rows, schema=columns, orient="row")
+    if any(isinstance(row, dict | list | tuple) for row in payload):
+        return None
     return pl.DataFrame({"value": payload}, strict=False)
 
 
+def _video_error_envelope_kind(payload: dict[str, Any]) -> str | None:
+    normalized = {
+        "".join(character for character in str(key).casefold() if character.isalnum()): value
+        for key, value in payload.items()
+    }
+    for key in ("error", "errors", "errormessage"):
+        value = normalized.get(key)
+        if value not in (None, "", False, [], {}):
+            return key
+
+    status = normalized.get("statuscode", normalized.get("status"))
+    if isinstance(status, int) and not isinstance(status, bool) and status >= 400:
+        return "error_status"
+    if isinstance(status, str):
+        normalized_status = status.strip().casefold()
+        if normalized_status in {"error", "failed", "failure"}:
+            return "error_status"
+        if normalized_status.isdigit() and int(normalized_status) >= 400:
+            return "error_status"
+
+    message = normalized.get("message")
+    has_result_container = "resultSets" in payload or "resultSet" in payload
+    if isinstance(message, str) and message.strip():
+        normalized_message = message.casefold()
+        if any(
+            marker in normalized_message
+            for marker in (
+                "error has occurred",
+                "forbidden",
+                "unauthorized",
+                "invalid request",
+            )
+        ):
+            return "error_message"
+        envelope_keys = {
+            "message",
+            "status",
+            "statuscode",
+            "code",
+            "requestid",
+            "traceid",
+        }
+        if not has_result_container and set(normalized) <= envelope_keys:
+            return "error_message"
+    return None
+
+
+def _video_error_envelope_status(payload: dict[str, Any]) -> int | None:
+    normalized = {
+        "".join(character for character in str(key).casefold() if character.isalnum()): value
+        for key, value in payload.items()
+    }
+    raw_status = normalized.get("statuscode", normalized.get("status"))
+    if isinstance(raw_status, bool):
+        return None
+    try:
+        status = int(raw_status)
+    except (TypeError, ValueError):
+        return None
+    return status if 100 <= status <= 599 else None
+
+
+def _raise_video_upstream_error(
+    endpoint_name: str,
+    detail: str,
+    *,
+    status_code: int | None = None,
+) -> None:
+    error_type = (
+        TransientError
+        if status_code == 429 or (status_code is not None and status_code >= 500)
+        else ExtractionError
+    )
+    raise error_type(f"{endpoint_name}: {detail}")
+
+
+def _video_result_root(payload: dict[str, Any]) -> tuple[object, bool]:
+    container_keys = [key for key in ("resultSets", "resultSet") if key in payload]
+    if len(container_keys) > 1:
+        msg = "malformed video response root: both resultSets and resultSet are present"
+        raise ExtractionError(msg)
+    if container_keys:
+        root = payload[container_keys[0]]
+        if not isinstance(root, dict | list):
+            msg = "malformed video response root: result container must be an object or list"
+            raise ExtractionError(msg)
+        return root, isinstance(root, list)
+
+    if not payload:
+        msg = "malformed video response root: expected an explicit result container"
+        raise ExtractionError(msg)
+    if "headers" in payload or "rowSet" in payload:
+        return payload, False
+    if any(isinstance(value, dict | list) for value in payload.values()):
+        return payload, False
+    msg = "malformed video response root: no result-set structure found"
+    raise ExtractionError(msg)
+
+
+def _video_response_payload(response: Any, *, endpoint_name: str) -> dict[str, Any]:
+    raw_status = getattr(response, "_status_code", None)
+    if raw_status is None:
+        raw_status = getattr(response, "status_code", None)
+    if raw_status is not None:
+        try:
+            status_code = int(raw_status)
+        except (TypeError, ValueError) as exc:
+            raise ExtractionError(f"{endpoint_name}: malformed upstream HTTP status") from exc
+        if not 200 <= status_code < 300:
+            _raise_video_upstream_error(
+                endpoint_name,
+                f"upstream HTTP status {status_code}",
+                status_code=status_code,
+            )
+
+    try:
+        payload = response.get_dict()
+    except (TypeError, ValueError) as exc:
+        raise ExtractionError(f"{endpoint_name}: malformed upstream JSON response") from exc
+    if not isinstance(payload, dict):
+        msg = f"{endpoint_name}: malformed video response root: expected a JSON object"
+        raise ExtractionError(msg)
+
+    envelope_kind = _video_error_envelope_kind(payload)
+    if envelope_kind is not None:
+        _raise_video_upstream_error(
+            endpoint_name,
+            f"upstream JSON error envelope ({envelope_kind})",
+            status_code=_video_error_envelope_status(payload),
+        )
+    try:
+        _video_result_root(payload)
+    except ExtractionError as exc:
+        raise ExtractionError(f"{endpoint_name}: {exc}") from exc
+    return payload
+
+
 def _video_result_set_frames(payload: dict[str, Any]) -> list[tuple[str, pl.DataFrame]]:
-    root = payload.get("resultSets", payload.get("resultSet", payload))
+    root, root_is_collection = _video_result_root(payload)
 
     frames: list[tuple[str, pl.DataFrame]] = []
 
-    def _collect(node: object, path: str) -> None:
+    def _collection_item_path(node: object, path: str, index: int) -> str:
+        if isinstance(node, dict):
+            name = node.get("name")
+            if isinstance(name, str) and name.strip():
+                return name
+        fallback = f"result_set_{index}"
+        return f"{path}.{fallback}" if path else fallback
+
+    def _collect(node: object, path: str, *, collection: bool = False) -> None:
+        if collection:
+            if not isinstance(node, list):
+                msg = "malformed video result-set collection"
+                raise ExtractionError(msg)
+            for index, item in enumerate(node):
+                _collect(item, _collection_item_path(item, path, index))
+            return
+
         if isinstance(node, dict):
             standard = _standard_video_result_set(node)
             if standard is not None:
@@ -164,33 +333,40 @@ def _video_result_set_frames(payload: dict[str, Any]) -> list[tuple[str, pl.Data
                 str(key): value for key, value in node.items() if isinstance(value, dict | list)
             }
             scalar = {key: value for key, value in node.items() if key not in nested}
+            if not nested:
+                frame = _dynamic_video_result_set(node)
+                if frame is not None:
+                    frames.append((path or "result_set", frame))
+                return
             if scalar:
                 frames.append((path or "result_set", pl.DataFrame([scalar])))
             for name, value in nested.items():
                 child_path = f"{path}.{name}" if path else name
-                _collect(value, child_path)
+                _collect(
+                    value,
+                    child_path,
+                    collection=name in {"resultSets", "resultSet"} and isinstance(value, list),
+                )
             return
 
-        if (
-            isinstance(node, list)
-            and node
-            and all(
-                isinstance(item, dict)
-                and "name" in item
-                and isinstance(item.get("headers"), list)
-                and isinstance(item.get("rowSet", item.get("data")), list)
-                for item in node
+        if isinstance(node, list):
+            contains_standard_result = any(
+                isinstance(item, dict) and ("headers" in item or "rowSet" in item) for item in node
             )
-        ):
-            for item in node:
-                _collect(item, path)
-            return
+            if contains_standard_result:
+                for index, item in enumerate(node):
+                    _collect(item, _collection_item_path(item, path, index))
+                return
 
         frame = _dynamic_video_result_set(node)
         if frame is not None:
             frames.append((path or "result_set", frame))
+            return
+        if isinstance(node, list):
+            for index, item in enumerate(node):
+                _collect(item, _collection_item_path(item, path, index))
 
-    _collect(root, "")
+    _collect(root, "", collection=root_is_collection)
     return frames
 
 
@@ -223,7 +399,8 @@ def _extract_video_result_sets(
         headers=endpoint.headers,
         timeout=endpoint.timeout,
     )
-    data_sets = _video_result_set_frames(response.get_dict())
+    payload = _video_response_payload(response, endpoint_name=extractor.endpoint_name)
+    data_sets = _video_result_set_frames(payload)
     if not data_sets:
         logger.warning("{}: no dynamic result sets returned", extractor.endpoint_name)
         return pl.DataFrame(schema=_VIDEO_PROVENANCE_SCHEMA)

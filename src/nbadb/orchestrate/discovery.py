@@ -11,10 +11,7 @@ from loguru import logger
 
 from nbadb.core.config import get_settings
 from nbadb.core.errors import ExtractionError, NbaDbError, TransientError
-from nbadb.core.types import (
-    PLAY_IN_UPSTREAM_UNAVAILABLE_REASON,
-    classify_season_type_availability,
-)
+from nbadb.core.types import season_type_upstream_unavailable_reason
 from nbadb.extract.base import is_retryable_error
 from nbadb.orchestrate.extractor_runner import _sync_extract
 from nbadb.orchestrate.seasons import season_range
@@ -126,12 +123,9 @@ def _season_type_unavailable_reason(season: str, season_type: str) -> str | None
     if season_start_year is None:
         return None
     try:
-        availability = classify_season_type_availability(season_start_year, season_type)
+        return season_type_upstream_unavailable_reason(season_start_year, season_type)
     except ValueError:
         return None
-    if availability == "upstream_unavailable":
-        return PLAY_IN_UPSTREAM_UNAVAILABLE_REASON
-    return None
 
 
 def _filter_player_year_window(df: pl.DataFrame, season: str | None) -> tuple[pl.DataFrame, bool]:

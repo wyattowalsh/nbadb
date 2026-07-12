@@ -5,6 +5,10 @@ from unittest.mock import MagicMock, patch
 import polars as pl
 import pytest
 
+from nbadb.core.types import (
+    ALL_STAR_CANCELLED_UPSTREAM_UNAVAILABLE_REASON,
+    ALL_STAR_PRE_HISTORY_UPSTREAM_UNAVAILABLE_REASON,
+)
 from nbadb.orchestrate.discovery import EntityDiscovery
 
 
@@ -100,6 +104,33 @@ async def test_pre_2019_play_in_discovery_is_classified_without_request() -> Non
     assert result.upstream_unavailable_pairs == {
         ("2018-19", "PlayIn"): "competition_not_held_before_2019_20"
     }
+    assert result.is_complete
+
+
+@pytest.mark.parametrize(
+    ("season", "expected_reason"),
+    [
+        ("1949-50", ALL_STAR_PRE_HISTORY_UPSTREAM_UNAVAILABLE_REASON),
+        ("1998-99", ALL_STAR_CANCELLED_UPSTREAM_UNAVAILABLE_REASON),
+    ],
+)
+@pytest.mark.asyncio
+async def test_all_star_historical_gaps_are_classified_without_request(
+    season: str,
+    expected_reason: str,
+) -> None:
+    registry = MagicMock()
+
+    with patch("nbadb.orchestrate.discovery._sync_extract") as extract:
+        result = await EntityDiscovery(registry).discover_player_team_season_params_result(
+            [season],
+            season_types=["All Star"],
+        )
+
+    assert extract.call_count == 0
+    assert result.params == []
+    assert result.covered_pairs == {(season, "All Star")}
+    assert result.upstream_unavailable_pairs == {(season, "All Star"): expected_reason}
     assert result.is_complete
 
 

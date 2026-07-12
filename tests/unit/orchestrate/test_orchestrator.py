@@ -11,7 +11,11 @@ import polars as pl
 import pytest
 
 from nbadb.core.errors import ExtractionError
-from nbadb.core.types import VIDEO_CONTEXT_MEASURES
+from nbadb.core.types import (
+    ALL_STAR_CANCELLED_UPSTREAM_UNAVAILABLE_REASON,
+    ALL_STAR_PRE_HISTORY_UPSTREAM_UNAVAILABLE_REASON,
+    VIDEO_CONTEXT_MEASURES,
+)
 from nbadb.orchestrate.discovery import GameDiscoveryResult, PlayerTeamSeasonDiscoveryResult
 from nbadb.orchestrate.discovery_artifacts import DiscoveryArtifactScope
 from nbadb.orchestrate.extraction_progress import ExtractionProgressStore
@@ -143,6 +147,7 @@ def _player_team_discovery_result(
     seasons: tuple[str, ...] = ("2024-25",),
     season_types: tuple[str, ...] = ("Regular Season",),
     covered_pairs: frozenset[tuple[str, str]] | None = None,
+    upstream_unavailable_pairs: dict[tuple[str, str], str] | None = None,
 ) -> PlayerTeamSeasonDiscoveryResult:
     requested_pairs = frozenset(
         (season, season_type) for season in seasons for season_type in season_types
@@ -152,6 +157,7 @@ def _player_team_discovery_result(
         params=params or [],
         requested_pairs=requested_pairs,
         covered_pairs=effective_covered,
+        upstream_unavailable_pairs=upstream_unavailable_pairs or {},
     )
 
 
@@ -803,6 +809,61 @@ class TestPlayerTeamWorkloadCache:
         assert result.requested_pairs == {("2024-25", "Regular Season")}
         assert result.covered_pairs == result.requested_pairs
         discovery.discover_player_team_season_params_result.assert_not_called()
+
+    def test_cache_only_result_recomputes_upstream_unavailable_reasons(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        store = orch._player_team_season_workloads()
+        covered_pairs = {
+            ("1949-50", "All Star"),
+            ("1998-99", "All Star"),
+        }
+        store.upsert(
+            [],
+            seasons=["1949-50", "1998-99"],
+            season_types=["All Star"],
+            covered_pairs=covered_pairs,
+        )
+        discovery = AsyncMock()
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=["1949-50", "1998-99"],
+                season_types=["All Star"],
+            )
+        )
+
+        assert result.upstream_unavailable_pairs == {
+            ("1949-50", "All Star"): ALL_STAR_PRE_HISTORY_UPSTREAM_UNAVAILABLE_REASON,
+            ("1998-99", "All Star"): ALL_STAR_CANCELLED_UPSTREAM_UNAVAILABLE_REASON,
+        }
+        discovery.discover_player_team_season_params_result.assert_not_awaited()
+
+    def test_live_result_preserves_upstream_unavailable_reason_evidence(self, tmp_path):
+        settings = _mock_settings()
+        settings.duckdb_path = tmp_path / "nba.duckdb"
+        orch = Orchestrator(settings=settings)
+        pair = ("1998-99", "All Star")
+        discovery = AsyncMock()
+        discovery.discover_player_team_season_params_result.return_value = (
+            _player_team_discovery_result(
+                seasons=(pair[0],),
+                season_types=(pair[1],),
+                upstream_unavailable_pairs={pair: "live_attested_reason"},
+            )
+        )
+
+        result = asyncio.run(
+            orch._discover_player_team_season_result(
+                discovery,
+                seasons=[pair[0]],
+                season_types=[pair[1]],
+            )
+        )
+
+        assert result.upstream_unavailable_pairs == {pair: "live_attested_reason"}
 
     def test_partial_cache_retains_live_discovery_fallback(self, tmp_path):
         settings = _mock_settings()

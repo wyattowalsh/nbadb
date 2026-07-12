@@ -15,7 +15,7 @@ from loguru import logger
 from nbadb.core.config import NbaDbSettings, get_settings
 from nbadb.core.db import DBManager
 from nbadb.core.errors import ExtractionError
-from nbadb.core.types import SeasonType
+from nbadb.core.types import SeasonType, season_type_upstream_unavailable_reason
 from nbadb.extract.registry import registry as _global_registry
 from nbadb.load.multi import create_multi_loader
 from nbadb.orchestrate.discovery import (
@@ -71,6 +71,22 @@ if TYPE_CHECKING:
 
 DEFAULT_SEASON_TYPES = tuple(season_type.value for season_type in SeasonType)
 type LoadMode = Literal["replace", "append"]
+
+
+def _classified_upstream_unavailable_pairs(
+    pairs: set[tuple[str, str]] | frozenset[tuple[str, str]],
+) -> dict[tuple[str, str], str]:
+    unavailable: dict[tuple[str, str], str] = {}
+    for pair in pairs:
+        season, season_type = pair
+        try:
+            season_start_year = int(season[:4])
+            reason = season_type_upstream_unavailable_reason(season_start_year, season_type)
+        except (TypeError, ValueError):
+            continue
+        if reason is not None:
+            unavailable[pair] = reason
+    return unavailable
 
 
 def _apply_player_shard(player_ids: list[int]) -> list[int]:
@@ -453,6 +469,9 @@ class Orchestrator:
                     ),
                     requested_pairs=requested_pairs,
                     covered_pairs=requested_pairs,
+                    upstream_unavailable_pairs=_classified_upstream_unavailable_pairs(
+                        requested_pairs
+                    ),
                 )
         elif (
             artifact_path is not None
@@ -506,6 +525,7 @@ class Orchestrator:
             }
 
         covered_pairs = set(retained_cached_pairs)
+        upstream_unavailable_pairs = _classified_upstream_unavailable_pairs(retained_cached_pairs)
         for live_seasons, live_season_types in grouped_live_scopes:
             expected_pairs = {
                 (season, season_type)
@@ -518,6 +538,13 @@ class Orchestrator:
             )
             live_covered_pairs = expected_pairs & set(live_result.covered_pairs)
             covered_pairs.update(live_covered_pairs)
+            upstream_unavailable_pairs.update(
+                {
+                    pair: reason
+                    for pair, reason in live_result.upstream_unavailable_pairs.items()
+                    if pair in live_covered_pairs
+                }
+            )
             for raw_param in live_result.params:
                 pair = (str(raw_param["season"]), str(raw_param["season_type"]))
                 if pair not in live_covered_pairs:
@@ -535,10 +562,14 @@ class Orchestrator:
                     "season_type": key[3],
                 }
 
+        for pair, reason in _classified_upstream_unavailable_pairs(covered_pairs).items():
+            upstream_unavailable_pairs.setdefault(pair, reason)
+
         return PlayerTeamSeasonDiscoveryResult(
             params=[merged_params[key] for key in sorted(merged_params)],
             requested_pairs=requested_pairs,
             covered_pairs=frozenset(covered_pairs),
+            upstream_unavailable_pairs=upstream_unavailable_pairs,
         )
 
     @staticmethod

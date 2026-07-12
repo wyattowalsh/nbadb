@@ -22,6 +22,27 @@ type SeasonTypeAvailability = Literal["supported", "upstream_unavailable"]
 # upstream rows for that season type.
 PLAY_IN_FIRST_SEASON_START_YEAR = 2019
 PLAY_IN_UPSTREAM_UNAVAILABLE_REASON = "competition_not_held_before_2019_20"
+ALL_STAR_FIRST_SEASON_START_YEAR = 1950
+ALL_STAR_CANCELLED_SEASON_START_YEAR = 1998
+ALL_STAR_PRE_HISTORY_UPSTREAM_UNAVAILABLE_REASON = "competition_not_held_before_1950_51"
+ALL_STAR_CANCELLED_UPSTREAM_UNAVAILABLE_REASON = "competition_not_held_in_1998_99"
+
+
+def season_type_upstream_unavailable_reason(
+    season_start_year: int,
+    season_type: str,
+) -> str | None:
+    """Return the deterministic reason a season/type scope cannot exist upstream."""
+
+    resolved = SeasonType(season_type)
+    if resolved is SeasonType.PLAY_IN and season_start_year < PLAY_IN_FIRST_SEASON_START_YEAR:
+        return PLAY_IN_UPSTREAM_UNAVAILABLE_REASON
+    if resolved is SeasonType.ALL_STAR:
+        if season_start_year < ALL_STAR_FIRST_SEASON_START_YEAR:
+            return ALL_STAR_PRE_HISTORY_UPSTREAM_UNAVAILABLE_REASON
+        if season_start_year == ALL_STAR_CANCELLED_SEASON_START_YEAR:
+            return ALL_STAR_CANCELLED_UPSTREAM_UNAVAILABLE_REASON
+    return None
 
 
 def classify_season_type_availability(
@@ -30,8 +51,7 @@ def classify_season_type_availability(
 ) -> SeasonTypeAvailability:
     """Classify whether an NBA season can contain the requested season type."""
 
-    resolved = SeasonType(season_type)
-    if resolved is SeasonType.PLAY_IN and season_start_year < PLAY_IN_FIRST_SEASON_START_YEAR:
+    if season_type_upstream_unavailable_reason(season_start_year, season_type) is not None:
         return "upstream_unavailable"
     return "supported"
 
