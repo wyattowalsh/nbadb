@@ -1022,7 +1022,7 @@ jobs:
 
   discovery_seed:
     needs: [plan, preflight]
-    if: ${{ needs.plan.outputs.matrix-lane-count != '0' && needs.preflight.result == 'success' }}
+    if: ${{ always() && needs.plan.outputs.matrix-lane-count != '0' && needs.preflight.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:

@@ -228,6 +228,17 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
     assert "needs.checkpoint.result == 'success'" in dispatch
 
 
+def test_successful_nonpublishing_preflight_reaches_discovery_seed() -> None:
+    discovery = _job_block(_workflow_text(), "discovery_seed")
+    discovery_header = discovery.split("    steps:\n", 1)[0]
+
+    assert "needs: [plan, preflight]" in discovery_header
+    assert (
+        "if: ${{ always() && needs.plan.outputs.matrix-lane-count != '0' && "
+        "needs.preflight.result == 'success' }}" in discovery_header
+    )
+
+
 def test_extract_runner_uses_planner_isolated_matrix_endpoints() -> None:
     extract = _job_block(_workflow_text(), "extract")
     run_extraction = _step_block(extract, "Run extraction")
