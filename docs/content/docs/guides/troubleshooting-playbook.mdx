@@ -230,8 +230,9 @@ excluded from every fallback technology, and preflight failures are carried into
 effective chain quarantine before discovery/lane fan-out and persisted into child
 manifests.
 
-Preflight and discovery also expose the servers that pass every NBA probe. Extract
-lanes receive those hosts as a verified pool before consulting fresh recommendations.
+Preflight and discovery also expose the servers that pass every NBA probe. The serial
+discovery job tries the disconnected preflight-proven host before fresh recommendations.
+Extract lanes receive both successful hosts as a verified pool before consulting fresh recommendations.
 The lane index maps each verified host to one `vpn_parallelism` slot; a slot never
 falls through to a verified host assigned to another simultaneously active slot.
 This avoids rediscovering known-good exits without collapsing parallel runners onto

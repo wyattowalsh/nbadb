@@ -1237,6 +1237,8 @@ jobs:
           CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
           QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
+          PREFERRED_SERVERS_JSON: ${{ format('["{0}"]', needs.preflight.outputs.vpn-server) }}
+          PREFERRED_SERVER_SLOT_COUNT: "1"
         run: |
           export LANE_INDEX=$((RUN_ATTEMPT - 1))
           set +e

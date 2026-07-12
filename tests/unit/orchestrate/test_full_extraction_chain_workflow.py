@@ -1781,10 +1781,15 @@ def test_verified_vpn_servers_are_assigned_to_distinct_extract_slots() -> None:
     preflight = _job_block(workflow, "preflight")
     seed = _job_block(workflow, "discovery_seed")
     extract = _job_block(workflow, "extract")
+    seed_vpn_step = _step_block(seed, "Connect NordVPN tunnel for discovery seeding")
     vpn_step = _step_block(extract, "Connect NordVPN tunnel")
 
     assert "vpn-server: ${{ steps.vpn.outputs.server }}" in preflight
     assert "vpn-server: ${{ steps.vpn.outputs.server }}" in seed
+    assert (
+        "PREFERRED_SERVERS_JSON: ${{ format('[\"{0}\"]', needs.preflight.outputs.vpn-server) }}"
+    ) in seed_vpn_step
+    assert 'PREFERRED_SERVER_SLOT_COUNT: "1"' in seed_vpn_step
     assert (
         'PREFERRED_SERVERS_JSON: ${{ format(\'["{0}","{1}"]\', '
         "needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}"
