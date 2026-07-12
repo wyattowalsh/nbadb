@@ -158,6 +158,10 @@ The full extraction workflow reduces each lane to one final outcome in `lane-met
 | `contract_blocked` | The endpoint scope is documented as unsupported by upstream/runtime evidence.                   | Skip retry, keep it in `extraction-audit.json`.                      |
 | `pipeline_failure` | Classified extraction, VPN, runner, artifact, manifest/control-plane, or secret-safety failure. | Retry only within the failure-class budget or fix before redispatch. |
 
+`vpn_network_error`, `vpn_auth_failure`, and `vpn_connect_timeout` are all
+`vpn_egress` failures with a bounded retry budget. They must not be collapsed into
+the one-attempt application-failure cap.
+
 ### 2) Inspect the chain artifact
 
 ```bash
@@ -306,9 +310,12 @@ Each iteration builds a cumulative checkpoint artifact named
 `full-extraction-checkpoint-<chain_id>-iter-<iteration>`. The next manifest carries
 that checkpoint pointer forward, so redispatched runs can merge the previous
 checkpoint with only the newly completed lane databases. Terminal merge consumes
-the checkpoint first. Artifact fallback is an explicit recovery path, not the
-default terminal merge path, because it can silently rebuild from incomplete or
-stale lane output if used casually.
+the checkpoint first. If a manual/source-run resume has complete lane uploads but no
+checkpoint, recovery reads the manifest's exact `chain_state.artifact_run_ids` plus
+the current run, inventories every artifact, and downloads only exact lane/database
+and metadata names. Duplicate names, ambiguous databases, invalid run IDs, and a
+database without its same-run metadata fail closed; recovery artifacts and wildcard
+prefix matches are never accepted.
 
 Checkpoint roll-forward is copy-plus-delta and never edits the prior generation.
 The output path must differ from the previous checkpoint; the builder copies the
@@ -318,7 +325,12 @@ copy. In `checkpoint-report.json`, verify `base_database_copied`,
 `merged_delta_database_count`, and `copy_fast_path` under `merge_summary` alongside
 the generation and coverage fingerprint. Also verify `database_sha256` and
 `included_lane_coverage_hashes`; roll-forward rejects a prior database when either
-identity no longer matches. Metadata schema v3 applies the same binding to each
+identity no longer matches. `included_lane_workload_contracts` records the exact
+player/team/season scope for every included cross-product lane. Its identity excludes
+only the cumulative generation digest, so append-only workload growth outside a lane
+can roll forward while pair/count/base-identity drift inside the lane still fails.
+The accepted lane contract is then rebound to the current cumulative generation.
+Metadata schema v3 applies the same binding to each
 current lane: lane fields, coverage hash, physical database digest, every applicable
 manifest season/type, and endpoint presence must all match before merge. For
 player/team/season lanes, the checkpoint independently reloads the content-addressed
@@ -342,12 +354,17 @@ errors, progress, failure class, root error type, and failed VPN servers for lan
 control. Only an explicit `state_artifact.attested=true` pointer is reusable. The
 database itself remains diagnostics-only when attestation fails.
 
-`video_details` and `video_details_asset` keep the full upstream season range because
-neither the runtime classes nor upstream docs establish an earliest supported season.
-Both recursively parse every returned result set and retain endpoint, result-set,
-player/team/season/type, and context-measure provenance. The extraction contract
-unions all 78 measures exposed across the exact `nba_api` 1.11.4 runtime and upstream
-docs/tools, groups at most three per lane, and classifies pre-2019 PlayIn,
+`video_details` and `video_details_asset` classify 1946-47 through 2003-04 as
+`contract_blocked` and begin at 2004-05 in full extraction. Run 29195221754 discovery
+artifact 8260784820 covered all 290 season/type combinations in the blocked range;
+its 89,722 LeagueGameLog rows represented 44,861 games, and every `VIDEO_AVAILABLE`
+value was zero. The first three `video_details_asset` lanes in the same run completed
+8,902 calls and persisted zero rows. This evidence-bounded rule removes only the
+unavailable range; both endpoints recursively parse every returned result set and
+retain endpoint, result-set, player/team/season/type, and context-measure provenance.
+The extraction contract unions all 78 measures exposed across the exact `nba_api`
+1.11.4 runtime and upstream docs/tools from 2004-05 onward, groups at most three per
+lane, and classifies pre-2019 PlayIn,
 pre-1950-51 All Star, and cancelled 1998-99 All Star scopes as
 `upstream_unavailable`. A non-2xx response is rejected before JSON parsing. HTTP
 429/5xx responses and equivalent JSON error envelopes are transient; malformed
@@ -356,6 +373,17 @@ additionally limits the failure blast radius: ten calls per durable chunk, two
 concurrent requests, a 15-second request timeout, no per-call retry loop, abort after
 a fully failed newly attempted chunk, and a 600-second no-completed-chunk watchdog. A
 successful empty chunk is persisted and then journaled before the next chunk starts.
+
+Revalidate either cutoff boundary with the support rule's exact one-season probe,
+changing only the endpoint name:
+
+```bash
+uv run nbadb backfill run --extract-only --verbose \
+  --pattern player_team_season \
+  --endpoint video_details \
+  --seasons 2003:2004 \
+  --summary-path artifacts/extraction/extract-summary.json
+```
 
 `matrix_batch_size` controls how many lane jobs enter one workflow iteration and
 defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
@@ -407,9 +435,10 @@ branch must equal the pinned source immediately before upload. A failed-job reru
 also accept its single exact metadata-only child, but only when the regenerated file
 is byte-identical. The idempotent metadata push is the publisher's final step, after
 exact remote verification and receipt artifacts succeed. If a source run already has
-zero active lanes, resume with
-its original `chain_id` and `resume_source_run_id`; the workflow attests and replays
-the terminal checkpoint instead of rerunning lanes.
+zero active lanes, resume with its original `chain_id` and `resume_source_run_id`.
+The workflow replays an attested terminal checkpoint when present; if cancellation
+landed before checkpoint promotion, it rebuilds from the source run's exact attested
+complete-lane artifacts instead of rerunning those lanes.
 
 Use `publish=false` when a full-coverage Actions canary is worth the extra run. It
 exercises terminal transform, hard scan, and export without permitting metadata or
@@ -443,6 +472,11 @@ print("terminal_ready:", report["terminal_ready"])
 print("active_lane_count:", report["active_lane_count"])
 print("included_lane_count:", report["complete_lane_count"])
 print("coverage_fingerprint:", report["coverage_fingerprint"])
+print("included_run_ids:", report["included_run_ids"])
+print(
+    "workload_contract_lanes:",
+    sorted(report.get("included_lane_workload_contracts", {})),
+)
 PY
 ```
 

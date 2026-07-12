@@ -220,8 +220,11 @@ requests, and restored manifests that still schedule them fail before VPN prefli
 extract lanes. Canonical coverage rows that combine alternate wrappers are projected
 back to every concrete endpoint/pattern route before lane generation, preserving each
 distinct staging surface without scheduling endpoint-name aliases as zero-work jobs.
-`video_details` and `video_details_asset` preserve the upstream season contract and
-parse every recursively nested result set instead of assuming one static table.
+`video_details` and `video_details_asset` parse every recursively nested result set
+instead of assuming one static table. Full extraction classifies 1946-47 through
+2003-04 as `contract_blocked` because an exact 290-scope discovery pass found 89,722
+LeagueGameLog rows with no video-bearing game; it retains every season from 2004-05
+onward.
 Their rows carry endpoint, result-set, player/team/season/type, and context-measure
 provenance. The extraction contract covers all 78 measures found across the installed
 runtime and upstream docs/tools, schedules at most three measures per lane, and
@@ -263,9 +266,13 @@ checkpoint, WAL removal, structural validation, and exact database digest; faile
 snapshot creation is uploaded under a diagnostics-only name. Canonical metadata
 schema v3 is uploaded even when no snapshot can be attested, so restore/VPN failures
 remain visible to lane control and failed servers still enter the chain quarantine.
+`vpn_network_error`, authentication failure, and connect timeout are all bounded
+`vpn_egress` failures rather than one-shot application failures.
 State-attestation schema v2 binds each player/team/season snapshot to the exact
-content-addressed discovery workload, including zero-pair sentinels, and rejects
-unexpected journal identities during both restore and checkpoint merge. Only metadata
+lane workload, including zero-pair sentinels, and rejects unexpected journal identities
+during both restore and checkpoint merge. Append-only growth outside that lane is safe:
+checkpoints carry `included_lane_workload_contracts` and compare the generation-independent
+scope identity before rebinding the lane to the current cumulative generation. Only metadata
 with an explicit attested artifact pointer can carry state into a retry; split children
 clear parent pointers, and duplicate child IDs fail before checkpoint indexing. False
 `contract_blocked` declarations fail closed.
@@ -281,8 +288,10 @@ commit, chain ID, and coverage fingerprint. The publisher recomputes that identi
 after download, includes it in Kaggle metadata and marker v2, paginates the exact
 remote version inventory, and streams every remote file through SHA-256 readback
 before pushing checked-in metadata as its final step. A publication rerun accepts only the original
-source or its single byte-identical metadata-only child. A zero-active resume can
-replay its attested terminal checkpoint.
+source or its single byte-identical metadata-only child. A zero-active resume replays
+its attested terminal checkpoint when present; after interruption before checkpointing,
+it rebuilds from the exact complete lane/database pairs named by the chain's recorded
+`chain_state.artifact_run_ids`.
 For a one-lane VPN proof, `targeted_smoke=true` requires a manual manifest,
 `publish=false`, `max_iterations=1`, and `retry_pipeline_failures=false`. It skips
 global merge/scan and redispatch, then succeeds only when lane control and the
