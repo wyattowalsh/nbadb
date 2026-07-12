@@ -760,7 +760,9 @@ class NordVpnConnectAction:
         return str(ip_network(f"{address}/24", strict=False))
 
     @staticmethod
-    def recommendation_city_key(item: dict[str, object], hostname: str) -> str:
+    def recommendation_city_key(item: object, hostname: str) -> str:
+        if not isinstance(item, dict):
+            return f"host:{hostname}"
         city_names: set[str] = set()
         locations = item.get("locations")
         if isinstance(locations, list):
