@@ -35,7 +35,7 @@ inputs:
     required: false
     default: "4"
   server-pool-size:
-    description: Initial country inventory pool per protocol; the cache expands only when later exclusions underfill the remaining bounded attempts.
+    description: Initial Nord-recommended country pool per protocol; the cache expands only when later exclusions underfill the remaining bounded attempts.
     required: false
     default: "48"
   auth-rejection-limit:

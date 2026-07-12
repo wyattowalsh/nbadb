@@ -667,7 +667,7 @@ def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
         "us1003.nordvpn.com",
     ]
     assert "limit=3" in requested_urls[0]
-    assert "/v1/servers?" in requested_urls[0]
+    assert "/v1/servers/recommendations?" in requested_urls[0]
     assert "openvpn_tcp" in requested_urls[0]
 
 
@@ -700,7 +700,8 @@ def test_recommendations_expand_cached_inventory_after_cross_protocol_failures(
         assert limit_match is not None
         limit = int(limit_match.group(1))
         requested_limits.append(limit)
-        output_path.write_text(json.dumps(candidates[:limit]), encoding="utf-8")
+        response = candidates[:limit] if len(requested_limits) == 1 else candidates[2:limit]
+        output_path.write_text(json.dumps(response), encoding="utf-8")
         return True
 
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
@@ -714,6 +715,14 @@ def test_recommendations_expand_cached_inventory_after_cross_protocol_failures(
     assert action.recommendation_servers("openvpn_tcp") == [
         "us1002.nordvpn.com",
         "us1003.nordvpn.com",
+    ]
+    assert [
+        candidate.hostname for candidate in action.server_candidates_by_technology["openvpn_tcp"]
+    ] == [
+        "us1001.nordvpn.com",
+        "us1002.nordvpn.com",
+        "us1003.nordvpn.com",
+        "us1004.nordvpn.com",
     ]
     assert requested_limits == [2, 4]
 
@@ -763,12 +772,12 @@ def test_recommendations_diversify_station_networks_and_bound_attempts(
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
 
     assert action.recommendation_servers("openvpn_udp") == [
-        "us1001.nordvpn.com",
-        "us1003.nordvpn.com",
+        "us1005.nordvpn.com",
         "us1004.nordvpn.com",
+        "us1002.nordvpn.com",
     ]
     assert "limit=8" in requested_urls[0]
-    assert "/v1/servers?" in requested_urls[0]
+    assert "/v1/servers/recommendations?" in requested_urls[0]
 
 
 def test_recommendations_partition_adjacent_lane_starts(
@@ -778,10 +787,8 @@ def test_recommendations_partition_adjacent_lane_starts(
     module = _load_module()
     action = module.NordVpnConnectAction()
     action.work_dir.mkdir(parents=True, exist_ok=True)
-    action.selector_index = 1
     action.server_limit = 2
     action.server_pool_size = 6
-    action.quarantined_servers = ("us1001.nordvpn.com",)
     candidates = [
         {
             "hostname": f"us100{index}.nordvpn.com",
@@ -803,10 +810,30 @@ def test_recommendations_partition_adjacent_lane_starts(
 
     monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
 
-    assert action.recommendation_servers("openvpn_udp") == [
+    action.selector_index = 0
+    first_partition = action.recommendation_servers("openvpn_udp")
+    action.selector_index = 1
+    second_partition = action.recommendation_servers("openvpn_udp")
+
+    assert first_partition == [
+        "us1001.nordvpn.com",
+        "us1002.nordvpn.com",
+    ]
+    assert second_partition == [
         "us1003.nordvpn.com",
         "us1004.nordvpn.com",
     ]
+    assert set(first_partition).isdisjoint(second_partition)
+
+    action.quarantined_servers = ("us1001.nordvpn.com",)
+    action.selector_index = 0
+    excluded_first_partition = action.recommendation_servers("openvpn_udp")
+    action.selector_index = 1
+    unaffected_second_partition = action.recommendation_servers("openvpn_udp")
+
+    assert excluded_first_partition == ["us1002.nordvpn.com"]
+    assert unaffected_second_partition == second_partition
+    assert set(excluded_first_partition).isdisjoint(unaffected_second_partition)
 
 
 def test_recommendations_use_invalid_or_ipv6_stations_only_as_fallback(
@@ -1598,7 +1625,7 @@ def test_auth_recovery_covers_untried_servers_and_alternates_protocols(
         *extra_args: str,
         **kwargs,
     ) -> bool:
-        assert label.startswith("NordVPN server inventory request")
+        assert label.startswith("NordVPN server recommendations request")
         output_path.write_text(
             json.dumps(
                 [

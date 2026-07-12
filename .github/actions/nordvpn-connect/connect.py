@@ -24,6 +24,7 @@ class ServerCandidate(NamedTuple):
     hostname: str
     network_key: str | None
     city_key: str
+    recommendation_rank: int
 
 
 AUTH_FAILURE_PATTERN: Final[re.Pattern[str]] = re.compile(r"AUTH_FAILED|auth-failure")
@@ -313,6 +314,7 @@ class NordVpnConnectAction:
         self.technology_selection_offsets: dict[str, int] = {}
         self.server_candidates_by_technology: dict[str, tuple[ServerCandidate, ...]] = {}
         self.server_candidate_limits_by_technology: dict[str, int] = {}
+        self.server_candidate_base_counts_by_technology: dict[str, int] = {}
         self.attempt_count_by_technology: dict[str, int] = {}
         self.attempted_servers_by_technology: dict[str, set[str]] = {}
         self.technology_cursor = 0
@@ -782,11 +784,12 @@ class NordVpnConnectAction:
         *,
         excluded_servers: set[str] | None = None,
         required_eligible_count: int = 0,
+        force_expand: bool = False,
     ) -> tuple[ServerCandidate, ...]:
         excluded_servers = excluded_servers or set()
         cached = self.server_candidates_by_technology.get(technology)
         cached_limit = self.server_candidate_limits_by_technology.get(technology, 0)
-        if cached is not None:
+        if cached is not None and not force_expand:
             eligible_count = sum(candidate.hostname not in excluded_servers for candidate in cached)
             if (
                 eligible_count >= required_eligible_count
@@ -803,13 +806,13 @@ class NordVpnConnectAction:
             ),
         )
         url = (
-            "https://api.nordvpn.com/v1/servers"
+            "https://api.nordvpn.com/v1/servers/recommendations"
             f"?limit={inventory_limit}"
             f"&filters[country_id]={self.country_id}"
             f"&filters[servers_technologies][identifier]={technology}"
         )
         if not self.retry_http_get(
-            f"NordVPN server inventory request ({technology})",
+            f"NordVPN server recommendations request ({technology})",
             self.servers_file,
             url,
             "--globoff",
@@ -823,7 +826,7 @@ class NordVpnConnectAction:
             return cached or ()
 
         candidates_by_hostname: dict[str, ServerCandidate] = {}
-        for item in payload:
+        for recommendation_rank, item in enumerate(payload):
             if not isinstance(item, dict) or item.get("status") != "online":
                 continue
             hostname = str(item.get("hostname") or "").strip()
@@ -833,14 +836,109 @@ class NordVpnConnectAction:
                 hostname=hostname,
                 network_key=self.recommendation_network_key(item.get("station")),
                 city_key=self.recommendation_city_key(item, hostname),
+                recommendation_rank=recommendation_rank,
             )
 
-        candidates = tuple(
-            candidates_by_hostname[hostname] for hostname in sorted(candidates_by_hostname)
-        )
+        if cached is None:
+            candidates = tuple(candidates_by_hostname.values())
+            self.server_candidate_base_counts_by_technology[technology] = min(
+                len(candidates),
+                self.server_pool_size,
+            )
+        else:
+            merged: list[ServerCandidate] = []
+            for cached_candidate in cached:
+                refreshed = candidates_by_hostname.pop(cached_candidate.hostname, None)
+                if refreshed is None:
+                    merged.append(cached_candidate)
+                else:
+                    merged.append(
+                        ServerCandidate(
+                            hostname=refreshed.hostname,
+                            network_key=refreshed.network_key,
+                            city_key=refreshed.city_key,
+                            recommendation_rank=cached_candidate.recommendation_rank,
+                        )
+                    )
+            for candidate in candidates_by_hostname.values():
+                merged.append(
+                    ServerCandidate(
+                        hostname=candidate.hostname,
+                        network_key=candidate.network_key,
+                        city_key=candidate.city_key,
+                        recommendation_rank=len(merged),
+                    )
+                )
+            candidates = tuple(merged)
         self.server_candidates_by_technology[technology] = candidates
         self.server_candidate_limits_by_technology[technology] = inventory_limit
         return candidates
+
+    @staticmethod
+    def diversified_server_candidates(
+        candidates: tuple[ServerCandidate, ...],
+    ) -> tuple[ServerCandidate, ...]:
+        ordered: list[ServerCandidate] = []
+        selected_networks: set[str] = set()
+        city_use_count: dict[str, int] = {}
+        network_use_count: dict[str, int] = {}
+
+        def _select_candidate(pool: list[ServerCandidate], *, phase: int) -> ServerCandidate:
+            if phase == 1:
+                return min(
+                    pool,
+                    key=lambda candidate: (
+                        city_use_count.get(candidate.city_key, 0),
+                        candidate.recommendation_rank,
+                    ),
+                )
+            if phase == 2:
+                return min(
+                    pool,
+                    key=lambda candidate: (
+                        network_use_count.get(candidate.network_key or "", 0),
+                        city_use_count.get(candidate.city_key, 0),
+                        candidate.recommendation_rank,
+                    ),
+                )
+            return min(
+                pool,
+                key=lambda candidate: (
+                    city_use_count.get(candidate.city_key, 0),
+                    candidate.recommendation_rank,
+                ),
+            )
+
+        remaining = list(candidates)
+        while remaining:
+            unique_network_pool = [
+                candidate
+                for candidate in remaining
+                if candidate.network_key is not None
+                and candidate.network_key not in selected_networks
+            ]
+            valid_network_pool = [
+                candidate for candidate in remaining if candidate.network_key is not None
+            ]
+            if unique_network_pool:
+                phase = 1
+                pool = unique_network_pool
+            elif valid_network_pool:
+                phase = 2
+                pool = valid_network_pool
+            else:
+                phase = 3
+                pool = remaining
+            candidate = _select_candidate(pool, phase=phase)
+            ordered.append(candidate)
+            remaining.remove(candidate)
+            city_use_count[candidate.city_key] = city_use_count.get(candidate.city_key, 0) + 1
+            if candidate.network_key is not None:
+                selected_networks.add(candidate.network_key)
+                network_use_count[candidate.network_key] = (
+                    network_use_count.get(candidate.network_key, 0) + 1
+                )
+        return tuple(ordered)
 
     def recommendation_servers(self, technology: str) -> list[str]:
         remaining_attempts = self.server_limit - self.attempt_count_by_technology.get(
@@ -861,99 +959,80 @@ class NordVpnConnectAction:
             return []
 
         selection_offset = self.technology_selection_offsets.get(technology, 0)
-        start_index = (self.selector_index * self.server_limit + selection_offset) % len(candidates)
-        rotated = candidates[start_index:] + candidates[:start_index]
-        eligible = [
-            candidate
-            for candidate in rotated
-            if candidate.hostname not in excluded_servers
-            and candidate.hostname not in attempted_servers
-        ]
-        if not eligible:
-            print(f"::warning::All inventory servers are excluded for {technology}")
+
+        def _assigned_candidates(
+            pool: tuple[ServerCandidate, ...],
+        ) -> tuple[ServerCandidate, ...]:
+            if not pool:
+                return ()
+            partition_count = (len(pool) + self.server_limit - 1) // self.server_limit
+            partition_index = self.selector_index % partition_count
+            start_index = partition_index * self.server_limit
+            partition = pool[start_index : start_index + self.server_limit]
+            if not partition:
+                return ()
+            offset = selection_offset % len(partition)
+            return partition[offset:] + partition[:offset]
+
+        def _eligible_assigned(
+            pool: tuple[ServerCandidate, ...],
+        ) -> list[ServerCandidate]:
+            return [
+                candidate
+                for candidate in _assigned_candidates(pool)
+                if candidate.hostname not in excluded_servers
+                and candidate.hostname not in attempted_servers
+            ]
+
+        def _partitioned_candidates(
+            candidate_pool: tuple[ServerCandidate, ...],
+        ) -> tuple[list[ServerCandidate], list[ServerCandidate]]:
+            base_count = min(
+                self.server_candidate_base_counts_by_technology.get(
+                    technology,
+                    len(candidate_pool),
+                ),
+                len(candidate_pool),
+            )
+            primary_pool = self.diversified_server_candidates(candidate_pool[:base_count])
+            reserve_pool = self.diversified_server_candidates(candidate_pool[base_count:])
+            return _eligible_assigned(primary_pool), _eligible_assigned(reserve_pool)
+
+        eligible_primary, eligible_reserve = _partitioned_candidates(candidates)
+        if (
+            len(eligible_primary) + len(eligible_reserve) < remaining_attempts
+            and self.server_candidate_limits_by_technology.get(technology, 0)
+            < MAX_RECOMMENDATION_POOL_SIZE
+        ):
+            candidates = self.fetch_server_candidates(
+                technology,
+                excluded_servers={*excluded_servers, *attempted_servers},
+                required_eligible_count=remaining_attempts,
+                force_expand=True,
+            )
+            eligible_primary, eligible_reserve = _partitioned_candidates(candidates)
+
+        selected = (eligible_primary + eligible_reserve)[:remaining_attempts]
+        if not selected:
+            print(f"::warning::All recommended servers are excluded for {technology}")
             return []
 
-        selected: list[ServerCandidate] = []
-        selected_networks: set[str] = set()
-        city_use_count: dict[str, int] = {}
-        network_use_count: dict[str, int] = {}
-        prior_candidates = {
-            candidate.hostname: candidate
-            for candidate in candidates
-            if candidate.hostname in attempted_servers
+        selected_networks = {
+            candidate.network_key for candidate in selected if candidate.network_key is not None
         }
-        for candidate in prior_candidates.values():
-            city_use_count[candidate.city_key] = city_use_count.get(candidate.city_key, 0) + 1
-            if candidate.network_key is not None:
-                selected_networks.add(candidate.network_key)
-                network_use_count[candidate.network_key] = (
-                    network_use_count.get(candidate.network_key, 0) + 1
-                )
-
-        cyclic_rank = {candidate.hostname: index for index, candidate in enumerate(rotated)}
-
-        def _select_candidate(pool: list[ServerCandidate], *, phase: int) -> ServerCandidate:
-            if phase == 1:
-                return min(
-                    pool,
-                    key=lambda candidate: (
-                        city_use_count.get(candidate.city_key, 0),
-                        cyclic_rank[candidate.hostname],
-                    ),
-                )
-            if phase == 2:
-                return min(
-                    pool,
-                    key=lambda candidate: (
-                        network_use_count.get(candidate.network_key or "", 0),
-                        city_use_count.get(candidate.city_key, 0),
-                        cyclic_rank[candidate.hostname],
-                    ),
-                )
-            return min(
-                pool,
-                key=lambda candidate: (
-                    city_use_count.get(candidate.city_key, 0),
-                    cyclic_rank[candidate.hostname],
-                ),
-            )
-
-        remaining = list(eligible)
-        while remaining and len(selected) < remaining_attempts:
-            unique_network_pool = [
-                candidate
-                for candidate in remaining
-                if candidate.network_key is not None
-                and candidate.network_key not in selected_networks
-            ]
-            valid_network_pool = [
-                candidate for candidate in remaining if candidate.network_key is not None
-            ]
-            if unique_network_pool:
-                phase = 1
-                pool = unique_network_pool
-            elif valid_network_pool:
-                phase = 2
-                pool = valid_network_pool
-            else:
-                phase = 3
-                pool = remaining
-            candidate = _select_candidate(pool, phase=phase)
-            selected.append(candidate)
-            remaining.remove(candidate)
-            city_use_count[candidate.city_key] = city_use_count.get(candidate.city_key, 0) + 1
-            if candidate.network_key is not None:
-                selected_networks.add(candidate.network_key)
-                network_use_count[candidate.network_key] = (
-                    network_use_count.get(candidate.network_key, 0) + 1
-                )
 
         print(
             "::notice::Selected "
-            f"{len(selected)} bounded {technology} attempts from {len(eligible)} "
-            f"eligible inventory servers across {len(selected_networks)} station networks "
+            f"{len(selected)} bounded {technology} attempts from "
+            f"{len(eligible_primary)} primary and {len(eligible_reserve)} reserve servers "
+            f"across {len(selected_networks)} station networks "
             f"and {len({candidate.city_key for candidate in selected})} cities"
         )
+        if len(selected) < remaining_attempts:
+            print(
+                f"::warning::Assigned {technology} partitions provided only "
+                f"{len(selected)} of {remaining_attempts} remaining attempts"
+            )
         return [candidate.hostname for candidate in selected]
 
     def config_url(self, server: str, technology: str) -> str:
