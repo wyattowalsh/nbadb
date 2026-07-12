@@ -229,6 +229,14 @@ the failed-server list before the next recommendation is tried. Runtime failures
 excluded from every fallback technology, and preflight failures are carried into the
 effective chain quarantine before discovery/lane fan-out and persisted into child
 manifests.
+
+The connector fetches and caches a wider country inventory than it attempts for each
+protocol. It rotates adjacent lane indexes into different canonical pool segments and
+balances cities and distinct station IPv4 networks before reusing a network, so a
+cluster of NBA-blocked exits does not consume every fallback slot. `SERVER_LIMIT` is
+the hard per-protocol attempt ceiling across all recovery rounds; `SERVER_POOL_SIZE`
+improves candidate diversity without increasing attempts.
+
 An OpenVPN `AUTH_FAILED` response is not enough to classify a server as unhealthy:
 the connector limits each rejection sweep, rotates the lane-specific starting
 server and preferred protocol, and performs bounded cooldown rounds only when a full
@@ -254,10 +262,13 @@ An aggregate-only player wave still performs one targeted active-season refresh.
 Sparse missing/invalid player-team pairs are grouped by identical type sets, so
 live fallback does not refetch the surrounding Cartesian rectangle.
 
-The seed gives every request a hard timeout and uses a three-attempt bounded canary
-instead of retrying hundreds of scopes when every fast-pass call reports the same
-transport or response-shape failure. It writes an atomic schema-v2 summary before
-network work and after each completed result. Its 90-minute soft deadline is backed by
+The seed gives every request a hard timeout and uses one three-attempt bounded canary
+per observed transport or response-shape failure class instead of retrying hundreds
+of scopes after a broad outage. It writes an atomic schema-v2 summary before
+network work and after each completed result. VPN discovery profiles separately cap
+in-flight calls and the shared request rate; the default moderate profile uses three
+in-flight calls at two requests per second so one accepted exit is not immediately
+overloaded by the historical seed. Its 90-minute soft deadline is backed by
 a 95-minute process watchdog, reserving upload time before the 120-minute job cap even
 when a dependency ignores cancellation. Canonical
 `full-extraction-discovery-artifacts-<chain_id>` uploads are success-only and
@@ -269,8 +280,10 @@ every requested player scope, game combination, and workload generation before u
 and after each lane installs the downloaded bundle.
 Incomplete work is retained separately as
 `full-extraction-discovery-recovery-<chain_id>-run-<run_id>-attempt-<attempt>`.
-A later seed can restore the latest recovery bundle from the exact manifest source
-run and reuse only artifacts that pass their integrity/schema checks. Valid exact
+A later seed first restores the latest recovery bundle from the current run's prior
+attempt, then falls back to the exact manifest source run. It reuses only artifacts
+that pass their integrity/schema checks; malformed partial workload pointers are
+discarded and reseeded, while malformed canonical bundles fail closed. Valid exact
 single-season v1 player/game artifacts are promoted to the current format; aggregate
 v1 artifacts are rejected. Recovery state never becomes canonical until the current
 seed proves complete coverage and the bundle verifier passes. If the seed fails,
@@ -339,7 +352,10 @@ one newly created child run ID and URL. Upload-artifact steps use
 overwrite semantics so rerun jobs can replace their prior logical artifacts.
 
 The pinned `workflow_sha` must be a full commit on the trusted `workflow_ref` branch;
-publish runs also prove default-branch ancestry. Publish-capable runs perform an
+publish runs also prove default-branch ancestry. Every uploaded lane manifest carries
+that exact source SHA and its chain identity; manual handoff, chained handoff, and
+source-run resume all fail before network work when either value differs.
+Publish-capable runs perform an
 early credential/exact-version preflight before lane fan-out and repeat it after
 terminal assurance. Terminal assurance has read-only contents permission and emits
 an exact run/attempt-scoped artifact. Only the separate publisher job receives write
