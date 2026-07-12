@@ -230,11 +230,14 @@ excluded from every fallback technology, and preflight failures are carried into
 effective chain quarantine before discovery/lane fan-out and persisted into child
 manifests.
 
-The connector fetches and caches a wider country inventory than it attempts for each
-protocol. It rotates adjacent lane indexes into different canonical pool segments and
-balances cities and distinct station IPv4 networks before reusing a network, so a
-cluster of NBA-blocked exits does not consume every fallback slot. `SERVER_LIMIT` is
-the hard per-protocol attempt ceiling across all recovery rounds; `SERVER_POOL_SIZE`
+The connector fetches and caches a wider Nord-recommended country pool than it
+attempts for each protocol. It first builds one stable city/station-network-diverse
+ordering, then assigns adjacent lane or rerun indexes to disjoint pool segments while
+pool capacity permits. This keeps current Nord health recommendations while preventing one cluster of NBA-blocked
+exits from consuming every fallback slot. If exclusions underfill an assigned segment,
+the cached recommendation snapshot expands additively and fills only from that
+selector's reserve segment, without rebasing other selectors. `SERVER_LIMIT` is the
+hard per-protocol attempt ceiling across all recovery rounds; `SERVER_POOL_SIZE`
 improves candidate diversity without increasing attempts.
 
 An OpenVPN `AUTH_FAILED` response is not enough to classify a server as unhealthy:
