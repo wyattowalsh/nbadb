@@ -106,7 +106,7 @@ Most transformers (100+) extend `SqlTransformer(BaseTransformer)` — define `_S
 
 ### Test Patterns
 
-- 4045 tests collected across 192 test files
+- 4046 tests collected across 192 test files
 - `conftest.py` autouse fixture calls `get_settings.cache_clear()` (settings use `@lru_cache`)
 - Use `--import-mode=importlib` — the `nbadb/` root dir shadows `src/nbadb/`
 
