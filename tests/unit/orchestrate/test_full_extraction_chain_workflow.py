@@ -188,8 +188,8 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
     dispatch = _job_block(workflow, "dispatch_next")
 
     assert "needs: [plan, preflight, discovery_seed, extract, lane_control]" in checkpoint
-    assert "Download discovery workload contract" in checkpoint
-    assert "full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}" in checkpoint
+    assert "Download checkpoint lane inputs" in checkpoint
+    assert 'discovery_name = f"full-extraction-discovery-artifacts-{chain_id}"' in checkpoint
     assert 'requires_workload_contract="$(CHECKPOINT_MANIFEST=' in checkpoint
     assert 'if [ "$requires_workload_contract" = "true" ]; then' in checkpoint
     assert '"player_team_season" in lane.get("patterns", [])' in checkpoint
@@ -223,7 +223,9 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
     lane_control_header = lane_control.split("    steps:\n", 1)[0]
 
     assert "needs.discovery_seed.result == 'success'" in extract
-    assert "needs: [plan, preflight, discovery_seed, extract]" in lane_control_header
+    assert "needs: [plan, preflight, discovery_seed, extract, terminal_replay]" in (
+        lane_control_header
+    )
     assert "needs.discovery_seed.result == 'success'" in lane_control_header
     assert "needs.extract.result != 'skipped'" in lane_control_header
     assert "needs.extract.result == 'success'" not in lane_control_header
@@ -303,7 +305,7 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     diagnostic_upload = _step_block(extract, "Upload diagnostics-only lane snapshot")
     checkpoint_download = _step_block(
         _job_block(workflow, "checkpoint"),
-        "Download current lane artifacts",
+        "Download checkpoint lane inputs",
     )
     complete_name = "extraction-lane-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}"
     recovery_name = (
@@ -339,7 +341,9 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     assert "lane-state-untrusted" in diagnostic_upload
     assert complete_name not in diagnostic_upload
     assert recovery_name not in diagnostic_upload
-    assert '--pattern "extraction-lane-${ACTIVE_CHAIN_ID}-*"' in checkpoint_download
+    assert 'expected_names[f"extraction-lane-{chain_id}-{lane_id}"]' in checkpoint_download
+    assert 'gh run download "$run_id"' in checkpoint_download
+    assert '--name "$artifact_name"' in checkpoint_download
     assert "extraction-lane-recovery-" not in checkpoint_download
 
 
@@ -634,6 +638,232 @@ def test_resume_source_manifest_requires_matching_chain_and_source_sha(
     missing_provenance = _run_python(verifier, env=base_env)
     assert missing_provenance.returncode == 1
     assert "'<missing>'" in missing_provenance.stdout
+
+
+def test_checkpoint_download_plan_combines_source_and_current_complete_lanes(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    source_resolver = _embedded_python(checkpoint, "CHECKPOINT_SOURCE_RUN_RESOLVER")
+    input_resolver = _embedded_python(checkpoint, "CHECKPOINT_LANE_INPUT_RESOLVER")
+    manifest_path = tmp_path / "current-manifest.json"
+    run_ids_path = tmp_path / "run-ids.txt"
+    inventories_dir = tmp_path / "inventories"
+    inventories_dir.mkdir()
+    download_plan_path = tmp_path / "downloads.tsv"
+    source_sha = "a" * 40
+    chain_id = "fixture-chain"
+    source_run_id = "111"
+    current_run_id = "222"
+    source_lane_id = "source-complete"
+    resumed_lane_id = "resumed-complete"
+    manifest = {
+        "chain_id": chain_id,
+        "workflow_source_sha": source_sha,
+        "lanes": [
+            {"lane_id": source_lane_id, "patterns": ["static"], "resume_only": True},
+            {"lane_id": resumed_lane_id, "patterns": ["static"], "resume_only": False},
+        ],
+        "chain_state": {"artifact_run_ids": [source_run_id]},
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    resolver_env = {
+        "ACTIVE_CHAIN_ID": chain_id,
+        "CURRENT_MANIFEST": str(manifest_path),
+        "CURRENT_RUN_ID": current_run_id,
+        "RUN_IDS_PATH": str(run_ids_path),
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
+
+    resolved = _run_python(source_resolver, env=resolver_env)
+    assert resolved.returncode == 0, resolved.stderr or resolved.stdout
+    assert run_ids_path.read_text(encoding="utf-8").splitlines() == [
+        source_run_id,
+        current_run_id,
+    ]
+
+    source_metadata = f"extraction-lane-metadata-{chain_id}-{source_lane_id}"
+    source_artifact = f"extraction-lane-{chain_id}-{source_lane_id}"
+    stale_resumed_metadata = f"extraction-lane-metadata-{chain_id}-{resumed_lane_id}"
+    current_metadata = stale_resumed_metadata
+    current_artifact = f"extraction-lane-{chain_id}-{resumed_lane_id}"
+    (inventories_dir / f"run-{source_run_id}.json").write_text(
+        json.dumps(
+            [
+                {
+                    "artifacts": [
+                        {"name": source_metadata, "expired": False},
+                        {"name": source_artifact, "expired": False},
+                        {"name": stale_resumed_metadata, "expired": False},
+                        {
+                            "name": f"extraction-lane-recovery-{chain_id}-{resumed_lane_id}",
+                            "expired": False,
+                        },
+                    ]
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (inventories_dir / f"run-{current_run_id}.json").write_text(
+        json.dumps(
+            [
+                {
+                    "artifacts": [
+                        {"name": current_metadata, "expired": False},
+                        {"name": current_artifact, "expired": False},
+                    ]
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    input_env = {
+        "ACTIVE_CHAIN_ID": chain_id,
+        "CURRENT_MANIFEST": str(manifest_path),
+        "DOWNLOAD_PLAN_PATH": str(download_plan_path),
+        "INVENTORIES_DIR": str(inventories_dir),
+        "PREVIOUS_REPORT_PATH": "",
+        "RUN_IDS_PATH": str(run_ids_path),
+    }
+
+    planned = _run_python(input_resolver, env=input_env)
+    assert planned.returncode == 0, planned.stderr or planned.stdout
+    assert set(download_plan_path.read_text(encoding="utf-8").splitlines()) == {
+        f"{source_run_id}\tmetadata\t{source_metadata}",
+        f"{source_run_id}\tlane\t{source_artifact}",
+        f"{current_run_id}\tmetadata\t{current_metadata}",
+        f"{current_run_id}\tlane\t{current_artifact}",
+    }
+    assert "recovery" not in download_plan_path.read_text(encoding="utf-8")
+
+    current_inventory_path = inventories_dir / f"run-{current_run_id}.json"
+    original_current_inventory = current_inventory_path.read_text(encoding="utf-8")
+    current_inventory = json.loads(original_current_inventory)
+    current_inventory[0]["artifacts"].extend(
+        [
+            {"name": source_metadata, "expired": False},
+            {"name": source_artifact, "expired": False},
+        ]
+    )
+    current_inventory_path.write_text(json.dumps(current_inventory), encoding="utf-8")
+    ambiguous = _run_python(input_resolver, env=input_env)
+    assert ambiguous.returncode == 1
+    assert f"checkpoint lane artifact is ambiguous for {source_lane_id}" in ambiguous.stderr
+    current_inventory_path.write_text(original_current_inventory, encoding="utf-8")
+
+    source_inventory_path = inventories_dir / f"run-{source_run_id}.json"
+    original_source_inventory = source_inventory_path.read_text(encoding="utf-8")
+    source_inventory = json.loads(original_source_inventory)
+    source_inventory[0]["artifacts"] = [
+        artifact
+        for artifact in source_inventory[0]["artifacts"]
+        if artifact["name"] != source_metadata
+    ]
+    source_inventory_path.write_text(json.dumps(source_inventory), encoding="utf-8")
+    unpaired = _run_python(input_resolver, env=input_env)
+    assert unpaired.returncode == 1
+    assert "lacks one exact metadata artifact" in unpaired.stderr
+    source_inventory_path.write_text(original_source_inventory, encoding="utf-8")
+
+    previous_report_path = tmp_path / "checkpoint-report.json"
+    previous_report_path.write_text(
+        json.dumps({"included_lane_ids": [source_lane_id]}),
+        encoding="utf-8",
+    )
+    planned_after_checkpoint = _run_python(
+        input_resolver,
+        env={**input_env, "PREVIOUS_REPORT_PATH": str(previous_report_path)},
+    )
+    assert planned_after_checkpoint.returncode == 0, (
+        planned_after_checkpoint.stderr or planned_after_checkpoint.stdout
+    )
+    assert download_plan_path.read_text(encoding="utf-8").splitlines() == [
+        f"{current_run_id}\tlane\t{current_artifact}",
+        f"{current_run_id}\tmetadata\t{current_metadata}",
+    ]
+
+    manifest["chain_state"]["artifact_run_ids"] = ["not-a-run-id"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    rejected = _run_python(source_resolver, env=resolver_env)
+    assert rejected.returncode == 1
+    assert "checkpoint artifact run ID is invalid" in rejected.stderr
+
+
+def test_checkpoint_download_plan_recovers_zero_active_cancelled_source(
+    tmp_path: pathlib.Path,
+) -> None:
+    checkpoint = _job_block(_workflow_text(), "checkpoint")
+    source_resolver = _embedded_python(checkpoint, "CHECKPOINT_SOURCE_RUN_RESOLVER")
+    input_resolver = _embedded_python(checkpoint, "CHECKPOINT_LANE_INPUT_RESOLVER")
+    manifest_path = tmp_path / "current-manifest.json"
+    run_ids_path = tmp_path / "run-ids.txt"
+    inventories_dir = tmp_path / "inventories"
+    inventories_dir.mkdir()
+    download_plan_path = tmp_path / "downloads.tsv"
+    source_sha = "a" * 40
+    chain_id = "cancelled-chain"
+    source_run_id = "333"
+    current_run_id = "444"
+    lane_id = "already-complete"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "active_lane_count": 0,
+                "chain_id": chain_id,
+                "chain_state": {"artifact_run_ids": [source_run_id]},
+                "lanes": [{"lane_id": lane_id, "patterns": ["static"], "resume_only": True}],
+                "matrix_lane_count": 0,
+                "workflow_source_sha": source_sha,
+            }
+        ),
+        encoding="utf-8",
+    )
+    source_env = {
+        "ACTIVE_CHAIN_ID": chain_id,
+        "CURRENT_MANIFEST": str(manifest_path),
+        "CURRENT_RUN_ID": current_run_id,
+        "RUN_IDS_PATH": str(run_ids_path),
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
+    resolved = _run_python(source_resolver, env=source_env)
+    assert resolved.returncode == 0, resolved.stderr or resolved.stdout
+
+    metadata_name = f"extraction-lane-metadata-{chain_id}-{lane_id}"
+    artifact_name = f"extraction-lane-{chain_id}-{lane_id}"
+    (inventories_dir / f"run-{source_run_id}.json").write_text(
+        json.dumps(
+            [
+                {
+                    "artifacts": [
+                        {"name": metadata_name, "expired": False},
+                        {"name": artifact_name, "expired": False},
+                    ]
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (inventories_dir / f"run-{current_run_id}.json").write_text(
+        '[{"artifacts": []}]\n',
+        encoding="utf-8",
+    )
+    planned = _run_python(
+        input_resolver,
+        env={
+            "ACTIVE_CHAIN_ID": chain_id,
+            "CURRENT_MANIFEST": str(manifest_path),
+            "DOWNLOAD_PLAN_PATH": str(download_plan_path),
+            "INVENTORIES_DIR": str(inventories_dir),
+            "PREVIOUS_REPORT_PATH": "",
+            "RUN_IDS_PATH": str(run_ids_path),
+        },
+    )
+    assert planned.returncode == 0, planned.stderr or planned.stdout
+    assert set(download_plan_path.read_text(encoding="utf-8").splitlines()) == {
+        f"{source_run_id}\tmetadata\t{metadata_name}",
+        f"{source_run_id}\tlane\t{artifact_name}",
+    }
 
 
 def test_only_redispatch_job_has_actions_write_permission() -> None:
@@ -1261,7 +1491,7 @@ printf '{"version": 2}\\n' > "$output"
     assert "Default branch moved during extraction" in rejected.stdout
 
 
-def test_zero_active_resume_replays_terminal_checkpoint_without_lane_jobs() -> None:
+def test_zero_active_resume_replays_checkpoint_or_rebuilds_cancelled_source() -> None:
     workflow = _workflow_text()
     preflight = _job_block(workflow, "preflight")
     discovery = _job_block(workflow, "discovery_seed")
@@ -1270,6 +1500,7 @@ def test_zero_active_resume_replays_terminal_checkpoint_without_lane_jobs() -> N
     lane_control = _job_block(workflow, "lane_control")
     checkpoint = _job_block(workflow, "checkpoint")
     replay_header = replay.split("    steps:\n", 1)[0]
+    lane_control_header = lane_control.split("    steps:\n", 1)[0]
 
     assert "needs.plan.outputs.matrix-lane-count != '0'" in preflight
     assert "needs.plan.outputs.matrix-lane-count != '0'" in discovery
@@ -1284,15 +1515,33 @@ def test_zero_active_resume_replays_terminal_checkpoint_without_lane_jobs() -> N
         "needs.plan.outputs.matrix-lane-count == '0'",
     ):
         assert predicate in replay_header
-    assert "Terminal replay requires exactly one unexpired source" in replay
+    assert "Terminal replay requires at most one unexpired source" in replay
     assert "checkpoint artifact; found" in replay
+    assert "No source checkpoint exists; rebuilding from attested" in replay
     assert 'gh run download "$SOURCE_RUN_ID"' in replay
+    assert "steps.source_checkpoint.outputs.artifact_name != ''" in replay
     assert "source checkpoint lane coverage hashes do not match" in replay
     assert "source checkpoint database SHA-256 does not match" in replay
-    assert "needs.terminal_replay.result == 'success'" in merge
+    assert "needs.terminal_replay.outputs.artifact-name != ''" in merge
     assert "Download replayed terminal checkpoint" in merge
-    assert "needs.plan.outputs.active-lane-count != '0'" in lane_control
+    assert "terminal_replay" in lane_control_header
+    for predicate in (
+        "inputs.resume_source_run_id != ''",
+        "needs.plan.outputs.active-lane-count == '0'",
+        "needs.plan.outputs.matrix-lane-count == '0'",
+        "needs.terminal_replay.result == 'success'",
+        "needs.terminal_replay.outputs.artifact-name == ''",
+    ):
+        assert predicate in lane_control_header
+    metadata_download = _step_block(lane_control, "Download lane metadata")
+    assert "if: ${{ needs.plan.outputs.active-lane-count != '0' }}" in metadata_download
     assert "needs.lane_control.result == 'success'" in checkpoint
+    checkpoint_inputs = _step_block(checkpoint, "Download checkpoint lane inputs")
+    assert 'chain_state.get("artifact_run_ids", [])' in checkpoint_inputs
+    assert 'os.environ["CURRENT_RUN_ID"]' in checkpoint_inputs
+    assert "previous_lane_ids" in checkpoint_inputs
+    assert "full-extraction-discovery-artifacts-{chain_id}" in checkpoint_inputs
+    assert "needs.terminal_replay.outputs.artifact-name == ''" in merge
 
 
 def test_terminal_replay_rejects_ambiguous_or_tampered_checkpoint(
@@ -1333,6 +1582,13 @@ def test_terminal_replay_rejects_ambiguous_or_tampered_checkpoint(
         "checkpoint_generation=3",
     ]
 
+    output_path.unlink()
+    artifacts_path.write_text('[{"artifacts": []}]\n', encoding="utf-8")
+    missing = _run_python(resolver, env=resolver_env)
+    assert missing.returncode == 0, missing.stderr or missing.stdout
+    assert "No source checkpoint exists" in missing.stdout
+    assert not output_path.exists()
+
     artifacts_path.write_text(
         json.dumps(
             [
@@ -1351,7 +1607,7 @@ def test_terminal_replay_rejects_ambiguous_or_tampered_checkpoint(
     )
     ambiguous = _run_python(resolver, env=resolver_env)
     assert ambiguous.returncode == 1
-    assert "requires exactly one unexpired source checkpoint" in ambiguous.stdout
+    assert "requires at most one unexpired source checkpoint" in ambiguous.stdout
 
     database_path = tmp_path / "nba.duckdb"
     database_path.write_bytes(b"attested-checkpoint")

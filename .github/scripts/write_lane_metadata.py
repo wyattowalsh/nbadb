@@ -327,7 +327,7 @@ def _failure_class(
         return ""
     if raw_status in {"cancelled", "cancellation_no_metadata"}:
         return "runner_infrastructure"
-    if vpn_status in {"vpn_auth_failure", "vpn_connect_timeout"}:
+    if vpn_status in {"vpn_auth_failure", "vpn_connect_timeout", "vpn_network_error"}:
         return "vpn_egress"
     if raw_status in {"extract-timeout", "timeout_with_persisted_progress", "needs_resume"}:
         return "timeout_progress" if completed_calls or rows_persisted else "timeout_stalled"

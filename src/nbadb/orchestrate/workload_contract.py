@@ -66,6 +66,75 @@ class PlayerTeamSeasonWorkloadScopeContract(TypedDict):
     expected_empty: bool
 
 
+def player_team_season_workload_scope_identity(contract: object) -> dict[str, object]:
+    """Return the generation-independent identity for one exact lane workload."""
+
+    if not isinstance(contract, dict):
+        raise ValueError("player_team_season workload contract must be an object")
+
+    requested_pairs = contract.get("requested_pairs")
+    if not isinstance(requested_pairs, list):
+        raise ValueError("player_team_season workload requested_pairs must be a list")
+
+    normalized_pairs: list[dict[str, int | str]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    total_rows = 0
+    for raw_pair in requested_pairs:
+        if not isinstance(raw_pair, dict):
+            raise ValueError("player_team_season workload requested pair must be an object")
+        season = raw_pair.get("season")
+        season_type = raw_pair.get("season_type")
+        row_count = raw_pair.get("row_count")
+        if (
+            not isinstance(season, str)
+            or not season.strip()
+            or not isinstance(season_type, str)
+            or not season_type.strip()
+            or isinstance(row_count, bool)
+            or not isinstance(row_count, int)
+            or row_count < 0
+        ):
+            raise ValueError("player_team_season workload requested pair is invalid")
+        pair = (season, season_type)
+        if pair in seen_pairs:
+            raise ValueError("player_team_season workload requested pairs contain duplicates")
+        seen_pairs.add(pair)
+        total_rows += row_count
+        normalized_pairs.append(
+            {"season": season, "season_type": season_type, "row_count": row_count}
+        )
+
+    expected_count = contract.get("expected_base_unit_count")
+    expected_sha256 = contract.get("expected_base_units_sha256")
+    expected_empty = contract.get("expected_empty")
+    if (
+        isinstance(expected_count, bool)
+        or not isinstance(expected_count, int)
+        or expected_count < 0
+    ):
+        raise ValueError("player_team_season workload expected_base_unit_count is invalid")
+    if (
+        not isinstance(expected_sha256, str)
+        or len(expected_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in expected_sha256.lower())
+    ):
+        raise ValueError("player_team_season workload expected_base_units_sha256 is invalid")
+    if not isinstance(expected_empty, bool) or expected_empty != (expected_count == 0):
+        raise ValueError("player_team_season workload expected_empty is inconsistent")
+    if total_rows != expected_count:
+        raise ValueError("player_team_season workload requested pair counts are inconsistent")
+
+    return {
+        "requested_pairs": sorted(
+            normalized_pairs,
+            key=lambda pair: (str(pair["season"]), str(pair["season_type"])),
+        ),
+        "expected_base_unit_count": expected_count,
+        "expected_base_units_sha256": expected_sha256.lower(),
+        "expected_empty": expected_empty,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class PlayerTeamSeasonWorkloadScope:
     base_units: frozenset[PlayerTeamSeasonWorkloadBaseUnit]

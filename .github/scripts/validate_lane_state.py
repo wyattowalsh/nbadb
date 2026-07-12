@@ -12,6 +12,7 @@ from nbadb.orchestrate.workload_contract import (
     PlayerTeamSeasonWorkloadStore,
     build_player_team_season_workload_scope,
     player_team_season_workload_base_unit,
+    player_team_season_workload_scope_identity,
 )
 
 
@@ -111,9 +112,19 @@ def validate_lane_state(
             seasons=season_range(workload_season_start, workload_season_end),
             season_types=list(workload_season_types),
         )
-        if attestation.get("workload_contract") != workload_scope.contract:
+        attested_contract = attestation.get("workload_contract")
+        if not isinstance(attested_contract, dict) or not isinstance(
+            attested_contract.get("integrity"), dict
+        ):
+            raise ValueError("Lane-state attestation workload_contract is missing or invalid")
+        try:
+            attested_identity = player_team_season_workload_scope_identity(attested_contract)
+            active_identity = player_team_season_workload_scope_identity(workload_scope.contract)
+        except ValueError as exc:
+            raise ValueError(f"Lane-state workload scope identity is invalid: {exc}") from exc
+        if attested_identity != active_identity:
             raise ValueError(
-                "Lane-state attestation workload_contract does not match the active generation"
+                "Lane-state attestation workload scope does not match the active generation"
             )
     elif attestation is not None and attestation.get("workload_contract") is not None:
         raise ValueError("Lane-state attestation has an unexpected workload_contract")

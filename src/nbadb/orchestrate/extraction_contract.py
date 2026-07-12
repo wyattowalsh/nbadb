@@ -699,6 +699,35 @@ def _player_next_games_historical_contract_gap() -> EndpointSupportRule:
     )
 
 
+def _pre_2004_video_contract_gap(endpoint_name: str) -> EndpointSupportRule:
+    return EndpointSupportRule(
+        endpoint_name=endpoint_name,
+        pattern="player_team_season",
+        classification="contract_blocked",
+        reason=(
+            "NBA Stats reports no video-bearing games from 1946-47 through "
+            "2003-04, so player/team/season video extraction has no obtainable "
+            "upstream rows in that bounded historical range."
+        ),
+        evidence=(
+            "GitHub Actions full-extraction run 29195221754 discovery artifact "
+            "8260784820 covered all 290 season/type combinations from 1946-47 "
+            "through 2003-04. Its 89,722 LeagueGameLog rows represented 44,861 "
+            "games and every VIDEO_AVAILABLE value was zero. The same run's first "
+            "three video_details_asset context lanes completed 8,902 calls and "
+            "persisted zero rows."
+        ),
+        revalidation_command=(
+            "uv run nbadb backfill run --extract-only --verbose "
+            "--pattern player_team_season "
+            f"--endpoint {endpoint_name} --seasons 2003:2004 "
+            "--summary-path artifacts/extraction/extract-summary.json"
+        ),
+        season_start=1946,
+        season_end=2003,
+    )
+
+
 FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
     *(
         _early_1946_1949_season_contract_gap(endpoint_name)
@@ -743,6 +772,10 @@ FULL_EXTRACTION_SUPPORT_RULES: tuple[EndpointSupportRule, ...] = (
         for endpoint_name in PLAYER_TRACKING_PLAYER_SEASON_ENDPOINTS_SUPPORTED_FROM_2013
     ),
     _player_next_games_historical_contract_gap(),
+    *(
+        _pre_2004_video_contract_gap(endpoint_name)
+        for endpoint_name in ("video_details", "video_details_asset")
+    ),
     EndpointSupportRule(
         endpoint_name="win_probability",
         pattern="game",

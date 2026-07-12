@@ -109,6 +109,39 @@ def test_context_measures_parses_csv(
     assert payload["context_measures"] == ["PTS", "AST", "REB"]
 
 
+@pytest.mark.parametrize(
+    "vpn_status",
+    ["vpn_auth_failure", "vpn_connect_timeout", "vpn_network_error"],
+)
+def test_vpn_producer_failures_are_classified_as_vpn_egress(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    vpn_status: str,
+) -> None:
+    _set_env(monkeypatch, tmp_path, status="extract-error")
+    monkeypatch.setenv("VPN_STATUS", vpn_status)
+    monkeypatch.setenv("VPN_SERVER", "us-test-1")
+    monkeypatch.setenv("VPN_INTERFACE", "nordlynx")
+    monkeypatch.setenv("VPN_EXIT_IP", "203.0.113.1")
+    monkeypatch.setenv("NORDVPN_TOKEN", "must-not-be-serialized")
+
+    payload = metadata_module.build_payload()
+
+    assert payload["status"] == "pipeline_failure"
+    assert payload["failure_class"] == "vpn_egress"
+    assert payload["vpn_status"] == vpn_status
+    assert payload["vpn"] == {
+        "status": vpn_status,
+        "server": "us-test-1",
+        "interface": "nordlynx",
+        "exit_ip": "203.0.113.1",
+        "attempted_servers": [],
+        "failed_servers": [],
+    }
+    assert "must-not-be-serialized" not in json.dumps(payload, sort_keys=True)
+
+
 def test_metadata_v2_records_durable_progress_and_artifact(
     metadata_module: ModuleType,
     monkeypatch: pytest.MonkeyPatch,

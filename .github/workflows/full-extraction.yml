@@ -2066,13 +2066,19 @@ jobs:
                   if match is not None and artifact.get("expired") is not True:
                       matches.append((name, int(match.group(1))))
 
-          if len(matches) != 1:
+          if len(matches) > 1:
               names = ", ".join(name for name, _generation in matches) or "none"
               print(
-                  "::error::Terminal replay requires exactly one unexpired source "
+                  "::error::Terminal replay requires at most one unexpired source "
                   f"checkpoint artifact; found {len(matches)}: {names}"
               )
               raise SystemExit(1)
+          if not matches:
+              print(
+                  "::notice::No source checkpoint exists; rebuilding from attested "
+                  "complete-lane artifacts"
+              )
+              raise SystemExit(0)
 
           artifact_name, generation = matches[0]
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
@@ -2081,6 +2087,7 @@ jobs:
           PY
 
       - name: Download exact source checkpoint
+        if: ${{ steps.source_checkpoint.outputs.artifact_name != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_RUN_ID: ${{ inputs.resume_source_run_id }}
@@ -2095,6 +2102,7 @@ jobs:
 
       - name: Attest terminal replay inputs
         id: replay
+        if: ${{ steps.source_checkpoint.outputs.artifact_name != '' }}
         env:
           CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
           EXPECTED_CHECKPOINT_GENERATION: ${{ steps.source_checkpoint.outputs.checkpoint_generation }}
@@ -2201,6 +2209,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload attested terminal replay inputs
+        if: ${{ steps.source_checkpoint.outputs.artifact_name != '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
@@ -2273,7 +2282,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   merge:
     needs: [plan, preflight, extract, terminal_replay, lane_control, checkpoint]
-    if: ${{ always() && !cancelled() && !inputs.targeted_smoke && needs.plan.result == 'success' && needs.plan.outputs.lane-count != '0' && ((needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0') || needs.terminal_replay.result == 'success') }}
+    if: ${{ always() && !cancelled() && !inputs.targeted_smoke && needs.plan.result == 'success' && needs.plan.outputs.lane-count != '0' && (((needs.preflight.result == 'success' || (inputs.resume_source_run_id != '' && needs.plan.outputs.active-lane-count == '0' && needs.plan.outputs.matrix-lane-count == '0' && needs.terminal_replay.result == 'success' && needs.terminal_replay.outputs.artifact-name == '')) && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0') || (needs.terminal_replay.result == 'success' && needs.terminal_replay.outputs.artifact-name != '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -2684,8 +2693,8 @@ jobs:
   #  Lane control: carry a manifest forward and classify unresolved lanes
   # ─────────────────────────────────────────────────────────────
   lane_control:
-    needs: [plan, preflight, discovery_seed, extract]
-    if: ${{ always() && !cancelled() && needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && needs.extract.result != 'skipped' }}
+    needs: [plan, preflight, discovery_seed, extract, terminal_replay]
+    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && ((needs.plan.outputs.active-lane-count != '0' && needs.preflight.result == 'success' && needs.discovery_seed.result == 'success' && needs.extract.result != 'skipped') || (inputs.resume_source_run_id != '' && needs.plan.outputs.active-lane-count == '0' && needs.plan.outputs.matrix-lane-count == '0' && needs.terminal_replay.result == 'success' && needs.terminal_replay.outputs.artifact-name == '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -2715,6 +2724,7 @@ jobs:
       - run: uv sync
 
       - name: Download lane metadata
+        if: ${{ needs.plan.outputs.active-lane-count != '0' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
@@ -3053,36 +3063,11 @@ jobs:
 
       - run: uv sync
 
-      - name: Download lane metadata
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          pattern: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-*
-          path: lane-metadata/
-
       - name: Download lane-control manifest
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: ${{ needs.lane_control.outputs.artifact-name }}
           path: lane-control-artifact/
-
-      - name: Download discovery workload contract
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
-          path: checkpoint-discovery/
-
-      - name: Download current lane artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIVE_CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
-        run: |
-          mkdir -p lanes/run-${{ github.run_id }}
-          if ! gh run download "${{ github.run_id }}" \
-            --repo "${{ github.repository }}" \
-            --pattern "extraction-lane-${ACTIVE_CHAIN_ID}-*" \
-            --dir "lanes/run-${{ github.run_id }}"; then
-            echo "::warning::No current lane artifacts were downloaded for checkpointing"
-          fi
 
       - name: Download previous checkpoint
         env:
@@ -3124,6 +3109,258 @@ jobs:
             --dir previous-checkpoint; then
             echo "::warning::Previous checkpoint artifact $previous_artifact_name from run $previous_run_id was unavailable"
           fi
+
+      - name: Download checkpoint lane inputs
+        env:
+          ACTIVE_CHAIN_ID: ${{ env.ACTIVE_CHAIN_ID }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/full-extraction checkpoint-discovery lane-metadata lanes
+          current_manifest="$(find lane-control-artifact -name current-manifest.json -type f -print -quit)"
+          if [ -z "$current_manifest" ]; then
+            echo "::error::Lane-control artifact did not contain current-manifest.json"
+            find lane-control-artifact -maxdepth 4 -type f -print || true
+            exit 1
+          fi
+
+          run_ids_path="$RUNNER_TEMP/checkpoint-artifact-run-ids.txt"
+          CURRENT_MANIFEST="$current_manifest" \
+            RUN_IDS_PATH="$run_ids_path" \
+            python - <<'PY'
+          # CHECKPOINT_SOURCE_RUN_RESOLVER
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path(os.environ["CURRENT_MANIFEST"]).read_text(encoding="utf-8")
+          )
+          chain_id = os.environ["ACTIVE_CHAIN_ID"]
+          expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          if not isinstance(manifest, dict):
+              raise SystemExit("checkpoint current manifest must be an object")
+          if str(manifest.get("chain_id") or "") != chain_id:
+              raise SystemExit("checkpoint current manifest chain identity does not match")
+          if str(manifest.get("workflow_source_sha") or "").lower() != expected_source_sha:
+              raise SystemExit("checkpoint current manifest source SHA does not match")
+
+          chain_state = manifest.get("chain_state", {})
+          if not isinstance(chain_state, dict):
+              raise SystemExit("checkpoint current manifest chain_state must be an object")
+          raw_run_ids = chain_state.get("artifact_run_ids", [])
+          if not isinstance(raw_run_ids, list):
+              raise SystemExit("checkpoint artifact_run_ids must be a list")
+
+          run_ids: list[str] = []
+          for raw_run_id in [*raw_run_ids, os.environ["CURRENT_RUN_ID"]]:
+              if isinstance(raw_run_id, bool):
+                  raise SystemExit("checkpoint artifact run IDs must be positive integers")
+              run_id = str(raw_run_id).strip()
+              if re.fullmatch(r"[1-9][0-9]*", run_id) is None:
+                  raise SystemExit(
+                      f"checkpoint artifact run ID is invalid: {run_id or '<empty>'}"
+                  )
+              if run_id not in run_ids:
+                  run_ids.append(run_id)
+
+          Path(os.environ["RUN_IDS_PATH"]).write_text(
+              "".join(f"{run_id}\n" for run_id in run_ids),
+              encoding="utf-8",
+          )
+          PY
+
+          inventories_dir="$RUNNER_TEMP/checkpoint-artifact-inventories"
+          mkdir -p "$inventories_dir"
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            gh api \
+              --method GET \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100" \
+              > "$inventories_dir/run-${run_id}.json"
+          done < "$run_ids_path"
+
+          previous_report="$(find previous-checkpoint -name checkpoint-report.json -type f -print -quit || true)"
+          download_plan="$RUNNER_TEMP/checkpoint-lane-input-downloads.tsv"
+          CURRENT_MANIFEST="$current_manifest" \
+            DOWNLOAD_PLAN_PATH="$download_plan" \
+            INVENTORIES_DIR="$inventories_dir" \
+            PREVIOUS_REPORT_PATH="$previous_report" \
+            RUN_IDS_PATH="$run_ids_path" \
+            python - <<'PY'
+          # CHECKPOINT_LANE_INPUT_RESOLVER
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path(os.environ["CURRENT_MANIFEST"]).read_text(encoding="utf-8")
+          )
+          chain_id = os.environ["ACTIVE_CHAIN_ID"]
+          lanes = manifest.get("lanes", [])
+          if not isinstance(lanes, list):
+              raise SystemExit("checkpoint manifest lanes must be a list")
+          lane_ids: list[str] = []
+          for lane in lanes:
+              if not isinstance(lane, dict):
+                  raise SystemExit("checkpoint manifest lane entries must be objects")
+              lane_id = str(lane.get("lane_id") or "").strip()
+              if not lane_id or lane_id in lane_ids:
+                  raise SystemExit("checkpoint manifest lane IDs must be non-empty and unique")
+              lane_ids.append(lane_id)
+
+          previous_lane_ids: set[str] = set()
+          previous_report_path = os.environ.get("PREVIOUS_REPORT_PATH", "")
+          if previous_report_path:
+              previous_report = json.loads(
+                  Path(previous_report_path).read_text(encoding="utf-8")
+              )
+              raw_previous_lane_ids = previous_report.get("included_lane_ids")
+              if not isinstance(raw_previous_lane_ids, list):
+                  raise SystemExit(
+                      "previous checkpoint included_lane_ids must be a list"
+                  )
+              previous_lane_ids = {
+                  str(lane_id).strip()
+                  for lane_id in raw_previous_lane_ids
+                  if str(lane_id).strip()
+              }
+
+          run_ids = [
+              line.strip()
+              for line in Path(os.environ["RUN_IDS_PATH"])
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          ]
+          run_rank = {run_id: index for index, run_id in enumerate(run_ids)}
+          expected_names: dict[str, tuple[str, str]] = {}
+          for lane_id in lane_ids:
+              if lane_id in previous_lane_ids:
+                  continue
+              expected_names[f"extraction-lane-metadata-{chain_id}-{lane_id}"] = (
+                  "metadata",
+                  lane_id,
+              )
+              expected_names[f"extraction-lane-{chain_id}-{lane_id}"] = (
+                  "lane",
+                  lane_id,
+              )
+
+          candidates: dict[tuple[str, str], list[tuple[str, str]]] = {}
+          discovery_name = f"full-extraction-discovery-artifacts-{chain_id}"
+          discovery_candidates: list[tuple[str, str]] = []
+          inventories_dir = Path(os.environ["INVENTORIES_DIR"])
+          for run_id in run_ids:
+              inventory_path = inventories_dir / f"run-{run_id}.json"
+              pages = json.loads(inventory_path.read_text(encoding="utf-8"))
+              if not isinstance(pages, list):
+                  raise SystemExit(f"artifact inventory for run {run_id} must be a list")
+              seen_names: set[str] = set()
+              for page in pages:
+                  if not isinstance(page, dict) or not isinstance(page.get("artifacts", []), list):
+                      raise SystemExit(f"artifact inventory for run {run_id} is malformed")
+                  for artifact in page.get("artifacts", []):
+                      if not isinstance(artifact, dict) or artifact.get("expired") is True:
+                          continue
+                      name = str(artifact.get("name") or "")
+                      if name in seen_names:
+                          raise SystemExit(
+                              f"artifact inventory for run {run_id} contains duplicate {name!r}"
+                          )
+                      seen_names.add(name)
+                      if name == discovery_name:
+                          discovery_candidates.append((run_id, name))
+                          continue
+                      expected = expected_names.get(name)
+                      if expected is not None:
+                          candidates.setdefault(expected, []).append((run_id, name))
+
+          downloads: list[tuple[str, str, str]] = []
+          for lane_id in lane_ids:
+              if lane_id in previous_lane_ids:
+                  continue
+              metadata_candidates = candidates.get(("metadata", lane_id), [])
+              lane_candidates = candidates.get(("lane", lane_id), [])
+              if len(lane_candidates) > 1:
+                  locations = ", ".join(
+                      f"{run_id}:{name}" for run_id, name in lane_candidates
+                  )
+                  raise SystemExit(
+                      f"checkpoint lane artifact is ambiguous for {lane_id}: {locations}"
+                  )
+              selected_metadata: tuple[str, str] | None = None
+              if lane_candidates:
+                  lane_run_id, _lane_name = lane_candidates[0]
+                  matching_metadata = [
+                      candidate
+                      for candidate in metadata_candidates
+                      if candidate[0] == lane_run_id
+                  ]
+                  if len(matching_metadata) != 1:
+                      raise SystemExit(
+                          "checkpoint lane artifact lacks one exact metadata artifact for "
+                          f"{lane_id} in run {lane_run_id}"
+                      )
+                  selected_metadata = matching_metadata[0]
+              elif metadata_candidates:
+                  selected_metadata = max(
+                      metadata_candidates,
+                      key=lambda candidate: run_rank[candidate[0]],
+                  )
+
+              if selected_metadata is not None:
+                  downloads.append(
+                      (selected_metadata[0], "metadata", selected_metadata[1])
+                  )
+              if lane_candidates:
+                  downloads.append((lane_candidates[0][0], "lane", lane_candidates[0][1]))
+
+          requires_workload = any(
+              isinstance(lane, dict)
+              and "player_team_season" in lane.get("patterns", [])
+              for lane in lanes
+          )
+          if requires_workload:
+              if not discovery_candidates:
+                  raise SystemExit(
+                      "checkpoint manifest requires an exact discovery workload artifact"
+                  )
+              selected_discovery = max(
+                  discovery_candidates,
+                  key=lambda candidate: run_rank[candidate[0]],
+              )
+              downloads.append(
+                  (selected_discovery[0], "discovery", selected_discovery[1])
+              )
+
+          downloads.sort(key=lambda row: (run_rank[row[0]], row[1], row[2]))
+          Path(os.environ["DOWNLOAD_PLAN_PATH"]).write_text(
+              "".join("\t".join(row) + "\n" for row in downloads),
+              encoding="utf-8",
+          )
+          PY
+
+          while IFS=$'\t' read -r run_id artifact_kind artifact_name; do
+            [ -n "$run_id" ] || continue
+            case "$artifact_kind" in
+              metadata) target_root="lane-metadata" ;;
+              lane) target_root="lanes" ;;
+              discovery) target_root="checkpoint-discovery" ;;
+              *) echo "::error::Unknown checkpoint artifact kind: $artifact_kind"; exit 1 ;;
+            esac
+            target_dir="$target_root/run-${run_id}/${artifact_name}"
+            mkdir -p "$target_dir"
+            gh run download "$run_id" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --name "$artifact_name" \
+              --dir "$target_dir"
+          done < "$download_plan"
 
       - name: Build checkpoint database
         id: checkpoint

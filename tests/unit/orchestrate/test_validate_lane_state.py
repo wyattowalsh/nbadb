@@ -262,6 +262,56 @@ def test_validate_lane_state_binds_active_workload_generation(tmp_path: Path) ->
         module.validate_lane_state(db_path, **kwargs)
 
 
+def test_validate_lane_state_accepts_append_only_workload_growth_outside_lane_scope(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    params = {
+        "player_id": 1,
+        "team_id": 10,
+        "season": "2024-25",
+        "season_type": "Regular Season",
+    }
+    db_path = tmp_path / "nba.duckdb"
+    attestation_path = tmp_path / "lane-state-attestation.json"
+    _write_workload_database(db_path, params)
+    workload_anchor, store, scope = _workload_scope(tmp_path, params)
+    _write_attestation(
+        attestation_path,
+        db_path,
+        workload_contract=dict(scope.contract),
+    )
+
+    original_integrity = scope.contract["integrity"]
+    store.upsert(
+        [
+            {
+                "player_id": 2,
+                "team_id": 20,
+                "season": "2025-26",
+                "season_type": "Regular Season",
+            }
+        ],
+        seasons=["2025-26"],
+        season_types=["Regular Season"],
+    )
+
+    report = module.validate_lane_state(
+        db_path,
+        attestation_path=attestation_path,
+        expected_source_sha="source-sha",
+        expected_chain_id="chain-1",
+        expected_lane_id="lane-1",
+        expected_coverage_units_hash="b" * 64,
+        workload_duckdb_path=workload_anchor,
+        workload_season_start=2024,
+        workload_season_end=2024,
+        workload_season_types=("Regular Season",),
+    )
+
+    assert report["workload_integrity"] != original_integrity
+
+
 def test_validate_lane_state_rejects_unexpected_workload_identity(tmp_path: Path) -> None:
     module = _load_module()
     expected = {

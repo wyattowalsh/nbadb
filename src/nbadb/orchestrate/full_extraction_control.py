@@ -30,10 +30,10 @@ from nbadb.orchestrate.seasons import season_range
 from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.workload_contract import (
     PlayerTeamSeasonWorkloadBaseUnit,
-    PlayerTeamSeasonWorkloadIntegrityAttestation,
     PlayerTeamSeasonWorkloadStore,
     build_player_team_season_workload_scope,
     player_team_season_workload_base_unit,
+    player_team_season_workload_scope_identity,
 )
 from nbadb.orchestrate.workload_profile import (
     WorkloadPlanningSnapshot,
@@ -73,7 +73,7 @@ SPLITTABLE_TIMEOUT_STATUSES = frozenset(
     {"needs_resume", "extract-timeout", "timeout_with_persisted_progress"}
 )
 RETRYABLE_PIPELINE_FAILURE_STATUSES = frozenset(
-    {"cancelled", "vpn_auth_failure", "vpn_connect_timeout"}
+    {"cancelled", "vpn_auth_failure", "vpn_connect_timeout", "vpn_network_error"}
 )
 FINAL_LANE_OUTCOMES: frozenset[str] = frozenset(
     {"complete", "needs_resume", "contract_blocked", "pipeline_failure"}
@@ -2374,9 +2374,14 @@ def _metadata_failure_class(payload: dict[str, Any], *, raw_status: str) -> str:
     )
     if raw_status in {"cancelled", "cancellation_no_metadata", "missing-metadata"}:
         return "runner_infrastructure"
-    if raw_status in {"vpn_auth_failure", "vpn_connect_timeout"} or vpn_status in {
+    if raw_status in {
         "vpn_auth_failure",
         "vpn_connect_timeout",
+        "vpn_network_error",
+    } or vpn_status in {
+        "vpn_auth_failure",
+        "vpn_connect_timeout",
+        "vpn_network_error",
     }:
         return "vpn_egress"
     if raw_status in SPLITTABLE_TIMEOUT_STATUSES:
@@ -3368,13 +3373,32 @@ def _checkpoint_lane_coverage_hashes(
     }
 
 
+def _checkpoint_lane_workload_contracts(
+    lanes_by_id: dict[str, FullExtractionLane],
+    lane_ids: set[str],
+    workload_store: PlayerTeamSeasonWorkloadStore | None,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    contracts: dict[str, dict[str, Any]] = {}
+    errors: list[str] = []
+    for lane_id in sorted(lane_ids & set(lanes_by_id)):
+        lane = lanes_by_id[lane_id]
+        if "player_team_season" not in lane.patterns:
+            continue
+        _base_units, contract, lane_errors = _workload_scope_contract(lane, workload_store)
+        if lane_errors:
+            errors.extend(f"{lane_id}:{error}" for error in lane_errors)
+            continue
+        contracts[lane_id] = contract
+    return contracts, errors
+
+
 def _validate_previous_checkpoint_report(
     *,
     previous_db_path: Path,
     previous_report_path: Path | None,
     previous_report: dict[str, Any],
     lanes_by_id: dict[str, FullExtractionLane],
-    expected_workload_integrity: PlayerTeamSeasonWorkloadIntegrityAttestation | None = None,
+    expected_workload_store: PlayerTeamSeasonWorkloadStore | None = None,
 ) -> tuple[set[str], list[str], dict[str, str]]:
     if previous_report_path is None or not previous_report_path.is_file() or not previous_report:
         msg = "Previous checkpoint database has no readable checkpoint report"
@@ -3389,13 +3413,6 @@ def _validate_previous_checkpoint_report(
     actual_database_sha256 = _file_sha256(previous_db_path)
     if actual_database_sha256 != reported_database_sha256.lower():
         msg = "Previous checkpoint database digest does not match its report"
-        raise ValueError(msg)
-
-    if (
-        expected_workload_integrity is not None
-        and previous_report.get("workload_integrity") != expected_workload_integrity
-    ):
-        msg = "Previous checkpoint workload generation does not match the active discovery contract"
         raise ValueError(msg)
 
     raw_lane_ids = previous_report.get("included_lane_ids")
@@ -3429,6 +3446,70 @@ def _validate_previous_checkpoint_report(
                 f"{lane_id}: expected {expected_hash}, got {reported_hash or 'missing'}"
             )
             raise ValueError(msg)
+
+    if expected_workload_store is not None:
+        expected_workload_integrity = expected_workload_store.integrity_attestation()
+        if expected_workload_integrity is None:
+            raise ValueError("Active discovery workload integrity is unavailable")
+
+        raw_workload_contracts = previous_report.get("included_lane_workload_contracts")
+        workload_lane_ids = {
+            lane_id
+            for lane_id in included_lane_ids & set(lanes_by_id)
+            if "player_team_season" in lanes_by_id[lane_id].patterns
+        }
+        if not workload_lane_ids:
+            if raw_workload_contracts not in (None, {}):
+                raise ValueError(
+                    "Previous checkpoint has workload contracts without an included "
+                    "player/team/season lane"
+                )
+        else:
+            previous_workload_integrity = previous_report.get("workload_integrity")
+            if not isinstance(previous_workload_integrity, dict):
+                raise ValueError("Previous checkpoint workload integrity is missing or invalid")
+            if not isinstance(raw_workload_contracts, dict):
+                raise ValueError("Previous checkpoint is missing included_lane_workload_contracts")
+            unexpected_contract_ids = set(raw_workload_contracts) - included_lane_ids
+            if unexpected_contract_ids:
+                raise ValueError(
+                    "Previous checkpoint has workload contracts for non-included lanes: "
+                    + ", ".join(sorted(unexpected_contract_ids))
+                )
+            for lane_id in sorted(workload_lane_ids):
+                previous_contract = raw_workload_contracts.get(lane_id)
+                if not isinstance(previous_contract, dict):
+                    raise ValueError(
+                        f"Previous checkpoint is missing workload contract for {lane_id}"
+                    )
+                if previous_contract.get("integrity") != previous_workload_integrity:
+                    raise ValueError(
+                        f"Previous checkpoint workload integrity is unbound for {lane_id}"
+                    )
+                _base_units, expected_contract, errors = _workload_scope_contract(
+                    lanes_by_id[lane_id],
+                    expected_workload_store,
+                )
+                if errors:
+                    raise ValueError(
+                        f"Active discovery workload contract is invalid for {lane_id}: "
+                        + ", ".join(errors)
+                    )
+                try:
+                    previous_identity = player_team_season_workload_scope_identity(
+                        previous_contract
+                    )
+                    expected_identity = player_team_season_workload_scope_identity(
+                        expected_contract
+                    )
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Previous checkpoint workload contract is invalid for {lane_id}: {exc}"
+                    ) from exc
+                if previous_identity != expected_identity:
+                    raise ValueError(
+                        f"Previous checkpoint lane workload identity mismatch for {lane_id}"
+                    )
 
     raw_run_ids = previous_report.get("included_run_ids", [])
     if not isinstance(raw_run_ids, list):
@@ -4618,9 +4699,7 @@ def build_checkpoint_database(
             previous_report_path=previous_checkpoint_report_path,
             previous_report=previous_report,
             lanes_by_id=lanes_by_id,
-            expected_workload_integrity=(
-                workload_integrity if requires_workload_contract else None
-            ),
+            expected_workload_store=(workload_store if requires_workload_contract else None),
         )
     compatible_previous_lane_ids = _compatible_previous_checkpoint_lane_ids(
         lanes,
@@ -4663,6 +4742,14 @@ def build_checkpoint_database(
         **previous_coverage_hashes,
         **_checkpoint_lane_coverage_hashes(lanes_by_id, effective_included_lane_ids),
     }
+    included_lane_workload_contracts, included_workload_contract_errors = (
+        _checkpoint_lane_workload_contracts(
+            lanes_by_id,
+            effective_included_lane_ids,
+            workload_store,
+        )
+    )
+    workload_contract_errors.extend(included_workload_contract_errors)
     checkpoint_generation = int(previous_report.get("checkpoint_generation") or 0) + 1
     included_run_ids = list(dict.fromkeys([*previous_run_ids, *([run_id] if run_id else [])]))
     database_sha256 = _file_sha256(Path(output_path)) if output_path else ""
@@ -4674,6 +4761,7 @@ def build_checkpoint_database(
         "previous_checkpoint_generation": int(previous_report.get("checkpoint_generation") or 0),
         "included_lane_ids": sorted(included_lane_ids),
         "included_lane_coverage_hashes": included_lane_coverage_hashes,
+        "included_lane_workload_contracts": included_lane_workload_contracts,
         "compatible_previous_lane_ids": sorted(compatible_previous_lane_ids),
         "included_run_ids": included_run_ids,
         "complete_lane_count": len(effective_included_lane_ids),
