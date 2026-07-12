@@ -84,6 +84,11 @@ def _metadata_commit_script() -> str:
     )
 
 
+def _step_run_script(job: str, step_name: str) -> str:
+    step = _step_block(job, step_name)
+    return textwrap.dedent(step.split("        run: |\n", 1)[1])
+
+
 def _load_discovery_seed_module() -> types.ModuleType:
     module = types.ModuleType("full_extraction_chain_discovery_seed")
     module.__file__ = str(_DISCOVERY_SEED_PATH)
@@ -221,6 +226,14 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
     assert "needs.lane_control.result == 'success'" in checkpoint
     assert "needs.lane_control.result == 'success'" in dispatch
     assert "needs.checkpoint.result == 'success'" in dispatch
+
+
+def test_extract_runner_uses_planner_isolated_matrix_endpoints() -> None:
+    extract = _job_block(_workflow_text(), "extract")
+    run_extraction = _step_block(extract, "Run extraction")
+
+    assert "BACKFILL_ENDPOINTS: ${{ matrix.endpoints }}" in run_extraction
+    assert "inputs.backfill_endpoints" not in run_extraction
 
 
 def test_discovery_artifact_upload_is_success_only_and_fail_closed() -> None:
@@ -672,6 +685,41 @@ def test_publish_false_keeps_terminal_assurance_and_blocks_publication() -> None
     assert '-f publish="$PUBLISH"' in _job_block(workflow, "dispatch_next")
 
 
+def test_targeted_smoke_is_one_shot_checkpoint_assurance_without_merge() -> None:
+    workflow = _workflow_text()
+    guard = _job_block(workflow, "workflow_guard")
+    plan = _job_block(workflow, "plan")
+    plan_gate = _step_block(plan, "Validate targeted smoke plan")
+    smoke = _job_block(workflow, "targeted_smoke_assurance")
+    merge = _job_block(workflow, "merge")
+    dispatch = _job_block(workflow, "dispatch_next")
+    smoke_input = workflow.split("      targeted_smoke:\n", 1)[1].split("      chain_id:\n", 1)[0]
+
+    assert "type: boolean" in smoke_input
+    assert "default: false" in smoke_input
+    assert "targeted_smoke=true requires publish=false" in guard
+    assert "targeted_smoke=true requires network_mode=vpn" in guard
+    assert "targeted_smoke=true requires max_iterations=1" in guard
+    assert "targeted_smoke=true requires retry_pipeline_failures=false" in guard
+    assert "requires an inline or artifact-backed manual lane manifest" in guard
+
+    assert "if: ${{ inputs.targeted_smoke }}" in plan_gate
+    assert 'if [ "$LANE_COUNT" != "1" ]' in plan_gate
+    assert '[ "$ACTIVE_LANE_COUNT" != "1" ]' in plan_gate
+    assert '[ "$MATRIX_LANE_COUNT" != "1" ]' in plan_gate
+    assert '[ "$DEFERRED_LANE_COUNT" != "0" ]' in plan_gate
+    assert plan.index("Validate targeted smoke plan") < plan.index("Upload lane manifest")
+
+    assert "if: ${{ always() && inputs.targeted_smoke }}" in smoke
+    assert "needs: [plan, preflight, discovery_seed, extract, lane_control, checkpoint]" in smoke
+    assert 'if [ "$LANE_COUNT" != "1" ] || [ "$MATRIX_LANE_COUNT" != "1" ]; then' in smoke
+    assert 'if [ "$ACTIVE_LANE_COUNT" != "0" ]' in smoke
+    assert 'if [ "$RESUME_ONLY_LANE_COUNT" != "1" ]' in smoke
+    assert 'if [ "$CHECKPOINT_TERMINAL_READY" != "true" ]; then' in smoke
+    assert "!inputs.targeted_smoke" in merge.split("    runs-on:", 1)[0]
+    assert "!inputs.targeted_smoke" in dispatch.split("    runs-on:", 1)[0]
+
+
 def test_lane_metadata_receives_manifest_coverage_identity() -> None:
     extract = _job_block(_workflow_text(), "extract")
     lane_metadata = _step_block(extract, "Write lane metadata")
@@ -686,6 +734,7 @@ def test_terminal_publish_state_survives_ephemeral_runner_retries() -> None:
     persist = _step_block(publish, "Persist Kaggle publication reconciliation state")
     receipt = _step_block(publish, "Upload Kaggle publication receipt")
     final_artifact = _step_block(publish, "Upload final database")
+    metadata = _step_block(publish, "Refresh checked-in metadata")
 
     state_path = "logs/kaggle/kaggle-publication-state.json"
     key_prefix = "nbadb-kaggle-publication-state-"
@@ -719,9 +768,16 @@ def test_terminal_publish_state_survives_ephemeral_runner_retries() -> None:
     persist_position = publish.index("- name: Persist Kaggle publication reconciliation state")
     receipt_position = publish.index("- name: Upload Kaggle publication receipt")
     artifact_position = publish.index("- name: Upload final database")
+    metadata_position = publish.index("- name: Refresh checked-in metadata")
     assert (
-        upload_position < detect_position < persist_position < receipt_position < artifact_position
+        upload_position
+        < detect_position
+        < persist_position
+        < receipt_position
+        < artifact_position
+        < metadata_position
     )
+    assert "if: always()" not in metadata
 
 
 def test_all_publish_workflows_share_durable_kaggle_reconciliation_state() -> None:
@@ -862,11 +918,17 @@ def test_refresh_metadata_uses_validated_explicit_fast_forward_refspec() -> None
     assert 'git check-ref-format --branch "$push_ref"' in commit_step
     assert 'remote_ref="refs/heads/${push_ref}"' in commit_step
     assert 'git fetch "${fetch_args[@]}" origin "+${remote_ref}:${tracking_ref}"' in commit_step
+    assert 'git diff --quiet "$tracking_ref" -- dataset-metadata.json' in commit_step
     assert 'git merge-base --is-ancestor "$target_commit" "$source_commit"' in commit_step
     assert "Metadata push would not be a fast-forward" in commit_step
     assert 'git push origin "HEAD:${remote_ref}"' in commit_step
     assert "\n        git push\n" not in action
-    assert commit_step.index("git merge-base --is-ancestor") < commit_step.index("git diff --quiet")
+    assert commit_step.index('git diff --quiet "$tracking_ref"') < commit_step.index(
+        "git merge-base --is-ancestor"
+    )
+    assert commit_step.index("git merge-base --is-ancestor") < commit_step.index(
+        "git diff --quiet --"
+    )
     assert commit_step.index("git push origin") < len(commit_step)
 
     refresh_steps = (
@@ -989,9 +1051,11 @@ def test_refresh_metadata_pushes_detached_head_and_rejects_non_fast_forward(
 def test_publish_depends_on_exact_immutable_assurance_artifact() -> None:
     merge = _job_block(_workflow_text(), "merge")
     publish = _job_block(_workflow_text(), "publish")
+    manifest = _step_block(merge, "Build assured data manifest")
     assured_upload = _step_block(merge, "Upload assured final data artifact")
     exact_download = _step_block(publish, "Download exact assured data artifact")
     identity = _step_block(publish, "Validate assured data artifact identity")
+    frozen_source = _step_block(publish, "Revalidate frozen publication source")
     metadata = _step_block(publish, "Refresh checked-in metadata")
     upload = _step_block(publish, "Upload to Kaggle")
     receipt = _step_block(publish, "Upload Kaggle publication receipt")
@@ -1001,21 +1065,175 @@ def test_publish_depends_on_exact_immutable_assurance_artifact() -> None:
         "nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-"
         "${{ github.run_id }}-${{ github.run_attempt }}"
     )
+    assert '--chain-id "$ACTIVE_CHAIN_ID"' in manifest
+    assert 'source_sha="${WORKFLOW_SOURCE_SHA,,}"' in manifest
+    assert '--source-sha "$source_sha"' in manifest
+    assert '--coverage-fingerprint "$COVERAGE_FINGERPRINT"' in manifest
+    assert "data/nbadb/assured-artifact-manifest.json" in assured_upload
     assert unique_name in assured_upload
     assert "if-no-files-found: error" in assured_upload
     assert "name: ${{ needs.merge.outputs.final-data-artifact-name }}" in exact_download
     assert "pattern:" not in exact_download
     assert "ARTIFACT_ID: ${{ needs.merge.outputs.final-data-artifact-id }}" in identity
     assert "ARTIFACT_DIGEST: ${{ needs.merge.outputs.final-data-artifact-digest }}" in identity
+    assert (
+        "EXPECTED_ARTIFACT_PREFIX: nbadb-full-extraction-assured-"
+        "${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-" in identity
+    )
+    assert "github.run_attempt" not in identity
+    assert 'artifact_attempt="${ARTIFACT_NAME#"$EXPECTED_ARTIFACT_PREFIX"}"' in identity
+    assert '[[ "$artifact_attempt" =~ ^[0-9]+$ ]]' in identity
+    assert "data/nbadb/assured-artifact-manifest.json" in identity
+    assert "nbadb.core.artifact_identity verify" in identity
+    assert '--chain-id "$ACTIVE_CHAIN_ID"' in identity
+    assert 'source_sha="${WORKFLOW_SOURCE_SHA,,}"' in identity
+    assert '--source-sha "$source_sha"' in identity
+    assert '--coverage-fingerprint "$COVERAGE_FINGERPRINT"' in identity
     assert "needs: [plan, publication_preflight, merge]" in publish
     assert "needs.publication_preflight.result == 'success'" in publish
     assert "needs.merge.result == 'success'" in publish
     assert "continue-on-error" not in metadata
     assert "continue-on-error" not in upload
+    assert 'source_commit="$(git rev-parse "${WORKFLOW_SOURCE_SHA}^{commit}")"' in frozen_source
+    assert '"+refs/heads/${DEFAULT_BRANCH}:${target_ref}"' in frozen_source
+    assert 'if [ "$target_commit" != "$source_commit" ]; then' in frozen_source
+    assert '[ "$parent" != "$source_commit" ]' in frozen_source
+    assert '[ "$changed_paths" != "dataset-metadata.json" ]' in frozen_source
+    assert '[ "$commit_subject" != "chore: regenerate dataset-metadata.json" ]' in frozen_source
+    assert 'cmp --silent "$expected_metadata" "$observed_metadata"' in frozen_source
+    assert "exact metadata-only publication child" in frozen_source
     assert "if: always()" in receipt
     assert "if: always()" in final_artifact
     assert "name: nbadb-full-extraction-${{ env.ACTIVE_CHAIN_ID }}" in final_artifact
-    assert publish.index("Refresh checked-in metadata") < publish.index("Upload to Kaggle")
+    assert "data/nbadb/assured-artifact-manifest.json" in final_artifact
+    assert publish.index("Revalidate frozen publication source") < publish.index("Upload to Kaggle")
+    assert publish.index("Upload final database") < publish.index("Refresh checked-in metadata")
+
+
+def test_frozen_source_revalidation_accepts_only_exact_metadata_rerun_child(
+    tmp_path: pathlib.Path,
+) -> None:
+    remote = tmp_path / "remote.git"
+    seed = tmp_path / "seed"
+    publisher = tmp_path / "publisher"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+
+    subprocess.run(
+        ["git", "init", "--bare", "--initial-branch=main", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "clone", str(remote), str(seed)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for key, value in (("user.name", "Fixture"), ("user.email", "fixture@example.test")):
+        subprocess.run(["git", "config", key, value], cwd=seed, check=True)
+    (seed / "dataset-metadata.json").write_text('{"version": 1}\n', encoding="utf-8")
+    subprocess.run(["git", "add", "dataset-metadata.json"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "seed"], cwd=seed, check=True, capture_output=True)
+    source_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=seed,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(["git", "push", "-u", "origin", "main"], cwd=seed, check=True)
+
+    (seed / "dataset-metadata.json").write_text('{"version": 2}\n', encoding="utf-8")
+    subprocess.run(["git", "add", "dataset-metadata.json"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "chore: regenerate dataset-metadata.json"],
+        cwd=seed,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "push", "origin", "main"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "clone", str(remote), str(publisher)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(["git", "checkout", "--detach", source_commit], cwd=publisher, check=True)
+    (publisher / "data" / "nbadb").mkdir(parents=True)
+
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+output=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--output" ]; then
+    output="$2"
+    break
+  fi
+  shift
+done
+test -n "$output"
+printf '{"version": 2}\\n' > "$output"
+""",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    env = {
+        **os.environ,
+        "DEFAULT_BRANCH": "main",
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "RUNNER_TEMP": str(tmp_path),
+        "WORKFLOW_SOURCE_SHA": source_commit,
+    }
+    script = _step_run_script(
+        _job_block(_workflow_text(), "publish"), "Revalidate frozen publication source"
+    )
+    accepted = subprocess.run(
+        ["bash", "-c", script],
+        cwd=publisher,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert accepted.returncode == 0, accepted.stderr or accepted.stdout
+    assert "Accepting exact metadata-only publication child" in accepted.stdout
+
+    (publisher / "dataset-metadata.json").write_text('{"version": 2}\n', encoding="utf-8")
+    refresh_env = {
+        **env,
+        "COMMIT_MESSAGE": "chore: regenerate dataset-metadata.json",
+        "DEFAULT_BRANCH": "main",
+        "PUSH_REF_INPUT": "main",
+    }
+    refreshed = subprocess.run(
+        ["bash", "-c", _metadata_commit_script()],
+        cwd=publisher,
+        env=refresh_env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert refreshed.returncode == 0, refreshed.stderr or refreshed.stdout
+    assert "Remote metadata already matches" in refreshed.stdout
+
+    (seed / "unrelated.txt").write_text("moved\n", encoding="utf-8")
+    subprocess.run(["git", "add", "unrelated.txt"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-m", "unrelated"], cwd=seed, check=True, capture_output=True)
+    subprocess.run(["git", "push", "origin", "main"], cwd=seed, check=True)
+    rejected = subprocess.run(
+        ["bash", "-c", script],
+        cwd=publisher,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert rejected.returncode == 1
+    assert "Default branch moved during extraction" in rejected.stdout
 
 
 def test_zero_active_resume_replays_terminal_checkpoint_without_lane_jobs() -> None:

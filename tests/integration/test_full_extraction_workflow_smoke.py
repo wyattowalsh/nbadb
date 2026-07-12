@@ -433,5 +433,8 @@ def test_publish_false_control_plane_smoke_crosses_terminal_boundaries(
     assert "needs.publication_preflight.result == 'success'" in publish_job
     assert "needs.merge.result == 'success'" in publish_job
     assert "contents: write" in publish_job
-    assert publish_job.index("Refresh checked-in metadata") < publish_job.index("Upload to Kaggle")
+    assert publish_job.index("Revalidate frozen publication source") < publish_job.index(
+        "Upload to Kaggle"
+    )
+    assert publish_job.index("Upload to Kaggle") < publish_job.index("Refresh checked-in metadata")
     assert all("nbadb upload" not in " ".join(command) for command in commands)

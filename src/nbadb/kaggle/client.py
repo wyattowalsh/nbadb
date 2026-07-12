@@ -35,6 +35,10 @@ if TYPE_CHECKING:
 
 from loguru import logger
 
+from nbadb.core.artifact_identity import (
+    ASSURED_ARTIFACT_MANIFEST_NAME,
+    verify_assured_artifact_manifest,
+)
 from nbadb.core.config import get_settings
 from nbadb.core.types import validate_sql_identifier
 
@@ -526,6 +530,33 @@ class KaggleClient:
                             error=self._redacted_error(pending),
                         )
                         raise pending
+                    metadata_version: int | None = None
+                    if prior_matches or baseline_matches:
+                        metadata_version = self._resolve_remote_dataset_version()
+                        publication["baseline"]["metadata_version"] = metadata_version
+                        publication["baseline"]["versions_agree"] = (
+                            baseline_version == metadata_version
+                        )
+                        if baseline_version != metadata_version:
+                            publication["baseline"]["upload_allowed"] = False
+                            publication["result"] = "baseline_reconciliation_failed"
+                            msg = (
+                                "Kaggle matching publication marker is not from the current "
+                                f"dataset version: marker={baseline_version}, "
+                                f"metadata={metadata_version}"
+                            )
+                            error = RuntimeError(msg)
+                            self._write_upload_manifest(
+                                data_dir=upload_dir,
+                                staged_dir=staged_dir,
+                                version_notes=version_notes,
+                                status="baseline_reconciliation_failed",
+                                preflight=preflight,
+                                post_upload=staged,
+                                publication=publication,
+                                error=self._redacted_error(error),
+                            )
+                            raise error
                     if (
                         prior_unresolved is not None
                         and prior_unresolved.get("publish_key") != publish_key
@@ -1107,9 +1138,10 @@ class KaggleClient:
         if not metadata_path.is_file():
             msg = f"Kaggle metadata file does not exist: {metadata_path}"
             raise FileNotFoundError(msg)
+        metadata_bytes = metadata_path.read_bytes()
         try:
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+            metadata = json.loads(metadata_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             msg = f"Kaggle metadata file is not valid JSON: {metadata_path}"
             raise ValueError(msg) from exc
         if metadata.get("id") != self._dataset:
@@ -1222,7 +1254,22 @@ class KaggleClient:
             raise ValueError(msg)
 
         self._validate_database_resource_parity(resource_inventory)
-        metadata_bytes = metadata_path.read_bytes()
+        provenance: dict[str, Any] | None = None
+        if ASSURED_ARTIFACT_MANIFEST_NAME in seen_paths:
+            assured_manifest = verify_assured_artifact_manifest(data_root)
+            declared_files = self._flatten_resource_file_inventory(resource_inventory)
+            if declared_files != assured_manifest["files"]:
+                msg = (
+                    "Assured artifact inventory does not exactly match declared "
+                    "Kaggle data resources"
+                )
+                raise ValueError(msg)
+            provenance = {
+                "chain_id": assured_manifest["chain_id"],
+                "source_sha": assured_manifest["source_sha"],
+                "coverage_fingerprint": assured_manifest["coverage_fingerprint"],
+                "data_tree_fingerprint": assured_manifest["data_tree_fingerprint"],
+            }
         identity_resources = [
             {
                 "path": resource["path"],
@@ -1258,7 +1305,36 @@ class KaggleClient:
             "resource_bytes": sum(resource["bytes"] for resource in resource_inventory),
             "resources": sorted(resource_inventory, key=lambda resource: resource["path"]),
             "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
+            "provenance": provenance,
         }
+
+    @staticmethod
+    def _flatten_resource_file_inventory(
+        resource_inventory: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        files: list[dict[str, Any]] = []
+        for resource in resource_inventory:
+            resource_path = str(resource["path"])
+            if resource_path == ASSURED_ARTIFACT_MANIFEST_NAME:
+                continue
+            if resource["kind"] == "file":
+                files.append(
+                    {
+                        "path": resource_path,
+                        "bytes": resource["bytes"],
+                        "sha256": resource["sha256"],
+                    }
+                )
+                continue
+            for child in resource["files"]:
+                files.append(
+                    {
+                        "path": f"{resource_path}/{child['path']}",
+                        "bytes": child["bytes"],
+                        "sha256": child["sha256"],
+                    }
+                )
+        return sorted(files, key=lambda item: item["path"])
 
     def _stage_upload_bundle(
         self,
@@ -1569,8 +1645,8 @@ class KaggleClient:
             }
             for resource in preflight["resources"]
         ]
-        return {
-            "schema_version": 1,
+        marker = {
+            "schema_version": 2 if preflight.get("provenance") is not None else 1,
             "dataset": self._dataset,
             "publish_key": publish_key,
             "bundle_fingerprint": preflight["fingerprint"],
@@ -1580,6 +1656,9 @@ class KaggleClient:
             "resource_bytes": preflight["resource_bytes"],
             "resources": resources,
         }
+        if preflight.get("provenance") is not None:
+            marker["provenance"] = preflight["provenance"]
+        return marker
 
     @staticmethod
     def _publication_marker_bytes(marker: dict[str, Any]) -> bytes:
@@ -1607,6 +1686,7 @@ class KaggleClient:
             "resource_count",
             "resource_bytes",
             "resources",
+            "provenance",
         )
         return all(observed.get(field) == expected.get(field) for field in identity_fields)
 
@@ -1622,7 +1702,8 @@ class KaggleClient:
         )
 
     def _validate_publication_marker(self, marker: dict[str, Any]) -> None:
-        if marker.get("schema_version") != 1:
+        schema_version = marker.get("schema_version")
+        if type(schema_version) is not int or schema_version not in {1, 2}:
             msg = "Kaggle remote publication marker has an unsupported schema"
             raise ValueError(msg)
         if marker.get("dataset") != self._dataset:
@@ -1663,6 +1744,33 @@ class KaggleClient:
             or resource_bytes < 0
         ):
             msg = "Kaggle remote publication marker resource bytes are invalid"
+            raise ValueError(msg)
+        provenance = marker.get("provenance")
+        if schema_version == 2:
+            if not isinstance(provenance, dict):
+                msg = "Kaggle remote publication marker provenance must be an object"
+                raise ValueError(msg)
+            if (
+                not isinstance(provenance.get("chain_id"), str)
+                or not provenance["chain_id"].strip()
+            ):
+                msg = "Kaggle remote publication marker provenance chain_id is invalid"
+                raise ValueError(msg)
+            for field, length in {
+                "source_sha": 40,
+                "coverage_fingerprint": 64,
+                "data_tree_fingerprint": 64,
+            }.items():
+                value = provenance.get(field)
+                if (
+                    not isinstance(value, str)
+                    or len(value) != length
+                    or any(character not in "0123456789abcdef" for character in value)
+                ):
+                    msg = f"Kaggle remote publication marker provenance {field} is invalid"
+                    raise ValueError(msg)
+        elif provenance is not None:
+            msg = "Kaggle schema-v1 publication marker must not declare provenance"
             raise ValueError(msg)
         observed_bytes = 0
         seen_paths: set[str] = set()
@@ -2094,23 +2202,31 @@ class KaggleClient:
                     }
                 )
                 if observation["matches_expected"]:
-                    elapsed = max(0.0, self._monotonic() - started)
-                    observations.append(observation)
-                    publication.update(
-                        {
-                            "verification_attempts": attempt,
-                            "verification_elapsed_seconds": round(elapsed, 3),
-                            "resolved_version": version,
-                            "observations": observations,
-                        }
-                    )
-                    return {
-                        **remote_marker,
-                        "verification_mode": "publication_marker",
-                        "verification_attempts": attempt,
-                        "verification_elapsed_seconds": round(elapsed, 3),
-                        "resolved_version": version,
-                    }
+                    try:
+                        metadata_version = self._resolve_remote_dataset_version()
+                    except Exception as exc:
+                        observation["metadata_error"] = self._redacted_error(exc)
+                    else:
+                        observation["metadata_version"] = metadata_version
+                        observation["versions_agree"] = version == metadata_version
+                        if version == metadata_version:
+                            elapsed = max(0.0, self._monotonic() - started)
+                            observations.append(observation)
+                            publication.update(
+                                {
+                                    "verification_attempts": attempt,
+                                    "verification_elapsed_seconds": round(elapsed, 3),
+                                    "resolved_version": version,
+                                    "observations": observations,
+                                }
+                            )
+                            return {
+                                **remote_marker,
+                                "verification_mode": "publication_marker",
+                                "verification_attempts": attempt,
+                                "verification_elapsed_seconds": round(elapsed, 3),
+                                "resolved_version": version,
+                            }
             observations.append(observation)
             elapsed = max(0.0, self._monotonic() - started)
             publication.update(

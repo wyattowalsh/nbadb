@@ -113,6 +113,10 @@ on:
         description: "Publish terminal metadata and Kaggle artifacts after assurance passes"
         type: boolean
         default: true
+      targeted_smoke:
+        description: "Stop after one manually scoped lane passes terminal checkpoint attestation"
+        type: boolean
+        default: false
       chain_id:
         description: "Chain identifier (auto-set on fresh runs; required for artifact handoff)"
         type: string
@@ -182,7 +186,14 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANE_MANIFEST_ARTIFACT_NAME: ${{ inputs.lane_manifest_artifact_name }}
+          LANE_MANIFEST_JSON: ${{ inputs.lane_manifest_json }}
+          LANE_MANIFEST_RUN_ID: ${{ inputs.lane_manifest_run_id }}
+          MAX_ITERATIONS: ${{ inputs.max_iterations }}
+          NETWORK_MODE: ${{ inputs.network_mode }}
           PUBLISH: ${{ inputs.publish }}
+          RETRY_PIPELINE_FAILURES: ${{ inputs.retry_pipeline_failures }}
+          TARGETED_SMOKE: ${{ inputs.targeted_smoke }}
           WORKFLOW_DEFINITION_SHA: ${{ github.workflow_sha }}
           WORKFLOW_PATH: .github/workflows/full-extraction.yml
         run: |
@@ -223,6 +234,35 @@ jobs:
             default_branch_commit="$(git rev-parse "${default_branch_ref}^{commit}")"
             if ! git merge-base --is-ancestor "$source_commit" "$default_branch_commit"; then
               echo "::error::publish=true requires workflow_sha $source_commit to be an ancestor of default branch '$DEFAULT_BRANCH' at $default_branch_commit"
+              exit 1
+            fi
+          fi
+
+          if [ "$TARGETED_SMOKE" = "true" ]; then
+            if [ "$PUBLISH" != "false" ]; then
+              echo "::error::targeted_smoke=true requires publish=false"
+              exit 1
+            fi
+            if [ "$NETWORK_MODE" != "vpn" ]; then
+              echo "::error::targeted_smoke=true requires network_mode=vpn"
+              exit 1
+            fi
+            if [ "$MAX_ITERATIONS" != "1" ]; then
+              echo "::error::targeted_smoke=true requires max_iterations=1"
+              exit 1
+            fi
+            if [ "$RETRY_PIPELINE_FAILURES" != "false" ]; then
+              echo "::error::targeted_smoke=true requires retry_pipeline_failures=false"
+              exit 1
+            fi
+            has_inline_manifest=false
+            has_artifact_manifest=false
+            [ -n "$LANE_MANIFEST_JSON" ] && has_inline_manifest=true
+            if [ -n "$LANE_MANIFEST_RUN_ID" ] && [ -n "$LANE_MANIFEST_ARTIFACT_NAME" ]; then
+              has_artifact_manifest=true
+            fi
+            if [ "$has_inline_manifest" != "true" ] && [ "$has_artifact_manifest" != "true" ]; then
+              echo "::error::targeted_smoke=true requires an inline or artifact-backed manual lane manifest"
               exit 1
             fi
           fi
@@ -644,6 +684,23 @@ jobs:
                   f"max-matrix-lanes={manifest.get('scheduler_diagnostics', {}).get('max_matrix_lanes', 0)}\n"
               )
           PY
+
+      - name: Validate targeted smoke plan
+        if: ${{ inputs.targeted_smoke }}
+        env:
+          LANE_COUNT: ${{ steps.manifest.outputs.lane-count }}
+          ACTIVE_LANE_COUNT: ${{ steps.manifest.outputs.active-lane-count }}
+          MATRIX_LANE_COUNT: ${{ steps.manifest.outputs.matrix-lane-count }}
+          DEFERRED_LANE_COUNT: ${{ steps.manifest.outputs.deferred-lane-count }}
+        run: |
+          set -euo pipefail
+          if [ "$LANE_COUNT" != "1" ] || \
+             [ "$ACTIVE_LANE_COUNT" != "1" ] || \
+             [ "$MATRIX_LANE_COUNT" != "1" ] || \
+             [ "$DEFERRED_LANE_COUNT" != "0" ]; then
+            echo "::error::Targeted smoke plan must contain exactly one active matrix lane and no deferred lanes"
+            exit 1
+          fi
 
       - name: Plan summary
         run: |
@@ -1696,7 +1753,7 @@ jobs:
           SEASON_END: ${{ matrix.season_end }}
           PATTERNS: ${{ matrix.patterns }}
           SEASON_TYPES: ${{ matrix.season_types }}
-          BACKFILL_ENDPOINTS: ${{ inputs.backfill_endpoints || matrix.endpoints }}
+          BACKFILL_ENDPOINTS: ${{ matrix.endpoints }}
           FORCE_REEXTRACT: ${{ inputs.force_reextract }}
           LANE_TIMEOUT_SECONDS: ${{ matrix.timeout_seconds }}
           EXTRACT_SUMMARY_PATH: artifacts/extraction/extract-summary.json
@@ -2137,11 +2194,69 @@ jobs:
           compression-level: 0
 
   # ─────────────────────────────────────────────────────────────
+  #  Targeted smoke: stop green after one terminal checkpoint
+  # ─────────────────────────────────────────────────────────────
+  targeted_smoke_assurance:
+    needs: [plan, preflight, discovery_seed, extract, lane_control, checkpoint]
+    if: ${{ always() && inputs.targeted_smoke }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Verify terminal targeted smoke
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          DISCOVERY_RESULT: ${{ needs.discovery_seed.result }}
+          EXTRACT_RESULT: ${{ needs.extract.result }}
+          CONTROL_RESULT: ${{ needs.lane_control.result }}
+          CHECKPOINT_RESULT: ${{ needs.checkpoint.result }}
+          LANE_COUNT: ${{ needs.plan.outputs.lane-count }}
+          MATRIX_LANE_COUNT: ${{ needs.plan.outputs.matrix-lane-count }}
+          ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}
+          RESUME_ONLY_LANE_COUNT: ${{ needs.lane_control.outputs.resume-only-lane-count }}
+          CONTRACT_BLOCKED_LANE_COUNT: ${{ needs.lane_control.outputs.contract-blocked-lane-count }}
+          CHECKPOINT_TERMINAL_READY: ${{ needs.checkpoint.outputs.terminal-ready }}
+          CHECKPOINT_ACTIVE_LANE_COUNT: ${{ needs.checkpoint.outputs.active-lane-count }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$PLAN_RESULT" \
+            "$PREFLIGHT_RESULT" \
+            "$DISCOVERY_RESULT" \
+            "$EXTRACT_RESULT" \
+            "$CONTROL_RESULT" \
+            "$CHECKPOINT_RESULT"; do
+            if [ "$result" != "success" ]; then
+              echo "::error::Targeted smoke dependency did not succeed: $result"
+              exit 1
+            fi
+          done
+          if [ "$LANE_COUNT" != "1" ] || [ "$MATRIX_LANE_COUNT" != "1" ]; then
+            echo "::error::Targeted smoke must contain exactly one planned and dispatched lane"
+            exit 1
+          fi
+          if [ "$ACTIVE_LANE_COUNT" != "0" ] || [ "$CHECKPOINT_ACTIVE_LANE_COUNT" != "0" ]; then
+            echo "::error::Targeted smoke left active lanes"
+            exit 1
+          fi
+          if [ "$RESUME_ONLY_LANE_COUNT" != "1" ] || [ "$CONTRACT_BLOCKED_LANE_COUNT" != "0" ]; then
+            echo "::error::Targeted smoke lane did not finish as one complete resume-only lane"
+            exit 1
+          fi
+          if [ "$CHECKPOINT_TERMINAL_READY" != "true" ]; then
+            echo "::error::Targeted smoke checkpoint is not terminal-ready"
+            exit 1
+          fi
+          echo "::notice::Targeted smoke passed terminal lane and checkpoint attestation"
+
+  # ─────────────────────────────────────────────────────────────
   #  Merge the cumulative checkpoint once all lanes are complete
   # ─────────────────────────────────────────────────────────────
   merge:
     needs: [plan, preflight, extract, terminal_replay, lane_control, checkpoint]
-    if: ${{ always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.lane-count != '0' && ((needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0') || needs.terminal_replay.result == 'success') }}
+    if: ${{ always() && !cancelled() && !inputs.targeted_smoke && needs.plan.result == 'success' && needs.plan.outputs.lane-count != '0' && ((needs.preflight.result == 'success' && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count == '0' && needs.checkpoint.outputs.terminal-ready == 'true' && needs.checkpoint.outputs.active-lane-count == '0') || needs.terminal_replay.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -2257,6 +2372,17 @@ jobs:
       - name: Export all formats
         run: uv run nbadb export
 
+      - name: Build assured data manifest
+        env:
+          COVERAGE_FINGERPRINT: ${{ needs.plan.outputs.coverage-fingerprint }}
+        run: |
+          source_sha="${WORKFLOW_SOURCE_SHA,,}"
+          uv run python -m nbadb.core.artifact_identity build \
+            --root data/nbadb \
+            --chain-id "$ACTIVE_CHAIN_ID" \
+            --source-sha "$source_sha" \
+            --coverage-fingerprint "$COVERAGE_FINGERPRINT"
+
       - name: Upload assured final data artifact
         id: assured_data
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -2268,6 +2394,7 @@ jobs:
             data/nbadb/*.sqlite
             data/nbadb/parquet/
             data/nbadb/csv/
+            data/nbadb/assured-artifact-manifest.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -2296,6 +2423,7 @@ jobs:
             data/nbadb/*.sqlite
             data/nbadb/parquet/
             data/nbadb/csv/
+            data/nbadb/assured-artifact-manifest.json
           if-no-files-found: ignore
           retention-days: 30
           compression-level: 0
@@ -2343,11 +2471,14 @@ jobs:
           ARTIFACT_DIGEST: ${{ needs.merge.outputs.final-data-artifact-digest }}
           ARTIFACT_ID: ${{ needs.merge.outputs.final-data-artifact-id }}
           ARTIFACT_NAME: ${{ needs.merge.outputs.final-data-artifact-name }}
-          EXPECTED_ARTIFACT_NAME: nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-${{ github.run_attempt }}
+          COVERAGE_FINGERPRINT: ${{ needs.plan.outputs.coverage-fingerprint }}
+          EXPECTED_ARTIFACT_PREFIX: nbadb-full-extraction-assured-${{ env.ACTIVE_CHAIN_ID }}-${{ github.run_id }}-
         run: |
           set -euo pipefail
-          if [ "$ARTIFACT_NAME" != "$EXPECTED_ARTIFACT_NAME" ]; then
-            echo "::error::Assured artifact identity mismatch: expected '$EXPECTED_ARTIFACT_NAME', got '$ARTIFACT_NAME'"
+          source_sha="${WORKFLOW_SOURCE_SHA,,}"
+          artifact_attempt="${ARTIFACT_NAME#"$EXPECTED_ARTIFACT_PREFIX"}"
+          if [ "$artifact_attempt" = "$ARTIFACT_NAME" ] || ! [[ "$artifact_attempt" =~ ^[0-9]+$ ]]; then
+            echo "::error::Assured artifact identity mismatch: expected '${EXPECTED_ARTIFACT_PREFIX}<attempt>', got '$ARTIFACT_NAME'"
             exit 1
           fi
           if ! [[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]] || [ -z "$ARTIFACT_DIGEST" ]; then
@@ -2358,6 +2489,12 @@ jobs:
           test -f data/nbadb/nba.sqlite
           test -d data/nbadb/parquet
           test -d data/nbadb/csv
+          test -f data/nbadb/assured-artifact-manifest.json
+          uv run python -m nbadb.core.artifact_identity verify \
+            --root data/nbadb \
+            --chain-id "$ACTIVE_CHAIN_ID" \
+            --source-sha "$source_sha" \
+            --coverage-fingerprint "$COVERAGE_FINGERPRINT"
 
       - name: Restore Kaggle publication reconciliation state
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
@@ -2426,11 +2563,37 @@ jobs:
               handle.write(f"**Exact remote version:** `{version}`\n")
           PY
 
-      - name: Refresh checked-in metadata
-        uses: ./.github/actions/refresh-metadata
-        with:
-          data-dir: data/nbadb
-          push-ref: ${{ github.event.repository.default_branch }}
+      - name: Revalidate frozen publication source
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          source_commit="$(git rev-parse "${WORKFLOW_SOURCE_SHA}^{commit}")"
+          target_ref="refs/remotes/origin/frozen-publication-target"
+          git fetch --no-tags --no-recurse-submodules origin \
+            "+refs/heads/${DEFAULT_BRANCH}:${target_ref}"
+          target_commit="$(git rev-parse "${target_ref}^{commit}")"
+          if [ "$target_commit" != "$source_commit" ]; then
+            read -r commit parent extra < <(git rev-list --parents -n 1 "$target_commit")
+            changed_paths="$(git diff-tree --no-commit-id --name-only -r "$target_commit")"
+            commit_subject="$(git log -1 --format=%s "$target_commit")"
+            expected_metadata="$RUNNER_TEMP/expected-dataset-metadata.json"
+            observed_metadata="$RUNNER_TEMP/observed-dataset-metadata.json"
+            uv run nbadb metadata \
+              --data-dir data/nbadb \
+              --output "$expected_metadata"
+            git show "${target_commit}:dataset-metadata.json" > "$observed_metadata" 2>/dev/null || true
+            if [ "$commit" != "$target_commit" ] || \
+               [ "$parent" != "$source_commit" ] || \
+               [ -n "${extra:-}" ] || \
+               [ "$changed_paths" != "dataset-metadata.json" ] || \
+               [ "$commit_subject" != "chore: regenerate dataset-metadata.json" ] || \
+               ! cmp --silent "$expected_metadata" "$observed_metadata"; then
+              echo "::error::Default branch moved during extraction: expected $source_commit or its exact metadata-only publication child, found $target_commit"
+              exit 1
+            fi
+            echo "::notice::Accepting exact metadata-only publication child $target_commit for rerun reconciliation"
+          fi
 
       - name: Upload to Kaggle
         env:
@@ -2486,11 +2649,19 @@ jobs:
             data/nbadb/*.sqlite
             data/nbadb/parquet/
             data/nbadb/csv/
+            data/nbadb/assured-artifact-manifest.json
+            data/nbadb/dataset-metadata.json
             logs/kaggle/kaggle-upload-manifest.json
             logs/kaggle/kaggle-publication-state.json
           if-no-files-found: ignore
           retention-days: 30
           compression-level: 0
+
+      - name: Refresh checked-in metadata
+        uses: ./.github/actions/refresh-metadata
+        with:
+          data-dir: data/nbadb
+          push-ref: ${{ github.event.repository.default_branch }}
 
   # ─────────────────────────────────────────────────────────────
   #  Lane control: carry a manifest forward and classify unresolved lanes
@@ -3066,7 +3237,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   dispatch_next:
     needs: [plan, preflight, lane_control, checkpoint]
-    if: ${{ always() && !cancelled() && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count != '0' && needs.checkpoint.outputs.active-lane-count == needs.lane_control.outputs.active-lane-count && needs.checkpoint.outputs.terminal-ready == 'false' }}
+    if: ${{ always() && !cancelled() && !inputs.targeted_smoke && needs.lane_control.result == 'success' && needs.checkpoint.result == 'success' && needs.lane_control.outputs.active-lane-count != '0' && needs.checkpoint.outputs.active-lane-count == needs.lane_control.outputs.active-lane-count && needs.checkpoint.outputs.terminal-ready == 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:

@@ -4,8 +4,10 @@ import os
 import shlex
 import signal
 import subprocess
+import tempfile
 import time
 from contextlib import suppress
+from pathlib import Path
 
 DIRECT_TIMEOUT_CAP_PATTERNS = frozenset(
     {
@@ -16,6 +18,9 @@ DIRECT_TIMEOUT_CAP_PATTERNS = frozenset(
         "player_team_season",
     }
 )
+ENDPOINT_STALL_TIMEOUT_SECONDS = {
+    "video_details_asset": 600,
+}
 
 
 def append_output(key: str, value: str) -> None:
@@ -128,22 +133,57 @@ def direct_timeout_cap_applies() -> bool:
     return bool(patterns & DIRECT_TIMEOUT_CAP_PATTERNS)
 
 
+def selected_endpoints() -> set[str]:
+    return {
+        value.strip()
+        for value in os.environ.get("BACKFILL_ENDPOINTS", "").split(",")
+        if value.strip()
+    }
+
+
+def validate_stall_watchdog_endpoint_isolation() -> None:
+    endpoints = selected_endpoints()
+    watched = endpoints & ENDPOINT_STALL_TIMEOUT_SECONDS.keys()
+    unbounded = endpoints - ENDPOINT_STALL_TIMEOUT_SECONDS.keys()
+    if watched and unbounded:
+        raise ValueError(
+            "stall-watched extraction endpoints must run in an isolated lane; "
+            f"watched={sorted(watched)!r} unbounded={sorted(unbounded)!r}"
+        )
+
+
+def endpoint_stall_timeout_seconds() -> int | None:
+    endpoints = selected_endpoints()
+    caps = [
+        ENDPOINT_STALL_TIMEOUT_SECONDS[endpoint]
+        for endpoint in endpoints
+        if endpoint in ENDPOINT_STALL_TIMEOUT_SECONDS
+    ]
+    return min(caps) if caps else None
+
+
 def effective_timeout_seconds(timeout_seconds: int) -> int:
-    if os.environ.get("NBADB_NETWORK_MODE", "").strip().lower() != "direct":
-        return timeout_seconds
-    if not direct_timeout_cap_applies():
-        return timeout_seconds
-    cap_seconds = direct_timeout_cap_seconds()
-    if cap_seconds is None:
-        return timeout_seconds
-    return min(timeout_seconds, cap_seconds)
+    effective_timeout = timeout_seconds
+    if (
+        os.environ.get("NBADB_NETWORK_MODE", "").strip().lower() == "direct"
+        and direct_timeout_cap_applies()
+    ):
+        cap_seconds = direct_timeout_cap_seconds()
+        if cap_seconds is not None:
+            effective_timeout = min(effective_timeout, cap_seconds)
+    return effective_timeout
+
+
+def extraction_heartbeat_path() -> Path:
+    root = Path(os.environ.get("RUNNER_TEMP") or tempfile.gettempdir())
+    return root / f"nbadb-extraction-heartbeat-{os.getpid()}"
 
 
 def describe_timeout(timeout_seconds: int, effective_timeout_seconds: int) -> None:
     if timeout_seconds == effective_timeout_seconds:
         return
     print(
-        "::notice::Direct no-VPN extraction timeout capped from "
+        "::notice::Extraction timeout capped from "
         f"{timeout_seconds}s to {effective_timeout_seconds}s"
     )
 
@@ -165,34 +205,83 @@ def status_for_exit_code(exit_code: int) -> str:
 
 
 def main() -> int:
+    validate_stall_watchdog_endpoint_isolation()
     timeout_seconds = env_timeout_seconds()
     effective_timeout = effective_timeout_seconds(timeout_seconds)
     describe_timeout(timeout_seconds, effective_timeout)
     append_output("effective-timeout-seconds", str(effective_timeout))
+    stall_timeout = endpoint_stall_timeout_seconds()
+    heartbeat_path: Path | None = None
+    child_env: dict[str, str] | None = None
+    if stall_timeout is not None:
+        heartbeat_path = extraction_heartbeat_path()
+        heartbeat_path.touch()
+        last_heartbeat_mtime_ns = heartbeat_path.stat().st_mtime_ns
+        child_env = os.environ.copy()
+        child_env["NBADB_EXTRACTION_HEARTBEAT_PATH"] = str(heartbeat_path)
+        append_output("stall-timeout-seconds", str(stall_timeout))
+        print(
+            "::notice::Extraction no-progress watchdog enabled at "
+            f"{stall_timeout}s using durable chunk heartbeats"
+        )
     cmd = build_command()
     print(f"::notice::Running: {' '.join(shlex.quote(part) for part in cmd)}")
 
     started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     append_output("started-at", started_at)
 
-    child = subprocess.Popen(cmd, start_new_session=True)
+    child = subprocess.Popen(cmd, start_new_session=True, env=child_env)
     deadline = time.monotonic() + effective_timeout
+    if heartbeat_path is None:
+        last_heartbeat_mtime_ns = None
+    last_progress_at = time.monotonic()
 
     exit_code: int
     status: str
-    while True:
-        rc = child.poll()
-        if rc is not None:
-            exit_code = rc
-            status = status_for_exit_code(rc)
-            break
-        if time.monotonic() >= deadline:
-            print(f"::error::Extraction lane exceeded the allotted timeout ({effective_timeout}s)")
-            terminate_tree(child.pid)
-            exit_code = 124
-            status = "extract-timeout"
-            break
-        time.sleep(1)
+    try:
+        while True:
+            rc = child.poll()
+            if rc is not None:
+                exit_code = rc
+                status = status_for_exit_code(rc)
+                break
+            now = time.monotonic()
+            if heartbeat_path is not None:
+                try:
+                    current_mtime_ns = heartbeat_path.stat().st_mtime_ns
+                except OSError as exc:
+                    print(
+                        "::error::Extraction heartbeat became unreadable "
+                        f"({type(exc).__name__}); terminating the lane"
+                    )
+                    terminate_tree(child.pid)
+                    exit_code = 124
+                    status = "extract-timeout"
+                    break
+                if current_mtime_ns != last_heartbeat_mtime_ns:
+                    last_heartbeat_mtime_ns = current_mtime_ns
+                    last_progress_at = now
+            if now >= deadline:
+                print(
+                    f"::error::Extraction lane exceeded the allotted timeout ({effective_timeout}s)"
+                )
+                terminate_tree(child.pid)
+                exit_code = 124
+                status = "extract-timeout"
+                break
+            if stall_timeout is not None and now - last_progress_at >= stall_timeout:
+                print(f"::error::Extraction lane produced no completed chunk for {stall_timeout}s")
+                terminate_tree(child.pid)
+                exit_code = 124
+                status = "extract-timeout"
+                break
+            time.sleep(1)
+    except BaseException:
+        terminate_tree(child.pid)
+        raise
+    finally:
+        if heartbeat_path is not None:
+            heartbeat_path.unlink(missing_ok=True)
 
     finished_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     append_output("finished-at", finished_at)

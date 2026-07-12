@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from nbadb.core.artifact_identity import build_assured_artifact_manifest
 from nbadb.core.config import NbaDbSettings, get_settings
 
 if TYPE_CHECKING:
@@ -103,6 +104,29 @@ def _write_upload_metadata(
         + "\n",
         encoding="utf-8",
     )
+
+
+def _add_assured_provenance(data_dir: Path) -> dict[str, str]:
+    provenance = {
+        "chain_id": "full-20260711",
+        "source_sha": "a" * 40,
+        "coverage_fingerprint": "b" * 64,
+    }
+    manifest_path = build_assured_artifact_manifest(data_dir, **provenance)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    metadata_path = data_dir / "dataset-metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["resources"].append(
+        {
+            "path": manifest_path.name,
+            "name": "Assured Artifact Provenance",
+        }
+    )
+    metadata_path.write_text(json.dumps(metadata) + "\n", encoding="utf-8")
+    return {
+        **provenance,
+        "data_tree_fingerprint": manifest["data_tree_fingerprint"],
+    }
 
 
 def _valid_stale_publication_marker() -> dict[str, object]:
@@ -203,6 +227,77 @@ def _write_parquet_file(path: Path, rows: list[dict[str, object]]) -> None:
 
 
 class TestKaggleClientUpload:
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_assured_bundle_binds_provenance_to_publication_marker(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        provenance = _add_assured_provenance(data_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        preflight = client._snapshot_upload_bundle(data_dir)
+        staged_dir = tmp_path / "staged"
+        client._stage_upload_bundle(data_dir, staged_dir, preflight)
+        staged_tree = client._expected_staged_tree_snapshot(preflight, staged_dir)
+        marker = client._publication_marker_payload(
+            preflight=preflight,
+            publish_key="c" * 20,
+            data_tree_fingerprint=staged_tree["fingerprint"],
+        )
+
+        assert preflight["provenance"] == provenance
+        assert marker["schema_version"] == 2
+        assert marker["provenance"] == provenance
+        client._validate_publication_marker(marker)
+
+        boolean_schema_marker = {**marker, "schema_version": True}
+        with pytest.raises(ValueError, match="unsupported schema"):
+            client._validate_publication_marker(boolean_schema_marker)
+
+        marker["provenance"]["source_sha"] = "A" * 40
+        with pytest.raises(ValueError, match="provenance source_sha is invalid"):
+            client._validate_publication_marker(marker)
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_assured_bundle_rejects_inventory_tampering(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        _add_assured_provenance(data_dir)
+        (data_dir / "undeclared-after-assurance.txt").write_text("tampered", encoding="utf-8")
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        with pytest.raises(ValueError, match="contents do not match"):
+            KaggleClient()._snapshot_upload_bundle(data_dir)
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_assured_bundle_rejects_preexisting_undeclared_file(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        (data_dir / "undeclared-before-assurance.bin").write_bytes(b"not published")
+        _add_assured_provenance(data_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        with pytest.raises(ValueError, match="does not exactly match declared"):
+            KaggleClient()._snapshot_upload_bundle(data_dir)
+
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_calls_kagglehub_with_correct_args(
         self, mock_settings: MagicMock, tmp_path: Path
@@ -872,6 +967,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[(str(stale_dir), 11), (str(uploaded_dir), 12)],
             ) as mock_resolver,
+            patch.object(client, "_resolve_remote_dataset_version", return_value=12),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -918,6 +1014,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[(str(stale_dir), 20), (str(uploaded_dir), 21)],
             ) as mock_resolver,
+            patch.object(client, "_resolve_remote_dataset_version", return_value=21),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -961,6 +1058,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 return_value=(str(remote_dir), 31),
             ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=31),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -977,6 +1075,93 @@ class TestKaggleClientUpload:
         assert records[publish_key]["state"] == "resolved"
         assert records[publish_key]["last_status"] == "reconciled_existing_remote"
         assert records[publish_key]["resolved_version"] == 31
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_rejects_matching_marker_from_noncurrent_version(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        remote_dir = tmp_path / "remote"
+        _write_upload_bundle(data_dir)
+        remote_dir.mkdir()
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        preflight = client._snapshot_upload_bundle(data_dir)
+        client._stage_upload_bundle(data_dir, remote_dir, preflight)
+        data_tree = client._expected_staged_tree_snapshot(preflight, remote_dir)
+        publish_key = hashlib.sha256(
+            f"wyattowalsh/basketball:{preflight['fingerprint']}".encode()
+        ).hexdigest()[:20]
+        marker = client._publication_marker_payload(
+            preflight=preflight,
+            publish_key=publish_key,
+            data_tree_fingerprint=data_tree["fingerprint"],
+        )
+        client._write_publication_marker(remote_dir, marker)
+
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                return_value=(str(remote_dir), 7),
+            ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=8),
+            pytest.raises(RuntimeError, match="not from the current dataset version"),
+        ):
+            client.upload(data_dir=data_dir, verify_remote=True)
+
+        upload.assert_not_called()
+        manifest = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["status"] == "baseline_reconciliation_failed"
+        assert manifest["publication"]["baseline"]["version"] == 7
+        assert manifest["publication"]["baseline"]["metadata_version"] == 8
+        assert manifest["publication"]["baseline"]["versions_agree"] is False
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_remote_verification_rejects_matching_marker_from_noncurrent_version(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient, KagglePublicationPendingError
+
+        client = KaggleClient()
+        preflight = client._snapshot_upload_bundle(data_dir)
+        marker = client._publication_marker_payload(
+            preflight=preflight,
+            publish_key="d" * 20,
+            data_tree_fingerprint="e" * 64,
+        )
+        publication: dict[str, Any] = {}
+
+        with (
+            patch.object(
+                client,
+                "_download_remote_publication_marker",
+                return_value=(marker, 7),
+            ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=8),
+            pytest.raises(KagglePublicationPendingError),
+        ):
+            client._verify_remote_upload(
+                marker,
+                timeout_seconds=0,
+                publication=publication,
+            )
+
+        assert publication["verification_attempts"] == 1
+        observation = publication["observations"][0]
+        assert observation["matches_expected"] is True
+        assert observation["version"] == 7
+        assert observation["metadata_version"] == 8
+        assert observation["versions_agree"] is False
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_marker_404_bootstraps_from_exact_current_version_once(
@@ -1005,13 +1190,13 @@ class TestKaggleClientUpload:
             patch.object(
                 client,
                 "_resolve_remote_dataset_version",
-                side_effect=[238, 238],
+                side_effect=[238, 238, 239],
             ) as version,
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
         mock_upload.assert_called_once()
-        assert version.call_count == 2
+        assert version.call_count == 3
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded_remote_verified"
         assert manifest["publication"]["baseline"] == {
@@ -1389,6 +1574,7 @@ class TestKaggleClientUpload:
                 ],
             ) as mock_resolver,
             patch.object(client, "_sleep") as mock_sleep,
+            patch.object(client, "_resolve_remote_dataset_version", return_value=7),
         ):
             manifest_path = client.upload(
                 data_dir=data_dir,
@@ -1427,6 +1613,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[(str(stale_dir), 40), (str(uploaded_dir), 41)],
             ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=41),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -1466,6 +1653,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[(str(stale_dir), 42), (str(uploaded_dir), 43)],
             ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=43),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -1666,6 +1854,7 @@ class TestKaggleClientUpload:
                 "kagglehub.registry.dataset_resolver",
                 side_effect=[(str(first_remote), 70), (str(second_remote), 71)],
             ),
+            patch.object(client, "_resolve_remote_dataset_version", side_effect=[70, 71]),
         ):
             second_manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -1686,6 +1875,61 @@ class TestKaggleClientUpload:
         assert records[first_publish_key]["resolved_version"] == 70
         assert records[second_manifest["publication"]["publish_key"]]["state"] == "resolved"
         assert records[second_manifest["publication"]["publish_key"]]["resolved_version"] == 71
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_changed_bundle_does_not_resolve_prior_marker_from_noncurrent_version(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        first_remote = tmp_path / "remote-a"
+        _write_upload_bundle(data_dir)
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+
+        def capture_first(**kwargs: object) -> None:
+            shutil.copytree(Path(str(kwargs["local_dataset_dir"])), first_remote)
+
+        with patch("kagglehub.dataset_upload", side_effect=capture_first):
+            first_manifest_path = client.upload(data_dir=data_dir, verify_remote=False)
+        first_manifest = json.loads(first_manifest_path.read_text(encoding="utf-8"))
+        first_publish_key = first_manifest["publication"]["publish_key"]
+
+        conn = sqlite3.connect(data_dir / "nba.sqlite")
+        try:
+            conn.execute("INSERT INTO dim_player VALUES (2, 'Changed Player')")
+            conn.commit()
+        finally:
+            conn.close()
+
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                return_value=(str(first_remote), 70),
+            ),
+            patch.object(client, "_resolve_remote_dataset_version", return_value=71),
+            pytest.raises(RuntimeError, match="not from the current dataset version"),
+        ):
+            client.upload(data_dir=data_dir, verify_remote=True)
+
+        upload.assert_not_called()
+        manifest = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["status"] == "baseline_reconciliation_failed"
+        assert manifest["publication"]["baseline"]["version"] == 70
+        assert manifest["publication"]["baseline"]["metadata_version"] == 71
+        assert manifest["publication"]["baseline"]["versions_agree"] is False
+        records = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-publication-state.json").read_text(
+                encoding="utf-8"
+            )
+        )["datasets"]["wyattowalsh/basketball"]["publications"]
+        assert records[first_publish_key]["state"] == "unresolved"
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_remote_timeout_records_reconciliation_required(

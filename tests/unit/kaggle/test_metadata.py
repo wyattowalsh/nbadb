@@ -268,6 +268,23 @@ class TestBuildResources:
             "parquet/dim_player/dim_player.parquet",
         }
 
+    def test_data_dir_includes_assured_provenance_manifest(self, tmp_path: Path) -> None:
+        manifest = tmp_path / "assured-artifact-manifest.json"
+        manifest.write_text("{}\n", encoding="utf-8")
+
+        resources = _build_resources(data_dir=tmp_path)
+
+        assert resources == [
+            {
+                "path": "assured-artifact-manifest.json",
+                "name": "Assured Artifact Provenance",
+                "description": (
+                    "Source commit, extraction chain, coverage fingerprint, and SHA-256 "
+                    "inventory for the published database and export files."
+                ),
+            }
+        ]
+
     def test_data_dir_ignores_empty_non_partitioned_parquet_dir(self, tmp_path: Path) -> None:
         (tmp_path / "parquet" / "dim_player").mkdir(parents=True)
 

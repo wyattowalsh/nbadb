@@ -23,6 +23,7 @@ _PLAYER_HISTORY_ENDPOINTS = frozenset(
         "player_profile_v2",
         "player_streak_finder",
         "shot_chart_detail",
+        "video_details_asset",
     }
 )
 _TEAM_HISTORY_ENDPOINTS = frozenset(
@@ -126,7 +127,19 @@ def build_execution_policy(
     endpoint_request_timeouts = (
         getattr(settings, "endpoint_request_timeouts", {}) if settings is not None else {}
     )
-    retry_budget = int(getattr(settings, "extract_max_retries", 0)) if settings is not None else 0
+    endpoint_retry_budgets = (
+        getattr(settings, "endpoint_retry_budgets", {}) if settings is not None else {}
+    )
+    retry_budget = (
+        int(
+            endpoint_retry_budgets.get(
+                endpoint_name,
+                getattr(settings, "extract_max_retries", 0),
+            )
+        )
+        if settings is not None
+        else 0
+    )
     concurrency_ceiling = int(
         endpoint_semaphore_limits.get(
             endpoint_name,

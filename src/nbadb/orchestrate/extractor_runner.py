@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, Protocol, cast
 
 from aiolimiter import AsyncLimiter
@@ -110,6 +112,16 @@ def _raise_extraction_boundary_error(extractor: object, exc: Exception) -> NoRet
         ) from exc
 
     raise ExtractionError(f"{endpoint_name}: extraction failed ({type(exc).__name__})") from exc
+
+
+def _record_chunk_completion_heartbeat() -> None:
+    heartbeat_path = os.environ.get("NBADB_EXTRACTION_HEARTBEAT_PATH", "").strip()
+    if not heartbeat_path:
+        return
+    try:
+        Path(heartbeat_path).touch()
+    except OSError as exc:
+        logger.warning("failed to update extraction chunk heartbeat: {}", type(exc).__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,6 +358,11 @@ class ExtractorRunner:
             pending_successes: list[_PendingJournalSuccess] = []
             source_results: list[dict[str, object]] = []
             defer_journal_success = persist_chunk_results is not None
+            success_count_before = pattern_result.success_count
+            failure_count_before = (
+                pattern_result.failure_count + pattern_result.deferred_failure_count
+            )
+            skip_count_before = pattern_result.journal_skip_count + pattern_result.retry_skip_count
 
             already_done = self._prefetch_done(single_entries, multi_by_ep, chunk)
             chunk_batch = self._build_chunk_tasks(
@@ -438,6 +455,36 @@ class ExtractorRunner:
             # HR-A-007: free multi-endpoint cache between chunks to
             # prevent unbounded memory growth on large historical runs.
             self._multi_cache.clear()
+            _record_chunk_completion_heartbeat()
+
+            chunk_successes = pattern_result.success_count - success_count_before
+            chunk_failures = (
+                pattern_result.failure_count
+                + pattern_result.deferred_failure_count
+                - failure_count_before
+            )
+            chunk_skips = (
+                pattern_result.journal_skip_count
+                + pattern_result.retry_skip_count
+                - skip_count_before
+            )
+            attempted_calls = max(0, chunk_batch.eligible_calls - chunk_skips)
+            if self._should_abort_zero_progress_chunk(
+                entries,
+                attempted_calls=attempted_calls,
+                success_count=chunk_successes,
+                failure_count=chunk_failures,
+            ):
+                marker = (
+                    f"zero_progress_chunk_abort:{pattern}:chunk={chunk_index}:"
+                    f"attempted={attempted_calls}:skipped={chunk_skips}"
+                )
+                pattern_result.errors.append(marker)
+                logger.error(
+                    "aborting endpoint pattern after a fully failed zero-progress chunk: {}",
+                    marker,
+                )
+                break
 
         pattern_result.frames = self._concat_accum(accum)
         return pattern_result
@@ -993,7 +1040,37 @@ class ExtractorRunner:
         for entry in entries:
             family = self._endpoint_family(entry.endpoint_name, entry.param_pattern)
             multiplier = min(multiplier, float(multipliers.get(family, 1.0)))
-        return max(min_chunk_size, min(max_chunk_size, max(1, int(base_chunk_size * multiplier))))
+        chunk_size = max(
+            min_chunk_size,
+            min(max_chunk_size, max(1, int(base_chunk_size * multiplier))),
+        )
+        endpoint_limits = getattr(self._settings, "endpoint_chunk_size_limits", {})
+        configured_limits = [
+            max(1, int(endpoint_limits[entry.endpoint_name]))
+            for entry in entries
+            if entry.endpoint_name in endpoint_limits
+        ]
+        if configured_limits:
+            chunk_size = min(chunk_size, min(configured_limits))
+        return chunk_size
+
+    def _should_abort_zero_progress_chunk(
+        self,
+        entries: list[StagingEntry],
+        *,
+        attempted_calls: int,
+        success_count: int,
+        failure_count: int,
+    ) -> bool:
+        configured = set(getattr(self._settings, "zero_progress_abort_endpoints", set()))
+        endpoints = {entry.endpoint_name for entry in entries}
+        return bool(
+            attempted_calls > 0
+            and endpoints
+            and endpoints.issubset(configured)
+            and success_count == 0
+            and failure_count >= attempted_calls
+        )
 
     def _prepare_extractor(self, extractor: object) -> None:
         """Prepare an extractor instance before extraction."""
@@ -1131,7 +1208,16 @@ class ExtractorRunner:
                 return _FailedExtraction(endpoint_name, params_json, "MissingExtractor")
             return None
 
-        max_retries = self._settings.extract_max_retries
+        endpoint_retry_budgets = getattr(self._settings, "endpoint_retry_budgets", {})
+        max_retries = max(
+            0,
+            int(
+                endpoint_retry_budgets.get(
+                    endpoint_name,
+                    self._settings.extract_max_retries,
+                )
+            ),
+        )
         base_delay = self._settings.extract_retry_base_delay
         last_exc: Exception | None = None
         family = self._endpoint_family(endpoint_name, getattr(extractor_cls, "category", "default"))

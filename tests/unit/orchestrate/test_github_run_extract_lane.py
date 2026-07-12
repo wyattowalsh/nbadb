@@ -122,6 +122,43 @@ def test_effective_timeout_ignores_direct_cap_for_vpn_lanes(
     assert module.effective_timeout_seconds(7200) == 7200
 
 
+def test_video_details_asset_uses_stall_watchdog_without_shortening_lane_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("NBADB_NETWORK_MODE", "vpn")
+    monkeypatch.setenv("BACKFILL_ENDPOINTS", "video_details_asset")
+
+    assert module.effective_timeout_seconds(6300) == 6300
+    assert module.effective_timeout_seconds(300) == 300
+    assert module.endpoint_stall_timeout_seconds() == 600
+
+
+def test_endpoint_stall_timeout_uses_strictest_selected_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv(
+        "BACKFILL_ENDPOINTS",
+        "video_details,video_details_asset",
+    )
+
+    assert module.endpoint_stall_timeout_seconds() == 600
+
+
+def test_stall_watchdog_requires_endpoint_isolation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv(
+        "BACKFILL_ENDPOINTS",
+        "video_details,video_details_asset",
+    )
+
+    with pytest.raises(ValueError, match="must run in an isolated lane"):
+        module.validate_stall_watchdog_endpoint_isolation()
+
+
 def test_direct_timeout_cap_seconds_validates_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -173,4 +210,75 @@ def test_main_reports_interrupted_child_without_canceling_post_steps(
     assert module.main() == 0
     output = output_path.read_text(encoding="utf-8")
     assert "exit-code=130" in output
+    assert "status=extract-timeout" in output
+
+
+def test_main_terminates_asset_lane_after_no_completed_chunk(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    output_path = tmp_path / "github-output.txt"
+    popen_env: dict[str, str] = {}
+    terminated: list[int] = []
+
+    class FakeProcess:
+        pid = 23456
+
+        def poll(self) -> None:
+            return None
+
+    def fake_popen(*_args, **kwargs):
+        popen_env.update(kwargs["env"])
+        return FakeProcess()
+
+    monotonic_values = iter([0.0, 0.0, 601.0])
+    monkeypatch.setenv("LANE_TIMEOUT_SECONDS", "7200")
+    monkeypatch.setenv("BACKFILL_ENDPOINTS", "video_details_asset")
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(module.time, "monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(module, "terminate_tree", terminated.append)
+
+    assert module.main() == 0
+    assert popen_env["NBADB_EXTRACTION_HEARTBEAT_PATH"].startswith(str(tmp_path))
+    assert terminated == [FakeProcess.pid]
+    output = output_path.read_text(encoding="utf-8")
+    assert "stall-timeout-seconds=600" in output
+    assert "exit-code=124" in output
+    assert "status=extract-timeout" in output
+
+
+def test_main_terminates_child_when_heartbeat_disappears(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    output_path = tmp_path / "github-output.txt"
+    terminated: list[int] = []
+
+    class FakeProcess:
+        pid = 34567
+
+        def poll(self) -> None:
+            return None
+
+    def fake_popen(*_args, **kwargs):
+        Path(kwargs["env"]["NBADB_EXTRACTION_HEARTBEAT_PATH"]).unlink()
+        return FakeProcess()
+
+    monotonic_values = iter([0.0, 0.0, 1.0])
+    monkeypatch.setenv("LANE_TIMEOUT_SECONDS", "7200")
+    monkeypatch.setenv("BACKFILL_ENDPOINTS", "video_details_asset")
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(module.time, "monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(module, "terminate_tree", terminated.append)
+
+    assert module.main() == 0
+    assert terminated == [FakeProcess.pid]
+    output = output_path.read_text(encoding="utf-8")
+    assert "exit-code=124" in output
     assert "status=extract-timeout" in output

@@ -58,6 +58,7 @@ class NbaDbSettings(BaseSettings):
         "team_info_common": 1,
         "team_historical_leaders": 1,
         "team_year_by_year": 1,
+        "video_details_asset": 2,
         "win_probability": 1,
     }
     discovery_concurrency: int = 2
@@ -98,6 +99,7 @@ class NbaDbSettings(BaseSettings):
         "team_info_common": 1.0,
         "team_historical_leaders": 1.0,
         "team_year_by_year": 1.0,
+        "video_details_asset": 2.0,
         "win_probability": 1.0,
     }
     endpoint_family_overrides: dict[str, str] = {
@@ -125,6 +127,7 @@ class NbaDbSettings(BaseSettings):
         "team_historical_leaders": "team_history",
         "team_info_common": "team_history",
         "team_year_by_year": "team_history",
+        "video_details_asset": "player_history",
     }
     family_semaphore_limits: dict[str, int] = {
         "play_by_play": 4,
@@ -142,6 +145,15 @@ class NbaDbSettings(BaseSettings):
         "play_by_play": 0.5,
         "player_history": 0.25,
         "team_history": 0.5,
+    }
+    endpoint_chunk_size_limits: dict[str, int] = {
+        "video_details_asset": 10,
+    }
+    endpoint_retry_budgets: dict[str, int] = {
+        "video_details_asset": 0,
+    }
+    zero_progress_abort_endpoints: set[str] = {
+        "video_details_asset",
     }
     endpoint_request_timeouts: dict[str, int] = {
         "box_score_summary": 60,
@@ -172,6 +184,7 @@ class NbaDbSettings(BaseSettings):
         "team_info_common": 180,
         "team_historical_leaders": 120,
         "team_year_by_year": 120,
+        "video_details_asset": 15,
         "win_probability": 60,
     }
     adaptive_rate_min: float = 1.0  # minimum rate floor during adaptive backoff

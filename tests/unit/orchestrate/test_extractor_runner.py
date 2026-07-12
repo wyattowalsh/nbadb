@@ -16,6 +16,7 @@ from nbadb.core.errors import (
     ValidationError as NbaDbValidationError,
 )
 from nbadb.extract.base import BaseExtractor
+from nbadb.orchestrate.execution_policy import build_execution_policy
 from nbadb.orchestrate.extractor_runner import (
     ExtractorRunner,
     _AdaptiveThrottle,
@@ -23,6 +24,7 @@ from nbadb.orchestrate.extractor_runner import (
     _ExtractionTaskResult,
     _FailedExtraction,
     _PendingJournalSuccess,
+    _record_chunk_completion_heartbeat,
     _sync_extract,
 )
 from nbadb.orchestrate.resilience import _CircuitBreaker, _LatencyTracker
@@ -75,6 +77,9 @@ def _make_settings(**overrides):
     s.adaptive_rate_recovery = 50
     s.endpoint_rate_limits = {}
     s.endpoint_request_timeouts = {}
+    s.endpoint_chunk_size_limits = {}
+    s.endpoint_retry_budgets = {}
+    s.zero_progress_abort_endpoints = set()
     s.extract_max_retries = 0  # disable retries in unit tests by default
     s.extract_retry_base_delay = 0.0
     s.circuit_breaker_threshold = 5
@@ -83,6 +88,18 @@ def _make_settings(**overrides):
     for k, v in overrides.items():
         setattr(s, k, v)
     return s
+
+
+def test_record_chunk_completion_heartbeat(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    heartbeat_path = tmp_path / "chunk-heartbeat"
+    monkeypatch.setenv("NBADB_EXTRACTION_HEARTBEAT_PATH", str(heartbeat_path))
+
+    _record_chunk_completion_heartbeat()
+
+    assert heartbeat_path.is_file()
 
 
 def _make_registry(extractor_cls):
@@ -1028,6 +1045,29 @@ class TestAdaptiveThrottleIntegration:
 
         assert chunk_size == 1
 
+    def test_endpoint_chunk_size_limit_can_be_smaller_than_adaptive_floor(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            endpoint_chunk_size_limits={"video_details_asset": 10},
+            adaptive_chunk_min_size=25,
+            adaptive_chunk_max_size=1000,
+            default_chunk_size=1000,
+        )
+        runner = ExtractorRunner(_make_registry(_make_extractor()), settings, journal)
+
+        chunk_size = runner._chunk_size_for_entries(
+            "player_team_season",
+            [
+                StagingEntry(
+                    "video_details_asset",
+                    "stg_video_details_asset",
+                    "player_team_season",
+                )
+            ],
+        )
+
+        assert chunk_size == 10
+
     def test_default_settings_isolate_slow_player_history_endpoints(self):
         settings = NbaDbSettings()
 
@@ -1037,6 +1077,200 @@ class TestAdaptiveThrottleIntegration:
         assert settings.endpoint_semaphore_limits["player_career_stats"] == 1
         assert settings.endpoint_rate_limits["player_career_stats"] == 1.0
         assert settings.endpoint_request_timeouts["player_career_stats"] == 120
+        assert settings.endpoint_semaphore_limits["video_details_asset"] == 2
+        assert settings.endpoint_rate_limits["video_details_asset"] == 2.0
+        assert settings.endpoint_request_timeouts["video_details_asset"] == 15
+        assert settings.endpoint_chunk_size_limits["video_details_asset"] == 10
+        assert settings.endpoint_retry_budgets["video_details_asset"] == 0
+        assert settings.zero_progress_abort_endpoints == {"video_details_asset"}
+        assert build_execution_policy("video_details_asset", settings=settings).retry_budget == 0
+
+    @pytest.mark.asyncio
+    async def test_endpoint_retry_budget_overrides_global_budget(self):
+        class _CountingExtractor:
+            category = "default"
+            endpoint_name = "video_details_asset"
+            calls = 0
+
+            async def extract(self, **_kwargs):
+                type(self).calls += 1
+                raise TimeoutError("boom")
+
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            extract_max_retries=6,
+            endpoint_retry_budgets={"video_details_asset": 0},
+        )
+        registry = _make_registry(_CountingExtractor)
+        runner = ExtractorRunner(registry, settings, journal)
+
+        entry = StagingEntry(
+            "video_details_asset",
+            "stg_video_details_asset",
+            "player_team_season",
+        )
+        result = await runner._extract_single(entry, {"season": "2024-25"})
+
+        assert result is None
+        assert _CountingExtractor.calls == 1
+        journal.record_failure.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_zero_progress_endpoint_aborts_after_first_fully_failed_chunk(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            default_chunk_size=100,
+            adaptive_chunk_min_size=1,
+            adaptive_chunk_max_size=100,
+            endpoint_chunk_size_limits={"video_details_asset": 2},
+            zero_progress_abort_endpoints={"video_details_asset"},
+        )
+        registry = _make_registry(_make_extractor(exc=TimeoutError("boom")))
+        runner = ExtractorRunner(registry, settings, journal)
+        entry = StagingEntry(
+            "video_details_asset",
+            "stg_video_details_asset",
+            "player_team_season",
+        )
+
+        result = await runner.run_pattern_result(
+            "player_team_season",
+            [{"season": f"20{year:02d}-{year + 1:02d}"} for year in range(20, 25)],
+            [entry],
+        )
+
+        assert result.eligible_calls == 2
+        assert result.success_count == 0
+        assert result.failure_count == 2
+        assert any(error.startswith("zero_progress_chunk_abort:") for error in result.errors)
+        assert journal.record_start.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_zero_progress_endpoint_continues_after_any_success(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            default_chunk_size=100,
+            adaptive_chunk_min_size=1,
+            adaptive_chunk_max_size=100,
+            endpoint_chunk_size_limits={"video_details_asset": 2},
+            zero_progress_abort_endpoints={"video_details_asset"},
+        )
+        registry = _make_registry(_make_extractor(df=pl.DataFrame()))
+        runner = ExtractorRunner(registry, settings, journal)
+        entry = StagingEntry(
+            "video_details_asset",
+            "stg_video_details_asset",
+            "player_team_season",
+        )
+
+        result = await runner.run_pattern_result(
+            "player_team_season",
+            [{"season": f"20{year:02d}-{year + 1:02d}"} for year in range(20, 25)],
+            [entry],
+        )
+
+        assert result.eligible_calls == 5
+        assert result.success_count == 5
+        assert result.failure_count == 0
+        assert not any(error.startswith("zero_progress_chunk_abort:") for error in result.errors)
+        assert journal.record_start.call_count == 5
+
+    @pytest.mark.asyncio
+    async def test_zero_progress_abort_counts_only_newly_attempted_calls(self):
+        journal = _make_journal(already_done=False)
+        settings = _make_settings(
+            default_chunk_size=2,
+            adaptive_chunk_min_size=1,
+            adaptive_chunk_max_size=2,
+            endpoint_chunk_size_limits={"video_details_asset": 2},
+            zero_progress_abort_endpoints={"video_details_asset"},
+        )
+        registry = _make_registry(_make_extractor(exc=TimeoutError("boom")))
+        runner = ExtractorRunner(registry, settings, journal)
+        entry = StagingEntry(
+            "video_details_asset",
+            "stg_video_details_asset",
+            "player_team_season",
+        )
+        params = [{"season": "2020-21"}, {"season": "2021-22"}]
+        skipped = {
+            (
+                "video_details_asset",
+                '{"season": "2020-21"}',
+            )
+        }
+
+        result = await runner.run_pattern_result(
+            "player_team_season",
+            params,
+            [entry],
+            skip_items=skipped,
+        )
+
+        assert result.eligible_calls == 2
+        assert result.retry_skip_count == 1
+        assert result.failure_count == 1
+        assert any("attempted=1:skipped=1" in error for error in result.errors)
+
+    @pytest.mark.asyncio
+    async def test_zero_progress_abort_preserves_prior_empty_chunk_durability(self):
+        class _MixedExtractor:
+            category = "default"
+            endpoint_name = "video_details_asset"
+
+            async def extract(self, **params):
+                if params["season"] in {"2020-21", "2021-22"}:
+                    return pl.DataFrame()
+                raise TimeoutError("boom")
+
+        journal = _make_journal(already_done=False)
+        events: list[str] = []
+        journal.record_success.side_effect = lambda *_args: events.append("journal-success")
+        settings = _make_settings(
+            default_chunk_size=2,
+            adaptive_chunk_min_size=1,
+            adaptive_chunk_max_size=2,
+            endpoint_chunk_size_limits={"video_details_asset": 2},
+            zero_progress_abort_endpoints={"video_details_asset"},
+        )
+        runner = ExtractorRunner(_make_registry(_MixedExtractor), settings, journal)
+        entry = StagingEntry(
+            "video_details_asset",
+            "stg_video_details_asset",
+            "player_team_season",
+        )
+
+        def persist_chunk(
+            frames,
+            *,
+            expected_staging_keys,
+            source_results,
+            **_metadata,
+        ):
+            assert frames == {}
+            assert expected_staging_keys == ["stg_video_details_asset"]
+            assert len(source_results) == 2
+            events.append("persist-empty-chunk")
+
+        result = await runner.run_pattern_result(
+            "player_team_season",
+            [
+                {"season": "2020-21"},
+                {"season": "2021-22"},
+                {"season": "2022-23"},
+                {"season": "2023-24"},
+                {"season": "2024-25"},
+            ],
+            [entry],
+            persist_chunk_results=persist_chunk,
+        )
+
+        assert result.eligible_calls == 4
+        assert result.success_count == 2
+        assert result.failure_count == 2
+        assert events == ["persist-empty-chunk", "journal-success", "journal-success"]
+        assert any("chunk=1:attempted=2:skipped=0" in error for error in result.errors)
+        assert journal.record_start.call_count == 4
 
     @pytest.mark.asyncio
     async def test_waits_for_open_circuit_breaker_instead_of_skipping(self):

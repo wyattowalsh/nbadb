@@ -10,6 +10,7 @@ from loguru import logger
 if TYPE_CHECKING:
     from pathlib import Path
 
+from nbadb.core.artifact_identity import ASSURED_ARTIFACT_MANIFEST_NAME
 from nbadb.core.config import get_settings
 
 TABLE_DESCRIPTIONS: dict[str, str] = {
@@ -1106,6 +1107,17 @@ def _build_resources(
                 "path": "nba.sqlite",
                 "name": "SQLite Database",
                 "description": f"SQLite database with all {total_tables} cataloged tables. Portable SQL access with broad tool support.",
+            }
+        )
+    if data_dir is not None and (data_dir / ASSURED_ARTIFACT_MANIFEST_NAME).is_file():
+        resources.append(
+            {
+                "path": ASSURED_ARTIFACT_MANIFEST_NAME,
+                "name": "Assured Artifact Provenance",
+                "description": (
+                    "Source commit, extraction chain, coverage fingerprint, and SHA-256 "
+                    "inventory for the published database and export files."
+                ),
             }
         )
 

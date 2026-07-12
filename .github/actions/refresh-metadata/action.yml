@@ -57,6 +57,10 @@ runs:
 
         source_commit="$(git rev-parse HEAD^{commit})"
         target_commit="$(git rev-parse "${tracking_ref}^{commit}")"
+        if git diff --quiet "$tracking_ref" -- dataset-metadata.json; then
+          echo "Remote metadata already matches the regenerated file."
+          exit 0
+        fi
         if ! git merge-base --is-ancestor "$target_commit" "$source_commit"; then
           echo "::error::Metadata push would not be a fast-forward: ${remote_ref} is at ${target_commit}, checked-out source is ${source_commit}"
           exit 1
