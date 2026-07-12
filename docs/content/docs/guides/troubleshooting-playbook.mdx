@@ -230,6 +230,13 @@ excluded from every fallback technology, and preflight failures are carried into
 effective chain quarantine before discovery/lane fan-out and persisted into child
 manifests.
 
+Preflight and discovery also expose the servers that pass every NBA probe. Extract
+lanes receive those hosts as a verified pool before consulting fresh recommendations.
+The lane index maps each verified host to one `vpn_parallelism` slot; a slot never
+falls through to a verified host assigned to another simultaneously active slot.
+This avoids rediscovering known-good exits without collapsing parallel runners onto
+one NordVPN server. Quarantine and per-protocol attempt ceilings still take precedence.
+
 The connector fetches and caches a wider Nord-recommended country pool than it
 attempts for each protocol. It first builds one stable city/station-network-diverse
 ordering, then assigns adjacent lane or rerun indexes to disjoint pool segments while
@@ -337,7 +344,9 @@ defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
 therefore API pressure. VPN mode defaults to three simultaneous lanes. Each active
 lane runs on a separate GitHub-hosted runner and rotates to a lane-specific NordVPN
-server, but all lanes still consume the same account's connection allowance. Only
+server. Probe-verified preflight/discovery hosts are reused only by their assigned
+parallel slot; unfilled slots retain disjoint recommendation partitions. All lanes
+still consume the same account's connection allowance. Only
 one VPN/auto full-extraction workflow can run at a time; direct-mode chains retain
 chain/iteration-scoped concurrency. Token-derived mode further caps the matrix at one
 active lane.

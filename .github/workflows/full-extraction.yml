@@ -817,6 +817,7 @@ jobs:
     outputs:
       effective-network-mode: ${{ steps.network_mode.outputs.effective-network-mode }}
       vpn-auth-source: ${{ steps.vpn.outputs.auth-source }}
+      vpn-server: ${{ steps.vpn.outputs.server }}
       vpn-quarantined-servers-json: ${{ steps.vpn_quarantine.outputs.vpn-quarantined-servers-json }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -1028,6 +1029,8 @@ jobs:
     permissions:
       actions: read
       contents: read
+    outputs:
+      vpn-server: ${{ steps.vpn.outputs.server }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -1608,6 +1611,8 @@ jobs:
           CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
           QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
+          PREFERRED_SERVERS_JSON: ${{ format('["{0}","{1}"]', needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}
+          PREFERRED_SERVER_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && '1' || inputs.vpn_parallelism }}
         run: |
           set +e
           bash .github/scripts/run_with_deadline.sh \

@@ -232,9 +232,12 @@ NBA-blocked servers are rejected across fallback technologies and carried from
 preflight into both the current lane quarantine and child manifests. Authentication
 rejections remain separate from server-health quarantine: downstream jobs reuse the
 credential source proven by preflight, pause after bounded rejection sweeps, and
-rotate servers and protocols only after a budgeted cooldown. VPN lane parallelism
-defaults to three while preserving a separate runner and selected server per active
-lane. Token-derived extraction is serialized, and VPN/auto full-extraction workflows
+rotate servers and protocols only after a budgeted cooldown. Servers that pass the
+preflight and discovery NBA probes are handed to extraction as a verified pool. Lane
+indexes assign at most one such host to each parallel slot and exclude the rest from
+that slot's fresh recommendations, preserving distinct active exits. VPN lane
+parallelism defaults to three while preserving a separate runner and selected server
+per active lane. Token-derived extraction is serialized, and VPN/auto full-extraction workflows
 cannot overlap another VPN-backed full chain. Discovery uses
 hard request timeouts, a bounded homogeneous-outage canary, a 90-minute soft deadline,
 a 95-minute process watchdog, atomic coverage summaries, and content-addressed

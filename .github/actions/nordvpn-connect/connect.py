@@ -28,6 +28,9 @@ class ServerCandidate(NamedTuple):
 
 
 AUTH_FAILURE_PATTERN: Final[re.Pattern[str]] = re.compile(r"AUTH_FAILED|auth-failure")
+NORDVPN_HOSTNAME_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.nordvpn\.com$"
+)
 INIT_COMPLETE_PATTERN: Final[str] = "Initialization Sequence Completed"
 NBA_PROBE_DEFAULT_URL: Final[str] = "https://stats.nba.com/stats/commonteamyears?LeagueID=00"
 NBA_PROBE_MAX_BYTES: Final[int] = 1_048_576
@@ -199,17 +202,34 @@ def read_text(path: Path) -> str:
 
 
 def parse_quarantined_servers(raw: str) -> tuple[str, ...]:
+    return parse_server_list(raw, input_name="quarantined-servers-json")
+
+
+def parse_preferred_servers(raw: str) -> tuple[str, ...]:
+    values = parse_server_list(raw, input_name="preferred-servers-json")
+    invalid = [
+        hostname for hostname in values if NORDVPN_HOSTNAME_PATTERN.fullmatch(hostname) is None
+    ]
+    if invalid:
+        raise ActionError(
+            "vpn_network_error",
+            "preferred-servers-json contains an invalid NordVPN hostname",
+        )
+    return values
+
+
+def parse_server_list(raw: str, *, input_name: str) -> tuple[str, ...]:
     try:
         payload = json.loads(raw or "[]")
     except json.JSONDecodeError as exc:
         raise ActionError(
             "vpn_network_error",
-            f"invalid quarantined-servers-json input: {exc}",
+            f"invalid {input_name} input: {exc}",
         ) from exc
     if not isinstance(payload, list):
         raise ActionError(
             "vpn_network_error",
-            "quarantined-servers-json must decode to a JSON array",
+            f"{input_name} must decode to a JSON array",
         )
     seen: set[str] = set()
     values: list[str] = []
@@ -291,6 +311,15 @@ class NordVpnConnectAction:
         )
         self.quarantined_servers = parse_quarantined_servers(
             os.environ.get("QUARANTINED_SERVERS_JSON", "[]")
+        )
+        self.preferred_servers = parse_preferred_servers(
+            os.environ.get("PREFERRED_SERVERS_JSON", "[]")
+        )
+        self.preferred_server_slot_count = env_int(
+            "PREFERRED_SERVER_SLOT_COUNT",
+            1,
+            minimum=1,
+            maximum=MAX_RECOMMENDATION_POOL_SIZE,
         )
         self.require_token_auth = (
             os.environ.get("REQUIRE_TOKEN_AUTH", "false").strip().lower() == "true"
@@ -832,7 +861,10 @@ class NordVpnConnectAction:
             if not isinstance(item, dict) or item.get("status") != "online":
                 continue
             hostname = str(item.get("hostname") or "").strip()
-            if not hostname or hostname in candidates_by_hostname:
+            if (
+                NORDVPN_HOSTNAME_PATTERN.fullmatch(hostname) is None
+                or hostname in candidates_by_hostname
+            ):
                 continue
             candidates_by_hostname[hostname] = ServerCandidate(
                 hostname=hostname,
@@ -952,13 +984,36 @@ class NordVpnConnectAction:
 
         excluded_servers = {*self.quarantined_servers, *self.failed_servers}
         attempted_servers = self.attempted_servers_by_technology.setdefault(technology, set())
+        preferred: list[str] = []
+        preferred_slot = self.selector_index % self.preferred_server_slot_count
+        if preferred_slot < len(self.preferred_servers):
+            preferred_server = self.preferred_servers[preferred_slot]
+            if (
+                preferred_server not in excluded_servers
+                and preferred_server not in attempted_servers
+            ):
+                preferred.append(preferred_server)
+
+        recommendation_count = remaining_attempts - len(preferred)
+        if recommendation_count <= 0:
+            print(
+                "::notice::Selected one previously NBA-verified server for "
+                f"parallel slot {preferred_slot} over {technology}"
+            )
+            return preferred
+
+        recommendation_exclusions = {
+            *excluded_servers,
+            *attempted_servers,
+            *self.preferred_servers,
+        }
         candidates = self.fetch_server_candidates(
             technology,
-            excluded_servers={*excluded_servers, *attempted_servers},
-            required_eligible_count=remaining_attempts,
+            excluded_servers=recommendation_exclusions,
+            required_eligible_count=recommendation_count,
         )
         if not candidates:
-            return []
+            return preferred
 
         selection_offset = self.technology_selection_offsets.get(technology, 0)
 
@@ -982,8 +1037,7 @@ class NordVpnConnectAction:
             return [
                 candidate
                 for candidate in _assigned_candidates(pool)
-                if candidate.hostname not in excluded_servers
-                and candidate.hostname not in attempted_servers
+                if candidate.hostname not in recommendation_exclusions
             ]
 
         def _partitioned_candidates(
@@ -1002,42 +1056,50 @@ class NordVpnConnectAction:
 
         eligible_primary, eligible_reserve = _partitioned_candidates(candidates)
         if (
-            len(eligible_primary) + len(eligible_reserve) < remaining_attempts
+            len(eligible_primary) + len(eligible_reserve) < recommendation_count
             and self.server_candidate_limits_by_technology.get(technology, 0)
             < MAX_RECOMMENDATION_POOL_SIZE
         ):
             candidates = self.fetch_server_candidates(
                 technology,
-                excluded_servers={*excluded_servers, *attempted_servers},
-                required_eligible_count=remaining_attempts,
+                excluded_servers=recommendation_exclusions,
+                required_eligible_count=recommendation_count,
                 force_expand=True,
             )
             eligible_primary, eligible_reserve = _partitioned_candidates(candidates)
 
-        selected = (eligible_primary + eligible_reserve)[:remaining_attempts]
-        if not selected:
+        recommended = (eligible_primary + eligible_reserve)[:recommendation_count]
+        selected_servers = preferred + [candidate.hostname for candidate in recommended]
+        if not selected_servers:
             print(f"::warning::All recommended servers are excluded for {technology}")
             return []
 
         selected_networks = {
-            candidate.network_key for candidate in selected if candidate.network_key is not None
+            candidate.network_key for candidate in recommended if candidate.network_key is not None
         }
+        selected_cities = {candidate.city_key for candidate in recommended}
 
         print(
             "::notice::Selected "
-            f"{len(selected)} bounded {technology} attempts from "
+            f"{len(selected_servers)} bounded {technology} attempts "
+            f"({len(preferred)} previously NBA-verified) from "
             f"{len(eligible_primary)} primary and {len(eligible_reserve)} reserve servers "
-            f"across {len(selected_networks)} station networks "
-            f"and {len({candidate.city_key for candidate in selected})} cities"
+            f"across {len(selected_networks)} newly recommended station networks "
+            f"and {len(selected_cities)} cities"
         )
-        if len(selected) < remaining_attempts:
+        if len(selected_servers) < remaining_attempts:
             print(
                 f"::warning::Assigned {technology} partitions provided only "
-                f"{len(selected)} of {remaining_attempts} remaining attempts"
+                f"{len(selected_servers)} of {remaining_attempts} remaining attempts"
             )
-        return [candidate.hostname for candidate in selected]
+        return selected_servers
 
     def config_url(self, server: str, technology: str) -> str:
+        if NORDVPN_HOSTNAME_PATTERN.fullmatch(server) is None:
+            raise ActionError(
+                "vpn_network_error",
+                "Invalid NordVPN server hostname",
+            )
         if technology == "openvpn_udp":
             return f"https://downloads.nordcdn.com/configs/files/ovpn_udp/servers/{server}.udp.ovpn"
         if technology == "openvpn_tcp":

@@ -54,6 +54,14 @@ inputs:
     description: JSON array of NordVPN server hostnames to avoid for this chain.
     required: false
     default: "[]"
+  preferred-servers-json:
+    description: JSON array of previously NBA-verified NordVPN hosts assigned ahead of fresh recommendations.
+    required: false
+    default: "[]"
+  preferred-server-slot-count:
+    description: Parallel slot count used to assign at most one distinct preferred host to each lane slot.
+    required: false
+    default: "1"
   country-id:
     description: NordVPN country identifier.
     required: false
@@ -170,6 +178,8 @@ runs:
         AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}
         AUTH_RECOVERY_BASE_DELAY_SECONDS: ${{ inputs.auth-recovery-base-delay-seconds }}
         QUARANTINED_SERVERS_JSON: ${{ inputs.quarantined-servers-json }}
+        PREFERRED_SERVERS_JSON: ${{ inputs.preferred-servers-json }}
+        PREFERRED_SERVER_SLOT_COUNT: ${{ inputs.preferred-server-slot-count }}
         COUNTRY_ID: ${{ inputs.country-id }}
         TECHNOLOGY: ${{ inputs.technology }}
         FALLBACK_TECHNOLOGY: ${{ inputs.fallback-technology }}

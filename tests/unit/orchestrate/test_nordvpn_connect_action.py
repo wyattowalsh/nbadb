@@ -101,6 +101,16 @@ def test_parse_quarantined_servers_normalizes_and_rejects_non_arrays(
     with pytest.raises(module.ActionError, match="JSON array"):
         module.parse_quarantined_servers('{"server":"us1001.nordvpn.com"}')
 
+    assert module.parse_preferred_servers(
+        '[" us2001.nordvpn.com ", "us2002.nordvpn.com", "us2001.nordvpn.com"]'
+    ) == ("us2001.nordvpn.com", "us2002.nordvpn.com")
+
+    with pytest.raises(module.ActionError, match="preferred-servers-json"):
+        module.parse_preferred_servers("not-json")
+
+    with pytest.raises(module.ActionError, match="invalid NordVPN hostname"):
+        module.parse_preferred_servers('["../attacker.invalid"]')
+
 
 def test_retry_http_get_raises_when_budget_is_exhausted(
     monkeypatch: pytest.MonkeyPatch,
@@ -671,6 +681,62 @@ def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
     assert "openvpn_tcp" in requested_urls[0]
 
 
+def test_recommendations_assign_distinct_verified_servers_by_parallel_slot(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 2
+    action.server_pool_size = 4
+    action.preferred_servers = ("us2001.nordvpn.com", "us2002.nordvpn.com")
+    action.preferred_server_slot_count = 3
+    candidates = [
+        {
+            "hostname": hostname,
+            "status": "online",
+            "station": station,
+            "locations": [{"country": {"city": {"name": city}}}],
+        }
+        for hostname, station, city in (
+            ("us2001.nordvpn.com", "192.0.2.1", "New York"),
+            ("us2002.nordvpn.com", "198.51.100.1", "Dallas"),
+            ("us3001.nordvpn.com", "203.0.113.1", "Denver"),
+            ("us3002.nordvpn.com", "203.0.114.1", "Seattle"),
+            ("us3003.nordvpn.com", "203.0.115.1", "Miami"),
+        )
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(json.dumps(candidates), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    action.selector_index = 0
+    slot_zero = action.recommendation_servers("openvpn_udp")
+    action.selector_index = 1
+    slot_one = action.recommendation_servers("openvpn_udp")
+    action.selector_index = 2
+    slot_two = action.recommendation_servers("openvpn_udp")
+
+    assert slot_zero[0] == "us2001.nordvpn.com"
+    assert slot_one[0] == "us2002.nordvpn.com"
+    assert set(slot_two).isdisjoint(action.preferred_servers)
+    assert len(slot_zero) == len(slot_one) == 2
+    assert 1 <= len(slot_two) <= 2
+
+    action.quarantined_servers = ("us2001.nordvpn.com",)
+    action.selector_index = 0
+    assert "us2001.nordvpn.com" not in action.recommendation_servers("openvpn_udp")
+
+
 def test_recommendations_expand_cached_inventory_after_cross_protocol_failures(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
@@ -894,6 +960,14 @@ def test_verify_connection_keeps_full_tunnel_gate_before_network_probes(
     assert action.verify_connection("tun0") is False
     assert action.verification_failure == "route"
     assert route_checks == ["default", "0.0.0.0/1"]
+
+
+def test_config_url_rejects_untrusted_hostnames(runner_env: Path) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+
+    with pytest.raises(module.ActionError, match="Invalid NordVPN server hostname"):
+        action.config_url("../attacker.invalid", "openvpn_udp")
 
 
 def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:

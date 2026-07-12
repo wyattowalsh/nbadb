@@ -1776,6 +1776,25 @@ def test_preflight_auth_attestation_controls_downstream_vpn_recovery() -> None:
     assert "needs.preflight.outputs.vpn-auth-source == 'token' && '1'" in extract
 
 
+def test_verified_vpn_servers_are_assigned_to_distinct_extract_slots() -> None:
+    workflow = _workflow_text()
+    preflight = _job_block(workflow, "preflight")
+    seed = _job_block(workflow, "discovery_seed")
+    extract = _job_block(workflow, "extract")
+    vpn_step = _step_block(extract, "Connect NordVPN tunnel")
+
+    assert "vpn-server: ${{ steps.vpn.outputs.server }}" in preflight
+    assert "vpn-server: ${{ steps.vpn.outputs.server }}" in seed
+    assert (
+        'PREFERRED_SERVERS_JSON: ${{ format(\'["{0}","{1}"]\', '
+        "needs.discovery_seed.outputs.vpn-server, needs.preflight.outputs.vpn-server) }}"
+    ) in vpn_step
+    assert (
+        "PREFERRED_SERVER_SLOT_COUNT: ${{ needs.preflight.outputs.vpn-auth-source == "
+        "'token' && '1' || inputs.vpn_parallelism }}"
+    ) in vpn_step
+
+
 def test_network_mode_resolution_rejects_unattested_connected_tunnels(
     tmp_path: pathlib.Path,
 ) -> None:
