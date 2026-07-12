@@ -190,7 +190,10 @@ def test_checkpoint_remaining_count_disagreement_fails_before_outputs() -> None:
     assert "needs: [plan, preflight, discovery_seed, extract, lane_control]" in checkpoint
     assert "Download discovery workload contract" in checkpoint
     assert "full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}" in checkpoint
-    assert '--workload-duckdb-path "$workload_duckdb_path"' in checkpoint
+    assert 'requires_workload_contract="$(CHECKPOINT_MANIFEST=' in checkpoint
+    assert 'if [ "$requires_workload_contract" = "true" ]; then' in checkpoint
+    assert '"player_team_season" in lane.get("patterns", [])' in checkpoint
+    assert '--workload-duckdb-path "$(dirname "$workload_manifest")/nba.duckdb"' in checkpoint
     assert (
         "LANE_CONTROL_ACTIVE_LANE_COUNT: ${{ needs.lane_control.outputs.active-lane-count }}"
     ) in checkpoint
@@ -310,6 +313,8 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
 
     assert complete_name in complete_upload
     assert recovery_name in metadata_step
+    assert 'workload_duckdb_path="$(dirname "$workload_manifest")/nba.duckdb"' in metadata_step
+    assert 'export WORKLOAD_DUCKDB_PATH="$workload_duckdb_path"' in metadata_step
     assert recovery_name in recovery_upload
     assert complete_name not in recovery_upload
     assert "steps.lane_metadata.outcome == 'success'" in complete_upload
@@ -320,7 +325,7 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     assert "steps.lane_metadata.outputs.final-outcome != 'complete'" in recovery_upload
     assert "if-no-files-found: error" in recovery_upload
     assert "steps.lane_metadata.outcome == 'success'" in metadata_upload
-    assert "steps.lane_metadata.outputs.snapshot-attested == 'true'" in metadata_upload
+    assert "steps.lane_metadata.outputs.snapshot-attested" not in metadata_upload
     assert "steps.lane_metadata.outcome != 'success'" in diagnostic_upload
     assert "steps.lane_metadata.outputs.snapshot-attested != 'true'" in diagnostic_upload
     assert "extraction-lane-diagnostics-only-" in diagnostic_upload
@@ -328,7 +333,8 @@ def test_incomplete_lane_state_is_recovery_only_and_run_attempt_scoped() -> None
     assert "data/nbadb/nba.duckdb.wal" in diagnostic_upload
     assert "lane-state-attestation.json" in complete_upload
     assert "lane-state-attestation.json" in recovery_upload
-    assert "lane-state-attestation.json" in metadata_upload
+    assert "artifacts/extraction/lane-metadata.json" in metadata_upload
+    assert "lane-state-attestation.json" not in metadata_upload
     assert "lane-state-attestation.json" in diagnostic_upload
     assert "lane-state-untrusted" in diagnostic_upload
     assert complete_name not in diagnostic_upload
@@ -1694,6 +1700,11 @@ def test_durable_lane_restore_requires_exact_attested_database() -> None:
     assert "--expected-chain-id" in restore
     assert "--expected-lane-id" in restore
     assert "--expected-coverage-units-hash" in restore
+    assert "--workload-duckdb-path" in restore
+    assert "--workload-season-start" in restore
+    assert "--workload-season-end" in restore
+    assert "--workload-season-types" in restore
+    assert "Workload-bound lane state requires the active discovery workload manifest" in restore
     assert "--allow-attested-empty" in restore
     assert "Required state artifact $STATE_ARTIFACT_NAME is unavailable" in restore
     assert "must contain exactly one nba.duckdb" in restore

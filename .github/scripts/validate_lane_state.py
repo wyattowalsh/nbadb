@@ -6,6 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.workload_contract import (
+    PlayerTeamSeasonWorkloadScope,
+    PlayerTeamSeasonWorkloadStore,
+    build_player_team_season_workload_scope,
+    player_team_season_workload_base_unit,
+)
+
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -22,10 +30,14 @@ def _load_attestation(path: Path) -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError("Lane-state attestation is not valid JSON") from exc
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+    if not isinstance(payload, dict) or payload.get("schema_version") not in {1, 2}:
         raise ValueError("Lane-state attestation schema version is invalid")
     if not isinstance(payload.get("expected_empty"), bool):
         raise ValueError("Lane-state attestation expected_empty must be boolean")
+    if payload["schema_version"] >= 2:
+        workload_contract = payload.get("workload_contract")
+        if workload_contract is not None and not isinstance(workload_contract, dict):
+            raise ValueError("Lane-state attestation workload_contract must be an object or null")
     return payload
 
 
@@ -40,6 +52,10 @@ def validate_lane_state(
     expected_lane_id: str = "",
     expected_coverage_units_hash: str = "",
     allow_attested_empty: bool = False,
+    workload_duckdb_path: Path | None = None,
+    workload_season_start: int | None = None,
+    workload_season_end: int | None = None,
+    workload_season_types: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"Lane state must be a regular database file: {path}")
@@ -79,6 +95,28 @@ def validate_lane_state(
         )
     ):
         raise ValueError("Expected lane-state bindings require an attestation file")
+
+    workload_scope: PlayerTeamSeasonWorkloadScope | None = None
+    if workload_duckdb_path is not None:
+        if (
+            attestation is None
+            or workload_season_start is None
+            or workload_season_end is None
+            or workload_season_start > workload_season_end
+            or not workload_season_types
+        ):
+            raise ValueError("Workload-bound lane state requires an attestation and exact scope")
+        workload_scope = build_player_team_season_workload_scope(
+            PlayerTeamSeasonWorkloadStore.from_duckdb_path(workload_duckdb_path),
+            seasons=season_range(workload_season_start, workload_season_end),
+            season_types=list(workload_season_types),
+        )
+        if attestation.get("workload_contract") != workload_scope.contract:
+            raise ValueError(
+                "Lane-state attestation workload_contract does not match the active generation"
+            )
+    elif attestation is not None and attestation.get("workload_contract") is not None:
+        raise ValueError("Lane-state attestation has an unexpected workload_contract")
 
     attested_empty = bool(
         allow_attested_empty and attestation and attestation.get("expected_empty") is True
@@ -122,10 +160,42 @@ def validate_lane_state(
             if row is None:
                 raise ValueError("Extraction journal row count is unavailable")
             journal_rows = int(row[0])
+            journal_params = [
+                str(row[0] or "")
+                for row in con.execute("SELECT params FROM _extraction_journal").fetchall()
+            ]
         else:
             journal_rows = 0
+            journal_params = []
     finally:
         con.close()
+
+    if workload_scope is not None:
+        invalid_identity_count = 0
+        unexpected_identities: set[tuple[int, str, int, int]] = set()
+        for raw_params in journal_params:
+            try:
+                params = json.loads(raw_params)
+            except (json.JSONDecodeError, TypeError):
+                params = None
+            identity = (
+                player_team_season_workload_base_unit(params) if isinstance(params, dict) else None
+            )
+            if identity is None:
+                invalid_identity_count += 1
+            elif identity not in workload_scope.base_units:
+                unexpected_identities.add(identity)
+        if invalid_identity_count:
+            raise ValueError(
+                "Extraction journal contains invalid player/team/season workload identities: "
+                f"{invalid_identity_count}"
+            )
+        if unexpected_identities:
+            samples = ", ".join(str(identity) for identity in sorted(unexpected_identities)[:10])
+            raise ValueError(
+                "Extraction journal contains unexpected player/team/season workload identities: "
+                f"{samples}"
+            )
 
     return {
         "path": str(path),
@@ -134,6 +204,9 @@ def validate_lane_state(
         "journal_rows": journal_rows,
         "table_count": len(tables),
         "expected_empty": attested_empty,
+        "workload_integrity": (
+            workload_scope.contract["integrity"] if workload_scope is not None else None
+        ),
     }
 
 
@@ -148,6 +221,10 @@ def main() -> int:
     parser.add_argument("--expected-lane-id", default="")
     parser.add_argument("--expected-coverage-units-hash", default="")
     parser.add_argument("--allow-attested-empty", action="store_true")
+    parser.add_argument("--workload-duckdb-path", type=Path)
+    parser.add_argument("--workload-season-start", type=int)
+    parser.add_argument("--workload-season-end", type=int)
+    parser.add_argument("--workload-season-types", default="")
     args = parser.parse_args()
     print(
         json.dumps(
@@ -161,6 +238,12 @@ def main() -> int:
                 expected_lane_id=args.expected_lane_id,
                 expected_coverage_units_hash=args.expected_coverage_units_hash,
                 allow_attested_empty=args.allow_attested_empty,
+                workload_duckdb_path=args.workload_duckdb_path,
+                workload_season_start=args.workload_season_start,
+                workload_season_end=args.workload_season_end,
+                workload_season_types=tuple(
+                    value for value in args.workload_season_types.split(",") if value
+                ),
             ),
             sort_keys=True,
         )

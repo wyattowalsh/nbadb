@@ -10,8 +10,11 @@ from typing import Any
 
 from nbadb.core.extraction_failures import classify_error_name
 from nbadb.orchestrate.extraction_contract import contract_blocking_rules_for_lane
-from nbadb.orchestrate.seasons import season_string
-from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
+from nbadb.orchestrate.seasons import season_range
+from nbadb.orchestrate.workload_contract import (
+    PlayerTeamSeasonWorkloadStore,
+    build_player_team_season_workload_scope,
+)
 
 _ERROR_MARKER_RE = re.compile(
     r"\[(transport_transient|response_contract|application):([A-Za-z][A-Za-z0-9_]*)\]"
@@ -245,73 +248,13 @@ def _player_team_season_workload_contract(
     if not season_types:
         raise ValueError("player_team_season lane requires explicit season types")
 
-    seasons = [season_string(year) for year in range(season_start, season_end + 1)]
-    requested_pair_set = {
-        (season, season_type) for season in seasons for season_type in season_types
-    }
     store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(db_path)
-    integrity = store.integrity_attestation()
-    if integrity is None:
-        raise ValueError("player_team_season workload sidecars are missing or invalid")
-
-    coverage = store.load_coverage(seasons=seasons, season_types=season_types)
-    if coverage.invalid_pairs:
-        raise ValueError(
-            "player_team_season workload has invalid requested pairs: "
-            f"{sorted(coverage.invalid_pairs)}"
-        )
-    missing_pairs = requested_pair_set - coverage.covered_pairs
-    if missing_pairs:
-        raise ValueError(
-            f"player_team_season workload does not cover requested pairs: {sorted(missing_pairs)}"
-        )
-
-    base_units: list[list[int | str]] = []
-    actual_counts: Counter[tuple[str, str]] = Counter()
-    for params in store.load_params(seasons=seasons, season_types=season_types):
-        season = str(params["season"])
-        season_type = str(params["season_type"])
-        pair = (season, season_type)
-        if pair not in requested_pair_set:
-            raise ValueError(f"player_team_season workload row is outside lane scope: {pair}")
-        try:
-            season_year = int(season[:4])
-            player_id = int(params["player_id"])
-            team_id = int(params["team_id"])
-        except (TypeError, ValueError) as exc:
-            raise ValueError("player_team_season workload identity is invalid") from exc
-        if season_string(season_year) != season or player_id <= 0 or team_id <= 0:
-            raise ValueError("player_team_season workload identity is invalid")
-        base_units.append([season_year, season_type, player_id, team_id])
-        actual_counts[pair] += 1
-
-    base_units.sort()
-    if len(base_units) != len({tuple(unit) for unit in base_units}):
-        raise ValueError("player_team_season workload contains duplicate base identities")
-
-    requested_pairs: list[dict[str, Any]] = []
-    for season, season_type in sorted(requested_pair_set):
-        row_count = int(coverage.counts_by_pair.get((season, season_type), 0))
-        if actual_counts[(season, season_type)] != row_count:
-            raise ValueError(
-                f"player_team_season workload pair count mismatch for {season}/{season_type}"
-            )
-        requested_pairs.append(
-            {"season": season, "season_type": season_type, "row_count": row_count}
-        )
-
-    serialized_units = json.dumps(
-        base_units,
-        separators=(",", ":"),
-        sort_keys=False,
-    ).encode()
-    return {
-        "integrity": integrity,
-        "requested_pairs": requested_pairs,
-        "expected_base_unit_count": len(base_units),
-        "expected_base_units_sha256": hashlib.sha256(serialized_units).hexdigest(),
-        "expected_empty": not base_units,
-    }
+    scope = build_player_team_season_workload_scope(
+        store,
+        seasons=season_range(season_start, season_end),
+        season_types=season_types,
+    )
+    return dict(scope.contract)
 
 
 def _load_extract_summary(summary_path: Path) -> tuple[dict[str, Any], str]:
@@ -557,13 +500,21 @@ def build_payload() -> dict[str, Any]:
             season_end=season_end,
         )
     ]
-    workload_contract = _player_team_season_workload_contract(
-        db_path,
-        patterns=patterns,
-        season_start=season_start,
-        season_end=season_end,
-        season_types=season_types,
-    )
+    workload_contract_error = ""
+    workload_db_path = Path(os.environ.get("WORKLOAD_DUCKDB_PATH", "").strip() or db_path)
+    try:
+        workload_contract = _player_team_season_workload_contract(
+            workload_db_path,
+            patterns=patterns,
+            season_start=season_start,
+            season_end=season_end,
+            season_types=season_types,
+        )
+    except ValueError as exc:
+        if raw_status == "complete":
+            raise
+        workload_contract = None
+        workload_contract_error = str(exc)
     expected_empty = bool(workload_contract and workload_contract["expected_empty"])
     database_sha256 = _sha256(db_path) if db_path.is_file() else ""
     coverage_units_hash = os.environ.get("COVERAGE_UNITS_HASH", "").strip().lower()
@@ -636,6 +587,7 @@ def build_payload() -> dict[str, Any]:
         "database_sha256": database_sha256,
         "expected_empty": expected_empty,
         "workload_contract": workload_contract,
+        "workload_contract_error": workload_contract_error,
         "status": final_outcome,
         "raw_status": raw_status,
         "cache_hit": os.environ["CACHE_HIT"],
@@ -679,6 +631,7 @@ def build_payload() -> dict[str, Any]:
             "run_id": os.environ.get("GITHUB_RUN_ID", ""),
             "name": state_artifact_name,
             "sha256": database_sha256,
+            "attested": False,
             "required": final_outcome != "complete",
             "retention_days": 7 if final_outcome == "complete" else 30,
         },
@@ -702,6 +655,7 @@ def build_payload() -> dict[str, Any]:
             "rate_degradation_events": extract_summary.get("rate_degradation_events", []),
             "extract_summary_parse_error": extract_summary_parse_error,
             "completion_evidence_errors": completion_evidence_errors,
+            "workload_contract_error": workload_contract_error,
             "db_telemetry": db_telemetry,
         },
         "extract_summary": extract_summary,
@@ -716,6 +670,15 @@ def build_payload() -> dict[str, Any]:
     }
 
 
+def _write_json_atomically(path: Path, payload: dict[str, Any]) -> None:
+    temporary_path = path.with_suffix(f"{path.suffix}.tmp")
+    temporary_path.write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(path)
+
+
 def main() -> int:
     output_dir = Path("artifacts/extraction")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -725,12 +688,7 @@ def main() -> int:
     metadata_path = output_dir / "lane-metadata.json"
     attestation_path = output_dir / "lane-state-attestation.json"
     attestation_path.unlink(missing_ok=True)
-    temporary_path = metadata_path.with_suffix(".json.tmp")
-    temporary_path.write_text(
-        json.dumps(payload, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    temporary_path.replace(metadata_path)
+    _write_json_atomically(metadata_path, payload)
     if metadata_path.is_symlink() or not metadata_path.is_file():
         raise RuntimeError(f"Lane metadata was not created as a regular file: {metadata_path}")
 
@@ -763,6 +721,10 @@ def main() -> int:
         attestation_error = "incomplete snapshot is missing its recovery artifact name"
     elif not re.fullmatch(r"[0-9a-f]{64}", str(payload.get("coverage_units_hash", ""))):
         attestation_error = "coverage-units hash is missing or invalid"
+    elif "player_team_season" in payload.get("patterns", []) and not isinstance(
+        payload.get("workload_contract"), dict
+    ):
+        attestation_error = "player/team/season workload contract is missing"
     elif not all(
         str(payload.get(key) or "").strip() for key in ("source_sha", "chain_id", "lane_id")
     ):
@@ -773,13 +735,14 @@ def main() -> int:
         return 0
 
     attestation = {
-        "schema_version": 1,
+        "schema_version": 2,
         "source_sha": str(payload["source_sha"]),
         "chain_id": str(payload["chain_id"]),
         "lane_id": str(payload["lane_id"]),
         "coverage_units_hash": str(payload["coverage_units_hash"]),
         "database_sha256": database_sha256,
         "expected_empty": bool(payload.get("expected_empty") is True),
+        "workload_contract": payload.get("workload_contract"),
     }
     temporary_attestation_path = attestation_path.with_suffix(".json.tmp")
     temporary_attestation_path.write_text(
@@ -791,6 +754,12 @@ def main() -> int:
         raise RuntimeError(
             f"Lane-state attestation was not created as a regular file: {attestation_path}"
         )
+
+    state_artifact = payload.get("state_artifact")
+    if not isinstance(state_artifact, dict):
+        raise RuntimeError("Lane metadata state_artifact must be an object")
+    state_artifact["attested"] = True
+    _write_json_atomically(metadata_path, payload)
 
     append_output("final-outcome", str(payload["status"]))
     append_output("snapshot-attested", "true")

@@ -28,6 +28,7 @@ from nbadb.orchestrate.full_extraction_control import (
     _coverage_units_for_lane,
     _file_sha256,
     _merge_database_paths,
+    _metadata_by_lane,
     _retry_budget_exhausted,
     _schedule_lanes,
     _workload_scope_contract,
@@ -122,6 +123,7 @@ def _write_metadata(
             "run_id": "12345",
             "name": f"extraction-lane-chain-{lane_id}",
             "sha256": "a" * 64,
+            "attested": True,
             "required": True,
         }
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
@@ -1905,6 +1907,87 @@ def test_build_resume_manifest_splits_single_year_timeout_by_season_type(
     )
 
 
+def test_video_timeout_split_ids_are_unique_across_season_type_and_context_axes(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-video-multi-axis-2024",
+        lane_index=0,
+        lane_name="Cross Product Video Multi Axis 2024",
+        lane_kind="cross_product",
+        season_start=2024,
+        season_end=2024,
+        patterns=("player_team_season",),
+        season_types=("Regular Season", "Playoffs"),
+        context_measures=("PTS", "AST"),
+        endpoints=("video_details",),
+        timeout_seconds=19_800,
+        state_artifact_run_id="stale-run",
+        state_artifact_name="stale-state",
+        state_artifact_digest="a" * 64,
+    )
+    first_metadata = tmp_path / "first-metadata"
+    first_metadata.mkdir()
+    _write_metadata(
+        first_metadata / "lane.json",
+        lane_id=lane.lane_id,
+        status="needs_resume",
+        raw_status="extract-timeout",
+        rows_persisted=1,
+        endpoints=list(lane.endpoints),
+        patterns=list(lane.patterns),
+        season_start=2024,
+        season_end=2024,
+    )
+
+    season_type_children, _state, first_summary = build_resume_manifest([lane], first_metadata)
+
+    assert first_summary["split_lane_count"] == 2
+    assert all(
+        not child.state_artifact_run_id
+        and not child.state_artifact_name
+        and not child.state_artifact_digest
+        for child in season_type_children
+    )
+
+    second_metadata = tmp_path / "second-metadata"
+    second_metadata.mkdir()
+    for child in season_type_children:
+        _write_metadata(
+            second_metadata / f"{child.lane_id}.json",
+            lane_id=child.lane_id,
+            status="needs_resume",
+            raw_status="extract-timeout",
+            rows_persisted=2,
+            endpoints=list(child.endpoints),
+            patterns=list(child.patterns),
+            season_start=2024,
+            season_end=2024,
+        )
+
+    context_children, _state, second_summary = build_resume_manifest(
+        season_type_children,
+        second_metadata,
+    )
+
+    validate_manifest(context_children)
+    child_ids = {child.lane_id for child in context_children}
+    assert len(child_ids) == 4
+    assert child_ids == {
+        "cross-product-video-multi-axis-2024-split-2024-2024-regular-season-pts",
+        "cross-product-video-multi-axis-2024-split-2024-2024-regular-season-ast",
+        "cross-product-video-multi-axis-2024-split-2024-2024-playoffs-pts",
+        "cross-product-video-multi-axis-2024-split-2024-2024-playoffs-ast",
+    }
+    assert all(
+        not child.state_artifact_run_id
+        and not child.state_artifact_name
+        and not child.state_artifact_digest
+        for child in context_children
+    )
+    assert second_summary["split_lane_count"] == 4
+
+
 def test_build_resume_manifest_allows_missing_attempted_metadata_for_manual_resume(
     tmp_path: Path,
 ) -> None:
@@ -1966,6 +2049,7 @@ def test_build_resume_manifest_carries_durable_state_and_progress(tmp_path: Path
                     "run_id": "12345",
                     "name": "extraction-lane-chain-lane",
                     "sha256": "a" * 64,
+                    "attested": True,
                 },
             }
         ),
@@ -1987,6 +2071,88 @@ def test_build_resume_manifest_carries_durable_state_and_progress(tmp_path: Path
     assert summary["durable_state_lane_count"] == 1
     assert summary["outcome_counts"] == {"needs_resume": 1}
     assert summary["failure_reason_counts"] == {"extract-timeout": 1}
+
+
+@pytest.mark.parametrize(
+    "state_artifact",
+    [
+        pytest.param(None, id="missing"),
+        pytest.param(["not-an-object"], id="malformed"),
+        pytest.param(
+            {
+                "run_id": "new-run",
+                "name": "new-state",
+                "sha256": "b" * 64,
+            },
+            id="attested-flag-missing",
+        ),
+        pytest.param(
+            {
+                "run_id": "new-run",
+                "name": "new-state",
+                "sha256": "b" * 64,
+                "attested": False,
+            },
+            id="explicitly-unattested",
+        ),
+        pytest.param(
+            {
+                "run_id": "new-run",
+                "sha256": "b" * 64,
+                "attested": True,
+            },
+            id="incomplete",
+        ),
+    ],
+)
+def test_diagnostic_metadata_clears_stale_state_and_preserves_vpn_quarantine(
+    tmp_path: Path,
+    state_artifact: object,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-player-diagnostic",
+        lane_index=0,
+        lane_name="Reference Player Diagnostic",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("player",),
+        endpoints=("common_player_info",),
+        timeout_seconds=3600,
+        state_artifact_run_id="stale-run",
+        state_artifact_name="stale-state",
+        state_artifact_digest="a" * 64,
+    )
+    payload: dict[str, object] = {
+        "metadata_schema_version": 3,
+        "lane_id": lane.lane_id,
+        "status": "needs_resume",
+        "raw_status": "extract-timeout",
+        "vpn": {"failed_servers": ["us002.nordvpn.com"]},
+        "progress": {"completed_calls": 0, "rows_persisted": 0},
+    }
+    if state_artifact is not None:
+        payload["state_artifact"] = state_artifact
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    (metadata_dir / "diagnostic.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    next_lanes, next_state, summary = build_resume_manifest(
+        [lane],
+        metadata_dir,
+        chain_state=FullExtractionChainState(vpn_quarantined_servers=("us001.nordvpn.com",)),
+    )
+
+    assert len(next_lanes) == 1
+    retried = next_lanes[0]
+    assert retried.state_artifact_run_id == ""
+    assert retried.state_artifact_name == ""
+    assert retried.state_artifact_digest == ""
+    assert next_state.vpn_quarantined_servers == (
+        "us001.nordvpn.com",
+        "us002.nordvpn.com",
+    )
+    assert summary["durable_state_lane_count"] == 0
 
 
 def test_build_resume_manifest_splits_timeout_lanes(tmp_path: Path) -> None:
@@ -3318,6 +3484,72 @@ def test_validate_manifest_rejects_unknown_pattern_on_endpointless_lane() -> Non
 
     with pytest.raises(ValueError, match="unknown extraction patterns: not_a_pattern"):
         validate_manifest([lane])
+
+
+def test_validate_manifest_rejects_duplicate_lane_ids() -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        timeout_seconds=1800,
+    )
+
+    with pytest.raises(ValueError, match="duplicate lane_id values: reference-static"):
+        validate_manifest([lane, replace(lane, lane_index=1)])
+
+
+def test_metadata_reader_prefers_canonical_lane_metadata_over_attestation(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "extraction-lane-metadata-chain-lane-1"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "lane-metadata.json").write_text(
+        json.dumps({"lane_id": "lane-1", "status": "pipeline_failure"}),
+        encoding="utf-8",
+    )
+    (artifact_dir / "lane-state-attestation.json").write_text(
+        json.dumps({"lane_id": "lane-1", "schema_version": 1}),
+        encoding="utf-8",
+    )
+
+    assert _metadata_by_lane(tmp_path) == {
+        "lane-1": {"lane_id": "lane-1", "status": "pipeline_failure"}
+    }
+
+
+def test_checkpoint_rejects_duplicate_manifest_lane_ids_before_indexing(
+    tmp_path: Path,
+) -> None:
+    lane = FullExtractionLane(
+        lane_id="reference-static",
+        lane_index=0,
+        lane_name="Reference Static",
+        lane_kind="reference",
+        season_start=None,
+        season_end=None,
+        patterns=("static",),
+        endpoints=("franchise_history",),
+        timeout_seconds=1800,
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(manifest_payload([lane, replace(lane, lane_index=1)])),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate lane_id values: reference-static"):
+        build_checkpoint_database(
+            manifest_path=manifest_path,
+            metadata_dir=tmp_path / "metadata",
+            lane_artifacts_dir=tmp_path / "lanes",
+            output_dir=tmp_path / "checkpoint",
+            report_path=tmp_path / "checkpoint-report.json",
+        )
 
 
 def test_build_resume_manifest_preserves_and_expands_quarantine_state(tmp_path: Path) -> None:
@@ -4674,6 +4906,42 @@ def test_checkpoint_rejects_workload_unit_absent_from_entire_journal(
     failures = report["current_lane_attestation_failures"][lane.lane_id]
     assert report["terminal_ready"] is False
     assert any(error.startswith("journal_missing_parameter_coverage:1:") for error in failures)
+
+
+def test_checkpoint_rejects_unexpected_journal_workload_identity(tmp_path: Path) -> None:
+    lane = FullExtractionLane(
+        lane_id="cross-product-player-index-unexpected-2024",
+        lane_index=0,
+        lane_name="Cross product player index unexpected 2024",
+        lane_kind="cross_product",
+        season_start=2024,
+        season_end=2024,
+        patterns=("player_team_season",),
+        season_types=(SeasonType.REGULAR.value,),
+        endpoints=("player_index",),
+        timeout_seconds=5400,
+    )
+    expected = {
+        "player_id": 1,
+        "team_id": 10,
+        "season": "2024-25",
+        "season_type": SeasonType.REGULAR.value,
+    }
+    unexpected = {**expected, "player_id": 99, "team_id": 990}
+
+    report = _build_attested_lane_checkpoint(
+        tmp_path,
+        lane=lane,
+        journal_rows=[
+            ("player_index", json.dumps(expected)),
+            ("player_index", json.dumps(unexpected)),
+        ],
+        workload_params=[expected],
+    )
+
+    failures = report["current_lane_attestation_failures"][lane.lane_id]
+    assert report["terminal_ready"] is False
+    assert any(error.startswith("journal_unexpected_workload_identities:1:") for error in failures)
 
 
 def test_checkpoint_accepts_attested_empty_workload_scope(tmp_path: Path) -> None:

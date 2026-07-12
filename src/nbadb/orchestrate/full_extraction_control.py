@@ -29,8 +29,11 @@ from nbadb.orchestrate.planning import PATTERN_PRIORITY, executable_endpoint_rou
 from nbadb.orchestrate.seasons import season_range
 from nbadb.orchestrate.staging_map import STAGING_MAP
 from nbadb.orchestrate.workload_contract import (
+    PlayerTeamSeasonWorkloadBaseUnit,
     PlayerTeamSeasonWorkloadIntegrityAttestation,
     PlayerTeamSeasonWorkloadStore,
+    build_player_team_season_workload_scope,
+    player_team_season_workload_base_unit,
 )
 from nbadb.orchestrate.workload_profile import (
     WorkloadPlanningSnapshot,
@@ -1276,8 +1279,28 @@ def _adaptive_split_season_band(
     return bands
 
 
+def _duplicate_lane_id_errors(lanes: list[FullExtractionLane]) -> list[str]:
+    lane_id_counts: dict[str, int] = {}
+    for lane in lanes:
+        lane_id_counts[lane.lane_id] = lane_id_counts.get(lane.lane_id, 0) + 1
+    duplicate_lane_ids = sorted(lane_id for lane_id, count in lane_id_counts.items() if count > 1)
+    return (
+        ["duplicate lane_id values: " + ", ".join(duplicate_lane_ids)] if duplicate_lane_ids else []
+    )
+
+
+def _raise_manifest_errors(errors: list[str]) -> None:
+    if errors:
+        msg = "Invalid full extraction manifest:\n- " + "\n- ".join(errors)
+        raise ValueError(msg)
+
+
+def _validate_unique_lane_ids(lanes: list[FullExtractionLane]) -> None:
+    _raise_manifest_errors(_duplicate_lane_id_errors(lanes))
+
+
 def validate_manifest(lanes: list[FullExtractionLane]) -> None:
-    errors: list[str] = []
+    errors = _duplicate_lane_id_errors(lanes)
     executable_routes = executable_endpoint_routes()
     executable_patterns = frozenset(PATTERN_PRIORITY)
     for lane in lanes:
@@ -1337,9 +1360,7 @@ def validate_manifest(lanes: list[FullExtractionLane]) -> None:
         span = _season_span(lane.season_start, lane.season_end)
         if not lane.resume_only and max_span is not None and span > max_span:
             errors.append(f"{lane.lane_id}: span {span} exceeds lane policy max {max_span}")
-    if errors:
-        msg = "Invalid full extraction manifest:\n- " + "\n- ".join(errors)
-        raise ValueError(msg)
+    _raise_manifest_errors(errors)
 
 
 def _legacy_failure_class(reason: str) -> str:
@@ -2070,7 +2091,9 @@ def _load_manifest_argument(
 
 def _metadata_by_lane(metadata_dir: Path) -> dict[str, dict[str, Any]]:
     payloads: dict[str, dict[str, Any]] = {}
-    for candidate in sorted(metadata_dir.rglob("*.json")):
+    canonical_candidates = sorted(metadata_dir.rglob("lane-metadata.json"))
+    candidates = canonical_candidates or sorted(metadata_dir.rglob("*.json"))
+    for candidate in candidates:
         try:
             payload = json.loads(candidate.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
@@ -2185,6 +2208,9 @@ def _split_lane_by_segments(
                     last_failure_reason=f"split-from-{reason}",
                     parent_lane_id=parent_lane_id,
                     split_generation=lane.split_generation + 1,
+                    state_artifact_run_id="",
+                    state_artifact_name="",
+                    state_artifact_digest="",
                 )
             )
     return children
@@ -2210,12 +2236,15 @@ def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullEx
         and len(lane.context_measures) > 1
     ):
         parent_lane_id = lane.parent_lane_id or lane.lane_id
+        season_type_component = (
+            f"-{_season_type_slug(lane.season_types)}" if lane.season_types else ""
+        )
         return [
             replace(
                 lane,
                 lane_id=(
                     f"{_lane_slug(parent_lane_id)}-split-"
-                    f"{lane.season_start}-{lane.season_end}-"
+                    f"{lane.season_start}-{lane.season_end}{season_type_component}-"
                     f"{_context_measure_slug((context_measure,))}"
                 ),
                 lane_name=f"{lane.lane_name} ({context_measure})",
@@ -2224,6 +2253,9 @@ def _split_timeout_lane(lane: FullExtractionLane, *, reason: str) -> list[FullEx
                 last_failure_reason=f"split-from-{reason}",
                 parent_lane_id=parent_lane_id,
                 split_generation=lane.split_generation + 1,
+                state_artifact_run_id="",
+                state_artifact_name="",
+                state_artifact_digest="",
             )
             for context_measure in lane.context_measures
         ]
@@ -2367,6 +2399,14 @@ def _metadata_state_artifact(payload: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
+def _metadata_state_artifact_is_attested(payload: dict[str, Any]) -> bool:
+    artifact = payload.get("state_artifact")
+    if not isinstance(artifact, dict) or artifact.get("attested") is not True:
+        return False
+    run_id, name, digest = _metadata_state_artifact(payload)
+    return bool(run_id) and bool(name) and _is_sha256(digest)
+
+
 def _retry_budget_exhausted(failure_class: str, streak: int) -> bool:
     budget = FAILURE_RETRY_BUDGETS.get(failure_class, 1)
     return budget > 0 and streak >= budget
@@ -2394,6 +2434,9 @@ def _retry_lane_from_metadata(
     class_streak = previous_class_streak + 1 if previous_failure_class == failure_class else 1
     zero_progress_streak = 0 if progress_increased else lane.zero_progress_streak + 1
     state_run_id, state_name, state_digest = _metadata_state_artifact(payload)
+    state_artifact_attested = _metadata_state_artifact_is_attested(payload)
+    if not state_artifact_attested:
+        state_run_id = state_name = state_digest = ""
     cooldown = 1 if failure_class in {"transport_transient", "response_contract"} else 0
     return replace(
         lane,
@@ -2405,9 +2448,9 @@ def _retry_lane_from_metadata(
         last_completed_calls=max(lane.last_completed_calls, completed_calls),
         last_rows_persisted=max(lane.last_rows_persisted, rows_persisted),
         next_eligible_iteration=current_iteration + cooldown,
-        state_artifact_run_id=state_run_id or lane.state_artifact_run_id,
-        state_artifact_name=state_name or lane.state_artifact_name,
-        state_artifact_digest=state_digest or lane.state_artifact_digest,
+        state_artifact_run_id=state_run_id,
+        state_artifact_name=state_name,
+        state_artifact_digest=state_digest,
     )
 
 
@@ -3790,15 +3833,10 @@ def _journal_missing_coverage_error(
     return f"{prefix}:{missing_count}:{sample_payload}"
 
 
-def _workload_base_units_sha256(units: set[tuple[int, str, int, int]]) -> str:
-    payload = [list(unit) for unit in sorted(units)]
-    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode("utf-8")).hexdigest()
-
-
 def _workload_scope_contract(
     lane: FullExtractionLane,
     workload_store: PlayerTeamSeasonWorkloadStore | None,
-) -> tuple[set[tuple[int, str, int, int]] | None, dict[str, Any], list[str]]:
+) -> tuple[set[PlayerTeamSeasonWorkloadBaseUnit] | None, dict[str, Any], list[str]]:
     if "player_team_season" not in lane.patterns:
         return None, {}, []
     if set(lane.patterns) != {"player_team_season"}:
@@ -3808,61 +3846,46 @@ def _workload_scope_contract(
     if workload_store is None:
         return None, {}, ["workload_contract_unavailable"]
 
-    integrity = workload_store.integrity_attestation()
-    if integrity is None:
-        return None, {}, ["workload_contract_integrity_unavailable"]
-
     seasons = season_range(lane.season_start, lane.season_end)
     season_types = list(lane.season_types)
-    requested_pairs = {(season, season_type) for season in seasons for season_type in season_types}
-    coverage = workload_store.load_coverage(
-        seasons=seasons,
-        season_types=season_types,
-    )
-    errors: list[str] = []
-    invalid_pairs = requested_pairs & coverage.invalid_pairs
-    missing_pairs = requested_pairs - coverage.covered_pairs
-    if invalid_pairs:
-        errors.append(
-            "workload_contract_invalid_pairs:"
-            + ",".join(f"{season}:{season_type}" for season, season_type in sorted(invalid_pairs))
+    try:
+        scope = build_player_team_season_workload_scope(
+            workload_store,
+            seasons=seasons,
+            season_types=season_types,
         )
-    if missing_pairs:
-        errors.append(
-            "workload_contract_missing_pairs:"
-            + ",".join(f"{season}:{season_type}" for season, season_type in sorted(missing_pairs))
-        )
-    if errors:
-        return None, {}, errors
+    except ValueError as exc:
+        return None, {}, [f"workload_contract_invalid:{exc}"]
+    return set(scope.base_units), dict(scope.contract), []
 
-    params = workload_store.load_params(
-        seasons=seasons,
-        season_types=season_types,
-    )
-    units = {
-        (
-            int(str(param["season"]).split("-", 1)[0]),
-            str(param["season_type"]),
-            int(param["player_id"]),
-            int(param["team_id"]),
-        )
-        for param in params
-    }
-    contract = {
-        "integrity": integrity,
-        "requested_pairs": [
-            {
-                "season": season,
-                "season_type": season_type,
-                "row_count": int(coverage.counts_by_pair.get((season, season_type), 0)),
-            }
-            for season, season_type in sorted(requested_pairs)
-        ],
-        "expected_base_unit_count": len(units),
-        "expected_base_units_sha256": _workload_base_units_sha256(units),
-        "expected_empty": not units,
-    }
-    return units, contract, []
+
+def _current_journal_workload_identity_errors(
+    lane: FullExtractionLane,
+    parsed_rows: list[tuple[str, str, dict[str, Any]]],
+    *,
+    expected_workload_base_units: set[PlayerTeamSeasonWorkloadBaseUnit] | None,
+) -> list[str]:
+    if expected_workload_base_units is None or set(lane.patterns) != {"player_team_season"}:
+        return []
+
+    invalid_count = 0
+    unexpected: set[PlayerTeamSeasonWorkloadBaseUnit] = set()
+    for endpoint, _status, params in parsed_rows:
+        if endpoint not in lane.endpoints:
+            continue
+        identity = player_team_season_workload_base_unit(params)
+        if identity is None:
+            invalid_count += 1
+        elif identity not in expected_workload_base_units:
+            unexpected.add(identity)
+
+    errors: list[str] = []
+    if invalid_count:
+        errors.append(f"journal_invalid_workload_identities:{invalid_count}")
+    if unexpected:
+        samples = "|".join(json.dumps(identity) for identity in sorted(unexpected)[:10])
+        errors.append(f"journal_unexpected_workload_identities:{len(unexpected)}:{samples}")
+    return errors
 
 
 def _current_journal_manifest_coverage_errors(
@@ -4155,6 +4178,13 @@ def _lane_database_journal_errors(
     for endpoint, count in sorted(invalid_params_by_endpoint.items()):
         errors.append(f"journal_invalid_params_json:{endpoint}:{count}")
     if require_complete_contract_evidence:
+        errors.extend(
+            _current_journal_workload_identity_errors(
+                lane,
+                parsed_rows,
+                expected_workload_base_units=expected_workload_base_units,
+            )
+        )
         errors.extend(
             _current_journal_manifest_coverage_errors(
                 lane,
@@ -4485,6 +4515,7 @@ def build_checkpoint_database(
 ) -> dict[str, Any]:
     manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
     lanes = list(manifest.lanes)
+    _validate_unique_lane_ids(lanes)
     lanes_by_id = {lane.lane_id: lane for lane in lanes}
     requires_workload_contract = any("player_team_season" in lane.patterns for lane in lanes)
     workload_store = (
@@ -4642,6 +4673,7 @@ def merge_final_database(
                 )
             elif manifest_path is not None and manifest_path.exists():
                 manifest = normalize_manifest(json.loads(manifest_path.read_text(encoding="utf-8")))
+                _validate_unique_lane_ids(list(manifest.lanes))
                 expected_hash = _coverage_fingerprint(list(manifest.lanes))
                 actual_hash = str(checkpoint_report.get("coverage_fingerprint") or "")
                 if actual_hash != expected_hash:

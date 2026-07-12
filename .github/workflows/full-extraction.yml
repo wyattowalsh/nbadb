@@ -1377,6 +1377,10 @@ jobs:
           STATE_ARTIFACT_NAME: ${{ matrix.state_artifact_name }}
           STATE_ARTIFACT_DIGEST: ${{ matrix.state_artifact_digest }}
           COVERAGE_UNITS_HASH: ${{ matrix.coverage_units_hash }}
+          PATTERNS: ${{ matrix.patterns }}
+          SEASON_START: ${{ matrix.season_start }}
+          SEASON_END: ${{ matrix.season_end }}
+          SEASON_TYPES: ${{ matrix.season_types }}
         run: |
           if [ -z "$STATE_ARTIFACT_RUN_ID" ] || [ -z "$STATE_ARTIFACT_NAME" ] || [ -z "$STATE_ARTIFACT_DIGEST" ]; then
             echo "::error::Run ID, name, and digest are all required for resumable lane ${{ matrix.lane_id }}"
@@ -1403,6 +1407,20 @@ jobs:
             exit 1
           fi
           state_db="${state_databases[0]}"
+          workload_args=()
+          if [[ ",$PATTERNS," == *",player_team_season,"* ]]; then
+            workload_manifest="$(find discovery-artifact -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+            if [ -z "$workload_manifest" ]; then
+              echo "::error::Workload-bound lane state requires the active discovery workload manifest"
+              exit 1
+            fi
+            workload_args+=(
+              --workload-duckdb-path "$(dirname "$workload_manifest")/nba.duckdb"
+              --workload-season-start "$SEASON_START"
+              --workload-season-end "$SEASON_END"
+              --workload-season-types "$SEASON_TYPES"
+            )
+          fi
           uv run python .github/scripts/validate_lane_state.py \
             "$state_db" \
             --expected-sha256 "$STATE_ARTIFACT_DIGEST" \
@@ -1412,7 +1430,8 @@ jobs:
             --expected-source-sha "$WORKFLOW_SOURCE_SHA" \
             --expected-chain-id "$ACTIVE_CHAIN_ID" \
             --expected-lane-id "${{ matrix.lane_id }}" \
-            --expected-coverage-units-hash "$COVERAGE_UNITS_HASH"
+            --expected-coverage-units-hash "$COVERAGE_UNITS_HASH" \
+            "${workload_args[@]}"
           cp "$state_db" data/nbadb/nba.duckdb
           cp "${state_attestations[0]}" artifacts/extraction/lane-state-attestation.json
           echo "restored=true" >> "$GITHUB_OUTPUT"
@@ -1424,6 +1443,10 @@ jobs:
           STATE_ARTIFACT_REQUIRED: ${{ matrix.state_artifact_run_id != '' || matrix.state_artifact_name != '' || matrix.state_artifact_digest != '' }}
           STATE_ARTIFACT_DIGEST: ${{ matrix.state_artifact_digest }}
           COVERAGE_UNITS_HASH: ${{ matrix.coverage_units_hash }}
+          PATTERNS: ${{ matrix.patterns }}
+          SEASON_START: ${{ matrix.season_start }}
+          SEASON_END: ${{ matrix.season_end }}
+          SEASON_TYPES: ${{ matrix.season_types }}
         run: |
           mkdir -p data/nbadb
           mark_untrusted() {
@@ -1439,6 +1462,21 @@ jobs:
               exit 1
             fi
             restore_source="artifact"
+            workload_args=()
+            if [[ ",$PATTERNS," == *",player_team_season,"* ]]; then
+              workload_manifest="$(find discovery-artifact -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+              if [ -z "$workload_manifest" ]; then
+                mark_untrusted "active discovery workload manifest is missing"
+                echo "::error::Workload-bound lane state requires the active discovery workload manifest"
+                exit 1
+              fi
+              workload_args+=(
+                --workload-duckdb-path "$(dirname "$workload_manifest")/nba.duckdb"
+                --workload-season-start "$SEASON_START"
+                --workload-season-end "$SEASON_END"
+                --workload-season-types "$SEASON_TYPES"
+              )
+            fi
             if ! uv run python .github/scripts/validate_lane_state.py \
               data/nbadb/nba.duckdb \
               --expected-sha256 "$STATE_ARTIFACT_DIGEST" \
@@ -1448,7 +1486,8 @@ jobs:
               --expected-source-sha "$WORKFLOW_SOURCE_SHA" \
               --expected-chain-id "$ACTIVE_CHAIN_ID" \
               --expected-lane-id "${{ matrix.lane_id }}" \
-              --expected-coverage-units-hash "$COVERAGE_UNITS_HASH"; then
+              --expected-coverage-units-hash "$COVERAGE_UNITS_HASH" \
+              "${workload_args[@]}"; then
               mark_untrusted "durable lane state failed exact validation"
               exit 1
             fi
@@ -1869,6 +1908,13 @@ jobs:
           RECOVERY_ARTIFACT_NAME: extraction-lane-recovery-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
         run: |
           mkdir -p artifacts/extraction
+          if [[ ",${PATTERNS}," == *",player_team_season,"* ]]; then
+            workload_manifest="$(find discovery-artifact -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+            if [ -n "$workload_manifest" ]; then
+              workload_duckdb_path="$(dirname "$workload_manifest")/nba.duckdb"
+              export WORKLOAD_DUCKDB_PATH="$workload_duckdb_path"
+            fi
+          fi
           uv run python .github/scripts/write_lane_metadata.py
 
       # ── Upload lane artifact ──
@@ -1899,14 +1945,13 @@ jobs:
           compression-level: 0
 
       - name: Upload lane metadata
-        if: ${{ always() && steps.lane_metadata.outcome == 'success' && steps.lane_metadata.outputs.snapshot-attested == 'true' }}
+        if: ${{ always() && steps.lane_metadata.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           overwrite: true
           name: extraction-lane-metadata-${{ env.ACTIVE_CHAIN_ID }}-${{ matrix.lane_id }}
           path: |
             artifacts/extraction/lane-metadata.json
-            artifacts/extraction/lane-state-attestation.json
             artifacts/extraction/extract-summary.json
           if-no-files-found: error
           retention-days: 30
@@ -3096,12 +3141,31 @@ jobs:
           fi
           cp "$checkpoint_manifest" artifacts/full-extraction/checkpoint-manifest.json
 
-          workload_manifest="$(find checkpoint-discovery -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
-          if [ -z "$workload_manifest" ]; then
-            echo "::error::Discovery artifact did not contain the player/team/season workload manifest"
-            exit 1
+          requires_workload_contract="$(CHECKPOINT_MANIFEST="$checkpoint_manifest" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path(os.environ["CHECKPOINT_MANIFEST"]).read_text(encoding="utf-8"))
+          requires_workload = any(
+              "player_team_season" in lane.get("patterns", [])
+              for lane in manifest.get("lanes", [])
+              if isinstance(lane, dict)
+          )
+          print("true" if requires_workload else "false")
+          PY
+          )"
+          workload_args=()
+          if [ "$requires_workload_contract" = "true" ]; then
+            workload_manifest="$(find checkpoint-discovery -type f -name nba.player-team-season-workload.player-team-season-workload.json -print -quit)"
+            if [ -z "$workload_manifest" ]; then
+              echo "::error::Player/team/season checkpoint manifest requires the discovery workload manifest"
+              exit 1
+            fi
+            workload_args+=(
+              --workload-duckdb-path "$(dirname "$workload_manifest")/nba.duckdb"
+            )
           fi
-          workload_duckdb_path="$(dirname "$workload_manifest")/nba.duckdb"
 
           previous_args=()
           previous_report="$(find previous-checkpoint -name checkpoint-report.json -type f -print -quit || true)"
@@ -3116,7 +3180,7 @@ jobs:
             --lane-manifest-path artifacts/full-extraction/checkpoint-manifest.json \
             --metadata-dir lane-metadata \
             --artifacts-dir lanes \
-            --workload-duckdb-path "$workload_duckdb_path" \
+            "${workload_args[@]}" \
             "${previous_args[@]}" \
             --output-dir data/nbadb-checkpoint \
             --report-path artifacts/full-extraction/checkpoint-report.json \

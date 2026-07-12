@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
@@ -12,8 +13,11 @@ import polars as pl
 from loguru import logger
 
 from nbadb.orchestrate.persistence import atomic_write_path, atomic_write_text
+from nbadb.orchestrate.seasons import season_string
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     import duckdb
 
     from nbadb.orchestrate.planning import PlanParams
@@ -49,6 +53,23 @@ class PlayerTeamSeasonWorkloadIntegrityAttestation(TypedDict):
     schema: list[dict[str, str]]
     total_rows: int
     real_rows: int
+
+
+PlayerTeamSeasonWorkloadBaseUnit = tuple[int, str, int, int]
+
+
+class PlayerTeamSeasonWorkloadScopeContract(TypedDict):
+    integrity: PlayerTeamSeasonWorkloadIntegrityAttestation
+    requested_pairs: list[dict[str, int | str]]
+    expected_base_unit_count: int
+    expected_base_units_sha256: str
+    expected_empty: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerTeamSeasonWorkloadScope:
+    base_units: frozenset[PlayerTeamSeasonWorkloadBaseUnit]
+    contract: PlayerTeamSeasonWorkloadScopeContract
 
 
 @dataclass(frozen=True, slots=True)
@@ -802,3 +823,112 @@ class PlayerTeamSeasonWorkloadStore:
             reason,
             self._manifest_path,
         )
+
+
+def player_team_season_workload_base_unit(
+    params: Mapping[str, object],
+) -> PlayerTeamSeasonWorkloadBaseUnit | None:
+    """Return the canonical workload identity from extraction parameters."""
+    season = params.get("season")
+    season_type = params.get("season_type")
+    player_id = params.get("player_id")
+    team_id = params.get("team_id")
+    if (
+        not isinstance(season, str)
+        or not isinstance(season_type, str)
+        or not season_type.strip()
+        or isinstance(player_id, bool)
+        or isinstance(team_id, bool)
+        or not isinstance(player_id, int | str)
+        or not isinstance(team_id, int | str)
+    ):
+        return None
+    try:
+        season_year = int(season[:4])
+        normalized_player_id = int(player_id)
+        normalized_team_id = int(team_id)
+    except (TypeError, ValueError):
+        return None
+    if season_string(season_year) != season or normalized_player_id <= 0 or normalized_team_id <= 0:
+        return None
+    return season_year, season_type, normalized_player_id, normalized_team_id
+
+
+def player_team_season_workload_base_units_sha256(
+    units: frozenset[PlayerTeamSeasonWorkloadBaseUnit] | set[PlayerTeamSeasonWorkloadBaseUnit],
+) -> str:
+    payload = [list(unit) for unit in sorted(units)]
+    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
+
+
+def build_player_team_season_workload_scope(
+    store: PlayerTeamSeasonWorkloadStore,
+    *,
+    seasons: list[str],
+    season_types: list[str],
+) -> PlayerTeamSeasonWorkloadScope:
+    """Build the exact generation, pair, and base-identity contract for a lane scope."""
+    requested_pairs = {
+        (str(season), str(season_type)) for season in seasons for season_type in season_types
+    }
+    if not requested_pairs or any(
+        not season.strip() or not season_type.strip() for season, season_type in requested_pairs
+    ):
+        raise ValueError("player_team_season workload scope is missing")
+
+    integrity = store.integrity_attestation()
+    if integrity is None:
+        raise ValueError("player_team_season workload sidecars are missing or invalid")
+
+    coverage = store.load_coverage(seasons=seasons, season_types=season_types)
+    invalid_pairs = requested_pairs & coverage.invalid_pairs
+    if invalid_pairs:
+        raise ValueError(
+            f"player_team_season workload has invalid requested pairs: {sorted(invalid_pairs)}"
+        )
+    missing_pairs = requested_pairs - coverage.covered_pairs
+    if missing_pairs:
+        raise ValueError(
+            f"player_team_season workload does not cover requested pairs: {sorted(missing_pairs)}"
+        )
+
+    base_units: list[PlayerTeamSeasonWorkloadBaseUnit] = []
+    actual_counts: Counter[tuple[str, str]] = Counter()
+    for params in store.load_params(seasons=seasons, season_types=season_types):
+        identity = player_team_season_workload_base_unit(params)
+        if identity is None:
+            raise ValueError("player_team_season workload identity is invalid")
+        season_year, season_type, _player_id, _team_id = identity
+        pair = (season_string(season_year), season_type)
+        if pair not in requested_pairs:
+            raise ValueError(f"player_team_season workload row is outside lane scope: {pair}")
+        base_units.append(identity)
+        actual_counts[pair] += 1
+
+    unique_base_units = frozenset(base_units)
+    if len(base_units) != len(unique_base_units):
+        raise ValueError("player_team_season workload contains duplicate base identities")
+
+    requested_pair_payload: list[dict[str, int | str]] = []
+    for season, season_type in sorted(requested_pairs):
+        row_count = int(coverage.counts_by_pair.get((season, season_type), 0))
+        if actual_counts[(season, season_type)] != row_count:
+            raise ValueError(
+                f"player_team_season workload pair count mismatch for {season}/{season_type}"
+            )
+        requested_pair_payload.append(
+            {"season": season, "season_type": season_type, "row_count": row_count}
+        )
+
+    return PlayerTeamSeasonWorkloadScope(
+        base_units=unique_base_units,
+        contract={
+            "integrity": integrity,
+            "requested_pairs": requested_pair_payload,
+            "expected_base_unit_count": len(unique_base_units),
+            "expected_base_units_sha256": player_team_season_workload_base_units_sha256(
+                unique_base_units
+            ),
+            "expected_empty": not unique_base_units,
+        },
+    )

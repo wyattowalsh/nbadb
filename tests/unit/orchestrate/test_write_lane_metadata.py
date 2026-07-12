@@ -136,6 +136,7 @@ def test_metadata_v2_records_durable_progress_and_artifact(
         "run_id": "12345",
         "name": "extraction-lane-recovery-chain-1-lane-1-run-12345-attempt-1",
         "sha256": payload["state_artifact"]["sha256"],
+        "attested": False,
         "required": True,
         "retention_days": 30,
     }
@@ -279,14 +280,16 @@ def test_main_emits_snapshot_attestation_only_after_metadata_and_hash(
     )
     assert len(payload["database_sha256"]) == 64
     assert payload["database_sha256"] == payload["state_artifact"]["sha256"]
+    assert payload["state_artifact"]["attested"] is True
     assert attestation == {
-        "schema_version": 1,
+        "schema_version": 2,
         "source_sha": "abc123",
         "chain_id": "chain-1",
         "lane_id": "lane-1",
         "coverage_units_hash": "b" * 64,
         "database_sha256": payload["database_sha256"],
         "expected_empty": False,
+        "workload_contract": None,
     }
     assert not Path(f"{db_path}.wal").exists()
     assert output_path.read_text(encoding="utf-8").splitlines() == [
@@ -359,7 +362,10 @@ def test_main_writes_diagnostics_metadata_without_attesting_missing_database(
 
     assert metadata_module.main() == 0
 
-    assert (tmp_path / "artifacts" / "extraction" / "lane-metadata.json").is_file()
+    metadata_path = tmp_path / "artifacts" / "extraction" / "lane-metadata.json"
+    assert metadata_path.is_file()
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert payload["state_artifact"]["attested"] is False
     assert not (tmp_path / "artifacts" / "extraction" / "lane-state-attestation.json").exists()
     assert not output_path.exists()
 
@@ -462,6 +468,57 @@ def test_player_team_season_workload_contract_binds_exact_base_units(
     }
 
 
+def test_player_team_season_contract_uses_explicit_workload_source(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _set_env(monkeypatch, tmp_path, status="extract-error")
+    monkeypatch.setenv("PATTERNS", "player_team_season")
+    monkeypatch.setenv("ENDPOINTS", "video_details")
+    workload_db_path = tmp_path / "discovery-artifact" / "nba.duckdb"
+    workload_db_path.parent.mkdir(parents=True)
+    store = _write_workload(
+        workload_db_path,
+        [
+            {
+                "season": "2020-21",
+                "season_type": "Regular Season",
+                "player_id": 1,
+                "team_id": 10,
+            }
+        ],
+        seasons=["2020-21"],
+        season_types=["Regular Season"],
+    )
+    monkeypatch.setenv("WORKLOAD_DUCKDB_PATH", str(workload_db_path))
+
+    payload = metadata_module.build_payload()
+
+    assert payload["workload_contract"]["integrity"] == store.integrity_attestation()
+    assert payload["workload_contract_error"] == ""
+
+
+def test_failed_player_team_lane_writes_diagnostics_without_workload_sidecars(
+    metadata_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _set_env(monkeypatch, tmp_path, status="failed-before-extract")
+    monkeypatch.setenv("PATTERNS", "player_team_season")
+    monkeypatch.setenv("ENDPOINTS", "video_details")
+
+    assert metadata_module.main() == 0
+
+    metadata_path = tmp_path / "artifacts" / "extraction" / "lane-metadata.json"
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "pipeline_failure"
+    assert payload["workload_contract"] is None
+    assert "sidecars are missing or invalid" in payload["workload_contract_error"]
+    assert payload["state_artifact"]["attested"] is False
+    assert not (metadata_path.parent / "lane-state-attestation.json").exists()
+
+
 def test_attested_empty_workload_allows_complete_snapshot_without_journal(
     metadata_module: ModuleType,
     monkeypatch: pytest.MonkeyPatch,
@@ -513,6 +570,8 @@ def test_attested_empty_workload_allows_complete_snapshot_without_journal(
     )
     assert attestation["expected_empty"] is True
     assert attestation["database_sha256"] == payload["database_sha256"]
+    assert attestation["workload_contract"] == payload["workload_contract"]
+    assert payload["state_artifact"]["attested"] is True
     assert output_path.read_text(encoding="utf-8").splitlines() == [
         "final-outcome=complete",
         "snapshot-attested=true",
