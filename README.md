@@ -219,6 +219,12 @@ requests, and restored manifests that still schedule them fail before VPN prefli
 extract lanes. Canonical coverage rows that combine alternate wrappers are projected
 back to every concrete endpoint/pattern route before lane generation, preserving each
 distinct staging surface without scheduling endpoint-name aliases as zero-work jobs.
+The full-history `video_details_asset` route keeps its upstream season contract intact,
+but runs with a ten-call persistence boundary, isolated two-call concurrency, a
+15-second request timeout, no in-call retries, a fully-failed-chunk stop, and a
+600-second no-completed-chunk watchdog. Empty successful responses are journaled
+only after their zero-row staging chunk is durable, so retries cannot recreate a
+thousand-call all-or-nothing barrier.
 VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
 strict NBA result-set probe, and installed-stack player/game discovery canaries pass.
 The player canary also requires a positive player/team membership row.
@@ -251,7 +257,18 @@ allowing recovery from failed/cancelled history.
 The pinned source SHA must remain on its trusted branch. Terminal assurance has
 read-only permissions; `publish=false` never receives Kaggle secrets, while
 `publish=true` consumes the exact assured artifact in a separate FIFO-serialized
-writer job. A zero-active resume can replay its attested terminal checkpoint.
+writer job. The exported bundle carries a sorted SHA-256 manifest bound to the
+source commit, chain ID, and coverage fingerprint; the publisher recomputes that
+identity after download, includes it in Kaggle metadata and marker v2, and pushes
+checked-in metadata as its final step only after revalidating the frozen source and
+completing exact remote verification. A publication rerun accepts only the original
+source or its single byte-identical metadata-only child. A zero-active resume can
+replay its attested terminal checkpoint.
+For a one-lane VPN proof, `targeted_smoke=true` requires a manual manifest,
+`publish=false`, `max_iterations=1`, and `retry_pipeline_failures=false`. It skips
+global merge/scan and redispatch, then succeeds only when lane control and the
+checkpoint attest exactly one complete terminal lane. This is an extractor proof,
+not full-dataset assurance.
 
 Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architecture)**.
 

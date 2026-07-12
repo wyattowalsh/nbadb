@@ -324,6 +324,14 @@ lane clean. Lane metadata records the restore source, progress counters,
 failure class, root error type, and state artifact pointer so retry decisions are
 traceable.
 
+`video_details_asset` keeps the full upstream season range because neither the
+runtime class nor upstream docs establish an earliest supported season. Its runner
+instead limits the failure blast radius: ten calls per durable chunk, two concurrent
+requests, a 15-second request timeout, no per-call retry loop, abort after a fully
+failed newly attempted chunk, and a 600-second no-completed-chunk watchdog. A
+successful empty chunk is persisted and then journaled before the next chunk starts.
+Resume skips do not count as newly attempted calls when evaluating the abort rule.
+
 `matrix_batch_size` controls how many lane jobs enter one workflow iteration and
 defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from
 `vpn_parallelism` and `direct_parallelism`, which control simultaneous runners and
@@ -363,16 +371,29 @@ early credential/exact-version preflight before lane fan-out and repeat it after
 terminal assurance. Terminal assurance has read-only contents permission and emits
 an exact run/attempt-scoped artifact. Only the separate publisher job receives write
 permission and Kaggle secrets, and all full/daily/monthly publishers enter the shared
-FIFO `queue: max` group. If a source run already has zero active lanes, resume with
+FIFO `queue: max` group. The terminal export also creates
+`assured-artifact-manifest.json`, whose sorted file hashes bind the data tree to the
+source commit, chain ID, and coverage fingerprint. The publisher recomputes this
+manifest after downloading the exact assured artifact, publishes it as a Kaggle
+resource, and repeats the provenance in publication marker schema v2. The default
+branch must equal the pinned source immediately before upload. A failed-job rerun may
+also accept its single exact metadata-only child, but only when the regenerated file
+is byte-identical. The idempotent metadata push is the publisher's final step, after
+exact remote verification and receipt artifacts succeed. If a source run already has
+zero active lanes, resume with
 its original `chain_id` and `resume_source_run_id`; the workflow attests and replays
 the terminal checkpoint instead of rerunning lanes.
 
 Use `publish=false` when a full-coverage Actions canary is worth the extra run. It
 exercises terminal transform, hard scan, and export without permitting metadata or
-Kaggle publication. A narrow custom manifest tests lane mechanics only; because it
-does not contain every staging dependency, do not treat its expected missing-table
-scan failures as terminal assurance. Use direct mode only when a separate
-connectivity probe succeeds. Direct mode skips NordVPN
+Kaggle publication. For a narrow custom manifest, set `targeted_smoke=true` with
+`network_mode=vpn`, `publish=false`, `max_iterations=1`, and
+`retry_pipeline_failures=false`. The workflow then skips global merge/scan and
+redispatch, and its dedicated assurance job passes only when the manual manifest has
+exactly one lane, lane control reports one complete `resume_only` lane with no active
+or contract-blocked work, and the checkpoint is terminal-ready. This proves the
+extractor/VPN/checkpoint path only; it is not full-dataset assurance. Use direct mode
+only when a separate connectivity probe succeeds. Direct mode skips NordVPN
 setup, uses `direct_parallelism` instead of VPN fan-out, caps high-volume
 temporal lanes (`date`, `game`, `player_season`, `team_season`, and
 `player_team_season`) before writing timeout metadata, writes `direct-no-vpn`
