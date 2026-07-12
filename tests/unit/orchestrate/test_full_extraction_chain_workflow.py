@@ -9,12 +9,10 @@ import subprocess
 import sys
 import textwrap
 import types
-from typing import TYPE_CHECKING
+
+import pytest
 
 from nbadb.orchestrate.full_extraction_control import main as full_extraction_main
-
-if TYPE_CHECKING:
-    import pytest
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "full-extraction.yml"
@@ -226,7 +224,9 @@ def test_lane_control_requires_a_successful_seed_and_non_skipped_extract() -> No
 
 
 def test_discovery_artifact_upload_is_success_only_and_fail_closed() -> None:
+    plan = _job_block(_workflow_text(), "plan")
     seed = _job_block(_workflow_text(), "discovery_seed")
+    manifest_upload = _step_block(plan, "Upload lane manifest")
     verify = _step_block(seed, "Verify complete discovery bundle")
     upload = _step_block(seed, "Upload discovery artifacts")
     recovery_upload = _step_block(seed, "Upload incomplete discovery recovery artifact")
@@ -234,6 +234,8 @@ def test_discovery_artifact_upload_is_success_only_and_fail_closed() -> None:
     assert "if: ${{ success() }}" in upload
     assert "if: always()" not in upload
     assert "if-no-files-found: error" in upload
+    assert "retention-days: 30" in upload
+    assert "retention-days: 30" in manifest_upload
     assert "if-no-files-found: ignore" not in upload
     assert "if: ${{ always() && !success() }}" in recovery_upload
     assert (
@@ -496,10 +498,15 @@ def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
 
     verifier = _embedded_python(plan, "MANUAL_HANDOFF_CHAIN_VERIFIER")
     manifest_path = tmp_path / "manifest.json"
-    manifest_path.write_text("{}\n", encoding="utf-8")
+    source_sha = "a" * 40
+    manifest_path.write_text(
+        json.dumps({"chain_id": "12345", "workflow_source_sha": source_sha}) + "\n",
+        encoding="utf-8",
+    )
     base_env = {
         "MANIFEST_PATH": str(manifest_path),
         "REQUESTED_CHAIN_ID": "12345",
+        "WORKFLOW_SOURCE_SHA": source_sha,
     }
 
     matching = _run_python(
@@ -519,6 +526,10 @@ def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
     assert wrong_standard_name.returncode == 1
     assert "artifact name does not match requested chain_id" in wrong_standard_name.stdout
 
+    manifest_path.write_text(
+        json.dumps({"workflow_source_sha": source_sha}) + "\n",
+        encoding="utf-8",
+    )
     unprovable_custom_name = _run_python(
         verifier,
         env={**base_env, "ARTIFACT_NAME": "manual-manifest"},
@@ -526,13 +537,76 @@ def test_manual_artifact_handoff_requires_and_verifies_original_chain_id(
     assert unprovable_custom_name.returncode == 1
     assert "Unable to verify original chain identity" in unprovable_custom_name.stdout
 
-    manifest_path.write_text('{"chain_id": "99999"}\n', encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps({"chain_id": "99999", "workflow_source_sha": source_sha}) + "\n",
+        encoding="utf-8",
+    )
     mismatched_manifest = _run_python(
         verifier,
         env={**base_env, "ARTIFACT_NAME": "manual-manifest"},
     )
     assert mismatched_manifest.returncode == 1
     assert "Manifest chain identity does not match" in mismatched_manifest.stdout
+
+    manifest_path.write_text(
+        json.dumps({"chain_id": "12345", "workflow_source_sha": "b" * 40}) + "\n",
+        encoding="utf-8",
+    )
+    mismatched_source = _run_python(
+        verifier,
+        env={**base_env, "ARTIFACT_NAME": "manual-manifest"},
+    )
+    assert mismatched_source.returncode == 1
+    assert "Manifest source SHA does not match" in mismatched_source.stdout
+
+    assert 'manifest["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()' in plan
+    lane_control = _job_block(_workflow_text(), "lane_control")
+    assert 'payload["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()' in (
+        lane_control
+    )
+
+
+def test_resume_source_manifest_requires_matching_chain_and_source_sha(
+    tmp_path: pathlib.Path,
+) -> None:
+    plan = _job_block(_workflow_text(), "plan")
+    verifier = _embedded_python(plan, "RESUME_SOURCE_MANIFEST_VERIFIER")
+    manifest_path = tmp_path / "manifest.json"
+    source_sha = "a" * 40
+    base_env = {
+        "MANIFEST_PATH": str(manifest_path),
+        "REQUESTED_CHAIN_ID": "12345",
+        "WORKFLOW_SOURCE_SHA": source_sha,
+    }
+
+    manifest_path.write_text(
+        json.dumps({"chain_id": "12345", "workflow_source_sha": source_sha}) + "\n",
+        encoding="utf-8",
+    )
+    matching = _run_python(verifier, env=base_env)
+    assert matching.returncode == 0, matching.stderr or matching.stdout
+    assert "Verified resume source manifest for chain 12345" in matching.stdout
+
+    manifest_path.write_text(
+        json.dumps({"chain_id": "99999", "workflow_source_sha": source_sha}) + "\n",
+        encoding="utf-8",
+    )
+    wrong_chain = _run_python(verifier, env=base_env)
+    assert wrong_chain.returncode == 1
+    assert "chain identity does not match" in wrong_chain.stdout
+
+    manifest_path.write_text(
+        json.dumps({"chain_id": "12345", "workflow_source_sha": "b" * 40}) + "\n",
+        encoding="utf-8",
+    )
+    wrong_source = _run_python(verifier, env=base_env)
+    assert wrong_source.returncode == 1
+    assert "manifest SHA does not match" in wrong_source.stdout
+
+    manifest_path.write_text("{}\n", encoding="utf-8")
+    missing_provenance = _run_python(verifier, env=base_env)
+    assert missing_provenance.returncode == 1
+    assert "'<missing>'" in missing_provenance.stdout
 
 
 def test_only_redispatch_job_has_actions_write_permission() -> None:
@@ -1370,8 +1444,11 @@ def test_seeded_discovery_artifacts_are_installed_after_state_restore() -> None:
 
 def test_discovery_seed_vpn_lifecycle_is_mode_gated_and_always_cleaned_up() -> None:
     seed = _job_block(_workflow_text(), "discovery_seed")
+    vpn_step = _step_block(seed, "Connect NordVPN tunnel for discovery seeding")
 
     assert seed.count("- name: Connect NordVPN tunnel for discovery seeding") == 1
+    assert "RUN_ATTEMPT: ${{ github.run_attempt }}" in vpn_step
+    assert "export LANE_INDEX=$((RUN_ATTEMPT - 1))" in vpn_step
     assert "if: ${{ needs.preflight.outputs.effective-network-mode == 'vpn' }}" in seed
     assert "- name: Upload discovery seed VPN diagnostics" in seed
     assert "name: discovery-seed-vpn-diagnostics-${{ env.ACTIVE_CHAIN_ID }}" in seed
@@ -1406,6 +1483,9 @@ def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
 
     assert "timeout-minutes: 7" in vpn_step
     assert 'SERVER_LIMIT: "4"' in vpn_step
+    assert "RUN_ATTEMPT: ${{ github.run_attempt }}" in vpn_step
+    assert "export LANE_INDEX=$((RUN_ATTEMPT - 1))" in vpn_step
+    assert 'SERVER_POOL_SIZE: "96"' in vpn_step
     assert 'CONNECT_TIMEOUT_SECONDS: "60"' in vpn_step
     assert 'OVERALL_TIMEOUT_SECONDS: "300"' in vpn_step
     assert (
@@ -1419,6 +1499,8 @@ def test_preflight_vpn_failures_are_carried_into_every_lane_quarantine(
     assert downstream_quarantine in extract
     assert 'CONNECT_TIMEOUT_SECONDS: "60"' in seed
     assert 'CONNECT_TIMEOUT_SECONDS: "60"' in extract
+    assert 'SERVER_POOL_SIZE: "96"' in seed
+    assert 'SERVER_POOL_SIZE: "96"' in extract
     for job in (preflight, seed, extract):
         assert "timeout-minutes: 7" in job
         assert "350 \\" in job
@@ -1568,11 +1650,78 @@ def test_discovery_seed_concurrency_tracks_network_mode_and_request_profile() ->
     assert "SEED_REQUEST_PROFILE: ${{ inputs.concurrency }}" in configure
     assert 'if [ "$EFFECTIVE_NETWORK_MODE" = "direct" ]; then' in configure
     assert "seed_concurrency=2" in configure
-    assert "conservative) seed_concurrency=4 ;;" in configure
-    assert "moderate) seed_concurrency=6 ;;" in configure
-    assert "aggressive) seed_concurrency=8 ;;" in configure
+    assert "seed_rate_limit=2" in configure
+    assert "conservative)" in configure
+    assert "seed_concurrency=2" in configure
+    assert "moderate)" in configure
+    assert "seed_concurrency=3" in configure
+    assert "seed_rate_limit=2" in configure
+    assert "aggressive)" in configure
+    assert "seed_concurrency=4" in configure
+    assert "seed_rate_limit=3" in configure
+    assert 'echo "NBADB_RATE_LIMIT=$seed_rate_limit"' in configure
     assert 'echo "NBADB_DISCOVERY_CONCURRENCY=$seed_concurrency"' in configure
     assert 'echo "NBADB_DISCOVERY_SEED_CONCURRENCY=$seed_concurrency"' in configure
+
+
+@pytest.mark.parametrize(
+    ("network_mode", "profile", "expected_env"),
+    [
+        (
+            "direct",
+            "aggressive",
+            "NBADB_RATE_LIMIT=2\nNBADB_DISCOVERY_CONCURRENCY=2\n"
+            "NBADB_DISCOVERY_SEED_CONCURRENCY=2\n",
+        ),
+        (
+            "vpn",
+            "conservative",
+            "NBADB_RATE_LIMIT=1\nNBADB_DISCOVERY_CONCURRENCY=2\n"
+            "NBADB_DISCOVERY_SEED_CONCURRENCY=2\n",
+        ),
+        (
+            "vpn",
+            "moderate",
+            "NBADB_RATE_LIMIT=2\nNBADB_DISCOVERY_CONCURRENCY=3\n"
+            "NBADB_DISCOVERY_SEED_CONCURRENCY=3\n",
+        ),
+        (
+            "vpn",
+            "aggressive",
+            "NBADB_RATE_LIMIT=3\nNBADB_DISCOVERY_CONCURRENCY=4\n"
+            "NBADB_DISCOVERY_SEED_CONCURRENCY=4\n",
+        ),
+    ],
+)
+def test_discovery_seed_profiles_emit_executable_rate_and_concurrency_contract(
+    tmp_path: pathlib.Path,
+    network_mode: str,
+    profile: str,
+    expected_env: str,
+) -> None:
+    seed = _job_block(_workflow_text(), "discovery_seed")
+    configure = seed.split("      - name: Configure discovery seed concurrency\n", 1)[1].split(
+        "      - name: Connect NordVPN tunnel for discovery seeding\n",
+        1,
+    )[0]
+    script = textwrap.dedent(configure.split("        run: |\n", 1)[1])
+    github_env = tmp_path / f"github-env-{network_mode}-{profile}"
+
+    result = subprocess.run(
+        ["bash", "-c", "set -euo pipefail\n" + script],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "EFFECTIVE_NETWORK_MODE": network_mode,
+            "SEED_REQUEST_PROFILE": profile,
+            "GITHUB_ENV": str(github_env),
+        },
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert github_env.read_text(encoding="utf-8") == expected_env
 
 
 def test_chained_discovery_seed_restores_exact_prior_run_artifact() -> None:
@@ -1580,18 +1729,29 @@ def test_chained_discovery_seed_restores_exact_prior_run_artifact() -> None:
 
     assert "actions: read" in seed
     assert "- name: Restore prior discovery artifacts" in seed
-    assert "if: ${{ inputs.lane_manifest_run_id != '' }}" in seed
-    assert "PRIOR_RUN_ID: ${{ inputs.lane_manifest_run_id }}" in seed
+    assert (
+        "if: ${{ inputs.lane_manifest_run_id != '' || inputs.resume_source_run_id != '' || "
+        "github.run_attempt > 1 }}"
+    ) in seed
+    assert "CURRENT_RUN_ID: ${{ github.run_id }}" in seed
+    assert "RUN_ATTEMPT: ${{ github.run_attempt }}" in seed
+    assert (
+        "MANIFEST_SOURCE_RUN_ID: ${{ inputs.lane_manifest_run_id || inputs.resume_source_run_id }}"
+    ) in seed
     assert (
         "DISCOVERY_ARTIFACT_NAME: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}"
     ) in seed
     assert (
-        "DISCOVERY_RECOVERY_PATTERN: full-extraction-discovery-recovery-"
-        "${{ env.ACTIVE_CHAIN_ID }}-run-${{ inputs.lane_manifest_run_id }}-attempt-*"
+        "DISCOVERY_RECOVERY_PREFIX: full-extraction-discovery-recovery-${{ env.ACTIVE_CHAIN_ID }}"
     ) in seed
-    assert 'gh run download "$PRIOR_RUN_ID"' in seed
+    assert 'restore_discovery_from_run "$CURRENT_RUN_ID" "current-run"' in seed
+    assert 'restore_discovery_from_run "$MANIFEST_SOURCE_RUN_ID" "manifest-source"' in seed
+    assert seed.index('restore_discovery_from_run "$CURRENT_RUN_ID" "current-run"') < seed.index(
+        'restore_discovery_from_run "$MANIFEST_SOURCE_RUN_ID" "manifest-source"'
+    )
+    assert 'gh run download "$source_run_id"' in seed
     assert '--name "$DISCOVERY_ARTIFACT_NAME"' in seed
-    assert '--pattern "$DISCOVERY_RECOVERY_PATTERN"' in seed
+    assert '--pattern "$recovery_pattern"' in seed
     assert "sort -V" in seed
     assert "Restored latest incomplete discovery recovery bundle" in seed
     assert "seeding this wave from scratch" in seed
@@ -1599,3 +1759,182 @@ def test_chained_discovery_seed_restores_exact_prior_run_artifact() -> None:
         "- name: Seed discovery artifacts"
     )
     assert "Prior player/team workload artifact is incomplete; ignoring it" in seed
+    assert "Canonical discovery workload bundle is incomplete" in seed
+    assert "Canonical discovery workload bundle is missing" in seed
+    assert "restored workload pointer or generation failed integrity validation" in seed
+    assert "Canonical discovery workload failed integrity validation" in seed
+    assert "Discarding invalid recovery workload state before reseeding" in seed
+
+
+def _restore_discovery_script() -> str:
+    seed = _job_block(_workflow_text(), "discovery_seed")
+    restore = _step_block(seed, "Restore prior discovery artifacts")
+    return textwrap.dedent(restore.split("        run: |\n", 1)[1]).replace(
+        "${{ github.repository }}",
+        "owner/repo",
+    )
+
+
+def _install_restore_test_commands(tmp_path: pathlib.Path) -> pathlib.Path:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    gh = fake_bin / "gh"
+    gh.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            printf '%s\\n' "$*" >> "$GH_LOG"
+            run_id="$3"
+            shift 3
+            destination=""
+            request_kind=""
+            request_value=""
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+                --dir)
+                  destination="$2"
+                  shift 2
+                  ;;
+                --name)
+                  request_kind="canonical"
+                  request_value="$2"
+                  shift 2
+                  ;;
+                --pattern)
+                  request_kind="recovery"
+                  request_value="$2"
+                  shift 2
+                  ;;
+                *)
+                  shift
+                  ;;
+              esac
+            done
+
+            marker=""
+            complete="true"
+            if [ "$GH_SCENARIO:$run_id:$request_kind" = "multi-recovery:101:recovery" ]; then
+              recovery_prefix="${request_value%\\*}"
+              for attempt in 1 2; do
+                target="$destination/${recovery_prefix}${attempt}"
+                mkdir -p "$target"
+                if [ "$attempt" = "1" ]; then
+                  marker="old-recovery"
+                else
+                  marker="latest-recovery"
+                fi
+                printf '{"marker":"%s"}\\n' "$marker" \
+                  > "$target/nba.player-team-season-workload.player-team-season-workload.json"
+                printf 'test parquet for %s\\n' "$marker" \
+                  > "$target/nba.player-team-season-workload.generation.parquet"
+              done
+              exit 0
+            fi
+            case "$GH_SCENARIO:$run_id:$request_kind" in
+              current-canonical:101:canonical)
+                marker="current"
+                ;;
+              source-fallback:202:canonical)
+                marker="source"
+                ;;
+              single-recovery:101:recovery)
+                marker="single-recovery"
+                ;;
+              canonical-partial:101:canonical)
+                marker="partial"
+                complete="false"
+                ;;
+              *)
+                exit 1
+                ;;
+            esac
+
+            mkdir -p "$destination"
+            printf '{"marker":"%s"}\\n' "$marker" \
+              > "$destination/nba.player-team-season-workload.player-team-season-workload.json"
+            if [ "$complete" = "true" ]; then
+              printf 'test parquet for %s\\n' "$marker" \
+                > "$destination/nba.player-team-season-workload.generation.parquet"
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    gh.chmod(0o755)
+    uv = fake_bin / "uv"
+    uv.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    uv.chmod(0o755)
+    return fake_bin
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_marker", "source_run_expected"),
+    [
+        ("current-canonical", "current", False),
+        ("single-recovery", "single-recovery", False),
+        ("multi-recovery", "latest-recovery", False),
+        ("source-fallback", "source", True),
+    ],
+)
+def test_discovery_restore_executes_precedence_fallback_and_recovery_layouts(
+    tmp_path: pathlib.Path,
+    scenario: str,
+    expected_marker: str,
+    source_run_expected: bool,
+) -> None:
+    fake_bin = _install_restore_test_commands(tmp_path)
+    gh_log = tmp_path / "gh.log"
+    result = subprocess.run(
+        ["bash", "-c", "set -euo pipefail\n" + _restore_discovery_script()],
+        check=False,
+        capture_output=True,
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "GH_LOG": str(gh_log),
+            "GH_SCENARIO": scenario,
+            "CURRENT_RUN_ID": "101",
+            "RUN_ATTEMPT": "2",
+            "MANIFEST_SOURCE_RUN_ID": "202",
+            "DISCOVERY_ARTIFACT_NAME": "canonical-artifact",
+            "DISCOVERY_RECOVERY_PREFIX": "recovery-artifact",
+        },
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    restored_pointer = (
+        tmp_path / "data/nbadb/nba.player-team-season-workload.player-team-season-workload.json"
+    )
+    assert json.loads(restored_pointer.read_text(encoding="utf-8"))["marker"] == expected_marker
+    calls = gh_log.read_text(encoding="utf-8")
+    assert ("run download 202" in calls) is source_run_expected
+
+
+def test_discovery_restore_rejects_truncated_canonical_bundle(
+    tmp_path: pathlib.Path,
+) -> None:
+    fake_bin = _install_restore_test_commands(tmp_path)
+    result = subprocess.run(
+        ["bash", "-c", "set -euo pipefail\n" + _restore_discovery_script()],
+        check=False,
+        capture_output=True,
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "GH_LOG": str(tmp_path / "gh.log"),
+            "GH_SCENARIO": "canonical-partial",
+            "CURRENT_RUN_ID": "101",
+            "RUN_ATTEMPT": "2",
+            "MANIFEST_SOURCE_RUN_ID": "",
+            "DISCOVERY_ARTIFACT_NAME": "canonical-artifact",
+            "DISCOVERY_RECOVERY_PREFIX": "recovery-artifact",
+        },
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "Canonical discovery workload bundle is incomplete" in result.stdout

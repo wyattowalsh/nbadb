@@ -8,8 +8,9 @@ import signal
 import subprocess
 import time
 from contextlib import suppress
+from ipaddress import ip_address, ip_network
 from pathlib import Path
-from typing import Final
+from typing import Final, NamedTuple
 
 
 class ActionError(RuntimeError):
@@ -17,6 +18,12 @@ class ActionError(RuntimeError):
         super().__init__(message)
         self.status = status
         self.message = message
+
+
+class ServerCandidate(NamedTuple):
+    hostname: str
+    network_key: str | None
+    city_key: str
 
 
 AUTH_FAILURE_PATTERN: Final[re.Pattern[str]] = re.compile(r"AUTH_FAILED|auth-failure")
@@ -69,6 +76,7 @@ NBA_STACK_PROBE_ERROR_TYPES: Final[frozenset[str]] = (
 NBA_STACK_PROBE_FAILURE_KINDS: Final[frozenset[str]] = frozenset(
     {"empty", "exception", "invalid_values", "missing_columns"}
 )
+MAX_RECOMMENDATION_POOL_SIZE: Final[int] = 200
 NBA_PROBE_HEADERS: Final[tuple[tuple[str, str], ...]] = (
     ("Accept", "application/json, text/plain, */*"),
     ("Accept-Language", "en-US,en;q=0.5"),
@@ -84,7 +92,13 @@ NBA_PROBE_HEADERS: Final[tuple[tuple[str, str], ...]] = (
 )
 
 
-def env_int(name: str, default: int, *, minimum: int | None = None) -> int:
+def env_int(
+    name: str,
+    default: int,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
     raw = os.environ.get(name, "").strip()
     if not raw:
         raw = str(default)
@@ -99,6 +113,11 @@ def env_int(name: str, default: int, *, minimum: int | None = None) -> int:
         raise ActionError(
             "vpn_network_error",
             f"{name} must be >= {minimum}, got {value}",
+        )
+    if maximum is not None and value > maximum:
+        raise ActionError(
+            "vpn_network_error",
+            f"{name} must be <= {maximum}, got {value}",
         )
     return value
 
@@ -223,7 +242,18 @@ class NordVpnConnectAction:
         self.token_auth_file = self.work_dir / "nordvpn-token.netrc"
 
         self.selector_index = env_int("LANE_INDEX", env_int("SHARD_INDEX", 0), minimum=0)
-        self.server_limit = env_int("SERVER_LIMIT", 4, minimum=1)
+        self.server_limit = env_int(
+            "SERVER_LIMIT",
+            4,
+            minimum=1,
+            maximum=MAX_RECOMMENDATION_POOL_SIZE,
+        )
+        self.server_pool_size = env_int(
+            "SERVER_POOL_SIZE",
+            48,
+            minimum=self.server_limit,
+            maximum=MAX_RECOMMENDATION_POOL_SIZE,
+        )
         self.connect_timeout = env_int("CONNECT_TIMEOUT_SECONDS", 90, minimum=30)
         self.overall_timeout = env_int("OVERALL_TIMEOUT_SECONDS", 300, minimum=30)
         self.auth_rejection_limit = env_int("AUTH_REJECTION_LIMIT", 3, minimum=1)
@@ -281,6 +311,10 @@ class NordVpnConnectAction:
         self.auth_validated = self.configured_auth_prevalidated
         self.last_attempt_auth_failed = False
         self.technology_selection_offsets: dict[str, int] = {}
+        self.server_candidates_by_technology: dict[str, tuple[ServerCandidate, ...]] = {}
+        self.server_candidate_limits_by_technology: dict[str, int] = {}
+        self.attempt_count_by_technology: dict[str, int] = {}
+        self.attempted_servers_by_technology: dict[str, set[str]] = {}
         self.technology_cursor = 0
         probes_enabled = self.nba_probe_enabled or self.nba_stack_probe_enabled
         self.nba_probe_status = "not_run" if probes_enabled else "disabled"
@@ -712,44 +746,215 @@ class NordVpnConnectAction:
         self.prepare_auth(require_token=True)
         return True
 
-    def recommendation_servers(self, technology: str) -> list[str]:
-        excluded_servers = {*self.quarantined_servers, *self.failed_servers}
-        recommendation_limit = self.server_limit + len(excluded_servers)
+    @staticmethod
+    def recommendation_network_key(station: object) -> str | None:
+        raw_station = str(station or "").strip()
+        try:
+            address = ip_address(raw_station)
+        except ValueError:
+            return None
+        if address.version != 4:
+            return None
+        return str(ip_network(f"{address}/24", strict=False))
+
+    @staticmethod
+    def recommendation_city_key(item: dict[str, object], hostname: str) -> str:
+        city_names: set[str] = set()
+        locations = item.get("locations")
+        if isinstance(locations, list):
+            for location in locations:
+                if not isinstance(location, dict):
+                    continue
+                country = location.get("country")
+                if not isinstance(country, dict):
+                    continue
+                city = country.get("city")
+                if not isinstance(city, dict):
+                    continue
+                name = str(city.get("name") or "").strip()
+                if name:
+                    city_names.add(name.casefold())
+        return min(city_names) if city_names else f"host:{hostname}"
+
+    def fetch_server_candidates(
+        self,
+        technology: str,
+        *,
+        excluded_servers: set[str] | None = None,
+        required_eligible_count: int = 0,
+    ) -> tuple[ServerCandidate, ...]:
+        excluded_servers = excluded_servers or set()
+        cached = self.server_candidates_by_technology.get(technology)
+        cached_limit = self.server_candidate_limits_by_technology.get(technology, 0)
+        if cached is not None:
+            eligible_count = sum(candidate.hostname not in excluded_servers for candidate in cached)
+            if (
+                eligible_count >= required_eligible_count
+                or cached_limit >= MAX_RECOMMENDATION_POOL_SIZE
+            ):
+                return cached
+
+        inventory_limit = min(
+            MAX_RECOMMENDATION_POOL_SIZE,
+            max(
+                self.server_pool_size + len(excluded_servers),
+                cached_limit * 2,
+                cached_limit + required_eligible_count,
+            ),
+        )
         url = (
-            "https://api.nordvpn.com/v1/servers/recommendations"
-            f"?limit={recommendation_limit}"
+            "https://api.nordvpn.com/v1/servers"
+            f"?limit={inventory_limit}"
             f"&filters[country_id]={self.country_id}"
             f"&filters[servers_technologies][identifier]={technology}"
         )
         if not self.retry_http_get(
-            f"NordVPN server recommendations request ({technology})",
+            f"NordVPN server inventory request ({technology})",
             self.servers_file,
             url,
             "--globoff",
         ):
-            return []
+            return cached or ()
         try:
             payload = json.loads(self.servers_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
+            return cached or ()
+        if not isinstance(payload, list):
+            return cached or ()
+
+        candidates_by_hostname: dict[str, ServerCandidate] = {}
+        for item in payload:
+            if not isinstance(item, dict) or item.get("status") != "online":
+                continue
+            hostname = str(item.get("hostname") or "").strip()
+            if not hostname or hostname in candidates_by_hostname:
+                continue
+            candidates_by_hostname[hostname] = ServerCandidate(
+                hostname=hostname,
+                network_key=self.recommendation_network_key(item.get("station")),
+                city_key=self.recommendation_city_key(item, hostname),
+            )
+
+        candidates = tuple(
+            candidates_by_hostname[hostname] for hostname in sorted(candidates_by_hostname)
+        )
+        self.server_candidates_by_technology[technology] = candidates
+        self.server_candidate_limits_by_technology[technology] = inventory_limit
+        return candidates
+
+    def recommendation_servers(self, technology: str) -> list[str]:
+        remaining_attempts = self.server_limit - self.attempt_count_by_technology.get(
+            technology,
+            0,
+        )
+        if remaining_attempts <= 0:
             return []
 
-        seen: set[str] = set()
-        raw_servers: list[str] = []
-        for item in payload:
-            hostname = str(item.get("hostname") or "").strip()
-            if not hostname or hostname in seen:
-                continue
-            seen.add(hostname)
-            raw_servers.append(hostname)
-
-        filtered = [server for server in raw_servers if server not in excluded_servers]
-        if not filtered:
-            print(f"::warning::All recommended NordVPN servers are excluded for {technology}")
+        excluded_servers = {*self.quarantined_servers, *self.failed_servers}
+        attempted_servers = self.attempted_servers_by_technology.setdefault(technology, set())
+        candidates = self.fetch_server_candidates(
+            technology,
+            excluded_servers={*excluded_servers, *attempted_servers},
+            required_eligible_count=remaining_attempts,
+        )
+        if not candidates:
             return []
 
         selection_offset = self.technology_selection_offsets.get(technology, 0)
-        start_index = (self.selector_index + selection_offset) % len(filtered)
-        return [filtered[(start_index + offset) % len(filtered)] for offset in range(len(filtered))]
+        start_index = (self.selector_index * self.server_limit + selection_offset) % len(candidates)
+        rotated = candidates[start_index:] + candidates[:start_index]
+        eligible = [
+            candidate
+            for candidate in rotated
+            if candidate.hostname not in excluded_servers
+            and candidate.hostname not in attempted_servers
+        ]
+        if not eligible:
+            print(f"::warning::All inventory servers are excluded for {technology}")
+            return []
+
+        selected: list[ServerCandidate] = []
+        selected_networks: set[str] = set()
+        city_use_count: dict[str, int] = {}
+        network_use_count: dict[str, int] = {}
+        prior_candidates = {
+            candidate.hostname: candidate
+            for candidate in candidates
+            if candidate.hostname in attempted_servers
+        }
+        for candidate in prior_candidates.values():
+            city_use_count[candidate.city_key] = city_use_count.get(candidate.city_key, 0) + 1
+            if candidate.network_key is not None:
+                selected_networks.add(candidate.network_key)
+                network_use_count[candidate.network_key] = (
+                    network_use_count.get(candidate.network_key, 0) + 1
+                )
+
+        cyclic_rank = {candidate.hostname: index for index, candidate in enumerate(rotated)}
+
+        def _select_candidate(pool: list[ServerCandidate], *, phase: int) -> ServerCandidate:
+            if phase == 1:
+                return min(
+                    pool,
+                    key=lambda candidate: (
+                        city_use_count.get(candidate.city_key, 0),
+                        cyclic_rank[candidate.hostname],
+                    ),
+                )
+            if phase == 2:
+                return min(
+                    pool,
+                    key=lambda candidate: (
+                        network_use_count.get(candidate.network_key or "", 0),
+                        city_use_count.get(candidate.city_key, 0),
+                        cyclic_rank[candidate.hostname],
+                    ),
+                )
+            return min(
+                pool,
+                key=lambda candidate: (
+                    city_use_count.get(candidate.city_key, 0),
+                    cyclic_rank[candidate.hostname],
+                ),
+            )
+
+        remaining = list(eligible)
+        while remaining and len(selected) < remaining_attempts:
+            unique_network_pool = [
+                candidate
+                for candidate in remaining
+                if candidate.network_key is not None
+                and candidate.network_key not in selected_networks
+            ]
+            valid_network_pool = [
+                candidate for candidate in remaining if candidate.network_key is not None
+            ]
+            if unique_network_pool:
+                phase = 1
+                pool = unique_network_pool
+            elif valid_network_pool:
+                phase = 2
+                pool = valid_network_pool
+            else:
+                phase = 3
+                pool = remaining
+            candidate = _select_candidate(pool, phase=phase)
+            selected.append(candidate)
+            remaining.remove(candidate)
+            city_use_count[candidate.city_key] = city_use_count.get(candidate.city_key, 0) + 1
+            if candidate.network_key is not None:
+                selected_networks.add(candidate.network_key)
+                network_use_count[candidate.network_key] = (
+                    network_use_count.get(candidate.network_key, 0) + 1
+                )
+
+        print(
+            "::notice::Selected "
+            f"{len(selected)} bounded {technology} attempts from {len(eligible)} "
+            f"eligible inventory servers across {len(selected_networks)} station networks "
+            f"and {len({candidate.city_key for candidate in selected})} cities"
+        )
+        return [candidate.hostname for candidate in selected]
 
     def config_url(self, server: str, technology: str) -> str:
         if technology == "openvpn_udp":
@@ -1222,7 +1427,7 @@ class NordVpnConnectAction:
         auth_recovery_round = 0
         while True:
             technologies = [self.technology]
-            if self.fallback_technology:
+            if self.fallback_technology and self.fallback_technology not in technologies:
                 technologies.append(self.fallback_technology)
             if len(technologies) > 1:
                 cursor = self.technology_cursor % len(technologies)
@@ -1239,6 +1444,10 @@ class NordVpnConnectAction:
                     attempted_network = True
                     continue
                 for server in servers:
+                    self.attempt_count_by_technology[technology] = (
+                        self.attempt_count_by_technology.get(technology, 0) + 1
+                    )
+                    self.attempted_servers_by_technology.setdefault(technology, set()).add(server)
                     try:
                         if self.attempt_server(server, technology):
                             print(

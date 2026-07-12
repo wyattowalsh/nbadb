@@ -954,6 +954,32 @@ async def _seed_game_discovery_pairs(
         expected_pairs = {
             (season, season_type) for season in seasons for season_type in season_types
         }
+        batch_persisted_pairs: set[tuple[str, str]] = set()
+
+        def _persist_combo(
+            pair: tuple[str, str],
+            frame: Any,
+            *,
+            expected: set[tuple[str, str]] = expected_pairs,
+            batch_persisted: set[tuple[str, str]] = batch_persisted_pairs,
+            current_batch_index: int = batch_index,
+        ) -> None:
+            if pair not in expected or pair in batch_persisted:
+                return
+            store.upsert_game_log_combo_frames(
+                {pair: frame},
+                provenance="workflow-discovery-seed",
+            )
+            batch_persisted.add(pair)
+            persisted_pairs.add(pair)
+            if progress is not None:
+                progress.mark_game_pairs({pair})
+            if checkpoint is not None:
+                checkpoint(
+                    f"game_batch_{current_batch_index}_combo_{len(batch_persisted)}"
+                    f"_of_{len(expected)}"
+                )
+
         logger.info(
             "seeding exact game discovery for {} combos across {} seasons",
             len(expected_pairs),
@@ -963,6 +989,7 @@ async def _seed_game_discovery_pairs(
             result = await discovery.discover_game_ids_result(
                 list(seasons),
                 season_types=list(season_types),
+                on_combo_covered=_persist_combo,
             )
         except Exception as exc:
             failure_type = type(exc).__name__
@@ -1017,13 +1044,7 @@ async def _seed_game_discovery_pairs(
                 progress.record_failure_type(failure_kind)
         if complete_frames:
             for pair, frame in sorted(complete_frames.items()):
-                store.upsert_game_log_combo_frames(
-                    {pair: frame},
-                    provenance="workflow-discovery-seed",
-                )
-                persisted_pairs.add(pair)
-                if progress is not None:
-                    progress.mark_game_pairs({pair})
+                _persist_combo(pair, frame)
         if on_result is not None:
             batch_summary = {
                 "kind": "league_game_log",

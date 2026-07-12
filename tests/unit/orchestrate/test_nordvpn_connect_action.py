@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -64,7 +65,7 @@ def runner_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return output_path
 
 
-def test_env_int_validates_type_and_minimum(
+def test_env_int_validates_type_and_bounds(
     monkeypatch: pytest.MonkeyPatch,
     runner_env: Path,
 ) -> None:
@@ -82,6 +83,10 @@ def test_env_int_validates_type_and_minimum(
     monkeypatch.setenv("SHARD_INDEX", "-1")
     with pytest.raises(module.ActionError, match="SHARD_INDEX must be >= 0"):
         module.env_int("SHARD_INDEX", 7, minimum=0)
+
+    monkeypatch.setenv("SHARD_INDEX", "201")
+    with pytest.raises(module.ActionError, match="SHARD_INDEX must be <= 200"):
+        module.env_int("SHARD_INDEX", 7, minimum=0, maximum=200)
 
 
 def test_parse_quarantined_servers_normalizes_and_rejects_non_arrays(
@@ -620,6 +625,7 @@ def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
     action = module.NordVpnConnectAction()
     action.work_dir.mkdir(parents=True, exist_ok=True)
     action.server_limit = 2
+    action.server_pool_size = 2
     action.failed_servers = ["us1001.nordvpn.com"]
     requested_urls: list[str] = []
 
@@ -633,9 +639,21 @@ def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
         output_path.write_text(
             json.dumps(
                 [
-                    {"hostname": "us1001.nordvpn.com"},
-                    {"hostname": "us1002.nordvpn.com"},
-                    {"hostname": "us1003.nordvpn.com"},
+                    {
+                        "hostname": "us1001.nordvpn.com",
+                        "status": "online",
+                        "station": "192.0.2.1",
+                    },
+                    {
+                        "hostname": "us1002.nordvpn.com",
+                        "status": "online",
+                        "station": "198.51.100.1",
+                    },
+                    {
+                        "hostname": "us1003.nordvpn.com",
+                        "status": "online",
+                        "station": "203.0.113.1",
+                    },
                 ]
             ),
             encoding="utf-8",
@@ -649,7 +667,180 @@ def test_recommendations_exclude_runtime_failures_across_fallback_technologies(
         "us1003.nordvpn.com",
     ]
     assert "limit=3" in requested_urls[0]
+    assert "/v1/servers?" in requested_urls[0]
     assert "openvpn_tcp" in requested_urls[0]
+
+
+def test_recommendations_expand_cached_inventory_after_cross_protocol_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 2
+    action.server_pool_size = 2
+    requested_limits: list[int] = []
+    candidates = [
+        {
+            "hostname": f"us100{index}.nordvpn.com",
+            "status": "online",
+            "station": f"192.0.{index}.1",
+        }
+        for index in range(1, 5)
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        limit_match = re.search(r"[?&]limit=(\d+)", url)
+        assert limit_match is not None
+        limit = int(limit_match.group(1))
+        requested_limits.append(limit)
+        output_path.write_text(json.dumps(candidates[:limit]), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert [candidate.hostname for candidate in action.fetch_server_candidates("openvpn_tcp")] == [
+        "us1001.nordvpn.com",
+        "us1002.nordvpn.com",
+    ]
+    action.failed_servers = ["us1001.nordvpn.com"]
+
+    assert action.recommendation_servers("openvpn_tcp") == [
+        "us1002.nordvpn.com",
+        "us1003.nordvpn.com",
+    ]
+    assert requested_limits == [2, 4]
+
+
+def test_recommendations_diversify_station_networks_and_bound_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 3
+    action.server_pool_size = 8
+    requested_urls: list[str] = []
+
+    candidates = [
+        ("us1001.nordvpn.com", "192.0.2.1", "New York"),
+        ("us1002.nordvpn.com", "192.0.2.2", "New York"),
+        ("us1003.nordvpn.com", "198.51.100.1", "Dallas"),
+        ("us1004.nordvpn.com", "203.0.113.1", "Denver"),
+        ("us1005.nordvpn.com", "198.51.100.2", "Los Angeles"),
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        requested_urls.append(url)
+        output_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "hostname": hostname,
+                        "status": "online",
+                        "station": station,
+                        "locations": [{"country": {"city": {"name": city}}}],
+                    }
+                    for hostname, station, city in reversed(candidates)
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.recommendation_servers("openvpn_udp") == [
+        "us1001.nordvpn.com",
+        "us1003.nordvpn.com",
+        "us1004.nordvpn.com",
+    ]
+    assert "limit=8" in requested_urls[0]
+    assert "/v1/servers?" in requested_urls[0]
+
+
+def test_recommendations_partition_adjacent_lane_starts(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.selector_index = 1
+    action.server_limit = 2
+    action.server_pool_size = 6
+    action.quarantined_servers = ("us1001.nordvpn.com",)
+    candidates = [
+        {
+            "hostname": f"us100{index}.nordvpn.com",
+            "status": "online",
+            "station": f"192.0.{index}.1",
+            "locations": [{"country": {"city": {"name": f"City {index}"}}}],
+        }
+        for index in range(1, 7)
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(json.dumps(candidates), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.recommendation_servers("openvpn_udp") == [
+        "us1003.nordvpn.com",
+        "us1004.nordvpn.com",
+    ]
+
+
+def test_recommendations_use_invalid_or_ipv6_stations_only_as_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.server_limit = 3
+    action.server_pool_size = 4
+    candidates = [
+        {"hostname": "us1001.nordvpn.com", "status": "online", "station": "invalid"},
+        {"hostname": "us1002.nordvpn.com", "status": "online", "station": "2001:db8::1"},
+        {"hostname": "us1003.nordvpn.com", "status": "online", "station": "192.0.2.1"},
+        {"hostname": "us1004.nordvpn.com", "status": "online", "station": "198.51.100.1"},
+    ]
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+    ) -> bool:
+        output_path.write_text(json.dumps(candidates), encoding="utf-8")
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+
+    assert action.recommendation_servers("openvpn_udp") == [
+        "us1003.nordvpn.com",
+        "us1004.nordvpn.com",
+        "us1001.nordvpn.com",
+    ]
 
 
 def test_verify_connection_keeps_full_tunnel_gate_before_network_probes(
@@ -694,6 +885,7 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "configured-auth-prevalidated:" in metadata
     assert "auth-rejection-limit:" in metadata
     assert "auth-recovery-rounds:" in metadata
+    assert "server-pool-size:" in metadata
     assert "auth-source:" in metadata
     assert "NBA_PROBE_ENABLED: ${{ inputs.nba-probe-enabled }}" in metadata
     assert "NBA_PROBE_URL: ${{ inputs.nba-probe-url }}" in metadata
@@ -707,6 +899,7 @@ def test_action_metadata_exposes_nba_probe_and_auth_recovery_contract() -> None:
     assert "CONFIGURED_AUTH_PREVALIDATED: ${{ inputs.configured-auth-prevalidated }}" in metadata
     assert "AUTH_REJECTION_LIMIT: ${{ inputs.auth-rejection-limit }}" in metadata
     assert "AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}" in metadata
+    assert "SERVER_POOL_SIZE: ${{ inputs.server-pool-size }}" in metadata
 
 
 def test_pid_alive_returns_false_when_probe_times_out(
@@ -1405,9 +1598,18 @@ def test_auth_recovery_covers_untried_servers_and_alternates_protocols(
         *extra_args: str,
         **kwargs,
     ) -> bool:
-        assert label.startswith("NordVPN server recommendations request")
+        assert label.startswith("NordVPN server inventory request")
         output_path.write_text(
-            json.dumps([{"hostname": server} for server in servers]),
+            json.dumps(
+                [
+                    {
+                        "hostname": server,
+                        "status": "online",
+                        "station": f"192.0.{index}.1",
+                    }
+                    for index, server in enumerate(servers, start=1)
+                ]
+            ),
             encoding="utf-8",
         )
         return True
@@ -1435,6 +1637,81 @@ def test_auth_recovery_covers_untried_servers_and_alternates_protocols(
         "openvpn_udp": 6,
         "openvpn_tcp": 3,
     }
+    assert action.attempt_count_by_technology == {
+        "openvpn_udp": 6,
+        "openvpn_tcp": 3,
+    }
+
+
+def test_server_limit_caps_calls_across_all_auth_recovery_rounds(
+    monkeypatch: pytest.MonkeyPatch,
+    runner_env: Path,
+) -> None:
+    module = _load_module()
+    action = module.NordVpnConnectAction()
+    action.work_dir.mkdir(parents=True, exist_ok=True)
+    action.auth_source = "configured"
+    action.auth_validated = True
+    action.server_limit = 4
+    action.server_pool_size = 8
+    action.auth_rejection_limit = 3
+    action.auth_recovery_rounds = 2
+    action.auth_recovery_base_delay = 0
+
+    monkeypatch.setattr(action, "prepare_workdir", lambda: None)
+    monkeypatch.setattr(action, "install_dependencies", lambda: None)
+    monkeypatch.setattr(action, "determine_baseline_ip", lambda: None)
+    monkeypatch.setattr(action, "prepare_auth", lambda **kwargs: None)
+    monkeypatch.setattr(action, "make_workdir_readable", lambda: None)
+    monkeypatch.setattr(action, "remaining_budget", lambda: 500.0)
+    monkeypatch.setattr(action, "sleep_with_budget", lambda *args, **kwargs: True)
+
+    servers = [f"us100{index}.nordvpn.com" for index in range(1, 9)]
+    inventory_requests: list[str] = []
+
+    def _fake_retry_http_get(
+        label: str,
+        output_path: Path,
+        url: str,
+        *extra_args: str,
+        **kwargs,
+    ) -> bool:
+        inventory_requests.append(url)
+        output_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "hostname": server,
+                        "status": "online",
+                        "station": f"192.0.{index}.1",
+                    }
+                    for index, server in enumerate(servers, start=1)
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return True
+
+    monkeypatch.setattr(action, "retry_http_get", _fake_retry_http_get)
+    attempts: list[tuple[str, str]] = []
+
+    def _reject_auth(server: str, technology: str) -> bool:
+        attempts.append((technology, server))
+        action.last_attempt_auth_failed = True
+        return False
+
+    monkeypatch.setattr(action, "attempt_server", _reject_auth)
+
+    with pytest.raises(module.ActionError) as excinfo:
+        action.run()
+
+    assert excinfo.value.status == "vpn_auth_failure"
+    assert action.attempt_count_by_technology == {
+        "openvpn_udp": 4,
+        "openvpn_tcp": 4,
+    }
+    assert len(attempts) == 8
+    assert len(inventory_requests) == 2
 
 
 def test_install_dependencies_skips_when_tools_are_already_present(

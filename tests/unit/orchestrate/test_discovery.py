@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
-from threading import Barrier, Lock
+from threading import Barrier, Event, Lock
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -863,6 +863,49 @@ class TestDiscoverPlayerTeamSeasonParams:
             (season, "Regular Season"): "response" for season in seasons
         }
 
+    async def test_mixed_broad_player_team_outage_isolates_failure_class_canaries(self):
+        seasons = ["2021-22", "2022-23", "2023-24", "2024-25"]
+        calls: Counter[str] = Counter()
+        response_seasons = {"2021-22", "2023-24"}
+        transport_seasons = {"2022-23", "2024-25"}
+
+        def _side_effect(*_args, **kwargs):
+            season = kwargs["season"]
+            calls[season] += 1
+            if season in response_seasons:
+                return pl.DataFrame({"person_id": [1]})
+            if calls[season] == 1:
+                raise ConnectionError("transport outage")
+            return pl.DataFrame({"person_id": [1], "team_id": [10]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=4,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            result = await disc.discover_player_team_season_params_result(seasons)
+
+        assert calls == Counter(
+            {
+                "2021-22": 1 + _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
+                "2022-23": 2,
+                "2023-24": 1,
+                "2024-25": 2,
+            }
+        )
+        assert result.covered_pairs == {(season, "Regular Season") for season in transport_seasons}
+        assert result.failures_by_pair == {
+            (season, "Regular Season"): "response" for season in response_seasons
+        }
+
     async def test_does_not_recover_permanent_player_team_failures(self):
         seasons = ["2023-24", "2024-25"]
 
@@ -1388,6 +1431,7 @@ class TestDiscoverGameIds:
         reg = MagicMock()
         reg.get.return_value = _Ext
         progress = MagicMock()
+        covered_callbacks: list[tuple[tuple[str, str], list[str]]] = []
         settings = SimpleNamespace(
             rate_limit=1000.0,
             discovery_concurrency=2,
@@ -1403,6 +1447,9 @@ class TestDiscoverGameIds:
                 ["2024-25"],
                 on_progress=progress,
                 season_types=["Regular Season", "Playoffs"],
+                on_combo_covered=lambda combo, frame: covered_callbacks.append(
+                    (combo, frame.get_column("game_id").to_list())
+                ),
             )
 
         assert result.game_ids == ["002"]
@@ -1412,6 +1459,7 @@ class TestDiscoverGameIds:
             ("2024-25", "Playoffs"),
         }
         assert result.covered_combos == {("2024-25", "Playoffs")}
+        assert covered_callbacks == [(("2024-25", "Playoffs"), ["002"])]
         assert call_counts == {
             ("2024-25", "Regular Season"): 3,
             ("2024-25", "Playoffs"): 1,
@@ -1421,6 +1469,51 @@ class TestDiscoverGameIds:
             1,
         )
         set_session.assert_not_called()
+
+    async def test_game_combo_callback_persists_before_other_fast_pass_tasks_finish(self):
+        release_regular_season = Event()
+        covered_callbacks: list[tuple[str, str]] = []
+
+        def _side_effect(*_args, **kwargs):
+            if kwargs["season_type"] == "Regular Season":
+                assert release_regular_season.wait(timeout=5)
+            game_id = "001" if kwargs["season_type"] == "Regular Season" else "002"
+            return pl.DataFrame({"game_id": [game_id], "game_date": ["2025-01-01"]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=2,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            task = asyncio.create_task(
+                disc.discover_game_ids_result(
+                    ["2024-25"],
+                    season_types=["Regular Season", "Playoffs"],
+                    on_combo_covered=lambda combo, _frame: covered_callbacks.append(combo),
+                )
+            )
+            for _attempt in range(100):
+                if covered_callbacks:
+                    break
+                await asyncio.sleep(0.01)
+
+            assert covered_callbacks == [("2024-25", "Playoffs")]
+            assert not task.done()
+            release_regular_season.set()
+            result = await task
+
+        assert result.covered_combos == {
+            ("2024-25", "Regular Season"),
+            ("2024-25", "Playoffs"),
+        }
 
     async def test_broad_game_transport_outage_uses_bounded_canary_and_honors_concurrency(self):
         seasons = ["2023-24", "2024-25"]
@@ -1521,6 +1614,52 @@ class TestDiscoverGameIds:
         )
         assert result.covered_combos == frozenset()
         assert result.failures_by_combo == {combo: "response" for combo in combos}
+
+    async def test_mixed_broad_game_outage_isolates_failure_class_canaries(self):
+        seasons = ["2023-24", "2024-25"]
+        season_types = ["Regular Season", "Playoffs"]
+        combos = [(season, season_type) for season in seasons for season_type in season_types]
+        calls: Counter[tuple[str, str]] = Counter()
+        transport_combos = {combo for combo in combos if combo[1] == "Regular Season"}
+        response_combos = set(combos) - transport_combos
+
+        def _side_effect(*_args, **kwargs):
+            combo = (kwargs["season"], kwargs["season_type"])
+            calls[combo] += 1
+            if combo in response_combos:
+                return pl.DataFrame({"game_date": ["2025-01-01"]})
+            if calls[combo] == 1:
+                raise ConnectionError("transport outage")
+            return pl.DataFrame({"game_id": [combo[0]], "game_date": ["2025-01-01"]})
+
+        class _Ext:
+            pass
+
+        reg = MagicMock()
+        reg.get.return_value = _Ext
+        settings = SimpleNamespace(
+            rate_limit=1000.0,
+            discovery_concurrency=2,
+            extract_max_retries=4,
+            extract_retry_base_delay=0.0,
+        )
+        with patch("nbadb.orchestrate.discovery._sync_extract", side_effect=_side_effect):
+            disc = EntityDiscovery(reg, settings=settings)
+            result = await disc.discover_game_ids_result(
+                seasons,
+                season_types=season_types,
+            )
+
+        assert calls == Counter(
+            {
+                ("2023-24", "Regular Season"): 2,
+                ("2023-24", "Playoffs"): 1 + _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
+                ("2024-25", "Regular Season"): 2,
+                ("2024-25", "Playoffs"): 1,
+            }
+        )
+        assert result.covered_combos == transport_combos
+        assert result.failures_by_combo == {combo: "response" for combo in response_combos}
 
     async def test_broad_game_canary_survives_two_transient_failures_before_recovery(self):
         combos = [

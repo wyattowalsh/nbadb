@@ -31,9 +31,13 @@ inputs:
     required: false
     default: "0"
   server-limit:
-    description: Number of recommended servers to fetch for selection and fallback.
+    description: Hard maximum connection attempts per distinct protocol across all recovery rounds.
     required: false
     default: "4"
+  server-pool-size:
+    description: Initial country inventory pool per protocol; the cache expands only when later exclusions underfill the remaining bounded attempts.
+    required: false
+    default: "48"
   auth-rejection-limit:
     description: Maximum authentication rejections before pausing a server sweep.
     required: false
@@ -161,6 +165,7 @@ runs:
         LANE_INDEX: ${{ inputs.lane-index }}
         SHARD_INDEX: ${{ inputs.shard-index }}
         SERVER_LIMIT: ${{ inputs.server-limit }}
+        SERVER_POOL_SIZE: ${{ inputs.server-pool-size }}
         AUTH_REJECTION_LIMIT: ${{ inputs.auth-rejection-limit }}
         AUTH_RECOVERY_ROUNDS: ${{ inputs.auth-recovery-rounds }}
         AUTH_RECOVERY_BASE_DELAY_SECONDS: ${{ inputs.auth-recovery-base-delay-seconds }}

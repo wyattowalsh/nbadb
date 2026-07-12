@@ -479,6 +479,7 @@ jobs:
               Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8")
           )
           requested = os.environ["REQUESTED_CHAIN_ID"]
+          expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
           artifact_name = os.environ["ARTIFACT_NAME"]
           chain_state = manifest.get("chain_state", {})
           manifest_ids = {
@@ -494,6 +495,14 @@ jobs:
               print(
                   "::error::Manifest chain identity does not match requested chain_id "
                   f"{requested!r}: {mismatched_ids}"
+              )
+              raise SystemExit(1)
+
+          manifest_source_sha = str(manifest.get("workflow_source_sha") or "").lower()
+          if manifest_source_sha != expected_source_sha:
+              print(
+                  "::error::Manifest source SHA does not match the pinned workflow source "
+                  f"{expected_source_sha!r}: {manifest_source_sha or '<missing>'!r}"
               )
               raise SystemExit(1)
 
@@ -541,6 +550,41 @@ jobs:
               find "$RUNNER_TEMP/resume-source/manifest" -maxdepth 4 -type f -print || true
               exit 1
             fi
+            MANIFEST_PATH="$source_manifest" \
+              REQUESTED_CHAIN_ID="$REQUESTED_CHAIN_ID" \
+              python - <<'PY'
+          # RESUME_SOURCE_MANIFEST_VERIFIER
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8")
+          )
+          requested_chain_id = os.environ["REQUESTED_CHAIN_ID"]
+          expected_source_sha = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          manifest_chain_id = str(manifest.get("chain_id") or "").strip()
+          manifest_source_sha = str(manifest.get("workflow_source_sha") or "").lower()
+
+          if manifest_chain_id != requested_chain_id:
+              print(
+                  "::error::Resume source manifest chain identity does not match "
+                  f"requested chain_id {requested_chain_id!r}: "
+                  f"{manifest_chain_id or '<missing>'!r}"
+              )
+              raise SystemExit(1)
+          if manifest_source_sha != expected_source_sha:
+              print(
+                  "::error::Resume source manifest SHA does not match the pinned "
+                  f"workflow source {expected_source_sha!r}: "
+                  f"{manifest_source_sha or '<missing>'!r}"
+              )
+              raise SystemExit(1)
+          print(
+              f"Verified resume source manifest for chain {requested_chain_id} "
+              f"at {expected_source_sha}"
+          )
+          PY
             resume_args=(
               resume
               --lane-manifest-path "$source_manifest"
@@ -573,6 +617,12 @@ jobs:
           from pathlib import Path
 
           manifest = json.loads(Path("artifacts/full-extraction/manifest.json").read_text(encoding="utf-8"))
+          manifest["chain_id"] = os.environ["CHAIN_ID"]
+          manifest["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          Path("artifacts/full-extraction/manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
           compact_matrix = json.dumps(manifest["github_matrix"], separators=(",", ":"))
           compact_quarantined_servers = json.dumps(
               manifest.get("chain_state", {}).get("vpn_quarantined_servers", []),
@@ -639,7 +689,7 @@ jobs:
             artifacts/full-extraction/resume-source-manifest.stdout.json
             artifacts/endpoint-coverage/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
           compression-level: 6
 
   publication_preflight:
@@ -783,13 +833,15 @@ jobs:
           OPENVPN_USER: ${{ secrets.OPENVPN_USER }}
           OPENVPN_PASSWORD: ${{ secrets.OPENVPN_PASSWORD }}
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
-          LANE_INDEX: "0"
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           SERVER_LIMIT: "4"
+          SERVER_POOL_SIZE: "96"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
           CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
           QUARANTINED_SERVERS_JSON: ${{ needs.plan.outputs.vpn-quarantined-servers-json }}
         run: |
+          export LANE_INDEX=$((RUN_ATTEMPT - 1))
           set +e
           bash .github/scripts/run_with_deadline.sh \
             350 \
@@ -941,45 +993,76 @@ jobs:
           path: plan-artifact/
 
       - name: Restore prior discovery artifacts
-        if: ${{ inputs.lane_manifest_run_id != '' }}
+        if: ${{ inputs.lane_manifest_run_id != '' || inputs.resume_source_run_id != '' || github.run_attempt > 1 }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PRIOR_RUN_ID: ${{ inputs.lane_manifest_run_id }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          MANIFEST_SOURCE_RUN_ID: ${{ inputs.lane_manifest_run_id || inputs.resume_source_run_id }}
           DISCOVERY_ARTIFACT_NAME: full-extraction-discovery-artifacts-${{ env.ACTIVE_CHAIN_ID }}
-          DISCOVERY_RECOVERY_PATTERN: full-extraction-discovery-recovery-${{ env.ACTIVE_CHAIN_ID }}-run-${{ inputs.lane_manifest_run_id }}-attempt-*
+          DISCOVERY_RECOVERY_PREFIX: full-extraction-discovery-recovery-${{ env.ACTIVE_CHAIN_ID }}
         run: |
-          mkdir -p prior-discovery-artifact data/nbadb
-          discovery_source="prior-discovery-artifact"
-          if gh run download "$PRIOR_RUN_ID" \
-            --repo "${{ github.repository }}" \
-            --name "$DISCOVERY_ARTIFACT_NAME" \
-            --dir prior-discovery-artifact; then
-            echo "::notice::Restored canonical discovery bundle from run $PRIOR_RUN_ID"
-          else
-            rm -rf prior-discovery-artifact
-            mkdir -p prior-discovery-recovery
-            if ! gh run download "$PRIOR_RUN_ID" \
+          mkdir -p data/nbadb
+          discovery_source=""
+          discovery_source_kind=""
+
+          restore_discovery_from_run() {
+            local source_run_id="$1"
+            local source_label="$2"
+            local canonical_dir="prior-discovery-${source_label}-canonical"
+            local recovery_dir="prior-discovery-${source_label}-recovery"
+            local recovery_pattern="${DISCOVERY_RECOVERY_PREFIX}-run-${source_run_id}-attempt-*"
+
+            rm -rf "$canonical_dir" "$recovery_dir"
+            if gh run download "$source_run_id" \
               --repo "${{ github.repository }}" \
-              --pattern "$DISCOVERY_RECOVERY_PATTERN" \
-              --dir prior-discovery-recovery; then
-              echo "::warning::Prior discovery artifacts are unavailable; seeding this wave from scratch"
-              exit 0
+              --name "$DISCOVERY_ARTIFACT_NAME" \
+              --dir "$canonical_dir"; then
+              discovery_source="$canonical_dir"
+              discovery_source_kind="canonical"
+              echo "::notice::Restored canonical discovery bundle from $source_label run $source_run_id"
+              return 0
+            fi
+
+            mkdir -p "$recovery_dir"
+            if ! gh run download "$source_run_id" \
+              --repo "${{ github.repository }}" \
+              --pattern "$recovery_pattern" \
+              --dir "$recovery_dir"; then
+              return 1
             fi
             discovery_source="$(
-              find prior-discovery-recovery \
+              find "$recovery_dir" \
                 -mindepth 1 \
                 -maxdepth 1 \
                 -type d \
-                -name "$DISCOVERY_RECOVERY_PATTERN" \
+                -name "$recovery_pattern" \
                 -print \
                 | sort -V \
                 | tail -1
             )"
             if [ -z "$discovery_source" ]; then
-              echo "::warning::Recovery artifact download did not produce a matching bundle; seeding from scratch"
-              exit 0
+              if find "$recovery_dir" -mindepth 1 -type f -print -quit | grep -q .; then
+                discovery_source="$recovery_dir"
+              else
+                return 1
+              fi
             fi
+            discovery_source_kind="recovery"
             echo "::notice::Restored latest incomplete discovery recovery bundle: $(basename "$discovery_source")"
+          }
+
+          if [ "$RUN_ATTEMPT" -gt 1 ]; then
+            restore_discovery_from_run "$CURRENT_RUN_ID" "current-run" || true
+          fi
+          if [ -z "$discovery_source" ] \
+            && [ -n "$MANIFEST_SOURCE_RUN_ID" ] \
+            && [ "$MANIFEST_SOURCE_RUN_ID" != "$CURRENT_RUN_ID" ]; then
+            restore_discovery_from_run "$MANIFEST_SOURCE_RUN_ID" "manifest-source" || true
+          fi
+          if [ -z "$discovery_source" ]; then
+            echo "::warning::Prior discovery artifacts are unavailable; seeding this wave from scratch"
+            exit 0
           fi
 
           artifact_dir="$(find "$discovery_source" -type d -name nba.discovery-artifacts -print -quit)"
@@ -1001,6 +1084,10 @@ jobs:
             done
             cp "$workload_manifest" data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
           elif [ "${#workload_parquets[@]}" -gt 0 ] || [ -n "$workload_manifest" ]; then
+            if [ "$discovery_source_kind" = "canonical" ]; then
+              echo "::error::Canonical discovery workload bundle is incomplete"
+              exit 1
+            fi
             echo "::warning::Prior player/team workload artifact is incomplete; ignoring it"
             find data/nbadb \
               -maxdepth 1 \
@@ -1008,6 +1095,34 @@ jobs:
               -name 'nba.player-team-season-workload*.parquet' \
               -delete
             rm -f data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+          elif [ "$discovery_source_kind" = "canonical" ]; then
+            echo "::error::Canonical discovery workload bundle is missing"
+            exit 1
+          fi
+
+          if [ -f data/nbadb/nba.player-team-season-workload.player-team-season-workload.json ]; then
+            if ! uv run python - <<'PY'
+          from pathlib import Path
+
+          from nbadb.orchestrate.workload_contract import PlayerTeamSeasonWorkloadStore
+
+          store = PlayerTeamSeasonWorkloadStore.from_duckdb_path(Path("data/nbadb/nba.duckdb"))
+          if store.integrity_attestation() is None:
+              raise SystemExit("restored workload pointer or generation failed integrity validation")
+          PY
+            then
+              if [ "$discovery_source_kind" = "canonical" ]; then
+                echo "::error::Canonical discovery workload failed integrity validation"
+                exit 1
+              fi
+              echo "::warning::Discarding invalid recovery workload state before reseeding"
+              find data/nbadb \
+                -maxdepth 1 \
+                -type f \
+                -name 'nba.player-team-season-workload*.parquet' \
+                -delete
+              rm -f data/nbadb/nba.player-team-season-workload.player-team-season-workload.json
+            fi
           fi
 
       - name: Configure discovery seed concurrency
@@ -1017,11 +1132,21 @@ jobs:
         run: |
           if [ "$EFFECTIVE_NETWORK_MODE" = "direct" ]; then
             seed_concurrency=2
+            seed_rate_limit=2
           else
             case "$SEED_REQUEST_PROFILE" in
-              conservative) seed_concurrency=4 ;;
-              moderate) seed_concurrency=6 ;;
-              aggressive) seed_concurrency=8 ;;
+              conservative)
+                seed_concurrency=2
+                seed_rate_limit=1
+                ;;
+              moderate)
+                seed_concurrency=3
+                seed_rate_limit=2
+                ;;
+              aggressive)
+                seed_concurrency=4
+                seed_rate_limit=3
+                ;;
               *)
                 echo "::error::Unsupported discovery seed concurrency profile: $SEED_REQUEST_PROFILE"
                 exit 1
@@ -1029,10 +1154,11 @@ jobs:
             esac
           fi
           {
+            echo "NBADB_RATE_LIMIT=$seed_rate_limit"
             echo "NBADB_DISCOVERY_CONCURRENCY=$seed_concurrency"
             echo "NBADB_DISCOVERY_SEED_CONCURRENCY=$seed_concurrency"
           } >> "$GITHUB_ENV"
-          echo "::notice::Discovery seed concurrency: $seed_concurrency ($EFFECTIVE_NETWORK_MODE)"
+          echo "::notice::Discovery seed profile: concurrency=$seed_concurrency rate=${seed_rate_limit}/s ($EFFECTIVE_NETWORK_MODE)"
 
       - name: Connect NordVPN tunnel for discovery seeding
         id: vpn
@@ -1044,13 +1170,15 @@ jobs:
           NORDVPN_TOKEN: ${{ secrets.NORDVPN_TOKEN }}
           REQUIRE_TOKEN_AUTH: ${{ needs.preflight.outputs.vpn-auth-source == 'token' && 'true' || 'false' }}
           CONFIGURED_AUTH_PREVALIDATED: ${{ needs.preflight.outputs.vpn-auth-source == 'configured' && 'true' || 'false' }}
-          LANE_INDEX: "0"
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           SERVER_LIMIT: "6"
+          SERVER_POOL_SIZE: "96"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
           CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
           QUARANTINED_SERVERS_JSON: ${{ needs.preflight.outputs.vpn-quarantined-servers-json }}
         run: |
+          export LANE_INDEX=$((RUN_ATTEMPT - 1))
           set +e
           bash .github/scripts/run_with_deadline.sh \
             350 \
@@ -1099,7 +1227,7 @@ jobs:
             artifacts/discovery/discovery-manifest.json
             artifacts/discovery/discovery-seed-summary.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
           compression-level: 6
 
       - name: Upload incomplete discovery recovery artifact
@@ -1418,6 +1546,7 @@ jobs:
           # Give active extract lanes a broader recommendation pool so the chain
           # does not burn an iteration on a few bad NordVPN hosts.
           SERVER_LIMIT: "6"
+          SERVER_POOL_SIZE: "96"
           FALLBACK_TECHNOLOGY: "openvpn_tcp"
           CONNECT_TIMEOUT_SECONDS: "60"
           OVERALL_TIMEOUT_SECONDS: "300"
@@ -2494,6 +2623,12 @@ jobs:
               Path("artifacts/full-extraction/next-manifest.json").read_text(
                   encoding="utf-8"
               )
+          )
+          payload["chain_id"] = os.environ["CHAIN_ID"]
+          payload["workflow_source_sha"] = os.environ["WORKFLOW_SOURCE_SHA"].lower()
+          Path("artifacts/full-extraction/next-manifest.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
           )
           manifest = normalize_manifest(payload)
           summary = payload.get("resume_summary", {})

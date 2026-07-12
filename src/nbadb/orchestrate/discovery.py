@@ -256,6 +256,8 @@ class EntityDiscovery:
         seasons: list[str],
         on_progress: _PatternProgress | None = None,
         season_types: list[str] | None = None,
+        *,
+        on_combo_covered: Callable[[tuple[str, str], pl.DataFrame], None] | None = None,
     ) -> GameDiscoveryResult:
         """Extract league_game_log for given seasons and season_types.
 
@@ -367,7 +369,10 @@ class EntityDiscovery:
                         progress.advance_pattern(success=True)
                     if phase == "recovering":
                         logger.info("recovered game log for {}", label)
-                    return (season, season_type), df, None
+                    combo = (season, season_type)
+                    if on_combo_covered is not None:
+                        on_combo_covered(combo, df)
+                    return combo, df, None
 
                 if progress is not None:
                     progress.advance_pattern(success=False)
@@ -400,11 +405,14 @@ class EntityDiscovery:
             ]
         )
 
-        combo_frames: dict[tuple[str, str], pl.DataFrame] = {
-            combo: df
-            for combo, df, failure in initial_results
-            if failure is None and df is not None
-        }
+        combo_frames: dict[tuple[str, str], pl.DataFrame] = {}
+
+        def _record_combo(combo: tuple[str, str], df: pl.DataFrame) -> None:
+            combo_frames[combo] = df
+
+        for combo, df, failure in initial_results:
+            if failure is None and df is not None:
+                _record_combo(combo, df)
         failures: dict[tuple[str, str], _DiscoveryFailureKind] = {}
         for combo, _df, failure in initial_results:
             if failure is not None:
@@ -422,51 +430,66 @@ class EntityDiscovery:
         broad_systemic_failure = (
             len(combos) > 1
             and len(failures) == len(combos)
-            and len(broad_failure_kinds) == 1
             and broad_failure_kinds <= {"transport", "response"}
         )
-        if broad_systemic_failure and remaining_attempts[retryable_combos[0]] > 0:
-            canary = retryable_combos[0]
-            systemic_failure_kind = failures[canary]
-            canary_attempts = min(
-                _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
-                remaining_attempts[canary],
-            )
-            logger.warning(
-                ("checking broad game discovery {} failure with {} bounded canary attempts: {}"),
-                systemic_failure_kind,
-                canary_attempts,
-                canary,
-            )
-            _combo, df, failure = await _fetch(
-                *canary,
-                progress=None,
-                use_semaphore=False,
-                phase="canary",
-                attempts=canary_attempts,
-                attempt_offset=self._concurrent_retry_attempts,
-            )
-            remaining_attempts[canary] -= canary_attempts
-            if failure is None and df is not None:
-                combo_frames[canary] = df
-                failures.pop(canary, None)
-                retryable_combos.remove(canary)
-            elif failure == "permanent":
-                failures[canary] = failure
-                retryable_combos.remove(canary)
-            elif failure in {"transport", "response"}:
-                failures[canary] = failure
-                logger.error(
-                    (
-                        "game discovery {} canary failed; skipping recovery for {} "
-                        "systemically affected scopes"
-                    ),
-                    failure,
-                    len(retryable_combos),
+        if broad_systemic_failure:
+            for systemic_failure_kind in ("transport", "response"):
+                affected_combos = [
+                    combo
+                    for combo in retryable_combos
+                    if failures.get(combo) == systemic_failure_kind
+                ]
+                if not affected_combos:
+                    continue
+                canary = affected_combos[0]
+                canary_attempts = min(
+                    _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
+                    remaining_attempts[canary],
                 )
-                retryable_combos = []
-            elif failure is not None:
-                failures[canary] = failure
+                if canary_attempts <= 0:
+                    continue
+                logger.warning(
+                    (
+                        "checking broad game discovery {} failure with {} "
+                        "bounded canary attempts: {}"
+                    ),
+                    systemic_failure_kind,
+                    canary_attempts,
+                    canary,
+                )
+                _combo, df, failure = await _fetch(
+                    *canary,
+                    progress=None,
+                    use_semaphore=False,
+                    phase="canary",
+                    attempts=canary_attempts,
+                    attempt_offset=self._concurrent_retry_attempts,
+                )
+                remaining_attempts[canary] -= canary_attempts
+                if failure is None and df is not None:
+                    _record_combo(canary, df)
+                    failures.pop(canary, None)
+                    retryable_combos.remove(canary)
+                elif failure == "permanent":
+                    failures[canary] = failure
+                    retryable_combos.remove(canary)
+                elif failure in {"transport", "response"}:
+                    failures[canary] = failure
+                    logger.error(
+                        (
+                            "game discovery {} canary failed; skipping recovery for {} "
+                            "systemically affected {} scopes"
+                        ),
+                        failure,
+                        len(affected_combos),
+                        systemic_failure_kind,
+                    )
+                    affected_set = set(affected_combos)
+                    retryable_combos = [
+                        combo for combo in retryable_combos if combo not in affected_set
+                    ]
+                elif failure is not None:
+                    failures[canary] = failure
 
         recovery_combos = [
             combo for combo in retryable_combos if remaining_attempts.get(combo, 0) > 0
@@ -495,7 +518,7 @@ class EntityDiscovery:
                     attempt_offset=self._retry_attempts - attempts,
                 )
                 if failure is None and df is not None:
-                    combo_frames[combo] = df
+                    _record_combo(combo, df)
                     failures.pop(combo, None)
                 elif failure is not None:
                     failures[combo] = failure
@@ -979,53 +1002,65 @@ class EntityDiscovery:
         broad_systemic_failure = (
             len(unique_seasons) > 1
             and len(failures) == len(unique_seasons)
-            and len(broad_failure_kinds) == 1
             and broad_failure_kinds <= {"transport", "response"}
         )
-        if broad_systemic_failure and remaining_attempts[retryable_seasons[0]] > 0:
-            canary = retryable_seasons[0]
-            systemic_failure_kind = failures[canary]
-            canary_attempts = min(
-                _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
-                remaining_attempts[canary],
-            )
-            logger.warning(
-                (
-                    "checking broad player/team discovery {} failure with "
-                    "{} bounded canary attempts: {}"
-                ),
-                systemic_failure_kind,
-                canary_attempts,
-                canary,
-            )
-            _season, df, failure = await _fetch(
-                canary,
-                use_semaphore=False,
-                phase="canary",
-                attempts=canary_attempts,
-                attempt_offset=self._concurrent_retry_attempts,
-            )
-            remaining_attempts[canary] -= canary_attempts
-            if failure is None and df is not None:
-                season_frames[canary] = df
-                failures.pop(canary, None)
-                retryable_seasons.remove(canary)
-            elif failure == "permanent":
-                failures[canary] = failure
-                retryable_seasons.remove(canary)
-            elif failure in {"transport", "response"}:
-                failures[canary] = failure
-                logger.error(
-                    (
-                        "player/team discovery {} canary failed; "
-                        "skipping recovery for {} systemically affected scopes"
-                    ),
-                    failure,
-                    len(retryable_seasons),
+        if broad_systemic_failure:
+            for systemic_failure_kind in ("transport", "response"):
+                affected_seasons = [
+                    season
+                    for season in retryable_seasons
+                    if failures.get(season) == systemic_failure_kind
+                ]
+                if not affected_seasons:
+                    continue
+                canary = affected_seasons[0]
+                canary_attempts = min(
+                    _BROAD_OUTAGE_CANARY_ATTEMPTS_CAP,
+                    remaining_attempts[canary],
                 )
-                retryable_seasons = []
-            elif failure is not None:
-                failures[canary] = failure
+                if canary_attempts <= 0:
+                    continue
+                logger.warning(
+                    (
+                        "checking broad player/team discovery {} failure with "
+                        "{} bounded canary attempts: {}"
+                    ),
+                    systemic_failure_kind,
+                    canary_attempts,
+                    canary,
+                )
+                _season, df, failure = await _fetch(
+                    canary,
+                    use_semaphore=False,
+                    phase="canary",
+                    attempts=canary_attempts,
+                    attempt_offset=self._concurrent_retry_attempts,
+                )
+                remaining_attempts[canary] -= canary_attempts
+                if failure is None and df is not None:
+                    season_frames[canary] = df
+                    failures.pop(canary, None)
+                    retryable_seasons.remove(canary)
+                elif failure == "permanent":
+                    failures[canary] = failure
+                    retryable_seasons.remove(canary)
+                elif failure in {"transport", "response"}:
+                    failures[canary] = failure
+                    logger.error(
+                        (
+                            "player/team discovery {} canary failed; skipping "
+                            "recovery for {} systemically affected {} scopes"
+                        ),
+                        failure,
+                        len(affected_seasons),
+                        systemic_failure_kind,
+                    )
+                    affected_set = set(affected_seasons)
+                    retryable_seasons = [
+                        season for season in retryable_seasons if season not in affected_set
+                    ]
+                elif failure is not None:
+                    failures[canary] = failure
 
         recovery_seasons = [
             season for season in retryable_seasons if remaining_attempts.get(season, 0) > 0

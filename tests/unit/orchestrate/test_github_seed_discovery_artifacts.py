@@ -260,6 +260,7 @@ def test_game_seed_persists_only_explicitly_covered_combo_frames(
             seasons: list[str],
             *,
             season_types: list[str],
+            on_combo_covered=None,
         ) -> GameDiscoveryResult:
             self.calls.append((tuple(seasons), tuple(season_types)))
             return GameDiscoveryResult(
@@ -500,6 +501,7 @@ def test_seed_attests_exact_result_failure_taxonomies(
             seasons: list[str],
             *,
             season_types: list[str],
+            on_combo_covered=None,
         ) -> GameDiscoveryResult:
             assert (seasons, season_types) == ([game_pair[0]], [game_pair[1]])
             return GameDiscoveryResult(
@@ -638,6 +640,7 @@ def test_seed_refreshes_current_season_player_game_and_workload_caches(
             seasons: list[str],
             *,
             season_types: list[str],
+            on_combo_covered=None,
         ) -> GameDiscoveryResult:
             self.game_calls.append((tuple(seasons), tuple(season_types)))
             pair = (current, "Regular Season")
@@ -1272,6 +1275,7 @@ def test_seed_writes_atomic_fail_closed_summary_before_discovery(
             seasons: list[str],
             *,
             season_types: list[str],
+            on_combo_covered=None,
         ) -> GameDiscoveryResult:
             assert seasons == [pair[0]]
             assert season_types == [pair[1]]
@@ -1556,6 +1560,7 @@ def test_game_batch_fault_preserves_prior_exact_combo_without_unavailable_classi
             seasons: list[str],
             *,
             season_types: list[str],
+            on_combo_covered=None,
         ) -> GameDiscoveryResult:
             pair = (seasons[0], season_types[0])
             if pair == failed_pair:
@@ -1621,7 +1626,7 @@ def test_game_deadline_summary_retains_the_completed_batch(
                             "patterns": "game",
                             "season_start": "2023",
                             "season_end": "2023",
-                            "season_types": "Playoffs",
+                            "season_types": "Regular Season",
                         },
                         {
                             "patterns": "game",
@@ -1651,19 +1656,17 @@ def test_game_deadline_summary_retains_the_completed_batch(
             seasons: list[str],
             *,
             season_types: list[str],
+            on_combo_covered=None,
         ) -> GameDiscoveryResult:
+            assert len(seasons) == 2
+            assert season_types == ["Regular Season"]
             pair = (seasons[0], season_types[0])
             self.calls.append(pair)
-            if len(self.calls) > 1:
-                await module.asyncio.sleep(5)
             frame = pl.DataFrame({"game_id": ["001"], "game_date": ["2024-04-20"]})
-            return GameDiscoveryResult(
-                game_ids=["001"],
-                raw=frame,
-                requested_combos=frozenset({pair}),
-                covered_combos=frozenset({pair}),
-                frames_by_combo={pair: frame},
-            )
+            assert on_combo_covered is not None
+            on_combo_covered(pair, frame)
+            await module.asyncio.sleep(5)
+            raise AssertionError("deadline should cancel the grouped discovery call")
 
     monkeypatch.setattr(module, "current_season", lambda: "2099-00")
     monkeypatch.setattr(module, "registry", FakeRegistry())
@@ -1682,8 +1685,7 @@ def test_game_deadline_summary_retains_the_completed_batch(
     completed_pair = FakeDiscovery.calls[0]
     assert summary["status"] == "incomplete"
     assert summary["failure_type"] == "TimeoutError"
-    assert summary["seeded_count"] == 1
-    assert summary["seeded"][0]["covered_combo_count"] == 1
+    assert summary["seeded_count"] == 0
     assert summary["covered_units"]["game_combos"] == [
         {"season": completed_pair[0], "season_type": completed_pair[1]}
     ]
