@@ -52,9 +52,12 @@ Eleven specialty endpoints round out the game and media package.
 
 The details routes retain endpoint, result-set, player/team/season/type, and
 context-measure provenance. The extraction contract is the union of all 78 context
-measures exposed by the installed runtime and upstream docs/tools. Full extraction
-groups at most three measures per lane. PlayIn is scheduled from 2019-20 onward;
-pre-2019 PlayIn combinations remain visible as `upstream_unavailable`.
+measures exposed by the exact `nba_api` 1.11.4 runtime and upstream docs/tools. Full
+extraction groups at most three measures per lane. PlayIn is scheduled from 2019-20
+onward. All Star begins in 1950-51 and excludes the cancelled 1998-99 event; invalid
+historical combinations remain visible as `upstream_unavailable`. Non-2xx responses
+are checked before JSON parsing, HTTP 429/5xx and equivalent JSON error envelopes are
+retryable, and malformed success payloads fail closed.
 
 ## Season estimated-model shelf
 

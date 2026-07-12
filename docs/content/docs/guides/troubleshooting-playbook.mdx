@@ -323,30 +323,39 @@ current lane: lane fields, coverage hash, physical database digest, every applic
 manifest season/type, and endpoint presence must all match before merge. For
 player/team/season lanes, the checkpoint independently reloads the content-addressed
 discovery workload, verifies every requested pair including zero-pair sentinels, and
-requires each expected identity/context in the journal. `contract_blocked` is accepted only when the
-reported support evidence exactly matches recomputed rules. Staging merge
+requires each expected identity/context in the journal while rejecting stale identities
+outside the active workload. Duplicate lane IDs fail before checkpoint indexing.
+`contract_blocked` is accepted only when the reported support evidence exactly matches
+recomputed rules. Staging merge
 uses `EXCEPT ALL` overlap subtraction, preserving legitimate duplicate multiplicity
 without replaying rows already represented by a prior checkpoint or another delta.
 
 Incomplete lanes upload a longer-retained durable state artifact only after DuckDB
 `CHECKPOINT`, WAL removal, regular-file/journal validation, and an attestation that
 binds source SHA, chain, lane, coverage hash, and database SHA-256. The next iteration
-restores only that exact artifact; extraction-lane cache-prefix and parent-lane
-fallbacks are not accepted. Failed snapshot/metadata work uploads under a
-`diagnostics-only` name and is never resumable. Lane metadata records the restore
-source, progress counters, failure class, root error type, and state artifact pointer.
+restores only that exact artifact. Player/team/season snapshots use state-attestation
+schema v2 to bind the active content-addressed workload generation, requested pairs,
+zero-pair sentinels, and base-identity digest. Extraction-lane cache-prefix and
+parent-lane fallbacks are not accepted; split children clear parent pointers. Canonical
+metadata schema v3 uploads even when snapshot attestation fails, preserving restore
+errors, progress, failure class, root error type, and failed VPN servers for lane
+control. Only an explicit `state_artifact.attested=true` pointer is reusable. The
+database itself remains diagnostics-only when attestation fails.
 
 `video_details` and `video_details_asset` keep the full upstream season range because
 neither the runtime classes nor upstream docs establish an earliest supported season.
 Both recursively parse every returned result set and retain endpoint, result-set,
 player/team/season/type, and context-measure provenance. The extraction contract
-unions all 78 measures exposed across the installed runtime and upstream docs/tools,
-groups at most three per lane, and classifies pre-2019 PlayIn scopes as
-`upstream_unavailable`. The asset runner additionally limits the failure blast radius:
-ten calls per durable chunk, two concurrent requests, a 15-second request timeout,
-no per-call retry loop, abort after a fully failed newly attempted chunk, and a
-600-second no-completed-chunk watchdog. A successful empty chunk is persisted and
-then journaled before the next chunk starts.
+unions all 78 measures exposed across the exact `nba_api` 1.11.4 runtime and upstream
+docs/tools, groups at most three per lane, and classifies pre-2019 PlayIn,
+pre-1950-51 All Star, and cancelled 1998-99 All Star scopes as
+`upstream_unavailable`. A non-2xx response is rejected before JSON parsing. HTTP
+429/5xx responses and equivalent JSON error envelopes are transient; malformed
+success payloads are contract failures and are not staged. The asset runner
+additionally limits the failure blast radius: ten calls per durable chunk, two
+concurrent requests, a 15-second request timeout, no per-call retry loop, abort after
+a fully failed newly attempted chunk, and a 600-second no-completed-chunk watchdog. A
+successful empty chunk is persisted and then journaled before the next chunk starts.
 
 `matrix_batch_size` controls how many lane jobs enter one workflow iteration and
 defaults to GitHub's 256-job matrix ceiling. It is deliberately independent from

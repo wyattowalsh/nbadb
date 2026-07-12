@@ -136,8 +136,11 @@ the preferred queue in a particular slot.
 The checkpoint is the recovery boundary: each redispatch copies the previous
 checkpoint into a new generation and merges only newly completed lane databases.
 Terminal merge consumes that checkpoint before export. Incomplete lanes can also
-carry exact, attested DuckDB state artifacts into the next iteration. Lane-state
-cache-prefix and parent-lane fallback are not recovery boundaries.
+carry exact, attested DuckDB state artifacts into the next iteration. Workload-bound
+state is revalidated against the active discovery generation during restore. Canonical
+diagnostic metadata still reaches lane control when a snapshot is not resumable, but
+only an explicit attested pointer is carried forward. Split children clear parent
+state, and lane-state cache-prefix and parent-lane fallback are not recovery boundaries.
 
 ```mermaid
 flowchart TD

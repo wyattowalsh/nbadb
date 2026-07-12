@@ -110,9 +110,12 @@ All endpoint coverage flows through `nba_api`, with a few operational patterns t
 `VideoStatus` are registered, staging-backed, and promoted to `fact_video_*` tables.
 The details endpoints recursively preserve every returned result set and attach
 request provenance. Their player/team/season contract covers all 78 context measures
-found across the installed runtime and upstream docs/tools, with at most three
-measures per extraction lane. PlayIn is executable from 2019-20 onward; earlier
-PlayIn scopes are classified as upstream-unavailable rather than silently omitted.
+found across the exact `nba_api` 1.11.4 runtime and upstream docs/tools, with at most
+three measures per extraction lane. PlayIn is executable from 2019-20 onward. All
+Star starts in 1950-51 and was not held in 1998-99. Earlier or cancelled scopes are
+classified as upstream-unavailable rather than silently omitted. The parser rejects
+non-2xx responses before JSON decoding, retries HTTP 429/5xx and equivalent JSON error
+envelopes, and fails closed on malformed success payloads.
 
 ## Skipped endpoints
 

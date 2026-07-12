@@ -225,11 +225,14 @@ parse every recursively nested result set instead of assuming one static table.
 Their rows carry endpoint, result-set, player/team/season/type, and context-measure
 provenance. The extraction contract covers all 78 measures found across the installed
 runtime and upstream docs/tools, schedules at most three measures per lane, and
-classifies pre-2019 PlayIn requests as upstream-unavailable. The asset route also uses
-a ten-call persistence boundary, isolated two-call concurrency, a 15-second request
-timeout, no in-call retries, a fully-failed-chunk stop, and a 600-second
-no-completed-chunk watchdog. Empty successful responses are journaled only after
-their zero-row staging chunk is durable.
+classifies pre-2019 PlayIn, pre-1950-51 All Star, and cancelled 1998-99 All Star
+requests as upstream-unavailable. Non-2xx responses are rejected before JSON parsing;
+HTTP 429/5xx responses and equivalent JSON error envelopes remain retryable, while
+malformed success payloads fail closed as response-contract errors. The asset route
+also uses a ten-call persistence boundary, isolated two-call concurrency, a 15-second
+request timeout, no in-call retries, a fully-failed-chunk stop, and a 600-second
+no-completed-chunk watchdog. Empty successful responses are journaled only after their
+zero-row staging chunk is durable.
 VPN-backed work accepts a tunnel only after route and changed-exit-IP checks, a
 strict NBA result-set probe, and installed-stack player/game discovery canaries pass.
 The player canary also requires a positive player/team membership row.
@@ -257,10 +260,15 @@ Each checkpoint generation copies the previous database into a new output before
 applying attested current lane deltas, preserving legitimate duplicate multiplicity
 while removing checkpoint overlap. Lane snapshots are resumable only after a DuckDB
 checkpoint, WAL removal, structural validation, and exact database digest; failed
-snapshot creation is uploaded under a diagnostics-only name. Schema-v3 attestation
-binds each player/team/season lane to the exact content-addressed discovery workload,
-including zero-pair sentinels, and compares every expected identity and video context
-against successful journal units. False `contract_blocked` declarations fail closed.
+snapshot creation is uploaded under a diagnostics-only name. Canonical metadata
+schema v3 is uploaded even when no snapshot can be attested, so restore/VPN failures
+remain visible to lane control and failed servers still enter the chain quarantine.
+State-attestation schema v2 binds each player/team/season snapshot to the exact
+content-addressed discovery workload, including zero-pair sentinels, and rejects
+unexpected journal identities during both restore and checkpoint merge. Only metadata
+with an explicit attested artifact pointer can carry state into a retry; split children
+clear parent pointers, and duplicate child IDs fail before checkpoint indexing. False
+`contract_blocked` declarations fail closed.
 Chained runs preserve literal `max_iterations=auto`, set one fixed numeric cap from
 remaining matrix dispatch credits and retry depth, and never extend that cap in a
 child run. They refuse an active or successful `chain=<id> iteration=<n>` dispatch
@@ -289,6 +297,7 @@ Read more in the full **[Architecture Guide](https://nbadb.w4w.dev/docs/architec
 | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Language        | Python ≥3.12                                                                                                            |
 | Package Manager | [uv](https://docs.astral.sh/uv/)                                                                                        |
+| NBA API client  | [nba_api](https://github.com/swar/nba_api) 1.11.4 (exact contract pin)                                                  |
 | DataFrames      | [Polars](https://pola.rs/) 1.42.1                                                                                       |
 | Validation      | [Pandera](https://pandera.readthedocs.io/) 0.32.1 (Polars backend)                                                      |
 | Analytics DB    | [DuckDB](https://duckdb.org/) 1.5.4                                                                                     |
