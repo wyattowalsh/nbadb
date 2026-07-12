@@ -15,15 +15,17 @@ from typing import TYPE_CHECKING, Any, Protocol
 from loguru import logger
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     import duckdb
 
 
 class _ColumnFrame(Protocol):
     @property
-    def columns(self) -> tuple[str, ...]: ...
+    def columns(self) -> Sequence[str]: ...
 
     @property
-    def dtypes(self) -> tuple[Any, ...]: ...
+    def dtypes(self) -> Sequence[Any]: ...
 
 
 def schema_hash_for_columns(columns: list[str], dtypes: list[str] | None = None) -> str:
