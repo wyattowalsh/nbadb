@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.29"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -142,7 +142,7 @@ omit = ["src/nbadb/cli/tui.py"]
 
 [dependency-groups]
 dev = [
-    "chardet>=5.2,<6",
+    "chardet>=7.4.3,<8",
     "pytest-cov>=7.0.0",
     "sportypy>=1.0.0",
     "sqlfluff>=4.0.4",
