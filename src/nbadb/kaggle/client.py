@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import importlib
 import json
+import math
 import os
 import re
 import shutil
@@ -51,6 +53,8 @@ UPLOAD_SERIALIZATION_CONTRACT = {
     "cross_host_guard": "remote_marker_and_exact_version_reconciliation",
 }
 _PUBLICATION_RECORD_STATES = frozenset({"failed", "resolved", "unresolved"})
+_REMOTE_FILE_LIST_PAGE_SIZE = 1000
+_DISK_SAFETY_RESERVE_BYTES = 1024 * 1024 * 1024
 
 _PROCESS_UPLOAD_LOCK = threading.Lock()
 _AUTHORIZATION_BEARER_RE = re.compile(
@@ -249,7 +253,7 @@ class KaggleClient:
         data_dir: Path | None = None,
         version_notes: str = "Automated update via nbadb",
         verify_remote: bool = False,
-        remote_timeout_seconds: float = 900.0,
+        remote_timeout_seconds: float = 3600.0,
         remote_poll_interval_seconds: float = 15.0,
     ) -> Path:
         """Upload with same-host serialization and remote publication reconciliation.
@@ -272,7 +276,7 @@ class KaggleClient:
         data_dir: Path | None = None,
         version_notes: str = "Automated update via nbadb",
         verify_remote: bool = False,
-        remote_timeout_seconds: float = 900.0,
+        remote_timeout_seconds: float = 3600.0,
         remote_poll_interval_seconds: float = 15.0,
     ) -> Path:
         """Validate and upload a bundle while the local upload claim is held."""
@@ -285,10 +289,13 @@ class KaggleClient:
         if not upload_dir.is_dir():
             msg = f"Data path is not a directory: {upload_dir}"
             raise NotADirectoryError(msg)
-        if remote_timeout_seconds < 0:
+        if upload_dir.is_symlink():
+            msg = f"Data directory must not be a symlink: {upload_dir}"
+            raise ValueError(msg)
+        if not math.isfinite(remote_timeout_seconds) or remote_timeout_seconds < 0:
             msg = "remote_timeout_seconds must be >= 0"
             raise ValueError(msg)
-        if remote_poll_interval_seconds <= 0:
+        if not math.isfinite(remote_poll_interval_seconds) or remote_poll_interval_seconds <= 0:
             msg = "remote_poll_interval_seconds must be > 0"
             raise ValueError(msg)
 
@@ -332,6 +339,7 @@ class KaggleClient:
                 "expected_fingerprint": expected_staged["fingerprint"],
                 "expected_bundle_fingerprint": preflight["fingerprint"],
                 "verification_mode": "publication_marker",
+                "resource_verification_mode": "exact_api_inventory_and_sha256_full_readback",
                 "upload_attempts": 0,
                 "verification_attempts": 0,
                 "observations": [],
@@ -416,6 +424,7 @@ class KaggleClient:
                 raise pending
 
             bootstrap_baseline_version: int | None = None
+            baseline_resource_verification: dict[str, Any] | None = None
             if verify_remote:
                 try:
                     with tempfile.TemporaryDirectory(
@@ -532,7 +541,12 @@ class KaggleClient:
                         raise pending
                     metadata_version: int | None = None
                     if prior_matches or baseline_matches:
+                        baseline_deadline = self._monotonic() + remote_timeout_seconds
                         metadata_version = self._resolve_remote_dataset_version()
+                        self._require_verification_deadline(
+                            baseline_deadline,
+                            operation="baseline version resolution",
+                        )
                         publication["baseline"]["metadata_version"] = metadata_version
                         publication["baseline"]["versions_agree"] = (
                             baseline_version == metadata_version
@@ -557,6 +571,47 @@ class KaggleClient:
                                 error=self._redacted_error(error),
                             )
                             raise error
+                        try:
+                            baseline_resource_verification = self._verify_remote_bundle(
+                                expected_staged if baseline_matches else None,
+                                expected_marker=baseline_marker,
+                                version=baseline_version,
+                                deadline=baseline_deadline,
+                            )
+                            post_readback_version = self._resolve_remote_dataset_version()
+                            self._require_verification_deadline(
+                                baseline_deadline,
+                                operation="baseline version stabilization",
+                            )
+                            if post_readback_version != baseline_version:
+                                msg = (
+                                    "Kaggle current dataset version changed during baseline "
+                                    "resource verification: "
+                                    f"marker={baseline_version}, current={post_readback_version}"
+                                )
+                                raise RuntimeError(msg)
+                        except Exception as exc:
+                            if self._is_local_resource_error(exc):
+                                raise
+                            publication["baseline"]["resource_verification_error"] = (
+                                self._redacted_error(exc)
+                            )
+                            publication["baseline"]["upload_allowed"] = False
+                            publication["result"] = "baseline_reconciliation_failed"
+                            self._write_upload_manifest(
+                                data_dir=upload_dir,
+                                staged_dir=staged_dir,
+                                version_notes=version_notes,
+                                status="baseline_reconciliation_failed",
+                                preflight=preflight,
+                                post_upload=staged,
+                                publication=publication,
+                                error=self._redacted_error(exc),
+                            )
+                            raise
+                        publication["baseline"]["resource_verification"] = (
+                            baseline_resource_verification
+                        )
                     if (
                         prior_unresolved is not None
                         and prior_unresolved.get("publish_key") != publish_key
@@ -601,6 +656,7 @@ class KaggleClient:
                             remote_readback={
                                 **baseline_marker,
                                 "verification_mode": "publication_marker",
+                                "resource_verification": baseline_resource_verification,
                                 "verification_attempts": 1,
                                 "verification_elapsed_seconds": 0.0,
                                 "resolved_version": baseline_version,
@@ -666,11 +722,52 @@ class KaggleClient:
                     bootstrap_recheck["state"] == "marker_present"
                     and bootstrap_recheck["upload_allowed"]
                 ):
+                    bootstrap_deadline = self._monotonic() + remote_timeout_seconds
                     resolved_version = self._require_exact_dataset_version(
                         bootstrap_recheck["marker_version"],
                         source="bootstrap pre-upload marker",
                     )
                     remote_marker = cast("dict[str, Any]", bootstrap_recheck["marker"])
+                    try:
+                        resource_verification = self._verify_remote_bundle(
+                            expected_staged,
+                            expected_marker=remote_marker,
+                            version=resolved_version,
+                            deadline=bootstrap_deadline,
+                        )
+                        post_readback_version = self._resolve_remote_dataset_version()
+                        self._require_verification_deadline(
+                            bootstrap_deadline,
+                            operation="bootstrap version stabilization",
+                        )
+                        if post_readback_version != resolved_version:
+                            msg = (
+                                "Kaggle current dataset version changed during bootstrap "
+                                "resource verification: "
+                                f"marker={resolved_version}, current={post_readback_version}"
+                            )
+                            raise RuntimeError(msg)
+                    except Exception as exc:
+                        if self._is_local_resource_error(exc):
+                            raise
+                        publication["bootstrap_pre_upload"]["resource_verification_error"] = (
+                            self._redacted_error(exc)
+                        )
+                        publication["result"] = "bootstrap_pre_upload_reconciliation_failed"
+                        self._write_upload_manifest(
+                            data_dir=upload_dir,
+                            staged_dir=staged_dir,
+                            version_notes=version_notes,
+                            status="bootstrap_pre_upload_reconciliation_failed",
+                            preflight=preflight,
+                            post_upload=staged,
+                            publication=publication,
+                            error=self._redacted_error(exc),
+                        )
+                        raise
+                    publication["bootstrap_pre_upload"]["resource_verification"] = (
+                        resource_verification
+                    )
                     publication.update(
                         {
                             "result": "reconciled_existing_remote",
@@ -694,6 +791,7 @@ class KaggleClient:
                         remote_readback={
                             **remote_marker,
                             "verification_mode": "publication_marker",
+                            "resource_verification": resource_verification,
                             "verification_attempts": 1,
                             "verification_elapsed_seconds": 0.0,
                             "resolved_version": resolved_version,
@@ -721,6 +819,25 @@ class KaggleClient:
                     )
                     raise pending
 
+            try:
+                self._require_disk_capacity(
+                    staged_dir,
+                    required_bytes=int(staged["bytes"]) + _DISK_SAFETY_RESERVE_BYTES,
+                    operation="upload archive creation",
+                )
+            except OSError as exc:
+                publication["result"] = "upload_capacity_failed"
+                self._write_upload_manifest(
+                    data_dir=upload_dir,
+                    staged_dir=staged_dir,
+                    version_notes=version_notes,
+                    status="upload_capacity_failed",
+                    preflight=preflight,
+                    post_upload=staged,
+                    publication=publication,
+                    error=self._redacted_error(exc),
+                )
+                raise
             upload_error: Exception | None = None
             try:
                 publication["upload_attempts"] = 1
@@ -744,6 +861,26 @@ class KaggleClient:
                     version_notes=version_notes,
                 )
             except Exception as exc:
+                if self._is_local_resource_error(exc):
+                    publication["upload_error"] = self._redacted_error(exc)
+                    publication["result"] = "upload_failed_local_resource"
+                    self._transition_publication_state(
+                        publication,
+                        state_name="failed",
+                        status="upload_failed_local_resource",
+                        error=self._redacted_error(exc),
+                    )
+                    self._write_upload_manifest(
+                        data_dir=upload_dir,
+                        staged_dir=staged_dir,
+                        version_notes=version_notes,
+                        status="upload_failed_local_resource",
+                        preflight=preflight,
+                        post_upload=staged,
+                        publication=publication,
+                        error=self._redacted_error(exc),
+                    )
+                    raise
                 upload_error = exc
                 publication["upload_error"] = self._redacted_error(exc)
                 publication["result"] = "upload_ambiguous"
@@ -792,6 +929,7 @@ class KaggleClient:
                 try:
                     remote_readback = self._verify_remote_upload(
                         publication_marker,
+                        expected_tree=expected_staged,
                         timeout_seconds=remote_timeout_seconds,
                         poll_interval_seconds=remote_poll_interval_seconds,
                         publication=publication,
@@ -1138,6 +1276,9 @@ class KaggleClient:
         if not metadata_path.is_file():
             msg = f"Kaggle metadata file does not exist: {metadata_path}"
             raise FileNotFoundError(msg)
+        if metadata_path.is_symlink():
+            msg = f"Kaggle metadata file must not be a symlink: {metadata_path}"
+            raise ValueError(msg)
         metadata_bytes = metadata_path.read_bytes()
         try:
             metadata = json.loads(metadata_bytes)
@@ -1192,8 +1333,14 @@ class KaggleClient:
                 raise ValueError(msg)
             seen_paths.add(normalized_path)
             resource_path = Path(normalized_path)
-            source_resource_path = data_root / resource_path
-            if source_resource_path.is_symlink():
+            current_path = data_root
+            has_symlink_component = False
+            for part in resource_path.parts:
+                current_path /= part
+                if current_path.is_symlink():
+                    has_symlink_component = True
+                    break
+            if has_symlink_component:
                 msg = f"Kaggle resource path must not be a symlink: {normalized_path}"
                 raise ValueError(msg)
             resolved_resource_path = (data_root / resource_path).resolve()
@@ -1544,7 +1691,17 @@ class KaggleClient:
             mismatch_message="Kaggle resource file changed before staging",
         )
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_path, destination)
+        try:
+            os.link(source_path, destination)
+        except OSError as exc:
+            if exc.errno not in {errno.EXDEV, errno.EPERM, errno.EACCES, errno.ENOTSUP}:
+                raise
+            self._require_disk_capacity(
+                destination.parent,
+                required_bytes=int(inventory["bytes"]) + _DISK_SAFETY_RESERVE_BYTES,
+                operation=f"fallback staging copy of {relative_path}",
+            )
+            shutil.copy2(source_path, destination)
         self._assert_file_matches_inventory(
             destination,
             inventory,
@@ -1571,6 +1728,16 @@ class KaggleClient:
         if size != inventory["bytes"] or digest != inventory["sha256"]:
             msg = f"{mismatch_message}: {relative_path}"
             raise ValueError(msg)
+
+    @staticmethod
+    def _require_disk_capacity(path: Path, *, required_bytes: int, operation: str) -> None:
+        available_bytes = shutil.disk_usage(path).free
+        if available_bytes < required_bytes:
+            msg = (
+                f"Insufficient disk capacity for Kaggle {operation}: "
+                f"required={required_bytes}, available={available_bytes}"
+            )
+            raise OSError(errno.ENOSPC, msg)
 
     @staticmethod
     def _expected_staged_tree_snapshot(
@@ -2089,6 +2256,449 @@ class KaggleClient:
             source="dataset metadata API",
         )
 
+    def _list_remote_dataset_files(self, version: int) -> list[dict[str, Any]]:
+        from kagglehub.clients import build_kaggle_client
+        from kagglehub.exceptions import handle_call
+        from kagglehub.handle import parse_dataset_handle
+        from kagglesdk.datasets.types.dataset_api_service import ApiListDatasetFilesRequest
+
+        version = self._require_exact_dataset_version(version, source="file inventory API")
+        handle = parse_dataset_handle(self._dataset).with_version(version)
+        files: list[dict[str, Any]] = []
+        seen_paths: set[str] = set()
+        page_token = ""
+        seen_page_tokens = {page_token}
+
+        with build_kaggle_client() as api_client:
+            while True:
+                request = ApiListDatasetFilesRequest()
+                request.owner_slug = handle.owner
+                request.dataset_slug = handle.dataset
+                request.dataset_version_number = version
+                request.page_size = _REMOTE_FILE_LIST_PAGE_SIZE
+                request.page_token = page_token
+                response = handle_call(
+                    lambda request=request: (
+                        api_client.datasets.dataset_api_client.list_dataset_files(request)
+                    ),
+                    handle,
+                )
+                if response.error_message:
+                    msg = f"Kaggle remote file inventory failed: {response.error_message}"
+                    raise RuntimeError(msg)
+                if not isinstance(response.dataset_files, list):
+                    msg = "Kaggle remote file inventory response has invalid files"
+                    raise ValueError(msg)
+                for remote_file in response.dataset_files:
+                    path = getattr(remote_file, "name", None)
+                    byte_count = getattr(remote_file, "total_bytes", None)
+                    if not isinstance(path, str) or not path:
+                        msg = "Kaggle remote file inventory contains an invalid path"
+                        raise ValueError(msg)
+                    path = self._normalize_resource_path(path)
+                    if path in seen_paths:
+                        msg = f"Kaggle remote file inventory contains duplicate path: {path}"
+                        raise ValueError(msg)
+                    if (
+                        not isinstance(byte_count, int)
+                        or isinstance(byte_count, bool)
+                        or byte_count < 0
+                    ):
+                        msg = f"Kaggle remote file inventory has invalid byte size: {path}"
+                        raise ValueError(msg)
+                    seen_paths.add(path)
+                    files.append({"path": path, "bytes": byte_count})
+
+                next_page_token = response.next_page_token
+                if not next_page_token:
+                    break
+                if not isinstance(next_page_token, str) or next_page_token in seen_page_tokens:
+                    msg = "Kaggle remote file inventory pagination is invalid"
+                    raise ValueError(msg)
+                seen_page_tokens.add(next_page_token)
+                page_token = next_page_token
+
+        return sorted(files, key=lambda item: item["path"])
+
+    def _download_remote_dataset_file(
+        self,
+        download_root: Path,
+        version: int,
+        relative_path: str,
+    ) -> tuple[Path, int]:
+        from kagglehub import registry
+        from kagglehub.handle import parse_dataset_handle
+
+        version = self._require_exact_dataset_version(version, source="file readback")
+        normalized_path = self._normalize_resource_path(relative_path)
+        handle = parse_dataset_handle(self._dataset).with_version(version)
+        downloaded, resolved_version = registry.dataset_resolver(
+            handle,
+            normalized_path,
+            output_dir=str(download_root),
+            force_download=True,
+        )
+        resolved_version = self._require_exact_dataset_version(
+            resolved_version,
+            source="file readback",
+        )
+        if resolved_version != version:
+            msg = (
+                "Kaggle remote file readback resolved the wrong dataset version: "
+                f"expected={version}, resolved={resolved_version}, path={normalized_path}"
+            )
+            raise RuntimeError(msg)
+        root = download_root.resolve()
+        raw_downloaded_path = Path(downloaded)
+        if raw_downloaded_path.is_symlink():
+            msg = f"Kaggle remote file readback resolved a symlink: {normalized_path}"
+            raise ValueError(msg)
+        downloaded_path = raw_downloaded_path.resolve()
+        try:
+            downloaded_path.relative_to(root)
+        except ValueError as exc:
+            msg = f"Kaggle remote file readback escaped its download root: {normalized_path}"
+            raise ValueError(msg) from exc
+        if not downloaded_path.is_file():
+            msg = f"Kaggle remote file readback did not resolve a regular file: {normalized_path}"
+            raise FileNotFoundError(msg)
+        return downloaded_path, resolved_version
+
+    @classmethod
+    def _index_file_inventory(
+        cls,
+        files: Any,
+        *,
+        source: str,
+        require_sha256: bool,
+    ) -> dict[str, dict[str, Any]]:
+        if not isinstance(files, list):
+            msg = f"Kaggle {source} file inventory must be a list"
+            raise ValueError(msg)
+        indexed: dict[str, dict[str, Any]] = {}
+        for item in files:
+            if not isinstance(item, dict):
+                msg = f"Kaggle {source} file inventory entry must be an object"
+                raise ValueError(msg)
+            path = item.get("path")
+            byte_count = item.get("bytes")
+            if not isinstance(path, str) or cls._normalize_resource_path(path) != path:
+                msg = f"Kaggle {source} file inventory path is invalid"
+                raise ValueError(msg)
+            if path in indexed:
+                msg = f"Kaggle {source} file inventory contains duplicate path: {path}"
+                raise ValueError(msg)
+            if not isinstance(byte_count, int) or isinstance(byte_count, bool) or byte_count < 0:
+                msg = f"Kaggle {source} file inventory has invalid byte size: {path}"
+                raise ValueError(msg)
+            if require_sha256 and not cls._is_lowercase_hex(item.get("sha256"), length=64):
+                msg = f"Kaggle {source} file inventory has invalid sha256: {path}"
+                raise ValueError(msg)
+            indexed[path] = item
+        return indexed
+
+    @classmethod
+    def _assert_remote_file_inventory_matches(
+        cls,
+        expected_files: Any,
+        observed_files: Any,
+        *,
+        compare_sha256: bool,
+    ) -> None:
+        expected = cls._index_file_inventory(
+            expected_files,
+            source="expected staged",
+            require_sha256=True,
+        )
+        observed = cls._index_file_inventory(
+            observed_files,
+            source="remote",
+            require_sha256=compare_sha256,
+        )
+        missing = sorted(set(expected).difference(observed))
+        extra = sorted(set(observed).difference(expected))
+        size_mismatches = sorted(
+            path
+            for path in set(expected).intersection(observed)
+            if expected[path]["bytes"] != observed[path]["bytes"]
+        )
+        sha256_mismatches = (
+            sorted(
+                path
+                for path in set(expected).intersection(observed)
+                if expected[path]["sha256"] != observed[path]["sha256"]
+            )
+            if compare_sha256
+            else []
+        )
+        mismatches: list[str] = []
+        if missing:
+            mismatches.append(f"missing={missing}")
+        if extra:
+            mismatches.append(f"extra={extra}")
+        if size_mismatches:
+            mismatches.append(f"bytes={size_mismatches}")
+        if sha256_mismatches:
+            mismatches.append(f"sha256={sha256_mismatches}")
+        if mismatches:
+            msg = "Kaggle remote resource inventory mismatch: " + "; ".join(mismatches)
+            raise ValueError(msg)
+
+    def _assert_remote_marker_inventory_matches(
+        self,
+        marker: dict[str, Any],
+        observed_files: Any,
+        *,
+        compare_sha256: bool,
+    ) -> None:
+        self._validate_publication_marker(marker)
+        observed = self._index_file_inventory(
+            observed_files,
+            source="remote marker-attested",
+            require_sha256=compare_sha256,
+        )
+        mismatches: list[str] = []
+        consumed_paths = {"dataset-metadata.json", PUBLICATION_MARKER_NAME}
+
+        for required_path in sorted(consumed_paths):
+            if required_path not in observed:
+                mismatches.append(f"missing={required_path}")
+
+        marker_bytes = self._publication_marker_bytes(marker)
+        marker_file = observed.get(PUBLICATION_MARKER_NAME)
+        if marker_file is not None:
+            if marker_file["bytes"] != len(marker_bytes):
+                mismatches.append(f"bytes={PUBLICATION_MARKER_NAME}")
+            if compare_sha256 and marker_file["sha256"] != hashlib.sha256(marker_bytes).hexdigest():
+                mismatches.append(f"sha256={PUBLICATION_MARKER_NAME}")
+
+        metadata_file = observed.get("dataset-metadata.json")
+        if (
+            compare_sha256
+            and metadata_file is not None
+            and metadata_file["sha256"] != marker["metadata_sha256"]
+        ):
+            mismatches.append("sha256=dataset-metadata.json")
+
+        identity_resources: list[dict[str, Any]] = []
+        resources = cast("list[dict[str, Any]]", marker["resources"])
+        resource_paths = [str(resource["path"]) for resource in resources]
+        for index, resource_path in enumerate(resource_paths):
+            overlap = next(
+                (
+                    other
+                    for other in resource_paths[index + 1 :]
+                    if self._resource_paths_overlap(resource_path, other)
+                ),
+                None,
+            )
+            if overlap is not None:
+                mismatches.append(f"overlap={resource_path},{overlap}")
+
+        for resource in resources:
+            resource_path = str(resource["path"])
+            if resource["kind"] == "file":
+                consumed_paths.add(resource_path)
+                observed_resource = observed.get(resource_path)
+                if observed_resource is None:
+                    mismatches.append(f"missing={resource_path}")
+                else:
+                    if observed_resource["bytes"] != resource["bytes"]:
+                        mismatches.append(f"bytes={resource_path}")
+                    if compare_sha256 and observed_resource["sha256"] != resource["sha256"]:
+                        mismatches.append(f"sha256={resource_path}")
+                identity_resources.append(
+                    {
+                        "path": resource_path,
+                        "kind": "file",
+                        "bytes": resource["bytes"],
+                        "sha256": resource["sha256"],
+                    }
+                )
+                continue
+
+            prefix = f"{resource_path}/"
+            children = [item for path, item in observed.items() if path.startswith(prefix)]
+            consumed_paths.update(str(item["path"]) for item in children)
+            if len(children) != resource["file_count"]:
+                mismatches.append(f"file_count={resource_path}")
+            if sum(int(item["bytes"]) for item in children) != resource["bytes"]:
+                mismatches.append(f"bytes={resource_path}")
+            child_files = [
+                {
+                    "path": str(item["path"])[len(prefix) :],
+                    "bytes": item["bytes"],
+                    **({"sha256": item["sha256"]} if compare_sha256 else {}),
+                }
+                for item in children
+            ]
+            child_files.sort(key=lambda item: item["path"])
+            if compare_sha256:
+                directory_source = json.dumps(
+                    child_files,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                if hashlib.sha256(directory_source.encode()).hexdigest() != resource["sha256"]:
+                    mismatches.append(f"sha256={resource_path}")
+            identity_resources.append(
+                {
+                    "path": resource_path,
+                    "kind": "directory",
+                    "bytes": resource["bytes"],
+                    "sha256": resource["sha256"],
+                    "file_count": resource["file_count"],
+                    **({"files": child_files} if compare_sha256 else {}),
+                }
+            )
+
+        extra = sorted(set(observed).difference(consumed_paths))
+        if extra:
+            mismatches.append(f"extra={extra}")
+
+        if compare_sha256 and not mismatches:
+            data_files = sorted(
+                (item for path, item in observed.items() if path != PUBLICATION_MARKER_NAME),
+                key=lambda item: item["path"],
+            )
+            data_tree_source = json.dumps(data_files, sort_keys=True, separators=(",", ":"))
+            if (
+                hashlib.sha256(data_tree_source.encode()).hexdigest()
+                != marker["data_tree_fingerprint"]
+            ):
+                mismatches.append("fingerprint=data_tree")
+
+            fingerprint_payload = {
+                "metadata_sha256": marker["metadata_sha256"],
+                "resources": sorted(identity_resources, key=lambda item: item["path"]),
+            }
+            bundle_source = json.dumps(
+                fingerprint_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            if hashlib.sha256(bundle_source.encode()).hexdigest() != marker["bundle_fingerprint"]:
+                mismatches.append("fingerprint=bundle")
+
+        if mismatches:
+            msg = "Kaggle remote marker-attested inventory mismatch: " + "; ".join(mismatches)
+            raise ValueError(msg)
+
+    def _snapshot_remote_files_streaming(
+        self,
+        download_root: Path,
+        api_inventory: list[dict[str, Any]],
+        *,
+        version: int,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
+        download_root.mkdir(parents=True, exist_ok=True)
+        files: list[dict[str, Any]] = []
+        for api_file in api_inventory:
+            self._require_verification_deadline(deadline, operation="remote file download")
+            self._require_disk_capacity(
+                download_root,
+                required_bytes=int(api_file["bytes"]) + _DISK_SAFETY_RESERVE_BYTES,
+                operation=f"readback of {api_file['path']}",
+            )
+            downloaded_path, _resolved_version = self._download_remote_dataset_file(
+                download_root,
+                version,
+                str(api_file["path"]),
+            )
+            self._require_verification_deadline(deadline, operation="remote file download")
+            byte_count = downloaded_path.stat().st_size
+            if byte_count != api_file["bytes"]:
+                msg = (
+                    "Kaggle downloaded remote file size differs from API inventory: "
+                    f"{api_file['path']}"
+                )
+                raise ValueError(msg)
+            digest = self._file_sha256(downloaded_path)
+            self._require_verification_deadline(deadline, operation="remote file hashing")
+            files.append({"path": api_file["path"], "bytes": byte_count, "sha256": digest})
+            downloaded_path.unlink()
+
+        files.sort(key=lambda item: item["path"])
+        fingerprint_source = json.dumps(files, sort_keys=True, separators=(",", ":"))
+        return {
+            "file_count": len(files),
+            "bytes": sum(item["bytes"] for item in files),
+            "files": files,
+            "fingerprint": hashlib.sha256(fingerprint_source.encode()).hexdigest(),
+        }
+
+    def _verify_remote_bundle(
+        self,
+        expected_tree: dict[str, Any] | None,
+        *,
+        expected_marker: dict[str, Any] | None = None,
+        version: int,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
+        if expected_tree is None and expected_marker is None:
+            msg = "Kaggle remote bundle verification requires expected inventory evidence"
+            raise ValueError(msg)
+        expected_files = None
+        if expected_tree is not None:
+            expected_files = expected_tree.get("files")
+            self._index_file_inventory(
+                expected_files,
+                source="expected staged",
+                require_sha256=True,
+            )
+            if not self._is_lowercase_hex(expected_tree.get("fingerprint"), length=64):
+                msg = "Kaggle expected staged tree fingerprint is invalid"
+                raise ValueError(msg)
+        self._require_verification_deadline(deadline, operation="remote inventory listing")
+        api_inventory = self._list_remote_dataset_files(version)
+        self._require_verification_deadline(deadline, operation="remote inventory listing")
+        if expected_tree is not None:
+            self._assert_remote_file_inventory_matches(
+                expected_files,
+                api_inventory,
+                compare_sha256=False,
+            )
+        if expected_marker is not None:
+            self._assert_remote_marker_inventory_matches(
+                expected_marker,
+                api_inventory,
+                compare_sha256=False,
+            )
+
+        with tempfile.TemporaryDirectory(prefix="nbadb-kaggle-bundle-readback-") as temp_dir:
+            snapshot = self._snapshot_remote_files_streaming(
+                Path(temp_dir) / "files",
+                api_inventory,
+                version=version,
+                deadline=deadline,
+            )
+
+        if expected_tree is not None:
+            self._assert_remote_file_inventory_matches(
+                expected_files,
+                snapshot["files"],
+                compare_sha256=True,
+            )
+            expected_fingerprint = expected_tree.get("fingerprint")
+            if snapshot["fingerprint"] != expected_fingerprint:
+                msg = "Kaggle remote resource inventory fingerprint does not match staged bundle"
+                raise ValueError(msg)
+        if expected_marker is not None:
+            self._assert_remote_marker_inventory_matches(
+                expected_marker,
+                snapshot["files"],
+                compare_sha256=True,
+            )
+        return {
+            "version": version,
+            "file_count": snapshot["file_count"],
+            "bytes": snapshot["bytes"],
+            "fingerprint": snapshot["fingerprint"],
+            "api_file_count": len(api_inventory),
+            "content_identity": "sha256_full_readback",
+        }
+
     def _reconcile_bootstrap_before_upload(
         self,
         *,
@@ -2169,7 +2779,8 @@ class KaggleClient:
         self,
         expected_marker: dict[str, Any],
         *,
-        timeout_seconds: float = 900.0,
+        expected_tree: dict[str, Any] | None = None,
+        timeout_seconds: float = 3600.0,
         poll_interval_seconds: float = 15.0,
         publication: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -2177,6 +2788,7 @@ class KaggleClient:
             publication = {}
         observations = list(publication.get("observations") or [])
         started = self._monotonic()
+        deadline = started + timeout_seconds
         attempt = 0
         while True:
             attempt += 1
@@ -2187,6 +2799,8 @@ class KaggleClient:
                         Path(temp_dir)
                     )
             except Exception as exc:
+                if self._is_local_resource_error(exc):
+                    raise
                 observation["error"] = self._redacted_error(exc)
             else:
                 marker_matches = self._publication_marker_matches(
@@ -2205,28 +2819,60 @@ class KaggleClient:
                     try:
                         metadata_version = self._resolve_remote_dataset_version()
                     except Exception as exc:
+                        if self._is_local_resource_error(exc):
+                            raise
                         observation["metadata_error"] = self._redacted_error(exc)
                     else:
                         observation["metadata_version"] = metadata_version
                         observation["versions_agree"] = version == metadata_version
                         if version == metadata_version:
-                            elapsed = max(0.0, self._monotonic() - started)
-                            observations.append(observation)
-                            publication.update(
-                                {
+                            try:
+                                resource_verification = self._verify_remote_bundle(
+                                    expected_tree,
+                                    expected_marker=remote_marker,
+                                    version=version,
+                                    deadline=deadline,
+                                )
+                                post_readback_version = self._resolve_remote_dataset_version()
+                                self._require_verification_deadline(
+                                    deadline,
+                                    operation="remote version stabilization",
+                                )
+                                if post_readback_version != version:
+                                    msg = (
+                                        "Kaggle current dataset version changed during remote "
+                                        "resource verification: "
+                                        f"marker={version}, current={post_readback_version}"
+                                    )
+                                    raise RuntimeError(msg)
+                            except Exception as exc:
+                                if self._is_local_resource_error(exc):
+                                    raise
+                                observation["resource_verification_error"] = self._redacted_error(
+                                    exc
+                                )
+                            else:
+                                observation["post_readback_version"] = post_readback_version
+                                observation["resource_verification"] = resource_verification
+                                elapsed = max(0.0, self._monotonic() - started)
+                                observations.append(observation)
+                                publication.update(
+                                    {
+                                        "verification_attempts": attempt,
+                                        "verification_elapsed_seconds": round(elapsed, 3),
+                                        "resolved_version": version,
+                                        "resource_verification": resource_verification,
+                                        "observations": observations,
+                                    }
+                                )
+                                return {
+                                    **remote_marker,
+                                    "verification_mode": "publication_marker",
+                                    "resource_verification": resource_verification,
                                     "verification_attempts": attempt,
                                     "verification_elapsed_seconds": round(elapsed, 3),
                                     "resolved_version": version,
-                                    "observations": observations,
                                 }
-                            )
-                            return {
-                                **remote_marker,
-                                "verification_mode": "publication_marker",
-                                "verification_attempts": attempt,
-                                "verification_elapsed_seconds": round(elapsed, 3),
-                                "resolved_version": version,
-                            }
             observations.append(observation)
             elapsed = max(0.0, self._monotonic() - started)
             publication.update(
@@ -2240,6 +2886,26 @@ class KaggleClient:
                 msg = "Kaggle publication did not expose the expected bundle before the deadline"
                 raise KagglePublicationPendingError(msg, publication)
             self._sleep(min(poll_interval_seconds, timeout_seconds - elapsed))
+
+    @staticmethod
+    def _is_local_resource_error(exc: Exception) -> bool:
+        return isinstance(exc, OSError) and exc.errno in {
+            errno.EACCES,
+            errno.EDQUOT,
+            errno.EIO,
+            errno.ENFILE,
+            errno.ENOSPC,
+            errno.EMFILE,
+        }
+
+    def _require_verification_deadline(
+        self,
+        deadline: float | None,
+        *,
+        operation: str,
+    ) -> None:
+        if deadline is not None and self._monotonic() >= deadline:
+            raise TimeoutError(f"Kaggle {operation} exceeded the verification deadline")
 
     @staticmethod
     def _redact_sensitive_text(message: str) -> str:

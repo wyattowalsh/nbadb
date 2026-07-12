@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import duckdb
 import pytest
 
 from nbadb.kaggle.metadata import (
@@ -267,6 +268,107 @@ class TestBuildResources:
             "csv/dim_player.csv",
             "parquet/dim_player/dim_player.parquet",
         }
+
+    def test_data_dir_includes_staging_csv_and_parquet_resources(self, tmp_path: Path) -> None:
+        table = "stg_common_all_players"
+        csv_dir = tmp_path / "csv"
+        parquet_dir = tmp_path / "parquet" / table
+        csv_dir.mkdir()
+        parquet_dir.mkdir(parents=True)
+        (csv_dir / f"{table}.csv").write_text(
+            _schema_csv_header(table) + "\n",
+            encoding="utf-8",
+        )
+        (parquet_dir / f"{table}.parquet").write_bytes(b"parquet")
+        connection = duckdb.connect(str(tmp_path / "nba.duckdb"))
+        connection.execute(f"create table {table} as select 1 as person_id")
+        connection.close()
+
+        resources = _build_resources(data_dir=tmp_path, validate_csv_headers=True)
+        resources_by_path = {resource["path"]: resource for resource in resources}
+
+        assert set(resources_by_path) == {
+            "nba.duckdb",
+            f"csv/{table}.csv",
+            f"parquet/{table}/{table}.parquet",
+        }
+        assert resources_by_path[f"csv/{table}.csv"]["schema"]["fields"]
+        assert resources_by_path[f"parquet/{table}/{table}.parquet"]["schema"]["fields"]
+
+    def test_data_dir_rejects_unregistered_staging_exports(self, tmp_path: Path) -> None:
+        table = "stg_not_registered"
+        (tmp_path / "csv").mkdir()
+        parquet_dir = tmp_path / "parquet" / table
+        parquet_dir.mkdir(parents=True)
+        (tmp_path / "csv" / f"{table}.csv").write_text("id\n1\n", encoding="utf-8")
+        (parquet_dir / f"{table}.parquet").write_bytes(b"parquet")
+
+        with pytest.raises(ValueError, match="non-canonical staging tables"):
+            _build_resources(data_dir=tmp_path)
+
+    def test_data_dir_rejects_staging_format_inventory_mismatch(self, tmp_path: Path) -> None:
+        table = "stg_common_all_players"
+        (tmp_path / "csv").mkdir()
+        (tmp_path / "parquet").mkdir()
+        (tmp_path / "csv" / f"{table}.csv").write_text("person_id\n1\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="CSV and Parquet staging exports differ"):
+            _build_resources(data_dir=tmp_path)
+
+    def test_data_dir_rejects_symlinked_staging_export(self, tmp_path: Path) -> None:
+        table = "stg_common_all_players"
+        csv_dir = tmp_path / "csv"
+        csv_dir.mkdir()
+        outside = tmp_path / "outside.csv"
+        outside.write_text("person_id\n1\n", encoding="utf-8")
+        try:
+            (csv_dir / f"{table}.csv").symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        with pytest.raises(ValueError, match="invalid staging entries"):
+            _build_resources(data_dir=tmp_path)
+
+    def test_data_dir_rejects_symlinked_export_root(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside-csv"
+        outside.mkdir()
+        (outside / "stg_common_all_players.csv").write_text(
+            "person_id\n1\n",
+            encoding="utf-8",
+        )
+        try:
+            (tmp_path / "csv").symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        with pytest.raises(ValueError, match="symlinked roots"):
+            _build_resources(data_dir=tmp_path)
+
+    def test_data_dir_rejects_staging_export_missing_from_database(self, tmp_path: Path) -> None:
+        table = "stg_common_all_players"
+        csv_dir = tmp_path / "csv"
+        parquet_dir = tmp_path / "parquet" / table
+        csv_dir.mkdir()
+        parquet_dir.mkdir(parents=True)
+        (csv_dir / f"{table}.csv").write_text("person_id\n1\n", encoding="utf-8")
+        (parquet_dir / f"{table}.parquet").write_bytes(b"parquet")
+        duckdb.connect(str(tmp_path / "nba.duckdb")).close()
+
+        with pytest.raises(ValueError, match="not present in nba.duckdb"):
+            _build_resources(data_dir=tmp_path)
+
+    def test_data_dir_rejects_extra_staging_parquet_child(self, tmp_path: Path) -> None:
+        table = "stg_common_all_players"
+        csv_dir = tmp_path / "csv"
+        parquet_dir = tmp_path / "parquet" / table
+        csv_dir.mkdir()
+        parquet_dir.mkdir(parents=True)
+        (csv_dir / f"{table}.csv").write_text("person_id\n1\n", encoding="utf-8")
+        (parquet_dir / f"{table}.parquet").write_bytes(b"parquet")
+        (parquet_dir / "spoof.parquet").write_bytes(b"spoof")
+
+        with pytest.raises(ValueError, match="invalid staging entries"):
+            _build_resources(data_dir=tmp_path)
 
     def test_data_dir_includes_assured_provenance_manifest(self, tmp_path: Path) -> None:
         manifest = tmp_path / "assured-artifact-manifest.json"

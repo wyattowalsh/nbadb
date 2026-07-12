@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import errno
+import hashlib
 import json
 import os
+import shutil
 import sys
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -35,6 +38,42 @@ def _valid_publication_marker() -> dict[str, object]:
             }
         ],
     }
+
+
+def _remote_tree(files: dict[str, bytes]) -> dict[str, object]:
+    inventory = [
+        {
+            "path": path,
+            "bytes": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }
+        for path, content in sorted(files.items())
+    ]
+    fingerprint_source = json.dumps(inventory, sort_keys=True, separators=(",", ":"))
+    return {
+        "file_count": len(inventory),
+        "bytes": sum(item["bytes"] for item in inventory),
+        "files": inventory,
+        "fingerprint": hashlib.sha256(fingerprint_source.encode()).hexdigest(),
+    }
+
+
+def _write_remote_tree(root: Path, files: dict[str, bytes]) -> None:
+    for path, content in files.items():
+        target = root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+
+
+def _remote_file_downloader(root: Path, *, version: int = 42):
+    def download(download_root: Path, requested_version: int, relative_path: str):
+        assert requested_version == version
+        destination = download_root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative_path, destination)
+        return destination, version
+
+    return download
 
 
 def _valid_publication_state() -> dict[str, object]:
@@ -203,6 +242,369 @@ def test_resolve_remote_dataset_version_requires_exact_positive_version(version:
         pytest.raises(RuntimeError, match="did not resolve an exact dataset version"),
     ):
         client._resolve_remote_dataset_version()
+
+
+def test_list_remote_dataset_files_paginates_exact_version() -> None:
+    first_page = SimpleNamespace(
+        dataset_files=[
+            SimpleNamespace(name="dataset-metadata.json", total_bytes=8),
+            SimpleNamespace(name="csv/stg_common_all_players.csv", total_bytes=12),
+        ],
+        error_message="",
+        next_page_token="next-page",
+    )
+    second_page = SimpleNamespace(
+        dataset_files=[
+            SimpleNamespace(
+                name="parquet/stg_common_all_players/stg_common_all_players.parquet",
+                total_bytes=16,
+            )
+        ],
+        error_message="",
+        next_page_token="",
+    )
+    api_client = MagicMock()
+    api_client.__enter__.return_value = api_client
+    list_files = api_client.datasets.dataset_api_client.list_dataset_files
+    list_files.side_effect = [first_page, second_page]
+
+    with patch("kagglehub.clients.build_kaggle_client", return_value=api_client):
+        inventory = KaggleClient()._list_remote_dataset_files(42)
+
+    assert inventory == [
+        {"path": "csv/stg_common_all_players.csv", "bytes": 12},
+        {"path": "dataset-metadata.json", "bytes": 8},
+        {
+            "path": "parquet/stg_common_all_players/stg_common_all_players.parquet",
+            "bytes": 16,
+        },
+    ]
+    requests = [call.args[0] for call in list_files.call_args_list]
+    assert [request.dataset_version_number for request in requests] == [42, 42]
+    assert [request.page_token for request in requests] == ["", "next-page"]
+    api_client.__exit__.assert_called_once()
+
+
+def test_verify_remote_bundle_accepts_complete_staging_inventory(tmp_path) -> None:
+    files = {
+        "dataset-metadata.json": b"metadata",
+        "nbadb-publication.json": b"marker",
+        "csv/stg_common_all_players.csv": b"person_id\n1\n",
+        "parquet/stg_common_all_players/stg_common_all_players.parquet": b"PAR1",
+    }
+    remote_root = tmp_path / "remote"
+    _write_remote_tree(remote_root, files)
+    expected_tree = _remote_tree(files)
+    api_inventory = [
+        {"path": path, "bytes": len(content)} for path, content in sorted(files.items())
+    ]
+    client = KaggleClient()
+
+    with (
+        patch.object(client, "_list_remote_dataset_files", return_value=api_inventory),
+        patch.object(
+            client,
+            "_download_remote_dataset_file",
+            side_effect=_remote_file_downloader(remote_root),
+        ),
+    ):
+        result = client._verify_remote_bundle(expected_tree, version=42)
+
+    assert result["file_count"] == len(files)
+    assert result["fingerprint"] == expected_tree["fingerprint"]
+    assert result["content_identity"] == "sha256_full_readback"
+
+
+def test_download_remote_dataset_file_rejects_resolver_escape(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.csv"
+    outside.write_text("id\n1\n", encoding="utf-8")
+    download_root = tmp_path / "readback"
+    download_root.mkdir()
+    client = KaggleClient()
+
+    with (
+        patch(
+            "kagglehub.registry.dataset_resolver",
+            return_value=(str(outside), 42),
+        ),
+        pytest.raises(ValueError, match="escaped its download root"),
+    ):
+        client._download_remote_dataset_file(download_root, 42, "csv/table.csv")
+
+
+def test_snapshot_remote_files_streaming_rejects_deadline_overrun(tmp_path: Path) -> None:
+    remote_root = tmp_path / "remote"
+    _write_remote_tree(remote_root, {"dataset-metadata.json": b"metadata"})
+    client = KaggleClient()
+
+    with (
+        patch.object(
+            client,
+            "_download_remote_dataset_file",
+            side_effect=_remote_file_downloader(remote_root),
+        ) as download,
+        patch.object(client, "_require_disk_capacity"),
+        patch.object(client, "_monotonic", side_effect=[0.0, 2.0]),
+        pytest.raises(TimeoutError, match="remote file download exceeded"),
+    ):
+        client._snapshot_remote_files_streaming(
+            tmp_path / "readback",
+            [{"path": "dataset-metadata.json", "bytes": 8}],
+            version=42,
+            deadline=1.0,
+        )
+
+    download.assert_called_once()
+
+
+def test_verify_remote_bundle_rejects_malformed_expected_tree() -> None:
+    client = KaggleClient()
+
+    with (
+        patch.object(client, "_list_remote_dataset_files") as list_files,
+        pytest.raises(ValueError, match="expected staged file inventory must be a list"),
+    ):
+        client._verify_remote_bundle({}, version=42)
+
+    list_files.assert_not_called()
+
+
+def test_verify_remote_bundle_rejects_missing_staging_resource(tmp_path) -> None:
+    files = {
+        "dataset-metadata.json": b"metadata",
+        "nbadb-publication.json": b"marker",
+        "csv/stg_common_all_players.csv": b"person_id\n1\n",
+    }
+    expected_tree = _remote_tree(files)
+    api_inventory = [
+        {"path": path, "bytes": len(content)}
+        for path, content in sorted(files.items())
+        if not path.startswith("csv/stg_")
+    ]
+    client = KaggleClient()
+
+    with (
+        patch.object(client, "_list_remote_dataset_files", return_value=api_inventory),
+        patch.object(client, "_download_remote_dataset_file") as download,
+        pytest.raises(ValueError, match="missing=.*csv/stg_common_all_players.csv"),
+    ):
+        client._verify_remote_bundle(expected_tree, version=42)
+
+    download.assert_not_called()
+
+
+def test_verify_remote_bundle_rejects_extra_remote_resource(tmp_path) -> None:
+    files = {
+        "dataset-metadata.json": b"metadata",
+        "nbadb-publication.json": b"marker",
+    }
+    api_inventory = [
+        {"path": path, "bytes": len(content)} for path, content in sorted(files.items())
+    ]
+    api_inventory.append({"path": "csv/undeclared.csv", "bytes": 7})
+    client = KaggleClient()
+
+    with (
+        patch.object(client, "_list_remote_dataset_files", return_value=api_inventory),
+        patch.object(client, "_download_remote_dataset_file") as download,
+        pytest.raises(ValueError, match="extra=.*csv/undeclared.csv"),
+    ):
+        client._verify_remote_bundle(_remote_tree(files), version=42)
+
+    download.assert_not_called()
+
+
+def test_verify_remote_bundle_rejects_same_size_content_corruption(tmp_path) -> None:
+    expected_files = {
+        "dataset-metadata.json": b"metadata",
+        "nbadb-publication.json": b"marker",
+        "csv/stg_common_all_players.csv": b"person_id\n1\n",
+    }
+    remote_files = {**expected_files, "csv/stg_common_all_players.csv": b"person_id\n2\n"}
+    remote_root = tmp_path / "remote"
+    _write_remote_tree(remote_root, remote_files)
+    api_inventory = [
+        {"path": path, "bytes": len(content)} for path, content in sorted(expected_files.items())
+    ]
+    client = KaggleClient()
+
+    with (
+        patch.object(client, "_list_remote_dataset_files", return_value=api_inventory),
+        patch.object(
+            client,
+            "_download_remote_dataset_file",
+            side_effect=_remote_file_downloader(remote_root),
+        ),
+        pytest.raises(ValueError, match="sha256=.*csv/stg_common_all_players.csv"),
+    ):
+        client._verify_remote_bundle(_remote_tree(expected_files), version=42)
+
+
+def test_verify_remote_bundle_reconciles_marker_attested_staging_content(tmp_path) -> None:
+    client = KaggleClient()
+    metadata = b"metadata"
+    staging = b"person_id\n1\n"
+    staging_path = "csv/stg_common_all_players.csv"
+    resource = {
+        "path": staging_path,
+        "kind": "file",
+        "bytes": len(staging),
+        "sha256": hashlib.sha256(staging).hexdigest(),
+    }
+    metadata_sha256 = hashlib.sha256(metadata).hexdigest()
+    fingerprint_payload = {
+        "metadata_sha256": metadata_sha256,
+        "resources": [resource],
+    }
+    bundle_fingerprint = hashlib.sha256(
+        json.dumps(fingerprint_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    data_files = {
+        "dataset-metadata.json": metadata,
+        staging_path: staging,
+    }
+    data_tree = _remote_tree(data_files)
+    marker = client._publication_marker_payload(
+        preflight={
+            "fingerprint": bundle_fingerprint,
+            "metadata_sha256": metadata_sha256,
+            "resource_count": 1,
+            "resource_bytes": len(staging),
+            "resources": [resource],
+            "provenance": None,
+        },
+        publish_key="a" * 20,
+        data_tree_fingerprint=str(data_tree["fingerprint"]),
+    )
+    remote_files = {
+        **data_files,
+        "nbadb-publication.json": client._publication_marker_bytes(marker),
+    }
+    remote_root = tmp_path / "remote"
+    _write_remote_tree(remote_root, remote_files)
+    api_inventory = [
+        {"path": path, "bytes": len(content)} for path, content in sorted(remote_files.items())
+    ]
+
+    with (
+        patch.object(client, "_list_remote_dataset_files", return_value=api_inventory),
+        patch.object(
+            client,
+            "_download_remote_dataset_file",
+            side_effect=_remote_file_downloader(remote_root),
+        ),
+    ):
+        result = client._verify_remote_bundle(None, expected_marker=marker, version=42)
+
+    assert result["content_identity"] == "sha256_full_readback"
+
+
+def test_verify_remote_upload_requires_complete_resource_readback() -> None:
+    client = KaggleClient()
+    marker = _valid_publication_marker()
+    expected_tree = _remote_tree({"dataset-metadata.json": b"metadata"})
+    resource_verification = {
+        "version": 42,
+        "file_count": 3,
+        "bytes": 24,
+        "fingerprint": "f" * 64,
+        "api_file_count": 3,
+        "content_identity": "sha256_full_readback",
+    }
+
+    with (
+        patch.object(client, "_download_remote_publication_marker", return_value=(marker, 42)),
+        patch.object(client, "_resolve_remote_dataset_version", return_value=42) as version,
+        patch.object(
+            client,
+            "_verify_remote_bundle",
+            return_value=resource_verification,
+        ) as verify_bundle,
+        patch.object(client, "_monotonic", side_effect=[0.0, 1.0, 1.0]),
+    ):
+        result = client._verify_remote_upload(
+            marker,
+            expected_tree=expected_tree,
+            timeout_seconds=5,
+        )
+
+    verify_bundle.assert_called_once_with(
+        expected_tree,
+        expected_marker=marker,
+        version=42,
+        deadline=5.0,
+    )
+    assert version.call_count == 2
+    assert result["resource_verification"] == resource_verification
+    assert result["resolved_version"] == 42
+
+
+def test_verify_remote_upload_does_not_retry_local_enospc() -> None:
+    client = KaggleClient()
+    marker = _valid_publication_marker()
+    expected_tree = _remote_tree({"dataset-metadata.json": b"metadata"})
+    disk_error = OSError(errno.ENOSPC, "disk full")
+
+    with (
+        patch.object(client, "_download_remote_publication_marker", return_value=(marker, 42)),
+        patch.object(client, "_resolve_remote_dataset_version", return_value=42),
+        patch.object(client, "_verify_remote_bundle", side_effect=disk_error) as verify_bundle,
+        patch.object(client, "_sleep") as sleep,
+        pytest.raises(OSError, match="disk full"),
+    ):
+        client._verify_remote_upload(
+            marker,
+            expected_tree=expected_tree,
+            timeout_seconds=30,
+        )
+
+    verify_bundle.assert_called_once()
+    sleep.assert_not_called()
+
+
+def test_stage_file_uses_hardlink_without_duplicate_storage(tmp_path: Path) -> None:
+    source = tmp_path / "source.sqlite"
+    destination = tmp_path / "staged" / "nba.sqlite"
+    source.write_bytes(b"database")
+    inventory = {
+        "path": "nba.sqlite",
+        "bytes": source.stat().st_size,
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+
+    KaggleClient()._stage_file_from_inventory(
+        source_path=source,
+        destination=destination,
+        inventory=inventory,
+    )
+
+    assert destination.read_bytes() == source.read_bytes()
+    assert destination.stat().st_ino == source.stat().st_ino
+
+
+def test_stage_file_capacity_checks_cross_device_copy(tmp_path: Path) -> None:
+    source = tmp_path / "source.sqlite"
+    destination = tmp_path / "staged" / "nba.sqlite"
+    source.write_bytes(b"database")
+    inventory = {
+        "path": "nba.sqlite",
+        "bytes": source.stat().st_size,
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    client = KaggleClient()
+
+    with (
+        patch("nbadb.kaggle.client.os.link", side_effect=OSError(errno.EXDEV, "cross-device")),
+        patch.object(client, "_require_disk_capacity") as capacity,
+    ):
+        client._stage_file_from_inventory(
+            source_path=source,
+            destination=destination,
+            inventory=inventory,
+        )
+
+    capacity.assert_called_once()
+    assert destination.read_bytes() == source.read_bytes()
 
 
 @patch("nbadb.kaggle.client.get_settings")

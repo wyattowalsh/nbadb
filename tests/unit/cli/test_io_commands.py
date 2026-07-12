@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import duckdb
+import pytest
 from typer.testing import CliRunner
 
 from nbadb.cli.app import app
@@ -49,6 +50,50 @@ def test_export_success(tmp_path: Path) -> None:
         result = runner.invoke(app, ["export", "--data-dir", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
+
+
+def test_export_removes_stale_generated_roots_before_writing(tmp_path: Path) -> None:
+    db_file = tmp_path / "nba.duckdb"
+    conn = duckdb.connect(str(db_file))
+    conn.execute("CREATE TABLE dim_player AS SELECT 1 AS player_id")
+    conn.close()
+    stale_csv = tmp_path / "csv" / "stg_removed.csv"
+    stale_parquet = tmp_path / "parquet" / "stg_removed" / "stg_removed.parquet"
+    stale_csv.parent.mkdir(parents=True)
+    stale_parquet.parent.mkdir(parents=True)
+    stale_csv.write_text("stale\n", encoding="utf-8")
+    stale_parquet.write_text("stale\n", encoding="utf-8")
+
+    with patch(_MULTI_LOADER, return_value=MagicMock()):
+        result = runner.invoke(
+            app,
+            ["export", "--data-dir", str(tmp_path), "--format", "sqlite"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert not stale_csv.exists()
+    assert not stale_parquet.exists()
+
+
+def test_export_rejects_symlinked_generated_root(tmp_path: Path) -> None:
+    db_file = tmp_path / "nba.duckdb"
+    conn = duckdb.connect(str(db_file))
+    conn.execute("CREATE TABLE dim_player AS SELECT 1 AS player_id")
+    conn.close()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        (tmp_path / "csv").symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    with patch(_MULTI_LOADER, return_value=MagicMock()):
+        result = runner.invoke(app, ["export", "--data-dir", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, RuntimeError)
+    assert "Refusing to replace symlinked export root" in str(result.exception)
+    assert outside.is_dir()
 
 
 def test_export_fails_when_table_export_fails(tmp_path: Path) -> None:
@@ -179,7 +224,7 @@ def test_upload_passes_data_dir_message_and_orders_metadata(tmp_path: Path) -> N
         tmp_path,
         version_notes="test run",
         verify_remote=False,
-        remote_timeout_seconds=900.0,
+        remote_timeout_seconds=3600.0,
         remote_poll_interval_seconds=15.0,
     )
     assert client.method_calls[0].args == (tmp_path,)

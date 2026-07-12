@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+
 import typer
 
 from nbadb.cli.app import app
@@ -46,6 +48,13 @@ def export(
         if not tables:
             typer.echo("No tables found to export.")
             raise typer.Exit(1)
+
+        for format_name in ("csv", "parquet"):
+            export_root = settings.data_dir / format_name
+            if export_root.is_symlink():
+                raise RuntimeError(f"Refusing to replace symlinked export root: {export_root}")
+            if export_root.exists():
+                shutil.rmtree(export_root)
 
         loader = create_multi_loader(settings, duckdb_conn=conn, strict=not allow_partial)
         exported = 0

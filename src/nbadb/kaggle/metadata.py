@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
 
 from nbadb.core.artifact_identity import ASSURED_ARTIFACT_MANIFEST_NAME
 from nbadb.core.config import get_settings
+from nbadb.orchestrate.staging_map import STAGING_MAP
 
 TABLE_DESCRIPTIONS: dict[str, str] = {
     # --- Dimensions (18) ---
@@ -540,10 +542,115 @@ class ExportInventory:
     sqlite_available: bool
     csv_tables: int
     parquet_tables: int
+    table_count: int
+    staging_tables: int
 
 
 def _iter_catalog_tables() -> list[str]:
     return [table for category in CATEGORY_ORDER for table in TABLE_CATEGORIES[category]]
+
+
+_STAGING_TABLE_RE = re.compile(r"stg_[a-z0-9_]+")
+_CANONICAL_STAGING_TABLES = frozenset(entry.staging_key for entry in STAGING_MAP)
+
+
+def _staging_export_tables(data_dir: Path) -> list[str]:
+    csv_dir = data_dir / "csv"
+    parquet_dir = data_dir / "parquet"
+    symlinked_roots = [path.name for path in (csv_dir, parquet_dir) if path.is_symlink()]
+    if symlinked_roots:
+        msg = f"Export directories contain symlinked roots: {sorted(symlinked_roots)}"
+        raise ValueError(msg)
+    csv_candidates: set[str] = set()
+    invalid_csv_entries: list[str] = []
+    for path in csv_dir.glob("stg_*"):
+        if path.is_symlink() or not path.is_file() or path.suffix != ".csv":
+            invalid_csv_entries.append(path.name)
+            continue
+        csv_candidates.add(path.stem)
+
+    parquet_candidates: set[str] = set()
+    invalid_parquet_entries: list[str] = []
+    for path in parquet_dir.glob("stg_*"):
+        expected_file = path / f"{path.name}.parquet"
+        if (
+            path.is_symlink()
+            or not path.is_dir()
+            or expected_file.is_symlink()
+            or not expected_file.is_file()
+        ):
+            invalid_parquet_entries.append(path.name)
+            continue
+        unexpected_children = [
+            child.relative_to(path).as_posix()
+            for child in path.rglob("*")
+            if child.is_symlink() or (child.is_file() and child != expected_file)
+        ]
+        if unexpected_children:
+            invalid_parquet_entries.extend(
+                f"{path.name}/{child}" for child in sorted(unexpected_children)
+            )
+            continue
+        parquet_candidates.add(path.name)
+
+    if invalid_csv_entries or invalid_parquet_entries:
+        msg = (
+            "Export directories contain invalid staging entries: "
+            f"csv={sorted(invalid_csv_entries)}; parquet={sorted(invalid_parquet_entries)}"
+        )
+        raise ValueError(msg)
+    candidates = csv_candidates | parquet_candidates
+    malformed = sorted(table for table in candidates if _STAGING_TABLE_RE.fullmatch(table) is None)
+    unregistered = sorted(candidates - _CANONICAL_STAGING_TABLES)
+    if malformed or unregistered:
+        msg = (
+            "Export directories contain non-canonical staging tables: "
+            f"malformed={malformed}; unregistered={unregistered}"
+        )
+        raise ValueError(msg)
+    if csv_dir.is_dir() and parquet_dir.is_dir() and csv_candidates != parquet_candidates:
+        msg = (
+            "CSV and Parquet staging exports differ: "
+            f"csv_only={sorted(csv_candidates - parquet_candidates)}; "
+            f"parquet_only={sorted(parquet_candidates - csv_candidates)}"
+        )
+        raise ValueError(msg)
+    if not candidates:
+        return []
+
+    duckdb_path = data_dir / "nba.duckdb"
+    if not duckdb_path.is_file() or duckdb_path.is_symlink():
+        raise FileNotFoundError("Staging exports require a regular nba.duckdb source")
+
+    import duckdb
+
+    connection = duckdb.connect(str(duckdb_path), read_only=True)
+    try:
+        database_tables = {
+            str(row[0])
+            for row in connection.execute(
+                """
+                select table_name
+                from information_schema.tables
+                where table_schema = 'main'
+                """
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+    missing_from_database = sorted(candidates - database_tables)
+    if missing_from_database:
+        msg = "Staging exports are not present in nba.duckdb: " + ", ".join(missing_from_database)
+        raise ValueError(msg)
+    return sorted(candidates)
+
+
+def _iter_resource_tables(data_dir: Path | None = None) -> list[str]:
+    tables = _iter_catalog_tables()
+    if data_dir is None:
+        return tables
+    staging_tables = _staging_export_tables(data_dir)
+    return [*tables, *[table for table in staging_tables if table not in tables]]
 
 
 def _total_table_count() -> int:
@@ -557,6 +664,8 @@ def _expected_inventory() -> ExportInventory:
         sqlite_available=True,
         csv_tables=total_tables,
         parquet_tables=total_tables,
+        table_count=total_tables,
+        staging_tables=0,
     )
 
 
@@ -567,7 +676,7 @@ def _resolve_export_inventory(data_dir: Path | None) -> ExportInventory:
     if not data_dir.exists():
         raise FileNotFoundError(f"Metadata data_dir does not exist: {data_dir}")
 
-    all_tables = _iter_catalog_tables()
+    all_tables = _iter_resource_tables(data_dir)
     csv_tables = sum(1 for table in all_tables if (data_dir / "csv" / f"{table}.csv").exists())
     parquet_tables = sum(
         1 for table in all_tables if _resolve_parquet_resource_path(table, data_dir)
@@ -577,6 +686,8 @@ def _resolve_export_inventory(data_dir: Path | None) -> ExportInventory:
         sqlite_available=(data_dir / "nba.sqlite").exists(),
         csv_tables=csv_tables,
         parquet_tables=parquet_tables,
+        table_count=len(all_tables),
+        staging_tables=sum(table.startswith("stg_") for table in all_tables),
     )
 
 
@@ -739,23 +850,28 @@ def _render_available_formats(inventory: ExportInventory) -> str:
 
 
 def _render_export_inventory(inventory: ExportInventory) -> str:
-    total_tables = _total_table_count()
+    total_tables = inventory.table_count
     databases: list[str] = []
     if inventory.duckdb_available:
         databases.append("DuckDB")
     if inventory.sqlite_available:
         databases.append("SQLite")
     database_summary = _human_join(databases) or "none detected"
-    return "\n".join(
+    rows = [
+        "## Export Inventory",
+        "",
+        f"- **Cataloged tables**: {_total_table_count()}",
+    ]
+    if inventory.staging_tables:
+        rows.append(f"- **Silver staging tables available**: {inventory.staging_tables}")
+    rows.extend(
         [
-            "## Export Inventory",
-            "",
-            f"- **Cataloged tables**: {total_tables}",
             f"- **CSV exports available**: {inventory.csv_tables}/{total_tables}",
             f"- **Parquet exports available**: {inventory.parquet_tables}/{total_tables}",
             f"- **Database bundles available**: {database_summary}",
         ]
     )
+    return "\n".join(rows)
 
 
 def _render_file_layout(inventory: ExportInventory) -> str:
@@ -1031,6 +1147,11 @@ def _extract_column_schema(table_name: str) -> list[dict] | None:
     if schema_cls is not None:
         return _schema_to_fields(schema_cls)
 
+    if table_name.startswith("stg_"):
+        schema_cls = get_input_schema(table_name)
+        if schema_cls is not None:
+            return _schema_to_fields(schema_cls)
+
     stg_name = _STAGING_FALLBACKS.get(table_name)
     if stg_name is not None:
         schema_cls = get_input_schema(stg_name)
@@ -1043,7 +1164,7 @@ def _extract_column_schema(table_name: str) -> list[dict] | None:
 def _table_display_name(table: str) -> str:
     """Convert a snake_case table name to a human-readable display name."""
     # Strip prefix
-    for prefix in ("dim_", "fact_", "agg_", "bridge_", "analytics_"):
+    for prefix in ("dim_", "fact_", "agg_", "bridge_", "analytics_", "stg_"):
         if table.startswith(prefix):
             table = table[len(prefix) :]
             break
@@ -1122,8 +1243,11 @@ def _build_resources(
         )
 
     # CSV and Parquet tables with optional column schemas
-    for table in _iter_catalog_tables():
-        description = TABLE_DESCRIPTIONS.get(table, table)
+    for table in _iter_resource_tables(data_dir):
+        description = TABLE_DESCRIPTIONS.get(
+            table,
+            f"Silver-layer staging export for {_table_display_name(table)}.",
+        )
         display_name = _table_display_name(table)
         schema_fields = _extract_column_schema(table)
 
@@ -1132,7 +1256,7 @@ def _build_resources(
         if data_dir is None or (csv_file is not None and csv_file.exists()):
             csv_resource: dict = {
                 "path": csv_path,
-                "name": display_name,
+                "name": f"{display_name} (Staging)" if table.startswith("stg_") else display_name,
                 "description": description,
             }
             if schema_fields:
@@ -1145,7 +1269,11 @@ def _build_resources(
         if parquet_path is not None:
             parquet_resource: dict = {
                 "path": parquet_path,
-                "name": f"{display_name} (Parquet)",
+                "name": (
+                    f"{display_name} (Staging Parquet)"
+                    if table.startswith("stg_")
+                    else f"{display_name} (Parquet)"
+                ),
                 "description": description,
             }
             if schema_fields:

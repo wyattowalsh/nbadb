@@ -19,13 +19,16 @@ def upload(
     verify_remote: bool = typer.Option(
         False,
         "--verify-remote",
-        help=("Read back the latest Kaggle publication marker and verify exact bundle identity."),
+        help=(
+            "Verify the exact Kaggle version, complete remote file inventory, and full-bundle "
+            "SHA-256 identity."
+        ),
     ),
     remote_timeout: float = typer.Option(
-        900.0,
+        3600.0,
         "--remote-timeout",
         min=0.0,
-        help="Seconds to wait for the uploaded Kaggle version to become readable.",
+        help="Seconds allowed for each Kaggle reconciliation or post-upload readback phase.",
     ),
     remote_poll_interval: float = typer.Option(
         15.0,

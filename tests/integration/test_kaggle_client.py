@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import shutil
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -156,6 +158,87 @@ def _write_stale_publication_marker(directory: Path) -> None:
         json.dumps(_valid_stale_publication_marker()) + "\n",
         encoding="utf-8",
     )
+
+
+def _remote_file_inventory(directory: Path) -> list[dict[str, object]]:
+    files = []
+    for path in directory.rglob("*"):
+        relative = path.relative_to(directory)
+        if relative.parts and relative.parts[0] == ".complete":
+            continue
+        if path.is_file():
+            files.append({"path": relative.as_posix(), "bytes": path.stat().st_size})
+    return sorted(files, key=lambda item: str(item["path"]))
+
+
+def _paginated_inventory_api(
+    remote_versions: dict[int, Path],
+    *,
+    page_size: int = 2,
+) -> MagicMock:
+    api_client = MagicMock()
+    api_client.__enter__.return_value = api_client
+    list_files = api_client.datasets.dataset_api_client.list_dataset_files
+
+    def respond(request: Any) -> SimpleNamespace:
+        version = request.dataset_version_number
+        if version not in remote_versions:
+            msg = f"unexpected remote inventory version: {version}"
+            raise AssertionError(msg)
+        assert request.page_size == 1000
+        token = request.page_token or ""
+        if token:
+            assert str(token).startswith("offset:")
+            offset = int(str(token).split(":", maxsplit=1)[1])
+        else:
+            offset = 0
+        inventory = _remote_file_inventory(remote_versions[version])
+        page = inventory[offset : offset + page_size]
+        next_offset = offset + len(page)
+        next_page_token = f"offset:{next_offset}" if next_offset < len(inventory) else ""
+        return SimpleNamespace(
+            dataset_files=[
+                SimpleNamespace(name=item["path"], total_bytes=item["bytes"]) for item in page
+            ],
+            error_message="",
+            next_page_token=next_page_token,
+        )
+
+    list_files.side_effect = respond
+    return api_client
+
+
+def _versioned_remote_file_downloader(remote_versions: dict[int, Path]):
+    def download(
+        download_root: Path,
+        version: int,
+        relative_path: str,
+    ) -> tuple[Path, int]:
+        if version not in remote_versions:
+            msg = f"unexpected remote readback version: {version}"
+            raise AssertionError(msg)
+        destination = download_root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(remote_versions[version] / relative_path, destination)
+        return destination, version
+
+    return download
+
+
+def _assert_full_resource_verification(
+    evidence: dict[str, object],
+    *,
+    version: int,
+    expected_tree: dict[str, object],
+) -> None:
+    assert evidence == {
+        "version": version,
+        "file_count": expected_tree["file_count"],
+        "bytes": expected_tree["bytes"],
+        "fingerprint": expected_tree["fingerprint"],
+        "api_file_count": expected_tree["file_count"],
+        "content_identity": "sha256_full_readback",
+    }
 
 
 def _kaggle_api_http_error(status_code: int) -> Exception:
@@ -340,6 +423,86 @@ class TestKaggleClientUpload:
         assert (
             manifest["post_upload"]["fingerprint"] == manifest["preflight"]["staged"]["fingerprint"]
         )
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_local_enospc_fails_without_remote_reconciliation_retry(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        stale_dir = tmp_path / "stale"
+        _write_upload_bundle(data_dir)
+        _write_stale_publication_marker(stale_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        disk_error = OSError(errno.ENOSPC, "archive disk full")
+        with (
+            patch("kagglehub.dataset_upload", side_effect=disk_error) as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                return_value=(str(stale_dir), 40),
+            ) as resolver,
+            patch.object(client, "_resolve_remote_dataset_version") as version,
+            patch.object(client, "_sleep") as sleep,
+            pytest.raises(OSError, match="archive disk full"),
+        ):
+            client.upload(data_dir=data_dir, verify_remote=True)
+
+        upload.assert_called_once()
+        resolver.assert_called_once()
+        version.assert_not_called()
+        sleep.assert_not_called()
+        manifest = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["status"] == "upload_failed_local_resource"
+        assert manifest["publication"]["result"] == "upload_failed_local_resource"
+        state = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-publication-state.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        record = next(iter(state["datasets"]["wyattowalsh/basketball"]["publications"].values()))
+        assert record["state"] == "failed"
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_capacity_guard_fails_before_kaggle_submission(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        with (
+            patch.object(
+                client,
+                "_require_disk_capacity",
+                side_effect=OSError(errno.ENOSPC, "insufficient upload workspace"),
+            ),
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(OSError, match="insufficient upload workspace"),
+        ):
+            client.upload(data_dir=data_dir)
+
+        upload.assert_not_called()
+        manifest = json.loads(
+            (tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["status"] == "upload_capacity_failed"
+        assert manifest["publication"]["upload_attempts"] == 0
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_uses_settings_data_dir_by_default(
@@ -640,6 +803,37 @@ class TestKaggleClientUpload:
         mock_up.assert_not_called()
 
     @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_rejects_symlinked_resource_parent(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        outside_csv = tmp_path / "outside-csv"
+        data_dir.mkdir()
+        outside_csv.mkdir()
+        (outside_csv / "table.csv").write_text("id\n1\n", encoding="utf-8")
+        try:
+            (data_dir / "csv").symlink_to(outside_csv, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+        _write_upload_metadata(
+            data_dir,
+            resources=[{"path": "csv/table.csv", "name": "Spoofed CSV"}],
+        )
+        mock_settings.return_value = NbaDbSettings(
+            data_dir=data_dir,
+            log_dir=tmp_path / "logs",
+        )
+        from nbadb.kaggle.client import KaggleClient
+
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            pytest.raises(ValueError, match="resource path must not be a symlink"),
+        ):
+            KaggleClient().upload(data_dir=data_dir)
+
+        upload.assert_not_called()
+
+    @patch("nbadb.kaggle.client.get_settings")
     def test_upload_rejects_source_symlink_mutation_before_staging(
         self, mock_settings: MagicMock, tmp_path: Path
     ) -> None:
@@ -702,14 +896,14 @@ class TestKaggleClientUpload:
         with (
             patch.object(client, "_stage_upload_bundle", side_effect=mutate_after_stage),
             patch("kagglehub.dataset_upload") as mock_up,
-            pytest.raises(ValueError, match="SQLite resource integrity validation failed"),
+            pytest.raises(RuntimeError, match="staged upload bundle does not match"),
         ):
             client.upload(data_dir=data_dir)
 
         mock_up.assert_not_called()
         manifest_path = tmp_path / "logs" / "kaggle" / "kaggle-upload-manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        assert manifest["status"] == "source_validation_failed_before_upload"
+        assert manifest["status"] == "staged_pre_upload_mismatch"
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_bundle_and_publication_identity_are_independent_of_local_root(
@@ -960,25 +1154,56 @@ class TestKaggleClientUpload:
         def capture_upload(**kwargs: object) -> None:
             shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
 
+        def download_uploaded_file(
+            download_root: Path,
+            version: int,
+            relative_path: str,
+        ) -> tuple[Path, int]:
+            assert version == 12
+            destination = download_root / relative_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(uploaded_dir / relative_path, destination)
+            return destination, 12
+
         client = KaggleClient()
+        inventory_api = _paginated_inventory_api({12: uploaded_dir})
         with (
             patch("kagglehub.dataset_upload", side_effect=capture_upload),
             patch(
                 "kagglehub.registry.dataset_resolver",
-                side_effect=[(str(stale_dir), 11), (str(uploaded_dir), 12)],
+                side_effect=[
+                    (str(stale_dir), 11),
+                    (str(uploaded_dir), 12),
+                ],
             ) as mock_resolver,
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=download_uploaded_file,
+            ) as download_file,
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
             patch.object(client, "_resolve_remote_dataset_version", return_value=12),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
         assert mock_resolver.call_count == 2
-        assert all(
-            str(call.args[0]) == "wyattowalsh/basketball" for call in mock_resolver.call_args_list
-        )
-        assert all(
-            call.args[1] == "nbadb-publication.json" for call in mock_resolver.call_args_list
-        )
+        assert [str(call.args[0]) for call in mock_resolver.call_args_list] == [
+            "wyattowalsh/basketball",
+            "wyattowalsh/basketball",
+        ]
+        assert [call.args[1] for call in mock_resolver.call_args_list] == [
+            "nbadb-publication.json",
+            "nbadb-publication.json",
+        ]
         assert all(call.kwargs["force_download"] is True for call in mock_resolver.call_args_list)
+        assert download_file.call_count == len(list(uploaded_dir.rglob("*"))) - len(
+            [path for path in uploaded_dir.rglob("*") if path.is_dir()]
+        )
+        inventory_requests = (
+            inventory_api.datasets.dataset_api_client.list_dataset_files.call_args_list
+        )
+        assert [call.args[0].dataset_version_number for call in inventory_requests] == [12, 12]
+        assert [call.args[0].page_token for call in inventory_requests] == ["", "offset:2"]
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded_remote_verified"
         assert (
@@ -991,9 +1216,23 @@ class TestKaggleClientUpload:
         assert manifest["publication"]["resolved_version"] == 12
         assert manifest["publication"]["upload_attempts"] == 1
         assert manifest["publication"]["verification_attempts"] == 1
+        assert (
+            manifest["publication"]["resource_verification_mode"]
+            == "exact_api_inventory_and_sha256_full_readback"
+        )
+        resource_verification = manifest["remote_readback"]["resource_verification"]
+        _assert_full_resource_verification(
+            resource_verification,
+            version=12,
+            expected_tree=manifest["post_upload"],
+        )
+        assert manifest["publication"]["resource_verification"] == resource_verification
+        assert manifest["publication"]["observations"][0]["resource_verification"] == (
+            resource_verification
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
-    def test_upload_verify_remote_downloads_only_publication_marker(
+    def test_upload_verify_remote_streams_each_exact_version_file(
         self, mock_settings: MagicMock, tmp_path: Path
     ) -> None:
         data_dir = tmp_path / "data"
@@ -1007,13 +1246,37 @@ class TestKaggleClientUpload:
         def capture_upload(**kwargs: object) -> None:
             shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
 
+        downloaded_paths: list[str] = []
+
+        def download_uploaded_file(
+            download_root: Path,
+            version: int,
+            relative_path: str,
+        ) -> tuple[Path, int]:
+            assert version == 21
+            downloaded_paths.append(relative_path)
+            destination = download_root / relative_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(uploaded_dir / relative_path, destination)
+            return destination, 21
+
         client = KaggleClient()
+        inventory_api = _paginated_inventory_api({21: uploaded_dir})
         with (
             patch("kagglehub.dataset_upload", side_effect=capture_upload),
             patch(
                 "kagglehub.registry.dataset_resolver",
-                side_effect=[(str(stale_dir), 20), (str(uploaded_dir), 21)],
+                side_effect=[
+                    (str(stale_dir), 20),
+                    (str(uploaded_dir), 21),
+                ],
             ) as mock_resolver,
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=download_uploaded_file,
+            ),
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
             patch.object(client, "_resolve_remote_dataset_version", return_value=21),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
@@ -1024,8 +1287,23 @@ class TestKaggleClientUpload:
             assert call.args[1] == "nbadb-publication.json"
             assert call.kwargs["force_download"] is True
             assert "output_dir" in call.kwargs
+        assert downloaded_paths == sorted(
+            path.relative_to(uploaded_dir).as_posix()
+            for path in uploaded_dir.rglob("*")
+            if path.is_file()
+        )
+        inventory_requests = (
+            inventory_api.datasets.dataset_api_client.list_dataset_files.call_args_list
+        )
+        assert [call.args[0].dataset_version_number for call in inventory_requests] == [21, 21]
+        assert [call.args[0].page_token for call in inventory_requests] == ["", "offset:2"]
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded_remote_verified"
+        _assert_full_resource_verification(
+            manifest["remote_readback"]["resource_verification"],
+            version=21,
+            expected_tree=manifest["post_upload"],
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_matching_remote_marker_skips_duplicate_upload(
@@ -1052,17 +1330,30 @@ class TestKaggleClientUpload:
         )
         client._write_publication_marker(remote_dir, marker)
 
+        inventory_api = _paginated_inventory_api({31: remote_dir})
         with (
             patch("kagglehub.dataset_upload") as mock_upload,
             patch(
                 "kagglehub.registry.dataset_resolver",
                 return_value=(str(remote_dir), 31),
+            ) as mock_resolver,
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader({31: remote_dir}),
             ),
+            patch.object(
+                client,
+                "_verify_remote_bundle",
+                wraps=client._verify_remote_bundle,
+            ) as verify_bundle,
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
             patch.object(client, "_resolve_remote_dataset_version", return_value=31),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
         mock_upload.assert_not_called()
+        assert mock_resolver.call_count == 1
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "reconciled_existing_remote"
         assert manifest["publication"]["result"] == "reconciled_existing_remote"
@@ -1075,6 +1366,80 @@ class TestKaggleClientUpload:
         assert records[publish_key]["state"] == "resolved"
         assert records[publish_key]["last_status"] == "reconciled_existing_remote"
         assert records[publish_key]["resolved_version"] == 31
+        resource_verification = manifest["remote_readback"]["resource_verification"]
+        _assert_full_resource_verification(
+            resource_verification,
+            version=31,
+            expected_tree=manifest["post_upload"],
+        )
+        assert manifest["publication"]["baseline"]["resource_verification"] == (
+            resource_verification
+        )
+        assert verify_bundle.call_args.kwargs["deadline"] > 0
+
+    @patch("nbadb.kaggle.client.get_settings")
+    def test_upload_bootstrap_marker_race_uses_bounded_full_readback(
+        self, mock_settings: MagicMock, tmp_path: Path
+    ) -> None:
+        data_dir = tmp_path / "data"
+        _write_upload_bundle(data_dir)
+        remote_dir = tmp_path / "remote"
+        remote_dir.mkdir()
+        mock_settings.return_value = NbaDbSettings(data_dir=data_dir, log_dir=tmp_path / "logs")
+        from nbadb.kaggle.client import KaggleClient
+
+        client = KaggleClient()
+        preflight = client._snapshot_upload_bundle(data_dir)
+        client._stage_upload_bundle(data_dir, remote_dir, preflight)
+        data_tree = client._expected_staged_tree_snapshot(preflight, remote_dir)
+        publish_key = hashlib.sha256(
+            f"wyattowalsh/basketball:{preflight['fingerprint']}".encode()
+        ).hexdigest()[:20]
+        marker = client._publication_marker_payload(
+            preflight=preflight,
+            publish_key=publish_key,
+            data_tree_fingerprint=data_tree["fingerprint"],
+        )
+        client._write_publication_marker(remote_dir, marker)
+
+        inventory_api = _paginated_inventory_api({32: remote_dir})
+        with (
+            patch("kagglehub.dataset_upload") as upload,
+            patch(
+                "kagglehub.registry.dataset_resolver",
+                side_effect=[
+                    _kaggle_api_http_error(404),
+                    (str(remote_dir), 32),
+                ],
+            ),
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader({32: remote_dir}),
+            ),
+            patch.object(
+                client,
+                "_verify_remote_bundle",
+                wraps=client._verify_remote_bundle,
+            ) as verify_bundle,
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[31, 32, 32],
+            ),
+        ):
+            manifest_path = client.upload(
+                data_dir=data_dir,
+                verify_remote=True,
+                remote_timeout_seconds=30,
+            )
+
+        upload.assert_not_called()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "reconciled_existing_remote"
+        assert manifest["publication"]["resolved_version"] == 32
+        assert verify_bundle.call_args.kwargs["deadline"] > 0
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_rejects_matching_marker_from_noncurrent_version(
@@ -1177,6 +1542,7 @@ class TestKaggleClientUpload:
             shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
 
         client = KaggleClient()
+        inventory_api = _paginated_inventory_api({239: uploaded_dir})
         with (
             patch("kagglehub.dataset_upload", side_effect=capture_upload) as mock_upload,
             patch(
@@ -1189,14 +1555,20 @@ class TestKaggleClientUpload:
             ),
             patch.object(
                 client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader({239: uploaded_dir}),
+            ),
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
+            patch.object(
+                client,
                 "_resolve_remote_dataset_version",
-                side_effect=[238, 238, 239],
+                side_effect=[238, 238, 239, 239],
             ) as version,
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
         mock_upload.assert_called_once()
-        assert version.call_count == 3
+        assert version.call_count == 4
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["status"] == "uploaded_remote_verified"
         assert manifest["publication"]["baseline"] == {
@@ -1216,6 +1588,11 @@ class TestKaggleClientUpload:
         }
         assert manifest["publication"]["resolved_version"] == 239
         assert manifest["publication"]["upload_attempts"] == 1
+        _assert_full_resource_verification(
+            manifest["remote_readback"]["resource_verification"],
+            version=239,
+            expected_tree=manifest["post_upload"],
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_baseline_timeout_does_not_upload(
@@ -1563,6 +1940,7 @@ class TestKaggleClientUpload:
             shutil.copytree(Path(str(kwargs["local_dataset_dir"])), uploaded_dir)
 
         client = KaggleClient()
+        inventory_api = _paginated_inventory_api({7: uploaded_dir})
         with (
             patch("kagglehub.dataset_upload", side_effect=capture_upload) as mock_upload,
             patch(
@@ -1573,6 +1951,12 @@ class TestKaggleClientUpload:
                     (str(uploaded_dir), 7),
                 ],
             ) as mock_resolver,
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader({7: uploaded_dir}),
+            ),
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
             patch.object(client, "_sleep") as mock_sleep,
             patch.object(client, "_resolve_remote_dataset_version", return_value=7),
         ):
@@ -1589,6 +1973,11 @@ class TestKaggleClientUpload:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["publication"]["verification_attempts"] == 2
         assert manifest["publication"]["resolved_version"] == 7
+        _assert_full_resource_verification(
+            manifest["publication"]["resource_verification"],
+            version=7,
+            expected_tree=manifest["post_upload"],
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_ambiguous_transport_error_reconciles_without_second_upload(
@@ -1607,12 +1996,22 @@ class TestKaggleClientUpload:
             raise TimeoutError("ambiguous response")
 
         client = KaggleClient()
+        inventory_api = _paginated_inventory_api({41: uploaded_dir})
         with (
             patch("kagglehub.dataset_upload", side_effect=accepted_then_timed_out) as mock_upload,
             patch(
                 "kagglehub.registry.dataset_resolver",
-                side_effect=[(str(stale_dir), 40), (str(uploaded_dir), 41)],
+                side_effect=[
+                    (str(stale_dir), 40),
+                    (str(uploaded_dir), 41),
+                ],
             ),
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader({41: uploaded_dir}),
+            ),
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
             patch.object(client, "_resolve_remote_dataset_version", return_value=41),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
@@ -1629,6 +2028,11 @@ class TestKaggleClientUpload:
         record = publication_records[manifest["publication"]["publish_key"]]
         assert record["state"] == "resolved"
         assert record["resolved_version"] == 41
+        _assert_full_resource_verification(
+            manifest["remote_readback"]["resource_verification"],
+            version=41,
+            expected_tree=manifest["post_upload"],
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_upload_ambiguous_application_error_still_reconciles_remote(
@@ -1647,12 +2051,22 @@ class TestKaggleClientUpload:
             raise RuntimeError("unexpected upload response shape")
 
         client = KaggleClient()
+        inventory_api = _paginated_inventory_api({43: uploaded_dir})
         with (
             patch("kagglehub.dataset_upload", side_effect=accepted_then_raised) as mock_upload,
             patch(
                 "kagglehub.registry.dataset_resolver",
-                side_effect=[(str(stale_dir), 42), (str(uploaded_dir), 43)],
+                side_effect=[
+                    (str(stale_dir), 42),
+                    (str(uploaded_dir), 43),
+                ],
             ),
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader({43: uploaded_dir}),
+            ),
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
             patch.object(client, "_resolve_remote_dataset_version", return_value=43),
         ):
             manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
@@ -1662,6 +2076,11 @@ class TestKaggleClientUpload:
         assert manifest["status"] == "uploaded_remote_verified"
         assert manifest["publication"]["result"] == "reconciled_after_upload_error"
         assert manifest["publication"]["resolved_version"] == 43
+        _assert_full_resource_verification(
+            manifest["remote_readback"]["resource_verification"],
+            version=43,
+            expected_tree=manifest["post_upload"],
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_unverified_upload_exception_remains_unresolved_and_blocks_retry(
@@ -1848,13 +2267,37 @@ class TestKaggleClientUpload:
         def capture_second(**kwargs: object) -> None:
             shutil.copytree(Path(str(kwargs["local_dataset_dir"])), second_remote)
 
+        inventory_api = _paginated_inventory_api(
+            {
+                70: first_remote,
+                71: second_remote,
+            }
+        )
         with (
             patch("kagglehub.dataset_upload", side_effect=capture_second) as upload,
             patch(
                 "kagglehub.registry.dataset_resolver",
-                side_effect=[(str(first_remote), 70), (str(second_remote), 71)],
+                side_effect=[
+                    (str(first_remote), 70),
+                    (str(second_remote), 71),
+                ],
             ),
-            patch.object(client, "_resolve_remote_dataset_version", side_effect=[70, 71]),
+            patch.object(
+                client,
+                "_download_remote_dataset_file",
+                side_effect=_versioned_remote_file_downloader(
+                    {
+                        70: first_remote,
+                        71: second_remote,
+                    }
+                ),
+            ),
+            patch("kagglehub.clients.build_kaggle_client", return_value=inventory_api),
+            patch.object(
+                client,
+                "_resolve_remote_dataset_version",
+                side_effect=[70, 70, 71, 71],
+            ),
         ):
             second_manifest_path = client.upload(data_dir=data_dir, verify_remote=True)
 
@@ -1875,6 +2318,16 @@ class TestKaggleClientUpload:
         assert records[first_publish_key]["resolved_version"] == 70
         assert records[second_manifest["publication"]["publish_key"]]["state"] == "resolved"
         assert records[second_manifest["publication"]["publish_key"]]["resolved_version"] == 71
+        _assert_full_resource_verification(
+            second_manifest["publication"]["baseline"]["resource_verification"],
+            version=70,
+            expected_tree=first_manifest["post_upload"],
+        )
+        _assert_full_resource_verification(
+            second_manifest["remote_readback"]["resource_verification"],
+            version=71,
+            expected_tree=second_manifest["post_upload"],
+        )
 
     @patch("nbadb.kaggle.client.get_settings")
     def test_changed_bundle_does_not_resolve_prior_marker_from_noncurrent_version(
